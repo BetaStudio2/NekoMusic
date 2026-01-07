@@ -149,6 +149,9 @@ fun MainScreen() {
                             onBackClick = {
                                 Log.d("MainActivity", "从播放页面返回")
                                 navController.popBackStack()
+                            },
+                            onPlaylistClick = {
+                                showPlaylist = true
                             }
                         )
                     }
@@ -179,7 +182,7 @@ fun MainScreen() {
                 BottomNavigationBar(navController = navController)
             }
             
-            // 播放列表底部弹窗
+            // 播放列表弹窗（在所有控件之上）
             PlaylistBottomSheet(
                 isVisible = showPlaylist,
                 currentMusicId = currentMusicId,

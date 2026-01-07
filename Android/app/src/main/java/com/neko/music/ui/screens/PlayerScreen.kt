@@ -159,7 +159,9 @@ fun PlayerScreen(
     
                 onBackClick = onBackClick,
     
-                onMenuClick = {}
+                onMenuClick = {},
+    
+                onPlaylistClick = onPlaylistClick
     
             )
     
@@ -572,7 +574,8 @@ fun PlayerScreen(
 @Composable
 fun TopBar(
     onBackClick: () -> Unit,
-    onMenuClick: () -> Unit
+    onMenuClick: () -> Unit,
+    onPlaylistClick: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -600,15 +603,29 @@ fun TopBar(
             color = Color.Black
         )
         
-        IconButton(
-            onClick = onMenuClick,
-            modifier = Modifier.size(48.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.MoreVert,
-                contentDescription = "更多",
-                tint = Color.Black
-            )
+        Row {
+            IconButton(
+                onClick = onPlaylistClick,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Favorite,
+                    contentDescription = "播放列表",
+                    tint = Color.Black,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            
+            IconButton(
+                onClick = onMenuClick,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "更多",
+                    tint = Color.Black
+                )
+            }
         }
     }
 }
