@@ -12,7 +12,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.navigation.NavHostController
@@ -26,6 +28,7 @@ import com.neko.music.service.MusicPlayerManager
 import com.neko.music.ui.components.BottomNavigationBar
 import com.neko.music.ui.components.BottomNavItem
 import com.neko.music.ui.components.MiniPlayer
+import com.neko.music.ui.components.PlaylistBottomSheet
 import com.neko.music.ui.screens.HomeScreen
 import com.neko.music.ui.screens.MineScreen
 import com.neko.music.ui.screens.PlayerScreen
@@ -70,6 +73,9 @@ fun MainScreen() {
     val currentMusicArtist by playerManager.currentMusicArtist.collectAsState()
     val currentMusicCover by playerManager.currentMusicCover.collectAsState()
     val currentMusicId by playerManager.currentMusicId.collectAsState()
+    
+    // 播放列表显示状态
+    var showPlaylist by androidx.compose.runtime.remember { mutableStateOf(false) }
     
     // 启动时恢复上次播放的音乐
     androidx.compose.runtime.LaunchedEffect(Unit) {
@@ -165,10 +171,33 @@ fun MainScreen() {
                         val title = currentMusicTitle ?: "未知歌曲"
                         val artist = currentMusicArtist ?: "未知歌手"
                         navController.navigate("player/$id/$title/$artist")
+                    },
+                    onPlaylistClick = {
+                        showPlaylist = true
                     }
                 )
                 BottomNavigationBar(navController = navController)
             }
+            
+            // 播放列表底部弹窗
+            PlaylistBottomSheet(
+                isVisible = showPlaylist,
+                currentMusicId = currentMusicId,
+                onDismiss = { showPlaylist = false },
+                onMusicClick = { music ->
+                    // 播放选中的音乐
+                    scope.launch {
+                        val musicApi = com.neko.music.data.api.MusicApi()
+                        val url = musicApi.getMusicFileUrl(music)
+                        val fullCoverUrl = if (music.coverFilePath.isNotEmpty()) {
+                            "https://music.cnmsb.xin${music.coverFilePath}"
+                        } else {
+                            "https://music.cnmsb.xin/api/music/cover/${music.id}"
+                        }
+                        playerManager.playMusic(url, music.id, music.title, music.artist, music.coverFilePath, fullCoverUrl)
+                    }
+                }
+            )
         }
     }
 }

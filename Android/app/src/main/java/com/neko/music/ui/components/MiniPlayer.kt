@@ -40,7 +40,8 @@ fun MiniPlayer(
     artist: String = "",
     coverUrl: String? = null,
     onPlayPauseClick: () -> Unit = {},
-    onPlayerClick: () -> Unit = {}
+    onPlayerClick: () -> Unit = {},
+    onPlaylistClick: () -> Unit = {}
 ) {
     Box(
         modifier = Modifier
@@ -136,11 +137,11 @@ fun MiniPlayer(
                 
                 // 播放列表按钮
                 IconButton(
-                    onClick = {},
+                    onClick = onPlaylistClick,
                     modifier = Modifier.size(36.dp)
                 ) {
                     Icon(
-                        painter = androidx.compose.ui.res.painterResource(R.drawable.playlist),
+                        painter = painterResource(R.drawable.playlist),
                         contentDescription = "Playlist",
                         tint = Color.Black,
                         modifier = Modifier.size(20.dp)

@@ -6,6 +6,7 @@ import com.neko.music.data.database.AppDatabase
 import com.neko.music.data.database.PlaylistEntity
 import com.neko.music.data.model.Music
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 class PlaylistManager private constructor(context: Context) {
@@ -63,6 +64,17 @@ class PlaylistManager private constructor(context: Context) {
     
     suspend fun isInPlaylist(musicId: Int): Boolean {
         return dao.getMusicById(musicId) != null
+    }
+    
+    suspend fun clearPlaylistExcept(currentMusicId: Int) {
+        val allMusic: List<PlaylistEntity> = kotlinx.coroutines.runBlocking {
+            dao.getAllPlaylist().first()
+        }
+        allMusic.forEach { entity: PlaylistEntity ->
+            if (entity.musicId != currentMusicId) {
+                dao.removeFromPlaylist(entity.musicId)
+            }
+        }
     }
     
     suspend fun getLastPlayed(): Music? {
