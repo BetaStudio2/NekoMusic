@@ -139,6 +139,7 @@ fun PlayerScreen(
     var musicFileUrl by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var lyrics by remember { mutableStateOf<List<LrcLine>>(emptyList()) }
+    val lyricsListState = androidx.compose.foundation.lazy.rememberLazyListState()
     val isFavorite by playerManager.isFavorite.collectAsState()
     var showLyrics by remember { mutableStateOf(false) }
     val playMode by playerManager.playMode.collectAsState()
@@ -273,7 +274,8 @@ fun PlayerScreen(
                             currentProgressSeconds = currentProgressSeconds,
                             isLoading = isLoading,
                             onClick = { showLyrics = false },
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier.fillMaxSize(),
+                            listState = lyricsListState
                         )
                     }
                 }
@@ -688,20 +690,25 @@ fun LyricsView(
             currentProgressSeconds: Float,
             isLoading: Boolean,
             onClick: () -> Unit,
-            modifier: Modifier = Modifier
+            modifier: Modifier = Modifier,
+            listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
         ) {
-            val listState = androidx.compose.foundation.lazy.LazyListState()
             val currentIndex = remember(lyrics, currentProgressSeconds) {
                 lyrics.indexOfLast { it.time <= currentProgressSeconds }
             }
 
             // 自动滚动到当前歌词，使其居中
             androidx.compose.runtime.LaunchedEffect(currentIndex) {
+                android.util.Log.d("LyricsView", "LaunchedEffect: currentIndex=$currentIndex, lyrics.size=${lyrics.size}")
                 if (currentIndex >= 0 && lyrics.isNotEmpty()) {
                     try {
-                        listState.animateScrollToItem(currentIndex)
+                        // 延迟一下，避免频繁触发
+                        kotlinx.coroutines.delay(50)
+                        // 简单地滚动到当前歌词
+                        listState.animateScrollToItem(currentIndex, 0)
+                        android.util.Log.d("LyricsView", "Scroll to index=$currentIndex")
                     } catch (e: Exception) {
-                        // 忽略滚动错误
+                        android.util.Log.e("LyricsView", "Scroll error: ${e.message}", e)
                     }
                 }
             }
@@ -743,7 +750,7 @@ fun LyricsView(
                         ) {
                             // 添加顶部占位，让第一行歌词也能居中
                             item {
-                                Spacer(modifier = Modifier.height(180.dp))
+                                Spacer(modifier = Modifier.height(250.dp))
                             }
 
                             items(lyrics.size) { index ->
@@ -765,7 +772,7 @@ fun LyricsView(
 
                             // 添加底部占位，让最后一行歌词也能居中
                             item {
-                                Spacer(modifier = Modifier.height(400.dp))
+                                Spacer(modifier = Modifier.height(300.dp))
                             }
                         }
                     }
