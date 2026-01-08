@@ -128,7 +128,7 @@ class MusicPlayerManager private constructor(context: Context) {
         }
 
         // 调用后端 API 获取收藏列表，检查当前音乐是否在列表中
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+        scope.launch {
             try {
                 val response = favoriteApi.getFavorites(token)
                 if (response.success) {

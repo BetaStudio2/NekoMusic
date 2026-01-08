@@ -159,9 +159,6 @@ fun MainScreen() {
 
         // 初始化收藏管理器
         playerManager.initializeFavoriteManager()
-
-        // 检查当前音乐的收藏状态
-        playerManager.checkFavoriteStatus()
     }
     
     // 跟踪是否从播放页面返回
@@ -171,6 +168,9 @@ fun MainScreen() {
     androidx.compose.runtime.LaunchedEffect(Unit) {
         scope.launch {
             playerManager.restoreLastPlayed(context)
+            // 等待音乐恢复播放后再检查收藏状态
+            kotlinx.coroutines.delay(1000) // 等待1秒确保音乐信息已加载
+            playerManager.checkFavoriteStatus()
         }
     }
     
