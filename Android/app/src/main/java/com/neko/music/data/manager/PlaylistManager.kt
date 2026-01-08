@@ -140,6 +140,105 @@ class PlaylistManager private constructor(context: Context) {
         }
     }
     
+    suspend fun getNextMusic(currentMusicId: Int): Music? {
+        android.util.Log.d("PlaylistManager", "getNextMusic called with currentMusicId: $currentMusicId")
+        val entity = dao.getNextMusic(currentMusicId)
+        android.util.Log.d("PlaylistManager", "getNextMusic result: $entity")
+        return entity?.let {
+            Music(
+                id = it.musicId,
+                title = it.title,
+                artist = it.artist,
+                album = it.album,
+                duration = it.duration,
+                filePath = it.filePath,
+                coverFilePath = it.coverFilePath,
+                uploadUserId = it.uploadUserId,
+                createdAt = it.createdAt
+            )
+        }
+    }
+    
+    suspend fun getFirstMusic(): Music? {
+        android.util.Log.d("PlaylistManager", "getFirstMusic called")
+        val entity = dao.getFirstMusic()
+        android.util.Log.d("PlaylistManager", "getFirstMusic result: $entity")
+        return entity?.let {
+            Music(
+                id = it.musicId,
+                title = it.title,
+                artist = it.artist,
+                album = it.album,
+                duration = it.duration,
+                filePath = it.filePath,
+                coverFilePath = it.coverFilePath,
+                uploadUserId = it.uploadUserId,
+                createdAt = it.createdAt
+            )
+        }
+    }
+    
+    suspend fun getPreviousMusic(currentMusicId: Int): Music? {
+        return dao.getPreviousMusic(currentMusicId)?.let { entity ->
+            Music(
+                id = entity.musicId,
+                title = entity.title,
+                artist = entity.artist,
+                album = entity.album,
+                duration = entity.duration,
+                filePath = entity.filePath,
+                coverFilePath = entity.coverFilePath,
+                uploadUserId = entity.uploadUserId,
+                createdAt = entity.createdAt
+            )
+        }
+    }
+    
+    suspend fun getAllPlaylistList(): List<Music> {
+        return dao.getAllPlaylistList().map { entity ->
+            Music(
+                id = entity.musicId,
+                title = entity.title,
+                artist = entity.artist,
+                album = entity.album,
+                duration = entity.duration,
+                filePath = entity.filePath,
+                coverFilePath = entity.coverFilePath,
+                uploadUserId = entity.uploadUserId,
+                createdAt = entity.createdAt
+            )
+        }
+    }
+    
+    suspend fun getRandomMusic(excludeMusicId: Int): Music? {
+        val allMusic = getAllPlaylistList()
+        val filtered = allMusic.filter { it.id != excludeMusicId }
+        return if (filtered.isNotEmpty()) {
+            filtered.random()
+        } else {
+            null
+        }
+    }
+    
+    suspend fun getPlaylistMusicById(musicId: Int): Music? {
+        android.util.Log.d("PlaylistManager", "getPlaylistMusicById called with musicId: $musicId")
+        val entity = dao.getMusicById(musicId)
+        android.util.Log.d("PlaylistManager", "getPlaylistMusicById result: $entity")
+        return entity?.let {
+            Music(
+                id = it.musicId,
+                title = it.title,
+                artist = it.artist,
+                album = it.album,
+                duration = it.duration,
+                filePath = it.filePath,
+                coverFilePath = it.coverFilePath,
+                uploadUserId = it.uploadUserId,
+                createdAt = it.createdAt
+            )
+        }
+    }
+    
     companion object {
         @Volatile
         private var instance: PlaylistManager? = null

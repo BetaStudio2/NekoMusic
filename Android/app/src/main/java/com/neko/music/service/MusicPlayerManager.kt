@@ -65,6 +65,9 @@ class MusicPlayerManager private constructor(context: Context) {
     private val _currentMusicId = MutableStateFlow<Int?>(null)
     val currentMusicId: StateFlow<Int?> = _currentMusicId.asStateFlow()
     
+    // 播放历史记录栈（用于上一曲）
+    private val playHistory = mutableListOf<Int>()
+    
     private val _isFavorite = MutableStateFlow(false)
     val isFavorite: StateFlow<Boolean> = _isFavorite.asStateFlow()
     
@@ -97,6 +100,88 @@ class MusicPlayerManager private constructor(context: Context) {
         _playMode.value = mode
     }
     
+    // 下一曲
+    fun next() {
+        val currentId = _currentMusicId.value ?: return
+        android.util.Log.d("MusicPlayerManager", "next() called, currentId: $currentId, playMode: ${_playMode.value}")
+        scope.launch {
+            when (_playMode.value) {
+                PlayMode.LIST_LOOP -> {
+                    // 列表循环：播放下一首，如果没有下一首则回到第一首
+                    android.util.Log.d("MusicPlayerManager", "LIST_LOOP mode, getting next music")
+                    val nextMusic = playlistManager.getNextMusic(currentId)
+                    android.util.Log.d("MusicPlayerManager", "nextMusic: $nextMusic")
+                    if (nextMusic != null) {
+                        playMusic(nextMusic.filePath, nextMusic.id, nextMusic.title, nextMusic.artist, nextMusic.coverFilePath)
+                    } else {
+                        // 没有下一首，回到第一首
+                        android.util.Log.d("MusicPlayerManager", "No next music found, getting first music")
+                        val firstMusic = playlistManager.getFirstMusic()
+                        android.util.Log.d("MusicPlayerManager", "firstMusic: $firstMusic")
+                        if (firstMusic != null) {
+                            playMusic(firstMusic.filePath, firstMusic.id, firstMusic.title, firstMusic.artist, firstMusic.coverFilePath)
+                        }
+                    }
+                }
+                PlayMode.SINGLE_LOOP -> {
+                    // 单曲循环：重新播放当前歌曲
+                    android.util.Log.d("MusicPlayerManager", "SINGLE_LOOP mode, replaying current")
+                    val currentUrl = _currentMusicUrl.value
+                    if (currentUrl != null) {
+                        player.seekTo(0)
+                        player.play()
+                    }
+                }
+                PlayMode.SHUFFLE -> {
+                    // 随机播放：随机选择一首不同的歌曲
+                    android.util.Log.d("MusicPlayerManager", "SHUFFLE mode, getting random music")
+                    val randomMusic = playlistManager.getRandomMusic(currentId)
+                    android.util.Log.d("MusicPlayerManager", "randomMusic: $randomMusic")
+                    if (randomMusic != null) {
+                        playMusic(randomMusic.filePath, randomMusic.id, randomMusic.title, randomMusic.artist, randomMusic.coverFilePath)
+                    } else {
+                        android.util.Log.d("MusicPlayerManager", "No random music found")
+                    }
+                }
+            }
+        }
+    }
+    
+    // 上一曲
+    fun previous() {
+        val currentId = _currentMusicId.value ?: return
+        android.util.Log.d("MusicPlayerManager", "previous() called, currentId: $currentId, playHistory size: ${playHistory.size}")
+        
+        // 从历史记录中获取上一首
+        if (playHistory.size > 1) {
+            // 移除当前歌曲
+            playHistory.removeAt(playHistory.size - 1)
+            // 获取上一首
+            val previousId = playHistory.lastOrNull()
+            android.util.Log.d("MusicPlayerManager", "previousId: $previousId")
+            if (previousId != null) {
+                scope.launch {
+                    // 从数据库中获取上一首歌曲信息
+                    val previousMusic = playlistManager.getPlaylistMusicById(previousId)
+                    android.util.Log.d("MusicPlayerManager", "previousMusic: $previousMusic")
+                    if (previousMusic != null) {
+                        playMusic(previousMusic.filePath, previousMusic.id, previousMusic.title, previousMusic.artist, previousMusic.coverFilePath)
+                    }
+                }
+            }
+        } else if (playHistory.size == 1) {
+            // 只有一首歌，重新播放
+            android.util.Log.d("MusicPlayerManager", "Only one song in history, replaying current")
+            val currentUrl = _currentMusicUrl.value
+            if (currentUrl != null) {
+                player.seekTo(0)
+                player.play()
+            }
+        } else {
+            android.util.Log.d("MusicPlayerManager", "No history, cannot play previous")
+        }
+    }
+    
     private var updateJob: Job? = null
     private var fadeJob: Job? = null
     private var coverBitmap: Bitmap? = null
@@ -118,11 +203,11 @@ class MusicPlayerManager private constructor(context: Context) {
             }
             
             override fun onSkipToNext() {
-                // TODO: 实现下一曲
+                next()
             }
             
             override fun onSkipToPrevious() {
-                // TODO: 实现上一曲
+                previous()
             }
             
             override fun onCustomAction(action: String, extras: android.os.Bundle?) {
@@ -151,6 +236,48 @@ class MusicPlayerManager private constructor(context: Context) {
                         _isPlaying.value = false
                         player.seekTo(0)
                         updatePlaybackState()
+                        
+                        // 根据播放模式自动切歌
+                        when (_playMode.value) {
+                            PlayMode.LIST_LOOP -> {
+                                // 列表循环：播放下一首
+                                scope.launch {
+                                    val currentId = _currentMusicId.value
+                                    if (currentId != null) {
+                                        val nextMusic = playlistManager.getNextMusic(currentId)
+                                        if (nextMusic != null) {
+                                            playMusic(nextMusic.filePath, nextMusic.id, nextMusic.title, nextMusic.artist, nextMusic.coverFilePath)
+                                        } else {
+                                            // 没有下一首，回到第一首
+                                            val firstMusic = playlistManager.getFirstMusic()
+                                            if (firstMusic != null) {
+                                                playMusic(firstMusic.filePath, firstMusic.id, firstMusic.title, firstMusic.artist, firstMusic.coverFilePath)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            PlayMode.SINGLE_LOOP -> {
+                                // 单曲循环：重新播放当前歌曲
+                                val currentUrl = _currentMusicUrl.value
+                                if (currentUrl != null) {
+                                    player.seekTo(0)
+                                    player.play()
+                                }
+                            }
+                            PlayMode.SHUFFLE -> {
+                                // 随机播放：随机选择一首不同的歌曲
+                                scope.launch {
+                                    val currentId = _currentMusicId.value
+                                    if (currentId != null) {
+                                        val randomMusic = playlistManager.getRandomMusic(currentId)
+                                        if (randomMusic != null) {
+                                            playMusic(randomMusic.filePath, randomMusic.id, randomMusic.title, randomMusic.artist, randomMusic.coverFilePath)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -285,6 +412,11 @@ class MusicPlayerManager private constructor(context: Context) {
     
     fun playMusic(url: String, id: Int? = null, title: String? = null, artist: String? = null, cover: String? = null, fullCoverUrl: String? = null) {
         if (_currentMusicUrl.value != url) {
+            // 添加到历史记录（如果不是重复播放同一首歌）
+            if (id != null && _currentMusicId.value != id) {
+                playHistory.add(id)
+            }
+            
             val mediaItem = MediaItem.fromUri(url)
             player.setMediaItem(mediaItem)
             player.prepare()

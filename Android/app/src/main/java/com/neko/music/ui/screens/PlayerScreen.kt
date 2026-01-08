@@ -289,8 +289,8 @@ fun PlayerScreen(
                 onPlayPauseClick = {
                     playerManager.togglePlayPause()
                 },
-                onPreviousClick = {},
-                onNextClick = {},
+                onPreviousClick = { playerManager.previous() },
+                onNextClick = { playerManager.next() },
                 onPlaylistClick = onPlaylistClick,
                 onPlayModeClick = { playerManager.togglePlayMode() }
             )
@@ -788,8 +788,8 @@ fun ProgressSlider(
             }
         }
 
-        @Composable
-fun PlaybackControls(
+@Composable
+    fun PlaybackControls(
             isPlaying: Boolean,
             isLoading: Boolean,
             musicFileUrl: String?,
@@ -914,7 +914,7 @@ fun PlaybackControls(
                             tint = Color.Black,
                             modifier = Modifier.size(24.dp)
                         )
-                                            }
-                                        }
-                                    }
-                        }
+                    }
+                }
+            }
+        }

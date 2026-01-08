@@ -28,4 +28,16 @@ interface PlaylistDao {
     
     @Query("SELECT * FROM playlist ORDER BY addedAt DESC LIMIT 1")
     suspend fun getLastPlayed(): PlaylistEntity?
+    
+    @Query("SELECT * FROM playlist WHERE musicId > :currentMusicId ORDER BY musicId ASC LIMIT 1")
+    suspend fun getNextMusic(currentMusicId: Int): PlaylistEntity?
+    
+    @Query("SELECT * FROM playlist WHERE musicId < :currentMusicId ORDER BY musicId DESC LIMIT 1")
+    suspend fun getPreviousMusic(currentMusicId: Int): PlaylistEntity?
+    
+    @Query("SELECT * FROM playlist ORDER BY musicId ASC LIMIT 1")
+    suspend fun getFirstMusic(): PlaylistEntity?
+    
+    @Query("SELECT * FROM playlist ORDER BY id ASC")
+    suspend fun getAllPlaylistList(): List<PlaylistEntity>
 }
