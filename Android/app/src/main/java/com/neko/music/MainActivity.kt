@@ -74,6 +74,18 @@ fun MainScreen() {
     val currentMusicArtist by playerManager.currentMusicArtist.collectAsState()
     val currentMusicCover by playerManager.currentMusicCover.collectAsState()
     val currentMusicId by playerManager.currentMusicId.collectAsState()
+    val currentPosition by playerManager.currentPosition.collectAsState()
+    val duration by playerManager.duration.collectAsState()
+    
+    // 计算播放进度
+    val progress = androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    
+    // 更新播放进度
+    androidx.compose.runtime.LaunchedEffect(currentPosition, duration) {
+        if (duration > 0) {
+            progress.floatValue = currentPosition.toFloat() / duration.toFloat()
+        }
+    }
     
     // 播放列表显示状态
     var showPlaylist by androidx.compose.runtime.remember { mutableStateOf(false) }
@@ -167,6 +179,7 @@ fun MainScreen() {
                     songTitle = currentMusicTitle ?: "暂无播放",
                     artist = currentMusicArtist ?: "",
                     coverUrl = currentMusicCover,
+                    progress = progress.floatValue,
                     onPlayPauseClick = {
                         playerManager.togglePlayPause()
                     },
