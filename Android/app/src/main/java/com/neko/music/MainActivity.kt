@@ -32,6 +32,7 @@ import com.neko.music.ui.components.PlaylistBottomSheet
 import com.neko.music.ui.screens.HomeScreen
 import com.neko.music.ui.screens.MineScreen
 import com.neko.music.ui.screens.PlayerScreen
+import com.neko.music.ui.screens.PlaylistScreen
 import com.neko.music.ui.screens.SearchResultScreen
 import com.neko.music.ui.theme.Neko云音乐Theme
 import kotlinx.coroutines.launch
@@ -151,7 +152,30 @@ fun MainScreen() {
                                 navController.popBackStack()
                             },
                             onPlaylistClick = {
-                                showPlaylist = true
+                                navController.navigate("playlist")
+                            }
+                        )
+                    }
+                    composable(
+                        route = "playlist"
+                    ) {
+                        PlaylistScreen(
+                            onBackClick = {
+                                navController.popBackStack()
+                            },
+                            onMusicClick = { music ->
+                                // 播放选中的音乐并返回
+                                scope.launch {
+                                    val musicApi = com.neko.music.data.api.MusicApi()
+                                    val url = musicApi.getMusicFileUrl(music)
+                                    val fullCoverUrl = if (music.coverFilePath.isNotEmpty()) {
+                                        "https://music.cnmsb.xin${music.coverFilePath}"
+                                    } else {
+                                        "https://music.cnmsb.xin/api/music/cover/${music.id}"
+                                    }
+                                    playerManager.playMusic(url, music.id, music.title, music.artist, music.coverFilePath, fullCoverUrl)
+                                }
+                                navController.popBackStack()
                             }
                         )
                     }
@@ -176,31 +200,12 @@ fun MainScreen() {
                         navController.navigate("player/$id/$title/$artist")
                     },
                     onPlaylistClick = {
-                        showPlaylist = true
+                        navController.navigate("playlist")
                     }
                 )
+                
                 BottomNavigationBar(navController = navController)
             }
-            
-            // 播放列表弹窗（在所有控件之上）
-            PlaylistBottomSheet(
-                isVisible = showPlaylist,
-                currentMusicId = currentMusicId,
-                onDismiss = { showPlaylist = false },
-                onMusicClick = { music ->
-                    // 播放选中的音乐
-                    scope.launch {
-                        val musicApi = com.neko.music.data.api.MusicApi()
-                        val url = musicApi.getMusicFileUrl(music)
-                        val fullCoverUrl = if (music.coverFilePath.isNotEmpty()) {
-                            "https://music.cnmsb.xin${music.coverFilePath}"
-                        } else {
-                            "https://music.cnmsb.xin/api/music/cover/${music.id}"
-                        }
-                        playerManager.playMusic(url, music.id, music.title, music.artist, music.coverFilePath, fullCoverUrl)
-                    }
-                }
-            )
         }
     }
 }

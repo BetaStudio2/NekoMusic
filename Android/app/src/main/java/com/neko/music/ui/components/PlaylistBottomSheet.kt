@@ -84,146 +84,146 @@ fun PlaylistBottomSheet(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                        Text(
-                            text = "播放列表",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
+                    Text(
+                        text = "播放列表",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
 
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // 清空列表按钮
-                            androidx.compose.material3.TextButton(
-                                onClick = {
-                                    currentMusicId?.let { id ->
-                                        scope.launch {
-                                            playlistManager.clearPlaylistExcept(id)
-                                        }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 清空列表按钮
+                        androidx.compose.material3.TextButton(
+                            onClick = {
+                                currentMusicId?.let { id ->
+                                    scope.launch {
+                                        playlistManager.clearPlaylistExcept(id)
                                     }
                                 }
-                            ) {
-                                Text(
-                                    text = "清空",
-                                    fontSize = 14.sp,
-                                    color = Color.Gray
-                                )
                             }
-
-                            IconButton(
-                                onClick = onDismiss,
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "关闭",
-                                    tint = Color.Gray,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // 播放列表
-                    if (playlist.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "播放列表为空",
+                                text = "清空",
                                 fontSize = 14.sp,
                                 color = Color.Gray
                             )
                         }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f)
+
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.size(32.dp)
                         ) {
-                            items(playlist) { music ->
-                                PlaylistItem(
-                                    music = music,
-                                    isPlaying = music.id == currentMusicId,
-                                    onClick = {
-                                        onMusicClick(music)
-                                        onDismiss()
-                                    }
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "关闭",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+
+                // 播放列表
+                if (playlist.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "播放列表为空",
+                            fontSize = 14.sp,
+                            color = Color.Gray
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                    ) {
+                        items(playlist) { music ->
+                            PlaylistItem(
+                                music = music,
+                                isPlaying = music.id == currentMusicId,
+                                onClick = {
+                                    onMusicClick(music)
+                                    onDismiss()
+                                }
+                            )
                         }
                     }
                 }
             }
         }
     }
+}
 
-    @Composable
-    fun PlaylistItem(
-        music: Music,
-        isPlaying: Boolean,
-        onClick: () -> Unit
+@Composable
+fun PlaylistItem(
+    music: Music,
+    isPlaying: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clickable(onClick = onClick)
+            .background(if (isPlaying) RoseRed.copy(alpha = 0.1f) else Color.Transparent),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
+        // 封面
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .clickable(onClick = onClick)
-                .background(if (isPlaying) RoseRed.copy(alpha = 0.1f) else Color.Transparent),
-            verticalAlignment = Alignment.CenterVertically
+                .size(48.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(Color(0xFFF5F5F5)),
+            contentAlignment = Alignment.Center
         ) {
-            // 封面
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFFF5F5F5)),
-                contentAlignment = Alignment.Center
-            ) {
-                AsyncImage(
-                    model = "https://music.cnmsb.xin${music.coverFilePath}",
-                    contentDescription = "封面",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                )
-            }
+            AsyncImage(
+                model = "https://music.cnmsb.xin${music.coverFilePath}",
+                contentDescription = "封面",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+            )
+        }
 
-            Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(12.dp))
 
-            // 歌曲信息
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = music.title,
-                    fontSize = 15.sp,
-                    fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal,
-                    color = if (isPlaying) RoseRed else Color.Black,
-                    maxLines = 1
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = music.artist,
-                    fontSize = 13.sp,
-                    color = Color.Gray,
-                    maxLines = 1
-                )
-            }
+        // 歌曲信息
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = music.title,
+                fontSize = 15.sp,
+                fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal,
+                color = if (isPlaying) RoseRed else Color.Black,
+                maxLines = 1
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = music.artist,
+                fontSize = 13.sp,
+                color = Color.Gray,
+                maxLines = 1
+            )
+        }
 
-            // 播放图标
-            if (isPlaying) {
-                Icon(
-                    painter = androidx.compose.ui.res.painterResource(R.drawable.pause),
-                    contentDescription = "正在播放",
-                    tint = RoseRed,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
+        // 播放图标
+        if (isPlaying) {
+            Icon(
+                painter = androidx.compose.ui.res.painterResource(R.drawable.pause),
+                contentDescription = "正在播放",
+                tint = RoseRed,
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
+}
