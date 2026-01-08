@@ -114,7 +114,7 @@ fun PlaylistScreen(
                     onClick = {
                         scope.launch {
                             // 清空列表但保留当前歌曲
-                            playlistManager.clearPlaylistExcept(0)
+                            currentMusicId?.let { playlistManager.clearPlaylistExcept(it) }
                         }
                     }
                 ) {
