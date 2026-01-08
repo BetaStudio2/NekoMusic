@@ -1,5 +1,8 @@
 package com.neko.music.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -41,6 +44,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun PlaylistScreen(
+    isVisible: Boolean,
     onBackClick: () -> Unit,
     onMusicClick: (Music) -> Unit
 ) {
@@ -49,21 +53,27 @@ fun PlaylistScreen(
     val playlist by playlistManager.playlist.collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.5f))
-            .clickable(onClick = onBackClick)
+    AnimatedVisibility(
+        visible = isVisible,
+        enter = slideInVertically(initialOffsetY = { it }),
+        exit = slideOutVertically(targetOffsetY = { it })
     ) {
-        Column(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(800.dp)
-                .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-                .background(Color.White)
-                .clickable(enabled = false) {},
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.5f))
+                .clickable(onClick = onBackClick)
         ) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(600.dp)
+                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                    .background(Color.White)
+                    .clickable(enabled = false) {},
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
             // 顶部栏
             Row(
                 modifier = Modifier
@@ -120,7 +130,8 @@ fun PlaylistScreen(
             if (playlist.isEmpty()) {
                 Box(
                     modifier = Modifier
-                        .fillMaxSize(),
+                        .fillMaxWidth()
+                        .weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -132,9 +143,8 @@ fun PlaylistScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .fillMaxWidth()
+                        .weight(1f)
                 ) {
                     items(playlist) { music ->
                         PlaylistItem(
@@ -148,6 +158,7 @@ fun PlaylistScreen(
                 }
             }
         }
+    }
     }
 }
 

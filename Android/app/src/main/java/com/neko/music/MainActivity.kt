@@ -64,10 +64,8 @@ fun MainScreen() {
     val navBackStackEntry by navController.currentBackStackEntryFlow.collectAsState(initial = null)
     val currentRoute = navBackStackEntry?.destination?.route
     
-    // 检查是否在播放页面或播放列表页面
+    // 检查是否在播放页面
     val isPlayerScreen = currentRoute?.startsWith("player") == true
-    val isPlaylistScreen = currentRoute == "playlist"
-    val showBottomControls = !isPlayerScreen && !isPlaylistScreen
     
     // 获取播放器状态
     val isPlaying by playerManager.isPlaying.collectAsState()
@@ -88,6 +86,7 @@ fun MainScreen() {
     }
     
     Box(modifier = Modifier.fillMaxSize()) {
+        // 主内容区域
         androidx.compose.foundation.layout.Column(
             modifier = Modifier.fillMaxSize()
         ) {
@@ -154,38 +153,15 @@ fun MainScreen() {
                                 navController.popBackStack()
                             },
                             onPlaylistClick = {
-                                navController.navigate("playlist")
-                            }
-                        )
-                    }
-                    composable(
-                        route = "playlist"
-                    ) {
-                        PlaylistScreen(
-                            onBackClick = {
-                                navController.popBackStack()
-                            },
-                            onMusicClick = { music ->
-                                // 播放选中的音乐并返回
-                                scope.launch {
-                                    val musicApi = com.neko.music.data.api.MusicApi()
-                                    val url = musicApi.getMusicFileUrl(music)
-                                    val fullCoverUrl = if (music.coverFilePath.isNotEmpty()) {
-                                        "https://music.cnmsb.xin${music.coverFilePath}"
-                                    } else {
-                                        "https://music.cnmsb.xin/api/music/cover/${music.id}"
-                                    }
-                                    playerManager.playMusic(url, music.id, music.title, music.artist, music.coverFilePath, fullCoverUrl)
-                                }
-                                navController.popBackStack()
+                                showPlaylist = true
                             }
                         )
                     }
                 }
             }
             
-            // 只在非播放页面和非播放列表页面显示迷你播放器和底部导航栏
-            if (showBottomControls) {
+            // 只在非播放页面显示迷你播放器和底部导航栏
+            if (!isPlayerScreen) {
                 MiniPlayer(
                     isPlaying = isPlaying,
                     songTitle = currentMusicTitle ?: "暂无播放",
@@ -202,12 +178,34 @@ fun MainScreen() {
                         navController.navigate("player/$id/$title/$artist")
                     },
                     onPlaylistClick = {
-                        navController.navigate("playlist")
+                        showPlaylist = true
                     }
                 )
                 
                 BottomNavigationBar(navController = navController)
             }
         }
+        
+        // 播放列表弹窗（在所有控件之上，覆盖显示）
+        PlaylistScreen(
+            isVisible = showPlaylist,
+            onBackClick = {
+                showPlaylist = false
+            },
+            onMusicClick = { music ->
+                // 播放选中的音乐
+                scope.launch {
+                    val musicApi = com.neko.music.data.api.MusicApi()
+                    val url = musicApi.getMusicFileUrl(music)
+                    val fullCoverUrl = if (music.coverFilePath.isNotEmpty()) {
+                        "https://music.cnmsb.xin${music.coverFilePath}"
+                    } else {
+                        "https://music.cnmsb.xin/api/music/cover/${music.id}"
+                    }
+                    playerManager.playMusic(url, music.id, music.title, music.artist, music.coverFilePath, fullCoverUrl)
+                }
+                showPlaylist = false
+            }
+        )
     }
 }
