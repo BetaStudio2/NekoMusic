@@ -49,91 +49,99 @@ fun PlaylistScreen(
     val playlist by playlistManager.playlist.collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(Color.Transparent)
     ) {
-        // 顶部栏
-        Row(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .padding(top = 300.dp)
+                .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                .background(Color.White)
         ) {
-            IconButton(
-                onClick = onBackClick,
-                modifier = Modifier.size(48.dp)
+            // 顶部栏
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.ArrowBack,
-                    contentDescription = "返回",
-                    tint = Color.Black,
-                    modifier = Modifier.size(24.dp)
+                IconButton(
+                    onClick = onBackClick,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "返回",
+                        tint = Color.Black,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                Text(
+                    text = "播放列表",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
                 )
+
+                // 清空按钮
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        scope.launch {
+                            // 清空列表但保留当前歌曲
+                            playlistManager.clearPlaylistExcept(0)
+                        }
+                    }
+                ) {
+                    Text(
+                        text = "清空",
+                        fontSize = 14.sp,
+                        color = Color.Gray
+                    )
+                }
             }
 
-            Text(
-                text = "播放列表",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
+            Spacer(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(Color(0xFFE0E0E0))
             )
 
-            // 清空按钮
-            androidx.compose.material3.TextButton(
-                onClick = {
-                    scope.launch {
-                        // 清空列表但保留当前歌曲
-                        playlistManager.clearPlaylistExcept(0)
-                    }
-                }
-            ) {
-                Text(
-                    text = "清空",
-                    fontSize = 14.sp,
-                    color = Color.Gray
-                )
-            }
-        }
-
-        Spacer(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(Color(0xFFE0E0E0))
-        )
-
-        // 播放列表
-        if (playlist.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "播放列表为空",
-                    fontSize = 14.sp,
-                    color = Color.Gray
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(playlist) { music ->
-                    PlaylistItem(
-                        music = music,
-                        isPlaying = false,
-                        onClick = {
-                            onMusicClick(music)
-                        }
+            // 播放列表
+            if (playlist.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "播放列表为空",
+                        fontSize = 14.sp,
+                        color = Color.Gray
                     )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(playlist) { music ->
+                        PlaylistItem(
+                            music = music,
+                            isPlaying = false,
+                            onClick = {
+                                onMusicClick(music)
+                            }
+                        )
+                    }
                 }
             }
         }
