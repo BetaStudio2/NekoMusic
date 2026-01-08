@@ -1,5 +1,7 @@
 package com.neko.music
 
+import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -59,13 +61,28 @@ import com.neko.music.ui.theme.Neko云音乐Theme
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private val PREFS_NAME = "app_prefs"
+    private val KEY_FIRST_LAUNCH = "first_launch"
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        
-        // 启动音乐播放服务
+
+        // 检查是否是首次启动
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val isFirstLaunch = prefs.getBoolean(KEY_FIRST_LAUNCH, true)
+
+        if (isFirstLaunch) {
+            // 首次启动，显示开屏
+            prefs.edit().putBoolean(KEY_FIRST_LAUNCH, false).apply()
+            startActivity(Intent(this, SplashActivity::class.java))
+            finish()
+            return
+        }
+
+        // 启动音乐播放服务（前台服务，保持后台运行）
         MusicPlayerService.startService(this)
-        
+
         setContent {
             Neko云音乐Theme {
                 Surface(
@@ -76,6 +93,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onBackPressed() {
+        // 将返回键行为转换为 Home 键行为，让应用挂起到后台而不是退出
+        moveTaskToBack(false)
     }
 }
 
@@ -134,9 +156,12 @@ fun MainScreen() {
         isLoggedIn = tokenManager.isLoggedIn()
         currentUsername = tokenManager.getUsername()
         currentUserId = tokenManager.getUserId()
-        
+
         // 初始化收藏管理器
         playerManager.initializeFavoriteManager()
+
+        // 检查当前音乐的收藏状态
+        playerManager.checkFavoriteStatus()
     }
     
     // 跟踪是否从播放页面返回

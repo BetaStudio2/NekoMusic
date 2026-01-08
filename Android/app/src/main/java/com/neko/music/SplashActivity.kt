@@ -41,12 +41,12 @@ import kotlinx.coroutines.delay
 class SplashActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         // 先清除窗口背景
         window.setBackgroundDrawableResource(android.R.color.transparent)
-        
+
         // enableEdgeToEdge()
-        
+
         setContent {
             Neko云音乐Theme {
                 SplashScreen(
@@ -57,6 +57,11 @@ class SplashActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onBackPressed() {
+        // 开屏页面不允许返回，防止用户退出应用
+        // moveTaskToBack(false)
     }
 }
 
