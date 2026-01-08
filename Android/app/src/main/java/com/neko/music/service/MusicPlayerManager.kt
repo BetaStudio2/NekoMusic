@@ -112,14 +112,24 @@ class MusicPlayerManager private constructor(context: Context) {
                     val nextMusic = playlistManager.getNextMusic(currentId)
                     android.util.Log.d("MusicPlayerManager", "nextMusic: $nextMusic")
                     if (nextMusic != null) {
-                        playMusic(nextMusic.filePath, nextMusic.id, nextMusic.title, nextMusic.artist, nextMusic.coverFilePath)
+                        val fullCoverUrl = if (nextMusic.coverFilePath.isNotEmpty()) {
+                            "https://music.cnmsb.xin${nextMusic.coverFilePath}"
+                        } else {
+                            "https://music.cnmsb.xin/api/music/cover/${nextMusic.id}"
+                        }
+                        playMusic(nextMusic.filePath, nextMusic.id, nextMusic.title, nextMusic.artist, nextMusic.coverFilePath, fullCoverUrl)
                     } else {
                         // 没有下一首，回到第一首
                         android.util.Log.d("MusicPlayerManager", "No next music found, getting first music")
                         val firstMusic = playlistManager.getFirstMusic()
                         android.util.Log.d("MusicPlayerManager", "firstMusic: $firstMusic")
                         if (firstMusic != null) {
-                            playMusic(firstMusic.filePath, firstMusic.id, firstMusic.title, firstMusic.artist, firstMusic.coverFilePath)
+                            val fullCoverUrl = if (firstMusic.coverFilePath.isNotEmpty()) {
+                                "https://music.cnmsb.xin${firstMusic.coverFilePath}"
+                            } else {
+                                "https://music.cnmsb.xin/api/music/cover/${firstMusic.id}"
+                            }
+                            playMusic(firstMusic.filePath, firstMusic.id, firstMusic.title, firstMusic.artist, firstMusic.coverFilePath, fullCoverUrl)
                         }
                     }
                 }
@@ -138,7 +148,12 @@ class MusicPlayerManager private constructor(context: Context) {
                     val randomMusic = playlistManager.getRandomMusic(currentId)
                     android.util.Log.d("MusicPlayerManager", "randomMusic: $randomMusic")
                     if (randomMusic != null) {
-                        playMusic(randomMusic.filePath, randomMusic.id, randomMusic.title, randomMusic.artist, randomMusic.coverFilePath)
+                        val fullCoverUrl = if (randomMusic.coverFilePath.isNotEmpty()) {
+                            "https://music.cnmsb.xin${randomMusic.coverFilePath}"
+                        } else {
+                            "https://music.cnmsb.xin/api/music/cover/${randomMusic.id}"
+                        }
+                        playMusic(randomMusic.filePath, randomMusic.id, randomMusic.title, randomMusic.artist, randomMusic.coverFilePath, fullCoverUrl)
                     } else {
                         android.util.Log.d("MusicPlayerManager", "No random music found")
                     }
@@ -165,7 +180,12 @@ class MusicPlayerManager private constructor(context: Context) {
                     val previousMusic = playlistManager.getPlaylistMusicById(previousId)
                     android.util.Log.d("MusicPlayerManager", "previousMusic: $previousMusic")
                     if (previousMusic != null) {
-                        playMusic(previousMusic.filePath, previousMusic.id, previousMusic.title, previousMusic.artist, previousMusic.coverFilePath)
+                        val fullCoverUrl = if (previousMusic.coverFilePath.isNotEmpty()) {
+                            "https://music.cnmsb.xin${previousMusic.coverFilePath}"
+                        } else {
+                            "https://music.cnmsb.xin/api/music/cover/${previousMusic.id}"
+                        }
+                        playMusic(previousMusic.filePath, previousMusic.id, previousMusic.title, previousMusic.artist, previousMusic.coverFilePath, fullCoverUrl)
                     }
                 }
             }
@@ -246,12 +266,22 @@ class MusicPlayerManager private constructor(context: Context) {
                                     if (currentId != null) {
                                         val nextMusic = playlistManager.getNextMusic(currentId)
                                         if (nextMusic != null) {
-                                            playMusic(nextMusic.filePath, nextMusic.id, nextMusic.title, nextMusic.artist, nextMusic.coverFilePath)
+                                            val fullCoverUrl = if (nextMusic.coverFilePath.isNotEmpty()) {
+                                                "https://music.cnmsb.xin${nextMusic.coverFilePath}"
+                                            } else {
+                                                "https://music.cnmsb.xin/api/music/cover/${nextMusic.id}"
+                                            }
+                                            playMusic(nextMusic.filePath, nextMusic.id, nextMusic.title, nextMusic.artist, nextMusic.coverFilePath, fullCoverUrl)
                                         } else {
                                             // 没有下一首，回到第一首
                                             val firstMusic = playlistManager.getFirstMusic()
                                             if (firstMusic != null) {
-                                                playMusic(firstMusic.filePath, firstMusic.id, firstMusic.title, firstMusic.artist, firstMusic.coverFilePath)
+                                                val fullCoverUrl = if (firstMusic.coverFilePath.isNotEmpty()) {
+                                                    "https://music.cnmsb.xin${firstMusic.coverFilePath}"
+                                                } else {
+                                                    "https://music.cnmsb.xin/api/music/cover/${firstMusic.id}"
+                                                }
+                                                playMusic(firstMusic.filePath, firstMusic.id, firstMusic.title, firstMusic.artist, firstMusic.coverFilePath, fullCoverUrl)
                                             }
                                         }
                                     }
@@ -272,7 +302,12 @@ class MusicPlayerManager private constructor(context: Context) {
                                     if (currentId != null) {
                                         val randomMusic = playlistManager.getRandomMusic(currentId)
                                         if (randomMusic != null) {
-                                            playMusic(randomMusic.filePath, randomMusic.id, randomMusic.title, randomMusic.artist, randomMusic.coverFilePath)
+                                            val fullCoverUrl = if (randomMusic.coverFilePath.isNotEmpty()) {
+                                                "https://music.cnmsb.xin${randomMusic.coverFilePath}"
+                                            } else {
+                                                "https://music.cnmsb.xin/api/music/cover/${randomMusic.id}"
+                                            }
+                                            playMusic(randomMusic.filePath, randomMusic.id, randomMusic.title, randomMusic.artist, randomMusic.coverFilePath, fullCoverUrl)
                                         }
                                     }
                                 }
