@@ -15,6 +15,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -23,6 +24,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -101,10 +106,30 @@ fun MainScreen() {
     // 播放列表显示状态
     var showPlaylist by androidx.compose.runtime.remember { mutableStateOf(false) }
     
+    // 底部控件可见性状态
+    var showBottomControls by androidx.compose.runtime.remember { mutableStateOf(true) }
+    
+    // 跟踪是否从播放页面返回
+    var returningFromPlayer by androidx.compose.runtime.remember { mutableStateOf(false) }
+    
     // 启动时恢复上次播放的音乐
     androidx.compose.runtime.LaunchedEffect(Unit) {
         scope.launch {
             playerManager.restoreLastPlayed(context)
+        }
+    }
+    
+    // 监听是否在播放页面，从播放页面返回时延迟显示底部控件
+    androidx.compose.runtime.LaunchedEffect(isPlayerScreen) {
+        if (isPlayerScreen) {
+            // 进入播放页面，立即隐藏底部控件（无动画）
+            showBottomControls = false
+            returningFromPlayer = true
+        } else if (returningFromPlayer) {
+            // 从播放页面返回，延迟0.5秒后显示带动画
+            kotlinx.coroutines.delay(500)
+            showBottomControls = true
+            returningFromPlayer = false
         }
     }
     
@@ -204,28 +229,75 @@ fun MainScreen() {
             
             // 只在非播放页面显示迷你播放器和底部导航栏
             if (!isPlayerScreen) {
-                MiniPlayer(
-                    isPlaying = isPlaying,
-                    songTitle = currentMusicTitle ?: "暂无播放",
-                    artist = currentMusicArtist ?: "",
-                    coverUrl = currentMusicCover,
-                    progress = progress.floatValue,
-                    onPlayPauseClick = {
-                        playerManager.togglePlayPause()
-                    },
-                    onPlayerClick = {
-                        // 跳转到播放页面，传递当前音乐ID
-                        val id = currentMusicId ?: 0
-                        val encodedTitle = java.net.URLEncoder.encode(currentMusicTitle ?: "未知歌曲", "UTF-8")
-                        val encodedArtist = java.net.URLEncoder.encode(currentMusicArtist ?: "未知歌手", "UTF-8")
-                        navController.navigate("player/$id/$encodedTitle/$encodedArtist")
-                    },
-                    onPlaylistClick = {
-                        showPlaylist = true
+                if (returningFromPlayer) {
+                    // 从播放页面返回时使用动画
+                    key(showBottomControls) {
+                        AnimatedVisibility(
+                            visible = showBottomControls,
+                            enter = androidx.compose.animation.slideInVertically(
+                                initialOffsetY = { fullHeight -> fullHeight },
+                                animationSpec = tween(
+                                    durationMillis = 500,
+                                    easing = androidx.compose.animation.core.FastOutSlowInEasing
+                                )
+                            ),
+                            exit = androidx.compose.animation.fadeOut(
+                                animationSpec = tween(durationMillis = 0)
+                            )
+                        ) {
+                            androidx.compose.foundation.layout.Column {
+                                MiniPlayer(
+                                    isPlaying = isPlaying,
+                                    songTitle = currentMusicTitle ?: "暂无播放",
+                                    artist = currentMusicArtist ?: "",
+                                    coverUrl = currentMusicCover,
+                                    progress = progress.floatValue,
+                                    onPlayPauseClick = {
+                                        playerManager.togglePlayPause()
+                                    },
+                                    onPlayerClick = {
+                                        // 跳转到播放页面，传递当前音乐ID
+                                        val id = currentMusicId ?: 0
+                                        val encodedTitle = java.net.URLEncoder.encode(currentMusicTitle ?: "未知歌曲", "UTF-8")
+                                        val encodedArtist = java.net.URLEncoder.encode(currentMusicArtist ?: "未知歌手", "UTF-8")
+                                        navController.navigate("player/$id/$encodedTitle/$encodedArtist")
+                                    },
+                                    onPlaylistClick = {
+                                        showPlaylist = true
+                                    }
+                                )
+                                
+                                BottomNavigationBar(navController = navController)
+                            }
+                        }
                     }
-                )
-                
-                BottomNavigationBar(navController = navController)
+                } else {
+                    // 其他情况直接显示
+                    androidx.compose.foundation.layout.Column {
+                        MiniPlayer(
+                            isPlaying = isPlaying,
+                            songTitle = currentMusicTitle ?: "暂无播放",
+                            artist = currentMusicArtist ?: "",
+                            coverUrl = currentMusicCover,
+                            progress = progress.floatValue,
+                            onPlayPauseClick = {
+                                playerManager.togglePlayPause()
+                            },
+                            onPlayerClick = {
+                                // 跳转到播放页面，传递当前音乐ID
+                                val id = currentMusicId ?: 0
+                                val encodedTitle = java.net.URLEncoder.encode(currentMusicTitle ?: "未知歌曲", "UTF-8")
+                                val encodedArtist = java.net.URLEncoder.encode(currentMusicArtist ?: "未知歌手", "UTF-8")
+                                navController.navigate("player/$id/$encodedTitle/$encodedArtist")
+                            },
+                            onPlaylistClick = {
+                                showPlaylist = true
+                            }
+                        )
+                        
+                        BottomNavigationBar(navController = navController)
+                    }
+                }
             }
         }
         
