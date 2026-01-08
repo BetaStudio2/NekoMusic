@@ -39,6 +39,7 @@ fun MiniPlayer(
     songTitle: String = "",
     artist: String = "",
     coverUrl: String? = null,
+    progress: Float = 0f,
     onPlayPauseClick: () -> Unit = {},
     onPlayerClick: () -> Unit = {},
     onPlaylistClick: () -> Unit = {}
@@ -118,21 +119,61 @@ fun MiniPlayer(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 播放/暂停按钮
-                IconButton(
-                    onClick = {
-                        onPlayPauseClick()
-                    },
-                    modifier = Modifier.size(36.dp)
+                // 播放/暂停按钮（带圆形进度条）
+                Box(
+                    modifier = Modifier.size(36.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        painter = painterResource(
-                            id = if (isPlaying) R.drawable.pause else R.drawable.play
-                        ),
-                        contentDescription = if (isPlaying) "Pause" else "Play",
-                        tint = Color.Black,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    // 圆形进度条背景
+                    androidx.compose.foundation.Canvas(
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        val strokeWidth = 3.dp.toPx()
+                        val radius = size.minDimension / 2 - strokeWidth / 2
+                        
+                        // 背景圆环
+                        drawArc(
+                            color = Color(0xFFE0E0E0),
+                            startAngle = -90f,
+                            sweepAngle = 360f,
+                            useCenter = false,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                width = strokeWidth,
+                                cap = androidx.compose.ui.graphics.StrokeCap.Round
+                            )
+                        )
+                        
+                        // 进度圆环
+                        if (progress > 0f) {
+                            drawArc(
+                                color = RoseRed,
+                                startAngle = -90f,
+                                sweepAngle = 360f * progress,
+                                useCenter = false,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                    width = strokeWidth,
+                                    cap = androidx.compose.ui.graphics.StrokeCap.Round
+                                )
+                            )
+                        }
+                    }
+                    
+                    // 播放/暂停图标
+                    IconButton(
+                        onClick = {
+                            onPlayPauseClick()
+                        },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(
+                                id = if (isPlaying) R.drawable.pause else R.drawable.play
+                            ),
+                            contentDescription = if (isPlaying) "Pause" else "Play",
+                            tint = Color.Black,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
                 
                 // 播放列表按钮

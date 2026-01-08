@@ -190,8 +190,13 @@ fun PlaylistItem(
                 .background(Color(0xFFF5F5F5)),
             contentAlignment = Alignment.Center
         ) {
+            val coverUrl = if (music.coverFilePath.isNotEmpty()) {
+                "https://music.cnmsb.xin${music.coverFilePath}"
+            } else {
+                "https://music.cnmsb.xin/api/music/cover/${music.id}"
+            }
             AsyncImage(
-                model = "https://music.cnmsb.xin${music.coverFilePath}",
+                model = coverUrl,
                 contentDescription = "封面",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop
