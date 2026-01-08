@@ -39,6 +39,7 @@ import com.neko.music.ui.screens.HomeScreen
 import com.neko.music.ui.screens.MineScreen
 import com.neko.music.ui.screens.PlayerScreen
 import com.neko.music.ui.screens.PlaylistScreen
+import com.neko.music.ui.screens.RecentPlayScreen
 import com.neko.music.ui.screens.SearchResultScreen
 import com.neko.music.ui.theme.Neko云音乐Theme
 import kotlinx.coroutines.launch
@@ -130,7 +131,24 @@ fun MainScreen() {
                         )
                     }
                     composable(BottomNavItem.Mine.route) {
-                        MineScreen()
+                        MineScreen(
+                            onRecentPlayClick = {
+                                navController.navigate("recent_play")
+                            }
+                        )
+                    }
+                    composable("recent_play") {
+                        RecentPlayScreen(
+                            onBackClick = {
+                                navController.popBackStack()
+                            },
+                            onMusicClick = { music ->
+                                val id = music.id
+                                val title = music.title
+                                val artist = music.artist
+                                navController.navigate("player/$id/$title/$artist")
+                            }
+                        )
                     }
                     composable(
                         route = "search?query={query}",

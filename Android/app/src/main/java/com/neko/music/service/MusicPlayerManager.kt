@@ -12,6 +12,7 @@ import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.Player
 import com.neko.music.data.manager.PlaylistManager
+import com.neko.music.data.model.Music
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -538,6 +539,19 @@ class MusicPlayerManager private constructor(context: Context) {
             player.setMediaItem(mediaItem)
             player.prepare()
         }
+    }
+    
+    // 获取最近播放的历史记录
+    suspend fun getPlayHistory(): List<Music> {
+        val historyIds = playHistory.toList().reversed() // 反转，最新的在前面
+        val result = mutableListOf<Music>()
+        for (id in historyIds) {
+            val music = playlistManager.getPlaylistMusicById(id)
+            if (music != null) {
+                result.add(music)
+            }
+        }
+        return result
     }
     
     companion object {

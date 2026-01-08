@@ -1,6 +1,7 @@
 package com.neko.music.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,7 +34,9 @@ import com.neko.music.ui.theme.DeepBlue
 import com.neko.music.ui.theme.RoseRed
 
 @Composable
-fun MineScreen() {
+fun MineScreen(
+    onRecentPlayClick: () -> Unit = {}
+) {
     val view = LocalView.current
     SideEffect {
         val window = (view.context as android.app.Activity).window
@@ -48,7 +51,7 @@ fun MineScreen() {
     ) {
         MineHeader()
         Spacer(modifier = Modifier.height(20.dp))
-        MineContent()
+        MineContent(onRecentPlayClick = onRecentPlayClick)
     }
 }
 
@@ -101,7 +104,7 @@ fun MineHeader() {
 }
 
 @Composable
-fun MineContent() {
+fun MineContent(onRecentPlayClick: () -> Unit = {}) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -111,7 +114,7 @@ fun MineContent() {
         
         Spacer(modifier = Modifier.height(20.dp))
         
-        MineMenu()
+        MineMenu(onRecentPlayClick = onRecentPlayClick)
         
         Spacer(modifier = Modifier.weight(1f))
         
@@ -177,20 +180,21 @@ fun StatItem(count: String, label: String) {
 }
 
 @Composable
-fun MineMenu() {
+fun MineMenu(onRecentPlayClick: () -> Unit = {}) {
     Column {
         MenuItem("我的音乐", "🎵")
         MenuItem("我的收藏", "❤️")
-        MenuItem("最近播放", "🕐")
+        MenuItem("最近播放", "🕐", onClick = onRecentPlayClick)
     }
 }
 
 @Composable
-fun MenuItem(title: String, icon: String) {
+fun MenuItem(title: String, icon: String, onClick: () -> Unit = {}) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp),
+            .padding(vertical = 12.dp)
+            .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
