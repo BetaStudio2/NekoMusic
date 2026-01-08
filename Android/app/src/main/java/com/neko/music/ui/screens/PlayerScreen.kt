@@ -603,29 +603,15 @@ fun TopBar(
             color = Color.Black
         )
         
-        Row {
-            IconButton(
-                onClick = onPlaylistClick,
-                modifier = Modifier.size(48.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Favorite,
-                    contentDescription = "播放列表",
-                    tint = Color.Black,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-            
-            IconButton(
-                onClick = onMenuClick,
-                modifier = Modifier.size(48.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = "更多",
-                    tint = Color.Black
-                )
-            }
+        IconButton(
+            onClick = onMenuClick,
+            modifier = Modifier.size(48.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = "更多",
+                tint = Color.Black
+            )
         }
     }
 }
