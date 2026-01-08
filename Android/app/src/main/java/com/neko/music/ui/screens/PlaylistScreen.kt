@@ -52,14 +52,17 @@ fun PlaylistScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Transparent)
+            .background(Color.Black.copy(alpha = 0.5f))
+            .clickable(onClick = onBackClick)
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(top = 300.dp)
+                .fillMaxWidth()
+                .height(800.dp)
                 .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
                 .background(Color.White)
+                .clickable(enabled = false) {},
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // 顶部栏
             Row(
