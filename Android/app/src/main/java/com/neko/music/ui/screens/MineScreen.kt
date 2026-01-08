@@ -17,6 +17,11 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Alignment
@@ -36,8 +41,14 @@ import com.neko.music.ui.theme.RoseRed
 @Composable
 fun MineScreen(
     onRecentPlayClick: () -> Unit = {},
-    onLoginClick: () -> Unit = {}
+    onLoginClick: () -> Unit = {},
+    onLogoutClick: () -> Unit = {},
+    isLoggedIn: Boolean = false,
+    username: String? = null,
+    userId: Int = -1,
+    onLoginSuccess: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     val view = LocalView.current
     SideEffect {
         val window = (view.context as android.app.Activity).window
@@ -50,18 +61,36 @@ fun MineScreen(
             .fillMaxSize()
             .background(Color.White)
     ) {
-        MineHeader(onLoginClick = onLoginClick)
+        MineHeader(
+            onLoginClick = onLoginClick,
+            isLoggedIn = isLoggedIn,
+            username = username,
+            userId = userId,
+            onLogoutClick = onLogoutClick
+        )
         Spacer(modifier = Modifier.height(20.dp))
-        MineContent(onRecentPlayClick = onRecentPlayClick)
+        MineContent(
+            onRecentPlayClick = onRecentPlayClick,
+            isLoggedIn = isLoggedIn,
+            onLogoutClick = onLogoutClick
+        )
     }
 }
 
 @Composable
-fun MineHeader(onLoginClick: () -> Unit = {}) {
+fun MineHeader(
+    onLoginClick: () -> Unit = {},
+    isLoggedIn: Boolean = false,
+    username: String? = null,
+    userId: Int = -1,
+    onLogoutClick: () -> Unit = {}
+) {
+    val context = LocalContext.current
+    
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(160.dp)
+            .height(200.dp)
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
@@ -84,19 +113,35 @@ fun MineHeader(onLoginClick: () -> Unit = {}) {
                     .size(70.dp)
                     .clip(CircleShape)
                     .background(Color.White)
-                    .clickable(onClick = onLoginClick),
+                    .clickable(
+                        enabled = !isLoggedIn,
+                        onClick = onLoginClick
+                    ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "🐱",
-                    fontSize = 36.sp
-                )
+                if (isLoggedIn && userId != -1) {
+                    // 显示用户头像
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data("https://music.cnmsb.xin/api/user/avatar/$userId")
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "用户头像",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    // 显示默认头像
+                    Text(
+                        text = "🐱",
+                        fontSize = 36.sp
+                    )
+                }
             }
-            
+
             Spacer(modifier = Modifier.height(12.dp))
-            
+
             Text(
-                text = "Neko用户",
+                text = if (isLoggedIn && username != null) username else "Neko用户",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
@@ -106,7 +151,11 @@ fun MineHeader(onLoginClick: () -> Unit = {}) {
 }
 
 @Composable
-fun MineContent(onRecentPlayClick: () -> Unit = {}) {
+fun MineContent(
+    onRecentPlayClick: () -> Unit = {},
+    isLoggedIn: Boolean = false,
+    onLogoutClick: () -> Unit = {}
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -116,7 +165,11 @@ fun MineContent(onRecentPlayClick: () -> Unit = {}) {
         
         Spacer(modifier = Modifier.height(20.dp))
         
-        MineMenu(onRecentPlayClick = onRecentPlayClick)
+        MineMenu(
+            onRecentPlayClick = onRecentPlayClick,
+            isLoggedIn = isLoggedIn,
+            onLogoutClick = onLogoutClick
+        )
         
         Spacer(modifier = Modifier.weight(1f))
         
@@ -182,11 +235,14 @@ fun StatItem(count: String, label: String) {
 }
 
 @Composable
-fun MineMenu(onRecentPlayClick: () -> Unit = {}) {
+fun MineMenu(onRecentPlayClick: () -> Unit = {}, isLoggedIn: Boolean = false, onLogoutClick: () -> Unit = {}) {
     Column {
         MenuItem("我的音乐", "🎵")
         MenuItem("我的收藏", "❤️")
         MenuItem("最近播放", "🕐", onClick = onRecentPlayClick)
+        if (isLoggedIn) {
+            MenuItem("退出登录", "🚪", onClick = onLogoutClick)
+        }
     }
 }
 

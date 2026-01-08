@@ -32,6 +32,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.material3.Text
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -119,6 +120,20 @@ fun MainScreen() {
     // 登录和注册页面显示状态
     var showLoginScreen by androidx.compose.runtime.remember { mutableStateOf(false) }
     var showRegisterScreen by androidx.compose.runtime.remember { mutableStateOf(false) }
+    var showLogoutDialog by androidx.compose.runtime.remember { mutableStateOf(false) }
+    
+    // 登录状态，用于触发界面更新
+    var isLoggedIn by androidx.compose.runtime.remember { mutableStateOf(false) }
+    var currentUsername by androidx.compose.runtime.remember { mutableStateOf<String?>(null) }
+    var currentUserId by androidx.compose.runtime.remember { mutableStateOf(-1) }
+    
+    // 初始化登录状态
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val tokenManager = com.neko.music.data.manager.TokenManager(context)
+        isLoggedIn = tokenManager.isLoggedIn()
+        currentUsername = tokenManager.getUsername()
+        currentUserId = tokenManager.getUserId()
+    }
     
     // 跟踪是否从播放页面返回
     var returningFromPlayer by androidx.compose.runtime.remember { mutableStateOf(false) }
@@ -173,6 +188,19 @@ fun MainScreen() {
                             },
                             onLoginClick = {
                                 showLoginScreen = true
+                            },
+                            onLogoutClick = {
+                                showLogoutDialog = true
+                            },
+                            isLoggedIn = isLoggedIn,
+                            username = currentUsername,
+                            userId = currentUserId,
+                            onLoginSuccess = {
+                                // 登录成功后更新状态
+                                val tokenManager = com.neko.music.data.manager.TokenManager(context)
+                                isLoggedIn = tokenManager.isLoggedIn()
+                                currentUsername = tokenManager.getUsername()
+                                currentUserId = tokenManager.getUserId()
                             }
                         )
                     }
@@ -355,6 +383,11 @@ fun MainScreen() {
                 LoginScreen(
                     onLoginSuccess = {
                         showLoginScreen = false
+                        // 更新登录状态
+                        val tokenManager = com.neko.music.data.manager.TokenManager(context)
+                        isLoggedIn = tokenManager.isLoggedIn()
+                        currentUsername = tokenManager.getUsername()
+                        currentUserId = tokenManager.getUserId()
                     },
                     onBackClick = {
                         showLoginScreen = false
@@ -393,6 +426,38 @@ fun MainScreen() {
                     }
                 )
             }
+        }
+
+        // 退出登录确认对话框
+        if (showLogoutDialog) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showLogoutDialog = false },
+                title = { Text("退出登录") },
+                text = { Text("确定要退出登录吗？") },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            // 清除登录状态
+                            val tokenManager = com.neko.music.data.manager.TokenManager(context)
+                            tokenManager.clearToken()
+                            // 更新UI状态
+                            isLoggedIn = false
+                            currentUsername = null
+                            currentUserId = -1
+                            showLogoutDialog = false
+                        }
+                    ) {
+                        Text("确定")
+                    }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = { showLogoutDialog = false }
+                    ) {
+                        Text("取消")
+                    }
+                }
+            )
         }
     }
 }

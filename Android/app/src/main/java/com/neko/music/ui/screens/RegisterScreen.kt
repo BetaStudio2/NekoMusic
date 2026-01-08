@@ -432,7 +432,8 @@ fun RegisterScreen(
                                 isLoading = false
 
                                 if (response.success) {
-                                    onRegisterSuccess()
+                                    // 注册成功，跳转到登录页面
+                                    onLoginClick()
                                 } else {
                                     errorMessage = response.message
                                 }
