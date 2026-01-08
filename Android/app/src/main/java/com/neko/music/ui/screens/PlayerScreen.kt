@@ -97,7 +97,7 @@ fun PlayerScreen(
     var musicFileUrl by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var lyrics by remember { mutableStateOf<List<LrcLine>>(emptyList()) }
-    var isFavorite by remember { mutableStateOf(false) }
+    val isFavorite by playerManager.isFavorite.collectAsState()
     var showLyrics by remember { mutableStateOf(false) }
     var playMode by remember { mutableStateOf(PlayMode.LIST_LOOP) }
     
@@ -273,7 +273,7 @@ fun PlayerScreen(
     
                 isFavorite = isFavorite,
     
-                onFavoriteClick = { isFavorite = !isFavorite },
+                onFavoriteClick = { playerManager.toggleFavorite() },
                 showLyrics = showLyrics
             )
 
