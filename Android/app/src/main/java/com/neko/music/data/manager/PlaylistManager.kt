@@ -140,6 +140,10 @@ class PlaylistManager private constructor(context: Context) {
         }
     }
     
+    suspend fun updateAddedAt(musicId: Int) {
+        dao.updateAddedAt(musicId)
+    }
+    
     suspend fun getNextMusic(currentMusicId: Int): Music? {
         android.util.Log.d("PlaylistManager", "getNextMusic called with currentMusicId: $currentMusicId")
         val entity = dao.getNextMusic(currentMusicId)

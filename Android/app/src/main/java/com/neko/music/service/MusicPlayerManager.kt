@@ -477,6 +477,8 @@ class MusicPlayerManager private constructor(context: Context) {
                         createdAt = ""
                     )
                     playlistManager.addToPlaylist(music)
+                    // 更新addedAt时间，标记为最近播放
+                    playlistManager.updateAddedAt(id)
                 }
             }
             
