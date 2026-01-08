@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalView
@@ -111,6 +112,29 @@ fun MineContent() {
         Spacer(modifier = Modifier.height(20.dp))
         
         MineMenu()
+        
+        Spacer(modifier = Modifier.weight(1f))
+        
+        // 底部版权信息
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "蜀ICP备2025177767号-1 如有侵权请联系support@cnmsb.xin",
+                fontSize = 10.sp,
+                color = Color.Gray,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = "© 2025-2026 Fantasy Network「梦幻网络」 保留所有权利.",
+                fontSize = 10.sp,
+                color = Color.Gray,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 
