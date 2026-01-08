@@ -128,6 +128,9 @@ fun PlayerScreen(
     val currentPosition by playerManager.currentPosition.collectAsState()
     val duration by playerManager.duration.collectAsState()
     val currentMusicId by playerManager.currentMusicId.collectAsState()
+    val currentMusicTitle by playerManager.currentMusicTitle.collectAsState()
+    val currentMusicArtist by playerManager.currentMusicArtist.collectAsState()
+    val currentMusicCover by playerManager.currentMusicCover.collectAsState()
 
     val currentTime by remember { derivedStateOf { formatTime(currentPosition) } }
     val totalTime by remember { derivedStateOf { formatTime(duration) } }
@@ -141,6 +144,28 @@ fun PlayerScreen(
     val playMode by playerManager.playMode.collectAsState()
     val playModeChanged by playerManager.playModeChanged.collectAsState()
     var showPlayModeToast by remember { mutableStateOf(false) }
+
+    // 从播放器获取当前音乐信息
+    val currentMusic = remember(currentMusicId, currentMusicTitle, currentMusicArtist, currentMusicCover) {
+        val id = currentMusicId
+        val title = currentMusicTitle
+        val artist = currentMusicArtist
+        if (id != null && title != null && artist != null) {
+            Music(
+                id = id,
+                title = title,
+                artist = artist,
+                album = "",
+                duration = duration.toInt(),
+                filePath = musicFileUrl ?: "",
+                coverFilePath = currentMusicCover ?: "",
+                uploadUserId = 0,
+                createdAt = ""
+            )
+        } else {
+            music
+        }
+    }
 
     val musicApi = remember { MusicApi() }
     val scope = rememberCoroutineScope()
@@ -179,9 +204,9 @@ fun PlayerScreen(
     }
 
     // 加载歌词
-    LaunchedEffect(music.id) {
+    LaunchedEffect(currentMusic.id) {
         scope.launch {
-            val result = musicApi.getMusicLyrics(music)
+            val result = musicApi.getMusicLyrics(currentMusic)
             result.fold(
                 onSuccess = { lyricsText ->
                     lyrics = parseLrcLyrics(lyricsText)
@@ -258,7 +283,7 @@ fun PlayerScreen(
 
             // 歌曲信息和收藏按钮 - 紧贴在进度条上方
             LyricSongInfoBar(
-                music = music,
+                music = currentMusic,
                 isFavorite = isFavorite,
                 onFavoriteClick = { playerManager.toggleFavorite() },
                 showLyrics = showLyrics
