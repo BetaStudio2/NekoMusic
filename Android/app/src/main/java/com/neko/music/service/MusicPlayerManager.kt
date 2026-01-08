@@ -23,6 +23,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+enum class PlayMode {
+    LIST_LOOP,    // 列表循环
+    SINGLE_LOOP,  // 单曲循环
+    SHUFFLE       // 随机播放
+}
+
 class MusicPlayerManager private constructor(context: Context) {
     
     private val playlistManager = PlaylistManager.getInstance(context)
@@ -62,6 +68,12 @@ class MusicPlayerManager private constructor(context: Context) {
     private val _isFavorite = MutableStateFlow(false)
     val isFavorite: StateFlow<Boolean> = _isFavorite.asStateFlow()
     
+    private val _playMode = MutableStateFlow(PlayMode.LIST_LOOP)
+    val playMode: StateFlow<PlayMode> = _playMode.asStateFlow()
+    
+    private val _playModeChanged = MutableStateFlow(0)
+    val playModeChanged: StateFlow<Int> = _playModeChanged.asStateFlow()
+    
     fun toggleFavorite() {
         _isFavorite.value = !_isFavorite.value
         updatePlaybackState()
@@ -70,6 +82,19 @@ class MusicPlayerManager private constructor(context: Context) {
     fun setFavorite(isFavorite: Boolean) {
         _isFavorite.value = isFavorite
         updatePlaybackState()
+    }
+    
+    fun togglePlayMode() {
+        _playMode.value = when (_playMode.value) {
+            PlayMode.LIST_LOOP -> PlayMode.SINGLE_LOOP
+            PlayMode.SINGLE_LOOP -> PlayMode.SHUFFLE
+            PlayMode.SHUFFLE -> PlayMode.LIST_LOOP
+        }
+        _playModeChanged.value++
+    }
+    
+    fun setPlayMode(mode: PlayMode) {
+        _playMode.value = mode
     }
     
     private var updateJob: Job? = null
