@@ -35,7 +35,8 @@ import com.neko.music.ui.theme.RoseRed
 
 @Composable
 fun MineScreen(
-    onRecentPlayClick: () -> Unit = {}
+    onRecentPlayClick: () -> Unit = {},
+    onLoginClick: () -> Unit = {}
 ) {
     val view = LocalView.current
     SideEffect {
@@ -49,14 +50,14 @@ fun MineScreen(
             .fillMaxSize()
             .background(Color.White)
     ) {
-        MineHeader()
+        MineHeader(onLoginClick = onLoginClick)
         Spacer(modifier = Modifier.height(20.dp))
         MineContent(onRecentPlayClick = onRecentPlayClick)
     }
 }
 
 @Composable
-fun MineHeader() {
+fun MineHeader(onLoginClick: () -> Unit = {}) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -77,12 +78,13 @@ fun MineHeader() {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(20.dp))
-            
+
             Box(
                 modifier = Modifier
                     .size(70.dp)
                     .clip(CircleShape)
-                    .background(Color.White),
+                    .background(Color.White)
+                    .clickable(onClick = onLoginClick),
                 contentAlignment = Alignment.Center
             ) {
                 Text(

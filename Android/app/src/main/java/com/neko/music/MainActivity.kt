@@ -28,6 +28,11 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.ui.zIndex
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -41,10 +46,12 @@ import com.neko.music.ui.components.BottomNavItem
 import com.neko.music.ui.components.MiniPlayer
 import com.neko.music.ui.components.PlaylistBottomSheet
 import com.neko.music.ui.screens.HomeScreen
+import com.neko.music.ui.screens.LoginScreen
 import com.neko.music.ui.screens.MineScreen
 import com.neko.music.ui.screens.PlayerScreen
 import com.neko.music.ui.screens.PlaylistScreen
 import com.neko.music.ui.screens.RecentPlayScreen
+import com.neko.music.ui.screens.RegisterScreen
 import com.neko.music.ui.screens.SearchResultScreen
 import com.neko.music.ui.theme.Neko云音乐Theme
 import kotlinx.coroutines.launch
@@ -105,9 +112,13 @@ fun MainScreen() {
     
     // 播放列表显示状态
     var showPlaylist by androidx.compose.runtime.remember { mutableStateOf(false) }
-    
+
     // 底部控件可见性状态
     var showBottomControls by androidx.compose.runtime.remember { mutableStateOf(true) }
+
+    // 登录和注册页面显示状态
+    var showLoginScreen by androidx.compose.runtime.remember { mutableStateOf(false) }
+    var showRegisterScreen by androidx.compose.runtime.remember { mutableStateOf(false) }
     
     // 跟踪是否从播放页面返回
     var returningFromPlayer by androidx.compose.runtime.remember { mutableStateOf(false) }
@@ -159,6 +170,9 @@ fun MainScreen() {
                         MineScreen(
                             onRecentPlayClick = {
                                 navController.navigate("recent_play")
+                            },
+                            onLoginClick = {
+                                showLoginScreen = true
                             }
                         )
                     }
@@ -323,5 +337,62 @@ fun MainScreen() {
                 showPlaylist = false
             }
         )
+
+        // 登录和注册页面（在最顶层显示）
+        AnimatedVisibility(
+            visible = showLoginScreen,
+            enter = slideInHorizontally(
+                initialOffsetX = { it },
+                animationSpec = tween(durationMillis = 300)
+            ) + fadeIn(animationSpec = tween(durationMillis = 300)),
+            exit = slideOutHorizontally(
+                targetOffsetX = { -it },
+                animationSpec = tween(durationMillis = 300)
+            ) + fadeOut(animationSpec = tween(durationMillis = 300)),
+            modifier = Modifier.zIndex(Float.MAX_VALUE)
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                LoginScreen(
+                    onLoginSuccess = {
+                        showLoginScreen = false
+                    },
+                    onBackClick = {
+                        showLoginScreen = false
+                    },
+                    onRegisterClick = {
+                        showLoginScreen = false
+                        showRegisterScreen = true
+                    }
+                )
+            }
+        }
+
+        AnimatedVisibility(
+            visible = showRegisterScreen,
+            enter = slideInHorizontally(
+                initialOffsetX = { it },
+                animationSpec = tween(durationMillis = 300)
+            ) + fadeIn(animationSpec = tween(durationMillis = 300)),
+            exit = slideOutHorizontally(
+                targetOffsetX = { -it },
+                animationSpec = tween(durationMillis = 300)
+            ) + fadeOut(animationSpec = tween(durationMillis = 300)),
+            modifier = Modifier.zIndex(Float.MAX_VALUE)
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                RegisterScreen(
+                    onRegisterSuccess = {
+                        showRegisterScreen = false
+                    },
+                    onBackClick = {
+                        showRegisterScreen = false
+                    },
+                    onLoginClick = {
+                        showRegisterScreen = false
+                        showLoginScreen = true
+                    }
+                )
+            }
+        }
     }
 }
