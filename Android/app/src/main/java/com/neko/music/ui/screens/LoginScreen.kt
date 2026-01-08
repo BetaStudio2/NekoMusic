@@ -38,6 +38,7 @@ fun LoginScreen(
     onRegisterClick: () -> Unit = {}
 ) {
 
+    val context = LocalContext.current
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
@@ -61,6 +62,8 @@ fun LoginScreen(
     }
 
     val scope = rememberCoroutineScope()
+    val tokenManager = com.neko.music.data.manager.TokenManager(context)
+    val userApi = com.neko.music.data.api.UserApi()
 
     Box(
         modifier = Modifier
@@ -239,15 +242,20 @@ fun LoginScreen(
                         isLoading = true
                         scope.launch {
                             try {
-                                // 模拟登录请求
-                                kotlinx.coroutines.delay(1000)
+                                val response = userApi.login(username, password)
                                 isLoading = false
 
-                                // 简单的模拟登录成功
-                                if (username.isNotEmpty() && password.isNotEmpty()) {
+                                if (response.success && response.data != null) {
+                                    // 保存 token 和用户信息
+                                    tokenManager.saveToken(
+                                        token = response.data.token,
+                                        userId = response.data.user.id,
+                                        username = response.data.user.username,
+                                        email = response.data.user.email
+                                    )
                                     onLoginSuccess()
                                 } else {
-                                    errorMessage = "登录失败"
+                                    errorMessage = response.message
                                 }
                             } catch (e: Exception) {
                                 isLoading = false

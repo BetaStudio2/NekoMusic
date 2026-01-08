@@ -70,6 +70,7 @@ fun RegisterScreen(
     }
 
     val scope = rememberCoroutineScope()
+    val userApi = com.neko.music.data.api.UserApi()
 
     // 倒计时
     LaunchedEffect(countdown) {
@@ -251,10 +252,14 @@ fun RegisterScreen(
                                 isSendingCode = true
                                 scope.launch {
                                     try {
-                                        // 模拟发送验证码
-                                        kotlinx.coroutines.delay(1000)
+                                        val response = userApi.sendVerificationCode(email, username)
                                         isSendingCode = false
-                                        countdown = 60
+
+                                        if (response.success) {
+                                            countdown = 60
+                                        } else {
+                                            errorMessage = response.message
+                                        }
                                     } catch (e: Exception) {
                                         isSendingCode = false
                                         errorMessage = "发送验证码失败: ${e.message}"
@@ -423,10 +428,14 @@ fun RegisterScreen(
                         isLoading = true
                         scope.launch {
                             try {
-                                // 模拟注册请求
-                                kotlinx.coroutines.delay(1000)
+                                val response = userApi.register(username, password, email, verificationCode)
                                 isLoading = false
-                                onRegisterSuccess()
+
+                                if (response.success) {
+                                    onRegisterSuccess()
+                                } else {
+                                    errorMessage = response.message
+                                }
                             } catch (e: Exception) {
                                 isLoading = false
                                 errorMessage = "注册失败: ${e.message}"
