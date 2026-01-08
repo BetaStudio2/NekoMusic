@@ -43,6 +43,7 @@ fun MineScreen(
     onRecentPlayClick: () -> Unit = {},
     onLoginClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {},
+    onFavoriteClick: () -> Unit = {},
     isLoggedIn: Boolean = false,
     username: String? = null,
     userId: Int = -1,
@@ -71,6 +72,7 @@ fun MineScreen(
         Spacer(modifier = Modifier.height(20.dp))
         MineContent(
             onRecentPlayClick = onRecentPlayClick,
+            onFavoriteClick = onFavoriteClick,
             isLoggedIn = isLoggedIn,
             onLogoutClick = onLogoutClick
         )
@@ -153,6 +155,7 @@ fun MineHeader(
 @Composable
 fun MineContent(
     onRecentPlayClick: () -> Unit = {},
+    onFavoriteClick: () -> Unit = {},
     isLoggedIn: Boolean = false,
     onLogoutClick: () -> Unit = {}
 ) {
@@ -167,6 +170,7 @@ fun MineContent(
         
         MineMenu(
             onRecentPlayClick = onRecentPlayClick,
+            onFavoriteClick = onFavoriteClick,
             isLoggedIn = isLoggedIn,
             onLogoutClick = onLogoutClick
         )
@@ -235,10 +239,10 @@ fun StatItem(count: String, label: String) {
 }
 
 @Composable
-fun MineMenu(onRecentPlayClick: () -> Unit = {}, isLoggedIn: Boolean = false, onLogoutClick: () -> Unit = {}) {
+fun MineMenu(onRecentPlayClick: () -> Unit = {}, onFavoriteClick: () -> Unit = {}, isLoggedIn: Boolean = false, onLogoutClick: () -> Unit = {}) {
     Column {
         MenuItem("我的音乐", "🎵")
-        MenuItem("我的收藏", "❤️")
+        MenuItem("我的收藏", "❤️", onClick = onFavoriteClick)
         MenuItem("最近播放", "🕐", onClick = onRecentPlayClick)
         if (isLoggedIn) {
             MenuItem("退出登录", "🚪", onClick = onLogoutClick)

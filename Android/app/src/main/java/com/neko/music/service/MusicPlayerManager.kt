@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
+import android.util.Log
 import coil.ImageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
@@ -70,8 +71,17 @@ class MusicPlayerManager private constructor(context: Context) {
     private val playHistory = mutableListOf<Int>()
     
     private val _isFavorite = MutableStateFlow(false)
-    val isFavorite: StateFlow<Boolean> = _isFavorite.asStateFlow()
+        val isFavorite: StateFlow<Boolean> = _isFavorite.asStateFlow()
     
+        private lateinit var context: android.content.Context
+        private lateinit var tokenManager: com.neko.music.data.manager.TokenManager
+        private lateinit var favoriteApi: com.neko.music.data.api.FavoriteApi
+    
+        fun initializeFavoriteManager() {
+            context = appContext.applicationContext
+            tokenManager = com.neko.music.data.manager.TokenManager(context)
+            favoriteApi = com.neko.music.data.api.FavoriteApi()
+        }    
     private val _playMode = MutableStateFlow(PlayMode.LIST_LOOP)
     val playMode: StateFlow<PlayMode> = _playMode.asStateFlow()
     
@@ -79,8 +89,59 @@ class MusicPlayerManager private constructor(context: Context) {
     val playModeChanged: StateFlow<Int> = _playModeChanged.asStateFlow()
     
     fun toggleFavorite() {
-        _isFavorite.value = !_isFavorite.value
-        updatePlaybackState()
+        val musicId = currentMusicId.value ?: return
+
+        scope.launch {
+            try {
+                val currentFavorite = _isFavorite.value
+                val token = tokenManager.getToken()
+                if (token == null) {
+                    Log.e("MusicPlayerManager", "Token 为空，无法切换收藏状态")
+                    return@launch
+                }
+
+                val success = if (currentFavorite) {
+                    // 取消收藏
+                    favoriteApi.removeFavorite(token, musicId)
+                } else {
+                    // 添加收藏
+                    favoriteApi.addFavorite(token, musicId)
+                }
+                _isFavorite.value = !_isFavorite.value
+            } catch (e: Exception) {
+                Log.e("MusicPlayerManager", "切换收藏状态失败", e)
+            }
+        }
+    }
+
+    /**
+     * 检查当前音乐是否已收藏
+     */
+    fun checkFavoriteStatus() {
+        val token = tokenManager.getToken()
+        val musicId = currentMusicId.value
+
+        if (token == null || musicId == null) {
+            // 未登录或没有音乐，设置为未收藏
+            _isFavorite.value = false
+            return
+        }
+
+        // 调用后端 API 获取收藏列表，检查当前音乐是否在列表中
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                val response = favoriteApi.getFavorites(token)
+                if (response.success) {
+                    val isFav = response.favorites.any { it.id == musicId }
+                    _isFavorite.value = isFav
+                } else {
+                    _isFavorite.value = false
+                }
+            } catch (e: Exception) {
+                Log.e("MusicPlayerManager", "检查收藏状态失败", e)
+                _isFavorite.value = false
+            }
+        }
     }
     
     fun setFavorite(isFavorite: Boolean) {
@@ -447,6 +508,8 @@ class MusicPlayerManager private constructor(context: Context) {
     }
     
     fun playMusic(url: String, id: Int? = null, title: String? = null, artist: String? = null, cover: String? = null, fullCoverUrl: String? = null) {
+        // 检查收藏状态
+        checkFavoriteStatus()
         if (_currentMusicUrl.value != url) {
             // 添加到历史记录（如果不是重复播放同一首歌）
             if (id != null && _currentMusicId.value != id) {

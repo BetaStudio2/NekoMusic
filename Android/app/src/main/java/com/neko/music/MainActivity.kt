@@ -54,6 +54,7 @@ import com.neko.music.ui.screens.PlaylistScreen
 import com.neko.music.ui.screens.RecentPlayScreen
 import com.neko.music.ui.screens.RegisterScreen
 import com.neko.music.ui.screens.SearchResultScreen
+import com.neko.music.ui.screens.FavoriteScreen
 import com.neko.music.ui.theme.Neko云音乐Theme
 import kotlinx.coroutines.launch
 
@@ -133,6 +134,9 @@ fun MainScreen() {
         isLoggedIn = tokenManager.isLoggedIn()
         currentUsername = tokenManager.getUsername()
         currentUserId = tokenManager.getUserId()
+        
+        // 初始化收藏管理器
+        playerManager.initializeFavoriteManager()
     }
     
     // 跟踪是否从播放页面返回
@@ -192,6 +196,9 @@ fun MainScreen() {
                             onLogoutClick = {
                                 showLogoutDialog = true
                             },
+                            onFavoriteClick = {
+                                navController.navigate("favorites")
+                            },
                             isLoggedIn = isLoggedIn,
                             username = currentUsername,
                             userId = currentUserId,
@@ -206,6 +213,19 @@ fun MainScreen() {
                     }
                     composable("recent_play") {
                         RecentPlayScreen(
+                            onBackClick = {
+                                navController.popBackStack()
+                            },
+                            onMusicClick = { music ->
+                                val id = music.id
+                                val encodedTitle = java.net.URLEncoder.encode(music.title, "UTF-8")
+                                val encodedArtist = java.net.URLEncoder.encode(music.artist, "UTF-8")
+                                navController.navigate("player/$id/$encodedTitle/$encodedArtist")
+                            }
+                        )
+                    }
+                    composable("favorites") {
+                        FavoriteScreen(
                             onBackClick = {
                                 navController.popBackStack()
                             },

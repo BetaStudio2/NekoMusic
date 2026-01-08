@@ -123,6 +123,7 @@ fun PlayerScreen(
 ) {
     val context = LocalContext.current
     val playerManager = MusicPlayerManager.getInstance(context)
+    val tokenManager = com.neko.music.data.manager.TokenManager(context)
 
     val isPlaying by playerManager.isPlaying.collectAsState()
     val currentPosition by playerManager.currentPosition.collectAsState()
@@ -131,6 +132,9 @@ fun PlayerScreen(
     val currentMusicTitle by playerManager.currentMusicTitle.collectAsState()
     val currentMusicArtist by playerManager.currentMusicArtist.collectAsState()
     val currentMusicCover by playerManager.currentMusicCover.collectAsState()
+
+    // 检查登录状态
+    val isLoggedIn = tokenManager.isLoggedIn()
 
     val currentTime by remember { derivedStateOf { formatTime(currentPosition) } }
     val totalTime by remember { derivedStateOf { formatTime(duration) } }
@@ -143,6 +147,9 @@ fun PlayerScreen(
     val isFavorite by playerManager.isFavorite.collectAsState()
     var showLyrics by remember { mutableStateOf(false) }
     val playMode by playerManager.playMode.collectAsState()
+
+    // 登录提示
+    var showLoginToast by remember { mutableStateOf(false) }
     val playModeChanged by playerManager.playModeChanged.collectAsState()
     var showPlayModeToast by remember { mutableStateOf(false) }
 
@@ -287,8 +294,15 @@ fun PlayerScreen(
             LyricSongInfoBar(
                 music = currentMusic,
                 isFavorite = isFavorite,
-                onFavoriteClick = { playerManager.toggleFavorite() },
-                showLyrics = showLyrics
+                onFavoriteClick = {
+                    if (isLoggedIn) {
+                        playerManager.toggleFavorite()
+                    } else {
+                        showLoginToast = true
+                    }
+                },
+                showLyrics = showLyrics,
+                isLoggedIn = isLoggedIn
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -333,6 +347,14 @@ fun PlayerScreen(
             showPlayModeToast = false
         }
     }
+
+    // 控制登录提示的显示
+    LaunchedEffect(showLoginToast) {
+        if (showLoginToast) {
+            delay(2000)
+            showLoginToast = false
+        }
+    }
     
     // 播放模式提示（悬浮窗，层级最高）
     AnimatedVisibility(
@@ -358,6 +380,29 @@ fun PlayerScreen(
                 fontSize = 14.sp,
                 color = Color.White,
                 fontWeight = FontWeight.Medium
+            )
+        }
+    }
+
+    // 登录提示（悬浮窗，层级最高）
+    AnimatedVisibility(
+        visible = showLoginToast,
+        enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(300)),
+        exit = fadeOut(animationSpec = androidx.compose.animation.core.tween(300))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(top = 80.dp)
+                .height(32.dp)
+                .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(16.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "请先登录",
+                color = Color.White,
+                fontSize = 14.sp
             )
         }
     }
@@ -445,12 +490,12 @@ fun CoverImage(
         }
 
         @Composable
-fun MusicInfoWithFavorite(
-            music: Music,
-            isFavorite: Boolean,
-            onFavoriteClick: () -> Unit
-        ) {
-            Box(
+        fun MusicInfoWithFavorite(
+                    music: Music,
+                    isFavorite: Boolean,
+                    onFavoriteClick: () -> Unit,
+                    isLoggedIn: Boolean = true
+        ) {            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 32.dp)
@@ -547,7 +592,8 @@ fun LyricSongInfoBar(
             music: Music,
             isFavorite: Boolean,
             onFavoriteClick: () -> Unit,
-            showLyrics: Boolean
+            showLyrics: Boolean,
+            isLoggedIn: Boolean = true
         ) {
             Box(
                 modifier = Modifier
