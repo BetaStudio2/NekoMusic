@@ -98,7 +98,7 @@ class MusicPlayerManager private constructor(context: Context) {
             _currentMusicCover.value = fullCoverUrl ?: cover
             
             // 保存到播放列表
-            if (id != null && title != null && artist != null) {
+            if (id != null && title != null && artist != null && id > 0) {
                 scope.launch {
                     val music = com.neko.music.data.model.Music(
                         id = id,
