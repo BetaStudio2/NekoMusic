@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -64,6 +65,11 @@ fun PlaylistScreen(
                 .background(Color.Black.copy(alpha = 0.5f))
                 .clickable(onClick = onBackClick)
         ) {
+            // 处理返回键
+            BackHandler(enabled = isVisible) {
+                onBackClick()
+            }
+
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
