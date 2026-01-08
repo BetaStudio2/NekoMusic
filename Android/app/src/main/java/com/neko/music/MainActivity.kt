@@ -144,9 +144,9 @@ fun MainScreen() {
                             },
                             onMusicClick = { music ->
                                 val id = music.id
-                                val title = music.title
-                                val artist = music.artist
-                                navController.navigate("player/$id/$title/$artist")
+                                val encodedTitle = java.net.URLEncoder.encode(music.title, "UTF-8")
+                                val encodedArtist = java.net.URLEncoder.encode(music.artist, "UTF-8")
+                                navController.navigate("player/$id/$encodedTitle/$encodedArtist")
                             }
                         )
                     }
@@ -169,7 +169,9 @@ fun MainScreen() {
                             },
                             onMusicClick = { music ->
                                 Log.d("MainActivity", "点击音乐: ${music.title}")
-                                navController.navigate("player/${music.id}/${music.title}/${music.artist}")
+                                val encodedTitle = java.net.URLEncoder.encode(music.title, "UTF-8")
+                                val encodedArtist = java.net.URLEncoder.encode(music.artist, "UTF-8")
+                                navController.navigate("player/${music.id}/$encodedTitle/$encodedArtist")
                             }
                         )
                     }
@@ -182,8 +184,8 @@ fun MainScreen() {
                         )
                     ) { backStackEntry ->
                         val id = backStackEntry.arguments?.getInt("id") ?: 0
-                        val title = backStackEntry.arguments?.getString("title") ?: ""
-                        val artist = backStackEntry.arguments?.getString("artist") ?: ""
+                        val title = java.net.URLDecoder.decode(backStackEntry.arguments?.getString("title") ?: "", "UTF-8")
+                        val artist = java.net.URLDecoder.decode(backStackEntry.arguments?.getString("artist") ?: "", "UTF-8")
                         val music = Music(id, title, artist, "", 0, "", "", 0, "")
                         Log.d("MainActivity", "播放页面加载: $title")
                         PlayerScreen(
@@ -214,9 +216,9 @@ fun MainScreen() {
                     onPlayerClick = {
                         // 跳转到播放页面，传递当前音乐ID
                         val id = currentMusicId ?: 0
-                        val title = currentMusicTitle ?: "未知歌曲"
-                        val artist = currentMusicArtist ?: "未知歌手"
-                        navController.navigate("player/$id/$title/$artist")
+                        val encodedTitle = java.net.URLEncoder.encode(currentMusicTitle ?: "未知歌曲", "UTF-8")
+                        val encodedArtist = java.net.URLEncoder.encode(currentMusicArtist ?: "未知歌手", "UTF-8")
+                        navController.navigate("player/$id/$encodedTitle/$encodedArtist")
                     },
                     onPlaylistClick = {
                         showPlaylist = true
