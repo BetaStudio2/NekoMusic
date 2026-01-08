@@ -46,6 +46,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun PlaylistScreen(
     isVisible: Boolean,
+    currentMusicId: Int?,
     onBackClick: () -> Unit,
     onMusicClick: (Music) -> Unit
 ) {
@@ -148,21 +149,20 @@ fun PlaylistScreen(
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                ) {
-                    items(playlist) { music ->
-                        PlaylistItem(
-                            music = music,
-                            isPlaying = false,
-                            onClick = {
-                                onMusicClick(music)
-                            }
-                        )
-                    }
-                }
-            }
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .weight(1f)
+                                        ) {
+                                            items(playlist) { music ->
+                                                PlaylistItem(
+                                                    music = music,
+                                                    isPlaying = music.id == currentMusicId,
+                                                    onClick = {
+                                                        onMusicClick(music)
+                                                    }
+                                                )
+                                            }
+                                        }            }
         }
     }
     }
@@ -223,16 +223,6 @@ fun PlaylistItem(
                 fontSize = 13.sp,
                 color = Color.Gray,
                 maxLines = 1
-            )
-        }
-
-        // 播放图标
-        if (isPlaying) {
-            Icon(
-                painter = androidx.compose.ui.res.painterResource(R.drawable.pause),
-                contentDescription = "正在播放",
-                tint = RoseRed,
-                modifier = Modifier.size(20.dp)
             )
         }
     }

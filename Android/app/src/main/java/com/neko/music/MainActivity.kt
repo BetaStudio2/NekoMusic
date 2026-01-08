@@ -202,6 +202,7 @@ fun MainScreen() {
         // 播放列表弹窗（在所有控件之上，覆盖显示）
         PlaylistScreen(
             isVisible = showPlaylist,
+            currentMusicId = currentMusicId,
             onBackClick = {
                 showPlaylist = false
             },
