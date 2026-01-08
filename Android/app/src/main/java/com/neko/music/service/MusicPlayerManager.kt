@@ -46,6 +46,7 @@ class MusicPlayerManager private constructor(context: Context) {
     val currentMusicId: StateFlow<Int?> = _currentMusicId.asStateFlow()
     
     private var updateJob: Job? = null
+    private var fadeJob: Job? = null
     
     init {
         player.addListener(object : Player.Listener {
@@ -86,6 +87,44 @@ class MusicPlayerManager private constructor(context: Context) {
         updateJob = null
     }
     
+    // 淡入效果
+    private fun fadeIn() {
+        fadeJob?.cancel()
+        fadeJob = scope.launch {
+            player.volume = 0f
+            player.play()
+            _isPlaying.value = true
+            startPositionUpdate()
+            
+            val steps = 20
+            val stepDelay = 300L / steps
+            for (i in 1..steps) {
+                delay(stepDelay)
+                player.volume = i.toFloat() / steps
+            }
+            player.volume = 1f
+        }
+    }
+    
+    // 淡出效果
+    private fun fadeOut(onComplete: () -> Unit) {
+        fadeJob?.cancel()
+        fadeJob = scope.launch {
+            val steps = 20
+            val stepDelay = 300L / steps
+            for (i in steps downTo 1) {
+                delay(stepDelay)
+                player.volume = i.toFloat() / steps
+            }
+            player.volume = 0f
+            player.pause()
+            _isPlaying.value = false
+            stopPositionUpdate()
+            player.volume = 1f
+            onComplete()
+        }
+    }
+    
     fun playMusic(url: String, id: Int? = null, title: String? = null, artist: String? = null, cover: String? = null, fullCoverUrl: String? = null) {
         if (_currentMusicUrl.value != url) {
             val mediaItem = MediaItem.fromUri(url)
@@ -114,25 +153,24 @@ class MusicPlayerManager private constructor(context: Context) {
                     playlistManager.addToPlaylist(music)
                 }
             }
+            
+            // 淡入播放
+            fadeIn()
+        } else {
+            // 已有音乐，直接播放
+            fadeIn()
         }
-        player.play()
-        _isPlaying.value = true
-        startPositionUpdate()
     }
     
     fun pause() {
-        player.pause()
-        _isPlaying.value = false
-        stopPositionUpdate()
+        fadeOut {}
     }
     
     fun togglePlayPause() {
         if (_isPlaying.value) {
-            pause()
+            fadeOut {}
         } else {
-            player.play()
-            _isPlaying.value = true
-            startPositionUpdate()
+            fadeIn()
         }
     }
     
