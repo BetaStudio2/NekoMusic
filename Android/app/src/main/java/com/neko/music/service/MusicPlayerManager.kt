@@ -1,6 +1,8 @@
 package com.neko.music.service
 
 import android.content.Context
+import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.Player
@@ -17,9 +19,13 @@ import kotlinx.coroutines.launch
 class MusicPlayerManager private constructor(context: Context) {
     
     private val playlistManager = PlaylistManager.getInstance(context)
+    private val appContext = context.applicationContext
     
     private val player = ExoPlayer.Builder(context).build()
     private val scope = CoroutineScope(Dispatchers.Main + Job())
+    
+    // 媒体会话
+    private val mediaSession = MediaSessionCompat(appContext, "MusicPlayerSession")
     
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
@@ -49,9 +55,26 @@ class MusicPlayerManager private constructor(context: Context) {
     private var fadeJob: Job? = null
     
     init {
+        // 设置媒体会话
+        mediaSession.isActive = true
+        mediaSession.setCallback(object : MediaSessionCompat.Callback() {
+            override fun onPlay() {
+                fadeIn()
+            }
+            
+            override fun onPause() {
+                fadeOut {}
+            }
+            
+            override fun onSeekTo(pos: Long) {
+                player.seekTo(pos)
+            }
+        })
+        
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _isPlaying.value = isPlaying
+                updatePlaybackState()
             }
             
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -64,10 +87,42 @@ class MusicPlayerManager private constructor(context: Context) {
                     Player.STATE_ENDED -> {
                         _isPlaying.value = false
                         player.seekTo(0)
+                        updatePlaybackState()
                     }
                 }
             }
         })
+        
+        updatePlaybackState()
+    }
+    
+    private fun updatePlaybackState() {
+        val stateBuilder = PlaybackStateCompat.Builder()
+            .setActions(
+                PlaybackStateCompat.ACTION_PLAY or
+                PlaybackStateCompat.ACTION_PAUSE or
+                PlaybackStateCompat.ACTION_PLAY_PAUSE or
+                PlaybackStateCompat.ACTION_SEEK_TO
+            )
+            .setState(
+                if (player.isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED,
+                player.currentPosition,
+                1.0f
+            )
+        
+        mediaSession.setPlaybackState(stateBuilder.build())
+        
+        // 更新媒体元数据
+        val title = _currentMusicTitle.value ?: ""
+        val artist = _currentMusicArtist.value ?: ""
+        if (title.isNotEmpty() || artist.isNotEmpty()) {
+            val metadata = android.support.v4.media.MediaMetadataCompat.Builder()
+                .putString(android.support.v4.media.MediaMetadataCompat.METADATA_KEY_TITLE, title)
+                .putString(android.support.v4.media.MediaMetadataCompat.METADATA_KEY_ARTIST, artist)
+                .putString(android.support.v4.media.MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, _currentMusicCover.value)
+                .build()
+            mediaSession.setMetadata(metadata)
+        }
     }
     
     private fun startPositionUpdate() {
@@ -177,10 +232,13 @@ class MusicPlayerManager private constructor(context: Context) {
     fun seekTo(position: Long) {
         player.seekTo(position)
         _currentPosition.value = position
+        updatePlaybackState()
     }
     
     fun release() {
         stopPositionUpdate()
+        fadeJob?.cancel()
+        mediaSession.release()
         player.release()
     }
     

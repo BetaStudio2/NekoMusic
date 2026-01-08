@@ -41,6 +41,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+        // 启动音乐播放服务
+        MusicPlayerService.startService(this)
+        
         setContent {
             Neko云音乐Theme {
                 Surface(
