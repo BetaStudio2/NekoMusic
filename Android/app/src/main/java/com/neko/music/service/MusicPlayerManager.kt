@@ -508,14 +508,12 @@ class MusicPlayerManager private constructor(context: Context) {
     }
     
     fun playMusic(url: String, id: Int? = null, title: String? = null, artist: String? = null, cover: String? = null, fullCoverUrl: String? = null) {
-        // 检查收藏状态
-        checkFavoriteStatus()
         if (_currentMusicUrl.value != url) {
             // 添加到历史记录（如果不是重复播放同一首歌）
             if (id != null && _currentMusicId.value != id) {
                 playHistory.add(id)
             }
-            
+
             val mediaItem = MediaItem.fromUri(url)
             player.setMediaItem(mediaItem)
             player.prepare()
@@ -525,7 +523,7 @@ class MusicPlayerManager private constructor(context: Context) {
             _currentMusicArtist.value = artist
             _currentMusicCover.value = fullCoverUrl ?: cover
             coverBitmap = null
-            
+
             // 保存到播放列表
             if (id != null && title != null && artist != null && id > 0) {
                 scope.launch {
@@ -545,7 +543,10 @@ class MusicPlayerManager private constructor(context: Context) {
                     playlistManager.updateAddedAt(id)
                 }
             }
-            
+
+            // 在更新音乐信息后检查收藏状态
+            checkFavoriteStatus()
+
             // 淡入播放
             fadeIn()
         } else {
