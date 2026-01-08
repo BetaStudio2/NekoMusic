@@ -79,18 +79,22 @@ class PlaylistManager private constructor(context: Context) {
     }
     
     suspend fun addToPlaylist(music: Music) {
-        val entity = PlaylistEntity(
-            musicId = music.id,
-            title = music.title,
-            artist = music.artist,
-            album = music.album,
-            duration = music.duration,
-            filePath = music.filePath,
-            coverFilePath = music.coverFilePath,
-            uploadUserId = music.uploadUserId,
-            createdAt = music.createdAt
-        )
-        dao.addToPlaylist(entity)
+        // 检查是否已存在
+        val existing = dao.getMusicById(music.id)
+        if (existing == null) {
+            val entity = PlaylistEntity(
+                musicId = music.id,
+                title = music.title,
+                artist = music.artist,
+                album = music.album,
+                duration = music.duration,
+                filePath = music.filePath,
+                coverFilePath = music.coverFilePath,
+                uploadUserId = music.uploadUserId,
+                createdAt = music.createdAt
+            )
+            dao.addToPlaylist(entity)
+        }
     }
     
     suspend fun removeFromPlaylist(musicId: Int) {
