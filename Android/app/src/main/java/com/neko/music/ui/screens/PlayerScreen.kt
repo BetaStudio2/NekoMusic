@@ -710,20 +710,29 @@ fun LyricsView(
                 modifier = modifier
                     .fillMaxSize()
                     .clickable(onClick = onClick)
-                    .padding(horizontal = 32.dp),
-                contentAlignment = Alignment.Center
+                    .padding(horizontal = 32.dp)
             ) {
                 when {
                     isLoading -> {
-                        CircularProgressIndicator(color = RoseRed)
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = RoseRed)
+                        }
                     }
 
                     lyrics.isEmpty() -> {
-                        Text(
-                            text = "暂无歌词",
-                            fontSize = 16.sp,
-                            color = Color.Gray
-                        )
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "暂无歌词",
+                                fontSize = 16.sp,
+                                color = Color.Gray
+                            )
+                        }
                     }
 
                     else -> {
@@ -734,7 +743,7 @@ fun LyricsView(
                         ) {
                             // 添加顶部占位，让第一行歌词也能居中
                             item {
-                                Spacer(modifier = Modifier.height(300.dp))
+                                Spacer(modifier = Modifier.height(180.dp))
                             }
 
                             items(lyrics.size) { index ->
@@ -756,7 +765,7 @@ fun LyricsView(
 
                             // 添加底部占位，让最后一行歌词也能居中
                             item {
-                                Spacer(modifier = Modifier.height(300.dp))
+                                Spacer(modifier = Modifier.height(400.dp))
                             }
                         }
                     }
