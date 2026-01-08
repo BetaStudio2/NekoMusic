@@ -2,6 +2,8 @@ package com.neko.music.data.manager
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.neko.music.data.database.AppDatabase
 import com.neko.music.data.database.PlaylistEntity
 import com.neko.music.data.model.Music
@@ -11,11 +13,52 @@ import kotlinx.coroutines.flow.map
 
 class PlaylistManager private constructor(context: Context) {
     
+    // 数据库迁移：从版本1到版本2
+    private val MIGRATION_1_2 = object : Migration(1, 2) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // 创建新表
+            database.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS playlist_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    musicId INTEGER NOT NULL,
+                    title TEXT NOT NULL,
+                    artist TEXT NOT NULL,
+                    album TEXT NOT NULL,
+                    duration INTEGER NOT NULL,
+                    filePath TEXT NOT NULL,
+                    coverFilePath TEXT NOT NULL,
+                    uploadUserId INTEGER NOT NULL,
+                    createdAt TEXT NOT NULL,
+                    addedAt INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+            
+            // 复制数据
+            database.execSQL(
+                """
+                INSERT INTO playlist_new (musicId, title, artist, album, duration, filePath, coverFilePath, uploadUserId, createdAt, addedAt)
+                SELECT musicId, title, artist, album, duration, filePath, coverFilePath, uploadUserId, createdAt, addedAt
+                FROM playlist
+                """.trimIndent()
+            )
+            
+            // 删除旧表
+            database.execSQL("DROP TABLE IF EXISTS playlist")
+            
+            // 重命名新表
+            database.execSQL("ALTER TABLE playlist_new RENAME TO playlist")
+        }
+    }
+    
     private val database = Room.databaseBuilder(
         context.applicationContext,
         AppDatabase::class.java,
         "music-playlist-db"
-    ).build()
+    )
+        .addMigrations(MIGRATION_1_2)
+        .build()
     
     private val dao = database.playlistDao()
     
