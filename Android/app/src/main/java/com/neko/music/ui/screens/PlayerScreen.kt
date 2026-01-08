@@ -154,7 +154,7 @@ fun PlayerScreen(
     var showPlayModeToast by remember { mutableStateOf(false) }
 
     // 从播放器获取当前音乐信息
-    val currentMusic = remember(currentMusicId, currentMusicTitle, currentMusicArtist, currentMusicCover) {
+    val currentMusic = remember(currentMusicId) {
         val id = currentMusicId
         val title = currentMusicTitle
         val artist = currentMusicArtist
@@ -260,7 +260,7 @@ fun PlayerScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         CoverImage(
-                            music = music,
+                            music = currentMusic,
                             onClick = { showLyrics = true }
                         )
                     }
