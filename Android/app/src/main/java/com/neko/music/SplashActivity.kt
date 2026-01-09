@@ -73,11 +73,11 @@ fun SplashScreen(onAnimationComplete: () -> Unit) {
     LaunchedEffect(Unit) {
         scale.animateTo(
             targetValue = 1f,
-            animationSpec = tween(durationMillis = 800, delayMillis = 100)
+            animationSpec = tween(durationMillis = 300, delayMillis = 30)
         )
         alpha.animateTo(
             targetValue = 1f,
-            animationSpec = tween(durationMillis = 800, delayMillis = 100)
+            animationSpec = tween(durationMillis = 300, delayMillis = 30)
         )
         delay(1500)
         onAnimationComplete()

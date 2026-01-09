@@ -56,12 +56,12 @@ fun RegisterScreen(
     var isVisible by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = if (isVisible) 1f else 0.95f,
-        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing),
         label = "scale"
     )
     val alpha by animateFloatAsState(
         targetValue = if (isVisible) 1f else 0f,
-        animationSpec = tween(durationMillis = 400, delayMillis = 100),
+        animationSpec = tween(durationMillis = 150, delayMillis = 30),
         label = "alpha"
     )
 
@@ -102,9 +102,8 @@ fun RegisterScreen(
             visible = isVisible,
             enter = slideInHorizontally(
                 initialOffsetX = { -it },
-                animationSpec = tween(durationMillis = 400, delayMillis = 200)
-            ) + fadeIn(animationSpec = tween(durationMillis = 400, delayMillis = 200))
-        ) {
+                animationSpec = tween(durationMillis = 150, delayMillis = 60)
+                                    ) + fadeIn(animationSpec = tween(durationMillis = 150, delayMillis = 60))        ) {
             IconButton(
                 onClick = onBackClick,
                 modifier = Modifier
@@ -155,9 +154,8 @@ fun RegisterScreen(
                 visible = isVisible,
                 enter = slideInVertically(
                     initialOffsetY = { it },
-                    animationSpec = tween(durationMillis = 400, delayMillis = 300)
-                ) + fadeIn(animationSpec = tween(durationMillis = 400, delayMillis = 300))
-            ) {
+                    animationSpec = tween(durationMillis = 150, delayMillis = 90)
+                                        ) + fadeIn(animationSpec = tween(durationMillis = 150, delayMillis = 90))            ) {
                 OutlinedTextField(
                     value = username,
                     onValueChange = {
@@ -192,9 +190,8 @@ fun RegisterScreen(
                 visible = isVisible,
                 enter = slideInVertically(
                     initialOffsetY = { it },
-                    animationSpec = tween(durationMillis = 400, delayMillis = 350)
-                ) + fadeIn(animationSpec = tween(durationMillis = 400, delayMillis = 350))
-            ) {
+                    animationSpec = tween(durationMillis = 150, delayMillis = 105)
+                                        ) + fadeIn(animationSpec = tween(durationMillis = 150, delayMillis = 105))            ) {
                 OutlinedTextField(
                     value = email,
                     onValueChange = {
@@ -230,9 +227,8 @@ fun RegisterScreen(
                 visible = isVisible,
                 enter = slideInVertically(
                     initialOffsetY = { it },
-                    animationSpec = tween(durationMillis = 400, delayMillis = 400)
-                ) + fadeIn(animationSpec = tween(durationMillis = 400, delayMillis = 400))
-            ) {
+                    animationSpec = tween(durationMillis = 150, delayMillis = 120)
+                                        ) + fadeIn(animationSpec = tween(durationMillis = 150, delayMillis = 120))            ) {
                 OutlinedTextField(
                     value = verificationCode,
                     onValueChange = {
@@ -302,9 +298,8 @@ fun RegisterScreen(
                 visible = isVisible,
                 enter = slideInVertically(
                     initialOffsetY = { it },
-                    animationSpec = tween(durationMillis = 400, delayMillis = 450)
-                ) + fadeIn(animationSpec = tween(durationMillis = 400, delayMillis = 450))
-            ) {
+                    animationSpec = tween(durationMillis = 150, delayMillis = 135)
+                                        ) + fadeIn(animationSpec = tween(durationMillis = 150, delayMillis = 135))            ) {
                 OutlinedTextField(
                     value = password,
                     onValueChange = {
@@ -341,9 +336,8 @@ fun RegisterScreen(
                 visible = isVisible,
                 enter = slideInVertically(
                     initialOffsetY = { it },
-                    animationSpec = tween(durationMillis = 400, delayMillis = 500)
-                ) + fadeIn(animationSpec = tween(durationMillis = 400, delayMillis = 500))
-            ) {
+                    animationSpec = tween(durationMillis = 150, delayMillis = 150)
+                                        ) + fadeIn(animationSpec = tween(durationMillis = 150, delayMillis = 150))            ) {
                 OutlinedTextField(
                     value = confirmPassword,
                     onValueChange = {
@@ -376,9 +370,8 @@ fun RegisterScreen(
             // 错误提示
             AnimatedVisibility(
                 visible = errorMessage.isNotEmpty(),
-                enter = expandVertically(animationSpec = tween(durationMillis = 300)) + fadeIn(),
-                exit = shrinkVertically(animationSpec = tween(durationMillis = 300)) + fadeOut()
-            ) {
+                enter = expandVertically(animationSpec = tween(durationMillis = 150)) + fadeIn(),
+                                    exit = shrinkVertically(animationSpec = tween(durationMillis = 150)) + fadeOut()            ) {
                 Text(
                     text = errorMessage,
                     color = Color.Red,
@@ -394,9 +387,8 @@ fun RegisterScreen(
                 visible = isVisible,
                 enter = slideInVertically(
                     initialOffsetY = { it },
-                    animationSpec = tween(durationMillis = 400, delayMillis = 550)
-                ) + fadeIn(animationSpec = tween(durationMillis = 400, delayMillis = 550))
-            ) {
+                    animationSpec = tween(durationMillis = 150, delayMillis = 165)
+                                        ) + fadeIn(animationSpec = tween(durationMillis = 150, delayMillis = 165))            ) {
                 Button(
                     onClick = {
                         if (username.isEmpty() || email.isEmpty() || password.isEmpty() || confirmPassword.isEmpty() || verificationCode.isEmpty()) {
@@ -472,7 +464,7 @@ fun RegisterScreen(
             // 登录提示
             AnimatedVisibility(
                 visible = isVisible,
-                enter = fadeIn(animationSpec = tween(durationMillis = 400, delayMillis = 600))
+                enter = fadeIn(animationSpec = tween(durationMillis = 150, delayMillis = 180))
             ) {
                 Row(
                     horizontalArrangement = Arrangement.Center,

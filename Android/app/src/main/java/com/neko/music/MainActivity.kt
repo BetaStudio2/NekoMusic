@@ -324,7 +324,7 @@ fun MainScreen() {
                             enter = androidx.compose.animation.slideInVertically(
                                 initialOffsetY = { fullHeight -> fullHeight },
                                 animationSpec = tween(
-                                    durationMillis = 500,
+                                    durationMillis = 200,
                                     easing = androidx.compose.animation.core.FastOutSlowInEasing
                                 )
                             ),
@@ -416,13 +416,12 @@ fun MainScreen() {
             visible = showLoginScreen,
             enter = slideInHorizontally(
                 initialOffsetX = { it },
-                animationSpec = tween(durationMillis = 300)
-            ) + fadeIn(animationSpec = tween(durationMillis = 300)),
-            exit = slideOutHorizontally(
-                targetOffsetX = { -it },
-                animationSpec = tween(durationMillis = 300)
-            ) + fadeOut(animationSpec = tween(durationMillis = 300)),
-            modifier = Modifier.zIndex(Float.MAX_VALUE)
+                animationSpec = tween(durationMillis = 150)
+                                        ) + fadeIn(animationSpec = tween(durationMillis = 150)),
+                                    exit = slideOutHorizontally(
+                                        targetOffsetX = { -it },
+                                        animationSpec = tween(durationMillis = 150)
+                                    ) + fadeOut(animationSpec = tween(durationMillis = 150)),            modifier = Modifier.zIndex(Float.MAX_VALUE)
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 LoginScreen(
@@ -449,13 +448,12 @@ fun MainScreen() {
             visible = showRegisterScreen,
             enter = slideInHorizontally(
                 initialOffsetX = { it },
-                animationSpec = tween(durationMillis = 300)
-            ) + fadeIn(animationSpec = tween(durationMillis = 300)),
-            exit = slideOutHorizontally(
-                targetOffsetX = { -it },
-                animationSpec = tween(durationMillis = 300)
-            ) + fadeOut(animationSpec = tween(durationMillis = 300)),
-            modifier = Modifier.zIndex(Float.MAX_VALUE)
+                animationSpec = tween(durationMillis = 150)
+                                        ) + fadeIn(animationSpec = tween(durationMillis = 150)),
+                                    exit = slideOutHorizontally(
+                                        targetOffsetX = { -it },
+                                        animationSpec = tween(durationMillis = 150)
+                                    ) + fadeOut(animationSpec = tween(durationMillis = 150)),            modifier = Modifier.zIndex(Float.MAX_VALUE)
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 RegisterScreen(
