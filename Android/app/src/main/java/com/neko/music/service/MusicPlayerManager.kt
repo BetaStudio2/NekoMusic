@@ -541,6 +541,10 @@ class MusicPlayerManager private constructor(context: Context) {
                     playlistManager.addToPlaylist(music)
                     // 更新addedAt时间，标记为最近播放
                     playlistManager.updateAddedAt(id)
+                    
+                    // 添加到最近播放列表
+                    val recentPlayManager = com.neko.music.data.manager.RecentPlayManager(context)
+                    recentPlayManager.addRecentPlay(music)
                 }
             }
 

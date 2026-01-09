@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.setValue
 import coil.compose.AsyncImage
 import com.neko.music.data.model.Music
@@ -55,13 +56,25 @@ fun RecentPlayScreen(
     
     var playHistory by remember { mutableStateOf<List<Music>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    var searchQuery by remember { mutableStateOf("") }
     
     // 加载最近播放历史
     LaunchedEffect(Unit) {
         isLoading = true
         scope.launch {
-            playHistory = playerManager.getPlayHistory()
+            val recentPlayManager = com.neko.music.data.manager.RecentPlayManager(context)
+            playHistory = recentPlayManager.getRecentPlays()
             isLoading = false
+        }
+    }
+    
+    // 过滤后的列表
+    val filteredList = if (searchQuery.isEmpty()) {
+        playHistory
+    } else {
+        playHistory.filter { music ->
+            music.title.contains(searchQuery, ignoreCase = true) ||
+            music.artist.contains(searchQuery, ignoreCase = true)
         }
     }
     
@@ -101,7 +114,16 @@ fun RecentPlayScreen(
             Spacer(modifier = Modifier.size(48.dp))
         }
         
-        Spacer(modifier = Modifier.height(16.dp))
+        // 搜索框
+        SearchBar(
+            query = searchQuery,
+            onQueryChange = { searchQuery = it },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
         
         // 内容区域
         if (isLoading) {
@@ -111,13 +133,13 @@ fun RecentPlayScreen(
             ) {
                 CircularProgressIndicator(color = RoseRed)
             }
-        } else if (playHistory.isEmpty()) {
+        } else if (filteredList.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "暂无播放记录",
+                    text = if (searchQuery.isEmpty()) "暂无播放记录" else "未找到相关歌曲",
                     fontSize = 16.sp,
                     color = Color.Gray
                 )
@@ -127,7 +149,7 @@ fun RecentPlayScreen(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(playHistory) { music ->
+                items(filteredList) { music ->
                     RecentPlayItem(
                         music = music,
                         onClick = { onMusicClick(music) }
@@ -225,5 +247,54 @@ fun RecentPlayItem(
                 modifier = Modifier.size(32.dp)
             )
         }
+    }
+}
+
+/**
+ * 搜索框组件
+ */
+@Composable
+fun SearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .height(40.dp)
+            .background(
+                color = Color(0xFFF5F5F5),
+                shape = RoundedCornerShape(20.dp)
+            )
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.Search,
+            contentDescription = "搜索",
+            tint = Color.Gray,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        androidx.compose.foundation.text.BasicTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier.weight(1f),
+            textStyle = androidx.compose.ui.text.TextStyle(
+                fontSize = 14.sp,
+                color = Color.Black
+            ),
+            singleLine = true,
+            decorationBox = { innerTextField ->
+                if (query.isEmpty()) {
+                    Text(
+                        text = "搜索歌曲",
+                        fontSize = 14.sp,
+                        color = Color.Gray
+                    )
+                }
+                innerTextField()
+            }
+        )
     }
 }

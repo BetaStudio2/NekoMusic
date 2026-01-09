@@ -68,6 +68,7 @@ fun HomeScreen(
     // 启动时检查更新
     LaunchedEffect(Unit) {
         scope.launch {
+            // 检查更新
             try {
                 val info = updateManager.checkUpdate()
                 if (info != null && info.isUpdateAvailable) {
