@@ -98,5 +98,6 @@ data class FavoriteMusic(
     val artist: String,
     val album: String,
     val duration: Int,
-    val filename: String
+    val filename: String,
+    val cover: String = ""
 )
