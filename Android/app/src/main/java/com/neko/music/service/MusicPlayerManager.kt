@@ -229,15 +229,15 @@ class MusicPlayerManager private constructor(context: Context) {
         val currentId = _currentMusicId.value ?: return
         android.util.Log.d("MusicPlayerManager", "previous() called, currentId: $currentId, playHistory size: ${playHistory.size}")
         
-        // 从历史记录中获取上一首
-        if (playHistory.size > 1) {
-            // 移除当前歌曲
-            playHistory.removeAt(playHistory.size - 1)
-            // 获取上一首
-            val previousId = playHistory.lastOrNull()
-            android.util.Log.d("MusicPlayerManager", "previousId: $previousId")
-            if (previousId != null) {
-                scope.launch {
+        scope.launch {
+            // 从历史记录中获取上一首
+            if (playHistory.size > 1) {
+                // 移除当前歌曲
+                playHistory.removeAt(playHistory.size - 1)
+                // 获取上一首
+                val previousId = playHistory.lastOrNull()
+                android.util.Log.d("MusicPlayerManager", "previousId: $previousId")
+                if (previousId != null) {
                     // 从数据库中获取上一首歌曲信息
                     val previousMusic = playlistManager.getPlaylistMusicById(previousId)
                     android.util.Log.d("MusicPlayerManager", "previousMusic: $previousMusic")
@@ -248,19 +248,37 @@ class MusicPlayerManager private constructor(context: Context) {
                             "https://music.cnmsb.xin/api/music/cover/${previousMusic.id}"
                         }
                         playMusic(previousMusic.filePath, previousMusic.id, previousMusic.title, previousMusic.artist, previousMusic.coverFilePath, fullCoverUrl)
+                        return@launch
                     }
                 }
             }
-        } else if (playHistory.size == 1) {
-            // 只有一首歌，重新播放
-            android.util.Log.d("MusicPlayerManager", "Only one song in history, replaying current")
-            val currentUrl = _currentMusicUrl.value
-            if (currentUrl != null) {
-                player.seekTo(0)
-                player.play()
+            
+            // 历史记录中没有更多歌曲，按照列表顺序向上播放
+            android.util.Log.d("MusicPlayerManager", "No more history, getting previous music by list order")
+            val previousMusic = playlistManager.getPreviousMusic(currentId)
+            android.util.Log.d("MusicPlayerManager", "previousMusic by list: $previousMusic")
+            
+            if (previousMusic != null) {
+                val fullCoverUrl = if (previousMusic.coverFilePath.isNotEmpty()) {
+                    "https://music.cnmsb.xin${previousMusic.coverFilePath}"
+                } else {
+                    "https://music.cnmsb.xin/api/music/cover/${previousMusic.id}"
+                }
+                playMusic(previousMusic.filePath, previousMusic.id, previousMusic.title, previousMusic.artist, previousMusic.coverFilePath, fullCoverUrl)
+            } else {
+                // 列表上面没有了，循环到最后一首
+                android.util.Log.d("MusicPlayerManager", "No previous music in list, getting last music")
+                val lastMusic = playlistManager.getLastMusic()
+                android.util.Log.d("MusicPlayerManager", "lastMusic: $lastMusic")
+                if (lastMusic != null) {
+                    val fullCoverUrl = if (lastMusic.coverFilePath.isNotEmpty()) {
+                        "https://music.cnmsb.xin${lastMusic.coverFilePath}"
+                    } else {
+                        "https://music.cnmsb.xin/api/music/cover/${lastMusic.id}"
+                    }
+                    playMusic(lastMusic.filePath, lastMusic.id, lastMusic.title, lastMusic.artist, lastMusic.coverFilePath, fullCoverUrl)
+                }
             }
-        } else {
-            android.util.Log.d("MusicPlayerManager", "No history, cannot play previous")
         }
     }
     

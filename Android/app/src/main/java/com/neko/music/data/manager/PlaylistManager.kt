@@ -243,6 +243,25 @@ class PlaylistManager private constructor(context: Context) {
         }
     }
     
+    suspend fun getLastMusic(): Music? {
+        android.util.Log.d("PlaylistManager", "getLastMusic called")
+        val entity = dao.getLastMusic()
+        android.util.Log.d("PlaylistManager", "getLastMusic result: $entity")
+        return entity?.let {
+            Music(
+                id = it.musicId,
+                title = it.title,
+                artist = it.artist,
+                album = it.album,
+                duration = it.duration,
+                filePath = it.filePath,
+                coverFilePath = it.coverFilePath,
+                uploadUserId = it.uploadUserId,
+                createdAt = it.createdAt
+            )
+        }
+    }
+    
     companion object {
         @Volatile
         private var instance: PlaylistManager? = null
