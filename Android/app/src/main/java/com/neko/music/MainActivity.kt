@@ -63,7 +63,6 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     private val PREFS_NAME = "app_prefs"
     private val KEY_FIRST_LAUNCH = "first_launch"
-    private val KEY_HAS_RESTORED = "has_restored"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,10 +89,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = Color.Transparent
                 ) {
-                    MainScreen(
-                        prefsName = PREFS_NAME,
-                        keyHasRestored = KEY_HAS_RESTORED
-                    )
+                    MainScreen()
                 }
             }
         }
@@ -114,10 +110,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MainScreen(
-    prefsName: String = "app_prefs",
-    keyHasRestored: String = "has_restored"
-) {
+fun MainScreen() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val playerManager = MusicPlayerManager.getInstance(context)
     val scope = rememberCoroutineScope()
@@ -181,21 +174,19 @@ fun MainScreen(
     
     // 启动时恢复上次播放的音乐
     androidx.compose.runtime.LaunchedEffect(Unit) {
-        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
-        val hasRestored = prefs.getBoolean(keyHasRestored, false)
-        
-        if (!hasRestored) {
-            // 首次恢复，恢复上次播放的音乐
-            scope.launch {
+        scope.launch {
+            // 检查是否已经有音乐在播放
+            val currentMusicId = playerManager.currentMusicId.value
+            val currentMusicTitle = playerManager.currentMusicTitle.value
+            
+            // 如果没有音乐信息，才恢复上次播放
+            if (currentMusicId == null || currentMusicTitle == null || currentMusicTitle == "未知歌曲") {
                 playerManager.restoreLastPlayed(context)
-                // 标记已恢复
-                prefs.edit().putBoolean(keyHasRestored, true).apply()
                 // 等待音乐恢复播放后再检查收藏状态
                 kotlinx.coroutines.delay(1000) // 等待1秒确保音乐信息已加载
-                playerManager.checkFavoriteStatus()
             }
-        } else {
-            // 已经恢复过，只检查收藏状态
+            
+            // 检查收藏状态
             playerManager.checkFavoriteStatus()
         }
     }
