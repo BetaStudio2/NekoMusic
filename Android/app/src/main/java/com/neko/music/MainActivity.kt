@@ -2,11 +2,16 @@ package com.neko.music
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -63,6 +68,20 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     private val PREFS_NAME = "app_prefs"
     private val KEY_FIRST_LAUNCH = "first_launch"
+    private val REQUEST_CODE_INSTALL_PERMISSION = 1001
+
+    // 安装权限请求结果回调
+    private val installPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (packageManager.canRequestPackageInstalls()) {
+                Log.d("MainActivity", "安装权限已授予")
+            } else {
+                Log.d("MainActivity", "安装权限被拒绝")
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -79,6 +98,9 @@ class MainActivity : ComponentActivity() {
             finish()
             return
         }
+
+        // 请求安装权限
+        requestInstallPermission()
 
         // 启动音乐播放服务（前台服务，保持后台运行）
         MusicPlayerService.startService(this)
@@ -106,6 +128,21 @@ class MainActivity : ComponentActivity() {
         val context = this
         val playerManager = MusicPlayerManager.getInstance(context)
         playerManager.checkFavoriteStatus()
+    }
+
+    /**
+     * 请求安装权限
+     */
+    private fun requestInstallPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (!packageManager.canRequestPackageInstalls()) {
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:$packageName")
+                )
+                installPermissionLauncher.launch(intent)
+            }
+        }
     }
 }
 
