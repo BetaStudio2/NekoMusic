@@ -34,6 +34,7 @@ fun MineScreen(
     onLoginClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {},
     onFavoriteClick: () -> Unit = {},
+    onAboutClick: () -> Unit = {},
     isLoggedIn: Boolean = false,
     username: String? = null,
     userId: Int = -1,
@@ -110,7 +111,7 @@ fun MineScreen(
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
-                MoreSettings()
+                MoreSettings(onAboutClick = onAboutClick)
                 
                 Spacer(modifier = Modifier.height(100.dp))
             }
@@ -481,7 +482,9 @@ fun MenuItem(
 }
 
 @Composable
-fun MoreSettings() {
+fun MoreSettings(
+    onAboutClick: () -> Unit = {}
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -496,7 +499,7 @@ fun MoreSettings() {
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        MenuItem("关于我们", "ℹ️", StarYellow)
+        MenuItem("关于我们", "ℹ️", StarYellow, onClick = onAboutClick)
     }
     
     // 页脚
