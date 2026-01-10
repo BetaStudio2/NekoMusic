@@ -32,6 +32,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import coil.compose.AsyncImage
 import com.neko.music.R
 import com.neko.music.ui.theme.*
+import kotlin.math.cos
+import kotlin.math.sin
 
 sealed class BottomNavItem(
     val route: String,
@@ -57,15 +59,14 @@ fun BottomNavigationBar(
     // 计算选中项的索引
     val selectedIndex = items.indexOfFirst { it.route == currentRoute }
     
-    // 水滴指示器动画
-    val density = LocalDensity.current
-    val indicatorOffset by animateDpAsState(
-        targetValue = with(density) { 
-            (selectedIndex * (with(density) { 400.dp.toPx() } / items.size)).toDp() 
-        },
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
+    // 动态光效动画
+    val infiniteTransition = rememberInfiniteTransition(label = "glow")
+    val glowPhase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(4000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
         )
     )
 
@@ -73,9 +74,9 @@ fun BottomNavigationBar(
         modifier = modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 12.dp,
-                spotColor = RoseRed.copy(alpha = 0.25f),
-                ambientColor = Color.Gray.copy(alpha = 0.12f)
+                elevation = 16.dp,
+                spotColor = RoseRed.copy(alpha = 0.3f),
+                ambientColor = Color.Gray.copy(alpha = 0.15f)
             ),
         color = Color.Transparent
     ) {
@@ -85,50 +86,71 @@ fun BottomNavigationBar(
                 .background(
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            Color.White.copy(alpha = 0.85f),
-                            Color.White.copy(alpha = 0.95f)
+                            Color.White.copy(alpha = 0.88f),
+                            Color.White.copy(alpha = 0.96f)
                         )
                     )
                 )
         ) {
-            // 导航栏内容
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
+            // 背景装饰层
+            Canvas(
+                modifier = Modifier.fillMaxWidth().height(56.dp)
             ) {
-                // 导航栏文字
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    items.forEach { item ->
-                        val isSelected = currentRoute == item.route
-                        
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clickable {
-                                    if (currentRoute != item.route) {
-                                        navController.navigate(item.route) {
-                                            popUpTo(navController.graph.startDestinationId) {
-                                                saveState = true
-                                            }
-                                            launchSingleTop = true
-                                            restoreState = true
+                val width = size.width
+                val height = size.height
+                val itemWidth = width / items.size
+                val centerX = itemWidth * selectedIndex + itemWidth / 2
+                
+                // 绘制底部装饰线
+                drawLine(
+                    color = RoseRed.copy(alpha = 0.2f),
+                    start = Offset(centerX - 30.dp.toPx(), height - 2.dp.toPx()),
+                    end = Offset(centerX + 30.dp.toPx(), height - 2.dp.toPx()),
+                    strokeWidth = 3.dp.toPx(),
+                    cap = StrokeCap.Round
+                )
+            }
+            
+            // 导航栏文字
+            Row(
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                items.forEach { item ->
+                    val isSelected = currentRoute == item.route
+                    
+                    val scaleValue by animateFloatAsState(
+                        targetValue = if (isSelected) 1.15f else 1f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessLow
+                        )
+                    )
+                    
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clickable {
+                                if (currentRoute != item.route) {
+                                    navController.navigate(item.route) {
+                                        popUpTo(navController.graph.startDestinationId) {
+                                            saveState = true
                                         }
+                                        launchSingleTop = true
+                                        restoreState = true
                                     }
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = item.title,
-                                fontSize = 14.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isSelected) RoseRed else Color.Gray
-                            )
-                        }
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = item.title,
+                            fontSize = 15.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) RoseRed else Color.Gray,
+                            modifier = Modifier.scale(scaleValue)
+                        )
                     }
                 }
             }
@@ -149,10 +171,21 @@ fun MiniPlayer(
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val scaleValue by animateFloatAsState(
-        targetValue = if (isPressed) 0.98f else 1f,
+        targetValue = if (isPressed) 0.97f else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessLow
+        )
+    )
+    
+    // 脉冲动画
+    val pulseTransition = rememberInfiniteTransition(label = "pulse")
+    val pulseScale by pulseTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
         )
     )
     
@@ -160,21 +193,21 @@ fun MiniPlayer(
         modifier = Modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 6.dp,
-                spotColor = RoseRed.copy(alpha = 0.2f),
-                ambientColor = Color.Gray.copy(alpha = 0.1f)
+                elevation = 8.dp,
+                spotColor = RoseRed.copy(alpha = 0.25f),
+                ambientColor = Color.Gray.copy(alpha = 0.12f)
             ),
         color = Color.Transparent
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp)
+                .height(68.dp)
                 .background(
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            Color.White.copy(alpha = 0.9f),
-                            SakuraPink.copy(alpha = 0.05f)
+                            Color.White.copy(alpha = 0.92f),
+                            SakuraPink.copy(alpha = 0.06f)
                         )
                     )
                 )
@@ -186,7 +219,7 @@ fun MiniPlayer(
                         onPlayerClick()
                     }
                 )
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(horizontal = 16.dp, vertical = 10.dp)
                 .scale(scaleValue)
         ) {
             Row(
@@ -197,21 +230,28 @@ fun MiniPlayer(
                 // 左侧：封面、歌曲信息
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     // 封面
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(12.dp))
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(14.dp))
                             .background(
                                 brush = Brush.linearGradient(
                                     colors = listOf(
-                                        RoseRed.copy(alpha = 0.1f),
-                                        SakuraPink.copy(alpha = 0.1f)
+                                        RoseRed.copy(alpha = 0.12f),
+                                        SakuraPink.copy(alpha = 0.12f)
                                     )
                                 )
+                            )
+                            .then(
+                                if (isPlaying) {
+                                    Modifier.scale(pulseScale)
+                                } else {
+                                    Modifier
+                                }
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -225,7 +265,7 @@ fun MiniPlayer(
                         } else {
                             Text(
                                 text = "🎵",
-                                fontSize = 24.sp
+                                fontSize = 26.sp
                             )
                         }
                     }
@@ -237,7 +277,7 @@ fun MiniPlayer(
                     ) {
                         Text(
                             text = songTitle.ifEmpty { "暂无播放" },
-                            fontSize = 15.sp,
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.Black,
                             maxLines = 1,
@@ -255,25 +295,25 @@ fun MiniPlayer(
                 
                 // 右侧：播放/暂停按钮、播放列表
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // 播放/暂停按钮（带圆形进度条）
                     Box(
-                        modifier = Modifier.size(44.dp),
+                        modifier = Modifier.size(48.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         // 圆形进度条
                         Canvas(
-                            modifier = Modifier.size(44.dp)
+                            modifier = Modifier.size(48.dp)
                         ) {
-                            val strokeWidth = 3.dp.toPx()
+                            val strokeWidth = 3.5.dp.toPx()
                             val radius = size.minDimension / 2 - strokeWidth / 2 - 2.dp.toPx()
                             val center = Offset(size.width / 2, size.height / 2)
                             
                             // 背景圆环
                             drawCircle(
-                                color = Color(0xFFE0E0E0),
+                                color = Color(0xFFE8E8E8),
                                 radius = radius,
                                 center = center,
                                 style = Stroke(
@@ -302,7 +342,7 @@ fun MiniPlayer(
                         // 播放/暂停按钮
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(38.dp)
                                 .clip(CircleShape)
                                 .background(
                                     brush = Brush.linearGradient(
@@ -314,9 +354,9 @@ fun MiniPlayer(
                                 )
                                 .clickable(onClick = onPlayPauseClick)
                                 .shadow(
-                                    elevation = 4.dp,
-                                    spotColor = RoseRed.copy(alpha = 0.4f),
-                                    ambientColor = RoseRed.copy(alpha = 0.2f),
+                                    elevation = 6.dp,
+                                    spotColor = RoseRed.copy(alpha = 0.5f),
+                                    ambientColor = RoseRed.copy(alpha = 0.25f),
                                     shape = CircleShape
                                 ),
                             contentAlignment = Alignment.Center
@@ -327,7 +367,7 @@ fun MiniPlayer(
                                 ),
                                 contentDescription = if (isPlaying) "Pause" else "Play",
                                 tint = Color.White,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
@@ -335,9 +375,9 @@ fun MiniPlayer(
                     // 播放列表按钮
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(42.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFF5F5F5))
+                            .background(Color(0xFFF3F3F3))
                             .clickable(onClick = onPlaylistClick),
                         contentAlignment = Alignment.Center
                     ) {
@@ -345,7 +385,7 @@ fun MiniPlayer(
                             painter = painterResource(R.drawable.playlist),
                             contentDescription = "Playlist",
                             tint = Color.Gray,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
