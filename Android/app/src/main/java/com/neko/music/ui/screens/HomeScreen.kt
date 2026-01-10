@@ -35,11 +35,14 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
-    onSearchClick: () -> Unit = {}
+    onSearchClick: () -> Unit = {},
+    onNavigateToFavorite: () -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     val updateManager = remember { AppUpdateManager(context) }
+    val toastMessage = remember { androidx.compose.runtime.mutableStateOf("") }
+    val showToast = remember { androidx.compose.runtime.mutableStateOf(false) }
     
     // 更新状态
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
@@ -125,6 +128,42 @@ fun HomeScreen(
             .fillMaxSize()
             .background(Color(0xFFFAFAFA))
     ) {
+        // 显示土司消息
+        if (showToast.value && toastMessage.value.isNotEmpty()) {
+            LaunchedEffect(showToast.value) {
+                if (showToast.value) {
+                    kotlinx.coroutines.delay(2000)
+                    showToast.value = false
+                }
+            }
+            
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = 100.dp),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .padding(horizontal = 40.dp)
+                        .shadow(
+                            elevation = 8.dp,
+                            spotColor = RoseRed.copy(alpha = 0.3f),
+                            ambientColor = Color.Gray.copy(alpha = 0.15f)
+                        ),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.Black.copy(alpha = 0.85f)
+                ) {
+                    Text(
+                        text = toastMessage.value,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
+                        color = Color.White,
+                        fontSize = 15.sp
+                    )
+                }
+            }
+        }
+        
         androidx.compose.foundation.lazy.LazyColumn(
             modifier = Modifier.fillMaxSize()
         ) {
@@ -139,7 +178,9 @@ fun HomeScreen(
                 WelcomeBanner()
                 
                 // 快速访问
-                QuickAccessSection()
+                QuickAccessSection(
+                    onNavigateToFavorite = onNavigateToFavorite
+                )
                 
                 // 推荐歌单
                 RecommendedPlaylists()
@@ -328,7 +369,10 @@ fun WelcomeBanner() {
                 elevation = 4.dp,
                 spotColor = RoseRed.copy(alpha = 0.2f),
                 ambientColor = Color.Gray.copy(alpha = 0.1f)
-            ),
+            )
+            .clickable {
+                // 暂未实现
+            },
         contentAlignment = Alignment.Center
     ) {
         Row(
@@ -361,7 +405,12 @@ fun WelcomeBanner() {
 }
 
 @Composable
-fun QuickAccessSection() {
+fun QuickAccessSection(
+    onNavigateToFavorite: () -> Unit
+) {
+    val toastMessage = remember { androidx.compose.runtime.mutableStateOf("") }
+    val showToast = remember { androidx.compose.runtime.mutableStateOf(false) }
+    
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -380,10 +429,37 @@ fun QuickAccessSection() {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            QuickAccessItem(icon = "🎵", label = "我的音乐")
-            QuickAccessItem(icon = "❤️", label = "我喜欢")
-            QuickAccessItem(icon = "📻", label = "电台")
-            QuickAccessItem(icon = "🎤", label = "歌手")
+            QuickAccessItem(
+                icon = "🎵",
+                label = "我的音乐",
+                onClick = {
+                    toastMessage.value = "暂未实现"
+                    showToast.value = true
+                }
+            )
+            QuickAccessItem(
+                icon = "❤️",
+                label = "我喜欢",
+                onClick = {
+                    onNavigateToFavorite()
+                }
+            )
+            QuickAccessItem(
+                icon = "📻",
+                label = "电台",
+                onClick = {
+                    toastMessage.value = "暂未实现"
+                    showToast.value = true
+                }
+            )
+            QuickAccessItem(
+                icon = "🎤",
+                label = "歌手",
+                onClick = {
+                    toastMessage.value = "暂未实现"
+                    showToast.value = true
+                }
+            )
         }
     }
 }
@@ -391,7 +467,8 @@ fun QuickAccessSection() {
 @Composable
 fun QuickAccessItem(
     icon: String,
-    label: String
+    label: String,
+    onClick: () -> Unit
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
@@ -407,6 +484,7 @@ fun QuickAccessItem(
             .scale(scale)
             .clickable {
                 isPressed = true
+                onClick()
             },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -516,6 +594,7 @@ fun PlaylistCard(genre: String) {
             )
             .clickable {
                 isPressed = true
+                // 暂未实现
             }
     ) {
         Column(

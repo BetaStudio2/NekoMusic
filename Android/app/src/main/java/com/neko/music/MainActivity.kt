@@ -261,6 +261,9 @@ fun MainScreen() {
                             onSearchClick = {
                                 Log.d("MainActivity", "导航到搜索页面")
                                 navController.navigate("search")
+                            },
+                            onNavigateToFavorite = {
+                                navController.navigate("favorites")
                             }
                         )
                     }
