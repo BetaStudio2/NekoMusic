@@ -1,58 +1,43 @@
 package com.neko.music.ui.screens
 
 import android.util.Log
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.view.WindowCompat
 import com.neko.music.data.manager.AppUpdateManager
 import com.neko.music.data.manager.UpdateInfo
-import com.neko.music.data.model.Music
-import com.neko.music.ui.theme.DeepBlue
-import com.neko.music.ui.theme.RoseRed
+import com.neko.music.ui.theme.*
 import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
     onSearchClick: () -> Unit = {}
 ) {
-    val context = LocalContext.current
+    val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     val updateManager = remember { AppUpdateManager(context) }
     
@@ -68,7 +53,6 @@ fun HomeScreen(
     // 启动时检查更新
     LaunchedEffect(Unit) {
         scope.launch {
-            // 检查更新
             try {
                 val info = updateManager.checkUpdate()
                 if (info != null && info.isUpdateAvailable) {
@@ -117,6 +101,7 @@ fun HomeScreen(
             }
         }
     }
+    
     val view = LocalView.current
     SideEffect {
         val window = (view.context as android.app.Activity).window
@@ -124,15 +109,47 @@ fun HomeScreen(
         WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
     }
     
+    // 浮动动画
+    val infiniteTransition = rememberInfiniteTransition(label = "floating")
+    val floatOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 10f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        )
+    )
+    
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(Color(0xFFFAFAFA))
     ) {
-        HeaderSection(onSearchClick = onSearchClick)
+        androidx.compose.foundation.lazy.LazyColumn(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            item {
+                // 头部区域
+                HeaderSection(
+                    onSearchClick = onSearchClick,
+                    floatOffset = floatOffset
+                )
+                
+                // 欢迎横幅
+                WelcomeBanner()
+                
+                // 快速访问
+                QuickAccessSection()
+                
+                // 推荐歌单
+                RecommendedPlaylists()
+                
+                Spacer(modifier = Modifier.height(80.dp))
+            }
+        }
     }
     
-    // 更新提示对话框
+    // 更新对话框
     if (showUpdateDialog && updateInfo != null) {
         UpdateDialog(
             versionName = updateInfo!!.versionName,
@@ -142,7 +159,6 @@ fun HomeScreen(
         )
     }
     
-    // 下载进度对话框
     if (isDownloading) {
         DownloadProgressDialog(
             progress = downloadProgress,
@@ -150,14 +166,12 @@ fun HomeScreen(
         )
     }
     
-    // 更新成功提示
     if (showUpdateSuccessDialog) {
         UpdateSuccessDialog(
             onDismiss = { showUpdateSuccessDialog = false }
         )
     }
     
-    // 更新失败提示
     if (showUpdateErrorDialog) {
         UpdateErrorDialog(
             message = errorMessage,
@@ -166,9 +180,380 @@ fun HomeScreen(
     }
 }
 
-/**
- * 更新提示对话框
- */
+@Composable
+fun HeaderSection(
+    onSearchClick: () -> Unit,
+    floatOffset: Float
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(280.dp)
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF6B5B95),
+                        RoseRed
+                    )
+                )
+            )
+    ) {
+        // 装饰圆圈
+        androidx.compose.foundation.Canvas(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            drawCircle(
+                color = SakuraPink.copy(alpha = 0.15f),
+                radius = 120.dp.toPx(),
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.8f, size.height * 0.3f)
+            )
+            drawCircle(
+                color = SkyBlue.copy(alpha = 0.1f),
+                radius = 80.dp.toPx(),
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.2f, size.height * 0.7f)
+            )
+        }
+        
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp)
+                .statusBarsPadding()
+        ) {
+            Spacer(modifier = Modifier.height(20.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "欢迎回来",
+                        fontSize = 14.sp,
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "Neko云音乐",
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                
+                // 浮动音乐图标
+                Box(
+                    modifier = Modifier
+                        .size(50.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.2f))
+                        .offset(y = floatOffset.dp)
+                ) {
+                    Text(
+                        text = "🎵",
+                        fontSize = 28.sp,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            // 搜索框
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .background(
+                        color = Color.White.copy(alpha = 0.25f),
+                        shape = RoundedCornerShape(26.dp)
+                    )
+                    .padding(horizontal = 20.dp)
+                    .clickable {
+                        Log.d("HomeScreen", "搜索框被点击")
+                        onSearchClick()
+                    },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "搜索",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "搜索音乐、歌手、专辑...",
+                    fontSize = 15.sp,
+                    color = Color.White.copy(alpha = 0.9f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun WelcomeBanner() {
+    var isVisible by remember { mutableStateOf(false) }
+    
+    LaunchedEffect(Unit) {
+        isVisible = true
+    }
+    
+    val scale by animateFloatAsState(
+        targetValue = if (isVisible) 1f else 0.9f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        )
+    )
+    
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 16.dp)
+            .height(100.dp)
+            .background(
+                brush = Brush.horizontalGradient(
+                    colors = listOf(
+                        SakuraPink.copy(alpha = 0.3f),
+                        SkyBlue.copy(alpha = 0.3f)
+                    )
+                ),
+                shape = RoundedCornerShape(20.dp)
+            )
+            .scale(scale)
+            .shadow(
+                elevation = 4.dp,
+                spotColor = RoseRed.copy(alpha = 0.2f),
+                ambientColor = Color.Gray.copy(alpha = 0.1f)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "✨ 探索音乐世界",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = RoseRed
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "发现你喜欢的音乐",
+                    fontSize = 14.sp,
+                    color = Color.Gray
+                )
+            }
+            Text(
+                text = "🎧",
+                fontSize = 36.sp
+            )
+        }
+    }
+}
+
+@Composable
+fun QuickAccessSection() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+    ) {
+        Text(
+            text = "快速访问",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            QuickAccessItem(icon = "🎵", label = "我的音乐")
+            QuickAccessItem(icon = "❤️", label = "我喜欢")
+            QuickAccessItem(icon = "📻", label = "电台")
+            QuickAccessItem(icon = "🎤", label = "歌手")
+        }
+    }
+}
+
+@Composable
+fun QuickAccessItem(
+    icon: String,
+    label: String
+) {
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        )
+    )
+    
+    Column(
+        modifier = Modifier
+            .scale(scale)
+            .clickable {
+                isPressed = true
+            },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(60.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            RoseRed.copy(alpha = 0.1f),
+                            SakuraPink.copy(alpha = 0.1f)
+                        )
+                    )
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = icon,
+                fontSize = 28.sp
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = label,
+            fontSize = 13.sp,
+            color = Color.Gray,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+fun RecommendedPlaylists() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "推荐歌单",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+            Text(
+                text = "查看全部",
+                fontSize = 14.sp,
+                color = RoseRed,
+                fontWeight = FontWeight.Medium
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(listOf("流行", "摇滚", "古典", "电子", "爵士")) { genre ->
+                PlaylistCard(genre = genre)
+            }
+        }
+    }
+}
+
+@Composable
+fun PlaylistCard(genre: String) {
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        )
+    )
+    
+    Box(
+        modifier = Modifier
+            .width(140.dp)
+            .height(180.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        when (genre) {
+                            "流行" -> RoseRed
+                            "摇滚" -> Color(0xFF6B5B95)
+                            "古典" -> Lilac
+                            "电子" -> SkyBlue
+                            "爵士" -> Peach
+                            else -> RoseRed
+                        }.copy(alpha = 0.8f),
+                        Color.White
+                    )
+                )
+            )
+            .scale(scale)
+            .shadow(
+                elevation = 6.dp,
+                spotColor = RoseRed.copy(alpha = 0.3f),
+                ambientColor = Color.Gray.copy(alpha = 0.15f)
+            )
+            .clickable {
+                isPressed = true
+            }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = when (genre) {
+                    "流行" -> "🎸"
+                    "摇滚" -> "🎤"
+                    "古典" -> "🎻"
+                    "电子" -> "🎹"
+                    "爵士" -> "🎷"
+                    else -> "🎵"
+                },
+                fontSize = 48.sp
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = genre,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "100+ 首歌曲",
+                fontSize = 12.sp,
+                color = Color.Gray
+            )
+        }
+    }
+}
+
+// 对话框组件保持不变
 @Composable
 fun UpdateDialog(
     versionName: String,
@@ -180,24 +565,29 @@ fun UpdateDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
     ) {
-        androidx.compose.material3.Surface(
-            shape = RoundedCornerShape(16.dp),
+        Surface(
+            shape = RoundedCornerShape(20.dp),
             color = Color.White,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(20.dp)
+                .shadow(
+                    elevation = 8.dp,
+                    spotColor = RoseRed.copy(alpha = 0.3f),
+                    ambientColor = Color.Gray.copy(alpha = 0.15f)
+                )
         ) {
             Column(
-                modifier = Modifier.padding(24.dp)
+                modifier = Modifier.padding(28.dp)
             ) {
                 Text(
-                    text = "发现新版本",
-                    fontSize = 20.sp,
+                    text = "🎉 发现新版本",
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
-                    color = DeepBlue
+                    color = RoseRed
                 )
                 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(20.dp))
                 
                 Text(
                     text = "新版本：$versionName",
@@ -213,11 +603,11 @@ fun UpdateDialog(
                     color = Color.Gray
                 )
                 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(28.dp))
                 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End
+                    horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onDismiss) {
                         Text(
@@ -227,13 +617,14 @@ fun UpdateDialog(
                         )
                     }
                     
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                     
-                    androidx.compose.material3.Button(
+                    Button(
                         onClick = onConfirm,
-                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        colors = ButtonDefaults.buttonColors(
                             containerColor = RoseRed
-                        )
+                        ),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(
                             text = "立即更新",
@@ -247,9 +638,6 @@ fun UpdateDialog(
     }
 }
 
-/**
- * 下载进度对话框
- */
 @Composable
 fun DownloadProgressDialog(
     progress: Float,
@@ -259,22 +647,27 @@ fun DownloadProgressDialog(
         onDismissRequest = { },
         properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
     ) {
-        androidx.compose.material3.Surface(
-            shape = RoundedCornerShape(16.dp),
+        Surface(
+            shape = RoundedCornerShape(20.dp),
             color = Color.White,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(20.dp)
+                .shadow(
+                    elevation = 8.dp,
+                    spotColor = RoseRed.copy(alpha = 0.3f),
+                    ambientColor = Color.Gray.copy(alpha = 0.15f)
+                )
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier.padding(28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "正在下载更新...",
+                    text = "⏳ 正在下载更新",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = DeepBlue
+                    color = RoseRed
                 )
                 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -300,9 +693,6 @@ fun DownloadProgressDialog(
     }
 }
 
-/**
- * 更新成功对话框
- */
 @Composable
 fun UpdateSuccessDialog(
     onDismiss: () -> Unit
@@ -311,20 +701,25 @@ fun UpdateSuccessDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
     ) {
-        androidx.compose.material3.Surface(
-            shape = RoundedCornerShape(16.dp),
+        Surface(
+            shape = RoundedCornerShape(20.dp),
             color = Color.White,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(20.dp)
+                .shadow(
+                    elevation = 8.dp,
+                    spotColor = RoseRed.copy(alpha = 0.3f),
+                    ambientColor = Color.Gray.copy(alpha = 0.15f)
+                )
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier.padding(28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     text = "✓",
-                    fontSize = 48.sp,
+                    fontSize = 56.sp,
                     color = Color(0xFF4CAF50)
                 )
                 
@@ -334,7 +729,7 @@ fun UpdateSuccessDialog(
                     text = "下载完成",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = DeepBlue
+                    color = Color.Black
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -349,9 +744,6 @@ fun UpdateSuccessDialog(
     }
 }
 
-/**
- * 更新失败对话框
- */
 @Composable
 fun UpdateErrorDialog(
     message: String,
@@ -360,18 +752,23 @@ fun UpdateErrorDialog(
     Dialog(
         onDismissRequest = onDismiss
     ) {
-        androidx.compose.material3.Surface(
-            shape = RoundedCornerShape(16.dp),
+        Surface(
+            shape = RoundedCornerShape(20.dp),
             color = Color.White,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(20.dp)
+                .shadow(
+                    elevation = 8.dp,
+                    spotColor = RoseRed.copy(alpha = 0.3f),
+                    ambientColor = Color.Gray.copy(alpha = 0.15f)
+                )
         ) {
             Column(
-                modifier = Modifier.padding(24.dp)
+                modifier = Modifier.padding(28.dp)
             ) {
                 Text(
-                    text = "更新失败",
+                    text = "❌ 更新失败",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFFF44336)
@@ -389,7 +786,7 @@ fun UpdateErrorDialog(
                 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End
+                    horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onDismiss) {
                         Text(
@@ -399,69 +796,6 @@ fun UpdateErrorDialog(
                         )
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-fun HeaderSection(
-    onSearchClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(300.dp)
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        DeepBlue,
-                        RoseRed
-                    )
-                )
-            )
-            .statusBarsPadding()
-            .padding(20.dp)
-    ) {
-        Column {
-            Spacer(modifier = Modifier.height(20.dp))
-            
-            Text(
-                text = "Neko云音乐",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .background(
-                        color = Color.White.copy(alpha = 0.2f),
-                        shape = RoundedCornerShape(24.dp)
-                    )
-                    .padding(horizontal = 20.dp)
-                    .clickable {
-                        Log.d("HomeScreen", "搜索框被点击")
-                        onSearchClick()
-                    },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = "搜索",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "搜索音乐",
-                    fontSize = 16.sp,
-                    color = Color.White.copy(alpha = 0.8f)
-                )
             }
         }
     }
