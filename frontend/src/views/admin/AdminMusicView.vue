@@ -201,7 +201,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="music in filteredMusicList" :key="music.id">
+                  <tr v-for="music in paginatedMusicList()" :key="music.id">
                     <td>{{ music.id }}</td>
                     <td>
                       <div class="cover-cell">
@@ -229,6 +229,40 @@
             
             <div v-if="!isLoading && filteredMusicList.length === 0" class="no-data">
               <p>暂无音乐数据</p>
+            </div>
+
+            <!-- 分页控件 -->
+            <div v-if="!isLoading && filteredMusicList.length > 0" class="pagination-container">
+              <div class="pagination-info">
+                显示第 {{ (currentPage - 1) * pageSize + 1 }} - {{ Math.min(currentPage * pageSize, filteredMusicList.length) }} 条，共 {{ filteredMusicList.length }} 条
+              </div>
+              <div class="pagination-controls">
+                <button
+                  class="pagination-btn"
+                  @click="prevPage"
+                  :disabled="currentPage === 1"
+                >
+                  上一页
+                </button>
+                <div class="pagination-pages">
+                  <button
+                    v-for="page in Math.min(totalPages, 5)"
+                    :key="page"
+                    class="pagination-page-btn"
+                    :class="{ active: currentPage === getDisplayPage(page) }"
+                    @click="goToPage(getDisplayPage(page))"
+                  >
+                    {{ getDisplayPage(page) }}
+                  </button>
+                </div>
+                <button
+                  class="pagination-btn"
+                  @click="nextPage"
+                  :disabled="currentPage === totalPages"
+                >
+                  下一页
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -383,6 +417,11 @@ onMounted(() => {
 const musicList = ref([])
 const filteredMusicList = ref([])
 
+// 分页相关数据
+const currentPage = ref(1)
+const pageSize = ref(100)
+const totalPages = ref(1)
+
 // 表单状态
 const showAddForm = ref(false)
 const newMusic = ref({
@@ -422,7 +461,7 @@ const fetchMusicList = async () => {
         'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
       }
     })
-    
+
     const data = await response.json()
     if (data.success) {
       // 将API返回的音乐数据转换为前端可用的格式
@@ -431,6 +470,10 @@ const fetchMusicList = async () => {
         uploadTime: new Date(music.createdAt) // 转换日期格式
       }))
       filteredMusicList.value = [...musicList.value]
+      // 计算总页数
+      totalPages.value = Math.ceil(filteredMusicList.value.length / pageSize.value)
+      // 重置到第一页
+      currentPage.value = 1
     } else {
       console.error('获取音乐列表失败:', data.message)
       toast.error(data.message || '获取音乐列表失败')
@@ -745,16 +788,65 @@ const updateSearchResults = async () => {
     // 可以选择使用API搜索或本地搜索
     // 这里我们使用本地搜索，因为已经获取了所有音乐数据
     const query = searchQuery.value.toLowerCase()
-    filteredMusicList.value = musicList.value.filter(music => 
-      music.title.toLowerCase().includes(query) || 
+    filteredMusicList.value = musicList.value.filter(music =>
+      music.title.toLowerCase().includes(query) ||
       music.artist.toLowerCase().includes(query)
     )
   }
+  // 重新计算总页数并重置到第一页
+  totalPages.value = Math.ceil(filteredMusicList.value.length / pageSize.value)
+  currentPage.value = 1
 }
 
 // 监听搜索查询变化
 searchQuery.value = ''
 updateSearchResults()
+
+// 计算当前页的音乐列表
+const paginatedMusicList = () => {
+  const startIndex = (currentPage.value - 1) * pageSize.value
+  const endIndex = startIndex + pageSize.value
+  return filteredMusicList.value.slice(startIndex, endIndex)
+}
+
+// 上一页
+const prevPage = () => {
+  if (currentPage.value > 1) {
+    currentPage.value--
+  }
+}
+
+// 下一页
+const nextPage = () => {
+  if (currentPage.value < totalPages.value) {
+    currentPage.value++
+  }
+}
+
+// 跳转到指定页
+const goToPage = (page) => {
+  if (page >= 1 && page <= totalPages.value) {
+    currentPage.value = page
+  }
+}
+
+// 获取显示的页码（用于处理页码显示逻辑）
+const getDisplayPage = (index) => {
+  const maxVisible = 5
+  if (totalPages.value <= maxVisible) {
+    return index
+  }
+
+  const half = Math.floor(maxVisible / 2)
+  let start = Math.max(1, currentPage.value - half)
+  let end = Math.min(totalPages.value, start + maxVisible - 1)
+
+  if (end - start < maxVisible - 1) {
+    start = Math.max(1, end - maxVisible + 1)
+  }
+
+  return start + index - 1
+}
 
 // 获取音乐封面URL
 const getCoverUrl = (musicId) => {
@@ -1440,5 +1532,106 @@ const logout = () => {
   border-radius: 4px;
   color: #999;
   font-size: 1.2rem;
+}
+
+/* 分页控件样式 */
+.pagination-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+  padding: 15px 20px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.pagination-info {
+  color: #6a5acd;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pagination-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(106, 90, 205, 0.2);
+  color: #6a5acd;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: rgba(106, 90, 205, 0.4);
+  transform: translateY(-2px);
+}
+
+.pagination-btn:disabled {
+  background: rgba(200, 200, 200, 0.2);
+  color: #999;
+  cursor: not-allowed;
+}
+
+.pagination-pages {
+  display: flex;
+  gap: 5px;
+}
+
+.pagination-page-btn {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.3);
+  color: #6a5acd;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.pagination-page-btn:hover {
+  background: rgba(106, 90, 205, 0.2);
+  transform: translateY(-2px);
+}
+
+.pagination-page-btn.active {
+  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(138, 43, 226, 0.8));
+  color: white;
+  box-shadow: 0 4px 10px rgba(106, 90, 205, 0.3);
+}
+
+.pagination-page-btn.active:hover {
+  background: linear-gradient(135deg, rgba(86, 70, 185, 0.9), rgba(118, 23, 206, 0.9));
+  transform: translateY(-2px);
+}
+
+/* 响应式分页 */
+@media (max-width: 768px) {
+  .pagination-container {
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .pagination-controls {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .pagination-info {
+    text-align: center;
+  }
 }
 </style>
