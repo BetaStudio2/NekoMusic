@@ -32,18 +32,21 @@
                 <div class="modal-content horizontal-layout">
                   <div class="form-column left-column">
                     <div class="form-group">
-                      <label>🎵 音乐图标</label>
-                      <input type="file" @change="handleCoverFileChange" accept="image/*" placeholder="请选择音乐图标文件" />
-                      <div v-if="newMusic.coverFileName" class="file-info">已选择: {{ newMusic.coverFileName }}</div>
-                    </div>
-                    <div class="form-group">
                       <label>🎵 音乐文件 *</label>
                       <input type="file" @change="handleMusicFileChange" accept=".mp3" placeholder="请选择MP3音乐文件" />
                       <div v-if="newMusic.fileName" class="file-info">已选择: {{ newMusic.fileName }}</div>
+                      <div class="form-hint">上传MP3文件后将自动解析封面、音乐名称、艺术家和专辑信息</div>
+                    </div>
+                    <div class="form-group">
+                      <label>🎵 音乐图标</label>
+                      <input type="file" @change="handleCoverFileChange" accept="image/*" placeholder="请选择音乐图标文件（可选）" />
+                      <div v-if="newMusic.coverFileName" class="file-info">已选择: {{ newMusic.coverFileName }}</div>
+                      <div class="form-hint">如果不选择，将使用MP3文件中的封面图</div>
                     </div>
                     <div class="form-group">
                       <label>⏱️ 时长(秒)</label>
-                      <input type="number" v-model="newMusic.duration" placeholder="音乐时长(秒)" />
+                      <input type="number" v-model="newMusic.duration" placeholder="音乐时长(秒)" readonly />
+                      <div class="form-hint">自动从MP3文件中读取</div>
                     </div>
                     <div class="form-group">
                       <label>🌐 语言 *</label>
@@ -67,10 +70,12 @@
                     <div class="form-group">
                       <label>🎵 音乐名称 *</label>
                       <input type="text" v-model="newMusic.title" placeholder="请输入音乐名称" />
+                      <div class="form-hint">自动从MP3文件中读取</div>
                     </div>
                     <div class="form-group">
                       <label>🎤 艺术家 *</label>
                       <input type="text" v-model="newMusic.artist" placeholder="请输入艺术家" />
+                      <div class="form-hint">自动从MP3文件中读取</div>
                     </div>
                     <div class="form-group">
                       <label>🏷️ 标签</label>
@@ -79,6 +84,7 @@
                     <div class="form-group">
                       <label>💿 专辑</label>
                       <input type="text" v-model="newMusic.album" placeholder="请输入专辑" />
+                      <div class="form-hint">自动从MP3文件中读取</div>
                     </div>
                     <div class="form-group">
                       <label>📝 歌词文件 *</label>
@@ -283,7 +289,7 @@ const toast = useToast()
 const router = useRouter()
 
 // 添加文件处理函数
-const handleMusicFileChange = (event) => {
+const handleMusicFileChange = async (event) => {
   const file = event.target.files[0]
   if (file) {
     // 检查文件类型是否为MP3
@@ -292,17 +298,313 @@ const handleMusicFileChange = (event) => {
       event.target.value = '' // 清空选择
       return
     }
-    
+
     newMusic.value.file = file
     newMusic.value.fileName = file.name
-    
+
     // 读取音频时长
     const audio = new Audio()
     audio.src = URL.createObjectURL(file)
     audio.onloadedmetadata = () => {
       newMusic.value.duration = Math.floor(audio.duration)
+      // 开始解析MP3元数据
+      parseMP3Metadata(file)
       URL.revokeObjectURL(audio.src) // 释放对象URL
     }
+  }
+}
+
+// 解析MP3文件的元数据
+const parseMP3Metadata = async (file) => {
+  console.log('开始解析MP3文件:', file.name)
+  try {
+    const arrayBuffer = await file.arrayBuffer()
+    const dataView = new DataView(arrayBuffer)
+    console.log('文件大小:', arrayBuffer.length, 'bytes')
+
+    // 检查文件头
+    const header = dataView.getString(0, 3)
+    console.log('文件头标识:', header)
+
+    // 查找ID3v2标签
+    if (header === 'ID3') {
+      const version = dataView.getUint8(3)
+      const revision = dataView.getUint8(4)
+      const flags = dataView.getUint8(5)
+      const size = dataView.getUint32(6)
+
+      console.log('ID3版本:', version, '.', revision)
+      console.log('ID3标志:', flags.toString(2))
+      console.log('ID3标签大小:', size, 'bytes')
+
+      const headerSize = 10
+      let offset = headerSize
+
+      const metadata = {
+        title: '',
+        artist: '',
+        album: '',
+        cover: null
+      }
+
+      console.log('开始解析帧...')
+
+      while (offset < headerSize + size) {
+        const frameId = dataView.getString(offset, 4)
+        const frameSize = dataView.getUint32(offset + 4)
+        const frameFlags = dataView.getUint16(offset + 8)
+
+        console.log('帧ID:', frameId, '大小:', frameSize)
+
+        if (frameSize === 0) {
+          console.log('帧大小为0，停止解析')
+          break
+        }
+
+        // 跳过帧头
+        const frameDataOffset = offset + 10
+        const frameDataSize = frameSize
+
+        if (frameId === 'TIT2') {
+          metadata.title = dataView.decodeTextFrame(frameDataOffset, frameDataSize)
+          console.log('解析到音乐名称:', metadata.title)
+        } else if (frameId === 'TPE1') {
+          metadata.artist = dataView.decodeTextFrame(frameDataOffset, frameDataSize)
+          console.log('解析到艺术家:', metadata.artist)
+        } else if (frameId === 'TALB') {
+          metadata.album = dataView.decodeTextFrame(frameDataOffset, frameDataSize)
+          console.log('解析到专辑:', metadata.album)
+        } else if (frameId === 'APIC') {
+          // 解析封面图片
+          console.log('开始解析封面图片...')
+
+          const picOffset = frameDataOffset
+          const textEncoding = dataView.getUint8(picOffset)
+          console.log('封面文本编码:', textEncoding)
+
+          let currentOffset = picOffset + 1
+
+          // 读取MIME类型
+          let mimeTypeEnd = currentOffset
+          while (dataView.getUint8(mimeTypeEnd) !== 0) {
+            mimeTypeEnd++
+          }
+          const mimeType = dataView.getString(currentOffset, mimeTypeEnd - currentOffset)
+          currentOffset = mimeTypeEnd + 1
+          console.log('封面MIME类型:', mimeType)
+
+          // 跳过图片类型
+          const pictureType = dataView.getUint8(currentOffset)
+          currentOffset += 1
+          console.log('封面图片类型:', pictureType)
+
+          // 读取描述
+          let descEnd = currentOffset
+          while (dataView.getUint8(descEnd) !== 0) {
+            descEnd++
+          }
+          const description = dataView.decodeTextString(currentOffset, descEnd - currentOffset, textEncoding)
+          currentOffset = descEnd + 1
+          console.log('封面描述:', description)
+
+          // 读取图片数据
+          const imageSize = frameDataSize - (currentOffset - frameDataOffset)
+          console.log('封面图片大小:', imageSize, 'bytes')
+
+          if (imageSize > 0) {
+            const imageData = new Uint8Array(arrayBuffer, currentOffset, imageSize)
+            metadata.cover = new Blob([imageData], { type: mimeType })
+            console.log('封面图片解析成功')
+          }
+        }
+
+        offset += 10 + frameSize
+      }
+
+      console.log('解析完成，开始填充表单...')
+
+      // 自动填充表单
+      if (metadata.title) {
+        newMusic.value.title = metadata.title
+        console.log('已填充音乐名称:', metadata.title)
+      }
+      if (metadata.artist) {
+        newMusic.value.artist = metadata.artist
+        console.log('已填充艺术家:', metadata.artist)
+      }
+      if (metadata.album) {
+        newMusic.value.album = metadata.album
+        console.log('已填充专辑:', metadata.album)
+      }
+      if (metadata.cover) {
+        newMusic.value.coverFile = new File([metadata.cover], 'cover.jpg', { type: metadata.cover.type })
+        newMusic.value.coverFileName = 'cover.jpg'
+        console.log('已填充封面图片')
+      }
+
+      console.log('MP3文件信息解析成功')
+      toast.success('已自动解析MP3文件信息')
+    } else {
+      console.log('未找到ID3标签，无法解析元数据')
+      toast.warning('该MP3文件不包含ID3标签，无法自动解析信息')
+    }
+  } catch (error) {
+    console.error('解析MP3元数据失败:', error)
+    console.error('错误详情:', error.stack)
+    toast.warning('无法自动解析MP3文件信息，请手动填写')
+  }
+}
+
+// 扩展DataView以支持读取字符串
+DataView.prototype.getString = function(offset, length) {
+  let result = ''
+  for (let i = 0; i < length; i++) {
+    const byte = this.getUint8(offset + i)
+    if (byte === 0) break
+    result += String.fromCharCode(byte)
+  }
+  return result
+}
+
+// 解码文本帧（处理不同的编码）
+DataView.prototype.decodeTextFrame = function(offset, length) {
+  if (length === 0) return ''
+
+  const encoding = this.getUint8(offset)
+  const textData = new Uint8Array(this.buffer, this.byteOffset + offset + 1, length - 1)
+
+  switch (encoding) {
+    case 0: // ISO-8859-1
+      return this.decodeISO88591(textData)
+    case 1: // UTF-16 with BOM
+      return this.decodeUTF16(textData)
+    case 2: // UTF-16BE without BOM
+      return this.decodeUTF16BE(textData)
+    case 3: // UTF-8
+      return this.decodeUTF8(textData)
+    default:
+      console.warn('未知编码:', encoding, '使用ISO-8859-1')
+      return this.decodeISO88591(textData)
+  }
+}
+
+// 解码ISO-8859-1编码
+DataView.prototype.decodeISO88591 = function(data) {
+  let result = ''
+  for (let i = 0; i < data.length; i++) {
+    result += String.fromCharCode(data[i])
+  }
+  return result
+}
+
+// 解码UTF-16 with BOM
+DataView.prototype.decodeUTF16 = function(data) {
+  if (data.length < 2) return ''
+
+  const bom = (data[0] << 8) | data[1]
+
+  if (bom === 0xFEFF) {
+    // Big Endian
+    return this.decodeUTF16BE(data)
+  } else if (bom === 0xFFFE) {
+    // Little Endian
+    return this.decodeUTF16LE(data)
+  } else {
+    // 无BOM，假设Big Endian
+    return this.decodeUTF16BE(data)
+  }
+}
+
+// 解码UTF-16BE
+DataView.prototype.decodeUTF16BE = function(data) {
+  let result = ''
+  for (let i = 0; i < data.length; i += 2) {
+    if (i + 1 < data.length) {
+      const codePoint = (data[i] << 8) | data[i + 1]
+      if (codePoint === 0) break
+      result += String.fromCharCode(codePoint)
+    }
+  }
+  return result
+}
+
+// 解码UTF-16LE
+DataView.prototype.decodeUTF16LE = function(data) {
+  let result = ''
+  for (let i = 0; i < data.length; i += 2) {
+    if (i + 1 < data.length) {
+      const codePoint = data[i] | (data[i + 1] << 8)
+      if (codePoint === 0) break
+      result += String.fromCharCode(codePoint)
+    }
+  }
+  return result
+}
+
+// 解码UTF-8
+DataView.prototype.decodeUTF8 = function(data) {
+  let result = ''
+  let i = 0
+
+  while (i < data.length) {
+    const byte1 = data[i]
+
+    if (byte1 === 0) break
+
+    if (byte1 < 0x80) {
+      // 1字节
+      result += String.fromCharCode(byte1)
+      i++
+    } else if ((byte1 & 0xE0) === 0xC0) {
+      // 2字节
+      if (i + 1 < data.length) {
+        const codePoint = ((byte1 & 0x1F) << 6) | (data[i + 1] & 0x3F)
+        result += String.fromCharCode(codePoint)
+        i += 2
+      } else {
+        i++
+      }
+    } else if ((byte1 & 0xF0) === 0xE0) {
+      // 3字节
+      if (i + 2 < data.length) {
+        const codePoint = ((byte1 & 0x0F) << 12) | ((data[i + 1] & 0x3F) << 6) | (data[i + 2] & 0x3F)
+        result += String.fromCharCode(codePoint)
+        i += 3
+      } else {
+        i++
+      }
+    } else if ((byte1 & 0xF8) === 0xF0) {
+      // 4字节
+      if (i + 3 < data.length) {
+        const codePoint = ((byte1 & 0x07) << 18) | ((data[i + 1] & 0x3F) << 12) | ((data[i + 2] & 0x3F) << 6) | (data[i + 3] & 0x3F)
+        result += String.fromCodePoint(codePoint)
+        i += 4
+      } else {
+        i++
+      }
+    } else {
+      i++
+    }
+  }
+
+  return result
+}
+
+// 解码文本字符串（带编码）
+DataView.prototype.decodeTextString = function(offset, length, encoding) {
+  const textData = new Uint8Array(this.buffer, this.byteOffset + offset, length)
+
+  switch (encoding) {
+    case 0: // ISO-8859-1
+      return this.decodeISO88591(textData)
+    case 1: // UTF-16 with BOM
+      return this.decodeUTF16(textData)
+    case 2: // UTF-16BE without BOM
+      return this.decodeUTF16BE(textData)
+    case 3: // UTF-8
+      return this.decodeUTF8(textData)
+    default:
+      return this.decodeISO88591(textData)
   }
 }
 
@@ -1034,6 +1336,19 @@ const logout = () => {
   border: 1px solid rgba(106, 90, 205, 0.5);
   box-shadow: 0 0 0 3px rgba(106, 90, 205, 0.2);
   background: rgba(255, 255, 255, 0.4);
+}
+
+.form-group input[readonly] {
+  background: rgba(240, 240, 240, 0.5);
+  cursor: not-allowed;
+  color: #666;
+}
+
+.form-group input[readonly]:focus {
+  outline: none;
+  border: 1px solid rgba(200, 200, 200, 0.3);
+  box-shadow: none;
+  background: rgba(240, 240, 240, 0.5);
 }
 
 .form-group textarea {
