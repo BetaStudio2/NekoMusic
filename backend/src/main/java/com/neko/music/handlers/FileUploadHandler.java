@@ -119,6 +119,15 @@ public class FileUploadHandler extends HttpServlet {
                 return;
             }
             
+            // 查重检查：检查是否已存在相同的音乐
+            if (isDuplicateMusic(title, artist, album)) {
+                response.setStatus(HttpStatus.OK_200);
+                response.setContentType("application/json;charset=utf-8");
+                MusicResponse errorResponse = new MusicResponse(false, "已有重复音乐", null);
+                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                return;
+            }
+            
             // 验证歌词文件必填
             if (lyricsFilePart == null) {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
@@ -565,6 +574,30 @@ public class FileUploadHandler extends HttpServlet {
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     return rs.getInt(1) > 0;
+                }
+            }
+        }
+        return false;
+    }
+    
+    // 查重检查：检查是否已存在相同的音乐
+    private boolean isDuplicateMusic(String title, String artist, String album) throws SQLException {
+        try (Connection conn = Main.getDatabaseManager().getConnection()) {
+            // 检查标题是否相同
+            String sql = "SELECT artist, album FROM music WHERE title = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setString(1, title);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) {
+                        String existingArtist = rs.getString("artist");
+                        String existingAlbum = rs.getString("album");
+                        
+                        // 如果标题相同，检查艺术家或专辑是否相同
+                        if (artist.equals(existingArtist) || 
+                            (album != null && album.equals(existingAlbum))) {
+                            return true; // 发现重复
+                        }
+                    }
                 }
             }
         }
