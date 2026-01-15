@@ -1,3 +1,4 @@
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Scanner;
@@ -38,7 +39,7 @@ public class Main {
         System.out.println("其中 " + musicWithLyrics + " 首音乐存在歌词");
     }
 
-    private static void handleUserChoice(Scanner scanner, Path musicPath, FileScanner.ScanResult scanResult) {
+    private static void handleUserChoice(Scanner scanner, Path musicPath, FileScanner.ScanResult scanResult) throws IOException {
         int choice = InputHandler.getUserChoice(scanner);
         
         switch (choice) {
