@@ -69,12 +69,20 @@ public class MusicUploader {
         String mp3Name = new File(mp3File).getName();
         String baseName = mp3Name.substring(0, mp3Name.lastIndexOf('.'));
         
+        System.out.println("  查找歌词文件:");
+        System.out.println("    MP3文件名: " + mp3Name);
+        System.out.println("    MP3基础名: " + baseName);
+        System.out.println("    可用歌词文件数: " + lrcFiles.size());
+        
         // 尝试精确匹配
         for (String lrcFile : lrcFiles) {
             String lrcName = new File(lrcFile).getName();
             String lrcBaseName = lrcName.substring(0, lrcName.lastIndexOf('.'));
             
+            System.out.println("    检查: " + lrcBaseName);
+            
             if (baseName.equals(lrcBaseName)) {
+                System.out.println("    ✓ 精确匹配成功: " + lrcName);
                 return lrcFile;
             }
         }
@@ -83,6 +91,8 @@ public class MusicUploader {
         String normalizedBaseName = baseName.toLowerCase()
             .replaceAll("[\\s\\-_\\[\\]()（）]", "");
         
+        System.out.println("    尝试模糊匹配，规范化名称: " + normalizedBaseName);
+        
         for (String lrcFile : lrcFiles) {
             String lrcName = new File(lrcFile).getName();
             String lrcBaseName = lrcName.substring(0, lrcName.lastIndexOf('.'));
@@ -90,10 +100,12 @@ public class MusicUploader {
                 .replaceAll("[\\s\\-_\\[\\]()（）]", "");
             
             if (normalizedBaseName.equals(normalizedLrcName)) {
+                System.out.println("    ✓ 模糊匹配成功: " + lrcName);
                 return lrcFile;
             }
         }
         
+        System.out.println("    ✗ 未找到匹配的歌词文件");
         return null;
     }
     
