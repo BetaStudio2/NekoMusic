@@ -28,6 +28,7 @@ import com.neko.music.data.manager.UpdateInfo
 import com.neko.music.ui.theme.RoseRed
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onBackClick: () -> Unit = {},
@@ -36,14 +37,14 @@ fun SettingsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val updateManager = remember { AppUpdateManager(context) }
-    
+
     // 版本信息
     val versionName = try {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName
     } catch (e: Exception) {
         "1.0.0"
     }
-    
+
     val versionCode = try {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode
@@ -54,7 +55,7 @@ fun SettingsScreen(
     } catch (e: Exception) {
         1L
     }
-    
+
     // 更新状态
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var showUpdateDialog by remember { mutableStateOf(false) }
@@ -64,7 +65,7 @@ fun SettingsScreen(
     var showUpdateSuccessDialog by remember { mutableStateOf(false) }
     var showUpdateErrorDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
-    
+
     // 检查更新
     val checkUpdate = {
         scope.launch {
@@ -84,13 +85,13 @@ fun SettingsScreen(
             }
         }
     }
-    
+
     // 下载并安装更新
     val downloadAndInstall = {
         scope.launch {
             isDownloading = true
             downloadProgress = 0f
-            
+
             try {
                 val apkFile = updateManager.downloadApk(
                     updateInfo!!.updateUrl,
@@ -100,7 +101,7 @@ fun SettingsScreen(
                         }
                     }
                 )
-                
+
                 if (apkFile != null) {
                     isDownloading = false
                     showUpdateDialog = false
@@ -121,59 +122,153 @@ fun SettingsScreen(
             }
         }
     }
-    
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFFFAFAFA))
-    ) {
-        // 顶部栏
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .background(Color.White)
-                .padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(
-                onClick = onBackClick,
-                modifier = Modifier.size(48.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.ArrowBack,
-                    contentDescription = "返回",
-                    tint = Color.Black
-                )
-            }
-            
-            Spacer(modifier = Modifier.width(4.dp))
-            
-            Text(
-                text = "设置",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("设置") },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                    }
+                }
             )
         }
-        
-        Spacer(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(Color(0xFFE0E0E0))
-        )
-        
-        // 设置列表
-        Column(
+    ) { paddingValues ->
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
+                .padding(paddingValues)
+                .background(Color(0xFFFAFAFA))
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // 版本信息卡片
+            // 设置列表
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp)
+            ) {
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // 版本信息卡片
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp)),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color.White
+                    ),
+                    elevation = CardDefaults.cardElevation(
+                        defaultElevation = 2.dp
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Neko云音乐",
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "版本 $versionName ($versionCode)",
+                                    fontSize = 14.sp,
+                                    color = Color.Gray
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .size(50.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        brush = Brush.linearGradient(
+                                            colors = listOf(
+                                                RoseRed,
+                                                Color(0xFFFF6B9D)
+                                            )
+                                        )
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "🎵",
+                                    fontSize = 28.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                SettingSection(title = "其他") {
+                    SettingItem(
+                        icon = Icons.Default.Info,
+                        title = "关于",
+                        subtitle = "了解应用信息",
+                        onClick = { onAboutClick() }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(80.dp))
+            }
+
+            // 更新对话框
+            if (showUpdateDialog && updateInfo != null) {
+                SettingsUpdateDialog(
+                    versionName = updateInfo!!.versionName,
+                    versionCode = updateInfo!!.versionCode,
+                    onConfirm = { downloadAndInstall() },
+                    onDismiss = { showUpdateDialog = false }
+                )
+            }
+
+            if (isDownloading) {
+                SettingsDownloadProgressDialog(
+                    progress = downloadProgress,
+                    onDismiss = { isDownloading = false }
+                )
+            }
+
+            if (showUpdateSuccessDialog) {
+                SettingsUpdateSuccessDialog(
+                    onDismiss = { showUpdateSuccessDialog = false }
+                )
+            }
+
+            if (showUpdateErrorDialog) {
+                SettingsUpdateErrorDialog(
+                    message = errorMessage,
+                    onDismiss = { showUpdateErrorDialog = false }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingSection(
+        title: String,
+        content: @Composable ColumnScope.() -> Unit
+    ) {
+        Column {
+            Text(
+                text = title,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color.Gray,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
+            )
+
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -185,383 +280,267 @@ fun SettingsScreen(
                     defaultElevation = 2.dp
                 )
             ) {
-                Column(
-                    modifier = Modifier.padding(20.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "Neko云音乐",
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "版本 $versionName ($versionCode)",
-                                fontSize = 14.sp,
-                                color = Color.Gray
-                            )
-                        }
-                        
-                        Box(
-                            modifier = Modifier
-                                .size(50.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(
-                                    brush = Brush.linearGradient(
-                                        colors = listOf(
-                                            RoseRed,
-                                            Color(0xFFFF6B9D)
-                                        )
-                                    )
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "🎵",
-                                fontSize = 28.sp
-                            )
-                        }
-                    }
+                Column {
+                    content()
                 }
             }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            SettingSection(title = "其他") {
-                SettingItem(
-                    icon = Icons.Default.Info,
-                    title = "关于",
-                    subtitle = "了解应用信息",
-                    onClick = { onAboutClick() }
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(80.dp))
         }
     }
-    
-    // 更新对话框
-    if (showUpdateDialog && updateInfo != null) {
-        SettingsUpdateDialog(
-            versionName = updateInfo!!.versionName,
-            versionCode = updateInfo!!.versionCode,
-            onConfirm = { downloadAndInstall() },
-            onDismiss = { showUpdateDialog = false }
-        )
-    }
-    
-    if (isDownloading) {
-        SettingsDownloadProgressDialog(
-            progress = downloadProgress,
-            onDismiss = { isDownloading = false }
-        )
-    }
-    
-    if (showUpdateSuccessDialog) {
-        SettingsUpdateSuccessDialog(
-            onDismiss = { showUpdateSuccessDialog = false }
-        )
-    }
-    
-    if (showUpdateErrorDialog) {
-        SettingsUpdateErrorDialog(
-            message = errorMessage,
-            onDismiss = { showUpdateErrorDialog = false }
-        )
-    }
-}
-
-@Composable
-fun SettingSection(
-    title: String,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Column {
-        Text(
-            text = title,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color.Gray,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
-        )
-        
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp)),
-            colors = CardDefaults.cardColors(
-                containerColor = Color.White
-            ),
-            elevation = CardDefaults.cardElevation(
-                defaultElevation = 2.dp
-            )
-        ) {
-            Column {
-                content()
-            }
-        }
-    }
-}
 
 @Composable
 fun SettingItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    title: String,
-    subtitle: String = "",
-    showLoading: Boolean = false,
-    onClick: () -> Unit = {}
-) {
-    var isPressed by remember { mutableStateOf(false) }
-    
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable {
-                isPressed = true
-                onClick()
-            },
-        color = if (isPressed) Color(0xFFF5F5F5) else Color.Transparent,
-        onClick = {}
+        icon: androidx.compose.ui.graphics.vector.ImageVector,
+        title: String,
+        subtitle: String = "",
+        showLoading: Boolean = false,
+        onClick: () -> Unit = {}
     ) {
-        Row(
+        var isPressed by remember { mutableStateOf(false) }
+
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .clickable {
+                    isPressed = true
+                    onClick()
+                },
+            color = if (isPressed) Color(0xFFF5F5F5) else Color.Transparent,
+            onClick = {}
         ) {
-            Box(
+            Row(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(RoseRed.copy(alpha = 0.1f)),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = title,
-                    tint = RoseRed,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-            
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color.Black
-                )
-                if (subtitle.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(2.dp))
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(RoseRed.copy(alpha = 0.1f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = title,
+                        tint = RoseRed,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
                     Text(
-                        text = subtitle,
-                        fontSize = 13.sp,
-                        color = Color.Gray
+                        text = title,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.Black
+                    )
+                    if (subtitle.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = subtitle,
+                            fontSize = 13.sp,
+                            color = Color.Gray
+                        )
+                    }
+                }
+
+                if (showLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = RoseRed,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "更多",
+                        tint = Color.Gray,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
-            
-            if (showLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = RoseRed,
-                    strokeWidth = 2.dp
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = "更多",
-                    tint = Color.Gray,
-                    modifier = Modifier.size(20.dp)
-                )
+        }
+
+        LaunchedEffect(isPressed) {
+            if (isPressed) {
+                kotlinx.coroutines.delay(100)
+                isPressed = false
             }
         }
-    }
-    
-    LaunchedEffect(isPressed) {
-        if (isPressed) {
-            kotlinx.coroutines.delay(100)
-            isPressed = false
-        }
-    }
 }
 
 // 对话框组件
 @Composable
 fun SettingsUpdateDialog(
-    versionName: String,
-    versionCode: Int,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "🎉 发现新版本",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = RoseRed
-            )
-        },
-        text = {
-            Column {
+        versionName: String,
+        versionCode: Int,
+        onConfirm: () -> Unit,
+        onDismiss: () -> Unit
+    ) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = {
                 Text(
-                    text = "新版本：$versionName",
-                    fontSize = 16.sp,
-                    color = Color.Gray
+                    text = "🎉 发现新版本",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = RoseRed
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "版本号：$versionCode",
-                    fontSize = 16.sp,
-                    color = Color.Gray
-                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "新版本：$versionName",
+                        fontSize = 16.sp,
+                        color = Color.Gray
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "版本号：$versionCode",
+                        fontSize = 16.sp,
+                        color = Color.Gray
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = onConfirm,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = RoseRed
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = "立即更新",
+                        fontSize = 16.sp,
+                        color = Color.White
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text(
+                        text = "稍后",
+                        fontSize = 16.sp,
+                        color = Color.Gray
+                    )
+                }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = RoseRed
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text(
-                    text = "立即更新",
-                    fontSize = 16.sp,
-                    color = Color.White
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(
-                    text = "稍后",
-                    fontSize = 16.sp,
-                    color = Color.Gray
-                )
-            }
-        }
-    )
+        )
 }
 
 @Composable
 fun SettingsDownloadProgressDialog(
-    progress: Float,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = { },
-        title = {
-            Text(
-                text = "⏳ 正在下载更新",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = RoseRed
-            )
-        },
-        text = {
-            Column {
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp),
-                    color = RoseRed,
-                    trackColor = Color.Gray.copy(alpha = 0.3f)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
+        progress: Float,
+        onDismiss: () -> Unit
+    ) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = {
                 Text(
-                    text = "${(progress * 100).toInt()}%",
+                    text = "⏳ 正在下载更新",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = RoseRed
+                )
+            },
+            text = {
+                Column {
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp),
+                        color = RoseRed,
+                        trackColor = Color.Gray.copy(alpha = 0.3f)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "${(progress * 100).toInt()}%",
+                        fontSize = 16.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            },
+            confirmButton = {}
+        )
+
+}
+
+@Composable
+fun SettingsUpdateSuccessDialog(
+        onDismiss: () -> Unit
+    ) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = {
+                Column(
+                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "✓",
+                        fontSize = 56.sp,
+                        color = Color(0xFF4CAF50)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "下载完成",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                }
+            },
+            text = {
+                Text(
+                    text = "正在安装更新...",
                     fontSize = 16.sp,
                     color = Color.Gray,
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
-            }
-        },
-        confirmButton = {}
-    )
-}
-
-@Composable
-fun SettingsUpdateSuccessDialog(
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Column(
-                horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "✓",
-                    fontSize = 56.sp,
-                    color = Color(0xFF4CAF50)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "下载完成",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-            }
-        },
-        text = {
-            Text(
-                text = "正在安装更新...",
-                fontSize = 16.sp,
-                color = Color.Gray,
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-        },
-        confirmButton = {}
-    )
-}
+            },
+            confirmButton = {}
+        )
+    }
 
 @Composable
 fun SettingsUpdateErrorDialog(
-    message: String,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "❌ 更新失败",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFFF44336)
-            )
-        },
-        text = {
-            Text(
-                text = message,
-                fontSize = 16.sp,
-                color = Color.Gray
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
+        message: String,
+        onDismiss: () -> Unit
+    ) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = {
                 Text(
-                    text = "确定",
-                    fontSize = 16.sp,
-                    color = RoseRed
+                    text = "❌ 更新失败",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFF44336)
                 )
+            },
+            text = {
+                Text(
+                    text = message,
+                    fontSize = 16.sp,
+                    color = Color.Gray
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = onDismiss) {
+                    Text(
+                        text = "确定",
+                        fontSize = 16.sp,
+                        color = RoseRed
+                    )
+                }
             }
-        }
-    )
-}
+        )
+    }
