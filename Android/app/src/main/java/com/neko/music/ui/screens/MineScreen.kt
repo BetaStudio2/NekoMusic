@@ -281,6 +281,7 @@ fun MineStats() {
             .padding(20.dp),
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
+        StatItem("0", "上传")
         StatItem("0", "关注")
         StatItem("0", "粉丝")
     }

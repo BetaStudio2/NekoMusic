@@ -1,5 +1,6 @@
 package com.neko.music.ui.screens
 
+import android.content.Context
 import android.os.Build
 import android.util.Log
 import androidx.compose.foundation.background
@@ -65,6 +66,10 @@ fun SettingsScreen(
     var showUpdateSuccessDialog by remember { mutableStateOf(false) }
     var showUpdateErrorDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
+
+    // 缓存设置
+    val prefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
+    var isCacheEnabled by remember { mutableStateOf(prefs.getBoolean("cache_enabled", true)) }
 
     // 检查更新
     val checkUpdate = {
@@ -206,6 +211,21 @@ fun SettingsScreen(
                             }
                         }
                     }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                SettingSection(title = "通用") {
+                    SettingSwitchItem(
+                        icon = Icons.Default.Info,
+                        title = "是否缓存",
+                        subtitle = "开启后可缓存音乐以便离线播放",
+                        checked = isCacheEnabled,
+                        onCheckedChange = { enabled ->
+                            isCacheEnabled = enabled
+                            prefs.edit().putBoolean("cache_enabled", enabled).apply()
+                        }
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -544,3 +564,88 @@ fun SettingsUpdateErrorDialog(
             }
         )
     }
+
+@Composable
+fun SettingSwitchItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String = "",
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    var isPressed by remember { mutableStateOf(false) }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                isPressed = true
+                onCheckedChange(!checked)
+            },
+        color = if (isPressed) Color(0xFFF5F5F5) else Color.Transparent,
+        onClick = {}
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(RoseRed.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = RoseRed,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.Black
+                )
+                if (subtitle.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = subtitle,
+                        fontSize = 13.sp,
+                        color = Color.Gray
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = RoseRed,
+                    checkedTrackColor = RoseRed.copy(alpha = 0.5f),
+                    uncheckedThumbColor = Color.Gray,
+                    uncheckedTrackColor = Color.Gray.copy(alpha = 0.5f)
+                )
+            )
+        }
+    }
+
+    LaunchedEffect(isPressed) {
+        if (isPressed) {
+            kotlinx.coroutines.delay(100)
+            isPressed = false
+        }
+    }
+}
