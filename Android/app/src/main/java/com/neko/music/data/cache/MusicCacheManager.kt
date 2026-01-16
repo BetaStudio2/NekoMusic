@@ -216,6 +216,7 @@ class MusicCacheManager private constructor(private val context: Context) {
             prefs.edit()
                 .remove("music_${musicId}_time")
                 .remove("music_${musicId}_size")
+                .remove("music_${musicId}_title")
                 .remove("cover_${musicId}_time")
                 .remove("cover_${musicId}_size")
                 .remove("lyrics_${musicId}_time")
@@ -226,6 +227,16 @@ class MusicCacheManager private constructor(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "删除音乐缓存失败: $musicId", e)
         }
+    }
+
+    /**
+     * 更新已缓存音乐的标题
+     */
+    fun updateMusicTitle(musicId: Int, title: String) {
+        prefs.edit()
+            .putString("music_${musicId}_title", title)
+            .apply()
+        Log.d(TAG, "更新音乐标题: $musicId -> $title")
     }
 
     /**

@@ -560,6 +560,10 @@ class MusicPlayerManager private constructor(context: Context) {
                     // 更新addedAt时间，标记为最近播放
                     playlistManager.updateAddedAt(id)
                     
+                    // 更新缓存中的音乐标题
+                    val cacheManager = com.neko.music.data.cache.MusicCacheManager.getInstance(context)
+                    cacheManager.updateMusicTitle(id, title)
+                    
                     // 添加到最近播放列表
                     val recentPlayManager = com.neko.music.data.manager.RecentPlayManager(context)
                     recentPlayManager.addRecentPlay(music)
