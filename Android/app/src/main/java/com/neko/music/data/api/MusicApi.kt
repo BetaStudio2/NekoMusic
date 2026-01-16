@@ -125,7 +125,7 @@ class MusicApi(private val context: Context) {
         
         // 异步缓存音乐文件
         try {
-            cacheManager.cacheMusicFile(music.id, url)
+            cacheManager.cacheMusicFile(music.id, url, music.title)
         } catch (e: Exception) {
             Log.e("MusicApi", "缓存音乐文件失败: ${music.id}", e)
         }

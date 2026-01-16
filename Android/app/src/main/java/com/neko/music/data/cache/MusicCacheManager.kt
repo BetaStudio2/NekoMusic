@@ -102,7 +102,7 @@ class MusicCacheManager private constructor(private val context: Context) {
     /**
      * 缓存音乐文件
      */
-    suspend fun cacheMusicFile(musicId: Int, url: String): Result<File> = withContext(Dispatchers.IO) {
+    suspend fun cacheMusicFile(musicId: Int, url: String, title: String = ""): Result<File> = withContext(Dispatchers.IO) {
         if (!isCacheEnabled()) {
             return@withContext Result.failure(Exception("缓存未启用"))
         }
@@ -118,6 +118,7 @@ class MusicCacheManager private constructor(private val context: Context) {
             prefs.edit()
                 .putLong("music_${musicId}_time", System.currentTimeMillis())
                 .putLong("music_${musicId}_size", file.length())
+                .putString("music_${musicId}_title", title)
                 .apply()
 
             Log.d(TAG, "音乐文件缓存成功: $musicId")

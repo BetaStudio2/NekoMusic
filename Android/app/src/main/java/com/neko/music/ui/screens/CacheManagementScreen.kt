@@ -315,6 +315,9 @@ fun CacheItem(
     onDelete: () -> Unit
 ) {
     var isPressed by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val cacheManager = remember { com.neko.music.data.cache.MusicCacheManager.getInstance(context) }
+    val cachedCover = remember { cacheManager.getCachedCoverFile(musicId.toInt()) }
     
     Card(
         modifier = Modifier
@@ -336,19 +339,28 @@ fun CacheItem(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // 封面或默认图标
             Box(
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(56.dp)
                     .background(
                         color = RoseRed.copy(alpha = 0.1f),
                         shape = RoundedCornerShape(10.dp)
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "🎵",
-                    fontSize = 24.sp
-                )
+                if (cachedCover != null && cachedCover.exists()) {
+                    coil.compose.AsyncImage(
+                        model = cachedCover,
+                        contentDescription = "封面",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Text(
+                        text = "🎵",
+                        fontSize = 28.sp
+                    )
+                }
             }
             
             Spacer(modifier = Modifier.width(16.dp))
