@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -67,6 +68,56 @@ fun FavoriteScreen(
         favorites.filter { favorite ->
             favorite.title.contains(searchQuery, ignoreCase = true) ||
             favorite.artist.contains(searchQuery, ignoreCase = true)
+        }
+    }
+
+    // 播放全部功能
+    val playerManager = com.neko.music.service.MusicPlayerManager.getInstance(context)
+    val playlistManager = com.neko.music.data.manager.PlaylistManager.getInstance(context)
+    val musicApi = com.neko.music.data.api.MusicApi(context)
+
+    suspend fun playAllFavorites() {
+        // 清空播放列表
+        playlistManager.clearPlaylist()
+        
+        // 将所有收藏音乐添加到播放列表
+        filteredFavorites.forEach { favorite ->
+            val music = com.neko.music.data.model.Music(
+                id = favorite.id,
+                title = favorite.title,
+                artist = favorite.artist,
+                album = favorite.album,
+                duration = favorite.duration,
+                filePath = favorite.filename,
+                coverFilePath = favorite.cover,
+                uploadUserId = 0,
+                createdAt = ""
+            )
+            playlistManager.addToPlaylist(music)
+        }
+        
+        // 播放第一首
+        if (filteredFavorites.isNotEmpty()) {
+            val firstFavorite = filteredFavorites[0]
+            val url = musicApi.getMusicFileUrl(
+                com.neko.music.data.model.Music(
+                    id = firstFavorite.id,
+                    title = firstFavorite.title,
+                    artist = firstFavorite.artist,
+                    album = firstFavorite.album,
+                    duration = firstFavorite.duration,
+                    filePath = firstFavorite.filename,
+                    coverFilePath = firstFavorite.cover,
+                    uploadUserId = 0,
+                    createdAt = ""
+                )
+            )
+            val fullCoverUrl = if (firstFavorite.cover.isNotEmpty()) {
+                "https://music.cnmsb.xin${firstFavorite.cover}"
+            } else {
+                "https://music.cnmsb.xin/api/music/cover/${firstFavorite.id}"
+            }
+            playerManager.playMusic(url, firstFavorite.id, firstFavorite.title, firstFavorite.artist, firstFavorite.cover, fullCoverUrl)
         }
     }
 
@@ -169,29 +220,66 @@ fun FavoriteScreen(
                 }
                 else -> {
                     // 收藏列表
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    Column(
+                        modifier = Modifier.fillMaxSize()
                     ) {
-                        items(filteredFavorites) { favorite ->
-                            FavoriteItem(
-                                music = favorite,
-                                onClick = {
-                                    val music = com.neko.music.data.model.Music(
-                                        id = favorite.id,
-                                        title = favorite.title,
-                                        artist = favorite.artist,
-                                        album = favorite.album,
-                                        duration = favorite.duration,
-                                        filePath = favorite.filename,
-                                        coverFilePath = "",
-                                        uploadUserId = 0,
-                                        createdAt = ""
-                                    )
-                                    onMusicClick(music)
+                        // 播放全部按钮
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .background(
+                                    color = Color(0xFFE94560),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                                )
+                                .clickable {
+                                    scope.launch {
+                                        playAllFavorites()
+                                    }
                                 }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.PlayArrow,
+                                contentDescription = "播放全部",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
                             )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "播放全部 (${filteredFavorites.size})",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                        
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(filteredFavorites) { favorite ->
+                                FavoriteItem(
+                                    music = favorite,
+                                    onClick = {
+                                        val music = com.neko.music.data.model.Music(
+                                            id = favorite.id,
+                                            title = favorite.title,
+                                            artist = favorite.artist,
+                                            album = favorite.album,
+                                            duration = favorite.duration,
+                                            filePath = favorite.filename,
+                                            coverFilePath = "",
+                                            uploadUserId = 0,
+                                            createdAt = ""
+                                        )
+                                        onMusicClick(music)
+                                    }
+                                )
+                            }
                         }
                     }
                 }
