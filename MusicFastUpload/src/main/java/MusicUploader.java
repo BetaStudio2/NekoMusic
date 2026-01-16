@@ -138,6 +138,26 @@ public class MusicUploader {
             String album = tag.getFirst(org.jaudiotagger.tag.FieldKey.ALBUM);
             int duration = audioHeader.getTrackLength();
             
+            // 提取封面图片
+            byte[] coverData = null;
+            String coverMimeType = null;
+            try {
+                org.jaudiotagger.tag.images.Artwork artwork = tag.getFirstArtwork();
+                if (artwork != null) {
+                    coverData = artwork.getBinaryData();
+                    coverMimeType = artwork.getMimeType();
+                    System.out.println("  找到封面图片:");
+                    System.out.println("    MIME类型: " + coverMimeType);
+                    System.out.println("    大小: " + coverData.length + " 字节");
+                    System.out.println("    描述: " + artwork.getDescription());
+                } else {
+                    System.out.println("  未找到封面图片");
+                }
+            } catch (Exception e) {
+                System.out.println("  警告: 无法提取封面图片 - " + e.getMessage());
+                e.printStackTrace();
+            }
+            
             // 如果没有提取到标题或艺术家，从文件名提取
             if (title == null || title.isEmpty() || artist == null || artist.isEmpty()) {
                 if (mp3FileName.contains(" - ")) {
@@ -169,68 +189,69 @@ public class MusicUploader {
             System.out.println("    专辑: " + album);
             System.out.println("    时长: " + duration + " 秒");
             System.out.println("    语言: " + language);
+            System.out.println("    封面: " + (coverData != null ? "有" : "无"));
+            
+            // 读取MP3文件内容
+            byte[] mp3Bytes = Files.readAllBytes(mp3Path);
+            
+            // 读取歌词文件内容
+            byte[] lrcBytes = Files.readAllBytes(lrcPath);
             
             // 构建multipart请求
             HttpClient client = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(30))
                 .build();
             
-            // 构建multipart/form-data请求体
+            // 生成boundary
             String boundary = "----WebKitFormBoundary" + System.currentTimeMillis();
-            StringBuilder requestBody = new StringBuilder();
+            
+            // 使用ByteArrayOutputStream来正确处理二进制数据
+            java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
             
             // 添加title字段
-            requestBody.append("--").append(boundary).append("\r\n");
-            requestBody.append("Content-Disposition: form-data; name=\"title\"\r\n\r\n");
-            requestBody.append(title).append("\r\n");
+            writeFormField(outputStream, boundary, "title", title);
             
             // 添加artist字段
-            requestBody.append("--").append(boundary).append("\r\n");
-            requestBody.append("Content-Disposition: form-data; name=\"artist\"\r\n\r\n");
-            requestBody.append(artist).append("\r\n");
+            writeFormField(outputStream, boundary, "artist", artist);
             
             // 添加album字段
-            requestBody.append("--").append(boundary).append("\r\n");
-            requestBody.append("Content-Disposition: form-data; name=\"album\"\r\n\r\n");
-            requestBody.append(album).append("\r\n");
+            writeFormField(outputStream, boundary, "album", album);
             
             // 添加language字段
-            requestBody.append("--").append(boundary).append("\r\n");
-            requestBody.append("Content-Disposition: form-data; name=\"language\"\r\n\r\n");
-            requestBody.append(language).append("\r\n");
+            writeFormField(outputStream, boundary, "language", language);
             
             // 添加duration字段
-            requestBody.append("--").append(boundary).append("\r\n");
-            requestBody.append("Content-Disposition: form-data; name=\"duration\"\r\n\r\n");
-            requestBody.append(duration).append("\r\n");
+            writeFormField(outputStream, boundary, "duration", String.valueOf(duration));
             
             // 添加musicFile字段
-            requestBody.append("--").append(boundary).append("\r\n");
-            requestBody.append("Content-Disposition: form-data; name=\"musicFile\"; filename=\"")
-                   .append(mp3FileName).append("\"\r\n");
-            requestBody.append("Content-Type: audio/mpeg\r\n\r\n");
+            writeFileField(outputStream, boundary, "musicFile", mp3FileName, "audio/mpeg", mp3Bytes);
             
-            // 读取MP3文件内容
-            byte[] mp3Bytes = Files.readAllBytes(mp3Path);
-            requestBody.append(new String(mp3Bytes, "ISO-8859-1")).append("\r\n");
+            // 添加coverFile字段（如果有封面）
+            if (coverData != null && coverMimeType != null) {
+                String coverFileName = "cover." + getCoverExtension(coverMimeType);
+                System.out.println("  添加封面到上传请求:");
+                System.out.println("    文件名: " + coverFileName);
+                System.out.println("    MIME类型: " + coverMimeType);
+                System.out.println("    数据大小: " + coverData.length + " 字节");
+                writeFileField(outputStream, boundary, "coverFile", coverFileName, coverMimeType, coverData);
+            } else {
+                System.out.println("  跳过封面上传: 无封面数据或MIME类型");
+            }
             
             // 添加lyricsFile字段
-            requestBody.append("--").append(boundary).append("\r\n");
-            requestBody.append("Content-Disposition: form-data; name=\"lyricsFile\"; filename=\"")
-                   .append(lrcFileName).append("\"\r\n");
-            requestBody.append("Content-Type: text/plain\r\n\r\n");
-            
-            byte[] lrcBytes = Files.readAllBytes(lrcPath);
-            requestBody.append(new String(lrcBytes, "UTF-8")).append("\r\n");
+            writeFileField(outputStream, boundary, "lyricsFile", lrcFileName, "text/plain", lrcBytes);
             
             // 结束boundary
-            requestBody.append("--").append(boundary).append("--\r\n");
+            outputStream.write(("--" + boundary + "--\r\n").getBytes("UTF-8"));
+            
+            // 获取最终的请求体
+            byte[] requestBodyBytes = outputStream.toByteArray();
             
             // 创建请求
             HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(backendUrl + UPLOAD_ENDPOINT))
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                .POST(BodyPublishers.ofString(requestBody.toString()));
+                .POST(BodyPublishers.ofByteArray(requestBodyBytes));
             
             // 如果提供了token，添加Authorization头
             if (token != null && !token.isEmpty()) {
@@ -265,5 +286,37 @@ public class MusicUploader {
             e.printStackTrace();
             return false;
         }
+    }
+    
+    private static String getCoverExtension(String mimeType) {
+        if (mimeType == null) return "jpg";
+        switch (mimeType.toLowerCase()) {
+            case "image/jpeg":
+            case "image/jpg":
+                return "jpg";
+            case "image/png":
+                return "png";
+            case "image/gif":
+                return "gif";
+            case "image/webp":
+                return "webp";
+            default:
+                return "jpg";
+        }
+    }
+    
+    private static void writeFormField(java.io.ByteArrayOutputStream outputStream, String boundary, String name, String value) throws Exception {
+        outputStream.write(("--" + boundary + "\r\n").getBytes("UTF-8"));
+        outputStream.write(("Content-Disposition: form-data; name=\"" + name + "\"\r\n\r\n").getBytes("UTF-8"));
+        outputStream.write(value.getBytes("UTF-8"));
+        outputStream.write("\r\n".getBytes("UTF-8"));
+    }
+    
+    private static void writeFileField(java.io.ByteArrayOutputStream outputStream, String boundary, String name, String filename, String contentType, byte[] data) throws Exception {
+        outputStream.write(("--" + boundary + "\r\n").getBytes("UTF-8"));
+        outputStream.write(("Content-Disposition: form-data; name=\"" + name + "\"; filename=\"" + filename + "\"\r\n").getBytes("UTF-8"));
+        outputStream.write(("Content-Type: " + contentType + "\r\n\r\n").getBytes("UTF-8"));
+        outputStream.write(data);
+        outputStream.write("\r\n".getBytes("UTF-8"));
     }
 }
