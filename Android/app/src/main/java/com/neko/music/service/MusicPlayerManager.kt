@@ -179,7 +179,10 @@ class MusicPlayerManager private constructor(context: Context) {
                         } else {
                             "https://music.cnmsb.xin/api/music/cover/${nextMusic.id}"
                         }
-                        playMusic(nextMusic.filePath, nextMusic.id, nextMusic.title, nextMusic.artist, nextMusic.coverFilePath, fullCoverUrl)
+                        // 使用 MusicApi 获取正确的播放 URL（包括缓存逻辑）
+                        val musicApi = com.neko.music.data.api.MusicApi(context)
+                        val musicUrl = musicApi.getMusicFileUrl(nextMusic)
+                        playMusic(musicUrl, nextMusic.id, nextMusic.title, nextMusic.artist, nextMusic.coverFilePath, fullCoverUrl)
                     } else {
                         // 没有下一首，回到第一首
                         android.util.Log.d("MusicPlayerManager", "No next music found, getting first music")
@@ -191,7 +194,10 @@ class MusicPlayerManager private constructor(context: Context) {
                             } else {
                                 "https://music.cnmsb.xin/api/music/cover/${firstMusic.id}"
                             }
-                            playMusic(firstMusic.filePath, firstMusic.id, firstMusic.title, firstMusic.artist, firstMusic.coverFilePath, fullCoverUrl)
+                            // 使用 MusicApi 获取正确的播放 URL（包括缓存逻辑）
+                            val musicApi = com.neko.music.data.api.MusicApi(context)
+                            val musicUrl = musicApi.getMusicFileUrl(firstMusic)
+                            playMusic(musicUrl, firstMusic.id, firstMusic.title, firstMusic.artist, firstMusic.coverFilePath, fullCoverUrl)
                         }
                     }
                 }
@@ -215,7 +221,10 @@ class MusicPlayerManager private constructor(context: Context) {
                         } else {
                             "https://music.cnmsb.xin/api/music/cover/${randomMusic.id}"
                         }
-                        playMusic(randomMusic.filePath, randomMusic.id, randomMusic.title, randomMusic.artist, randomMusic.coverFilePath, fullCoverUrl)
+                        // 使用 MusicApi 获取正确的播放 URL（包括缓存逻辑）
+                        val musicApi = com.neko.music.data.api.MusicApi(context)
+                        val musicUrl = musicApi.getMusicFileUrl(randomMusic)
+                        playMusic(musicUrl, randomMusic.id, randomMusic.title, randomMusic.artist, randomMusic.coverFilePath, fullCoverUrl)
                     } else {
                         android.util.Log.d("MusicPlayerManager", "No random music found")
                     }
@@ -228,7 +237,7 @@ class MusicPlayerManager private constructor(context: Context) {
     fun previous() {
         val currentId = _currentMusicId.value ?: return
         android.util.Log.d("MusicPlayerManager", "previous() called, currentId: $currentId, playHistory size: ${playHistory.size}")
-        
+
         scope.launch {
             // 从历史记录中获取上一首
             if (playHistory.size > 1) {
@@ -247,24 +256,30 @@ class MusicPlayerManager private constructor(context: Context) {
                         } else {
                             "https://music.cnmsb.xin/api/music/cover/${previousMusic.id}"
                         }
-                        playMusic(previousMusic.filePath, previousMusic.id, previousMusic.title, previousMusic.artist, previousMusic.coverFilePath, fullCoverUrl)
+                        // 使用 MusicApi 获取正确的播放 URL（包括缓存逻辑）
+                        val musicApi = com.neko.music.data.api.MusicApi(context)
+                        val musicUrl = musicApi.getMusicFileUrl(previousMusic)
+                        playMusic(musicUrl, previousMusic.id, previousMusic.title, previousMusic.artist, previousMusic.coverFilePath, fullCoverUrl)
                         return@launch
                     }
                 }
             }
-            
+
             // 历史记录中没有更多歌曲，按照列表顺序向上播放
             android.util.Log.d("MusicPlayerManager", "No more history, getting previous music by list order")
             val previousMusic = playlistManager.getPreviousMusic(currentId)
             android.util.Log.d("MusicPlayerManager", "previousMusic by list: $previousMusic")
-            
+
             if (previousMusic != null) {
                 val fullCoverUrl = if (previousMusic.coverFilePath.isNotEmpty()) {
                     "https://music.cnmsb.xin${previousMusic.coverFilePath}"
                 } else {
                     "https://music.cnmsb.xin/api/music/cover/${previousMusic.id}"
                 }
-                playMusic(previousMusic.filePath, previousMusic.id, previousMusic.title, previousMusic.artist, previousMusic.coverFilePath, fullCoverUrl)
+                // 使用 MusicApi 获取正确的播放 URL（包括缓存逻辑）
+                val musicApi = com.neko.music.data.api.MusicApi(context)
+                val musicUrl = musicApi.getMusicFileUrl(previousMusic)
+                playMusic(musicUrl, previousMusic.id, previousMusic.title, previousMusic.artist, previousMusic.coverFilePath, fullCoverUrl)
             } else {
                 // 列表上面没有了，循环到最后一首
                 android.util.Log.d("MusicPlayerManager", "No previous music in list, getting last music")
@@ -276,7 +291,10 @@ class MusicPlayerManager private constructor(context: Context) {
                     } else {
                         "https://music.cnmsb.xin/api/music/cover/${lastMusic.id}"
                     }
-                    playMusic(lastMusic.filePath, lastMusic.id, lastMusic.title, lastMusic.artist, lastMusic.coverFilePath, fullCoverUrl)
+                    // 使用 MusicApi 获取正确的播放 URL（包括缓存逻辑）
+                    val musicApi = com.neko.music.data.api.MusicApi(context)
+                    val musicUrl = musicApi.getMusicFileUrl(lastMusic)
+                    playMusic(musicUrl, lastMusic.id, lastMusic.title, lastMusic.artist, lastMusic.coverFilePath, fullCoverUrl)
                 }
             }
         }
@@ -336,7 +354,7 @@ class MusicPlayerManager private constructor(context: Context) {
                         _isPlaying.value = false
                         player.seekTo(0)
                         updatePlaybackState()
-                        
+
                         // 根据播放模式自动切歌
                         when (_playMode.value) {
                             PlayMode.LIST_LOOP -> {
@@ -351,7 +369,10 @@ class MusicPlayerManager private constructor(context: Context) {
                                             } else {
                                                 "https://music.cnmsb.xin/api/music/cover/${nextMusic.id}"
                                             }
-                                            playMusic(nextMusic.filePath, nextMusic.id, nextMusic.title, nextMusic.artist, nextMusic.coverFilePath, fullCoverUrl)
+                                            // 使用 MusicApi 获取正确的播放 URL（包括缓存逻辑）
+                                            val musicApi = com.neko.music.data.api.MusicApi(context)
+                                            val musicUrl = musicApi.getMusicFileUrl(nextMusic)
+                                            playMusic(musicUrl, nextMusic.id, nextMusic.title, nextMusic.artist, nextMusic.coverFilePath, fullCoverUrl)
                                         } else {
                                             // 没有下一首，回到第一首
                                             val firstMusic = playlistManager.getFirstMusic()
@@ -361,7 +382,10 @@ class MusicPlayerManager private constructor(context: Context) {
                                                 } else {
                                                     "https://music.cnmsb.xin/api/music/cover/${firstMusic.id}"
                                                 }
-                                                playMusic(firstMusic.filePath, firstMusic.id, firstMusic.title, firstMusic.artist, firstMusic.coverFilePath, fullCoverUrl)
+                                                // 使用 MusicApi 获取正确的播放 URL（包括缓存逻辑）
+                                                val musicApi = com.neko.music.data.api.MusicApi(context)
+                                                val musicUrl = musicApi.getMusicFileUrl(firstMusic)
+                                                playMusic(musicUrl, firstMusic.id, firstMusic.title, firstMusic.artist, firstMusic.coverFilePath, fullCoverUrl)
                                             }
                                         }
                                     }
@@ -387,7 +411,10 @@ class MusicPlayerManager private constructor(context: Context) {
                                             } else {
                                                 "https://music.cnmsb.xin/api/music/cover/${randomMusic.id}"
                                             }
-                                            playMusic(randomMusic.filePath, randomMusic.id, randomMusic.title, randomMusic.artist, randomMusic.coverFilePath, fullCoverUrl)
+                                            // 使用 MusicApi 获取正确的播放 URL（包括缓存逻辑）
+                                            val musicApi = com.neko.music.data.api.MusicApi(context)
+                                            val musicUrl = musicApi.getMusicFileUrl(randomMusic)
+                                            playMusic(musicUrl, randomMusic.id, randomMusic.title, randomMusic.artist, randomMusic.coverFilePath, fullCoverUrl)
                                         }
                                     }
                                 }
