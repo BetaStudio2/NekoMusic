@@ -175,7 +175,7 @@ fun PlayerScreen(
         }
     }
 
-    val musicApi = remember { MusicApi() }
+    val musicApi = remember { MusicApi(context) }
     val scope = rememberCoroutineScope()
 
     // 加载音乐文件URL，只在音乐ID不同时才重新播放
@@ -458,7 +458,8 @@ fun CoverImage(
             music: Music,
             onClick: () -> Unit
         ) {
-            val musicApi = remember { MusicApi() }
+            val context = LocalContext.current
+            val musicApi = remember { MusicApi(context) }
             var coverUrl by remember { mutableStateOf<String?>(null) }
 
             LaunchedEffect(music.id) {

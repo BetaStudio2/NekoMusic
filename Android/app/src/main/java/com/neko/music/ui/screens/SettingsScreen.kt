@@ -70,6 +70,21 @@ fun SettingsScreen(
     // 缓存设置
     val prefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
     var isCacheEnabled by remember { mutableStateOf(prefs.getBoolean("cache_enabled", true)) }
+    
+    // 缓存管理
+    val cacheManager = remember { com.neko.music.data.cache.MusicCacheManager.getInstance(context) }
+    var cacheSize by remember { mutableStateOf(cacheManager.getCacheSizeFormatted()) }
+    var cachedMusicCount by remember { mutableStateOf(cacheManager.getCachedMusicCount()) }
+    var showClearCacheDialog by remember { mutableStateOf(false) }
+    
+    // 定期更新缓存大小
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(5000)
+            cacheSize = cacheManager.getCacheSizeFormatted()
+            cachedMusicCount = cacheManager.getCachedMusicCount()
+        }
+    }
 
     // 检查更新
     val checkUpdate = {
@@ -226,6 +241,15 @@ fun SettingsScreen(
                             prefs.edit().putBoolean("cache_enabled", enabled).apply()
                         }
                     )
+                    
+                    if (isCacheEnabled) {
+                        SettingItem(
+                            icon = Icons.Default.Info,
+                            title = "缓存管理",
+                            subtitle = "已缓存 $cachedMusicCount 首歌曲 ($cacheSize)",
+                            onClick = { showClearCacheDialog = true }
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -269,6 +293,20 @@ fun SettingsScreen(
                 SettingsUpdateErrorDialog(
                     message = errorMessage,
                     onDismiss = { showUpdateErrorDialog = false }
+                )
+            }
+            
+            if (showClearCacheDialog) {
+                ClearCacheDialog(
+                    cacheSize = cacheSize,
+                    cachedMusicCount = cachedMusicCount,
+                    onConfirm = {
+                        cacheManager.clearAllCache()
+                        cacheSize = cacheManager.getCacheSizeFormatted()
+                        cachedMusicCount = cacheManager.getCachedMusicCount()
+                        showClearCacheDialog = false
+                    },
+                    onDismiss = { showClearCacheDialog = false }
                 )
             }
         }
@@ -648,4 +686,69 @@ fun SettingSwitchItem(
             isPressed = false
         }
     }
+}
+
+@Composable
+fun ClearCacheDialog(
+    cacheSize: String,
+    cachedMusicCount: Int,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "清理缓存",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = RoseRed
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    text = "当前缓存：$cachedMusicCount 首歌曲",
+                    fontSize = 16.sp,
+                    color = Color.Gray
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "占用空间：$cacheSize",
+                    fontSize = 16.sp,
+                    color = Color.Gray
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "清理后需要重新下载音乐文件，确定要清理吗？",
+                    fontSize = 14.sp,
+                    color = Color.Red
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = RoseRed
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = "清理",
+                    fontSize = 16.sp,
+                    color = Color.White
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    text = "取消",
+                    fontSize = 16.sp,
+                    color = Color.Gray
+                )
+            }
+        }
+    )
 }

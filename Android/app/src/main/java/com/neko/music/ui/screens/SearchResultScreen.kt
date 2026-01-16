@@ -62,7 +62,7 @@ fun SearchResultScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var searchHistory by remember { mutableStateOf<List<SearchHistory>>(emptyList()) }
     
-    val musicApi = remember { MusicApi() }
+    val musicApi = remember { MusicApi(context) }
     val scope = rememberCoroutineScope()
     
     // 实时搜索 - 输入后立即请求
@@ -317,7 +317,8 @@ fun MusicItem(
     music: Music,
     onClick: () -> Unit
 ) {
-    val musicApi = remember { MusicApi() }
+    val context = LocalContext.current
+    val musicApi = remember { MusicApi(context) }
     val scope = rememberCoroutineScope()
     var coverUrl by remember { mutableStateOf<String?>(null) }
     

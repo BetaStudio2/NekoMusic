@@ -605,7 +605,7 @@ class MusicPlayerManager private constructor(context: Context) {
     suspend fun restoreLastPlayed(context: Context) {
         val lastPlayed = playlistManager.getLastPlayed()
         lastPlayed?.let { music ->
-            val musicApi = com.neko.music.data.api.MusicApi()
+            val musicApi = com.neko.music.data.api.MusicApi(context)
             val url = musicApi.getMusicFileUrl(music)
             val fullCoverUrl = if (music.coverFilePath.isNotEmpty()) {
                 "https://music.cnmsb.xin${music.coverFilePath}"

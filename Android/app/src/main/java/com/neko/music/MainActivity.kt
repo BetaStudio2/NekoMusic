@@ -480,7 +480,7 @@ fun MainScreen() {
             onMusicClick = { music ->
                 // 播放选中的音乐
                 scope.launch {
-                    val musicApi = com.neko.music.data.api.MusicApi()
+                    val musicApi = com.neko.music.data.api.MusicApi(context)
                     val url = musicApi.getMusicFileUrl(music)
                     val fullCoverUrl = if (music.coverFilePath.isNotEmpty()) {
                         "https://music.cnmsb.xin${music.coverFilePath}"

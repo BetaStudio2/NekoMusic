@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import com.neko.music.data.model.Music
 import com.neko.music.service.MusicPlayerManager
@@ -234,7 +235,7 @@ fun RecentPlayItem(
         IconButton(
             onClick = {
                 scope.launch {
-                    val musicApi = com.neko.music.data.api.MusicApi()
+                    val musicApi = com.neko.music.data.api.MusicApi(context)
                     val url = musicApi.getMusicFileUrl(music)
                     playerManager.playMusic(url, music.id, music.title, music.artist, music.coverFilePath, fullCoverUrl)
                 }
