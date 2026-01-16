@@ -1,18 +1,24 @@
 <script setup>
-import { RouterView } from 'vue-router'
+import { RouterView, useRoute } from 'vue-router'
+import { computed } from 'vue'
 import SearchHeader from './components/SearchHeader.vue'
 import Footer from './components/Footer.vue'
 import GlobalPlayer from './components/GlobalPlayer.vue'
+
+const route = useRoute()
+
+// 判断是否是下载页面
+const isDownloadPage = computed(() => route.name === 'download')
 </script>
 
 <template>
   <div id="app">
-    <SearchHeader />
+    <SearchHeader v-if="!isDownloadPage" />
     <main>
       <RouterView />
     </main>
-    <GlobalPlayer />
-    <Footer />
+    <GlobalPlayer v-if="!isDownloadPage" />
+    <Footer v-if="!isDownloadPage" />
   </div>
 </template>
 

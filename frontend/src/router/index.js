@@ -10,6 +10,13 @@ import AdminView from '@/views/admin/AdminView.vue'
 import AdminMusicView from '@/views/admin/AdminMusicView.vue'
 import AdminUsersView from '@/views/admin/AdminUsersView.vue'
 import AdminSettingsView from '@/views/admin/AdminSettingsView.vue'
+import MobileDownloadView from '@/views/MobileDownloadView.vue'
+
+// 检查是否是移动设备
+function isMobileDevice() {
+  const userAgent = navigator.userAgent || navigator.vendor || window.opera
+  return /android|ipad|iphone|ipod/i.test(userAgent)
+}
 
 // 检查管理员是否已登录
 function isAdminLoggedIn() {
@@ -36,10 +43,28 @@ const router = createRouter({
       path: '/',
       name: 'home',
       component: HomeView,
+      beforeEnter: (to, from, next) => {
+        // 如果是移动设备访问根路径，重定向到下载页面
+        if (isMobileDevice()) {
+          next('/download')
+        } else {
+          next()
+        }
+      },
       meta: {
         title: '首页 - Neko云音乐 | 完全免费的音乐平台',
         description: 'Neko云音乐 - 完全免费的在线音乐播放平台，提供海量免费音乐资源，无需付费，永久免费。发现海量音乐资源，享受高品质音乐体验。',
         keywords: 'Neko云音乐,免费音乐,在线音乐,音乐播放,免费听歌,永久免费,无广告音乐'
+      }
+    },
+    {
+      path: '/download',
+      name: 'download',
+      component: MobileDownloadView,
+      meta: {
+        title: '下载APP - Neko云音乐 | 免费音乐应用',
+        description: '下载Neko云音乐APP，享受完全免费的移动音乐体验。无需付费，永久免费。',
+        keywords: 'Neko云音乐下载,APP下载,免费音乐APP,移动音乐'
       }
     },
     {
