@@ -22,13 +22,24 @@ public class MusicUploader {
         MusicUploader.backendUrl = backendUrl;
         System.out.println("\n开始上传音乐到后端: " + backendUrl + UPLOAD_ENDPOINT);
         
+        // 清空Scanner缓冲区
+        scanner = new Scanner(System.in);
+        
         // 上传前询问语言
         System.out.print("\n请输入语言 (默认: 日语): ");
         String language = scanner.nextLine().trim();
         if (language.isEmpty()) {
             language = "日语";
         }
-        System.out.println("使用语言: " + language + "\n");
+        System.out.println("使用语言: " + language);
+        
+        // 询问管理员token
+        System.out.print("\n请输入管理员token: ");
+        String token = scanner.nextLine().trim();
+        if (token.isEmpty()) {
+            System.out.println("警告: 未输入token，可能会因未授权而失败");
+        }
+        System.out.println();
         
         int successCount = 0;
         int failCount = 0;
@@ -50,7 +61,7 @@ public class MusicUploader {
                 System.out.println("  找到歌词文件: " + new File(lrcFile).getName());
                 
                 // 上传音乐
-                if (uploadSingleMusic(mp3File, lrcFile, language)) {
+                if (uploadSingleMusic(mp3File, lrcFile, language, token)) {
                     successCount++;
                 } else {
                     failCount++;
@@ -109,7 +120,7 @@ public class MusicUploader {
         return null;
     }
     
-    private static boolean uploadSingleMusic(String mp3File, String lrcFile, String language) {
+    private static boolean uploadSingleMusic(String mp3File, String lrcFile, String language, String token) {
         try {
             Path mp3Path = Paths.get(mp3File);
             Path lrcPath = Paths.get(lrcFile);
@@ -216,11 +227,17 @@ public class MusicUploader {
             requestBody.append("--").append(boundary).append("--\r\n");
             
             // 创建请求
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(backendUrl + UPLOAD_ENDPOINT))
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                .POST(BodyPublishers.ofString(requestBody.toString()))
-                .build();
+                .POST(BodyPublishers.ofString(requestBody.toString()));
+            
+            // 如果提供了token，添加Authorization头
+            if (token != null && !token.isEmpty()) {
+                requestBuilder.header("Authorization", "Bearer " + token);
+            }
+            
+            HttpRequest request = requestBuilder.build();
             
             // 发送请求
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
