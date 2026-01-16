@@ -3,8 +3,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 public class ConfigLoader {
+    private static String backendUrl;
+    private static String token;
+    
     public static String loadBackendUrl() throws IOException {
         Path[] possiblePaths = {
             Paths.get("MusicFastUpload/src/main/resources/config.yml"),
@@ -32,11 +37,24 @@ public class ConfigLoader {
             if (line.startsWith("adder:")) {
                 String url = line.substring("adder:".length()).trim();
                 if (url != null && !url.isEmpty()) {
-                    return url;
+                    backendUrl = url;
+                }
+            } else if (line.startsWith("token:")) {
+                String tokenValue = line.substring("token:".length()).trim();
+                if (tokenValue != null && !tokenValue.isEmpty()) {
+                    token = tokenValue;
                 }
             }
         }
         
-        throw new IOException("配置文件中未找到 adder 配置");
+        if (backendUrl == null || backendUrl.isEmpty()) {
+            throw new IOException("配置文件中未找到 adder 配置");
+        }
+        
+        return backendUrl;
+    }
+    
+    public static String getToken() {
+        return token;
     }
 }

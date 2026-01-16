@@ -45,6 +45,12 @@
             <artifactId>logback-classic</artifactId>
             <version>1.4.11</version>
         </dependency>
+        <dependency>
+            <groupId>net.jthink</groupId>
+            <artifactId>jaudiotagger</artifactId>
+            <version>3.0.1</version>
+            <scope>compile</scope>
+        </dependency>
     </dependencies>
 
     <build>

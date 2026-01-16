@@ -47,13 +47,13 @@ public class Main {
                 decryptNcmFiles(scanResult.getNcmFiles());
                 break;
             case 2:
-                MusicUploader.uploadMusic(scanResult.getMp3Files(), scanResult.getLrcFiles());
+                MusicUploader.uploadMusic(scanResult.getMp3Files(), scanResult.getLrcFiles(), backendUrl);
                 break;
             case 3:
                 int decryptedCount = decryptNcmFiles(scanResult.getNcmFiles());
                 if (decryptedCount > 0) {
                     FileScanner.ScanResult newScanResult = FileScanner.scanDirectory(musicPath);
-                    MusicUploader.uploadMusic(newScanResult.getMp3Files(), newScanResult.getLrcFiles());
+                    MusicUploader.uploadMusic(newScanResult.getMp3Files(), newScanResult.getLrcFiles(), backendUrl);
                 }
                 break;
             default:

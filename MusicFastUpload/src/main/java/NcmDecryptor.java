@@ -29,7 +29,7 @@ public class NcmDecryptor {
             System.out.println("解密: " + ncmFile.getName() + " -> " + mp3File.getName());
             
             decryptNcmFile(ncmFile, mp3File);
-            ncmFile.delete();
+            // ncmFile.delete();
 
             return true;
         } catch (Exception e) {
