@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(
     onBackClick: () -> Unit = {},
-    onAboutClick: () -> Unit = {}
+    onNavigateToCache: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -75,15 +75,11 @@ fun SettingsScreen(
     val cacheManager = remember { com.neko.music.data.cache.MusicCacheManager.getInstance(context) }
     var cacheSize by remember { mutableStateOf(cacheManager.getCacheSizeFormatted()) }
     var cachedMusicCount by remember { mutableStateOf(cacheManager.getCachedMusicCount()) }
-    var showClearCacheDialog by remember { mutableStateOf(false) }
     
-    // 定期更新缓存大小
-    LaunchedEffect(Unit) {
-        while (true) {
-            kotlinx.coroutines.delay(5000)
-            cacheSize = cacheManager.getCacheSizeFormatted()
-            cachedMusicCount = cacheManager.getCachedMusicCount()
-        }
+    // 当缓存启用状态改变时更新缓存信息
+    LaunchedEffect(isCacheEnabled) {
+        cacheSize = cacheManager.getCacheSizeFormatted()
+        cachedMusicCount = cacheManager.getCachedMusicCount()
     }
 
     // 检查更新
@@ -247,20 +243,9 @@ fun SettingsScreen(
                             icon = Icons.Default.Info,
                             title = "缓存管理",
                             subtitle = "已缓存 $cachedMusicCount 首歌曲 ($cacheSize)",
-                            onClick = { showClearCacheDialog = true }
+                            onClick = { onNavigateToCache() }
                         )
                     }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                SettingSection(title = "其他") {
-                    SettingItem(
-                        icon = Icons.Default.Info,
-                        title = "关于",
-                        subtitle = "了解应用信息",
-                        onClick = { onAboutClick() }
-                    )
                 }
 
                 Spacer(modifier = Modifier.height(80.dp))
@@ -296,20 +281,7 @@ fun SettingsScreen(
                 )
             }
             
-            if (showClearCacheDialog) {
-                ClearCacheDialog(
-                    cacheSize = cacheSize,
-                    cachedMusicCount = cachedMusicCount,
-                    onConfirm = {
-                        cacheManager.clearAllCache()
-                        cacheSize = cacheManager.getCacheSizeFormatted()
-                        cachedMusicCount = cacheManager.getCachedMusicCount()
-                        showClearCacheDialog = false
-                    },
-                    onDismiss = { showClearCacheDialog = false }
-                )
             }
-        }
     }
 }
 
@@ -362,8 +334,7 @@ fun SettingItem(
                     isPressed = true
                     onClick()
                 },
-            color = if (isPressed) Color(0xFFF5F5F5) else Color.Transparent,
-            onClick = {}
+            color = if (isPressed) Color(0xFFF5F5F5) else Color.Transparent
         ) {
             Row(
                 modifier = Modifier
@@ -686,69 +657,4 @@ fun SettingSwitchItem(
             isPressed = false
         }
     }
-}
-
-@Composable
-fun ClearCacheDialog(
-    cacheSize: String,
-    cachedMusicCount: Int,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "清理缓存",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = RoseRed
-            )
-        },
-        text = {
-            Column {
-                Text(
-                    text = "当前缓存：$cachedMusicCount 首歌曲",
-                    fontSize = 16.sp,
-                    color = Color.Gray
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "占用空间：$cacheSize",
-                    fontSize = 16.sp,
-                    color = Color.Gray
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "清理后需要重新下载音乐文件，确定要清理吗？",
-                    fontSize = 14.sp,
-                    color = Color.Red
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = RoseRed
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text(
-                    text = "清理",
-                    fontSize = 16.sp,
-                    color = Color.White
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(
-                    text = "取消",
-                    fontSize = 16.sp,
-                    color = Color.Gray
-                )
-            }
-        }
-    )
 }

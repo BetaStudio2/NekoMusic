@@ -278,6 +278,19 @@ class MusicCacheManager private constructor(private val context: Context) {
     }
 
     /**
+     * 获取所有缓存的音乐项（音乐ID和标题）
+     */
+    fun getAllCachedItems(): List<Pair<String, String>> {
+        val items = mutableListOf<Pair<String, String>>()
+        musicDir.listFiles()?.forEach { file ->
+            val musicId = file.nameWithoutExtension.replace("music_", "")
+            val title = prefs.getString("music_${musicId}_title", "未知歌曲") ?: "未知歌曲"
+            items.add(Pair(musicId, title))
+        }
+        return items
+    }
+
+    /**
      * 下载文件
      */
     private fun downloadFile(urlString: String, outputFile: File) {

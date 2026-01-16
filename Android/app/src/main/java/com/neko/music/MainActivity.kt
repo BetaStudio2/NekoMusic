@@ -64,6 +64,7 @@ import com.neko.music.ui.screens.SearchResultScreen
 import com.neko.music.ui.screens.FavoriteScreen
 import com.neko.music.ui.screens.AboutScreen
 import com.neko.music.ui.screens.SettingsScreen
+import com.neko.music.ui.screens.CacheManagementScreen
 import com.neko.music.ui.theme.Neko云音乐Theme
 import kotlinx.coroutines.launch
 
@@ -339,8 +340,15 @@ fun MainScreen() {
                             onBackClick = {
                                 navController.popBackStack()
                             },
-                            onAboutClick = {
-                                navController.navigate("about")
+                            onNavigateToCache = {
+                                navController.navigate("cache_management")
+                            }
+                        )
+                    }
+                    composable("cache_management") {
+                        CacheManagementScreen(
+                            onBackClick = {
+                                navController.popBackStack()
                             }
                         )
                     }
