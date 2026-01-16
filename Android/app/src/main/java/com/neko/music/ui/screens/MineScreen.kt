@@ -35,6 +35,7 @@ fun MineScreen(
     onLogoutClick: () -> Unit = {},
     onFavoriteClick: () -> Unit = {},
     onAboutClick: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     isLoggedIn: Boolean = false,
     username: String? = null,
     userId: Int = -1,
@@ -111,7 +112,10 @@ fun MineScreen(
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
-                MoreSettings(onAboutClick = onAboutClick)
+                MoreSettings(
+    onAboutClick = onAboutClick,
+    onNavigateToSettings = onNavigateToSettings
+)
                 
                 Spacer(modifier = Modifier.height(100.dp))
             }
@@ -483,7 +487,8 @@ fun MenuItem(
 
 @Composable
 fun MoreSettings(
-    onAboutClick: () -> Unit = {}
+    onAboutClick: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -499,6 +504,7 @@ fun MoreSettings(
         
         Spacer(modifier = Modifier.height(16.dp))
         
+        MenuItem("设置", "⚙️", RoseRed, onClick = onNavigateToSettings)
         MenuItem("关于我们", "ℹ️", StarYellow, onClick = onAboutClick)
     }
     

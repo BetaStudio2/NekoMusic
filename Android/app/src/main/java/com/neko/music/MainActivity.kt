@@ -63,6 +63,7 @@ import com.neko.music.ui.screens.RegisterScreen
 import com.neko.music.ui.screens.SearchResultScreen
 import com.neko.music.ui.screens.FavoriteScreen
 import com.neko.music.ui.screens.AboutScreen
+import com.neko.music.ui.screens.SettingsScreen
 import com.neko.music.ui.theme.Neko云音乐Theme
 import kotlinx.coroutines.launch
 
@@ -285,6 +286,9 @@ fun MainScreen() {
                             onAboutClick = {
                                 navController.navigate("about")
                             },
+                            onNavigateToSettings = {
+                                navController.navigate("settings")
+                            },
                             isLoggedIn = isLoggedIn,
                             username = currentUsername,
                             userId = currentUserId,
@@ -327,6 +331,16 @@ fun MainScreen() {
                         AboutScreen(
                             onBackClick = {
                                 navController.popBackStack()
+                            }
+                        )
+                    }
+                    composable("settings") {
+                        SettingsScreen(
+                            onBackClick = {
+                                navController.popBackStack()
+                            },
+                            onAboutClick = {
+                                navController.navigate("about")
                             }
                         )
                     }
