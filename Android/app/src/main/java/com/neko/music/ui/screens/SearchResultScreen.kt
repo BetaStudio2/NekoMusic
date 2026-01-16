@@ -69,6 +69,7 @@ fun SearchResultScreen(
     androidx.compose.runtime.LaunchedEffect(searchQuery) {
         if (searchQuery.isNotEmpty()) {
             Log.d("SearchScreen", "实时搜索: $searchQuery")
+            isLoading = true
             performSearch(musicApi, searchQuery, scope) { results, error ->
                 searchResults = results
                 isLoading = false
