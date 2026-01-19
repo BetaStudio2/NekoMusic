@@ -158,11 +158,27 @@ public class FileUploadHandler extends HttpServlet {
             // 检查文件类型
             String musicContentType = musicFilePart.getContentType();
             String musicFileName = getFileName(musicFilePart);
-            
-            if (!"audio/mpeg".equals(musicContentType) && !musicFileName.toLowerCase().endsWith(".mp3")) {
+            String fileExtension = getFileExtension(musicFileName).toLowerCase();
+
+            // 验证支持的音频格式：MP3、FLAC、WAV
+            boolean isValidFormat = false;
+            String fileFormat = "mp3"; // 默认格式
+
+            if (("audio/mpeg".equals(musicContentType) || fileExtension.equals("mp3")) && !fileExtension.equals("flac") && !fileExtension.equals("wav")) {
+                isValidFormat = true;
+                fileFormat = "mp3";
+            } else if (("audio/flac".equals(musicContentType) || fileExtension.equals("flac"))) {
+                isValidFormat = true;
+                fileFormat = "flac";
+            } else if (("audio/wav".equals(musicContentType) || "audio/x-wav".equals(musicContentType) || fileExtension.equals("wav"))) {
+                isValidFormat = true;
+                fileFormat = "wav";
+            }
+
+            if (!isValidFormat) {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
-                ErrorResponse errorResponse = new ErrorResponse("只支持MP3格式的音乐文件");
+                ErrorResponse errorResponse = new ErrorResponse("只支持MP3、FLAC或WAV格式的音乐文件");
                 response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
                 return;
             }
@@ -192,14 +208,14 @@ public class FileUploadHandler extends HttpServlet {
             
             // 读取音频时长（如果前端没有提供）
             if (duration == 0) {
-                duration = readAudioDuration(musicFilePart);
+                duration = readAudioDuration(musicFilePart, fileExtension);
             }
-            
+
             // 生成音乐ID并保存音乐信息到数据库
-            int musicId = insertMusicToDatabase(title, artist, album, language, tags, duration, uploadUserId);
-            
-            // 构建文件路径
-            String musicFilePath = MUSIC_DIR + File.separator + musicId + ".mp3";
+            int musicId = insertMusicToDatabase(title, artist, album, language, tags, duration, uploadUserId, fileFormat);
+
+            // 构建文件路径（根据文件格式动态生成扩展名）
+            String musicFilePath = MUSIC_DIR + File.separator + musicId + "." + fileExtension;
             String coverFilePath = null;
             
             if (coverFilePart != null) {
@@ -379,29 +395,48 @@ public class FileUploadHandler extends HttpServlet {
                 // 检查文件类型
                 String musicContentType = musicFilePart.getContentType();
                 String musicFileName = getFileName(musicFilePart);
-                
-                if (!"audio/mpeg".equals(musicContentType) && !musicFileName.toLowerCase().endsWith(".mp3")) {
+                String fileExtension = getFileExtension(musicFileName).toLowerCase();
+
+                // 验证支持的音频格式：MP3、FLAC、WAV
+                boolean isValidFormat = false;
+                String fileFormat = "mp3"; // 默认格式
+
+                if (("audio/mpeg".equals(musicContentType) || fileExtension.equals("mp3")) && !fileExtension.equals("flac") && !fileExtension.equals("wav")) {
+                    isValidFormat = true;
+                    fileFormat = "mp3";
+                } else if (("audio/flac".equals(musicContentType) || fileExtension.equals("flac"))) {
+                    isValidFormat = true;
+                    fileFormat = "flac";
+                } else if (("audio/wav".equals(musicContentType) || "audio/x-wav".equals(musicContentType) || fileExtension.equals("wav"))) {
+                    isValidFormat = true;
+                    fileFormat = "wav";
+                }
+
+                if (!isValidFormat) {
                     response.setStatus(HttpStatus.BAD_REQUEST_400);
                     response.setContentType("application/json;charset=utf-8");
-                    ErrorResponse errorResponse = new ErrorResponse("只支持MP3格式的音乐文件");
+                    ErrorResponse errorResponse = new ErrorResponse("只支持MP3、FLAC或WAV格式的音乐文件");
                     response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
                     return;
                 }
-                
+
                 // 读取音频时长（如果前端没有提供）
                 if (duration == 0) {
-                    duration = readAudioDuration(musicFilePart);
+                    duration = readAudioDuration(musicFilePart, fileExtension);
                 }
-                
-                // 构建新文件路径
-                musicFilePath = MUSIC_DIR + File.separator + id + ".mp3";
-                
+
+                // 构建新文件路径（根据文件格式动态生成扩展名）
+                musicFilePath = MUSIC_DIR + File.separator + id + "." + fileFormat;
+
                 // 保存音乐文件
                 Path musicFile = Paths.get(musicFilePath);
                 try (InputStream inputStream = musicFilePart.getInputStream()) {
                     Files.copy(inputStream, musicFile);
                     logger.info("音乐文件已保存到: " + musicFilePath);
                 }
+
+                // 更新数据库中的文件格式
+                updateFileFormatInDatabase(id, fileFormat);
             } else {
                 // 如果没有上传新音乐文件，但前端提供了时长，更新时长
                 if (duration != 0) {
@@ -501,19 +536,19 @@ public class FileUploadHandler extends HttpServlet {
     }
     
     // 读取音频时长
-    private int readAudioDuration(Part musicFilePart) {
+    private int readAudioDuration(Part musicFilePart, String fileExtension) {
         try (InputStream inputStream = musicFilePart.getInputStream()) {
-            // 创建临时文件来读取音频信息
-            File tempFile = File.createTempFile("temp_audio", ".mp3");
+            // 创建临时文件来读取音频信息（使用正确的扩展名）
+            File tempFile = File.createTempFile("temp_audio", "." + fileExtension);
             Files.copy(inputStream, tempFile.toPath());
-            
-            // 使用JAudiotagger库读取音频时长
+
+            // 使用JAudiotagger库读取音频时长（支持MP3、FLAC、WAV等格式）
             AudioFile audioFile = AudioFileIO.read(tempFile);
             int duration = audioFile.getAudioHeader().getTrackLength();
-            
+
             // 删除临时文件
             tempFile.delete();
-            
+
             return duration;
         } catch (CannotReadException | IOException | TagException | ReadOnlyFileException | InvalidAudioFrameException e) {
             logger.error("读取音频时长失败", e);
@@ -522,7 +557,7 @@ public class FileUploadHandler extends HttpServlet {
     }
     
     // 将音乐信息插入数据库
-    private int insertMusicToDatabase(String title, String artist, String album, String language, String tags, int duration, Integer uploadUserId) throws SQLException {
+    private int insertMusicToDatabase(String title, String artist, String album, String language, String tags, int duration, Integer uploadUserId, String fileFormat) throws SQLException {
         int id;
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             // 验证提供的uploadUserId是否存在于users表中
@@ -535,8 +570,8 @@ public class FileUploadHandler extends HttpServlet {
                     logger.warn("提供的upload_user_id {} 不存在于users表中，将使用NULL", uploadUserId);
                 }
             }
-            
-            String sql = "INSERT INTO music (title, artist, album, language, tags, duration, file_path, cover_path, upload_user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+            String sql = "INSERT INTO music (title, artist, album, language, tags, duration, file_path, cover_path, file_format, upload_user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             try (PreparedStatement stmt = conn.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
                 stmt.setString(1, title);
                 stmt.setString(2, artist);
@@ -546,14 +581,15 @@ public class FileUploadHandler extends HttpServlet {
                 stmt.setInt(6, duration);
                 stmt.setString(7, ""); // 文件路径将在后续更新
                 stmt.setString(8, ""); // 封面路径将在后续更新
-                stmt.setObject(9, validUploadUserId); // 使用验证后的用户ID或null
-                
+                stmt.setString(9, fileFormat); // 文件格式
+                stmt.setObject(10, validUploadUserId); // 使用验证后的用户ID或null
+
                 int affectedRows = stmt.executeUpdate();
-                
+
                 if (affectedRows == 0) {
                     throw new SQLException("添加音乐失败");
                 }
-                
+
                 try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
                     if (generatedKeys.next()) {
                         id = generatedKeys.getInt(1);
@@ -619,7 +655,7 @@ public class FileUploadHandler extends HttpServlet {
     }
     
     // 更新音乐信息到数据库
-    private void updateMusicInDatabase(int id, String title, String artist, String album, String language, String tags, int duration, 
+    private void updateMusicInDatabase(int id, String title, String artist, String album, String language, String tags, int duration,
                                       String musicFilePath, String coverFilePath, Integer uploadUserId) throws SQLException {
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             // 验证提供的uploadUserId是否存在于users表中
@@ -632,7 +668,7 @@ public class FileUploadHandler extends HttpServlet {
                     logger.warn("提供的upload_user_id {} 不存在于users表中，将使用NULL", uploadUserId);
                 }
             }
-            
+
             String sql = "UPDATE music SET title = ?, artist = ?, album = ?, language = ?, tags = ?, duration = ?, file_path = ?, cover_path = ?, upload_user_id = ?, updated_at = NOW() WHERE id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setString(1, title);
@@ -645,10 +681,26 @@ public class FileUploadHandler extends HttpServlet {
                 stmt.setString(8, coverFilePath);
                 stmt.setObject(9, validUploadUserId); // 使用验证后的用户ID或null
                 stmt.setInt(10, id);
-                
+
                 int rowsUpdated = stmt.executeUpdate();
                 if (rowsUpdated == 0) {
                     throw new SQLException("更新音乐失败");
+                }
+            }
+        }
+    }
+
+    // 更新文件格式到数据库
+    private void updateFileFormatInDatabase(int id, String fileFormat) throws SQLException {
+        try (Connection conn = Main.getDatabaseManager().getConnection()) {
+            String sql = "UPDATE music SET file_format = ?, updated_at = NOW() WHERE id = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setString(1, fileFormat);
+                stmt.setInt(2, id);
+
+                int rowsUpdated = stmt.executeUpdate();
+                if (rowsUpdated == 0) {
+                    throw new SQLException("更新文件格式失败");
                 }
             }
         }

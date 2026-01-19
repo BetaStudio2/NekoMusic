@@ -64,6 +64,7 @@ public class DatabaseManager {
                     duration INT, -- 时长，单位秒
                     file_path VARCHAR(500),
                     cover_path VARCHAR(500),
+                    file_format VARCHAR(10) DEFAULT 'mp3', -- 音频文件格式：mp3/flac/wav
                     language VARCHAR(50) NOT NULL DEFAULT '未知语言',
                     tags VARCHAR(500),
                     upload_user_id INT,
@@ -74,6 +75,22 @@ public class DatabaseManager {
                 """;
             try (PreparedStatement stmt = conn.prepareStatement(createMusicTable)) {
                 stmt.execute();
+            }
+
+            // 为已存在的 music 表添加 file_format 字段（如果不存在）
+            try {
+                String alterTable = """
+                    ALTER TABLE music 
+                    ADD COLUMN IF NOT EXISTS file_format VARCHAR(10) DEFAULT 'mp3' 
+                    AFTER cover_path
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(alterTable)) {
+                    stmt.execute();
+                }
+                logger.info("已为 music 表添加 file_format 字段");
+            } catch (SQLException e) {
+                // 字段可能已存在，忽略错误
+                logger.debug("file_format 字段可能已存在，跳过添加");
             }
             
             logger.info("数据库表初始化完成");

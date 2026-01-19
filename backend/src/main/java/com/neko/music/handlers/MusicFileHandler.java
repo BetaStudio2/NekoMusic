@@ -91,72 +91,90 @@ public class MusicFileHandler extends HttpServlet {
      * 发送音乐文件
      */
     private void sendMusicFile(Path musicPath, HttpServletRequest request, HttpServletResponse response) throws IOException {
-        response.setContentType("audio/mpeg"); // MP3文件的MIME类型
+        // 根据文件扩展名设置正确的 MIME 类型
+        String fileName = musicPath.getFileName().toString().toLowerCase();
+        String contentType = getContentTypeByExtension(fileName);
+        response.setContentType(contentType);
         response.setStatus(HttpStatus.OK_200);
-        
+
         // 设置Content-Length头
         long fileSize = Files.size(musicPath);
         response.setContentLengthLong(fileSize);
-        
+
         // 支持范围请求（用于音频播放器的跳转功能）
         String rangeHeader = request.getHeader("Range");
         if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
             // 处理范围请求
-            handleRangeRequest(musicPath, response, rangeHeader, fileSize);
+            handleRangeRequest(musicPath, response, rangeHeader, fileSize, contentType);
         } else {
             // 发送完整文件
             try (InputStream inputStream = Files.newInputStream(musicPath);
                  OutputStream outputStream = response.getOutputStream()) {
-                
+
                 byte[] buffer = new byte[8192]; // 8KB buffer
                 int bytesRead;
-                
+
                 while ((bytesRead = inputStream.read(buffer)) != -1) {
                     outputStream.write(buffer, 0, bytesRead);
                 }
-                
+
                 outputStream.flush();
             }
         }
+    }
+
+    /**
+     * 根据文件扩展名获取 MIME 类型
+     */
+    private String getContentTypeByExtension(String fileName) {
+        if (fileName.endsWith(".mp3")) {
+            return "audio/mpeg";
+        } else if (fileName.endsWith(".flac")) {
+            return "audio/flac";
+        } else if (fileName.endsWith(".wav")) {
+            return "audio/wav";
+        }
+        // 默认返回 MP3 类型
+        return "audio/mpeg";
     }
     
     /**
      * 处理范围请求（支持音频播放器的拖拽功能）
      */
-    private void handleRangeRequest(Path musicPath, HttpServletResponse response, String rangeHeader, long fileSize) throws IOException {
+    private void handleRangeRequest(Path musicPath, HttpServletResponse response, String rangeHeader, long fileSize, String contentType) throws IOException {
         String rangeValue = rangeHeader.replace("bytes=", "");
-        
+
         String[] ranges = rangeValue.split("-");
         long start = Long.parseLong(ranges[0]);
         long end = ranges.length > 1 && !ranges[1].isEmpty() ? Long.parseLong(ranges[1]) : fileSize - 1;
-        
+
         // 确保end不超过文件大小
         end = Math.min(end, fileSize - 1);
-        
+
         long contentLength = end - start + 1;
-        
+
         response.setStatus(HttpStatus.PARTIAL_CONTENT_206);
         response.setHeader("Content-Range", "bytes " + start + "-" + end + "/" + fileSize);
         response.setContentLengthLong(contentLength);
-        response.setContentType("audio/mpeg");
-        
+        response.setContentType(contentType);
+
         try (RandomAccessFile randomAccessFile = new RandomAccessFile(musicPath.toFile(), "r");
              OutputStream outputStream = response.getOutputStream()) {
-            
+
             // 跳转到起始位置
             randomAccessFile.seek(start);
-            
+
             byte[] buffer = new byte[8192]; // 8KB buffer
             long bytesToRead = contentLength;
-            
+
             while (bytesToRead > 0) {
                 int bytesRead = randomAccessFile.read(buffer, 0, (int) Math.min(buffer.length, bytesToRead));
                 if (bytesRead == -1) break;
-                
+
                 outputStream.write(buffer, 0, bytesRead);
                 bytesToRead -= bytesRead;
             }
-            
+
             outputStream.flush();
         }
     }
