@@ -174,7 +174,7 @@ fun RecentPlayItem(
     val currentMusicId by playerManager.currentMusicId.collectAsState()
     
     // 构建完整的封面URL
-    val fullCoverUrl = if (music.coverFilePath.isNotEmpty()) {
+    val fullCoverUrl = if (!music.coverFilePath.isNullOrEmpty()) {
         "https://music.cnmsb.xin${music.coverFilePath}"
     } else {
         "https://music.cnmsb.xin/api/music/cover/${music.id}"

@@ -10,12 +10,12 @@ data class Music(
     val album: String,
     val duration: Int,
     val filePath: String,
-    val coverFilePath: String,
+    val coverFilePath: String?,
     val uploadUserId: Int,
     val createdAt: String
 ) {
     val coverUrl: String
-        get() = if (coverFilePath.isEmpty()) {
+        get() = if (coverFilePath.isNullOrEmpty()) {
             "/api/defaultIcon"
         } else {
             coverFilePath

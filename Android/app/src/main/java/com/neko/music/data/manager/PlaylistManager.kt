@@ -89,7 +89,7 @@ class PlaylistManager private constructor(context: Context) {
                 album = music.album,
                 duration = music.duration,
                 filePath = music.filePath,
-                coverFilePath = music.coverFilePath,
+                coverFilePath = music.coverFilePath ?: "",
                 uploadUserId = music.uploadUserId,
                 createdAt = music.createdAt
             )

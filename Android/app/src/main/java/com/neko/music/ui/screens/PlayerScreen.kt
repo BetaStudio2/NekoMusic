@@ -188,7 +188,7 @@ fun PlayerScreen(
                 // 只在音乐ID不同时才播放
                 if (currentMusicId != music.id) {
                     // 获取完整的封面URL
-                    val fullCoverUrl = if (music.coverFilePath.isNotEmpty()) {
+                    val fullCoverUrl = if (!music.coverFilePath.isNullOrEmpty()) {
                         "https://music.cnmsb.xin${music.coverFilePath}"
                     } else {
                         "https://music.cnmsb.xin/api/music/cover/${music.id}"
@@ -202,7 +202,7 @@ fun PlayerScreen(
                         music.id,
                         music.title,
                         music.artist,
-                        music.coverFilePath,
+                        music.coverFilePath ?: "",
                         fullCoverUrl
                     )
                 }

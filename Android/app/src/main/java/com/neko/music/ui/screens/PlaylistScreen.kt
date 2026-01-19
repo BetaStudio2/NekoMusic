@@ -190,7 +190,7 @@ fun PlaylistItem(
                 .background(Color(0xFFF5F5F5)),
             contentAlignment = Alignment.Center
         ) {
-            val coverUrl = if (music.coverFilePath.isNotEmpty()) {
+            val coverUrl = if (!music.coverFilePath.isNullOrEmpty()) {
                 "https://music.cnmsb.xin${music.coverFilePath}"
             } else {
                 "https://music.cnmsb.xin/api/music/cover/${music.id}"

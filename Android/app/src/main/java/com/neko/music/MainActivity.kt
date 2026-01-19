@@ -490,12 +490,12 @@ fun MainScreen() {
                 scope.launch {
                     val musicApi = com.neko.music.data.api.MusicApi(context)
                     val url = musicApi.getMusicFileUrl(music)
-                    val fullCoverUrl = if (music.coverFilePath.isNotEmpty()) {
+                    val fullCoverUrl = if (!music.coverFilePath.isNullOrEmpty()) {
                         "https://music.cnmsb.xin${music.coverFilePath}"
                     } else {
                         "https://music.cnmsb.xin/api/music/cover/${music.id}"
                     }
-                    playerManager.playMusic(url, music.id, music.title, music.artist, music.coverFilePath, fullCoverUrl)
+                    playerManager.playMusic(url, music.id, music.title, music.artist, music.coverFilePath ?: "", fullCoverUrl)
                 }
                 showPlaylist = false
             }
