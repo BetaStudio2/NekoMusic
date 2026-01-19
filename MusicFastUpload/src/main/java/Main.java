@@ -29,12 +29,17 @@ public class Main {
         int totalMusic = scanResult.getTotalMusic();
         int musicWithLyrics = FileScanner.countMusicWithLyrics(
             scanResult.getMp3Files(), 
+            scanResult.getFlacFiles(),
+            scanResult.getWavFiles(),
             scanResult.getNcmFiles(), 
             scanResult.getLrcFiles()
         );
 
         System.out.println("\n扫描结果:");
         System.out.println("找到了 " + totalMusic + " 首音乐");
+        System.out.println("其中 " + scanResult.getMp3Files().size() + " 首是 MP3 格式");
+        System.out.println("其中 " + scanResult.getFlacFiles().size() + " 首是 FLAC 格式");
+        System.out.println("其中 " + scanResult.getWavFiles().size() + " 首是 WAV 格式");
         System.out.println("其中 " + scanResult.getNcmFiles().size() + " 首音乐是 ncm 加密格式");
         System.out.println("其中 " + musicWithLyrics + " 首音乐存在歌词");
     }
@@ -47,13 +52,25 @@ public class Main {
                 decryptNcmFiles(scanResult.getNcmFiles());
                 break;
             case 2:
-                MusicUploader.uploadMusic(scanResult.getMp3Files(), scanResult.getLrcFiles(), backendUrl);
+                MusicUploader.uploadMusic(
+                    scanResult.getMp3Files(), 
+                    scanResult.getFlacFiles(),
+                    scanResult.getWavFiles(),
+                    scanResult.getLrcFiles(), 
+                    backendUrl
+                );
                 break;
             case 3:
                 int decryptedCount = decryptNcmFiles(scanResult.getNcmFiles());
                 if (decryptedCount > 0) {
                     FileScanner.ScanResult newScanResult = FileScanner.scanDirectory(musicPath);
-                    MusicUploader.uploadMusic(newScanResult.getMp3Files(), newScanResult.getLrcFiles(), backendUrl);
+                    MusicUploader.uploadMusic(
+                        newScanResult.getMp3Files(), 
+                        newScanResult.getFlacFiles(),
+                        newScanResult.getWavFiles(),
+                        newScanResult.getLrcFiles(), 
+                        backendUrl
+                    );
                 }
                 break;
             default:

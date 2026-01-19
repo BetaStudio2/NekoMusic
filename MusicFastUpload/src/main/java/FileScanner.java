@@ -8,6 +8,8 @@ import java.util.List;
 public class FileScanner {
     public static ScanResult scanDirectory(Path dir) throws IOException {
         List<String> mp3Files = new ArrayList<>();
+        List<String> flacFiles = new ArrayList<>();
+        List<String> wavFiles = new ArrayList<>();
         List<String> ncmFiles = new ArrayList<>();
         List<String> lrcFiles = new ArrayList<>();
 
@@ -17,6 +19,10 @@ public class FileScanner {
                 String fileName = path.getFileName().toString().toLowerCase();
                 if (fileName.endsWith(".mp3")) {
                     mp3Files.add(path.toString());
+                } else if (fileName.endsWith(".flac")) {
+                    flacFiles.add(path.toString());
+                } else if (fileName.endsWith(".wav")) {
+                    wavFiles.add(path.toString());
                 } else if (fileName.endsWith(".ncm")) {
                     ncmFiles.add(path.toString());
                 } else if (fileName.endsWith(".lrc")) {
@@ -24,7 +30,7 @@ public class FileScanner {
                 }
             });
 
-        return new ScanResult(mp3Files, ncmFiles, lrcFiles);
+        return new ScanResult(mp3Files, flacFiles, wavFiles, ncmFiles, lrcFiles);
     }
 
     public static String getBaseName(String filePath) {
@@ -36,10 +42,20 @@ public class FileScanner {
         return fileName;
     }
 
-    public static int countMusicWithLyrics(List<String> mp3Files, List<String> ncmFiles, List<String> lrcFiles) {
+    public static int countMusicWithLyrics(List<String> mp3Files, List<String> flacFiles, List<String> wavFiles, List<String> ncmFiles, List<String> lrcFiles) {
         int count = 0;
         for (String mp3File : mp3Files) {
             if (hasMatchingLyrics(getBaseName(mp3File), lrcFiles)) {
+                count++;
+            }
+        }
+        for (String flacFile : flacFiles) {
+            if (hasMatchingLyrics(getBaseName(flacFile), lrcFiles)) {
+                count++;
+            }
+        }
+        for (String wavFile : wavFiles) {
+            if (hasMatchingLyrics(getBaseName(wavFile), lrcFiles)) {
                 count++;
             }
         }
@@ -62,17 +78,29 @@ public class FileScanner {
 
     public static class ScanResult {
         private final List<String> mp3Files;
+        private final List<String> flacFiles;
+        private final List<String> wavFiles;
         private final List<String> ncmFiles;
         private final List<String> lrcFiles;
 
-        public ScanResult(List<String> mp3Files, List<String> ncmFiles, List<String> lrcFiles) {
+        public ScanResult(List<String> mp3Files, List<String> flacFiles, List<String> wavFiles, List<String> ncmFiles, List<String> lrcFiles) {
             this.mp3Files = mp3Files;
+            this.flacFiles = flacFiles;
+            this.wavFiles = wavFiles;
             this.ncmFiles = ncmFiles;
             this.lrcFiles = lrcFiles;
         }
 
         public List<String> getMp3Files() {
             return mp3Files;
+        }
+
+        public List<String> getFlacFiles() {
+            return flacFiles;
+        }
+
+        public List<String> getWavFiles() {
+            return wavFiles;
         }
 
         public List<String> getNcmFiles() {
@@ -84,7 +112,7 @@ public class FileScanner {
         }
 
         public int getTotalMusic() {
-            return mp3Files.size() + ncmFiles.size();
+            return mp3Files.size() + flacFiles.size() + wavFiles.size() + ncmFiles.size();
         }
     }
 }

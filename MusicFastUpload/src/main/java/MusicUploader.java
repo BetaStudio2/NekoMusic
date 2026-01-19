@@ -19,6 +19,10 @@ public class MusicUploader {
     private static Scanner scanner = new Scanner(System.in);
     
     public static void uploadMusic(List<String> mp3Files, List<String> lrcFiles, String backendUrl) {
+        uploadMusic(mp3Files, new ArrayList<>(), new ArrayList<>(), lrcFiles, backendUrl);
+    }
+    
+    public static void uploadMusic(List<String> mp3Files, List<String> flacFiles, List<String> wavFiles, List<String> lrcFiles, String backendUrl) {
         MusicUploader.backendUrl = backendUrl;
         System.out.println("\n开始上传音乐到后端: " + backendUrl + UPLOAD_ENDPOINT);
         
@@ -44,6 +48,7 @@ public class MusicUploader {
         int successCount = 0;
         int failCount = 0;
 
+        // 上传 MP3 文件
         for (String mp3File : mp3Files) {
             try {
                 String fileName = new File(mp3File).getName();
@@ -68,6 +73,64 @@ public class MusicUploader {
                 }
             } catch (Exception e) {
                 System.err.println("  处理失败: " + mp3File + " - " + e.getMessage());
+                failCount++;
+            }
+        }
+        
+        // 上传 FLAC 文件
+        for (String flacFile : flacFiles) {
+            try {
+                String fileName = new File(flacFile).getName();
+                System.out.println("\n处理: " + fileName);
+                
+                // 先查找对应的歌词文件
+                String lrcFile = findMatchingLrcFile(flacFile, lrcFiles);
+                
+                if (lrcFile == null) {
+                    System.out.println("  跳过: 未找到对应的歌词文件");
+                    failCount++;
+                    continue;
+                }
+                
+                System.out.println("  找到歌词文件: " + new File(lrcFile).getName());
+                
+                // 上传音乐
+                if (uploadSingleMusic(flacFile, lrcFile, language, token)) {
+                    successCount++;
+                } else {
+                    failCount++;
+                }
+            } catch (Exception e) {
+                System.err.println("  处理失败: " + flacFile + " - " + e.getMessage());
+                failCount++;
+            }
+        }
+        
+        // 上传 WAV 文件
+        for (String wavFile : wavFiles) {
+            try {
+                String fileName = new File(wavFile).getName();
+                System.out.println("\n处理: " + fileName);
+                
+                // 先查找对应的歌词文件
+                String lrcFile = findMatchingLrcFile(wavFile, lrcFiles);
+                
+                if (lrcFile == null) {
+                    System.out.println("  跳过: 未找到对应的歌词文件");
+                    failCount++;
+                    continue;
+                }
+                
+                System.out.println("  找到歌词文件: " + new File(lrcFile).getName());
+                
+                // 上传音乐
+                if (uploadSingleMusic(wavFile, lrcFile, language, token)) {
+                    successCount++;
+                } else {
+                    failCount++;
+                }
+            } catch (Exception e) {
+                System.err.println("  处理失败: " + wavFile + " - " + e.getMessage());
                 failCount++;
             }
         }
@@ -120,15 +183,22 @@ public class MusicUploader {
         return null;
     }
     
-    private static boolean uploadSingleMusic(String mp3File, String lrcFile, String language, String token) {
+    private static boolean uploadSingleMusic(String musicFile, String lrcFile, String language, String token) {
         try {
-            Path mp3Path = Paths.get(mp3File);
+            Path musicPath = Paths.get(musicFile);
             Path lrcPath = Paths.get(lrcFile);
-            String mp3FileName = mp3Path.getFileName().toString();
+            String musicFileName = musicPath.getFileName().toString();
             String lrcFileName = lrcPath.getFileName().toString();
             
-            // 使用JAudiotagger解析MP3文件元数据
-            org.jaudiotagger.audio.AudioFile audioFile = org.jaudiotagger.audio.AudioFileIO.read(mp3Path.toFile());
+            // 确定文件格式
+            String fileExtension = getFileExtension(musicFileName);
+            String mimeType = getMimeType(fileExtension);
+            
+            System.out.println("  文件格式: " + fileExtension.toUpperCase());
+            System.out.println("  MIME类型: " + mimeType);
+            
+            // 使用JAudiotagger解析音频文件元数据
+            org.jaudiotagger.audio.AudioFile audioFile = org.jaudiotagger.audio.AudioFileIO.read(musicPath.toFile());
             org.jaudiotagger.tag.Tag tag = audioFile.getTag();
             org.jaudiotagger.audio.AudioHeader audioHeader = audioFile.getAudioHeader();
             
@@ -160,8 +230,8 @@ public class MusicUploader {
             
             // 如果没有提取到标题或艺术家，从文件名提取
             if (title == null || title.isEmpty() || artist == null || artist.isEmpty()) {
-                if (mp3FileName.contains(" - ")) {
-                    String[] parts = mp3FileName.split(" - ", 2);
+                if (musicFileName.contains(" - ")) {
+                    String[] parts = musicFileName.split(" - ", 2);
                     if (parts.length == 2) {
                         if (artist == null || artist.isEmpty()) {
                             artist = parts[0].trim();
@@ -172,7 +242,7 @@ public class MusicUploader {
                     }
                 } else {
                     if (title == null || title.isEmpty()) {
-                        title = mp3FileName.substring(0, mp3FileName.lastIndexOf('.'));
+                        title = musicFileName.substring(0, musicFileName.lastIndexOf('.'));
                     }
                 }
             }
@@ -189,10 +259,11 @@ public class MusicUploader {
             System.out.println("    专辑: " + album);
             System.out.println("    时长: " + duration + " 秒");
             System.out.println("    语言: " + language);
+            System.out.println("    格式: " + fileExtension.toUpperCase());
             System.out.println("    封面: " + (coverData != null ? "有" : "无"));
             
-            // 读取MP3文件内容
-            byte[] mp3Bytes = Files.readAllBytes(mp3Path);
+            // 读取音频文件内容
+            byte[] musicBytes = Files.readAllBytes(musicPath);
             
             // 读取歌词文件内容
             byte[] lrcBytes = Files.readAllBytes(lrcPath);
@@ -224,7 +295,7 @@ public class MusicUploader {
             writeFormField(outputStream, boundary, "duration", String.valueOf(duration));
             
             // 添加musicFile字段
-            writeFileField(outputStream, boundary, "musicFile", mp3FileName, "audio/mpeg", mp3Bytes);
+            writeFileField(outputStream, boundary, "musicFile", musicFileName, mimeType, musicBytes);
             
             // 添加coverFile字段（如果有封面）
             if (coverData != null && coverMimeType != null) {
@@ -285,6 +356,27 @@ public class MusicUploader {
             System.err.println("  上传异常: " + e.getMessage());
             e.printStackTrace();
             return false;
+        }
+    }
+    
+    private static String getFileExtension(String fileName) {
+        int lastDotIndex = fileName.lastIndexOf('.');
+        if (lastDotIndex > 0) {
+            return fileName.substring(lastDotIndex + 1).toLowerCase();
+        }
+        return "mp3"; // 默认
+    }
+    
+    private static String getMimeType(String fileExtension) {
+        switch (fileExtension.toLowerCase()) {
+            case "mp3":
+                return "audio/mpeg";
+            case "flac":
+                return "audio/flac";
+            case "wav":
+                return "audio/wav";
+            default:
+                return "audio/mpeg"; // 默认
         }
     }
     
