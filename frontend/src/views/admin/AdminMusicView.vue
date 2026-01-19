@@ -759,44 +759,60 @@ const parseFlacMetadata = async (file, targetMusic = newMusic) => {
         console.log('>>> 找到 PICTURE 块，开始解析封面...')
 
         let picOffset = offset
+        console.log(`>>> PICTURE 块起始位置: ${picOffset}, 块大小: ${blockSize}`)
 
-        // 读取图片类型
-        const pictureType = dataView.getUint32(picOffset, true)
+        // 读取图片类型（大端序）
+        const pictureType = dataView.getUint32(picOffset, false)
         picOffset += 4
+        console.log(`>>> 图片类型: ${pictureType}`)
 
-        // 读取MIME类型长度和MIME类型
-        const mimeLength = dataView.getUint32(picOffset, true)
+        // 读取MIME类型长度和MIME类型（大端序）
+        const mimeLength = dataView.getUint32(picOffset, false)
         picOffset += 4
+        console.log(`>>> MIME类型长度: ${mimeLength}, 当前位置: ${picOffset}`)
 
         if (picOffset + mimeLength > offset + blockSize) {
-          console.warn('MIME类型长度超出块范围')
+          console.warn('>>> MIME类型长度超出块范围')
         } else {
           // 使用 TextDecoder 解码 MIME 类型
           const mimeBytes = new Uint8Array(arrayBuffer, picOffset, mimeLength)
           const mimeType = textDecoder.decode(mimeBytes)
           picOffset += mimeLength
+          console.log(`>>> MIME类型: ${mimeType}, 解码后位置: ${picOffset}`)
 
-          // 读取描述长度和描述
-          const descLength = dataView.getUint32(picOffset, true)
+          // 读取描述长度和描述（大端序）
+          const descLength = dataView.getUint32(picOffset, false)
           picOffset += 4
+          console.log(`>>> 描述长度: ${descLength}, 当前位置: ${picOffset}`)
           picOffset += descLength // 跳过描述
+          console.log(`>>> 跳过描述后位置: ${picOffset}`)
 
-          // 读取宽度、高度、颜色深度、颜色数
-          picOffset += 4 // width
-          picOffset += 4 // height
-          picOffset += 4 // color depth
-          picOffset += 4 // color count
-
-          // 读取图片数据长度和图片数据
-          const pictureLength = dataView.getUint32(picOffset, true)
+          // 读取宽度、高度、颜色深度、颜色数（大端序）
+          const width = dataView.getUint32(picOffset, false)
           picOffset += 4
+          const height = dataView.getUint32(picOffset, false)
+          picOffset += 4
+          const colorDepth = dataView.getUint32(picOffset, false)
+          picOffset += 4
+          const colorCount = dataView.getUint32(picOffset, false)
+          picOffset += 4
+          console.log(`>>> 图片尺寸: ${width}x${height}, 颜色深度: ${colorDepth}, 颜色数: ${colorCount}`)
+          console.log(`>>> 读取图片属性后位置: ${picOffset}`)
+
+          // 读取图片数据长度和图片数据（大端序）
+          const pictureLength = dataView.getUint32(picOffset, false)
+          picOffset += 4
+          console.log(`>>> 图片数据长度: ${pictureLength}, 当前位置: ${picOffset}`)
+          console.log(`>>> 块结束位置: ${offset + blockSize}, 剩余空间: ${offset + blockSize - picOffset}`)
 
           console.log(`>>> 封面MIME类型: ${mimeType}, 大小: ${pictureLength} bytes`)
 
           if (pictureLength > 0 && picOffset + pictureLength <= offset + blockSize) {
             const imageData = new Uint8Array(arrayBuffer, picOffset, pictureLength)
             metadata.cover = new Blob([imageData], { type: mimeType })
-            console.log('>>> ✓ 封面图片解析成功')
+            console.log('>>> ✓ 封面图片解析成功，Blob 大小:', metadata.cover.size)
+          } else {
+            console.warn(`>>> ❌ 封面图片数据超出范围: ${picOffset + pictureLength} > ${offset + blockSize}`)
           }
         }
       }
