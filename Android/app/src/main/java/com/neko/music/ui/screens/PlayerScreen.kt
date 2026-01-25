@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
@@ -58,8 +59,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import com.neko.music.service.PlayMode
 import kotlinx.coroutines.delay
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -70,6 +74,15 @@ import com.neko.music.R
 import com.neko.music.data.api.MusicApi
 import com.neko.music.data.model.Music
 import com.neko.music.ui.theme.RoseRed
+import com.neko.music.ui.theme.SakuraPink
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material3.Surface
 import kotlinx.coroutines.launch
 
 // 格式化时间显示（毫秒转 mm:ss）
@@ -152,6 +165,11 @@ fun PlayerScreen(
     var showLoginToast by remember { mutableStateOf(false) }
     val playModeChanged by playerManager.playModeChanged.collectAsState()
     var showPlayModeToast by remember { mutableStateOf(false) }
+
+    // 分享对话框
+    var showShareDialog by remember { mutableStateOf(false) }
+    var showShareToast by remember { mutableStateOf(false) }
+    var shareToastMessage by remember { mutableStateOf("") }
 
     // 从播放器获取当前音乐信息
     val currentMusic = remember(currentMusicId) {
@@ -236,7 +254,7 @@ fun PlayerScreen(
         ) {
             TopBar(
                 onBackClick = onBackClick,
-                onMenuClick = {},
+                onMenuClick = { showShareDialog = true },
                 onPlaylistClick = onPlaylistClick
             )
 
@@ -401,6 +419,69 @@ fun PlayerScreen(
         ) {
             Text(
                 text = "请先登录",
+                color = Color.White,
+                fontSize = 14.sp
+            )
+        }
+    }
+
+    // 分享对话框
+    if (showShareDialog) {
+        ShareDialog(
+            music = currentMusic,
+            onDismiss = { showShareDialog = false },
+            onShareToWeChat = {
+                showShareDialog = false
+                shareToastMessage = "已分享到微信"
+                showShareToast = true
+            },
+            onShareToTwitter = {
+                showShareDialog = false
+                shareToastMessage = "已分享到推特"
+                showShareToast = true
+            },
+            onShareToQQ = {
+                showShareDialog = false
+                shareToastMessage = "已分享到QQ"
+                showShareToast = true
+            },
+            onCopyLink = {
+                showShareDialog = false
+                shareToastMessage = "链接已复制"
+                showShareToast = true
+            },
+            onDownload = {
+                showShareDialog = false
+                shareToastMessage = "开始下载"
+                showShareToast = true
+            }
+        )
+    }
+
+    // 分享提示（悬浮窗，层级最高）
+    LaunchedEffect(showShareToast) {
+        if (showShareToast) {
+            delay(2000)
+            showShareToast = false
+        }
+    }
+
+    AnimatedVisibility(
+        visible = showShareToast,
+        enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(300)),
+        exit = fadeOut(animationSpec = androidx.compose.animation.core.tween(300))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(top = 80.dp)
+                .height(32.dp)
+                .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(16.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = shareToastMessage,
                 color = Color.White,
                 fontSize = 14.sp
             )
@@ -1006,3 +1087,218 @@ fun ProgressSlider(
                 }
             }
         }
+
+
+@Composable
+fun ShareDialog(
+    music: Music,
+    onDismiss: () -> Unit,
+    onShareToWeChat: () -> Unit,
+    onShareToTwitter: () -> Unit,
+    onShareToQQ: () -> Unit,
+    onCopyLink: () -> Unit,
+    onDownload: () -> Unit
+) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.4f))
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss
+                )
+        ) {
+            // 底部弹出面板
+            androidx.compose.animation.AnimatedVisibility(
+                visible = true,
+                enter = slideInVertically(
+                    initialOffsetY = { it },
+                    animationSpec = tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                ),
+                exit = slideOutVertically(
+                    targetOffsetY = { it },
+                    animationSpec = tween(250, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null,
+                        onClick = {}
+                    )
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(20.dp, 20.dp, 0.dp, 0.dp),
+                    color = Color.White,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column {
+                        // 顶部把手
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(36.dp)
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(Color(0xFFE0E0E0))
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // 横向滚动的分享列表
+                        LazyRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(24.dp)
+                        ) {
+                            item {
+                                ShareGridItem(
+                                    iconRes = R.drawable.wechat,
+                                    label = "分享到微信",
+                                    color = Color(0xFF07C160),
+                                    onClick = onShareToWeChat
+                                )
+                            }
+                            item {
+                                ShareGridItem(
+                                    iconRes = R.drawable.qq,
+                                    label = "分享到QQ",
+                                    color = Color(0xFF12B7F5),
+                                    onClick = onShareToQQ
+                                )
+                            }
+                            item {
+                                ShareGridItem(
+                                    iconRes = R.drawable.twitter,
+                                    label = "推特",
+                                    color = Color(0xFF1DA1F2),
+                                    onClick = onShareToTwitter
+                                )
+                            }
+                            item {
+                                ShareGridItem(
+                                    iconRes = R.drawable.copy_link,
+                                    label = "复制链接",
+                                    color = RoseRed,
+                                    onClick = onCopyLink
+                                )
+                            }
+                            item {
+                                ShareGridItem(
+                                    icon = "⬇️",
+                                    label = "下载",
+                                    color = Color(0xFF6B5B95),
+                                    onClick = onDownload
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // 分割线
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(0.5.dp)
+                                .background(Color(0xFFE8E8E8))
+                        )
+
+                        // 取消按钮
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                                .clickable { onDismiss() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "取消",
+                                fontSize = 17.sp,
+                                color = Color.Black,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ShareGridItem(
+    icon: String? = null,
+    iconRes: Int? = null,
+    label: String,
+    color: Color,
+    onClick: () -> Unit
+) {
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        )
+    )
+
+    Column(
+        modifier = Modifier
+            .scale(scale)
+            .clickable {
+                isPressed = true
+                onClick()
+            },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(CircleShape)
+                .background(color)
+                .shadow(
+                    elevation = 4.dp,
+                    spotColor = color.copy(alpha = 0.3f),
+                    ambientColor = color.copy(alpha = 0.15f)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (iconRes != null) {
+                Icon(
+                    painter = painterResource(id = iconRes),
+                    contentDescription = label,
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp)
+                )
+            } else if (icon != null) {
+                Text(
+                    text = icon,
+                    fontSize = 28.sp
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = label,
+            fontSize = 13.sp,
+            color = Color.Gray.copy(alpha = 0.9f),
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
