@@ -24,6 +24,12 @@
         </div>
         <p class="welcome-subtitle">本站不收集用户数据所以不会有定向推荐</p>
         <p class="welcome-subtitle">不是做不到这是这样不道德</p>
+        <div class="developer-link">
+          <a href="/api-docs" class="dev-link-btn">
+            <span class="dev-icon">📚</span>
+            <span class="dev-text">开发者文档</span>
+          </a>
+        </div>
         <div class="decoration-element">
           <div class="music-note note-1">♪</div>
           <div class="music-note note-2">♫</div>
@@ -157,5 +163,57 @@ onMounted(() => {
 .welcome-card:hover {
   transform: translateY(-5px);
   box-shadow: 0 12px 40px rgba(31, 38, 135, 0.5);
+}
+
+.developer-link {
+  margin: 30px 0;
+  position: relative;
+  z-index: 2;
+}
+
+.dev-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 30px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  text-decoration: none;
+  border-radius: 30px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.dev-link-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s ease;
+}
+
+.dev-link-btn:hover::before {
+  left: 100%;
+}
+
+.dev-link-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.dev-icon {
+  font-size: 1.3rem;
+}
+
+.dev-text {
+  position: relative;
+  z-index: 1;
 }
 </style>

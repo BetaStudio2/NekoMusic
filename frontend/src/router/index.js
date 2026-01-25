@@ -11,6 +11,7 @@ import AdminMusicView from '@/views/admin/AdminMusicView.vue'
 import AdminUsersView from '@/views/admin/AdminUsersView.vue'
 import AdminSettingsView from '@/views/admin/AdminSettingsView.vue'
 import MobileDownloadView from '@/views/MobileDownloadView.vue'
+import ApiDocsView from '@/views/ApiDocsView.vue'
 
 // 检查是否是移动设备
 function isMobileDevice() {
@@ -65,6 +66,16 @@ const router = createRouter({
         title: '下载APP - Neko云音乐 | 免费音乐应用',
         description: '下载Neko云音乐APP，享受完全免费的移动音乐体验。无需付费，永久免费。',
         keywords: 'Neko云音乐下载,APP下载,免费音乐APP,移动音乐'
+      }
+    },
+    {
+      path: '/api-docs',
+      name: 'api-docs',
+      component: ApiDocsView,
+      meta: {
+        title: '开发者文档 - Neko云音乐 | API接口文档',
+        description: 'Neko云音乐开发者文档，提供完整的API接口文档和使用说明。包括用户认证、音乐搜索、收藏等功能。',
+        keywords: 'Neko云音乐API,开发者文档,API文档,接口文档,RESTful API'
       }
     },
     {
