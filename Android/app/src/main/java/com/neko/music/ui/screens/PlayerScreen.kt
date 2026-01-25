@@ -1193,8 +1193,8 @@ fun ShareDialog(
                         ) {
                             item {
                                 ShareGridItem(
-                                    icon = "𝕏",
-                                    label = "推特",
+                                    iconRes = R.drawable.twitter,
+                                    label = "分享到推特",
                                     color = Color(0xFF1DA1F2),
                                     onClick = onShareToTwitter
                                 )
@@ -1209,7 +1209,7 @@ fun ShareDialog(
                             }
                             item {
                                 ShareGridItem(
-                                    icon = "⬇️",
+                                    iconRes = R.drawable.download,
                                     label = "下载",
                                     color = Color(0xFF6B5B95),
                                     onClick = onDownload
