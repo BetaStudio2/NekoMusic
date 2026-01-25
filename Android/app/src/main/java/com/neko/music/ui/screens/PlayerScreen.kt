@@ -430,11 +430,6 @@ fun PlayerScreen(
         ShareDialog(
             music = currentMusic,
             onDismiss = { showShareDialog = false },
-            onShareToWeChat = {
-                showShareDialog = false
-                shareToastMessage = "已分享到微信"
-                showShareToast = true
-            },
             onShareToTwitter = {
                 showShareDialog = false
                 shareToastMessage = "已分享到推特"
@@ -1093,7 +1088,6 @@ fun ProgressSlider(
 fun ShareDialog(
     music: Music,
     onDismiss: () -> Unit,
-    onShareToWeChat: () -> Unit,
     onShareToTwitter: () -> Unit,
     onShareToQQ: () -> Unit,
     onCopyLink: () -> Unit,
@@ -1152,14 +1146,6 @@ fun ShareDialog(
                                 .padding(horizontal = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(24.dp)
                         ) {
-                            item {
-                                ShareGridItem(
-                                    iconRes = R.drawable.wechat,
-                                    label = "分享到微信",
-                                    color = Color(0xFF07C160),
-                                    onClick = onShareToWeChat
-                                )
-                            }
                             item {
                                 ShareGridItem(
                                     iconRes = R.drawable.qq,
