@@ -1103,7 +1103,8 @@ fun ShareDialog(
         onDismissRequest = onDismiss,
         properties = androidx.compose.ui.window.DialogProperties(
             dismissOnBackPress = true,
-            dismissOnClickOutside = true
+            dismissOnClickOutside = true,
+            usePlatformDefaultWidth = false
         )
     ) {
         Box(
@@ -1137,28 +1138,12 @@ fun ShareDialog(
                     )
             ) {
                 Surface(
-                    shape = RoundedCornerShape(20.dp, 20.dp, 0.dp, 0.dp),
+                    shape = RoundedCornerShape(0.dp),
                     color = Color.White,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column {
-                        // 顶部把手
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .width(36.dp)
-                                    .height(4.dp)
-                                    .clip(RoundedCornerShape(2.dp))
-                                    .background(Color(0xFFE0E0E0))
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
                         // 横向滚动的分享列表
                         LazyRow(
