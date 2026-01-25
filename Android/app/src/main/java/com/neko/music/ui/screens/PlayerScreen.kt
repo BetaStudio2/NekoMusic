@@ -1,5 +1,6 @@
 package com.neko.music.ui.screens
 
+import android.content.Context
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -430,25 +431,27 @@ fun PlayerScreen(
         ShareDialog(
             music = currentMusic,
             onDismiss = { showShareDialog = false },
-            onShareToTwitter = {
-                showShareDialog = false
-                shareToastMessage = "已分享到推特"
-                showShareToast = true
-            },
-            onShareToQQ = {
-                showShareDialog = false
-                shareToastMessage = "已分享到QQ"
-                showShareToast = true
-            },
             onCopyLink = {
-                showShareDialog = false
-                shareToastMessage = "链接已复制"
-                showShareToast = true
+                scope.launch {
+                    showShareDialog = false
+                    try {
+                        val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        val shareText = "【${currentMusic.title}-${currentMusic.artist}】 Neko云音乐 https://music.cnmsb.xin/detail/${currentMusic.id}"
+                        val clip = android.content.ClipData.newPlainText("音乐链接", shareText)
+                        clipboardManager.setPrimaryClip(clip)
+                        shareToastMessage = "链接已复制"
+                    } catch (e: Exception) {
+                        shareToastMessage = "复制失败"
+                    }
+                    showShareToast = true
+                }
             },
             onDownload = {
-                showShareDialog = false
-                shareToastMessage = "开始下载"
-                showShareToast = true
+                scope.launch {
+                    showShareDialog = false
+                    shareToastMessage = "开始下载"
+                    showShareToast = true
+                }
             }
         )
     }
@@ -1088,8 +1091,6 @@ fun ProgressSlider(
 fun ShareDialog(
     music: Music,
     onDismiss: () -> Unit,
-    onShareToTwitter: () -> Unit,
-    onShareToQQ: () -> Unit,
     onCopyLink: () -> Unit,
     onDownload: () -> Unit
 ) {
@@ -1146,22 +1147,6 @@ fun ShareDialog(
                                 .padding(horizontal = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(24.dp)
                         ) {
-                            item {
-                                ShareGridItem(
-                                    iconRes = R.drawable.qq,
-                                    label = "分享到QQ",
-                                    color = Color(0xFF12B7F5),
-                                    onClick = onShareToQQ
-                                )
-                            }
-                            item {
-                                ShareGridItem(
-                                    iconRes = R.drawable.twitter,
-                                    label = "推特",
-                                    color = Color(0xFF1DA1F2),
-                                    onClick = onShareToTwitter
-                                )
-                            }
                             item {
                                 ShareGridItem(
                                     iconRes = R.drawable.copy_link,
