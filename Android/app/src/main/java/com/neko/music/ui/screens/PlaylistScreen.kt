@@ -81,90 +81,91 @@ fun PlaylistScreen(
                     .clickable(enabled = false) {},
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-            // 顶部栏
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = onBackClick,
-                    modifier = Modifier.size(48.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "返回",
-                        tint = Color.Black,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-
-                Text(
-                    text = "播放列表",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-
-                // 清空按钮
-                androidx.compose.material3.TextButton(
-                    onClick = {
-                        scope.launch {
-                            // 清空列表但保留当前歌曲
-                            currentMusicId?.let { playlistManager.clearPlaylistExcept(it) }
-                        }
-                    }
-                ) {
-                    Text(
-                        text = "清空",
-                        fontSize = 14.sp,
-                        color = Color.Gray
-                    )
-                }
-            }
-
-            Spacer(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(Color(0xFFE0E0E0))
-            )
-
-            // 播放列表
-            if (playlist.isEmpty()) {
-                Box(
+                // 顶部栏
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
+                        .height(56.dp)
+                        .padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    IconButton(
+                        onClick = onBackClick,
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "返回",
+                            tint = Color.Black,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
                     Text(
-                        text = "播放列表为空",
-                        fontSize = 14.sp,
-                        color = Color.Gray
+                        text = "播放列表",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
                     )
+
+                    // 清空按钮
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            scope.launch {
+                                // 清空列表但保留当前歌曲
+                                currentMusicId?.let { playlistManager.clearPlaylistExcept(it) }
+                            }
+                        }
+                    ) {
+                        Text(
+                            text = "清空",
+                            fontSize = 14.sp,
+                            color = Color.Gray
+                        )
+                    }
                 }
-            } else {
-                LazyColumn(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .weight(1f)
-                                        ) {
-                                            items(playlist) { music ->
-                                                PlaylistItem(
-                                                    music = music,
-                                                    isPlaying = music.id == currentMusicId,
-                                                    onClick = {
-                                                        onMusicClick(music)
-                                                    }
-                                                )
-                                            }
-                                        }            }
+
+                Spacer(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Color(0xFFE0E0E0))
+                )
+
+                // 播放列表
+                if (playlist.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "播放列表为空",
+                            fontSize = 14.sp,
+                            color = Color.Gray
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                    ) {
+                        items(playlist) { music ->
+                            PlaylistItem(
+                                music = music,
+                                isPlaying = music.id == currentMusicId,
+                                onClick = {
+                                    onMusicClick(music)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
         }
-    }
     }
 }
 
