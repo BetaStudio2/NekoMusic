@@ -161,6 +161,7 @@ fun PlayerScreen(
     val isFavorite by playerManager.isFavorite.collectAsState()
     var showLyrics by remember { mutableStateOf(false) }
     val playMode by playerManager.playMode.collectAsState()
+    val playbackSpeed by playerManager.playbackSpeed.collectAsState()
 
     // 登录提示
     var showLoginToast by remember { mutableStateOf(false) }
@@ -495,7 +496,13 @@ fun PlayerScreen(
                         showShareToast = true
                     }
                 }
-            }
+            },
+            onSpeedChange = { speed ->
+                playerManager.setPlaybackSpeed(speed)
+                shareToastMessage = "倍速: ${speed}x"
+                showShareToast = true
+            },
+            currentSpeed = playbackSpeed
         )
     }
 
@@ -1136,7 +1143,9 @@ fun ShareDialog(
     onDismiss: () -> Unit,
     onCopyLink: () -> Unit,
     onDownload: () -> Unit,
-    onShareToTwitter: () -> Unit
+    onShareToTwitter: () -> Unit,
+    onSpeedChange: (Float) -> Unit = {},
+    currentSpeed: Float = 1.0f
 ) {
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
@@ -1214,6 +1223,40 @@ fun ShareDialog(
                                     color = Color(0xFF6B5B95),
                                     onClick = onDownload
                                 )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // 倍速选择器
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                        ) {
+                            Text(
+                                text = "倍速",
+                                fontSize = 14.sp,
+                                color = Color.Gray,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(bottom = 12.dp)
+                            )
+
+                            LazyRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(
+                                    count = 6,
+                                    key = { index -> index }
+                                ) { index ->
+                                    val speed = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)[index]
+                                    SpeedChip(
+                                        speed = speed,
+                                        isSelected = speed == currentSpeed,
+                                        onClick = { onSpeedChange(speed) }
+                                    )
+                                }
                             }
                         }
 
@@ -1307,6 +1350,35 @@ fun ShareGridItem(
             fontSize = 13.sp,
             color = Color.Gray.copy(alpha = 0.9f),
             fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+fun SpeedChip(
+    speed: Float,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val backgroundColor = if (isSelected) RoseRed else Color(0xFFF5F5F5)
+    val textColor = if (isSelected) Color.White else Color.Gray
+
+    Box(
+        modifier = Modifier
+            .height(36.dp)
+            .background(
+                color = backgroundColor,
+                shape = RoundedCornerShape(18.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "${speed}x",
+            fontSize = 14.sp,
+            color = textColor,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
         )
     }
 }

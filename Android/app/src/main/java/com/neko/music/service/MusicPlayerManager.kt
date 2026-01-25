@@ -95,7 +95,16 @@ class MusicPlayerManager private constructor(context: Context) {
     
     private val _playModeChanged = MutableStateFlow(0)
     val playModeChanged: StateFlow<Int> = _playModeChanged.asStateFlow()
-    
+
+    private val _playbackSpeed = MutableStateFlow(1.0f)
+    val playbackSpeed: StateFlow<Float> = _playbackSpeed.asStateFlow()
+
+    fun setPlaybackSpeed(speed: Float) {
+        _playbackSpeed.value = speed
+        player.setPlaybackSpeed(speed)
+        Log.d("MusicPlayerManager", "播放速度设置为: $speed")
+    }
+
     fun toggleFavorite() {
         val musicId = currentMusicId.value ?: return
 
