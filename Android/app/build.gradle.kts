@@ -114,6 +114,12 @@ dependencies {
 
     
 
+    // Accompanist Permissions
+
+    implementation(libs.accompanist.permissions)
+
+    
+
     testImplementation(libs.junit)
 
     androidTestImplementation(libs.androidx.junit)

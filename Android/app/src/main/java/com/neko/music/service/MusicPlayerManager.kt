@@ -106,23 +106,40 @@ class MusicPlayerManager private constructor(context: Context) {
     }
 
     private var sleepTimerJob: kotlinx.coroutines.Job? = null
+    private var sleepTimerEndTime: Long = 0
 
     private val _sleepTimerMinutes = MutableStateFlow(0)
     val sleepTimerMinutes: StateFlow<Int> = _sleepTimerMinutes.asStateFlow()
+
+    private val _sleepTimerRemainingSeconds = MutableStateFlow(0)
+    val sleepTimerRemainingSeconds: StateFlow<Int> = _sleepTimerRemainingSeconds.asStateFlow()
 
     fun setSleepTimer(minutes: Int) {
         sleepTimerJob?.cancel()
         _sleepTimerMinutes.value = minutes
 
         if (minutes > 0) {
+            sleepTimerEndTime = System.currentTimeMillis() + minutes * 60 * 1000L
+
             sleepTimerJob = scope.launch {
-                delay(minutes * 60 * 1000L)
-                pause()
-                _sleepTimerMinutes.value = 0
-                Log.d("MusicPlayerManager", "定时关闭已触发")
+                while (true) {
+                    val remaining = sleepTimerEndTime - System.currentTimeMillis()
+                    if (remaining <= 0) {
+                        pause()
+                        _sleepTimerMinutes.value = 0
+                        _sleepTimerRemainingSeconds.value = 0
+                        sleepTimerEndTime = 0
+                        Log.d("MusicPlayerManager", "定时关闭已触发")
+                        break
+                    }
+                    _sleepTimerRemainingSeconds.value = (remaining / 1000).toInt()
+                    delay(1000)
+                }
             }
             Log.d("MusicPlayerManager", "定时关闭设置为: $minutes 分钟")
         } else {
+            sleepTimerEndTime = 0
+            _sleepTimerRemainingSeconds.value = 0
             Log.d("MusicPlayerManager", "定时关闭已取消")
         }
     }

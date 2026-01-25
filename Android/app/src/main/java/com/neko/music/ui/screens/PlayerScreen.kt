@@ -2,6 +2,9 @@ package com.neko.music.ui.screens
 
 import android.content.Context
 import android.util.Log
+import android.os.Build
+import androidx.compose.material3.ExperimentalMaterial3Api
+import com.google.accompanist.permissions.rememberPermissionState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -84,6 +87,8 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material3.Surface
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
 import kotlinx.coroutines.launch
 
 // 格式化时间显示（毫秒转 mm:ss）
@@ -129,6 +134,7 @@ fun parseLrcLyrics(lrcText: String): List<LrcLine> {
     return result
 }
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun PlayerScreen(
     music: Music,
@@ -163,6 +169,15 @@ fun PlayerScreen(
     val playMode by playerManager.playMode.collectAsState()
     val playbackSpeed by playerManager.playbackSpeed.collectAsState()
     val sleepTimerMinutes by playerManager.sleepTimerMinutes.collectAsState()
+    val sleepTimerRemainingSeconds by playerManager.sleepTimerRemainingSeconds.collectAsState()
+
+    // 通知权限
+    var showNotificationPermissionDialog by remember { mutableStateOf(false) }
+    val notificationPermissionState = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        rememberPermissionState(android.Manifest.permission.POST_NOTIFICATIONS)
+    } else {
+        null
+    }
 
     // 登录提示
     var showLoginToast by remember { mutableStateOf(false) }
@@ -505,24 +520,121 @@ fun PlayerScreen(
             },
             currentSpeed = playbackSpeed,
             onSleepTimerChange = { minutes ->
-                playerManager.setSleepTimer(minutes)
-                shareToastMessage = if (minutes == 0) {
-                    "定时关闭已取消"
+                if (minutes > 0 && notificationPermissionState != null && !notificationPermissionState.status.isGranted) {
+                    showNotificationPermissionDialog = true
                 } else {
-                    val hours = minutes / 60
-                    val mins = minutes % 60
-                    if (hours > 0 && mins > 0) {
-                        "${hours}小时${mins}分钟后关闭"
-                    } else if (hours > 0) {
-                        "${hours}小时后关闭"
+                    playerManager.setSleepTimer(minutes)
+                    shareToastMessage = if (minutes == 0) {
+                        "定时关闭已取消"
                     } else {
-                        "${minutes}分钟后关闭"
+                        val hours = minutes / 60
+                        val mins = minutes % 60
+                        if (hours > 0 && mins > 0) {
+                            "${hours}小时${mins}分钟后关闭"
+                        } else if (hours > 0) {
+                            "${hours}小时后关闭"
+                        } else {
+                            "${minutes}分钟后关闭"
+                        }
                     }
+                    showShareToast = true
                 }
-                showShareToast = true
             },
             currentSleepTimerMinutes = sleepTimerMinutes
         )
+    }
+
+    // 通知权限请求对话框
+    if (showNotificationPermissionDialog) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showNotificationPermissionDialog = false },
+            properties = androidx.compose.ui.window.DialogProperties(
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true,
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null,
+                        onClick = { showNotificationPermissionDialog = false }
+                    )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .background(Color.White, RoundedCornerShape(16.dp))
+                        .padding(24.dp)
+                        .width(300.dp)
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "需要通知权限",
+                            fontSize = 18.sp,
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Text(
+                            text = "为了在定时关闭时提醒您，\n需要通知权限",
+                            fontSize = 14.sp,
+                            color = Color.Gray,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .background(Color(0xFFF5F5F5), RoundedCornerShape(12.dp))
+                                    .clickable { showNotificationPermissionDialog = false },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "取消",
+                                    fontSize = 15.sp,
+                                    color = Color.Gray,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .background(RoseRed, RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        notificationPermissionState?.launchPermissionRequest()
+                                        showNotificationPermissionDialog = false
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "授权",
+                                    fontSize = 15.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // 分享提示（悬浮窗，层级最高）
