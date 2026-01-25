@@ -37,6 +37,10 @@ class MusicPlayerManager private constructor(context: Context) {
     private val appContext = context.applicationContext
     private val imageLoader = ImageLoader(appContext)
     
+    // SharedPreferences 用于持久化播放模式
+    private val prefs = appContext.getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
+    private val KEY_PLAY_MODE = "play_mode"
+    
     private val player = ExoPlayer.Builder(context).build()
     private val scope = CoroutineScope(Dispatchers.Main + Job())
     
@@ -82,7 +86,11 @@ class MusicPlayerManager private constructor(context: Context) {
             tokenManager = com.neko.music.data.manager.TokenManager(context)
             favoriteApi = com.neko.music.data.api.FavoriteApi()
         }    
-    private val _playMode = MutableStateFlow(PlayMode.LIST_LOOP)
+    private val _playMode = MutableStateFlow(
+        PlayMode.valueOf(
+            prefs.getString(KEY_PLAY_MODE, PlayMode.LIST_LOOP.name) ?: PlayMode.LIST_LOOP.name
+        )
+    )
     val playMode: StateFlow<PlayMode> = _playMode.asStateFlow()
     
     private val _playModeChanged = MutableStateFlow(0)
@@ -155,11 +163,15 @@ class MusicPlayerManager private constructor(context: Context) {
             PlayMode.SINGLE_LOOP -> PlayMode.SHUFFLE
             PlayMode.SHUFFLE -> PlayMode.LIST_LOOP
         }
+        // 保存播放模式到 SharedPreferences
+        prefs.edit().putString(KEY_PLAY_MODE, _playMode.value.name).apply()
         _playModeChanged.value++
     }
     
     fun setPlayMode(mode: PlayMode) {
         _playMode.value = mode
+        // 保存播放模式到 SharedPreferences
+        prefs.edit().putString(KEY_PLAY_MODE, _playMode.value.name).apply()
     }
     
     // 下一曲
