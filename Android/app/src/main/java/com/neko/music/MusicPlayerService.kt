@@ -27,11 +27,7 @@ class MusicPlayerService : Service() {
 
         fun startService(context: Context) {
             val intent = Intent(context, MusicPlayerService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            context.startService(intent)
         }
     }
 
