@@ -168,4 +168,8 @@ class MusicApi(private val context: Context) {
             Result.failure(e)
         }
     }
+
+    fun getMusicDownloadUrl(music: Music): String {
+        return "$baseUrl/api/music/file/${music.id}"
+    }
 }

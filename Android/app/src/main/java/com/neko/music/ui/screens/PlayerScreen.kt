@@ -449,7 +449,20 @@ fun PlayerScreen(
             onDownload = {
                 scope.launch {
                     showShareDialog = false
-                    shareToastMessage = "开始下载"
+                    try {
+                        val downloadHelper = com.neko.music.util.DownloadHelper(context)
+                        val result = downloadHelper.downloadMusicWithLyrics(currentMusic)
+                        result.fold(
+                            onSuccess = { message ->
+                                shareToastMessage = message
+                            },
+                            onFailure = { error ->
+                                shareToastMessage = "下载失败: ${error.message}"
+                            }
+                        )
+                    } catch (e: Exception) {
+                        shareToastMessage = "下载失败: ${e.message}"
+                    }
                     showShareToast = true
                 }
             },
