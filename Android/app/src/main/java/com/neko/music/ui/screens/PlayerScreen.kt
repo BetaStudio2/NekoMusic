@@ -452,6 +452,36 @@ fun PlayerScreen(
                     shareToastMessage = "开始下载"
                     showShareToast = true
                 }
+            },
+            onShareToTwitter = {
+                scope.launch {
+                    showShareDialog = false
+                    try {
+                        val shareText = "我在Neko云音乐发现宝藏音乐！${currentMusic.artist}唱的《${currentMusic.title}》https://music.cnmsb.xin/detail/${currentMusic.id} 大家快来听喵~"
+                        val encodedText = java.net.URLEncoder.encode(shareText, "UTF-8")
+
+                        // 先尝试使用Twitter应用
+                        val twitterIntent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                            data = android.net.Uri.parse("twitter://post?message=$encodedText")
+                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+
+                        // 尝试启动Twitter应用
+                        try {
+                            context.startActivity(twitterIntent)
+                        } catch (e: Exception) {
+                            // 如果Twitter应用未安装，使用网页版
+                            val webIntent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                data = android.net.Uri.parse("https://twitter.com/intent/tweet?text=$encodedText")
+                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(webIntent)
+                        }
+                    } catch (e: Exception) {
+                        shareToastMessage = "分享失败"
+                        showShareToast = true
+                    }
+                }
             }
         )
     }
@@ -1092,7 +1122,8 @@ fun ShareDialog(
     music: Music,
     onDismiss: () -> Unit,
     onCopyLink: () -> Unit,
-    onDownload: () -> Unit
+    onDownload: () -> Unit,
+    onShareToTwitter: () -> Unit
 ) {
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
@@ -1147,6 +1178,14 @@ fun ShareDialog(
                                 .padding(horizontal = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(24.dp)
                         ) {
+                            item {
+                                ShareGridItem(
+                                    icon = "𝕏",
+                                    label = "推特",
+                                    color = Color(0xFF1DA1F2),
+                                    onClick = onShareToTwitter
+                                )
+                            }
                             item {
                                 ShareGridItem(
                                     iconRes = R.drawable.copy_link,
