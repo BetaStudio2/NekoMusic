@@ -39,6 +39,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Text
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavHostController
@@ -422,7 +424,11 @@ fun MainScreen() {
                                 animationSpec = tween(durationMillis = 0)
                             )
                         ) {
-                            androidx.compose.foundation.layout.Column {
+                            androidx.compose.foundation.layout.Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)
+                            ) {
                                 MiniPlayer(
                                     isPlaying = isPlaying,
                                     songTitle = currentMusicTitle ?: "暂无播放",
@@ -443,14 +449,15 @@ fun MainScreen() {
                                         showPlaylist = true
                                     }
                                 )
-                                
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
                                 BottomNavigationBar(navController = navController)
                             }
                         }
                     }
                 } else {
-                    // 其他情况直接显示
-                    androidx.compose.foundation.layout.Column {
+
                         MiniPlayer(
                             isPlaying = isPlaying,
                             songTitle = currentMusicTitle ?: "暂无播放",
@@ -471,6 +478,8 @@ fun MainScreen() {
                                 showPlaylist = true
                             }
                         )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
                         
                         BottomNavigationBar(navController = navController)
                     }
@@ -593,4 +602,3 @@ fun MainScreen() {
             )
         }
     }
-}

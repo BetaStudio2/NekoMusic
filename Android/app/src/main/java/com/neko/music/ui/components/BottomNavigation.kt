@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
@@ -58,7 +59,7 @@ fun BottomNavigationBar(
 
     // 计算选中项的索引
     val selectedIndex = items.indexOfFirst { it.route == currentRoute }
-    
+
     // 动态光效动画
     val infiniteTransition = rememberInfiniteTransition(label = "glow")
     val glowPhase by infiniteTransition.animateFloat(
@@ -70,27 +71,30 @@ fun BottomNavigationBar(
         )
     )
 
-    Surface(
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 16.dp,
-                spotColor = RoseRed.copy(alpha = 0.3f),
-                ambientColor = Color.Gray.copy(alpha = 0.15f)
-            ),
-        color = Color.Transparent
+                elevation = 20.dp,
+                spotColor = RoseRed.copy(alpha = 0.4f),
+                ambientColor = Color.Gray.copy(alpha = 0.2f),
+                shape = RoundedCornerShape(24.dp)
+            )
     ) {
+        // 背景层：半透明背景
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            Color.White.copy(alpha = 0.88f),
-                            Color.White.copy(alpha = 0.96f)
-                        )
-                    )
-                )
+                .height(56.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(Color.White.copy(alpha = 0.9f))
+        )
+
+        // 内容层：清晰的文字和装饰
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
         ) {
             // 背景装饰层
             Canvas(
@@ -100,7 +104,7 @@ fun BottomNavigationBar(
                 val height = size.height
                 val itemWidth = width / items.size
                 val centerX = itemWidth * selectedIndex + itemWidth / 2
-                
+
                 // 绘制底部装饰线
                 drawLine(
                     color = RoseRed.copy(alpha = 0.2f),
@@ -110,7 +114,7 @@ fun BottomNavigationBar(
                     cap = StrokeCap.Round
                 )
             }
-            
+
             // 导航栏文字
             Row(
                 modifier = Modifier.fillMaxWidth().height(56.dp),
@@ -118,7 +122,7 @@ fun BottomNavigationBar(
             ) {
                 items.forEach { item ->
                     val isSelected = currentRoute == item.route
-                    
+
                     val scaleValue by animateFloatAsState(
                         targetValue = if (isSelected) 1.15f else 1f,
                         animationSpec = spring(
@@ -126,7 +130,7 @@ fun BottomNavigationBar(
                             stiffness = Spring.StiffnessLow
                         )
                     )
-                    
+
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -177,7 +181,7 @@ fun MiniPlayer(
             stiffness = Spring.StiffnessLow
         )
     )
-    
+
     // 脉冲动画
     val pulseTransition = rememberInfiniteTransition(label = "pulse")
     val pulseScale by pulseTransition.animateFloat(
@@ -197,20 +201,12 @@ fun MiniPlayer(
                 spotColor = RoseRed.copy(alpha = 0.25f),
                 ambientColor = Color.Gray.copy(alpha = 0.12f)
             ),
-        color = Color.Transparent
+        color = Color.White.copy(alpha = 0.85f)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(68.dp)
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            Color.White.copy(alpha = 0.92f),
-                            SakuraPink.copy(alpha = 0.06f)
-                        )
-                    )
-                )
                 .clickable(
                     interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                     indication = null,
@@ -269,7 +265,7 @@ fun MiniPlayer(
                             )
                         }
                     }
-                    
+
                     // 歌曲信息
                     Column(
                         modifier = Modifier.weight(1f),
@@ -292,7 +288,7 @@ fun MiniPlayer(
                         )
                     }
                 }
-                
+
                 // 右侧：播放/暂停按钮、播放列表
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -310,7 +306,7 @@ fun MiniPlayer(
                             val strokeWidth = 3.5.dp.toPx()
                             val radius = size.minDimension / 2 - strokeWidth / 2 - 2.dp.toPx()
                             val center = Offset(size.width / 2, size.height / 2)
-                            
+
                             // 背景圆环
                             drawCircle(
                                 color = Color(0xFFE8E8E8),
@@ -321,7 +317,7 @@ fun MiniPlayer(
                                     cap = StrokeCap.Round
                                 )
                             )
-                            
+
                             // 进度圆环
                             if (progress > 0f) {
                                 drawArc(
@@ -338,7 +334,7 @@ fun MiniPlayer(
                                 )
                             }
                         }
-                        
+
                         // 播放/暂停按钮
                         Box(
                             modifier = Modifier
@@ -371,7 +367,7 @@ fun MiniPlayer(
                             )
                         }
                     }
-                    
+
                     // 播放列表按钮
                     Box(
                         modifier = Modifier
