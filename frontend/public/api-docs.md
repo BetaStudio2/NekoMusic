@@ -398,12 +398,6 @@ async function getFavorites() {
 
 ---
 
-## 版本历史
-
-- **v1.0.0** (2024-01-01): 初始版本，包含基础音乐播放和用户功能
-
----
-
 ## 联系方式
 
 如有问题或建议，请联系：admin@nekomusic.com
