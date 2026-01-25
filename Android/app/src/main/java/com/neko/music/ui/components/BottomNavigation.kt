@@ -75,19 +75,43 @@ fun BottomNavigationBar(
         modifier = modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 20.dp,
-                spotColor = RoseRed.copy(alpha = 0.4f),
-                ambientColor = Color.Gray.copy(alpha = 0.2f),
+                elevation = 16.dp,
+                spotColor = RoseRed.copy(alpha = 0.3f),
+                ambientColor = Color.Gray.copy(alpha = 0.15f),
                 shape = RoundedCornerShape(24.dp)
             )
     ) {
-        // 背景层：半透明背景
+        // 背景层：渐变背景
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
                 .clip(RoundedCornerShape(24.dp))
-                .background(Color.White.copy(alpha = 0.9f))
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.95f),
+                            Color.White.copy(alpha = 0.88f)
+                        )
+                    )
+                )
+        )
+
+        // 顶部高光
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.White.copy(alpha = 0.6f),
+                            Color.Transparent
+                        )
+                    )
+                )
         )
 
         // 内容层：清晰的文字和装饰
@@ -192,197 +216,250 @@ fun MiniPlayer(
             repeatMode = RepeatMode.Reverse
         )
     )
-    
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 8.dp,
-                spotColor = RoseRed.copy(alpha = 0.25f),
-                ambientColor = Color.Gray.copy(alpha = 0.12f)
+                elevation = 12.dp,
+                spotColor = RoseRed.copy(alpha = 0.3f),
+                ambientColor = Color.Gray.copy(alpha = 0.15f)
             ),
-        color = Color.White.copy(alpha = 0.85f)
+        shape = RoundedCornerShape(24.dp),
+        color = Color.Transparent
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(68.dp)
-                .clickable(
-                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                    indication = null,
-                    onClick = {
-                        isPressed = true
-                        onPlayerClick()
-                    }
-                )
-                .padding(horizontal = 16.dp, vertical = 10.dp)
-                .scale(scaleValue)
+                .clip(RoundedCornerShape(24.dp))
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+            // 渐变背景
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.92f),
+                                Color.White.copy(alpha = 0.85f)
+                            )
+                        )
+                    )
+            )
+
+            // 顶部高光
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.5.dp)
+                    .background(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.White.copy(alpha = 0.7f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+
+            // 边框
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.3f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+
+            // 内容层
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null,
+                        onClick = {
+                            isPressed = true
+                            onPlayerClick()
+                        }
+                    )
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .scale(scaleValue)
             ) {
-                // 左侧：封面、歌曲信息
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    modifier = Modifier.weight(1f)
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // 封面
-                    Box(
-                        modifier = Modifier
-                            .size(52.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(
-                                brush = Brush.linearGradient(
-                                    colors = listOf(
-                                        RoseRed.copy(alpha = 0.12f),
-                                        SakuraPink.copy(alpha = 0.12f)
+                    // 左侧：封面、歌曲信息
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        // 封面
+                        Box(
+                            modifier = Modifier
+                                .size(52.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(
+                                    brush = Brush.linearGradient(
+                                        colors = listOf(
+                                            RoseRed.copy(alpha = 0.12f),
+                                            SakuraPink.copy(alpha = 0.12f)
+                                        )
                                     )
                                 )
-                            )
-                            .then(
-                                if (isPlaying) {
-                                    Modifier.scale(pulseScale)
-                                } else {
-                                    Modifier
-                                }
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (!coverUrl.isNullOrEmpty()) {
-                            AsyncImage(
-                                model = coverUrl,
-                                contentDescription = "Cover",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                            )
-                        } else {
-                            Text(
-                                text = "🎵",
-                                fontSize = 26.sp
-                            )
-                        }
-                    }
-
-                    // 歌曲信息
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = songTitle.ifEmpty { "暂无播放" },
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = artist.ifEmpty { "点击播放音乐" },
-                            fontSize = 13.sp,
-                            color = Color.Gray,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                // 右侧：播放/暂停按钮、播放列表
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // 播放/暂停按钮（带圆形进度条）
-                    Box(
-                        modifier = Modifier.size(48.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // 圆形进度条
-                        Canvas(
-                            modifier = Modifier.size(48.dp)
+                                .then(
+                                    if (isPlaying) {
+                                        Modifier.scale(pulseScale)
+                                    } else {
+                                        Modifier
+                                    }
+                                ),
+                            contentAlignment = Alignment.Center
                         ) {
-                            val strokeWidth = 3.5.dp.toPx()
-                            val radius = size.minDimension / 2 - strokeWidth / 2 - 2.dp.toPx()
-                            val center = Offset(size.width / 2, size.height / 2)
-
-                            // 背景圆环
-                            drawCircle(
-                                color = Color(0xFFE8E8E8),
-                                radius = radius,
-                                center = center,
-                                style = Stroke(
-                                    width = strokeWidth,
-                                    cap = StrokeCap.Round
+                            if (!coverUrl.isNullOrEmpty()) {
+                                AsyncImage(
+                                    model = coverUrl,
+                                    contentDescription = "Cover",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
                                 )
-                            )
-
-                            // 进度圆环
-                            if (progress > 0f) {
-                                drawArc(
-                                    color = RoseRed,
-                                    startAngle = -90f,
-                                    sweepAngle = 360f * progress,
-                                    useCenter = false,
-                                    style = Stroke(
-                                        width = strokeWidth,
-                                        cap = StrokeCap.Round
-                                    ),
-                                    size = Size(radius * 2, radius * 2),
-                                    topLeft = Offset(center.x - radius, center.y - radius)
+                            } else {
+                                Text(
+                                    text = "🎵",
+                                    fontSize = 26.sp
                                 )
                             }
                         }
 
-                        // 播放/暂停按钮
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    brush = Brush.linearGradient(
-                                        colors = listOf(
-                                            RoseRed,
-                                            SakuraPink
-                                        )
-                                    )
-                                )
-                                .clickable(onClick = onPlayPauseClick)
-                                .shadow(
-                                    elevation = 6.dp,
-                                    spotColor = RoseRed.copy(alpha = 0.5f),
-                                    ambientColor = RoseRed.copy(alpha = 0.25f),
-                                    shape = CircleShape
-                                ),
-                            contentAlignment = Alignment.Center
+                        // 歌曲信息
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.Center
                         ) {
-                            Icon(
-                                painter = painterResource(
-                                    id = if (isPlaying) R.drawable.pause else R.drawable.play
-                                ),
-                                contentDescription = if (isPlaying) "Pause" else "Play",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
+                            Text(
+                                text = songTitle.ifEmpty { "暂无播放" },
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = artist.ifEmpty { "点击播放音乐" },
+                                fontSize = 13.sp,
+                                color = Color.Gray,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
 
-                    // 播放列表按钮
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFF3F3F3))
-                            .clickable(onClick = onPlaylistClick),
-                        contentAlignment = Alignment.Center
+                    // 右侧：播放/暂停按钮、播放列表
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            painter = painterResource(R.drawable.playlist),
-                            contentDescription = "Playlist",
-                            tint = Color.Gray,
-                            modifier = Modifier.size(22.dp)
-                        )
+                        // 播放/暂停按钮（带圆形进度条）
+                        Box(
+                            modifier = Modifier.size(48.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            // 圆形进度条
+                            Canvas(
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                val strokeWidth = 3.5.dp.toPx()
+                                val radius = size.minDimension / 2 - strokeWidth / 2 - 2.dp.toPx()
+                                val center = Offset(size.width / 2, size.height / 2)
+
+                                // 背景圆环
+                                drawCircle(
+                                    color = Color(0xFFE8E8E8),
+                                    radius = radius,
+                                    center = center,
+                                    style = Stroke(
+                                        width = strokeWidth,
+                                        cap = StrokeCap.Round
+                                    )
+                                )
+
+                                // 进度圆环
+                                if (progress > 0f) {
+                                    drawArc(
+                                        color = RoseRed,
+                                        startAngle = -90f,
+                                        sweepAngle = 360f * progress,
+                                        useCenter = false,
+                                        style = Stroke(
+                                            width = strokeWidth,
+                                            cap = StrokeCap.Round
+                                        ),
+                                        size = Size(radius * 2, radius * 2),
+                                        topLeft = Offset(center.x - radius, center.y - radius)
+                                    )
+                                }
+                            }
+
+                            // 播放/暂停按钮
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        brush = Brush.linearGradient(
+                                            colors = listOf(
+                                                RoseRed,
+                                                SakuraPink
+                                            )
+                                        )
+                                    )
+                                    .clickable(onClick = onPlayPauseClick)
+                                    .shadow(
+                                        elevation = 6.dp,
+                                        spotColor = RoseRed.copy(alpha = 0.5f),
+                                        ambientColor = RoseRed.copy(alpha = 0.25f),
+                                        shape = CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    painter = painterResource(
+                                        id = if (isPlaying) R.drawable.pause else R.drawable.play
+                                    ),
+                                    contentDescription = if (isPlaying) "Pause" else "Play",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        // 播放列表按钮
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFF3F3F3))
+                                .clickable(onClick = onPlaylistClick),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.playlist),
+                                contentDescription = "Playlist",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
                 }
             }
