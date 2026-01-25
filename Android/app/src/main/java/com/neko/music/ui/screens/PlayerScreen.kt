@@ -1308,14 +1308,17 @@ fun ShareDialog(
                                     count = 7,
                                     key = { index -> index }
                                 ) { index ->
+                                    val presetMinutes = listOf(0, 10, 20, 30, 45, 60)
                                     if (index == 6) {
+                                        val isCustomSelected = currentSleepTimerMinutes > 0 && currentSleepTimerMinutes !in presetMinutes
                                         SleepTimerChip(
                                             minutes = -1,
-                                            isSelected = false,
+                                            isSelected = isCustomSelected,
+                                            customMinutes = if (isCustomSelected) currentSleepTimerMinutes else null,
                                             onClick = { showCustomSleepTimerDialog = true }
                                         )
                                     } else {
-                                        val minutes = listOf(0, 10, 20, 30, 45, 60)[index]
+                                        val minutes = presetMinutes[index]
                                         SleepTimerChip(
                                             minutes = minutes,
                                             isSelected = minutes == currentSleepTimerMinutes,
@@ -1359,6 +1362,7 @@ fun ShareDialog(
         // 自定义时间设置对话框
         if (showCustomSleepTimerDialog) {
             CustomSleepTimerDialog(
+                initialMinutes = currentSleepTimerMinutes,
                 onDismiss = { showCustomSleepTimerDialog = false },
                 onConfirm = { hours, minutes ->
                     val totalMinutes = hours * 60 + minutes
@@ -1465,11 +1469,23 @@ fun SpeedChip(
 fun SleepTimerChip(
     minutes: Int,
     isSelected: Boolean,
+    customMinutes: Int? = null,
     onClick: () -> Unit
 ) {
     val backgroundColor = if (isSelected) RoseRed else Color(0xFFF5F5F5)
     val textColor = if (isSelected) Color.White else Color.Gray
     val label = when {
+        minutes == -1 && customMinutes != null -> {
+            val hours = customMinutes / 60
+            val mins = customMinutes % 60
+            if (hours > 0 && mins > 0) {
+                "${hours}h${mins}m"
+            } else if (hours > 0) {
+                "${hours}h"
+            } else {
+                "${mins}m"
+            }
+        }
         minutes == -1 -> "自定义"
         minutes == 0 -> "关闭"
         else -> "${minutes}分钟"
@@ -1497,11 +1513,12 @@ fun SleepTimerChip(
 
 @Composable
 fun CustomSleepTimerDialog(
+    initialMinutes: Int = 0,
     onDismiss: () -> Unit,
     onConfirm: (Int, Int) -> Unit
 ) {
-    var hours by remember { mutableStateOf(0) }
-    var minutes by remember { mutableStateOf(0) }
+    var hours by remember { mutableStateOf(initialMinutes / 60) }
+    var minutes by remember { mutableStateOf(initialMinutes % 60) }
 
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
