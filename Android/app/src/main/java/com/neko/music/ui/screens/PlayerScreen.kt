@@ -162,6 +162,7 @@ fun PlayerScreen(
     var showLyrics by remember { mutableStateOf(false) }
     val playMode by playerManager.playMode.collectAsState()
     val playbackSpeed by playerManager.playbackSpeed.collectAsState()
+    val sleepTimerMinutes by playerManager.sleepTimerMinutes.collectAsState()
 
     // 登录提示
     var showLoginToast by remember { mutableStateOf(false) }
@@ -502,7 +503,25 @@ fun PlayerScreen(
                 shareToastMessage = "倍速: ${speed}x"
                 showShareToast = true
             },
-            currentSpeed = playbackSpeed
+            currentSpeed = playbackSpeed,
+            onSleepTimerChange = { minutes ->
+                playerManager.setSleepTimer(minutes)
+                shareToastMessage = if (minutes == 0) {
+                    "定时关闭已取消"
+                } else {
+                    val hours = minutes / 60
+                    val mins = minutes % 60
+                    if (hours > 0 && mins > 0) {
+                        "${hours}小时${mins}分钟后关闭"
+                    } else if (hours > 0) {
+                        "${hours}小时后关闭"
+                    } else {
+                        "${minutes}分钟后关闭"
+                    }
+                }
+                showShareToast = true
+            },
+            currentSleepTimerMinutes = sleepTimerMinutes
         )
     }
 
@@ -1145,8 +1164,13 @@ fun ShareDialog(
     onDownload: () -> Unit,
     onShareToTwitter: () -> Unit,
     onSpeedChange: (Float) -> Unit = {},
-    currentSpeed: Float = 1.0f
+    currentSpeed: Float = 1.0f,
+    onSleepTimerChange: (Int) -> Unit = {},
+    currentSleepTimerMinutes: Int = 0
 ) {
+    var showCustomSleepTimerDialog by remember { mutableStateOf(false) }
+    var customHours by remember { mutableStateOf(0) }
+    var customMinutes by remember { mutableStateOf(0) }
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
         properties = androidx.compose.ui.window.DialogProperties(
@@ -1262,6 +1286,48 @@ fun ShareDialog(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
+                        // 定时关闭选择器
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                        ) {
+                            Text(
+                                text = "定时关闭",
+                                fontSize = 14.sp,
+                                color = Color.Gray,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(bottom = 12.dp)
+                            )
+
+                            LazyRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(
+                                    count = 7,
+                                    key = { index -> index }
+                                ) { index ->
+                                    if (index == 6) {
+                                        SleepTimerChip(
+                                            minutes = -1,
+                                            isSelected = false,
+                                            onClick = { showCustomSleepTimerDialog = true }
+                                        )
+                                    } else {
+                                        val minutes = listOf(0, 10, 20, 30, 45, 60)[index]
+                                        SleepTimerChip(
+                                            minutes = minutes,
+                                            isSelected = minutes == currentSleepTimerMinutes,
+                                            onClick = { onSleepTimerChange(minutes) }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
                         // 分割线
                         Box(
                             modifier = Modifier
@@ -1288,6 +1354,18 @@ fun ShareDialog(
                     }
                 }
             }
+        }
+
+        // 自定义时间设置对话框
+        if (showCustomSleepTimerDialog) {
+            CustomSleepTimerDialog(
+                onDismiss = { showCustomSleepTimerDialog = false },
+                onConfirm = { hours, minutes ->
+                    val totalMinutes = hours * 60 + minutes
+                    onSleepTimerChange(totalMinutes)
+                    showCustomSleepTimerDialog = false
+                }
+            )
         }
     }
 }
@@ -1380,5 +1458,259 @@ fun SpeedChip(
             color = textColor,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
         )
+    }
+}
+
+@Composable
+fun SleepTimerChip(
+    minutes: Int,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val backgroundColor = if (isSelected) RoseRed else Color(0xFFF5F5F5)
+    val textColor = if (isSelected) Color.White else Color.Gray
+    val label = when {
+        minutes == -1 -> "自定义"
+        minutes == 0 -> "关闭"
+        else -> "${minutes}分钟"
+    }
+
+    Box(
+        modifier = Modifier
+            .height(36.dp)
+            .background(
+                color = backgroundColor,
+                shape = RoundedCornerShape(18.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            fontSize = 14.sp,
+            color = textColor,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+fun CustomSleepTimerDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (Int, Int) -> Unit
+) {
+    var hours by remember { mutableStateOf(0) }
+    var minutes by remember { mutableStateOf(0) }
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true,
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.4f))
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss
+                )
+        ) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = true,
+                enter = slideInVertically(
+                    initialOffsetY = { it },
+                    animationSpec = tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                ),
+                exit = slideOutVertically(
+                    targetOffsetY = { it },
+                    animationSpec = tween(250, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null,
+                        onClick = {}
+                    )
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.White,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp)
+                    ) {
+                        Text(
+                            text = "自定义定时关闭",
+                            fontSize = 18.sp,
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // 小时选择
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "小时",
+                                    fontSize = 14.sp,
+                                    color = Color.Gray
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    IconButton(
+                                        onClick = { if (hours > 0) hours-- },
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.previous_song),
+                                            contentDescription = "减少",
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+
+                                    Text(
+                                        text = "$hours",
+                                        fontSize = 32.sp,
+                                        color = Color.Black,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 24.dp)
+                                    )
+
+                                    IconButton(
+                                        onClick = { if (hours < 23) hours++ },
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.next_song),
+                                            contentDescription = "增加",
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Text(
+                                text = ":",
+                                fontSize = 32.sp,
+                                color = Color.Gray,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            // 分钟选择
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "分钟",
+                                    fontSize = 14.sp,
+                                    color = Color.Gray
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    IconButton(
+                                        onClick = { if (minutes > 0) minutes-- },
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.previous_song),
+                                            contentDescription = "减少",
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+
+                                    Text(
+                                        text = String.format("%02d", minutes),
+                                        fontSize = 32.sp,
+                                        color = Color.Black,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 24.dp)
+                                    )
+
+                                    IconButton(
+                                        onClick = { if (minutes < 59) minutes++ },
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.next_song),
+                                            contentDescription = "增加",
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .background(Color(0xFFF5F5F5), RoundedCornerShape(12.dp))
+                                    .clickable { onDismiss() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "取消",
+                                    fontSize = 16.sp,
+                                    color = Color.Gray,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .background(RoseRed, RoundedCornerShape(12.dp))
+                                    .clickable { onConfirm(hours, minutes) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "确定",
+                                    fontSize = 16.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

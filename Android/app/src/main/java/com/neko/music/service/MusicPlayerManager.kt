@@ -105,6 +105,28 @@ class MusicPlayerManager private constructor(context: Context) {
         Log.d("MusicPlayerManager", "播放速度设置为: $speed")
     }
 
+    private var sleepTimerJob: kotlinx.coroutines.Job? = null
+
+    private val _sleepTimerMinutes = MutableStateFlow(0)
+    val sleepTimerMinutes: StateFlow<Int> = _sleepTimerMinutes.asStateFlow()
+
+    fun setSleepTimer(minutes: Int) {
+        sleepTimerJob?.cancel()
+        _sleepTimerMinutes.value = minutes
+
+        if (minutes > 0) {
+            sleepTimerJob = scope.launch {
+                delay(minutes * 60 * 1000L)
+                pause()
+                _sleepTimerMinutes.value = 0
+                Log.d("MusicPlayerManager", "定时关闭已触发")
+            }
+            Log.d("MusicPlayerManager", "定时关闭设置为: $minutes 分钟")
+        } else {
+            Log.d("MusicPlayerManager", "定时关闭已取消")
+        }
+    }
+
     fun toggleFavorite() {
         val musicId = currentMusicId.value ?: return
 
