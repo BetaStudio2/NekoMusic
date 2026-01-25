@@ -19,6 +19,7 @@ class MusicPlayerService : Service() {
     private val notificationManager by lazy {
         getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     }
+    private var isForeground = false
 
     companion object {
         private const val CHANNEL_ID = "music_player_channel"
@@ -38,12 +39,24 @@ class MusicPlayerService : Service() {
         super.onCreate()
         playerManager = MusicPlayerManager.getInstance(this)
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, createNotification())
 
         // 监听定时关闭剩余时间变化
         kotlinx.coroutines.GlobalScope.launch {
             playerManager.sleepTimerRemainingSeconds.collect { remainingSeconds ->
-                updateNotification()
+                if (remainingSeconds > 0) {
+                    // 有定时关闭时显示通知
+                    if (!isForeground) {
+                        startForeground(NOTIFICATION_ID, createNotification())
+                    } else {
+                        updateNotification()
+                    }
+                } else {
+                    // 没有定时关闭时停止前台服务并取消通知
+                    if (isForeground) {
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        notificationManager.cancelAll()
+                    }
+                }
             }
         }
     }
@@ -74,8 +87,9 @@ class MusicPlayerService : Service() {
     private fun createNotification(): Notification {
         val remainingSeconds = playerManager.sleepTimerRemainingSeconds.value
 
-        // 没有设置定时关闭时不显示通知
+        // 没有设置定时关闭时取消所有通知
         if (remainingSeconds <= 0) {
+            notificationManager.cancelAll()
             return NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setOngoing(true)
