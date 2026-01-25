@@ -126,7 +126,15 @@ fun HomeScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFFAFAFA))
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFFF5F5F5),
+                        Color(0xFFFAFAFA),
+                        Color.White
+                    )
+                )
+            )
     ) {
         // 显示土司消息
         if (showToast.value && toastMessage.value.isNotEmpty()) {
@@ -136,7 +144,26 @@ fun HomeScreen(
                     showToast.value = false
                 }
             }
-            
+
+            var toastVisible by remember { mutableStateOf(false) }
+            val toastScale by animateFloatAsState(
+                targetValue = if (toastVisible) 1f else 0.8f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessLow
+                )
+            )
+            val toastAlpha by animateFloatAsState(
+                targetValue = if (toastVisible) 1f else 0f,
+                animationSpec = tween(durationMillis = 300)
+            )
+
+            LaunchedEffect(showToast.value) {
+                if (showToast.value) {
+                    toastVisible = true
+                }
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -146,19 +173,21 @@ fun HomeScreen(
                 Surface(
                     modifier = Modifier
                         .padding(horizontal = 40.dp)
+                        .scale(toastScale)
                         .shadow(
-                            elevation = 8.dp,
-                            spotColor = RoseRed.copy(alpha = 0.3f),
-                            ambientColor = Color.Gray.copy(alpha = 0.15f)
+                            elevation = 12.dp,
+                            spotColor = RoseRed.copy(alpha = 0.35f),
+                            ambientColor = Color.Gray.copy(alpha = 0.18f)
                         ),
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color.Black.copy(alpha = 0.85f)
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color.Black.copy(alpha = 0.88f * toastAlpha)
                 ) {
                     Text(
                         text = toastMessage.value,
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
+                        modifier = Modifier.padding(horizontal = 28.dp, vertical = 18.dp),
                         color = Color.White,
-                        fontSize = 15.sp
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
@@ -229,31 +258,58 @@ fun HeaderSection(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(280.dp)
+            .height(300.dp)
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
                         Color(0xFF6B5B95),
-                        RoseRed
-                    )
+                        RoseRed,
+                        SakuraPink.copy(alpha = 0.9f)
+                    ),
+                    startY = 0f,
+                    endY = 1000f
                 )
             )
     ) {
-        // 装饰圆圈
+        // 多层装饰圆圈
         androidx.compose.foundation.Canvas(
             modifier = Modifier.fillMaxSize()
         ) {
+            // 大圆圈
             drawCircle(
-                color = SakuraPink.copy(alpha = 0.15f),
-                radius = 120.dp.toPx(),
-                center = androidx.compose.ui.geometry.Offset(size.width * 0.8f, size.height * 0.3f)
+                color = SakuraPink.copy(alpha = 0.2f),
+                radius = 150.dp.toPx(),
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.85f, size.height * 0.25f)
             )
+            // 中圆圈
             drawCircle(
-                color = SkyBlue.copy(alpha = 0.1f),
-                radius = 80.dp.toPx(),
-                center = androidx.compose.ui.geometry.Offset(size.width * 0.2f, size.height * 0.7f)
+                color = SkyBlue.copy(alpha = 0.15f),
+                radius = 100.dp.toPx(),
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.15f, size.height * 0.65f)
+            )
+            // 小圆圈
+            drawCircle(
+                color = Lilac.copy(alpha = 0.1f),
+                radius = 60.dp.toPx(),
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.5f, size.height * 0.8f)
             )
         }
+        
+        // 顶部高光
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.White.copy(alpha = 0.5f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
         
         Column(
             modifier = Modifier
@@ -261,7 +317,7 @@ fun HeaderSection(
                 .padding(24.dp)
                 .statusBarsPadding()
         ) {
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -271,44 +327,66 @@ fun HeaderSection(
                 Column {
                     Text(
                         text = "欢迎回来",
-                        fontSize = 14.sp,
-                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 15.sp,
+                        color = Color.White.copy(alpha = 0.85f),
                         fontWeight = FontWeight.Medium
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "Neko云音乐",
-                        fontSize = 32.sp,
+                        fontSize = 34.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = Color.White,
+                        letterSpacing = 0.5.sp
                     )
                 }
                 
-                // 浮动音乐图标
+                // 浮动音乐图标 - 带光晕效果
                 Box(
                     modifier = Modifier
-                        .size(50.dp)
+                        .size(56.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.2f))
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.3f),
+                                    Color.White.copy(alpha = 0.15f)
+                                )
+                            )
+                        )
                         .offset(y = floatOffset.dp)
+                        .shadow(
+                            elevation = 8.dp,
+                            spotColor = RoseRed.copy(alpha = 0.4f),
+                            ambientColor = Color.White.copy(alpha = 0.2f),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "🎵",
-                        fontSize = 28.sp,
-                        modifier = Modifier.align(Alignment.Center)
+                        fontSize = 30.sp,
+                        modifier = Modifier.offset(y = (-2).dp)
                     )
                 }
             }
             
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(36.dp))
             
-            // 搜索框
+            // 搜索框 - 优化设计
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp)
+                    .height(56.dp)
                     .background(
-                        color = Color.White.copy(alpha = 0.25f),
-                        shape = RoundedCornerShape(26.dp)
+                        color = Color.White.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(28.dp)
+                    )
+                    .shadow(
+                        elevation = 4.dp,
+                        spotColor = Color.Black.copy(alpha = 0.1f),
+                        ambientColor = Color.White.copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(28.dp)
                     )
                     .padding(horizontal = 20.dp)
                     .clickable {
@@ -320,14 +398,15 @@ fun HeaderSection(
                 Icon(
                     imageVector = Icons.Default.Search,
                     contentDescription = "搜索",
-                    tint = Color.White,
+                    tint = Color.White.copy(alpha = 0.9f),
                     modifier = Modifier.size(24.dp)
                 )
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(14.dp))
                 Text(
                     text = "搜索音乐、歌手、专辑...",
-                    fontSize = 15.sp,
-                    color = Color.White.copy(alpha = 0.9f)
+                    fontSize = 16.sp,
+                    color = Color.White.copy(alpha = 0.95f),
+                    fontWeight = FontWeight.Medium
                 )
             }
         }
@@ -337,11 +416,11 @@ fun HeaderSection(
 @Composable
 fun WelcomeBanner() {
     var isVisible by remember { mutableStateOf(false) }
-    
+
     LaunchedEffect(Unit) {
         isVisible = true
     }
-    
+
     val scale by animateFloatAsState(
         targetValue = if (isVisible) 1f else 0.9f,
         animationSpec = spring(
@@ -349,57 +428,91 @@ fun WelcomeBanner() {
             stiffness = Spring.StiffnessLow
         )
     )
-    
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp)
-            .height(100.dp)
+            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .height(110.dp)
             .background(
                 brush = Brush.horizontalGradient(
                     colors = listOf(
-                        SakuraPink.copy(alpha = 0.3f),
-                        SkyBlue.copy(alpha = 0.3f)
+                        SakuraPink.copy(alpha = 0.35f),
+                        SkyBlue.copy(alpha = 0.35f),
+                        Lilac.copy(alpha = 0.35f)
                     )
                 ),
-                shape = RoundedCornerShape(20.dp)
+                shape = RoundedCornerShape(24.dp)
             )
             .scale(scale)
             .shadow(
-                elevation = 4.dp,
-                spotColor = RoseRed.copy(alpha = 0.2f),
-                ambientColor = Color.Gray.copy(alpha = 0.1f)
+                elevation = 6.dp,
+                spotColor = RoseRed.copy(alpha = 0.25f),
+                ambientColor = Color.Gray.copy(alpha = 0.12f)
             )
             .clickable {
                 // 暂未实现
             },
         contentAlignment = Alignment.Center
     ) {
+        // 内部高光
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(2.dp)
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.White.copy(alpha = 0.6f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
+                .padding(24.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
                 Text(
                     text = "✨ 探索音乐世界",
-                    fontSize = 20.sp,
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
-                    color = RoseRed
+                    color = RoseRed,
+                    letterSpacing = 0.3.sp
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "发现你喜欢的音乐",
-                    fontSize = 14.sp,
-                    color = Color.Gray
+                    fontSize = 15.sp,
+                    color = Color.Gray.copy(alpha = 0.85f),
+                    fontWeight = FontWeight.Medium
                 )
             }
-            Text(
-                text = "🎧",
-                fontSize = 36.sp
-            )
+            Box(
+                modifier = Modifier
+                    .size(50.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                RoseRed.copy(alpha = 0.2f),
+                                SakuraPink.copy(alpha = 0.2f)
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "🎧",
+                    fontSize = 32.sp
+                )
+            }
         }
     }
 }
@@ -410,21 +523,22 @@ fun QuickAccessSection(
 ) {
     val toastMessage = remember { androidx.compose.runtime.mutableStateOf("") }
     val showToast = remember { androidx.compose.runtime.mutableStateOf(false) }
-    
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .padding(horizontal = 20.dp, vertical = 12.dp)
     ) {
         Text(
             text = "快速访问",
-            fontSize = 18.sp,
+            fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.Black
+            color = Color.Black,
+            letterSpacing = 0.3.sp
         )
-        
-        Spacer(modifier = Modifier.height(12.dp))
-        
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
@@ -432,6 +546,7 @@ fun QuickAccessSection(
             QuickAccessItem(
                 icon = "🎵",
                 label = "我的音乐",
+                gradientColors = listOf(RoseRed.copy(alpha = 0.12f), SakuraPink.copy(alpha = 0.12f)),
                 onClick = {
                     toastMessage.value = "暂未实现"
                     showToast.value = true
@@ -440,6 +555,7 @@ fun QuickAccessSection(
             QuickAccessItem(
                 icon = "❤️",
                 label = "我喜欢",
+                gradientColors = listOf(Peach.copy(alpha = 0.15f), RoseRed.copy(alpha = 0.15f)),
                 onClick = {
                     onNavigateToFavorite()
                 }
@@ -447,6 +563,7 @@ fun QuickAccessSection(
             QuickAccessItem(
                 icon = "📻",
                 label = "电台",
+                gradientColors = listOf(SkyBlue.copy(alpha = 0.12f), Lilac.copy(alpha = 0.12f)),
                 onClick = {
                     toastMessage.value = "暂未实现"
                     showToast.value = true
@@ -455,6 +572,7 @@ fun QuickAccessSection(
             QuickAccessItem(
                 icon = "🎤",
                 label = "歌手",
+                gradientColors = listOf(Color(0xFF6B5B95).copy(alpha = 0.12f), RoseRed.copy(alpha = 0.12f)),
                 onClick = {
                     toastMessage.value = "暂未实现"
                     showToast.value = true
@@ -468,6 +586,7 @@ fun QuickAccessSection(
 fun QuickAccessItem(
     icon: String,
     label: String,
+    gradientColors: List<Color>,
     onClick: () -> Unit
 ) {
     var isPressed by remember { mutableStateOf(false) }
@@ -478,7 +597,7 @@ fun QuickAccessItem(
             stiffness = Spring.StiffnessLow
         )
     )
-    
+
     Column(
         modifier = Modifier
             .scale(scale)
@@ -490,28 +609,31 @@ fun QuickAccessItem(
     ) {
         Box(
             modifier = Modifier
-                .size(60.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .size(68.dp)
+                .clip(RoundedCornerShape(20.dp))
                 .background(
                     brush = Brush.linearGradient(
-                        colors = listOf(
-                            RoseRed.copy(alpha = 0.1f),
-                            SakuraPink.copy(alpha = 0.1f)
-                        )
+                        colors = gradientColors
                     )
+                )
+                .shadow(
+                    elevation = 4.dp,
+                    spotColor = RoseRed.copy(alpha = 0.2f),
+                    ambientColor = Color.Gray.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(20.dp)
                 ),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = icon,
-                fontSize = 28.sp
+                fontSize = 32.sp
             )
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         Text(
             text = label,
-            fontSize = 13.sp,
-            color = Color.Gray,
+            fontSize = 14.sp,
+            color = Color.Gray.copy(alpha = 0.9f),
             fontWeight = FontWeight.Medium
         )
     }
@@ -531,22 +653,23 @@ fun RecommendedPlaylists() {
         ) {
             Text(
                 text = "推荐歌单",
-                fontSize = 18.sp,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.Black
+                color = Color.Black,
+                letterSpacing = 0.3.sp
             )
             Text(
                 text = "查看全部",
-                fontSize = 14.sp,
+                fontSize = 15.sp,
                 color = RoseRed,
                 fontWeight = FontWeight.Medium
             )
         }
-        
-        Spacer(modifier = Modifier.height(12.dp))
-        
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             items(listOf("流行", "摇滚", "古典", "电子", "爵士")) { genre ->
                 PlaylistCard(genre = genre)
@@ -565,30 +688,33 @@ fun PlaylistCard(genre: String) {
             stiffness = Spring.StiffnessLow
         )
     )
-    
+
+    val gradientColors = when (genre) {
+        "流行" -> listOf(RoseRed, SakuraPink)
+        "摇滚" -> listOf(Color(0xFF6B5B95), RoseRed)
+        "古典" -> listOf(Lilac, Peach)
+        "电子" -> listOf(SkyBlue, Lilac)
+        "爵士" -> listOf(Peach, RoseRed)
+        else -> listOf(RoseRed, SakuraPink)
+    }
+
     Box(
         modifier = Modifier
-            .width(140.dp)
-            .height(180.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .width(150.dp)
+            .height(200.dp)
+            .clip(RoundedCornerShape(20.dp))
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        when (genre) {
-                            "流行" -> RoseRed
-                            "摇滚" -> Color(0xFF6B5B95)
-                            "古典" -> Lilac
-                            "电子" -> SkyBlue
-                            "爵士" -> Peach
-                            else -> RoseRed
-                        }.copy(alpha = 0.8f),
-                        Color.White
+                        gradientColors[0].copy(alpha = 0.85f),
+                        gradientColors[1].copy(alpha = 0.75f),
+                        Color.White.copy(alpha = 0.95f)
                     )
                 )
             )
             .scale(scale)
             .shadow(
-                elevation = 6.dp,
+                elevation = 8.dp,
                 spotColor = RoseRed.copy(alpha = 0.3f),
                 ambientColor = Color.Gray.copy(alpha = 0.15f)
             )
@@ -597,42 +723,76 @@ fun PlaylistCard(genre: String) {
                 // 暂未实现
             }
     ) {
+        // 顶部高光
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(2.dp)
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.White.copy(alpha = 0.6f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text(
-                text = when (genre) {
-                    "流行" -> "🎸"
-                    "摇滚" -> "🎤"
-                    "古典" -> "🎻"
-                    "电子" -> "🎹"
-                    "爵士" -> "🎷"
-                    else -> "🎵"
-                },
-                fontSize = 48.sp
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+            // 图标背景
+            Box(
+                modifier = Modifier
+                    .size(70.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.4f),
+                                Color.White.copy(alpha = 0.2f)
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = when (genre) {
+                        "流行" -> "🎸"
+                        "摇滚" -> "🎤"
+                        "古典" -> "🎻"
+                        "电子" -> "🎹"
+                        "爵士" -> "🎷"
+                        else -> "🎵"
+                    },
+                    fontSize = 42.sp
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = genre,
-                fontSize = 16.sp,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.Black
+                color = Color.Black,
+                letterSpacing = 0.5.sp
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = "100+ 首歌曲",
-                fontSize = 12.sp,
-                color = Color.Gray
+                fontSize = 13.sp,
+                color = Color.Gray.copy(alpha = 0.8f),
+                fontWeight = FontWeight.Medium
             )
         }
     }
 }
 
-// 对话框组件保持不变
+// 对话框组件优化
 @Composable
 fun UpdateDialog(
     versionName: String,
@@ -645,45 +805,71 @@ fun UpdateDialog(
         properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
     ) {
         Surface(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(24.dp),
             color = Color.White,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp)
+                .padding(24.dp)
                 .shadow(
-                    elevation = 8.dp,
-                    spotColor = RoseRed.copy(alpha = 0.3f),
-                    ambientColor = Color.Gray.copy(alpha = 0.15f)
+                    elevation = 12.dp,
+                    spotColor = RoseRed.copy(alpha = 0.35f),
+                    ambientColor = Color.Gray.copy(alpha = 0.18f)
                 )
         ) {
             Column(
-                modifier = Modifier.padding(28.dp)
+                modifier = Modifier.padding(32.dp)
             ) {
-                Text(
-                    text = "🎉 发现新版本",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = RoseRed
-                )
-                
+                // 顶部图标
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    RoseRed.copy(alpha = 0.15f),
+                                    SakuraPink.copy(alpha = 0.15f)
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "🎉",
+                        fontSize = 36.sp
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(20.dp))
-                
+
+                Text(
+                    text = "发现新版本",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = RoseRed,
+                    letterSpacing = 0.3.sp
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
                 Text(
                     text = "新版本：$versionName",
-                    fontSize = 16.sp,
-                    color = Color.Gray
+                    fontSize = 17.sp,
+                    color = Color.Gray.copy(alpha = 0.85f),
+                    fontWeight = FontWeight.Medium
                 )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
+
+                Spacer(modifier = Modifier.height(10.dp))
+
                 Text(
                     text = "版本号：$versionCode",
-                    fontSize = 16.sp,
-                    color = Color.Gray
+                    fontSize = 17.sp,
+                    color = Color.Gray.copy(alpha = 0.85f),
+                    fontWeight = FontWeight.Medium
                 )
-                
-                Spacer(modifier = Modifier.height(28.dp))
-                
+
+                Spacer(modifier = Modifier.height(32.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
@@ -691,24 +877,27 @@ fun UpdateDialog(
                     TextButton(onClick = onDismiss) {
                         Text(
                             text = "稍后",
-                            fontSize = 16.sp,
-                            color = Color.Gray
+                            fontSize = 17.sp,
+                            color = Color.Gray.copy(alpha = 0.8f),
+                            fontWeight = FontWeight.Medium
                         )
                     }
-                    
-                    Spacer(modifier = Modifier.width(12.dp))
-                    
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
                     Button(
                         onClick = onConfirm,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = RoseRed
                         ),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.height(48.dp)
                     ) {
                         Text(
                             text = "立即更新",
-                            fontSize = 16.sp,
-                            color = Color.White
+                            fontSize = 17.sp,
+                            color = Color.White,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
@@ -727,45 +916,70 @@ fun DownloadProgressDialog(
         properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
     ) {
         Surface(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(24.dp),
             color = Color.White,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp)
+                .padding(24.dp)
                 .shadow(
-                    elevation = 8.dp,
-                    spotColor = RoseRed.copy(alpha = 0.3f),
-                    ambientColor = Color.Gray.copy(alpha = 0.15f)
+                    elevation = 12.dp,
+                    spotColor = RoseRed.copy(alpha = 0.35f),
+                    ambientColor = Color.Gray.copy(alpha = 0.18f)
                 )
         ) {
             Column(
-                modifier = Modifier.padding(28.dp),
+                modifier = Modifier.padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // 顶部图标
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    RoseRed.copy(alpha = 0.15f),
+                                    SakuraPink.copy(alpha = 0.15f)
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "⏳",
+                        fontSize = 36.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
                 Text(
-                    text = "⏳ 正在下载更新",
-                    fontSize = 18.sp,
+                    text = "正在下载更新",
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = RoseRed
+                    color = RoseRed,
+                    letterSpacing = 0.3.sp
                 )
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
+
+                Spacer(modifier = Modifier.height(28.dp))
+
                 LinearProgressIndicator(
                     progress = { progress },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(8.dp),
+                        .height(10.dp),
                     color = RoseRed,
-                    trackColor = Color.Gray.copy(alpha = 0.3f)
+                    trackColor = Color.Gray.copy(alpha = 0.25f)
                 )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
+
+                Spacer(modifier = Modifier.height(20.dp))
+
                 Text(
                     text = "${(progress * 100).toInt()}%",
-                    fontSize = 16.sp,
-                    color = Color.Gray
+                    fontSize = 18.sp,
+                    color = Color.Gray.copy(alpha = 0.85f),
+                    fontWeight = FontWeight.Medium
                 )
             }
         }
@@ -781,42 +995,60 @@ fun UpdateSuccessDialog(
         properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
     ) {
         Surface(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(24.dp),
             color = Color.White,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp)
+                .padding(24.dp)
                 .shadow(
-                    elevation = 8.dp,
-                    spotColor = RoseRed.copy(alpha = 0.3f),
-                    ambientColor = Color.Gray.copy(alpha = 0.15f)
+                    elevation = 12.dp,
+                    spotColor = Color(0xFF4CAF50).copy(alpha = 0.35f),
+                    ambientColor = Color.Gray.copy(alpha = 0.18f)
                 )
         ) {
             Column(
-                modifier = Modifier.padding(28.dp),
+                modifier = Modifier.padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = "✓",
-                    fontSize = 56.sp,
-                    color = Color(0xFF4CAF50)
-                )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
+                // 顶部图标
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFF4CAF50).copy(alpha = 0.15f),
+                                    Color(0xFF66BB6A).copy(alpha = 0.15f)
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "✓",
+                        fontSize = 40.sp,
+                        color = Color(0xFF4CAF50)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
                 Text(
                     text = "下载完成",
-                    fontSize = 20.sp,
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.Black
+                    color = Color.Black,
+                    letterSpacing = 0.3.sp
                 )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
+
+                Spacer(modifier = Modifier.height(10.dp))
+
                 Text(
                     text = "正在安装更新...",
-                    fontSize = 16.sp,
-                    color = Color.Gray
+                    fontSize = 17.sp,
+                    color = Color.Gray.copy(alpha = 0.85f),
+                    fontWeight = FontWeight.Medium
                 )
             }
         }
@@ -832,37 +1064,63 @@ fun UpdateErrorDialog(
         onDismissRequest = onDismiss
     ) {
         Surface(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(24.dp),
             color = Color.White,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp)
+                .padding(24.dp)
                 .shadow(
-                    elevation = 8.dp,
-                    spotColor = RoseRed.copy(alpha = 0.3f),
-                    ambientColor = Color.Gray.copy(alpha = 0.15f)
+                    elevation = 12.dp,
+                    spotColor = Color(0xFFF44336).copy(alpha = 0.35f),
+                    ambientColor = Color.Gray.copy(alpha = 0.18f)
                 )
         ) {
             Column(
-                modifier = Modifier.padding(28.dp)
+                modifier = Modifier.padding(32.dp)
             ) {
+                // 顶部图标
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFFF44336).copy(alpha = 0.15f),
+                                    Color(0xFFEF5350).copy(alpha = 0.15f)
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "❌",
+                        fontSize = 40.sp,
+                        color = Color(0xFFF44336)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
                 Text(
-                    text = "❌ 更新失败",
-                    fontSize = 20.sp,
+                    text = "更新失败",
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFFF44336)
+                    color = Color(0xFFF44336),
+                    letterSpacing = 0.3.sp
                 )
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 Text(
                     text = message,
-                    fontSize = 16.sp,
-                    color = Color.Gray
+                    fontSize = 17.sp,
+                    color = Color.Gray.copy(alpha = 0.85f),
+                    fontWeight = FontWeight.Medium
                 )
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
+
+                Spacer(modifier = Modifier.height(28.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
@@ -870,8 +1128,9 @@ fun UpdateErrorDialog(
                     TextButton(onClick = onDismiss) {
                         Text(
                             text = "确定",
-                            fontSize = 16.sp,
-                            color = RoseRed
+                            fontSize = 17.sp,
+                            color = RoseRed,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
