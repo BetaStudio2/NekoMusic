@@ -72,39 +72,31 @@ class MusicPlayerService : Service() {
     }
 
     private fun createNotification(): Notification {
-        val intent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-
-        val title = playerManager.currentMusicTitle.value ?: "未知歌曲"
-        val artist = playerManager.currentMusicArtist.value ?: ""
         val remainingSeconds = playerManager.sleepTimerRemainingSeconds.value
 
-        val contentText = if (remainingSeconds > 0) {
-            val hours = remainingSeconds / 3600
-            val minutes = (remainingSeconds % 3600) / 60
-            val seconds = remainingSeconds % 60
+        // 没有设置定时关闭时不显示通知
+        if (remainingSeconds <= 0) {
+            return NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setOngoing(true)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setPriority(NotificationCompat.PRIORITY_MIN)
+                .build()
+        }
 
-            val timeText = buildString {
-                if (hours > 0) append("${hours}小时")
-                if (minutes > 0) append("${minutes}分钟")
-                append("${seconds}秒")
-            }
+        val hours = remainingSeconds / 3600
+        val minutes = (remainingSeconds % 3600) / 60
+        val seconds = remainingSeconds % 60
 
-            "$artist - 将在 $timeText 后关闭"
-        } else {
-            artist
+        val timeText = buildString {
+            if (hours > 0) append("${hours}小时")
+            if (minutes > 0) append("${minutes}分钟")
+            append("${seconds}秒")
         }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(title)
-            .setContentText(contentText)
+            .setContentTitle("将在 $timeText 后关闭")
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .build()
