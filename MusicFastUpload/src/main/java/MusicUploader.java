@@ -47,33 +47,38 @@ public class MusicUploader {
         
         int successCount = 0;
         int failCount = 0;
+        List<String> failedSongs = new ArrayList<>();
 
         // 上传 MP3 文件
         for (String mp3File : mp3Files) {
             try {
                 String fileName = new File(mp3File).getName();
                 System.out.println("\n处理: " + fileName);
-                
+
                 // 先查找对应的歌词文件
                 String lrcFile = findMatchingLrcFile(mp3File, lrcFiles);
-                
+
                 if (lrcFile == null) {
-                    System.out.println("  跳过: 未找到对应的歌词文件");
-                    failCount++;
-                    continue;
+                    // 使用内置的"暂无歌词.lrc"文件
+                    lrcFile = getDefaultLrcFile();
+                    System.out.println("  未找到歌词文件，使用默认歌词: " + new File(lrcFile).getName());
+                } else {
+                    System.out.println("  找到歌词文件: " + new File(lrcFile).getName());
                 }
-                
-                System.out.println("  找到歌词文件: " + new File(lrcFile).getName());
-                
+
                 // 上传音乐
-                if (uploadSingleMusic(mp3File, lrcFile, language, token)) {
+                String[] result = uploadSingleMusic(mp3File, lrcFile, language, token);
+                if ("true".equals(result[0])) {
                     successCount++;
                 } else {
                     failCount++;
+                    String errorMsg = result.length > 1 ? result[1] : "上传失败";
+                    failedSongs.add(new File(mp3File).getName() + ": " + errorMsg);
                 }
             } catch (Exception e) {
                 System.err.println("  处理失败: " + mp3File + " - " + e.getMessage());
                 failCount++;
+                failedSongs.add(new File(mp3File).getName() + ": " + e.getMessage());
             }
         }
         
@@ -82,27 +87,31 @@ public class MusicUploader {
             try {
                 String fileName = new File(flacFile).getName();
                 System.out.println("\n处理: " + fileName);
-                
+
                 // 先查找对应的歌词文件
                 String lrcFile = findMatchingLrcFile(flacFile, lrcFiles);
-                
+
                 if (lrcFile == null) {
-                    System.out.println("  跳过: 未找到对应的歌词文件");
-                    failCount++;
-                    continue;
+                    // 使用内置的"暂无歌词.lrc"文件
+                    lrcFile = getDefaultLrcFile();
+                    System.out.println("  未找到歌词文件，使用默认歌词: " + new File(lrcFile).getName());
+                } else {
+                    System.out.println("  找到歌词文件: " + new File(lrcFile).getName());
                 }
-                
-                System.out.println("  找到歌词文件: " + new File(lrcFile).getName());
-                
+
                 // 上传音乐
-                if (uploadSingleMusic(flacFile, lrcFile, language, token)) {
+                String[] result = uploadSingleMusic(flacFile, lrcFile, language, token);
+                if ("true".equals(result[0])) {
                     successCount++;
                 } else {
                     failCount++;
+                    String errorMsg = result.length > 1 ? result[1] : "上传失败";
+                    failedSongs.add(new File(flacFile).getName() + ": " + errorMsg);
                 }
             } catch (Exception e) {
                 System.err.println("  处理失败: " + flacFile + " - " + e.getMessage());
                 failCount++;
+                failedSongs.add(new File(flacFile).getName() + ": " + e.getMessage());
             }
         }
         
@@ -111,34 +120,71 @@ public class MusicUploader {
             try {
                 String fileName = new File(wavFile).getName();
                 System.out.println("\n处理: " + fileName);
-                
+
                 // 先查找对应的歌词文件
                 String lrcFile = findMatchingLrcFile(wavFile, lrcFiles);
-                
+
                 if (lrcFile == null) {
-                    System.out.println("  跳过: 未找到对应的歌词文件");
-                    failCount++;
-                    continue;
+                    // 使用内置的"暂无歌词.lrc"文件
+                    lrcFile = getDefaultLrcFile();
+                    System.out.println("  未找到歌词文件，使用默认歌词: " + new File(lrcFile).getName());
+                } else {
+                    System.out.println("  找到歌词文件: " + new File(lrcFile).getName());
                 }
-                
-                System.out.println("  找到歌词文件: " + new File(lrcFile).getName());
-                
+
                 // 上传音乐
-                if (uploadSingleMusic(wavFile, lrcFile, language, token)) {
+                String[] result = uploadSingleMusic(wavFile, lrcFile, language, token);
+                if ("true".equals(result[0])) {
                     successCount++;
                 } else {
                     failCount++;
+                    String errorMsg = result.length > 1 ? result[1] : "上传失败";
+                    failedSongs.add(new File(wavFile).getName() + ": " + errorMsg);
                 }
             } catch (Exception e) {
                 System.err.println("  处理失败: " + wavFile + " - " + e.getMessage());
                 failCount++;
+                failedSongs.add(new File(wavFile).getName() + ": " + e.getMessage());
             }
         }
 
         System.out.println("\n上传结果: 成功 " + successCount + " 个, 失败 " + failCount + " 个");
+
+        // 输出失败歌曲的错误原因
+        if (failCount > 0) {
+            System.out.println("\n" + failCount + "首失败错误原因:");
+            for (String failedSong : failedSongs) {
+                System.out.println("  - " + failedSong);
+            }
+        }
+
         System.out.println("上传完成！");
     }
     
+    private static String getDefaultLrcFile() {
+        // 获取内置的"暂无歌词.lrc"文件的绝对路径
+        String userDir = System.getProperty("user.dir");
+        String defaultLrcPath = userDir + "/MusicFastUpload/src/main/resources/暂无歌词.lrc";
+
+        // 检查文件是否存在
+        File lrcFile = new File(defaultLrcPath);
+        if (lrcFile.exists()) {
+            System.out.println("  使用默认歌词文件: " + defaultLrcPath);
+            return defaultLrcPath;
+        }
+
+        // 尝试另一个可能的路径
+        String alternativePath = userDir + "/src/main/resources/暂无歌词.lrc";
+        File altFile = new File(alternativePath);
+        if (altFile.exists()) {
+            System.out.println("  使用默认歌词文件: " + alternativePath);
+            return alternativePath;
+        }
+
+        System.err.println("  警告: 无法找到默认歌词文件，尝试路径: " + defaultLrcPath);
+        return defaultLrcPath;
+    }
+
     private static String findMatchingLrcFile(String mp3File, List<String> lrcFiles) {
         String mp3Name = new File(mp3File).getName();
         String baseName = mp3Name.substring(0, mp3Name.lastIndexOf('.'));
@@ -183,7 +229,7 @@ public class MusicUploader {
         return null;
     }
     
-    private static boolean uploadSingleMusic(String musicFile, String lrcFile, String language, String token) {
+    private static String[] uploadSingleMusic(String musicFile, String lrcFile, String language, String token) {
         try {
             Path musicPath = Paths.get(musicFile);
             Path lrcPath = Paths.get(lrcFile);
@@ -264,10 +310,18 @@ public class MusicUploader {
             
             // 读取音频文件内容
             byte[] musicBytes = Files.readAllBytes(musicPath);
-            
+
             // 读取歌词文件内容
-            byte[] lrcBytes = Files.readAllBytes(lrcPath);
-            
+            byte[] lrcBytes;
+            try {
+                lrcBytes = Files.readAllBytes(lrcPath);
+                System.out.println("  歌词文件读取成功: " + lrcBytes.length + " 字节");
+            } catch (Exception e) {
+                System.err.println("  歌词文件读取失败: " + lrcFile);
+                System.err.println("  错误: " + e.getMessage());
+                throw new Exception("无法读取歌词文件: " + lrcFile + " - " + e.getMessage());
+            }
+
             // 构建multipart请求
             HttpClient client = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(30))
@@ -342,20 +396,21 @@ public class MusicUploader {
                 String responseBody = response.body();
                 if (responseBody.contains("\"success\":true")) {
                     System.out.println("  上传成功！");
-                    return true;
+                    return new String[]{"true"};
                 } else {
                     System.out.println("  上传失败: " + responseBody);
-                    return false;
+                    return new String[]{"false", "服务器返回失败: " + responseBody};
                 }
             } else {
-                System.out.println("  上传失败，状态码: " + response.statusCode());
-                return false;
+                String errorMsg = "HTTP状态码: " + response.statusCode();
+                System.out.println("  上传失败，" + errorMsg);
+                return new String[]{"false", errorMsg};
             }
-            
+
         } catch (Exception e) {
             System.err.println("  上传异常: " + e.getMessage());
             e.printStackTrace();
-            return false;
+            return new String[]{"false", "异常: " + e.getMessage()};
         }
     }
     
