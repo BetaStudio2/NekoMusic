@@ -11,7 +11,7 @@ import AdminMusicView from '@/views/admin/AdminMusicView.vue'
 import AdminUsersView from '@/views/admin/AdminUsersView.vue'
 import AdminSettingsView from '@/views/admin/AdminSettingsView.vue'
 import MobileDownloadView from '@/views/MobileDownloadView.vue'
-import ApiDocsView from '@/views/ApiDocsView.vue'
+import DevDocsView from '@/views/DevDocsView.vue'
 
 // 检查是否是移动设备
 function isMobileDevice() {
@@ -69,9 +69,9 @@ const router = createRouter({
       }
     },
     {
-      path: '/api-docs',
-      name: 'api-docs',
-      component: ApiDocsView,
+      path: '/dev-docs',
+          name: 'dev-docs',
+      component: DevDocsView,
       meta: {
         title: '开发者文档 - Neko云音乐 | API接口文档',
         description: 'Neko云音乐开发者文档，提供完整的API接口文档和使用说明。包括用户认证、音乐搜索、收藏等功能。',

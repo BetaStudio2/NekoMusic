@@ -1,5 +1,5 @@
 <template>
-  <div class="api-docs-view">
+  <div class="dev-docs-view">
     <div class="docs-container">
       <div class="docs-header">
         <h1 class="docs-title">📚 开发者文档</h1>
@@ -165,7 +165,7 @@ function handleScroll() {
 
 onMounted(async () => {
   try {
-    const response = await fetch('/api-docs.md')
+    const response = await fetch('/dev-docs.md')
     const markdown = await response.text()
     renderedMarkdown.value = parseMarkdown(markdown)
     
@@ -212,7 +212,7 @@ function addCopyButtons() {
 </script>
 
 <style scoped>
-.api-docs-view {
+.dev-docs-view {
   min-height: calc(100vh - 120px);
   padding: 40px 20px;
 }

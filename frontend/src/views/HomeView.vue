@@ -25,7 +25,7 @@
         <p class="welcome-subtitle">本站不收集用户数据所以不会有定向推荐</p>
         <p class="welcome-subtitle">不是做不到这是这样不道德</p>
         <div class="developer-link">
-          <a href="/api-docs" class="dev-link-btn">
+          <a href="/dev-docs" class="dev-link-btn">
             <span class="dev-icon">📚</span>
             <span class="dev-text">开发者文档</span>
           </a>
