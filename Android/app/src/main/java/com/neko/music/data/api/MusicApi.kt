@@ -92,44 +92,16 @@ class MusicApi(private val context: Context) {
     }
     
     suspend fun getMusicCoverUrl(music: Music): String {
-        // 优先使用缓存
-        val cachedCover = cacheManager.getCachedCoverFile(music.id)
-        if (cachedCover != null) {
-            Log.d("MusicApi", "使用缓存封面: ${music.id}")
-            return cachedCover.absolutePath
-        }
-        
-        // 没有缓存，返回服务器URL
+        // 直接返回网络 URL，不使用本地缓存
         val url = "$baseUrl/api/music/cover/${music.id}"
-        
-        // 异步缓存封面
-        try {
-            cacheManager.cacheCover(music.id, url)
-        } catch (e: Exception) {
-            Log.e("MusicApi", "缓存封面失败: ${music.id}", e)
-        }
-        
+        Log.d("MusicApi", "使用网络URL: $url")
         return url
     }
     
     suspend fun getMusicFileUrl(music: Music): String {
-        // 优先使用缓存
-        val cachedMusic = cacheManager.getCachedMusicFile(music.id)
-        if (cachedMusic != null) {
-            Log.d("MusicApi", "使用缓存音乐: ${music.id}")
-            return cachedMusic.absolutePath
-        }
-        
-        // 没有缓存，返回服务器URL
+        // 直接返回网络 URL，不使用本地缓存
         val url = "$baseUrl/api/music/file/${music.id}"
-        
-        // 异步缓存音乐文件
-        try {
-            cacheManager.cacheMusicFile(music.id, url, music.title)
-        } catch (e: Exception) {
-            Log.e("MusicApi", "缓存音乐文件失败: ${music.id}", e)
-        }
-        
+        Log.d("MusicApi", "使用网络URL: $url")
         return url
     }
     

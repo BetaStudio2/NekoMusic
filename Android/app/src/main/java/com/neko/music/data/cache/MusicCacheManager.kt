@@ -74,9 +74,23 @@ class MusicCacheManager private constructor(private val context: Context) {
      */
     fun getCachedMusicFile(musicId: Int): File? {
         if (!isCacheEnabled()) return null
+
+        // 检查是否正在缓存中
+        val isCaching = prefs.getBoolean("music_${musicId}_caching", false)
+        if (isCaching) {
+            Log.d(TAG, "音乐文件正在缓存中: $musicId")
+            return null
+        }
+
         val fileName = "music_$musicId.mp3"
         val file = File(musicDir, fileName)
-        return if (file.exists()) file else null
+
+        // 检查文件是否存在且大小合理（至少 1KB）
+        if (file.exists() && file.length() > 1024) {
+            return file
+        }
+
+        return null
     }
 
     /**
@@ -107,9 +121,14 @@ class MusicCacheManager private constructor(private val context: Context) {
             return@withContext Result.failure(Exception("缓存未启用"))
         }
 
+        val fileName = "music_$musicId.mp3"
+        val file = File(musicDir, fileName)
+
         try {
-            val fileName = "music_$musicId.mp3"
-            val file = File(musicDir, fileName)
+            // 标记正在缓存
+            prefs.edit()
+                .putBoolean("music_${musicId}_caching", true)
+                .apply()
 
             // 下载文件
             downloadFile(url, file)
@@ -119,11 +138,17 @@ class MusicCacheManager private constructor(private val context: Context) {
                 .putLong("music_${musicId}_time", System.currentTimeMillis())
                 .putLong("music_${musicId}_size", file.length())
                 .putString("music_${musicId}_title", title)
+                .putBoolean("music_${musicId}_caching", false)
                 .apply()
 
             Log.d(TAG, "音乐文件缓存成功: $musicId")
             Result.success(file)
         } catch (e: Exception) {
+            // 缓存失败，移除标记并删除不完整的文件
+            prefs.edit()
+                .putBoolean("music_${musicId}_caching", false)
+                .apply()
+            file.delete()
             Log.e(TAG, "缓存音乐文件失败: $musicId", e)
             Result.failure(e)
         }
