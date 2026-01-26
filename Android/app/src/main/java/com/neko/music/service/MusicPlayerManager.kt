@@ -63,6 +63,11 @@ class MusicPlayerManager private constructor(context: Context) {
     // WakeLock 用于在播放时保持 CPU 唤醒
     private var wakeLock: PowerManager.WakeLock? = null
     private val wakeLockTag = "NekoMusic:WakeLock"
+
+    // 预加载缓存
+    private var preloadedNextMusic: com.neko.music.data.model.Music? = null
+    private var preloadedNextMusicUrl: String? = null
+    private var preloadedNextMusicFullCoverUrl: String? = null
     
     // 媒体会话
     private val mediaSession = MediaSessionCompat(appContext, "MusicPlayerSession")
@@ -251,7 +256,25 @@ class MusicPlayerManager private constructor(context: Context) {
         val currentId = _currentMusicId.value ?: return
         android.util.Log.d("MusicPlayerManager", "next() called, currentId: $currentId, playMode: ${_playMode.value}")
 
-        // 使用 runBlocking 同步执行 suspend 函数
+        // 检查是否有预加载的下一首音乐
+        if (preloadedNextMusic != null && preloadedNextMusicUrl != null && preloadedNextMusicFullCoverUrl != null) {
+            android.util.Log.d("MusicPlayerManager", "使用预加载的下一首音乐: ${preloadedNextMusic!!.title}")
+            playMusic(
+                preloadedNextMusicUrl!!,
+                preloadedNextMusic!!.id,
+                preloadedNextMusic!!.title,
+                preloadedNextMusic!!.artist,
+                preloadedNextMusic!!.coverFilePath ?: "",
+                preloadedNextMusicFullCoverUrl!!
+            )
+            // 清空预加载缓存
+            preloadedNextMusic = null
+            preloadedNextMusicUrl = null
+            preloadedNextMusicFullCoverUrl = null
+            return
+        }
+
+        // 没有预加载，按正常流程获取下一首
         kotlinx.coroutines.runBlocking {
             when (_playMode.value) {
                 PlayMode.LIST_LOOP -> {
@@ -468,6 +491,8 @@ class MusicPlayerManager private constructor(context: Context) {
                     Player.STATE_READY -> {
                         if (!isReleased) {
                             _duration.value = player.duration
+                            // 音乐加载完成，预加载下一首
+                            preloadNextMusic()
                         }
                     }
                     Player.STATE_ENDED -> {
@@ -658,6 +683,11 @@ class MusicPlayerManager private constructor(context: Context) {
     }
     
     fun playMusic(url: String, id: Int? = null, title: String? = null, artist: String? = null, cover: String? = null, fullCoverUrl: String? = null) {
+        // 清空预加载缓存（因为要播放新音乐了）
+        preloadedNextMusic = null
+        preloadedNextMusicUrl = null
+        preloadedNextMusicFullCoverUrl = null
+
         if (_currentMusicUrl.value != url) {
             // 添加到历史记录（如果不是重复播放同一首歌）
             if (id != null && _currentMusicId.value != id) {
@@ -757,6 +787,49 @@ class MusicPlayerManager private constructor(context: Context) {
     // 注意：ExoPlayer 不再被释放，保持播放器始终活跃状态
     // 释放函数已被禁用以防止 "Ignoring messages sent after release" 错误
     
+    // 预加载下一首音乐
+    private fun preloadNextMusic() {
+        val currentId = _currentMusicId.value ?: return
+
+        scope.launch {
+            try {
+                // 根据播放模式获取下一首音乐
+                val nextMusic = when (_playMode.value) {
+                    PlayMode.LIST_LOOP -> {
+                        playlistManager.getNextMusic(currentId)
+                    }
+                    PlayMode.SHUFFLE -> {
+                        playlistManager.getRandomMusic(currentId)
+                    }
+                    PlayMode.SINGLE_LOOP -> {
+                        // 单曲循环不需要预加载
+                        null
+                    }
+                }
+
+                if (nextMusic != null) {
+                    val musicApi = com.neko.music.data.api.MusicApi(context)
+                    val nextUrl = musicApi.getMusicFileUrl(nextMusic)
+
+                    val fullCoverUrl = if (!nextMusic.coverFilePath.isNullOrEmpty()) {
+                        "https://music.cnmsb.xin${nextMusic.coverFilePath}"
+                    } else {
+                        "https://music.cnmsb.xin/api/music/cover/${nextMusic.id}"
+                    }
+
+                    // 缓存下一首音乐信息
+                    preloadedNextMusic = nextMusic
+                    preloadedNextMusicUrl = nextUrl
+                    preloadedNextMusicFullCoverUrl = fullCoverUrl
+
+                    Log.d("MusicPlayerManager", "预加载下一首音乐: ${nextMusic.title}")
+                }
+            } catch (e: Exception) {
+                Log.e("MusicPlayerManager", "预加载下一首音乐失败: ${e.message}", e)
+            }
+        }
+    }
+
     suspend fun restoreLastPlayed(context: Context) {
         val lastPlayed = playlistManager.getLastPlayed()
         lastPlayed?.let { music ->
