@@ -118,6 +118,7 @@ class MusicPlayerService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        playerManager.release()
+        // 注意：不再释放 MusicPlayerManager，保持播放器始终活跃状态
+        // 释放已被禁用以防止 "Ignoring messages sent after release" 错误
     }
 }

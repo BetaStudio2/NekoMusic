@@ -44,6 +44,9 @@ class MusicPlayerManager private constructor(context: Context) {
     private val player = ExoPlayer.Builder(context).build()
     private val scope = CoroutineScope(Dispatchers.Main.immediate + Job())
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    // 播放器永远不会被释放，始终保持活跃状态
+    private val isReleased = false
     
     // 媒体会话
     private val mediaSession = MediaSessionCompat(appContext, "MusicPlayerSession")
@@ -101,6 +104,10 @@ class MusicPlayerManager private constructor(context: Context) {
     val playbackSpeed: StateFlow<Float> = _playbackSpeed.asStateFlow()
 
     fun setPlaybackSpeed(speed: Float) {
+        if (isReleased) {
+            Log.w("MusicPlayerManager", "ExoPlayer 已释放，忽略 setPlaybackSpeed 操作")
+            return
+        }
         _playbackSpeed.value = speed
         player.setPlaybackSpeed(speed)
         Log.d("MusicPlayerManager", "播放速度设置为: $speed")
@@ -399,18 +406,26 @@ class MusicPlayerManager private constructor(context: Context) {
         
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                _isPlaying.value = isPlaying
-                updatePlaybackState()
+                if (!isReleased) {
+                    _isPlaying.value = isPlaying
+                    updatePlaybackState()
+                }
             }
             
             override fun onPlaybackStateChanged(playbackState: Int) {
+                if (isReleased) return
+                
                 when (playbackState) {
                     Player.STATE_IDLE -> {}
                     Player.STATE_BUFFERING -> {}
                     Player.STATE_READY -> {
-                        _duration.value = player.duration
+                        if (!isReleased) {
+                            _duration.value = player.duration
+                        }
                     }
                     Player.STATE_ENDED -> {
+                        if (isReleased) return
+                        
                         _isPlaying.value = false
                         player.seekTo(0)
                         updatePlaybackState()
@@ -698,12 +713,8 @@ class MusicPlayerManager private constructor(context: Context) {
         updatePlaybackState()
     }
     
-    fun release() {
-        stopPositionUpdate()
-        fadeJob?.cancel()
-        mediaSession.release()
-        player.release()
-    }
+    // 注意：ExoPlayer 不再被释放，保持播放器始终活跃状态
+    // 释放函数已被禁用以防止 "Ignoring messages sent after release" 错误
     
     suspend fun restoreLastPlayed(context: Context) {
         val lastPlayed = playlistManager.getLastPlayed()
