@@ -1,5 +1,14 @@
 <template>
   <div class="music-detail-view">
+    <!-- 移动设备下载提示横幅 -->
+    <div v-if="isMobile" class="mobile-download-banner">
+      <div class="banner-content">
+        <span class="banner-text">下载APP体验更好</span>
+        <a href="/download" class="banner-btn">立即下载</a>
+        <button @click="closeBanner" class="banner-close">×</button>
+      </div>
+    </div>
+
     <div class="detail-container" v-if="currentMusic">
       <div class="content-wrapper">
         <!-- 左侧：音乐详情 -->
@@ -75,9 +84,22 @@ const lyrics = ref('')
 const parsedLyrics = ref([])
 const lyricsContent = ref(null)
 const favoriteMusicIds = ref(new Set()) // 存储收藏的音乐ID
+const isMobile = ref(false)
+const showBanner = ref(true)
 
 // 用于定时器的引用
 let timeUpdateInterval = null
+
+// 检测是否是移动设备
+const checkMobile = () => {
+  const userAgent = navigator.userAgent || navigator.vendor || window.opera
+  return /android|ipad|iphone|ipod/i.test(userAgent)
+}
+
+// 关闭横幅
+const closeBanner = () => {
+  showBanner.value = false
+}
 
 // 获取音乐详情
 const fetchMusicDetail = async (musicId) => {
@@ -507,16 +529,19 @@ const startTimer = () => {
 
 // 初始化
 onMounted(async () => {
+  // 检测是否是移动设备
+  isMobile.value = checkMobile()
+
   // 监听自定义事件，以响应全局播放器的状态变化
   window.addEventListener('playerStateChange', handlePlayerStateChange)
-  
+
   const musicId = route.params.id
   if (musicId) {
     await fetchMusicDetail(musicId)
     // 启动定时器以持续更新歌词
     startTimer();
   }
-  
+
   // 获取收藏列表
   await fetchFavorites();
 })
@@ -536,6 +561,82 @@ onUnmounted(() => {
   max-width: 1200px;
   margin: 40px auto;
   padding: 20px;
+}
+
+/* 移动设备下载横幅 */
+.mobile-download-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.banner-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.banner-text {
+  color: white;
+  font-weight: bold;
+  font-size: 1rem;
+  margin-right: 15px;
+}
+
+.banner-btn {
+  background: white;
+  color: #667eea;
+  text-decoration: none;
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-weight: bold;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.banner-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.banner-close {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1.5rem;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 15px;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.banner-close:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .detail-container {
@@ -756,10 +857,14 @@ audio {
 }
 
 @media (max-width: 768px) {
+  .music-detail-view {
+    padding-top: 70px; /* 为横幅留出空间 */
+  }
+
   .content-wrapper {
     flex-direction: column;
   }
-  
+
   .detail-container {
     padding: 20px;
     margin: 20px;

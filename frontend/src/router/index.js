@@ -44,14 +44,6 @@ const router = createRouter({
       path: '/',
       name: 'home',
       component: HomeView,
-      beforeEnter: (to, from, next) => {
-        // 如果是移动设备访问根路径，重定向到下载页面
-        if (isMobileDevice()) {
-          next('/download')
-        } else {
-          next()
-        }
-      },
       meta: {
         title: '首页 - Neko云音乐 | 完全免费的音乐平台',
         description: 'Neko云音乐 - 完全免费的在线音乐播放平台，提供海量免费音乐资源，无需付费，永久免费。发现海量音乐资源，享受高品质音乐体验。',
@@ -187,11 +179,17 @@ const router = createRouter({
   ]
 })
 
-// 全局路由守卫 - 更新页面标题和元数据
+// 全局路由守卫 - 更新页面标题和元数据 + 移动设备检测
 router.beforeEach((to, from, next) => {
+  // 如果是移动设备访问非下载页面和非播放页面，重定向到下载页面
+  if (isMobileDevice() && to.path !== '/download' && !to.path.startsWith('/detail/')) {
+    next('/download')
+    return
+  }
+
   // 设置页面标题
   document.title = to.meta.title || 'Neko云音乐 - 完全免费的在线音乐播放平台'
-  
+
   // 设置页面描述
   const description = to.meta.description || 'Neko云音乐 - 完全免费的在线音乐播放平台，提供海量免费音乐资源、高品质音频播放、个性化收藏等功能。无需付费，永久免费。'
   let descriptionMeta = document.querySelector('meta[name="description"]')
@@ -201,7 +199,7 @@ router.beforeEach((to, from, next) => {
     document.head.appendChild(descriptionMeta)
   }
   descriptionMeta.content = description
-  
+
   // 设置页面关键词
   const keywords = to.meta.keywords || 'Neko云音乐,免费音乐,在线音乐,音乐播放,音乐搜索,音乐收藏,免费听歌,高品质音乐,无广告音乐,永久免费'
   let keywordsMeta = document.querySelector('meta[name="keywords"]')
@@ -211,7 +209,7 @@ router.beforeEach((to, from, next) => {
     document.head.appendChild(keywordsMeta)
   }
   keywordsMeta.content = keywords
-  
+
   next()
 })
 
