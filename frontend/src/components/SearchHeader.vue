@@ -698,31 +698,8 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
-  .header-content {
-    flex-direction: column;
-    text-align: center;
-  }
-  
-  .logo-container {
-    width: 100%;
-    justify-content: center;
-  }
-  
-  .search-container {
-    width: 100%;
-    max-width: 100%;
-  }
-  
-  .header-decoration {
-    display: none;
-  }
-  
-  .search-results {
-    min-width: 100%;
-  }
-  
   .search-header {
-    margin: 10px;
+    display: none !important;
   }
 }
 </style>

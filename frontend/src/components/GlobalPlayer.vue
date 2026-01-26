@@ -2214,61 +2214,108 @@ audio {
 /* 响应式设计 */
 @media (max-width: 768px) {
   .global-player {
-    height: 70px;
-    padding: 8px 15px;
-  }
-  
-  .player-content {
+    height: 120px;
+    padding: 10px 12px;
+    flex-direction: column;
+    justify-content: center;
     gap: 10px;
   }
-  
-  .music-cover {
-    width: 50px;
-    height: 50px;
+
+  .player-content {
+    flex-direction: column;
+    gap: 8px;
+    height: auto;
   }
-  
+
+  .cover-container {
+    display: none; /* 隐藏封面以节省空间 */
+  }
+
   .music-info {
-    max-width: 120px;
+    max-width: 100%;
+    text-align: center;
+    order: 1;
+    flex: 0 0 auto;
   }
-  
+
   .music-title {
+    font-size: 0.95rem;
+  }
+
+  .music-artist {
     font-size: 0.8rem;
   }
-  
-  .music-artist {
-    font-size: 0.7rem;
-  }
-  
+
   .player-controls {
-    max-width: 400px;
+    width: 100%;
+    max-width: 100%;
+    order: 2;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
   }
-  
+
+  .progress-container {
+    width: 100%;
+    order: 1;
+    gap: 8px;
+  }
+
+  .time {
+    font-size: 0.75rem;
+    min-width: 38px;
+  }
+
+  .progress-bar {
+    height: 6px;
+    flex: 1;
+  }
+
+  .progress-bar::-webkit-slider-thumb {
+    width: 18px;
+    height: 18px;
+  }
+
+  .control-buttons {
+    width: 100%;
+    justify-content: center;
+    order: 2;
+    gap: 12px;
+  }
+
   .lyrics-container {
     display: none; /* 在小屏幕上隐藏歌词 */
   }
-  
-  .prev-btn, .next-btn, .mode-btn, .playlist-btn {
-    width: 30px;
-    height: 30px;
+
+  /* 隐藏上一曲和下一曲按钮 */
+  .prev-btn,
+  .next-btn {
+    display: none !important;
   }
-  
+
   .play-pause-btn {
+    width: 50px;
+    height: 50px;
+  }
+
+  .mode-btn {
     width: 36px;
     height: 36px;
   }
-  
-  .time {
-    font-size: 0.7rem;
-    min-width: 30px;
+
+  /* 隐藏收藏和播放列表按钮 */
+  .favorite-btn,
+  .playlist-btn {
+    display: none !important;
   }
-  
-  .progress-bar {
-    height: 4px;
-  }
-  
-  .progress-bar::-webkit-slider-thumb {
-    width: 12px;
-    height: 12px;
+
+  /* 播放列表弹窗适配 */
+  .playlist-container {
+    width: calc(100% - 40px);
+    right: 20px;
+    left: 20px;
+    bottom: 120px;
+    height: 300px;
   }
 }
 </style>

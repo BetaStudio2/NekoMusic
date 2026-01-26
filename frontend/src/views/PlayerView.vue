@@ -858,47 +858,124 @@ audio {
 
 @media (max-width: 768px) {
   .music-detail-view {
-    padding-top: 70px; /* 为横幅留出空间 */
+    padding: 100px 10px 20px; /* 为横幅留出更多空间 */
+    margin: 0;
+  }
+
+  .detail-container {
+    padding: 15px;
+    margin: 0;
+    border-radius: 15px;
   }
 
   .content-wrapper {
     flex-direction: column;
+    gap: 20px;
   }
 
-  .detail-container {
-    padding: 20px;
-    margin: 20px;
+  .detail-section {
+    width: 100%;
   }
-  
+
+  .cover-section {
+    margin-bottom: 20px;
+  }
+
   .music-cover {
-    width: 200px;
-    height: 200px;
+    width: 280px;
+    height: 280px;
+    border-radius: 12px;
   }
-  
-  .music-title {
-    font-size: 1.5rem;
-  }
-  
+
   .music-info {
+    margin: 20px 0;
     text-align: center;
   }
 
+  .music-title {
+    font-size: 1.6rem;
+    margin-bottom: 10px;
+  }
+
+  .music-artist,
+  .music-album {
+    font-size: 1rem;
+    margin: 6px 0;
+  }
+
   .action-buttons {
+    margin-top: 25px;
     flex-direction: column;
     align-items: center;
+    gap: 15px;
   }
-  
-  .play-btn, .download-btn {
-    width: 80%;
+
+  .play-btn {
+    width: 100%;
+    padding: 16px 24px;
+    font-size: 1.1rem;
+    min-width: auto;
   }
-  
+
+  /* 隐藏收藏和下载按钮 */
+  .favorite-btn,
+  .download-btn {
+    display: none !important;
+  }
+
+  /* 歌词区域 */
+  .lyrics-section {
+    flex: 1;
+  }
+
+  .lyrics-section h3 {
+    font-size: 1.1rem;
+    margin-bottom: 10px;
+  }
+
+  .lyrics-container {
+    padding: 15px;
+    max-height: 350px;
+  }
+
+  .lyrics-content {
+    gap: 15px;
+    padding: 15px 0;
+  }
+
   .lyric-line {
-    font-size: 0.8rem;
-    padding: 6px 12px;
-  }
-  
-  .lyric-line.active {
     font-size: 0.9rem;
+    padding: 6px 8px;
+  }
+
+  .lyric-line.active {
+    font-size: 1.1rem;
+  }
+
+  /* 下载横幅优化 */
+  .mobile-download-banner {
+    padding: 10px 0;
+  }
+
+  .banner-content {
+    padding: 10px 15px;
+  }
+
+  .banner-text {
+    font-size: 0.9rem;
+    margin-right: 10px;
+  }
+
+  .banner-btn {
+    padding: 6px 16px;
+    font-size: 0.85rem;
+  }
+
+  .banner-close {
+    width: 28px;
+    height: 28px;
+    font-size: 1.3rem;
+    margin-left: 10px;
   }
 }
 </style>
