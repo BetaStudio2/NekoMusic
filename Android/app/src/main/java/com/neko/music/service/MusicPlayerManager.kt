@@ -3,6 +3,7 @@ package com.neko.music.service
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.PowerManager
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
@@ -41,12 +42,27 @@ class MusicPlayerManager private constructor(context: Context) {
     private val prefs = appContext.getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
     private val KEY_PLAY_MODE = "play_mode"
     
-    private val player = ExoPlayer.Builder(context).build()
+    private val player = ExoPlayer.Builder(context).build().apply {
+        // 设置音频属性，确保后台播放
+        setAudioAttributes(
+            com.google.android.exoplayer2.audio.AudioAttributes.Builder()
+                .setContentType(com.google.android.exoplayer2.C.AUDIO_CONTENT_TYPE_MUSIC)
+                .setUsage(com.google.android.exoplayer2.C.USAGE_MEDIA)
+                .build(),
+            true // handleAudioFocus = true
+        )
+        // 设置唤醒模式，确保播放时 CPU 不会休眠
+        setHandleAudioBecomingNoisy(true)
+    }
     private val scope = CoroutineScope(Dispatchers.Main.immediate + Job())
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
     // 播放器永远不会被释放，始终保持活跃状态
     private val isReleased = false
+
+    // WakeLock 用于在播放时保持 CPU 唤醒
+    private var wakeLock: PowerManager.WakeLock? = null
+    private val wakeLockTag = "NekoMusic:WakeLock"
     
     // 媒体会话
     private val mediaSession = MediaSessionCompat(appContext, "MusicPlayerSession")
@@ -595,12 +611,15 @@ class MusicPlayerManager private constructor(context: Context) {
     private fun fadeIn() {
         fadeJob?.cancel()
         fadeJob = scope.launch {
+            // 获取 WakeLock 以保持 CPU 唤醒
+            acquireWakeLock()
+
             player.volume = 0f
             player.play()
             _isPlaying.value = true
             startPositionUpdate()
             updatePlaybackState()
-            
+
             val steps = 20
             val stepDelay = 300L / steps
             for (i in 1..steps) {
@@ -627,8 +646,38 @@ class MusicPlayerManager private constructor(context: Context) {
             stopPositionUpdate()
             player.volume = 1f
             updatePlaybackState()
+
+            // 释放 WakeLock
+            releaseWakeLock()
+
             onComplete()
         }
+    }
+
+    // 获取 WakeLock 以保持 CPU 唤醒
+    private fun acquireWakeLock() {
+        if (wakeLock == null || !wakeLock!!.isHeld) {
+            val powerManager = appContext.getSystemService(Context.POWER_SERVICE) as PowerManager
+            wakeLock = powerManager.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK,
+                wakeLockTag
+            ).apply {
+                setReferenceCounted(false)
+                acquire(10 * 60 * 1000L) // 10分钟超时，防止永久持有
+            }
+            Log.d("MusicPlayerManager", "WakeLock 已获取")
+        }
+    }
+
+    // 释放 WakeLock
+    private fun releaseWakeLock() {
+        wakeLock?.let {
+            if (it.isHeld) {
+                it.release()
+                Log.d("MusicPlayerManager", "WakeLock 已释放")
+            }
+        }
+        wakeLock = null
     }
     
     fun playMusic(url: String, id: Int? = null, title: String? = null, artist: String? = null, cover: String? = null, fullCoverUrl: String? = null) {

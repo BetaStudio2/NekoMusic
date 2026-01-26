@@ -36,23 +36,27 @@ class MusicPlayerService : Service() {
         playerManager = MusicPlayerManager.getInstance(this)
         createNotificationChannel()
 
+        // 启动前台服务以确保后台播放正常
+        startForeground(NOTIFICATION_ID, createMusicNotification())
+
         // 监听定时关闭剩余时间变化
         kotlinx.coroutines.GlobalScope.launch {
             playerManager.sleepTimerRemainingSeconds.collect { remainingSeconds ->
-                if (remainingSeconds > 0) {
-                    // 有定时关闭时显示通知
-                    if (!isForeground) {
-                        startForeground(NOTIFICATION_ID, createNotification())
-                    } else {
-                        updateNotification()
-                    }
-                } else {
-                    // 没有定时关闭时停止前台服务并取消通知
-                    if (isForeground) {
-                        stopForeground(STOP_FOREGROUND_REMOVE)
-                        notificationManager.cancelAll()
-                    }
-                }
+                updateMusicNotification()
+            }
+        }
+
+        // 监听播放状态变化
+        kotlinx.coroutines.GlobalScope.launch {
+            playerManager.isPlaying.collect { isPlaying ->
+                updateMusicNotification()
+            }
+        }
+
+        // 监听当前音乐变化
+        kotlinx.coroutines.GlobalScope.launch {
+            playerManager.currentMusicTitle.collect {
+                updateMusicNotification()
             }
         }
     }
@@ -80,40 +84,52 @@ class MusicPlayerService : Service() {
         }
     }
 
-    private fun createNotification(): Notification {
+    private fun createMusicNotification(): Notification {
+        val title = playerManager.currentMusicTitle.value ?: "Neko云音乐"
+        val artist = playerManager.currentMusicArtist.value ?: ""
+        val isPlaying = playerManager.isPlaying.value
         val remainingSeconds = playerManager.sleepTimerRemainingSeconds.value
 
-        // 没有设置定时关闭时取消所有通知
-        if (remainingSeconds <= 0) {
-            notificationManager.cancelAll()
-            return NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_launcher_foreground)
-                .setOngoing(true)
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setPriority(NotificationCompat.PRIORITY_MIN)
-                .build()
-        }
+        // 创建点击通知打开应用的 PendingIntent
+        val notificationIntent = Intent(this, MainActivity::class.java)
+        notificationIntent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
 
-        val hours = remainingSeconds / 3600
-        val minutes = (remainingSeconds % 3600) / 60
-        val seconds = remainingSeconds % 60
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            notificationIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 
-        val timeText = buildString {
-            if (hours > 0) append("${hours}小时")
-            if (minutes > 0) append("${minutes}分钟")
-            append("${seconds}秒")
+        val contentText = if (remainingSeconds > 0) {
+            val hours = remainingSeconds / 3600
+            val minutes = (remainingSeconds % 3600) / 60
+            val seconds = remainingSeconds % 60
+
+            val timeText = buildString {
+                if (hours > 0) append("${hours}小时")
+                if (minutes > 0) append("${minutes}分钟")
+                append("${seconds}秒后关闭")
+            }
+
+            "$artist - $timeText"
+        } else {
+            artist
         }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("将在 $timeText 后关闭")
+            .setContentTitle(title)
+            .setContentText(contentText)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setOngoing(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setContentIntent(pendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
 
-    fun updateNotification() {
-        notificationManager.notify(NOTIFICATION_ID, createNotification())
+    fun updateMusicNotification() {
+        notificationManager.notify(NOTIFICATION_ID, createMusicNotification())
     }
 
     override fun onDestroy() {
