@@ -66,16 +66,33 @@ public class MusicSearchHandler extends HttpServlet {
         int limit = 50; // 设置默认限制
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, title, artist, album, duration, file_path, cover_path, upload_user_id, created_at " +
-                         "FROM music " +
-                         "WHERE (title LIKE ? OR artist LIKE ? OR album LIKE ?) " +
-                         "ORDER BY created_at DESC " +
-                         "LIMIT ?";
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setString(1, "%" + query + "%");
-                stmt.setString(2, "%" + query + "%");
-                stmt.setString(3, "%" + query + "%");
-                stmt.setInt(4, limit);
+            // 获取繁简体变体
+            String[] variants = com.neko.music.util.ChineseConverter.getSearchVariants(query);
+            
+            // 构建 SQL 查询，支持繁简体搜索
+            StringBuilder sqlBuilder = new StringBuilder();
+            sqlBuilder.append("SELECT id, title, artist, album, duration, file_path, cover_path, upload_user_id, created_at ");
+            sqlBuilder.append("FROM music ");
+            sqlBuilder.append("WHERE (");
+            
+            List<String> conditions = new ArrayList<>();
+            for (int i = 0; i < variants.length; i++) {
+                conditions.add("(title LIKE ? OR artist LIKE ? OR album LIKE ?)");
+            }
+            sqlBuilder.append(String.join(" OR ", conditions));
+            sqlBuilder.append(") ");
+            sqlBuilder.append("ORDER BY created_at DESC ");
+            sqlBuilder.append("LIMIT ?");
+            
+            try (PreparedStatement stmt = conn.prepareStatement(sqlBuilder.toString())) {
+                // 设置参数
+                int paramIndex = 1;
+                for (String variant : variants) {
+                    stmt.setString(paramIndex++, "%" + variant + "%");
+                    stmt.setString(paramIndex++, "%" + variant + "%");
+                    stmt.setString(paramIndex++, "%" + variant + "%");
+                }
+                stmt.setInt(paramIndex, limit);
                 
                 ResultSet rs = stmt.executeQuery();
                 
