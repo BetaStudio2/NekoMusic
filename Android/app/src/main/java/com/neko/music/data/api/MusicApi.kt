@@ -106,31 +106,35 @@ class MusicApi(private val context: Context) {
     }
     
     suspend fun getMusicLyrics(music: Music): Result<String> {
-        // 优先使用缓存
-        val cachedLyrics = cacheManager.getCachedLyricsContent(music.id)
-        if (cachedLyrics != null) {
-            Log.d("MusicApi", "使用缓存歌词: ${music.id}")
-            return Result.success(cachedLyrics)
+        // 优先使用缓存（仅在缓存启用时）
+        if (cacheManager.isCacheEnabled()) {
+            val cachedLyrics = cacheManager.getCachedLyricsContent(music.id)
+            if (cachedLyrics != null) {
+                Log.d("MusicApi", "使用缓存歌词: ${music.id}")
+                return Result.success(cachedLyrics)
+            }
         }
-        
-        // 没有缓存，从服务器获取
+
+        // 没有缓存或缓存未启用，从服务器获取
         return try {
             Log.d("MusicApi", "Fetching lyrics for music: ${music.id}")
             val response = client.get("$baseUrl/api/music/lyrics/${music.id}")
             Log.d("MusicApi", "Response status: ${response.status}")
             val responseText = response.body<String>()
             Log.d("MusicApi", "Response raw text: $responseText")
-            
+
             val jsonResponse = json.parseToJsonElement(responseText) as JsonObject
             val success = jsonResponse["success"]?.toString()?.toBoolean() ?: false
             val message = jsonResponse["message"]?.toString()?.removeSurrounding("\"") ?: ""
             val data = jsonResponse["data"]?.toString()?.removeSurrounding("\"")?.replace("\\n", "\n") ?: ""
-            
+
             Log.d("MusicApi", "Parsed lyrics: $data")
-            
+
             if (success) {
-                // 缓存歌词
-                cacheManager.cacheLyrics(music.id, data)
+                // 仅在缓存启用时缓存歌词
+                if (cacheManager.isCacheEnabled()) {
+                    cacheManager.cacheLyrics(music.id, data)
+                }
                 Result.success(data)
             } else {
                 Result.failure(Exception(message))
