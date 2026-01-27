@@ -143,15 +143,15 @@ public class Main {
         ServletHolder sendVerificationHolder = new ServletHolder(new SendVerificationHandler());
         context.addServlet(sendVerificationHolder, "/api/user/send-verification");
         
-        // 注册用户头像API处理器
-        ServletHolder userAvatarHolder = new ServletHolder(new UserAvatarHandler());
-        context.addServlet(userAvatarHolder, "/api/user/avatar/*");
-        
-        // 注册用户头像上传API处理器
+        // 注册用户头像上传API处理器（更具体的路径先注册）
         ServletHolder userAvatarUploadHolder = new ServletHolder(new UserAvatarUploadHandler());
         jakarta.servlet.MultipartConfigElement avatarMultipartConfig = new jakarta.servlet.MultipartConfigElement(System.getProperty("java.io.tmpdir"));
         userAvatarUploadHolder.getRegistration().setMultipartConfig(avatarMultipartConfig);
         context.addServlet(userAvatarUploadHolder, "/api/user/avatar/upload");
+        
+        // 注册用户头像API处理器
+        ServletHolder userAvatarHolder = new ServletHolder(new UserAvatarHandler());
+        context.addServlet(userAvatarHolder, "/api/user/avatar/*");
         
         // 注册用户收藏API处理器
         ServletHolder userFavoriteHolder = new ServletHolder(new UserFavoriteHandler());
