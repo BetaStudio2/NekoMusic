@@ -207,6 +207,94 @@ Authorization: <token>
 }
 ```
 
+### 8. 上传用户头像
+
+**端点:** `POST /api/user/avatar/upload`
+
+**请求头:**
+```
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+```
+
+**请求参数:**
+- `avatar`: 图片文件 (multipart/form-data)
+  - 支持格式：jpg, jpeg, png, gif, webp, bmp
+  - 最大文件大小：50MiB
+
+**响应示例（成功）:**
+```json
+{
+  "success": true,
+  "message": "头像上传成功",
+  "avatarPath": "avatars/1_550e8400-e29b-41d4-a716-446655440000.jpg"
+}
+```
+
+**响应示例（失败）:**
+```json
+{
+  "error": "未授权访问"
+}
+```
+
+或
+
+```json
+{
+  "error": "文件大小超过50MiB限制"
+}
+```
+
+### 9. 修改用户密码
+
+**端点:** `POST /api/user/password/change`
+
+**请求头:**
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**请求体:**
+```json
+{
+  "oldPassword": "string",  // 原密码（必填）
+  "newPassword": "string"   // 新密码（必填，长度不能少于6位）
+}
+```
+
+**响应示例（成功）:**
+```json
+{
+  "success": true,
+  "message": "密码修改成功"
+}
+```
+
+**响应示例（失败）:**
+```json
+{
+  "error": "原密码错误"
+}
+```
+
+或
+
+```json
+{
+  "error": "新密码长度不能少于6位"
+}
+```
+
+或
+
+```json
+{
+  "error": "新密码不能与原密码相同"
+}
+```
+
 ---
 
 ## 音乐相关 API
@@ -387,6 +475,60 @@ async function getFavorites() {
 }
 ```
 
+### 上传用户头像
+
+```javascript
+async function uploadAvatar(avatarFile) {
+  const token = localStorage.getItem('userToken');
+  const formData = new FormData();
+  formData.append('avatar', avatarFile);
+  
+  const response = await fetch('https://music.cnmsb.xin/api/user/avatar/upload', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData
+  });
+  
+  const data = await response.json();
+  if (data.success) {
+    console.log('头像上传成功:', data.avatarPath);
+  } else {
+    console.error('头像上传失败:', data.error);
+  }
+  return data;
+}
+```
+
+### 修改用户密码
+
+```javascript
+async function changePassword(oldPassword, newPassword) {
+  const token = localStorage.getItem('userToken');
+  
+  const response = await fetch('https://music.cnmsb.xin/api/user/password/change', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      oldPassword: oldPassword,
+      newPassword: newPassword
+    })
+  });
+  
+  const data = await response.json();
+  if (data.success) {
+    alert('密码修改成功！');
+  } else {
+    alert('密码修改失败：' + data.error);
+  }
+  return data;
+}
+```
+
 ---
 
 ## 注意事项
@@ -395,6 +537,16 @@ async function getFavorites() {
 2. **Token 管理:** Token 有效期为 30 天，过期后需要重新登录
 3. **错误处理:** 所有 API 都返回统一的 JSON 格式，包含 `success` 和 `message` 字段
 4. **速率限制:** 建议客户端实现适当的请求速率限制，避免频繁请求
+5. **头像上传:** 
+   - 支持的图片格式：jpg, jpeg, png, gif, webp, bmp
+   - 最大文件大小：50MiB
+   - 只允许图片类型文件上传，会严格验证 MIME 类型
+   - 头像文件保存在 `avatars/` 目录下
+6. **密码修改:**
+   - 新密码长度不能少于 6 位
+   - 新密码不能与原密码相同
+   - 需要提供正确的原密码才能修改
+   - 使用 Argon2 算法加密密码
 
 ---
 
