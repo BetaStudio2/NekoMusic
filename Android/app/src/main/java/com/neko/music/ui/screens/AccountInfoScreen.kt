@@ -614,6 +614,54 @@ fun AvatarCropDialog(
         }
     }
     
+    // 回弹效果动画
+    val animatedOffset by androidx.compose.animation.core.animateOffsetAsState(
+        targetValue = offset,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+        ),
+        label = "offset_animation"
+    )
+    
+    // 计算限制后的偏移量
+    val limitedOffsetState = remember(animatedOffset, scale, containerSize, originalBitmapSize) {
+        mutableStateOf(
+            if (originalBitmapSize.width > 0 && containerSize.width > 0) {
+                val displayedWidth = originalBitmapSize.width * scale
+                val displayedHeight = originalBitmapSize.height * scale
+                
+                val maxOffsetX = displayedWidth / 2f
+                val maxOffsetY = displayedHeight / 2f
+                
+                Offset(
+                    x = animatedOffset.x.coerceIn(-maxOffsetX, maxOffsetX),
+                    y = animatedOffset.y.coerceIn(-maxOffsetY, maxOffsetY)
+                )
+            } else {
+                animatedOffset
+            }
+        )
+    }
+    
+    // 更新 limitedOffset 当依赖项变化时
+    LaunchedEffect(animatedOffset, scale, containerSize, originalBitmapSize) {
+        if (originalBitmapSize.width > 0 && containerSize.width > 0) {
+            val displayedWidth = originalBitmapSize.width * scale
+            val displayedHeight = originalBitmapSize.height * scale
+            
+            val maxOffsetX = displayedWidth / 2f
+            val maxOffsetY = displayedHeight / 2f
+            
+            limitedOffsetState.value = Offset(
+                x = animatedOffset.x.coerceIn(-maxOffsetX, maxOffsetX),
+                y = animatedOffset.y.coerceIn(-maxOffsetY, maxOffsetY)
+            )
+        } else {
+            limitedOffsetState.value = animatedOffset
+        }
+    }
+    
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -663,8 +711,10 @@ fun AvatarCropDialog(
                             // 计算图片显示的左上角位置（考虑偏移）
                             val displayedImageWidth = bitmapWidth * scale
                             val displayedImageHeight = bitmapHeight * scale
-                            val imageLeft = (containerSize.width - displayedImageWidth) / 2f + offset.x
-                            val imageTop = (containerSize.height - displayedImageHeight) / 2f + offset.y
+                            val containerWidthF = containerSize.width.toFloat()
+                            val containerHeightF = containerSize.height.toFloat()
+                            val imageLeft = (containerWidthF - displayedImageWidth) / 2f + limitedOffsetState.value.x
+                            val imageTop = (containerHeightF - displayedImageHeight) / 2f + limitedOffsetState.value.y
                             
                             // 计算裁剪框在原图中的位置
                             val cropXInImage = ((cropBoxLeft - imageLeft) / scale).toInt()
@@ -750,9 +800,10 @@ fun AvatarCropDialog(
                         contentDescription = null,
                         modifier = Modifier
                             .offset {
+                                val currentOffset = limitedOffsetState.value
                                 androidx.compose.ui.unit.IntOffset(
-                                    x = offset.x.toInt(),
-                                    y = offset.y.toInt()
+                                    x = currentOffset.x.toInt(),
+                                    y = currentOffset.y.toInt()
                                 )
                             }
                             .scale(scale),
