@@ -328,16 +328,21 @@ fun AccountInfoScreen(
                 selectedImageUri = null
             },
             onConfirm = { imageData ->
-                onAvatarUpdate(imageData)
-                // 重置时间戳以刷新头像
-                avatarUpdateTime = System.currentTimeMillis()
-                showCropDialog = false
-                selectedImageUri = null
-                // 显示成功提示
-                toastMessage = "头像更新成功"
-                showSuccess = true
-            }
-        )
+                                onAvatarUpdate(imageData)
+                                // 重置时间戳以刷新头像
+                                avatarUpdateTime = System.currentTimeMillis()
+                                showCropDialog = false
+                                selectedImageUri = null
+                                // 显示系统 Toast
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "头像上传成功",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                                // 显示成功提示
+                                toastMessage = "头像更新成功"
+                                showSuccess = true
+                            }        )
     }
 }
 
