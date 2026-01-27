@@ -67,6 +67,7 @@ import com.neko.music.ui.screens.FavoriteScreen
 import com.neko.music.ui.screens.AboutScreen
 import com.neko.music.ui.screens.SettingsScreen
 import com.neko.music.ui.screens.CacheManagementScreen
+import com.neko.music.ui.screens.AccountInfoScreen
 import com.neko.music.ui.theme.Neko云音乐Theme
 import kotlinx.coroutines.launch
 
@@ -292,6 +293,9 @@ fun MainScreen() {
                             onNavigateToSettings = {
                                 navController.navigate("settings")
                             },
+                            onAccountInfoClick = {
+                                navController.navigate("account_info")
+                            },
                             isLoggedIn = isLoggedIn,
                             username = currentUsername,
                             userId = currentUserId,
@@ -351,6 +355,53 @@ fun MainScreen() {
                         CacheManagementScreen(
                             onBackClick = {
                                 navController.popBackStack()
+                            }
+                        )
+                    }
+                    composable("account_info") {
+                        AccountInfoScreen(
+                            onBackClick = {
+                                navController.popBackStack()
+                            },
+                            userId = currentUserId,
+                            username = currentUsername ?: "",
+                            email = com.neko.music.data.manager.TokenManager(context).getEmail() ?: "",
+                            onAvatarUpdate = { imageData ->
+                                scope.launch {
+                                    try {
+                                        Log.d("MainActivity", "开始上传头像，图片大小: ${imageData.size} bytes")
+                                        val token = com.neko.music.data.manager.TokenManager(context).getToken()
+                                        Log.d("MainActivity", "Token: ${if (token != null) "已获取 (${token.length} 字符)" else "null"}")
+                                        val userApi = com.neko.music.data.api.UserApi(token)
+                                        Log.d("MainActivity", "UserApi 实例已创建")
+                                        val response = userApi.updateAvatar(imageData)
+                                        Log.d("MainActivity", "头像上传响应: success=${response.success}, message=${response.message}")
+
+                                        if (response.success) {
+                                            Log.d("MainActivity", "头像更新成功")
+                                        } else {
+                                            Log.e("MainActivity", "更新头像失败: ${response.message}")
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e("MainActivity", "上传头像失败", e)
+                                    }
+                                }
+                            },
+                            onPasswordUpdate = { oldPassword, newPassword ->
+                                scope.launch {
+                                    try {
+                                        val userApi = com.neko.music.data.api.UserApi(
+                                            com.neko.music.data.manager.TokenManager(context).getToken()
+                                        )
+                                        val response = userApi.updatePassword(oldPassword, newPassword)
+                                        
+                                        if (!response.success) {
+                                            Log.e("MainActivity", "修改密码失败: ${response.message}")
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e("MainActivity", "修改密码失败", e)
+                                    }
+                                }
                             }
                         )
                     }

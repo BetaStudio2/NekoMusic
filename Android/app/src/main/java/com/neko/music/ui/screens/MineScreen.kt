@@ -36,6 +36,7 @@ fun MineScreen(
     onFavoriteClick: () -> Unit = {},
     onAboutClick: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
+    onAccountInfoClick: () -> Unit = {},
     isLoggedIn: Boolean = false,
     username: String? = null,
     userId: Int = -1,
@@ -91,6 +92,7 @@ fun MineScreen(
                     username = username,
                     userId = userId,
                     onLogoutClick = onLogoutClick,
+                    onAccountInfoClick = onAccountInfoClick,
                     bubble1Y = bubble1Y,
                     bubble2Y = bubble2Y,
                     bubble3Y = bubble3Y
@@ -130,6 +132,7 @@ fun MineHeader(
     username: String? = null,
     userId: Int = -1,
     onLogoutClick: () -> Unit = {},
+    onAccountInfoClick: () -> Unit = {},
     bubble1Y: Float = 0f,
     bubble2Y: Float = 0f,
     bubble3Y: Float = 0f
@@ -214,10 +217,13 @@ fun MineHeader(
                         spotColor = RoseRed.copy(alpha = 0.4f),
                         ambientColor = RoseRed.copy(alpha = 0.2f)
                     )
-                    .clickable(
-                        enabled = !isLoggedIn,
-                        onClick = onLoginClick
-                    ),
+                    .clickable {
+                        if (isLoggedIn) {
+                            onAccountInfoClick()
+                        } else {
+                            onLoginClick()
+                        }
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 if (isLoggedIn && userId != -1) {

@@ -5,13 +5,17 @@ import io.ktor.client.call.*
 import io.ktor.client.engine.okhttp.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
+import io.ktor.client.request.forms.*
 import io.ktor.http.*
+import io.ktor.http.content.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
 import android.util.Log
 
-class UserApi {
+class UserApi(private val token: String? = null) {
     private val client = HttpClient(OkHttp) {
         install(ContentNegotiation) {
             json(Json {
@@ -76,6 +80,89 @@ class UserApi {
             VerificationResponse(success = false, message = "网络错误: ${e.message}", data = null)
         }
     }
+    
+    /**
+     * 修改密码
+     */
+    suspend fun updatePassword(oldPassword: String, newPassword: String): UpdatePasswordResponse {
+        return try {
+            val response = client.post("$baseUrl/api/user/change-password") {
+                contentType(ContentType.Application.Json)
+                headers {
+                    token?.let { append("Authorization", "Bearer $it") }
+                }
+                setBody(UpdatePasswordRequest(
+                    oldPassword = oldPassword,
+                    newPassword = newPassword
+                ))
+            }
+            
+            val responseText = response.body<String>()
+            Log.d("UserApi", "修改密码响应: $responseText")
+            
+            val jsonResponse = Json.parseToJsonElement(responseText) as JsonObject
+            val success = jsonResponse["success"]?.toString()?.toBoolean() ?: false
+            val message = jsonResponse["message"]?.toString()?.removeSurrounding("\"") ?: ""
+            
+            UpdatePasswordResponse(success = success, message = message)
+        } catch (e: Exception) {
+            Log.e("UserApi", "修改密码失败", e)
+            UpdatePasswordResponse(success = false, message = "网络错误: ${e.message}")
+        }
+    }
+    
+    /**
+     * 更换头像
+     */
+    suspend fun updateAvatar(imageData: ByteArray): UpdateAvatarResponse {
+        return try {
+            // 使用 POST 方法上传头像到 /api/user/avatar/upload
+            val response = client.post("$baseUrl/api/user/avatar/upload") {
+                headers {
+                    token?.let { append("Authorization", "Bearer $it") }
+                }
+                setBody(
+                    MultiPartFormDataContent(
+                        formData {
+                            append("avatar", imageData, Headers.build {
+                                append(HttpHeaders.ContentDisposition, "filename=avatar.jpg")
+                                append(HttpHeaders.ContentType, "image/jpeg")
+                            })
+                        }
+                    )
+                )
+            }
+
+            val responseText = response.body<String>()
+            Log.d("UserApi", "更换头像响应状态: ${response.status}")
+            Log.d("UserApi", "更换头像响应内容: $responseText")
+
+            // 如果响应为空，根据状态码判断成功
+            if (responseText.isBlank()) {
+                val success = response.status.value in 200..299
+                val message = if (success) "头像更新成功" else "头像更新失败"
+                return UpdateAvatarResponse(success = success, message = message)
+            }
+
+            // 如果响应不为空，尝试解析 JSON
+            try {
+                val jsonResponse = Json.parseToJsonElement(responseText) as JsonObject
+                val success = jsonResponse["success"]?.toString()?.toBoolean() ?: false
+                val message = jsonResponse["message"]?.toString()?.removeSurrounding("\"") ?: ""
+                val avatarPath = jsonResponse["avatarPath"]?.toString()?.removeSurrounding("\"")
+
+                UpdateAvatarResponse(success = success, message = message, avatarUrl = avatarPath)
+            } catch (jsonException: Exception) {
+                // JSON 解析失败，根据状态码判断
+                val success = response.status.value in 200..299
+                val message = if (success) "头像更新成功" else "头像更新失败: $responseText"
+                UpdateAvatarResponse(success = success, message = message)
+            }
+        } catch (e: Exception) {
+            Log.e("UserApi", "更换头像失败", e)
+            UpdateAvatarResponse(success = false, message = "网络错误: ${e.message}")
+        }
+    }
 }
 
 // 数据模型
@@ -132,4 +219,23 @@ data class VerificationResponse(
     val success: Boolean,
     val message: String,
     val data: String?
+)
+
+@Serializable
+data class UpdatePasswordRequest(
+    val oldPassword: String,
+    val newPassword: String
+)
+
+@Serializable
+data class UpdatePasswordResponse(
+    val success: Boolean,
+    val message: String
+)
+
+@Serializable
+data class UpdateAvatarResponse(
+    val success: Boolean,
+    val message: String,
+    val avatarUrl: String? = null
 )
