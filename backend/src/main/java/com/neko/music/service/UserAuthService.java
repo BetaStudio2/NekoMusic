@@ -3,11 +3,11 @@ package com.neko.music.service;
 import com.neko.music.config.ConfigManager;
 import com.neko.music.database.DatabaseManager;
 import com.neko.music.model.User;
+import de.mkammerer.argon2.Argon2;
+import de.mkammerer.argon2.Argon2Factory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.sql.*;
 import java.util.Optional;
@@ -18,6 +18,7 @@ public class UserAuthService {
     private final ConfigManager configManager;
     private final EmailService emailService;
     private final RedisService redisService;
+    private final Argon2 argon2 = Argon2Factory.create();
     private static final SecureRandom secureRandom = new SecureRandom();
     
     private static final String VERIFICATION_CODE_PREFIX = "verification_code:";
@@ -70,7 +71,6 @@ public class UserAuthService {
     public Optional<User> authenticate(String usernameOrEmail, String password) {
         logger.info("用户登录尝试: {}", usernameOrEmail);
         
-        String hashedPassword = hashPassword(password);
         String sql = "SELECT id, username, password, email, created_at FROM users WHERE (username = ? OR email = ?)";
         
         try (Connection conn = databaseManager.getConnection();
@@ -82,9 +82,9 @@ public class UserAuthService {
             ResultSet rs = stmt.executeQuery();
             
             if (rs.next()) {
-                String storedPassword = rs.getString("password");
+                String storedPasswordHash = rs.getString("password");
                 
-                if (hashedPassword.equals(storedPassword)) {
+                if (argon2.verify(storedPasswordHash, password.toCharArray())) {
                     User user = new User();
                     user.setId(rs.getInt("id"));
                     user.setUsername(rs.getString("username"));
@@ -200,18 +200,7 @@ public class UserAuthService {
      * 密码哈希
      */
     private String hashPassword(String password) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] hashedBytes = md.digest(password.getBytes());
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hashedBytes) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            logger.error("密码哈希失败: {}", e.getMessage(), e);
-            return null;
-        }
+        return argon2.hash(10, 65536, 1, password.toCharArray());
     }
     
     /**

@@ -2,6 +2,8 @@ package com.neko.music.handlers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
+import de.mkammerer.argon2.Argon2;
+import de.mkammerer.argon2.Argon2Factory;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,8 +13,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -20,6 +20,7 @@ import java.sql.ResultSet;
 public class UserPasswordChangeHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserPasswordChangeHandler.class);
     private ObjectMapper objectMapper = new ObjectMapper();
+    private final Argon2 argon2 = Argon2Factory.create();
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -124,9 +125,8 @@ public class UserPasswordChangeHandler extends HttpServlet {
                 stmt.setInt(1, userId);
                 try (ResultSet rs = stmt.executeQuery()) {
                     if (rs.next()) {
-                        String storedPassword = rs.getString("password");
-                        String hashedOldPassword = hashPassword(oldPassword);
-                        return hashedOldPassword.equals(storedPassword);
+                        String storedPasswordHash = rs.getString("password");
+                        return argon2.verify(storedPasswordHash, oldPassword.toCharArray());
                     }
                 }
             }
@@ -143,7 +143,8 @@ public class UserPasswordChangeHandler extends HttpServlet {
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             String sql = "UPDATE users SET password = ? WHERE id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setString(1, hashPassword(newPassword));
+                String passwordHash = argon2.hash(10, 65536, 1, newPassword.toCharArray());
+                stmt.setString(1, passwordHash);
                 stmt.setInt(2, userId);
                 
                 int rowsAffected = stmt.executeUpdate();
@@ -152,24 +153,6 @@ public class UserPasswordChangeHandler extends HttpServlet {
         } catch (Exception e) {
             logger.error("更新密码时出错", e);
             return false;
-        }
-    }
-    
-    /**
-     * 密码哈希
-     */
-    private String hashPassword(String password) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] hashedBytes = md.digest(password.getBytes());
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hashedBytes) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            logger.error("密码哈希失败: {}", e.getMessage(), e);
-            return null;
         }
     }
     
