@@ -560,10 +560,10 @@ fun AvatarCropDialog(
     var scale by remember { mutableFloatStateOf(1f) }
     // 图片偏移量
     var offset by remember { mutableStateOf(Offset.Zero) }
-    // 图片尺寸
-    var imageSize by remember { mutableStateOf(IntSize.Zero) }
     // 容器尺寸
     var containerSize by remember { mutableStateOf(IntSize.Zero) }
+    // 原始图片尺寸
+    var originalBitmapSize by remember { mutableStateOf(IntSize.Zero) }
     
     // 计算裁剪区域
     val cropSize = minOf(containerSize.width, containerSize.height) * 0.8f
@@ -588,6 +588,7 @@ fun AvatarCropDialog(
                 drawable.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
                 drawable.draw(canvas)
                 value = bitmap.asImageBitmap()
+                originalBitmapSize = IntSize(drawable.intrinsicWidth, drawable.intrinsicHeight)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -595,18 +596,36 @@ fun AvatarCropDialog(
         }
     }.value
     
+    // 图片加载完成后，计算初始缩放比例让图片适应容器
+    LaunchedEffect(originalBitmapSize, containerSize) {
+        if (originalBitmapSize.width > 0 && originalBitmapSize.height > 0 && containerSize.width > 0) {
+            val bitmapWidth = originalBitmapSize.width.toFloat()
+            val bitmapHeight = originalBitmapSize.height.toFloat()
+            val containerWidth = containerSize.width.toFloat()
+            val containerHeight = containerSize.height.toFloat()
+            
+            // 计算让图片完全显示在容器中的缩放比例
+            val scaleWidth = containerWidth / bitmapWidth
+            val scaleHeight = containerHeight / bitmapHeight
+            val initialScale = minOf(scaleWidth, scaleHeight)
+            
+            scale = initialScale
+            offset = Offset.Zero
+        }
+    }
+    
     Box(
         modifier = Modifier
             .fillMaxSize()
             .zIndex(Float.MAX_VALUE)
-            .background(Color.Black.copy(alpha = 0.9f))
+            .background(Color.Black)
     ) {
         // 顶部栏（最上层）
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .zIndex(1f)
-                .background(Color.Black.copy(alpha = 0.5f))
+                .background(Color.Black.copy(alpha = 0.7f))
         ) {
             Row(
                 modifier = Modifier
@@ -632,41 +651,57 @@ fun AvatarCropDialog(
                         // 裁剪图片并上传
                         imageBitmap?.let { bitmap ->
                             val androidBitmap = bitmap.asAndroidBitmap()
-                            val cropWidth = cropSize / scale
-                            val cropHeight = cropSize / scale
+                            val bitmapWidth = originalBitmapSize.width.toFloat()
+                            val bitmapHeight = originalBitmapSize.height.toFloat()
                             
-                            // 计算裁剪区域
-                            val cropX = (containerSize.width / 2f - cropWidth / 2f - offset.x / scale).toInt()
-                            val cropY = (containerSize.height / 2f - cropHeight / 2f - offset.y / scale).toInt()
+                            // 裁剪框在屏幕中央
+                            val cropBoxCenterX = containerSize.width / 2f
+                            val cropBoxCenterY = containerSize.height / 2f
+                            val cropBoxLeft = cropBoxCenterX - cropSize / 2f
+                            val cropBoxTop = cropBoxCenterY - cropSize / 2f
                             
-                            // 计算实际裁剪尺寸，确保不超过图片边界
-                            val actualCropWidth = cropWidth.toInt().coerceAtMost(androidBitmap.width)
-                            val actualCropHeight = cropHeight.toInt().coerceAtMost(androidBitmap.height)
+                            // 计算图片显示的左上角位置（考虑偏移）
+                            val displayedImageWidth = bitmapWidth * scale
+                            val displayedImageHeight = bitmapHeight * scale
+                            val imageLeft = (containerSize.width - displayedImageWidth) / 2f + offset.x
+                            val imageTop = (containerSize.height - displayedImageHeight) / 2f + offset.y
                             
-                            // 计算裁剪起始位置，确保在图片范围内
-                            val actualCropX = cropX.coerceIn(0, androidBitmap.width - actualCropWidth)
-                            val actualCropY = cropY.coerceIn(0, androidBitmap.height - actualCropHeight)
+                            // 计算裁剪框在原图中的位置
+                            val cropXInImage = ((cropBoxLeft - imageLeft) / scale).toInt()
+                            val cropYInImage = ((cropBoxTop - imageTop) / scale).toInt()
+                            val cropWidthInImage = (cropSize / scale).toInt()
+                            val cropHeightInImage = (cropSize / scale).toInt()
                             
-                            // 如果裁剪区域无效，直接使用整个图片
-                            val croppedBitmap = if (actualCropWidth > 0 && actualCropHeight > 0) {
+                            // 确保裁剪区域在图片范围内
+                            val safeCropX = cropXInImage.coerceIn(0, androidBitmap.width - 1)
+                            val safeCropY = cropYInImage.coerceIn(0, androidBitmap.height - 1)
+                            val safeCropWidth = cropWidthInImage.coerceAtMost(androidBitmap.width - safeCropX)
+                            val safeCropHeight = cropHeightInImage.coerceAtMost(androidBitmap.height - safeCropY)
+                            
+                            // 裁剪图片
+                            val croppedBitmap = if (safeCropWidth > 0 && safeCropHeight > 0) {
                                 android.graphics.Bitmap.createBitmap(
                                     androidBitmap,
-                                    actualCropX,
-                                    actualCropY,
-                                    actualCropWidth,
-                                    actualCropHeight
+                                    safeCropX,
+                                    safeCropY,
+                                    safeCropWidth,
+                                    safeCropHeight
                                 )
                             } else {
-                                // 如果裁剪区域无效，使用整个图片并缩放
-                                android.graphics.Bitmap.createScaledBitmap(
+                                // 回退：使用图片中心
+                                val size = minOf(androidBitmap.width, androidBitmap.height)
+                                val x = (androidBitmap.width - size) / 2
+                                val y = (androidBitmap.height - size) / 2
+                                android.graphics.Bitmap.createBitmap(
                                     androidBitmap,
-                                    512,
-                                    512,
-                                    true
+                                    x,
+                                    y,
+                                    size,
+                                    size
                                 )
                             }
                             
-                            // 缩放到合适的尺寸
+                            // 缩放到512x512
                             val scaledBitmap = android.graphics.Bitmap.createScaledBitmap(
                                 croppedBitmap,
                                 512,
@@ -686,89 +721,77 @@ fun AvatarCropDialog(
         }
         
         // 裁剪预览区域
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .onGloballyPositioned { coordinates ->
                     containerSize = coordinates.size
                 }
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                if (imageBitmap != null) {
-                    Box(
+            if (imageBitmap != null) {
+                // 图片容器
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            detectTransformGestures { _, pan, zoom, _ ->
+                                val newScale = (scale * zoom).coerceIn(0.5f, 10f)
+                                offset = (offset + pan)
+                                scale = newScale
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    // 图片
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(imageUri)
+                            .build(),
+                        contentDescription = null,
                         modifier = Modifier
-                            .fillMaxSize()
-                            .pointerInput(Unit) {
-                                detectTransformGestures { _, pan, zoom, _ ->
-                                    scale = (scale * zoom).coerceIn(1f, 5f)
-                                    offset += pan
-                                    }
-                                }
-                        ) {
-                        // 图片
-                        AsyncImage(
-                            model = ImageRequest.Builder(context)
-                                .data(imageUri)
-                                .build(),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .offset {
-                                    androidx.compose.ui.unit.IntOffset(
-                                        x = offset.x.toInt(),
-                                        y = offset.y.toInt()
-                                    )
-                                }
-                                .scale(scale)
-                                .onGloballyPositioned { coordinates ->
-                                    imageSize = coordinates.size
-                                },
-                            contentScale = ContentScale.Fit
-                        )
-                    }
-                    
-                    // 1:1 裁剪框
-                    Box(
-                        modifier = Modifier
-                            .size(with(density) { cropSize.toDp() })
-                            .border(
-                                width = 2.dp,
-                                color = RoseRed,
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .clip(RoundedCornerShape(8.dp))
-                    ) {
-                        // 裁剪框外的半透明遮罩
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Transparent)
-                        )
-                    }
-                } else {
-                    CircularProgressIndicator(color = RoseRed)
+                            .offset {
+                                androidx.compose.ui.unit.IntOffset(
+                                    x = offset.x.toInt(),
+                                    y = offset.y.toInt()
+                                )
+                            }
+                            .scale(scale),
+                        contentScale = ContentScale.Fit
+                    )
                 }
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // 提示文本
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp)
-            ) {
-                Text(
-                    text = "拖动和缩放图片以选择头像区域",
-                    color = Color.Gray,
-                    fontSize = 14.sp,
+                
+                // 1:1 裁剪框（固定在屏幕中央）
+                Box(
+                    modifier = Modifier
+                        .size(with(density) { cropSize.toDp() })
+                        .border(
+                            width = 2.dp,
+                            color = RoseRed,
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .align(Alignment.Center)
+                )
+            } else {
+                CircularProgressIndicator(
+                    color = RoseRed,
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
+        }
+        
+        // 底部提示文本
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 32.dp)
+        ) {
+            Text(
+                text = "拖动和缩放图片以选择头像区域",
+                color = Color.White,
+                fontSize = 14.sp,
+                modifier = Modifier.align(Alignment.Center)
+            )
         }
     }
 }
