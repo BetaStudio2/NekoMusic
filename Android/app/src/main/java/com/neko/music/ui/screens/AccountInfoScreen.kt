@@ -568,27 +568,42 @@ fun AvatarCropDialog(
     // 计算裁剪区域
     val cropSize = minOf(containerSize.width, containerSize.height) * 0.8f
     
-    // 加载图片
+// 加载图片
     val imageBitmap: ImageBitmap? = produceState<ImageBitmap?>(initialValue = null, imageUri) {
+        val loader = coil.ImageLoader(context)
+        val request = ImageRequest.Builder(context)
+            .data(imageUri)
+            .allowHardware(false) // 需要软件渲染以支持裁剪
+            .size(coil.size.Size.ORIGINAL) // 加载原始尺寸
+            .build()
+        
         try {
-            val loader = coil.ImageLoader(context)
-            val request = ImageRequest.Builder(context)
-                .data(imageUri)
-                .build()
-            
             val result = loader.execute(request)
+            // 从 drawable 获取图片
             val drawable = result.drawable
             if (drawable != null) {
-                val bitmap = android.graphics.Bitmap.createBitmap(
-                    drawable.intrinsicWidth,
-                    drawable.intrinsicHeight,
-                    android.graphics.Bitmap.Config.ARGB_8888
-                )
-                val canvas = android.graphics.Canvas(bitmap)
-                drawable.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
-                drawable.draw(canvas)
-                value = bitmap.asImageBitmap()
-                originalBitmapSize = IntSize(drawable.intrinsicWidth, drawable.intrinsicHeight)
+                val sourceBitmap = if (drawable is android.graphics.drawable.BitmapDrawable) {
+                    // 如果是 BitmapDrawable，直接获取 bitmap
+                    var bmp = drawable.bitmap
+                    // 确保是软件位图
+                    if (bmp.config == android.graphics.Bitmap.Config.HARDWARE) {
+                        bmp = bmp.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                    }
+                    bmp
+                } else {
+                    // 如果是其他类型的 drawable，绘制到 canvas
+                    val bmp = android.graphics.Bitmap.createBitmap(
+                        drawable.intrinsicWidth,
+                        drawable.intrinsicHeight,
+                        android.graphics.Bitmap.Config.ARGB_8888
+                    )
+                    val canvas = android.graphics.Canvas(bmp)
+                    drawable.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
+                    drawable.draw(canvas)
+                    bmp
+                }
+                value = sourceBitmap.asImageBitmap()
+                originalBitmapSize = IntSize(sourceBitmap.width, sourceBitmap.height)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -624,12 +639,12 @@ fun AvatarCropDialog(
         label = "offset_animation"
     )
     
-    // 计算限制后的偏移量
-    val limitedOffsetState = remember(animatedOffset, scale, containerSize, originalBitmapSize) {
+// 计算限制后的偏移量
+    val limitedOffsetState = remember(scale, containerSize, imageBitmap) {
         mutableStateOf(
-            if (originalBitmapSize.width > 0 && containerSize.width > 0) {
-                val displayedWidth = originalBitmapSize.width * scale
-                val displayedHeight = originalBitmapSize.height * scale
+            if (imageBitmap != null && containerSize.width > 0) {
+                val displayedWidth = imageBitmap.width * scale
+                val displayedHeight = imageBitmap.height * scale
                 
                 val maxOffsetX = displayedWidth / 2f
                 val maxOffsetY = displayedHeight / 2f
@@ -644,11 +659,11 @@ fun AvatarCropDialog(
         )
     }
     
-    // 更新 limitedOffset 当依赖项变化时
-    LaunchedEffect(animatedOffset, scale, containerSize, originalBitmapSize) {
-        if (originalBitmapSize.width > 0 && containerSize.width > 0) {
-            val displayedWidth = originalBitmapSize.width * scale
-            val displayedHeight = originalBitmapSize.height * scale
+    // 更新限制后的偏移量
+    LaunchedEffect(animatedOffset, scale, containerSize, imageBitmap) {
+        if (imageBitmap != null && containerSize.width > 0) {
+            val displayedWidth = imageBitmap.width * scale
+            val displayedHeight = imageBitmap.height * scale
             
             val maxOffsetX = displayedWidth / 2f
             val maxOffsetY = displayedHeight / 2f
@@ -657,8 +672,6 @@ fun AvatarCropDialog(
                 x = animatedOffset.x.coerceIn(-maxOffsetX, maxOffsetX),
                 y = animatedOffset.y.coerceIn(-maxOffsetY, maxOffsetY)
             )
-        } else {
-            limitedOffsetState.value = animatedOffset
         }
     }
     
@@ -699,8 +712,8 @@ fun AvatarCropDialog(
                         // 裁剪图片并上传
                         imageBitmap?.let { bitmap ->
                             val androidBitmap = bitmap.asAndroidBitmap()
-                            val bitmapWidth = originalBitmapSize.width.toFloat()
-                            val bitmapHeight = originalBitmapSize.height.toFloat()
+                            val bitmapWidth = bitmap.width.toFloat()
+                            val bitmapHeight = bitmap.height.toFloat()
                             
                             // 裁剪框在屏幕中央
                             val cropBoxCenterX = containerSize.width / 2f
@@ -713,8 +726,10 @@ fun AvatarCropDialog(
                             val displayedImageHeight = bitmapHeight * scale
                             val containerWidthF = containerSize.width.toFloat()
                             val containerHeightF = containerSize.height.toFloat()
-                            val imageLeft = (containerWidthF - displayedImageWidth) / 2f + limitedOffsetState.value.x
-                            val imageTop = (containerHeightF - displayedImageHeight) / 2f + limitedOffsetState.value.y
+                            
+                            // 使用实际的显示偏移量（animatedOffset）
+                            val imageLeft = (containerWidthF - displayedImageWidth) / 2f + animatedOffset.x
+                            val imageTop = (containerHeightF - displayedImageHeight) / 2f + animatedOffset.y
                             
                             // 计算裁剪框在原图中的位置
                             val cropXInImage = ((cropBoxLeft - imageLeft) / scale).toInt()
