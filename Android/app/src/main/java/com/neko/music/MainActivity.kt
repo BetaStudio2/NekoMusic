@@ -69,6 +69,7 @@ import com.neko.music.ui.screens.SettingsScreen
 import com.neko.music.ui.screens.CacheManagementScreen
 import com.neko.music.ui.screens.AccountInfoScreen
 import com.neko.music.ui.theme.Neko云音乐Theme
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -409,24 +410,38 @@ fun MainScreen() {
                                 }
                             },
                             onPasswordUpdate = { oldPassword, newPassword ->
-                                scope.launch {
-                                    try {
-                                        val userApi = com.neko.music.data.api.UserApi(
+                                try {
+                                    val userApi = com.neko.music.data.api.UserApi(
                                             com.neko.music.data.manager.TokenManager(context)
                                                 .getToken()
                                         )
-                                        val response =
-                                            userApi.updatePassword(oldPassword, newPassword)
+                                    val response =
+                                        userApi.updatePassword(oldPassword, newPassword)
 
-                                        if (!response.success) {
-                                            Log.e(
-                                                "MainActivity",
-                                                "修改密码失败: ${response.message}"
-                                            )
-                                        }
-                                    } catch (e: Exception) {
-                                        Log.e("MainActivity", "修改密码失败", e)
+                                    if (response.success) {
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            "密码修改成功",
+                                            android.widget.Toast.LENGTH_SHORT
+                                        ).show()
+                                        true
+                                    } else {
+                                        // 失败时显示错误 Toast
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            response.message,
+                                            android.widget.Toast.LENGTH_SHORT
+                                        ).show()
+                                        false
                                     }
+                                } catch (e: Exception) {
+                                    Log.e("MainActivity", "修改密码失败", e)
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "修改密码失败: ${e.message}",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                    false
                                 }
                             }
                         )

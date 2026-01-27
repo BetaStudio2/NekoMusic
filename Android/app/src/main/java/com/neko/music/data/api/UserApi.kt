@@ -86,7 +86,7 @@ class UserApi(private val token: String? = null) {
      */
     suspend fun updatePassword(oldPassword: String, newPassword: String): UpdatePasswordResponse {
         return try {
-            val response = client.post("$baseUrl/api/user/change-password") {
+            val response = client.post("$baseUrl/api/user/password/change") {
                 contentType(ContentType.Application.Json)
                 headers {
                     token?.let { append("Authorization", "Bearer $it") }
@@ -101,8 +101,16 @@ class UserApi(private val token: String? = null) {
             Log.d("UserApi", "修改密码响应: $responseText")
             
             val jsonResponse = Json.parseToJsonElement(responseText) as JsonObject
+            
+            // 检查是否成功
             val success = jsonResponse["success"]?.toString()?.toBoolean() ?: false
-            val message = jsonResponse["message"]?.toString()?.removeSurrounding("\"") ?: ""
+            val message = if (success) {
+                // 成功响应: {"success": true, "message": "密码修改成功"}
+                jsonResponse["message"]?.toString()?.removeSurrounding("\"") ?: "密码修改成功"
+            } else {
+                // 失败响应: {"error": "原密码错误"}
+                jsonResponse["error"]?.toString()?.removeSurrounding("\"") ?: "修改密码失败"
+            }
             
             UpdatePasswordResponse(success = success, message = message)
         } catch (e: Exception) {

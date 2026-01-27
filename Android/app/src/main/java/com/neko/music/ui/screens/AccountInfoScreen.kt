@@ -63,7 +63,7 @@ fun AccountInfoScreen(
     username: String = "",
     email: String = "",
     onAvatarUpdate: (ByteArray) -> Unit = {},
-    onPasswordUpdate: (oldPassword: String, newPassword: String) -> Unit = { _, _ -> },
+    onPasswordUpdate: suspend (oldPassword: String, newPassword: String) -> Boolean = { _, _ -> false },
     onShowBottomControls: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -256,10 +256,7 @@ fun AccountInfoScreen(
         if (showPasswordDialog) {
             ChangePasswordDialog(
                 onDismiss = { showPasswordDialog = false },
-                onConfirm = { oldPassword, newPassword ->
-                    onPasswordUpdate(oldPassword, newPassword)
-                    showPasswordDialog = false
-                }
+                onConfirm = onPasswordUpdate
             )
         }
         
@@ -422,8 +419,9 @@ fun InfoCard(
 @Composable
 fun ChangePasswordDialog(
     onDismiss: () -> Unit,
-    onConfirm: (oldPassword: String, newPassword: String) -> Unit
+    onConfirm: suspend (oldPassword: String, newPassword: String) -> Boolean
 ) {
+    val context = LocalContext.current
     var oldPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
@@ -432,8 +430,9 @@ fun ChangePasswordDialog(
     var showConfirmPassword by remember { mutableStateOf(false) }
     
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isUpdating by remember { mutableStateOf(false) }
     
-    fun validateAndConfirm() {
+    suspend fun validateAndConfirm() {
         when {
             oldPassword.isEmpty() -> errorMessage = "请输入原密码"
             newPassword.isEmpty() -> errorMessage = "请输入新密码"
@@ -441,7 +440,14 @@ fun ChangePasswordDialog(
             newPassword != confirmPassword -> errorMessage = "两次输入的密码不一致"
             newPassword.length < 6 -> errorMessage = "新密码长度不能少于6位"
             else -> {
-                onConfirm(oldPassword, newPassword)
+                isUpdating = true
+                val success = onConfirm(oldPassword, newPassword)
+                isUpdating = false
+                if (!success) {
+                    // 失败时不关闭对话框，错误消息由 onConfirm 处理
+                } else {
+                    onDismiss()
+                }
             }
         }
     }
@@ -535,10 +541,16 @@ fun ChangePasswordDialog(
             }
         },
         confirmButton = {
+            var scope by remember { mutableStateOf<kotlinx.coroutines.CoroutineScope?>(null) }
+            scope = rememberCoroutineScope()
+            
             TextButton(
-                onClick = { validateAndConfirm() }
+                onClick = {
+                    scope?.launch { validateAndConfirm() }
+                },
+                enabled = !isUpdating
             ) {
-                Text("确定")
+                Text(if (isUpdating) "修改中..." else "确定")
             }
         },
         dismissButton = {
