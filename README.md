@@ -560,3 +560,351 @@ export default {
 };
 </script>
 ```
+
+# 用户修改密码API文档
+
+## 概述
+
+用户修改密码API允许已登录的用户修改自己的密码。需要提供用户token、原密码和新密码。
+
+## 认证
+
+需要在HTTP头中包含用户token：
+
+```
+Authorization: Bearer <token>
+```
+
+Token在用户登录时生成并返回给客户端。
+
+## API端点
+
+### 修改密码
+
+**请求:**
+```
+POST /api/user/password/change
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "oldPassword": "原密码",
+  "newPassword": "新密码"
+}
+```
+
+**请求参数:**
+- `oldPassword`: 原密码（必填，不能为空）
+- `newPassword`: 新密码（必填，不能为空，长度不能少于6位，不能与原密码相同）
+
+**响应（成功）:**
+```json
+{
+  "success": true,
+  "message": "密码修改成功"
+}
+```
+
+**响应（失败）:**
+```json
+{
+  "error": "原密码错误"
+}
+```
+
+或
+
+```json
+{
+  "error": "新密码长度不能少于6位"
+}
+```
+
+或
+
+```json
+{
+  "error": "新密码不能与原密码相同"
+}
+```
+
+## 错误响应
+
+### 401 Unauthorized
+```json
+{
+  "error": "未授权访问"
+}
+```
+
+或
+
+```json
+{
+  "error": "无效的Token"
+}
+```
+
+### 400 Bad Request
+```json
+{
+  "error": "原密码不能为空"
+}
+```
+
+或
+
+```json
+{
+  "error": "新密码不能为空"
+}
+```
+
+或
+
+```json
+{
+  "error": "新密码长度不能少于6位"
+}
+```
+
+或
+
+```json
+{
+  "error": "新密码不能与原密码相同"
+}
+```
+
+或
+
+```json
+{
+  "error": "原密码错误"
+}
+```
+
+### 500 Internal Server Error
+```json
+{
+  "error": "密码修改失败"
+}
+```
+
+## 注意事项
+
+1. 用户必须先登录才能修改密码
+2. 必须提供正确的原密码才能修改
+3. 新密码长度不能少于6位
+4. 新密码不能与原密码相同
+5. 密码使用 SHA-256 算法加密存储
+6. 修改密码不会影响当前的登录状态，用户可以继续使用当前token
+
+## 前端集成示例
+
+### 修改密码
+```javascript
+async function changePassword(oldPassword, newPassword) {
+  const token = localStorage.getItem('userToken');
+  
+  const response = await fetch('http://localhost:8080/api/user/password/change', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      oldPassword: oldPassword,
+      newPassword: newPassword
+    })
+  });
+  
+  const data = await response.json();
+  if (data.success) {
+    alert('密码修改成功！');
+    // 可以选择让用户重新登录
+    // logout();
+  } else {
+    alert('密码修改失败：' + data.error);
+  }
+  return data;
+}
+```
+
+### 在React组件中使用
+```jsx
+import React, { useState } from 'react';
+
+function PasswordChangeForm() {
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [message, setMessage] = useState('');
+  
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setMessage('');
+    
+    // 验证输入
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      setMessage('请填写所有字段');
+      return;
+    }
+    
+    if (newPassword.length < 6) {
+      setMessage('新密码长度不能少于6位');
+      return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+      setMessage('两次输入的密码不一致');
+      return;
+    }
+    
+    if (oldPassword === newPassword) {
+      setMessage('新密码不能与原密码相同');
+      return;
+    }
+    
+    const result = await changePassword(oldPassword, newPassword);
+    if (result.success) {
+      setMessage('密码修改成功！');
+      // 清空表单
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } else {
+      setMessage('密码修改失败：' + result.error);
+    }
+  };
+  
+  return (
+    <form onSubmit={handleSubmit}>
+      <div>
+        <label>原密码：</label>
+        <input
+          type="password"
+          value={oldPassword}
+          onChange={(e) => setOldPassword(e.target.value)}
+        />
+      </div>
+      <div>
+        <label>新密码：</label>
+        <input
+          type="password"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+        />
+      </div>
+      <div>
+        <label>确认新密码：</label>
+        <input
+          type="password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+        />
+      </div>
+      {message && <div>{message}</div>}
+      <button type="submit">修改密码</button>
+    </form>
+  );
+}
+```
+
+### 在Vue组件中使用
+```vue
+<template>
+  <form @submit.prevent="handleSubmit">
+    <div>
+      <label>原密码：</label>
+      <input
+        type="password"
+        v-model="oldPassword"
+      />
+    </div>
+    <div>
+      <label>新密码：</label>
+      <input
+        type="password"
+        v-model="newPassword"
+      />
+    </div>
+    <div>
+      <label>确认新密码：</label>
+      <input
+        type="password"
+        v-model="confirmPassword"
+      />
+    </div>
+    <div v-if="message">{{ message }}</div>
+    <button type="submit">修改密码</button>
+  </form>
+</template>
+
+<script>
+export default {
+  data() {
+    return {
+      oldPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+      message: ''
+    };
+  },
+  methods: {
+    async handleSubmit() {
+      this.message = '';
+      
+      // 验证输入
+      if (!this.oldPassword || !this.newPassword || !this.confirmPassword) {
+        this.message = '请填写所有字段';
+        return;
+      }
+      
+      if (this.newPassword.length < 6) {
+        this.message = '新密码长度不能少于6位';
+        return;
+      }
+      
+      if (this.newPassword !== this.confirmPassword) {
+        this.message = '两次输入的密码不一致';
+        return;
+      }
+      
+      if (this.oldPassword === this.newPassword) {
+        this.message = '新密码不能与原密码相同';
+        return;
+      }
+      
+      const result = await this.changePassword(this.oldPassword, this.newPassword);
+      if (result.success) {
+        this.message = '密码修改成功！';
+        // 清空表单
+        this.oldPassword = '';
+        this.newPassword = '';
+        this.confirmPassword = '';
+      } else {
+        this.message = '密码修改失败：' + result.error;
+      }
+    },
+    async changePassword(oldPassword, newPassword) {
+      const token = localStorage.getItem('userToken');
+      
+      const response = await fetch('http://localhost:8080/api/user/password/change', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          oldPassword: oldPassword,
+          newPassword: newPassword
+        })
+      });
+      
+      return await response.json();
+    }
+  }
+};
+</script>
+```

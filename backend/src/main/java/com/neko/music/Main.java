@@ -153,6 +153,10 @@ public class Main {
         ServletHolder userAvatarHolder = new ServletHolder(new UserAvatarHandler());
         context.addServlet(userAvatarHolder, "/api/user/avatar/*");
         
+        // 注册用户修改密码API处理器
+        ServletHolder userPasswordChangeHolder = new ServletHolder(new UserPasswordChangeHandler());
+        context.addServlet(userPasswordChangeHolder, "/api/user/password/change");
+        
         // 注册用户收藏API处理器
         ServletHolder userFavoriteHolder = new ServletHolder(new UserFavoriteHandler());
         context.addServlet(userFavoriteHolder, "/api/user/favorites/*");
@@ -168,6 +172,7 @@ public class Main {
         logger.info("  POST /api/music/search - 搜索音乐");
         logger.info("  GET /api/user/avatar/* - 获取用户头像");
         logger.info("  POST /api/user/avatar/upload - 上传用户头像 (需要用户登录)");
+        logger.info("  POST /api/user/password/change - 修改用户密码 (需要用户登录)");
         logger.info("  GET /api/user/favorites - 获取用户收藏列表 (需要用户登录)");
         logger.info("  POST /api/user/favorites - 添加收藏 (需要用户登录)");
         logger.info("  DELETE /api/user/favorites/{id} - 删除收藏 (需要用户登录)");
