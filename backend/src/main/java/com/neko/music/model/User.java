@@ -6,6 +6,7 @@ public class User {
     private String password;
     private String email;
     private boolean emailVerified;
+    private String avatar;
     private String createdAt;
 
     public User() {
@@ -64,5 +65,13 @@ public class User {
 
     public void setCreatedAt(String createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getAvatar() {
+        return avatar;
+    }
+
+    public void setAvatar(String avatar) {
+        this.avatar = avatar;
     }
 }

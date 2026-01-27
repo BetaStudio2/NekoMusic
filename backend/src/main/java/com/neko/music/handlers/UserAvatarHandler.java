@@ -13,6 +13,9 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 
 public class UserAvatarHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserAvatarHandler.class);
@@ -46,9 +49,42 @@ public class UserAvatarHandler extends HttpServlet {
             return;
         }
         
-        // 目前我们还没有用户头像上传功能，先返回默认头像
-        // 在实际应用中，这里会根据用户ID查找其上传的头像文件
+        // 从数据库获取用户头像路径
+        String avatarPath = getUserAvatarPath(userId);
+        
+        if (avatarPath != null && !avatarPath.isEmpty()) {
+            // 如果用户有头像，发送用户头像
+            Path avatarFile = Paths.get(avatarPath);
+            if (Files.exists(avatarFile) && Files.isRegularFile(avatarFile)) {
+                sendImageFile(avatarFile, response);
+                return;
+            } else {
+                logger.warn("用户头像文件不存在: {}", avatarPath);
+            }
+        }
+        
+        // 如果没有头像或文件不存在，返回默认头像
         sendDefaultIcon(response);
+    }
+    
+    /**
+     * 从数据库获取用户头像路径
+     */
+    private String getUserAvatarPath(int userId) {
+        try (Connection conn = Main.getDatabaseManager().getConnection()) {
+            String sql = "SELECT avatar FROM users WHERE id = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setInt(1, userId);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next()) {
+                        return rs.getString("avatar");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.error("获取用户头像路径时出错", e);
+        }
+        return null;
     }
     
     /**

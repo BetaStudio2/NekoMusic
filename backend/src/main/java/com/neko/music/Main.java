@@ -4,23 +4,7 @@ import com.neko.music.config.ConfigManager;
 import com.neko.music.database.AdminDatabaseManager;
 import com.neko.music.database.DatabaseManager;
 import com.neko.music.database.DatabaseInitializer;
-import com.neko.music.handlers.MusicSearchHandler;
-import com.neko.music.handlers.MusicManagementHandler;
-import com.neko.music.handlers.MusicCoverHandler;
-import com.neko.music.handlers.MusicInfoHandler;
-import com.neko.music.handlers.MusicFileHandler;
-import com.neko.music.handlers.MusicLyricsHandler;
-import com.neko.music.handlers.AdminLoginHandler;
-import com.neko.music.handlers.AdminStatsHandler;
-import com.neko.music.handlers.AdminUserManagementHandler;
-import com.neko.music.handlers.ChartDataHandler;
-import com.neko.music.handlers.FileUploadHandler;
-import com.neko.music.handlers.SendVerificationHandler;
-import com.neko.music.handlers.UserLoginHandler;
-import com.neko.music.handlers.UserRegisterHandler;
-import com.neko.music.handlers.UserAvatarHandler;
-import com.neko.music.handlers.UserFavoriteHandler;
-import com.neko.music.handlers.UserManagementHandler;
+import com.neko.music.handlers.*;
 
 import com.neko.music.service.AdminAuthService;
 import com.neko.music.service.EmailService;
@@ -163,6 +147,12 @@ public class Main {
         ServletHolder userAvatarHolder = new ServletHolder(new UserAvatarHandler());
         context.addServlet(userAvatarHolder, "/api/user/avatar/*");
         
+        // 注册用户头像上传API处理器
+        ServletHolder userAvatarUploadHolder = new ServletHolder(new UserAvatarUploadHandler());
+        jakarta.servlet.MultipartConfigElement avatarMultipartConfig = new jakarta.servlet.MultipartConfigElement(System.getProperty("java.io.tmpdir"));
+        userAvatarUploadHolder.getRegistration().setMultipartConfig(avatarMultipartConfig);
+        context.addServlet(userAvatarUploadHolder, "/api/user/avatar/upload");
+        
         // 注册用户收藏API处理器
         ServletHolder userFavoriteHolder = new ServletHolder(new UserFavoriteHandler());
         context.addServlet(userFavoriteHolder, "/api/user/favorites/*");
@@ -177,6 +167,7 @@ public class Main {
         logger.info("API端点:");
         logger.info("  POST /api/music/search - 搜索音乐");
         logger.info("  GET /api/user/avatar/* - 获取用户头像");
+        logger.info("  POST /api/user/avatar/upload - 上传用户头像 (需要用户登录)");
         logger.info("  GET /api/user/favorites - 获取用户收藏列表 (需要用户登录)");
         logger.info("  POST /api/user/favorites - 添加收藏 (需要用户登录)");
         logger.info("  DELETE /api/user/favorites/{id} - 删除收藏 (需要用户登录)");
