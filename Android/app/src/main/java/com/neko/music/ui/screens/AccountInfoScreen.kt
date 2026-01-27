@@ -9,6 +9,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -27,15 +28,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.core.view.WindowCompat
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -50,7 +63,8 @@ fun AccountInfoScreen(
     username: String = "",
     email: String = "",
     onAvatarUpdate: (ByteArray) -> Unit = {},
-    onPasswordUpdate: (oldPassword: String, newPassword: String) -> Unit = { _, _ -> }
+    onPasswordUpdate: (oldPassword: String, newPassword: String) -> Unit = { _, _ -> },
+    onShowBottomControls: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -61,12 +75,21 @@ fun AccountInfoScreen(
     // 选中的图片 URI
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     
+    // 显示裁剪界面
+    var showCropDialog by remember { mutableStateOf(false) }
+    
+    // 监听裁剪对话框状态，控制底部控件显示
+    LaunchedEffect(showCropDialog) {
+        onShowBottomControls(!showCropDialog)
+    }
+    
     // 图片选择器
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
             selectedImageUri = it
+            showCropDialog = true
         }
     }
     
@@ -229,25 +252,6 @@ fun AccountInfoScreen(
             )
         }
         
-        // 处理图片选择结果
-        LaunchedEffect(selectedImageUri) {
-            selectedImageUri?.let { uri ->
-                try {
-                    val inputStream = context.contentResolver.openInputStream(uri)
-                    val imageData = inputStream?.readBytes()
-                    inputStream?.close()
-                    
-                    if (imageData != null) {
-                        onAvatarUpdate(imageData)
-                        // 重置时间戳以刷新头像
-                        avatarUpdateTime = System.currentTimeMillis()
-                    }
-                } catch (e: Exception) {
-                    // 处理错误
-                }
-            }
-        }
-        
         // 修改密码对话框
         if (showPasswordDialog) {
             ChangePasswordDialog(
@@ -313,6 +317,27 @@ fun AccountInfoScreen(
                 showSuccess = false
             }
         }
+    }
+    
+    // 裁剪对话框（在最顶层显示，覆盖整个屏幕）
+    if (showCropDialog && selectedImageUri != null) {
+        AvatarCropDialog(
+            imageUri = selectedImageUri!!,
+            onDismiss = {
+                showCropDialog = false
+                selectedImageUri = null
+            },
+            onConfirm = { imageData ->
+                onAvatarUpdate(imageData)
+                // 重置时间戳以刷新头像
+                avatarUpdateTime = System.currentTimeMillis()
+                showCropDialog = false
+                selectedImageUri = null
+                // 显示成功提示
+                toastMessage = "头像更新成功"
+                showSuccess = true
+            }
+        )
     }
 }
 
@@ -517,4 +542,211 @@ fun ChangePasswordDialog(
             }
         }
     )
+}
+
+/**
+ * 头像裁剪对话框 - 支持1:1比例裁剪
+ */
+@Composable
+fun AvatarCropDialog(
+    imageUri: Uri,
+    onDismiss: () -> Unit,
+    onConfirm: (ByteArray) -> Unit
+) {
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    
+    // 图片缩放比例
+    var scale by remember { mutableFloatStateOf(1f) }
+    // 图片偏移量
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    // 图片尺寸
+    var imageSize by remember { mutableStateOf(IntSize.Zero) }
+    // 容器尺寸
+    var containerSize by remember { mutableStateOf(IntSize.Zero) }
+    
+    // 计算裁剪区域
+    val cropSize = minOf(containerSize.width, containerSize.height) * 0.8f
+    
+    // 加载图片
+    val imageBitmap: ImageBitmap? = produceState<ImageBitmap?>(initialValue = null, imageUri) {
+        try {
+            val loader = coil.ImageLoader(context)
+            val request = ImageRequest.Builder(context)
+                .data(imageUri)
+                .build()
+            
+            val result = loader.execute(request)
+            val drawable = result.drawable
+            if (drawable != null) {
+                val bitmap = android.graphics.Bitmap.createBitmap(
+                    drawable.intrinsicWidth,
+                    drawable.intrinsicHeight,
+                    android.graphics.Bitmap.Config.ARGB_8888
+                )
+                val canvas = android.graphics.Canvas(bitmap)
+                drawable.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
+                drawable.draw(canvas)
+                value = bitmap.asImageBitmap()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            value = null
+        }
+    }.value
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(Float.MAX_VALUE)
+            .background(Color.Black.copy(alpha = 0.9f))
+    ) {
+        // 顶部栏（最上层）
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .zIndex(1f)
+                .background(Color.Black.copy(alpha = 0.5f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onDismiss) {
+                    Text("取消", color = Color.White)
+                }
+                
+                Text(
+                    text = "裁剪头像",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                TextButton(
+                    onClick = {
+                        // 裁剪图片并上传
+                        imageBitmap?.let { bitmap ->
+                            val cropWidth = cropSize / scale
+                            val cropHeight = cropSize / scale
+                            val cropX = (containerSize.width / 2f - cropWidth / 2f - offset.x / scale).toInt()
+                            val cropY = (containerSize.height / 2f - cropHeight / 2f - offset.y / scale).toInt()
+                            
+                            val croppedBitmap = android.graphics.Bitmap.createBitmap(
+                                bitmap.asAndroidBitmap(),
+                                cropX.coerceIn(0, bitmap.width - cropWidth.toInt()).toInt(),
+                                cropY.coerceIn(0, bitmap.height - cropHeight.toInt()).toInt(),
+                                cropWidth.toInt().coerceAtMost(bitmap.width),
+                                cropHeight.toInt().coerceAtMost(bitmap.height)
+                            )
+                            
+                            // 缩放到合适的尺寸
+                            val scaledBitmap = android.graphics.Bitmap.createScaledBitmap(
+                                croppedBitmap,
+                                512,
+                                512,
+                                true
+                            )
+                            
+                            val stream = java.io.ByteArrayOutputStream()
+                            scaledBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, stream)
+                            onConfirm(stream.toByteArray())
+                        }
+                    }
+                ) {
+                    Text("完成", color = RoseRed)
+                }
+            }
+        }
+        
+        // 裁剪预览区域
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .onGloballyPositioned { coordinates ->
+                    containerSize = coordinates.size
+                }
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                if (imageBitmap != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(Unit) {
+                                detectTransformGestures { _, pan, zoom, _ ->
+                                    scale = (scale * zoom).coerceIn(1f, 5f)
+                                    offset += pan
+                                    }
+                                }
+                        ) {
+                        // 图片
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(imageUri)
+                                .build(),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .offset {
+                                    androidx.compose.ui.unit.IntOffset(
+                                        x = offset.x.toInt(),
+                                        y = offset.y.toInt()
+                                    )
+                                }
+                                .scale(scale)
+                                .onGloballyPositioned { coordinates ->
+                                    imageSize = coordinates.size
+                                },
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+                    
+                    // 1:1 裁剪框
+                    Box(
+                        modifier = Modifier
+                            .size(with(density) { cropSize.toDp() })
+                            .border(
+                                width = 2.dp,
+                                color = RoseRed,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .clip(RoundedCornerShape(8.dp))
+                    ) {
+                        // 裁剪框外的半透明遮罩
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Transparent)
+                        )
+                    }
+                } else {
+                    CircularProgressIndicator(color = RoseRed)
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // 提示文本
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp)
+            ) {
+                Text(
+                    text = "拖动和缩放图片以选择头像区域",
+                    color = Color.Gray,
+                    fontSize = 14.sp,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
+        }
+    }
 }

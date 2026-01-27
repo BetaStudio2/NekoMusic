@@ -366,6 +366,9 @@ fun MainScreen() {
                             userId = currentUserId,
                             username = currentUsername ?: "",
                             email = com.neko.music.data.manager.TokenManager(context).getEmail() ?: "",
+                            onShowBottomControls = { show ->
+                                showBottomControls = show
+                            },
                             onAvatarUpdate = { imageData ->
                                 scope.launch {
                                     try {
