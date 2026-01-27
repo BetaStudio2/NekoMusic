@@ -139,6 +139,14 @@ fun MineHeader(
 ) {
     val context = LocalContext.current
     
+    // 头像更新时间戳，用于绕过缓存
+    var avatarUpdateTime by remember { mutableStateOf(System.currentTimeMillis()) }
+    
+    // 监听登录状态变化，重新加载头像
+    LaunchedEffect(isLoggedIn, userId) {
+        avatarUpdateTime = System.currentTimeMillis()
+    }
+    
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -229,7 +237,7 @@ fun MineHeader(
                 if (isLoggedIn && userId != -1) {
                     AsyncImage(
                         model = ImageRequest.Builder(context)
-                            .data("https://music.cnmsb.xin/api/user/avatar/$userId")
+                            .data("https://music.cnmsb.xin/api/user/avatar/$userId?t=$avatarUpdateTime")
                             .crossfade(true)
                             .build(),
                         contentDescription = "用户头像",

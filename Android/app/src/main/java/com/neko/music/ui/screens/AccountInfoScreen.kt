@@ -55,6 +55,9 @@ fun AccountInfoScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     
+    // 头像更新时间戳，用于绕过缓存
+    var avatarUpdateTime by remember { mutableStateOf(System.currentTimeMillis()) }
+    
     // 选中的图片 URI
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     
@@ -138,7 +141,7 @@ fun AccountInfoScreen(
                 ) {
                     AsyncImage(
                         model = ImageRequest.Builder(context)
-                            .data("https://music.cnmsb.xin/api/user/avatar/$userId")
+                            .data("https://music.cnmsb.xin/api/user/avatar/$userId?t=$avatarUpdateTime")
                             .crossfade(true)
                             .build(),
                         contentDescription = "用户头像",
@@ -236,6 +239,8 @@ fun AccountInfoScreen(
                     
                     if (imageData != null) {
                         onAvatarUpdate(imageData)
+                        // 重置时间戳以刷新头像
+                        avatarUpdateTime = System.currentTimeMillis()
                     }
                 } catch (e: Exception) {
                     // 处理错误
