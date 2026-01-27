@@ -631,18 +631,40 @@ fun AvatarCropDialog(
                     onClick = {
                         // 裁剪图片并上传
                         imageBitmap?.let { bitmap ->
+                            val androidBitmap = bitmap.asAndroidBitmap()
                             val cropWidth = cropSize / scale
                             val cropHeight = cropSize / scale
+                            
+                            // 计算裁剪区域
                             val cropX = (containerSize.width / 2f - cropWidth / 2f - offset.x / scale).toInt()
                             val cropY = (containerSize.height / 2f - cropHeight / 2f - offset.y / scale).toInt()
                             
-                            val croppedBitmap = android.graphics.Bitmap.createBitmap(
-                                bitmap.asAndroidBitmap(),
-                                cropX.coerceIn(0, bitmap.width - cropWidth.toInt()).toInt(),
-                                cropY.coerceIn(0, bitmap.height - cropHeight.toInt()).toInt(),
-                                cropWidth.toInt().coerceAtMost(bitmap.width),
-                                cropHeight.toInt().coerceAtMost(bitmap.height)
-                            )
+                            // 计算实际裁剪尺寸，确保不超过图片边界
+                            val actualCropWidth = cropWidth.toInt().coerceAtMost(androidBitmap.width)
+                            val actualCropHeight = cropHeight.toInt().coerceAtMost(androidBitmap.height)
+                            
+                            // 计算裁剪起始位置，确保在图片范围内
+                            val actualCropX = cropX.coerceIn(0, androidBitmap.width - actualCropWidth)
+                            val actualCropY = cropY.coerceIn(0, androidBitmap.height - actualCropHeight)
+                            
+                            // 如果裁剪区域无效，直接使用整个图片
+                            val croppedBitmap = if (actualCropWidth > 0 && actualCropHeight > 0) {
+                                android.graphics.Bitmap.createBitmap(
+                                    androidBitmap,
+                                    actualCropX,
+                                    actualCropY,
+                                    actualCropWidth,
+                                    actualCropHeight
+                                )
+                            } else {
+                                // 如果裁剪区域无效，使用整个图片并缩放
+                                android.graphics.Bitmap.createScaledBitmap(
+                                    androidBitmap,
+                                    512,
+                                    512,
+                                    true
+                                )
+                            }
                             
                             // 缩放到合适的尺寸
                             val scaledBitmap = android.graphics.Bitmap.createScaledBitmap(
