@@ -210,7 +210,7 @@ fun AccountInfoScreen(
             InfoCard(
                 icon = "🔐",
                 title = "密码",
-                value = "••••••••",
+                value = "修改密码",
                 showArrow = true,
                 onClick = { showPasswordDialog = true }
             )
