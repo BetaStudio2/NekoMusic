@@ -864,4 +864,4 @@ async function changePassword(oldPassword, newPassword) {
 
 ## 联系方式
 
-如有问题或建议，请联系：admin@nekomusic.com
+如有问题或建议，请联系：support@cnmsb.xin
