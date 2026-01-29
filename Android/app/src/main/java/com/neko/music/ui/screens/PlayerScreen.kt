@@ -316,11 +316,20 @@ fun PlayerScreen(
                                             }
                                         }
                                     }
-                                    showShareDialog = true
+                                } else {
+                                    // 如果加载失败，清空歌单列表
+                                    playlists = emptyList()
                                 }
+                            } else {
+                                // 如果未登录，清空歌单列表
+                                playlists = emptyList()
                             }
+                            showShareDialog = true
                         } catch (e: Exception) {
                             Log.e("PlayerScreen", "加载歌单失败", e)
+                            // 即使加载失败，也显示对话框
+                            playlists = emptyList()
+                            showShareDialog = true
                         }
                     }
                 },
