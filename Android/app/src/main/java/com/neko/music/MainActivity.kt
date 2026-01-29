@@ -308,8 +308,11 @@ fun MainScreen() {
             }
             composable(BottomNavItem.MyPlaylists.route) {
                 MyPlaylistsScreen(
-                    onNavigateToPlaylistDetail = { playlistId, playlistName, playlistCover, playlistDescription, playlistCreator ->
-                        navController.navigate("playlist_detail/$playlistId/$playlistName/$playlistCover/$playlistDescription/$playlistCreator")
+                    onNavigateToPlaylistDetail = { playlistId, playlistName, playlistCover, playlistDescription ->
+                        val encodedName = java.net.URLEncoder.encode(playlistName, "UTF-8")
+                        val encodedCover = if (playlistCover != null) java.net.URLEncoder.encode(playlistCover, "UTF-8") else "null"
+                        val encodedDescription = java.net.URLEncoder.encode(playlistDescription ?: "", "UTF-8")
+                        navController.navigate("playlist_detail/$playlistId/$encodedName/$encodedCover/$encodedDescription")
                     },
                     onNavigateToFavorite = {
                         navController.navigate("favorites")
@@ -368,7 +371,7 @@ fun MainScreen() {
                 PlaylistDetailScreen(
                     playlistId = playlistId,
                     playlistName = java.net.URLDecoder.decode(playlistName, "UTF-8"),
-                    playlistCover = if (!playlistCover.isNullOrEmpty()) {
+                    playlistCover = if (!playlistCover.isNullOrEmpty() && playlistCover != "null") {
                         java.net.URLDecoder.decode(playlistCover, "UTF-8")
                     } else {
                         null
