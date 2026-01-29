@@ -21,7 +21,11 @@
           @click="goToPlaylistDetail(playlist.id)"
         >
           <div class="playlist-cover">
-            <span class="playlist-icon">🎵</span>
+            <img 
+              :src="getPlaylistCover(playlist)" 
+              alt="歌单封面"
+              @error="handleCoverError($event)"
+            />
           </div>
           <div class="playlist-info">
             <div class="playlist-title">{{ playlist.name }}</div>
@@ -164,6 +168,15 @@ const fetchPlaylists = async () => {
     const data = await response.json()
     if (data.success) {
       playlists.value = data.playlists || []
+      
+      // 为每个有音乐的歌单异步获取第一首音乐的封面
+      playlists.value.forEach(playlist => {
+        if (playlist.musicCount > 0) {
+          fetchPlaylistFirstMusicCover(playlist.id)
+        }
+      })
+      
+      console.log('歌单列表数据:', playlists.value)
     } else {
       toast.error(data.message || '获取歌单列表失败')
     }
@@ -273,6 +286,52 @@ const handleDeletePlaylist = async () => {
     console.error('歌单删除失败:', error)
     toast.error('歌单删除失败')
   }
+}
+
+// 获取歌单封面
+const getPlaylistCover = (playlist) => {
+  // 如果歌单有第一首音乐的封面信息（来自后端返回）
+  if (playlist.firstMusicId && playlist.firstMusicCover) {
+    return `${API_CONFIG.BASE_URL}/api/music/cover/${playlist.firstMusicId}`
+  }
+  // 如果歌单有音乐数量，尝试获取歌单详情来获取第一首音乐
+  if (playlist.musicCount > 0) {
+    // 异步获取，这里暂时返回默认头像
+    // 可以在 fetchPlaylists 中为每个歌单添加第一首音乐的封面信息
+    fetchPlaylistFirstMusicCover(playlist.id)
+  }
+  // 如果歌单没有音乐，使用默认用户头像
+  return `${API_CONFIG.BASE_URL}/api/user/avatar/default`
+}
+
+// 异步获取歌单第一首音乐的封面
+const fetchPlaylistFirstMusicCover = async (playlistId) => {
+  try {
+    const token = getToken()
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/playlist/music/${playlistId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': token
+      }
+    })
+    
+    const data = await response.json()
+    if (data.success && data.musicList && data.musicList.length > 0) {
+      const firstMusic = data.musicList[0]
+      const playlist = playlists.value.find(p => p.id === playlistId)
+      if (playlist) {
+        playlist.firstMusicId = firstMusic.id
+        playlist.firstMusicCover = firstMusic.coverPath
+      }
+    }
+  } catch (error) {
+    console.error('获取歌单第一首音乐封面失败:', error)
+  }
+}
+
+// 处理封面加载错误
+const handleCoverError = (event) => {
+  event.target.src = `${API_CONFIG.BASE_URL}/api/user/avatar/default`
 }
 
 // 格式化时间
@@ -391,17 +450,16 @@ onMounted(() => {
 .playlist-cover {
   width: 80px;
   height: 80px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 15px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow: hidden;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.playlist-icon {
-  font-size: 40px;
+.playlist-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .playlist-info {

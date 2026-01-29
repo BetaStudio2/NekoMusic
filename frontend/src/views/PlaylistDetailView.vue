@@ -5,7 +5,11 @@
         <button @click="goBack" class="back-btn">← 返回</button>
         <div class="playlist-info">
           <div class="playlist-cover">
-            <span class="playlist-icon">🎵</span>
+            <img 
+              :src="getPlaylistCover()" 
+              alt="歌单封面"
+              @error="handlePlaylistCoverError"
+            />
           </div>
           <div class="playlist-details">
             <h1>{{ playlist?.name }}</h1>
@@ -239,9 +243,23 @@ const getCoverUrl = (musicId) => {
   return `${API_CONFIG.BASE_URL}/api/music/cover/${musicId}`
 }
 
+const getPlaylistCover = () => {
+  // 如果歌单有音乐，使用第一首音乐的封面
+  if (musicList.value && musicList.value.length > 0) {
+    return getCoverUrl(musicList.value[0].id)
+  }
+  // 如果没有音乐，使用默认用户头像
+  return `${API_CONFIG.BASE_URL}/api/user/avatar/default`
+}
+
 const handleCoverError = (event) => {
   console.log('封面加载失败，使用默认封面')
   event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/`
+}
+
+const handlePlaylistCoverError = (event) => {
+  console.log('歌单封面加载失败，使用默认头像')
+  event.target.src = `${API_CONFIG.BASE_URL}/api/user/avatar/default`
 }
 
 const showAddMusicDialog = () => {
@@ -406,12 +424,16 @@ onMounted(() => {
 .playlist-cover {
   width: 120px;
   height: 120px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 15px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow: hidden;
   flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.playlist-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .playlist-icon {
