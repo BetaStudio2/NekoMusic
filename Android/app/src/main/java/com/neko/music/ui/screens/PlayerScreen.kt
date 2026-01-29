@@ -1966,18 +1966,15 @@ fun PlaylistChip(
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop
                 )
             } else {
-                Box(
+                // 没有封面，使用默认头像
+                AsyncImage(
+                    model = "https://music.cnmsb.xin/api/user/avatar/default",
+                    contentDescription = "封面",
                     modifier = Modifier
                         .size(24.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xFFE0E0E0)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "🎵",
-                        fontSize = 12.sp
-                    )
-                }
+                        .clip(RoundedCornerShape(6.dp)),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
             }
             
             // 歌单名称
