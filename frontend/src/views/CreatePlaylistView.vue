@@ -66,19 +66,32 @@ const handleCreatePlaylist = async () => {
   
   try {
     const token = getToken()
+    const requestData = {
+      name: playlistName.value.trim()
+    }
+    
+    // 只有当描述不为空时才添加到请求中
+    if (playlistDescription.value.trim()) {
+      requestData.description = playlistDescription.value.trim()
+    }
+    
+    console.log('创建歌单请求:', requestData)
+    console.log('Token:', token)
+    console.log('API URL:', `${API_CONFIG.BASE_URL}/api/user/playlist/create`)
+    
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/playlist/create`, {
       method: 'POST',
       headers: {
         'Authorization': token,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        name: playlistName.value.trim(),
-        description: playlistDescription.value.trim() || null
-      })
+      body: JSON.stringify(requestData)
     })
     
+    console.log('响应状态:', response.status)
     const data = await response.json()
+    console.log('响应数据:', data)
+    
     if (data.success) {
       toast.success('歌单创建成功')
       router.push('/playlists')
