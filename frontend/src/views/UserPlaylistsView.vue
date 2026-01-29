@@ -27,7 +27,7 @@
             <div class="playlist-title">{{ playlist.name }}</div>
             <div class="playlist-meta">
               <span class="playlist-count">{{ playlist.musicCount }} 首歌曲</span>
-              <span class="playlist-time">{{ formatTime(playlist.updatedAt) }}</span>
+<!--              <span class="playlist-time">{{ formatTime(playlist.updatedAt) }}</span>-->
             </div>
             <div v-if="playlist.description" class="playlist-description">
               {{ playlist.description }}
