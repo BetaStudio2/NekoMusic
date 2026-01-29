@@ -2,7 +2,7 @@
   <div class="playlists-view">
     <div class="playlists-container">
       <div class="playlists-header">
-        <h2>所有歌单</h2>
+        <h2>我的歌单</h2>
         <button @click="goToCreatePlaylist" class="create-btn">
           创建歌单
         </button>
