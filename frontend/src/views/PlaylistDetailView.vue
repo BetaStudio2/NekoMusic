@@ -11,12 +11,9 @@
             <h1>{{ playlist?.name }}</h1>
             <p v-if="playlist?.description" class="playlist-description">{{ playlist.description }}</p>
             <p class="playlist-meta">{{ playlist?.musicCount }} 首歌曲</p>
+            <!-- 调试信息 -->
+            <p v-if="!playlist?.description" class="debug-info" style="color: #999; font-size: 0.8em;">(无描述)</p>
           </div>
-        </div>
-        <div v-if="isOwner" class="playlist-actions">
-          <button @click="showAddMusicDialog" class="add-btn">➕ 添加音乐</button>
-          <button @click="editPlaylist" class="edit-btn">✏️ 编辑</button>
-          <button @click="confirmDelete" class="delete-btn">🗑️ 删除</button>
         </div>
       </div>
       
@@ -59,9 +56,6 @@
       <div v-else class="empty-state">
         <div class="empty-icon">🎵</div>
         <p>歌单暂无音乐</p>
-        <button v-if="isOwner" @click="showAddMusicDialog" class="add-music-btn">
-          添加音乐
-        </button>
       </div>
     </div>
     
@@ -131,7 +125,8 @@ const currentUser = computed(() => {
 })
 
 const isOwner = computed(() => {
-  return currentUser.value && playlist.value && currentUser.value.id === playlist.value.userId
+  if (!currentUser.value || !playlist.value) return false
+  return currentUser.value.id === playlist.value.userId
 })
 
 const getToken = () => {
@@ -141,6 +136,10 @@ const getToken = () => {
 const fetchPlaylistDetail = async () => {
   loading.value = true
   try {
+    // 先获取歌单的基本信息
+    await fetchPlaylistInfo()
+    
+    // 然后获取歌单的音乐列表
     const token = getToken()
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/playlist/music/${playlistId.value}`, {
       method: 'GET',
@@ -152,6 +151,10 @@ const fetchPlaylistDetail = async () => {
     const data = await response.json()
     if (data.success) {
       musicList.value = data.musicList || []
+      // 更新歌单的音乐数量
+      if (playlist.value && data.total !== undefined) {
+        playlist.value.musicCount = data.total
+      }
     } else {
       toast.error(data.message || '获取歌单详情失败')
     }
@@ -160,6 +163,36 @@ const fetchPlaylistDetail = async () => {
     toast.error('获取歌单详情失败')
   } finally {
     loading.value = false
+  }
+}
+
+const fetchPlaylistInfo = async () => {
+  try {
+    const token = getToken()
+    // 从所有歌单中找到当前歌单
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/playlists`, {
+      method: 'GET',
+      headers: {
+        'Authorization': token
+      }
+    })
+    
+    const data = await response.json()
+    if (data.success) {
+      const allPlaylists = data.playlists || []
+      const currentPlaylist = allPlaylists.find(p => p.id === parseInt(playlistId.value))
+      if (currentPlaylist) {
+        playlist.value = currentPlaylist
+        console.log('歌单信息加载成功:', playlist.value)
+      } else {
+        console.warn('未找到歌单:', playlistId.value)
+        toast.error('歌单不存在')
+      }
+    } else {
+      console.error('获取歌单列表失败:', data.message)
+    }
+  } catch (error) {
+    console.error('获取歌单信息失败:', error)
   }
 }
 
