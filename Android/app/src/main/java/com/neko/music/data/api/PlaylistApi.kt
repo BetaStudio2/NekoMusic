@@ -1,5 +1,6 @@
 package com.neko.music.data.api
 
+import android.util.Log
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.okhttp.*
@@ -78,21 +79,21 @@ data class DeletePlaylistRequest(
 )
 
 class PlaylistApi(private val token: String?) {
-    
-    private val json = Json { 
+
+    private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
     }
-    
+
     private val client = HttpClient(OkHttp) {
         expectSuccess = false
         install(ContentNegotiation) {
             json(json)
         }
     }
-    
+
     private val baseUrl = "https://music.cnmsb.xin/api/user/playlist"
-    
+
     /**
      * 获取我的歌单列表
      */
@@ -107,7 +108,7 @@ class PlaylistApi(private val token: String?) {
             PlaylistListResponse(false, "网络错误: ${e.message}", null)
         }
     }
-    
+
     /**
      * 创建歌单
      */
@@ -124,7 +125,7 @@ class PlaylistApi(private val token: String?) {
             PlaylistResponse(false, "网络错误: ${e.message}", null)
         }
     }
-    
+
     /**
      * 更新歌单
      */
@@ -141,7 +142,7 @@ class PlaylistApi(private val token: String?) {
             PlaylistResponse(false, "网络错误: ${e.message}", null)
         }
     }
-    
+
     /**
      * 删除歌单
      */
@@ -171,6 +172,39 @@ class PlaylistApi(private val token: String?) {
             }.body()
         } catch (e: Exception) {
             PlaylistMusicListResponse(false, "网络错误: ${e.message}", playlistId, 0, null)
+        }
+    }
+
+    /**
+     * 添加音乐到歌单
+     */
+
+    suspend fun addMusicToPlaylist(playlistId: Int, musicId: Int): PlaylistResponse {
+        return try {
+            val response = client.post("$baseUrl/music/add") {
+                headers {
+                    token?.let { append("Authorization", it) }
+                    append("Content-Type", "application/json")
+                }
+
+                setBody(
+                    """
+                        {
+                            "playlistId": $playlistId,
+                            "musicId": $musicId
+                        }
+                        """.trimIndent()
+                )
+            }
+
+            // 记录响应状态
+            val status = response.status
+            val bodyText = response.body<String>()
+            Log.d("PlaylistApi", "添加到歌单响应: status=$status, body=$bodyText")
+            response.body()
+        } catch (e: Exception) {
+            Log.e("PlaylistApi", "添加到歌单异常: ${e.message}", e)
+            PlaylistResponse(false, "网络错误: ${e.message}", null)
         }
     }
 }

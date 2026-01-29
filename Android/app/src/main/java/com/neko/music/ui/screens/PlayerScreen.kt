@@ -576,14 +576,32 @@ fun PlayerScreen(
                 scope.launch {
                     try {
                         val token = tokenManager.getToken()
+                        Log.d("PlayerScreen", "开始添加到歌单: playlistId=${playlist.id}, musicId=${currentMusic.id}, token=$token")
+                        
                         if (token != null) {
-                            // TODO: 调用API将音乐添加到歌单
-                            shareToastMessage = "已添加到${playlist.name}"
+                            val playlistApi = PlaylistApi(token)
+                            Log.d("PlayerScreen", "调用API添加到歌单")
+                            
+                            val response = playlistApi.addMusicToPlaylist(playlist.id, currentMusic.id)
+                            Log.d("PlayerScreen", "API响应: success=${response.success}, message=${response.message}")
+                            
+                            if (response.success) {
+                                shareToastMessage = "已添加到${playlist.name}"
+                                showShareToast = true
+                                showShareDialog = false
+                            } else {
+                                shareToastMessage = response.message
+                                showShareToast = true
+                            }
+                        } else {
+                            Log.e("PlayerScreen", "Token为空")
+                            shareToastMessage = "请先登录"
                             showShareToast = true
-                            showShareDialog = false
                         }
                     } catch (e: Exception) {
                         Log.e("PlayerScreen", "添加到歌单失败", e)
+                        shareToastMessage = "添加失败: ${e.message}"
+                        showShareToast = true
                     }
                 }
             }
