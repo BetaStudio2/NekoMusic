@@ -330,8 +330,8 @@ public class PlaylistService {
 
                 // 重新排序position：将所有position > removedPosition的记录减1
                 String updateSql = "UPDATE playlist_music SET position = position - 1 WHERE playlist_id = ? AND position > ?";
-                try (Connection conn = databaseManager.getConnection();
-                     PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
+                try (Connection updateConn = databaseManager.getConnection();
+                     PreparedStatement updateStmt = updateConn.prepareStatement(updateSql)) {
 
                     updateStmt.setInt(1, playlistId);
                     updateStmt.setInt(2, removedPosition);

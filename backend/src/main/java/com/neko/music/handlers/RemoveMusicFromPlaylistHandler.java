@@ -6,6 +6,7 @@ import com.neko.music.Main;
 import com.neko.music.service.PlaylistService;
 import com.neko.music.service.UserAuthService;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
