@@ -2,6 +2,7 @@ package com.neko.music.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,7 +18,9 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -26,6 +29,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.neko.music.R
 import com.neko.music.ui.theme.*
 
 @Composable
@@ -99,25 +103,25 @@ fun MineScreen(
                 )
                 
                 Spacer(modifier = Modifier.height(24.dp))
-                
+
                 MineStats()
                 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 
                 MineMenu(
                     onRecentPlayClick = onRecentPlayClick,
-                    onFavoriteClick = onFavoriteClick,
-                    isLoggedIn = isLoggedIn,
-                    onLogoutClick = onLogoutClick,
-                    onLoginClick = onLoginClick
+                    onFavoriteClick = onFavoriteClick
                 )
                 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 
                 MoreSettings(
-    onAboutClick = onAboutClick,
-    onNavigateToSettings = onNavigateToSettings
-)
+                    onAboutClick = onAboutClick,
+                    onNavigateToSettings = onNavigateToSettings,
+                    isLoggedIn = isLoggedIn,
+                    onLoginClick = onLoginClick,
+                    onLogoutClick = onLogoutClick
+                )
                 
                 Spacer(modifier = Modifier.height(100.dp))
             }
@@ -151,16 +155,13 @@ fun MineHeader(
         modifier = Modifier
             .fillMaxWidth()
             .height(240.dp)
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF6B5B95),
-                        RoseRed
-                    )
-                )
-            )
-            .statusBarsPadding()
     ) {
+        Image(
+            painter = painterResource(id = R.drawable.background),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
         // 装饰圆圈
         androidx.compose.foundation.Canvas(
             modifier = Modifier.fillMaxSize()
@@ -241,12 +242,18 @@ fun MineHeader(
                             .crossfade(true)
                             .build(),
                         contentDescription = "用户头像",
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
                 } else {
-                    Text(
-                        text = "🐱",
-                        fontSize = 42.sp
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data("https://music.cnmsb.xin/api/user/avatar/default")
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "默认头像",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
                 }
             }
@@ -254,20 +261,21 @@ fun MineHeader(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = if (isLoggedIn && username != null) username else "Neko用户",
+                text = if (isLoggedIn && username != null) username else "未登录",
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = Color(0xFFFF6B6B)
             )
             
             Spacer(modifier = Modifier.height(6.dp))
-            
-            Text(
-                text = if (isLoggedIn) "已登录" else "点击登录",
-                fontSize = 14.sp,
-                color = Color.White.copy(alpha = 0.8f),
-                fontWeight = FontWeight.Medium
-            )
+
+            // 名字下方的内容
+//            Text(
+//                text = if (isLoggedIn) "已登录" else "点击登录",
+//                fontSize = 14.sp,
+//                color = Color.White.copy(alpha = 0.8f),
+//                fontWeight = FontWeight.Medium
+//            )
         }
     }
 }
@@ -414,23 +422,6 @@ fun MineMenu(
         MenuItem("我的音乐", "🎵", RoseRed)
         MenuItem("我的收藏", "❤️", SakuraPink, onClick = onFavoriteClick)
         MenuItem("最近播放", "🕐", SkyBlue, onClick = onRecentPlayClick)
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        Text(
-            text = "更多",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        if (isLoggedIn) {
-            MenuItem("退出登录", "🚪", Lilac, onClick = onLogoutClick)
-        } else {
-            MenuItem("登录", "🔑", Peach, onClick = onLoginClick)
-        }
     }
 }
 
@@ -502,7 +493,10 @@ fun MenuItem(
 @Composable
 fun MoreSettings(
     onAboutClick: () -> Unit = {},
-    onNavigateToSettings: () -> Unit = {}
+    onNavigateToSettings: () -> Unit = {},
+    isLoggedIn: Boolean = false,
+    onLoginClick: () -> Unit = {},
+    onLogoutClick: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -520,6 +514,14 @@ fun MoreSettings(
         
         MenuItem("设置", "⚙️", RoseRed, onClick = onNavigateToSettings)
         MenuItem("关于我们", "ℹ️", StarYellow, onClick = onAboutClick)
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        if (isLoggedIn) {
+            MenuItem("退出登录", "🚪", Lilac, onClick = onLogoutClick)
+        } else {
+            MenuItem("登录", "🔑", Peach, onClick = onLoginClick)
+        }
     }
     
     // 页脚
