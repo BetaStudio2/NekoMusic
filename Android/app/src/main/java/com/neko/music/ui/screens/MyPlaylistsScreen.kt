@@ -23,12 +23,16 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.neko.music.R
 import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -45,7 +49,7 @@ fun MyPlaylistsScreen() {
     
     // Demo数据
     var playlists by remember { mutableStateOf(listOf(
-        Playlist(1, "我的收藏", 128, 1, "2026-01-15"),
+        Playlist(1, "我喜欢的音乐", 128, 1, "2026-01-15"),
         Playlist(2, "工作专用", 45, 1, "2026-01-20"),
         Playlist(3, "运动歌单", 23, 1, "2026-01-25"),
         Playlist(4, "睡前音乐", 67, 1, "2026-01-28")
@@ -90,19 +94,27 @@ fun MyPlaylistsScreen() {
     }
     
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
-            .statusBarsPadding()
+        modifier = Modifier.fillMaxSize()
     ) {
+        // 背景图片 - 使用WindowInsets处理状态栏
+        androidx.compose.foundation.Image(
+            painter = painterResource(id = R.drawable.list_background),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+        
+        // 内容层
         Column(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
         ) {
             // 顶部标题栏
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.White)
+                    .background(Color.Transparent)
                     .padding(top = 8.dp, bottom = 8.dp, start = 16.dp, end = 16.dp)
             ) {
                 Text(
@@ -189,23 +201,23 @@ fun MyPlaylistsScreen() {
                     // 添加创建按钮项
                     item {
                         Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(80.dp)
-                                .clickable {
-                                    editingPlaylist = null
-                                    dialogPlaylistName = ""
-                                    showCreateDialog = true
-                                },
-                            colors = CardDefaults.cardColors(
-                                containerColor = Color.White
-                            ),
-                            elevation = CardDefaults.cardElevation(
-                                defaultElevation = 2.dp
-                            ),
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(80.dp)
+                                        .clickable {
+                                            editingPlaylist = null
+                                            dialogPlaylistName = ""
+                                            showCreateDialog = true
+                                        },
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = Color.White
+                                    ),
+                                    elevation = CardDefaults.cardElevation(
+                                        defaultElevation = 4.dp,
+                                        hoveredElevation = 6.dp
+                                    ),
+                                    shape = RoundedCornerShape(16.dp)
+                                ) {                            Box(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -310,7 +322,7 @@ fun PlaylistItem(
             .clip(RoundedCornerShape(16.dp))
             .background(Color.White)
             .shadow(
-                elevation = 4.dp,
+                elevation = 6.dp,
                 spotColor = RoseRed.copy(alpha = 0.2f),
                 ambientColor = Color.Gray.copy(alpha = 0.1f)
             )
