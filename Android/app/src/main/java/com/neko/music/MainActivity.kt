@@ -413,7 +413,7 @@ fun MainScreen() {
                                             ""
                                         )
                                     )
-                                    val fullCoverUrl = "https://music.cnmsb.xin/api/music/cover/${playlistMusic.id}"
+                                    // coverFilePath设置为空字符串，让PlaylistScreen使用音乐ID生成封面URL
                                     playlistManager.addToPlaylist(
                                         com.neko.music.data.model.Music(
                                             playlistMusic.id,
@@ -422,7 +422,7 @@ fun MainScreen() {
                                             "",
                                             playlistMusic.duration,
                                             url,
-                                            fullCoverUrl,
+                                            "",
                                             0,
                                             ""
                                         )
