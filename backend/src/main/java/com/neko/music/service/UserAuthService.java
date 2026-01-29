@@ -33,73 +33,72 @@ public class UserAuthService {
     }
 
     /**
-     * 用户注册
+     * 用户注册（仅邮箱必须唯一，用户名可重复）
      */
     public boolean registerUser(String username, String password, String email) {
         logger.info("开始注册用户: {}", username);
-        
-        // 检查用户是否已存在
-        if (userExists(username, email)) {
-            logger.warn("用户已存在: {}", username);
+
+        // 检查邮箱是否已存在（用户名允许重复）
+        if (emailExists(email)) {
+            logger.warn("邮箱已存在: {}", email);
             return false;
         }
 
         String hashedPassword = hashPassword(password);
-        
+
         String sql = "INSERT INTO users (username, password, email, created_at) VALUES (?, ?, ?, NOW())";
-        
+
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+
             stmt.setString(1, username);
             stmt.setString(2, hashedPassword);
             stmt.setString(3, email);
-            
+
             int affectedRows = stmt.executeUpdate();
             logger.info("用户注册结果: {}, 用户名: {}", affectedRows > 0, username);
             return affectedRows > 0;
         } catch (SQLException e) {
             logger.error("用户注册失败: {}", e.getMessage(), e);
         }
-        
+
         return false;
     }
 
     /**
-     * 用户登录
+     * 用户登录（仅支持邮箱登录）
      */
-    public Optional<User> authenticate(String usernameOrEmail, String password) {
-        logger.info("用户登录尝试: {}", usernameOrEmail);
-        
-        String sql = "SELECT id, username, password, email, created_at FROM users WHERE (username = ? OR email = ?)";
-        
+    public Optional<User> authenticate(String email, String password) {
+        logger.info("用户登录尝试: {}", email);
+
+        String sql = "SELECT id, username, password, email, created_at FROM users WHERE email = ?";
+
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setString(1, usernameOrEmail);
-            stmt.setString(2, usernameOrEmail);
-            
+
+            stmt.setString(1, email);
+
             ResultSet rs = stmt.executeQuery();
-            
+
             if (rs.next()) {
                 String storedPasswordHash = rs.getString("password");
-                
+
                 if (argon2.verify(storedPasswordHash, password.toCharArray())) {
                     User user = new User();
                     user.setId(rs.getInt("id"));
                     user.setUsername(rs.getString("username"));
                     user.setEmail(rs.getString("email"));
                     user.setCreatedAt(rs.getString("created_at"));
-                    
-                    logger.info("用户登录成功: {}", usernameOrEmail);
+
+                    logger.info("用户登录成功: {}", email);
                     return Optional.of(user);
                 }
             }
         } catch (SQLException e) {
             logger.error("用户认证失败: {}", e.getMessage(), e);
         }
-        
-        logger.warn("用户登录失败: {}", usernameOrEmail);
+
+        logger.warn("用户登录失败: {}", email);
         return Optional.empty();
     }
 
@@ -174,25 +173,24 @@ public class UserAuthService {
     }
 
     /**
-     * 检查用户是否存在
+     * 检查邮箱是否已存在
      */
-    private boolean userExists(String username, String email) {
-        String sql = "SELECT COUNT(*) FROM users WHERE username = ? OR email = ?";
-        
+    private boolean emailExists(String email) {
+        String sql = "SELECT COUNT(*) FROM users WHERE email = ?";
+
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setString(1, username);
-            stmt.setString(2, email);
-            
+
+            stmt.setString(1, email);
+
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
                 return rs.getInt(1) > 0;
             }
         } catch (SQLException e) {
-            logger.error("检查用户存在性失败: {}", e.getMessage(), e);
+            logger.error("检查邮箱存在性失败: {}", e.getMessage(), e);
         }
-        
+
         return false;
     }
 

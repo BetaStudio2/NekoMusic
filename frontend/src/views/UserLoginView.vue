@@ -8,7 +8,7 @@
             type="text"
             v-model="username"
             class="form-input"
-            placeholder="用户名"
+            placeholder="邮箱"
             required
           />
         </div>

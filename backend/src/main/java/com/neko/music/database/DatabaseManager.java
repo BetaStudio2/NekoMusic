@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 
 public class DatabaseManager {
@@ -44,9 +45,9 @@ public class DatabaseManager {
             String createUserTable = """
                 CREATE TABLE IF NOT EXISTS users (
                     id INT AUTO_INCREMENT PRIMARY KEY,
-                    username VARCHAR(50) UNIQUE NOT NULL,
+                    username VARCHAR(50) NOT NULL,
                     password VARCHAR(255) NOT NULL,
-                    email VARCHAR(100),
+                    email VARCHAR(100) UNIQUE NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
                 """;
@@ -80,8 +81,8 @@ public class DatabaseManager {
             // 为已存在的 music 表添加 file_format 字段（如果不存在）
             try {
                 String alterTable = """
-                    ALTER TABLE music 
-                    ADD COLUMN IF NOT EXISTS file_format VARCHAR(10) DEFAULT 'mp3' 
+                    ALTER TABLE music
+                    ADD COLUMN IF NOT EXISTS file_format VARCHAR(10) DEFAULT 'mp3'
                     AFTER cover_path
                     """;
                 try (PreparedStatement stmt = conn.prepareStatement(alterTable)) {
@@ -91,6 +92,80 @@ public class DatabaseManager {
             } catch (SQLException e) {
                 // 字段可能已存在，忽略错误
                 logger.debug("file_format 字段可能已存在，跳过添加");
+            }
+
+            // 为已存在的 users 表迁移约束（移除username唯一约束，添加email唯一约束）
+            try {
+                // 检查是否有username的唯一索引
+                String checkIndex = """
+                    SELECT COUNT(*) FROM information_schema.statistics
+                    WHERE table_schema = DATABASE()
+                    AND table_name = 'users'
+                    AND index_name != 'PRIMARY'
+                    AND column_name = 'username'
+                    AND non_unique = 0
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(checkIndex);
+                     ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next() && rs.getInt(1) > 0) {
+                        // 删除username的唯一索引
+                        String dropIndex = "ALTER TABLE users DROP INDEX username";
+                        try (PreparedStatement dropStmt = conn.prepareStatement(dropIndex)) {
+                            dropStmt.execute();
+                            logger.info("已删除 users 表的 username 唯一索引");
+                        }
+                    }
+                }
+            } catch (SQLException e) {
+                logger.debug("删除 username 唯一索引失败（可能不存在）: {}", e.getMessage());
+            }
+
+            try {
+                // 检查email字段是否有唯一约束
+                String checkEmailUnique = """
+                    SELECT COUNT(*) FROM information_schema.statistics
+                    WHERE table_schema = DATABASE()
+                    AND table_name = 'users'
+                    AND index_name != 'PRIMARY'
+                    AND column_name = 'email'
+                    AND non_unique = 0
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(checkEmailUnique);
+                     ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next() && rs.getInt(1) == 0) {
+                        // 添加email的唯一索引
+                        String addIndex = "ALTER TABLE users ADD UNIQUE INDEX idx_email (email)";
+                        try (PreparedStatement addStmt = conn.prepareStatement(addIndex)) {
+                            addStmt.execute();
+                            logger.info("已为 users 表的 email 字段添加唯一索引");
+                        }
+                    }
+                }
+            } catch (SQLException e) {
+                logger.debug("添加 email 唯一索引失败（可能已存在）: {}", e.getMessage());
+            }
+
+            try {
+                // 检查email字段是否允许NULL
+                String checkNull = """
+                    SELECT is_nullable FROM information_schema.columns
+                    WHERE table_schema = DATABASE()
+                    AND table_name = 'users'
+                    AND column_name = 'email'
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(checkNull);
+                     ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next() && "YES".equals(rs.getString("is_nullable"))) {
+                        // 修改email字段为NOT NULL
+                        String alterEmail = "ALTER TABLE users MODIFY email VARCHAR(100) UNIQUE NOT NULL";
+                        try (PreparedStatement alterStmt = conn.prepareStatement(alterEmail)) {
+                            alterStmt.execute();
+                            logger.info("已修改 users 表的 email 字段为 NOT NULL");
+                        }
+                    }
+                }
+            } catch (SQLException e) {
+                logger.debug("修改 email 字段为 NOT NULL 失败（可能已修改）: {}", e.getMessage());
             }
             
             logger.info("数据库表初始化完成");

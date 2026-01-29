@@ -52,14 +52,12 @@ public class UserLoginHandler extends HttpServlet {
         try {
             JsonNode requestData = objectMapper.readTree(requestBody.toString());
 
-            String usernameOrEmail = null;
+            String email = null;
             String password = null;
 
             if (requestData != null) {
-                if (requestData.has("username")) {
-                    usernameOrEmail = requestData.get("username").asText();
-                } else if (requestData.has("email")) {
-                    usernameOrEmail = requestData.get("email").asText();
+                if (requestData.has("email")) {
+                    email = requestData.get("email").asText();
                 }
                 if (requestData.has("password")) {
                     password = requestData.get("password").asText();
@@ -67,10 +65,10 @@ public class UserLoginHandler extends HttpServlet {
             }
 
             // 验证请求参数
-            if (usernameOrEmail == null || password == null || 
-                usernameOrEmail.trim().isEmpty() || password.trim().isEmpty()) {
-                
-                sendResponse(response, false, "用户名/邮箱和密码不能为空", null);
+            if (email == null || password == null ||
+                email.trim().isEmpty() || password.trim().isEmpty()) {
+
+                sendResponse(response, false, "邮箱和密码不能为空", null);
                 return;
             }
 
@@ -81,36 +79,36 @@ public class UserLoginHandler extends HttpServlet {
             }
 
             // 用户认证
-            Optional<User> userOpt = userAuthService.authenticate(usernameOrEmail.trim(), password);
+            Optional<User> userOpt = userAuthService.authenticate(email.trim(), password);
 
             if (userOpt.isPresent()) {
                 User user = userOpt.get();
-                logger.info("用户登录成功: {}", user.getUsername());
-                
+                logger.info("用户登录成功: {}", user.getEmail());
+
                 // 生成token并保存到数据库
                 String token = userAuthService.createTokenForUser(user.getId());
-                
+
                 if (token == null) {
-                    logger.error("生成token失败: {}", user.getUsername());
+                    logger.error("生成token失败: {}", user.getEmail());
                     sendResponse(response, false, "登录失败，请稍后重试", null);
                     return;
                 }
-                
+
                 // 返回用户信息（不包含密码）和token
                 Map<String, Object> userData = new HashMap<>();
                 userData.put("id", user.getId());
                 userData.put("username", user.getUsername());
                 userData.put("email", user.getEmail());
                 userData.put("createdAt", user.getCreatedAt());
-                
+
                 Map<String, Object> responseData = new HashMap<>();
                 responseData.put("user", userData);
                 responseData.put("token", token);
-                
+
                 sendResponse(response, true, "登录成功", responseData);
             } else {
-                logger.warn("用户登录失败: {}", usernameOrEmail);
-                sendResponse(response, false, "用户名/邮箱或密码错误", null);
+                logger.warn("用户登录失败: {}", email);
+                sendResponse(response, false, "邮箱或密码错误", null);
             }
 
         } catch (Exception e) {
