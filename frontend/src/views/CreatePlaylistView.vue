@@ -114,11 +114,11 @@ const goBack = () => {
 <style scoped>
 .create-playlist-view {
   min-height: calc(100vh - 80px);
-  padding: 40px 20px;
+  padding: 20px;
 }
 
 .create-container {
-  max-width: 600px;
+  max-width: 800px;
   margin: 0 auto;
 }
 
@@ -126,36 +126,41 @@ const goBack = () => {
   display: flex;
   align-items: center;
   gap: 20px;
-  margin-bottom: 40px;
-  color: #333;
+  margin-bottom: 30px;
 }
 
 .back-btn {
-  background: #f3f4f6;
-  color: #666;
-  border: none;
+  background: rgba(255, 255, 255, 0.3);
+  color: #333;
+  border: 1px solid rgba(255, 255, 255, 0.3);
   padding: 10px 20px;
-  border-radius: 20px;
+  border-radius: 15px;
   font-size: 1em;
   cursor: pointer;
   transition: all 0.3s ease;
+  backdrop-filter: blur(5px);
 }
 
 .back-btn:hover {
-  background: #e5e7eb;
+  background: rgba(255, 255, 255, 0.5);
+  transform: translateY(-2px);
 }
 
 .create-header h2 {
   margin: 0;
-  font-size: 2.5em;
+  font-size: 2em;
   font-weight: 600;
+  color: #333;
 }
 
 .create-form {
-  background: white;
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border-radius: 20px;
   padding: 40px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .form-group {
@@ -179,19 +184,22 @@ const goBack = () => {
 .form-group textarea {
   width: 100%;
   padding: 14px 18px;
-  border: 2px solid #e5e7eb;
-  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 15px;
   font-size: 1em;
   transition: all 0.3s ease;
   box-sizing: border-box;
   font-family: inherit;
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(5px);
 }
 
 .form-group input:focus,
 .form-group textarea:focus {
   outline: none;
   border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
 }
 
 .form-group textarea {
@@ -203,7 +211,7 @@ const goBack = () => {
   position: absolute;
   right: 0;
   bottom: -25px;
-  color: #9ca3af;
+  color: #666;
   font-size: 0.9em;
 }
 
@@ -215,37 +223,39 @@ const goBack = () => {
 }
 
 .cancel-btn {
-  background: #f3f4f6;
-  color: #374151;
-  border: none;
+  background: rgba(255, 255, 255, 0.3);
+  color: #333;
+  border: 1px solid rgba(255, 255, 255, 0.3);
   padding: 14px 35px;
-  border-radius: 12px;
+  border-radius: 15px;
   font-size: 1em;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  backdrop-filter: blur(5px);
 }
 
 .cancel-btn:hover {
-  background: #e5e7eb;
+  background: rgba(255, 255, 255, 0.5);
+  transform: translateY(-2px);
 }
 
 .submit-btn {
-  background: #667eea;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
   padding: 14px 35px;
-  border-radius: 12px;
+  border-radius: 15px;
   font-size: 1em;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
 .submit-btn:hover:not(:disabled) {
-  background: #5568d3;
   transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }
 
 .submit-btn:disabled {
@@ -255,7 +265,7 @@ const goBack = () => {
 
 @media (max-width: 768px) {
   .create-header h2 {
-    font-size: 2em;
+    font-size: 1.5em;
   }
   
   .create-form {

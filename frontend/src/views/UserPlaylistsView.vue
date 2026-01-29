@@ -361,7 +361,7 @@ onMounted(() => {
 <style scoped>
 .playlists-view {
   min-height: calc(100vh - 80px);
-  padding: 40px 20px;
+  padding: 20px;
 }
 
 .playlists-container {
@@ -385,7 +385,7 @@ onMounted(() => {
 }
 
 .create-btn {
-  background: #667eea;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
   padding: 12px 24px;
@@ -393,12 +393,12 @@ onMounted(() => {
   font-size: 1em;
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
 .create-btn:hover {
-  background: #5568d3;
   transform: translateY(-2px);
-  box-shadow: 0 5px 20px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }
 
 .loading {
@@ -410,7 +410,7 @@ onMounted(() => {
 .loading-spinner {
   width: 50px;
   height: 50px;
-  border: 4px solid #e5e7eb;
+  border: 4px solid rgba(102, 126, 234, 0.2);
   border-top-color: #667eea;
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -428,7 +428,9 @@ onMounted(() => {
 }
 
 .playlist-item {
-  background: white;
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border-radius: 20px;
   padding: 20px;
   display: flex;
@@ -436,15 +438,15 @@ onMounted(() => {
   gap: 20px;
   cursor: pointer;
   transition: all 0.3s ease;
-  border: 1px solid #e5e7eb;
+  border: 1px solid rgba(255, 255, 255, 0.3);
   position: relative;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 15px rgba(31, 38, 135, 0.1);
 }
 
 .playlist-item:hover {
   transform: translateY(-5px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-  border-color: #667eea;
+  box-shadow: 0 8px 25px rgba(31, 38, 135, 0.2);
+  border-color: rgba(102, 126, 234, 0.3);
 }
 
 .playlist-cover {
@@ -453,7 +455,7 @@ onMounted(() => {
   border-radius: 15px;
   overflow: hidden;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .playlist-cover img {
@@ -501,9 +503,9 @@ onMounted(() => {
 
 .edit-btn,
 .delete-btn {
-  background: #f3f4f6;
+  background: rgba(255, 255, 255, 0.5);
   color: #666;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.3);
   width: 36px;
   height: 36px;
   border-radius: 50%;
@@ -513,18 +515,21 @@ onMounted(() => {
   justify-content: center;
   font-size: 1.2em;
   transition: all 0.3s ease;
+  backdrop-filter: blur(5px);
 }
 
 .edit-btn:hover {
-  background: #667eea;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   transform: scale(1.1);
+  border-color: transparent;
 }
 
 .delete-btn:hover {
-  background: #ef4444;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   color: white;
   transform: scale(1.1);
+  border-color: transparent;
 }
 
 .empty-state {
@@ -546,7 +551,7 @@ onMounted(() => {
 }
 
 .create-first-btn {
-  background: #667eea;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
   padding: 15px 40px;
@@ -555,12 +560,12 @@ onMounted(() => {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
 .create-first-btn:hover {
-  background: #5568d3;
   transform: translateY(-2px);
-  box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }
 
 .modal-overlay {
@@ -574,15 +579,19 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  backdrop-filter: blur(5px);
 }
 
 .modal-content {
-  background: white;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-radius: 20px;
   padding: 40px;
   max-width: 500px;
   width: 90%;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px rgba(31, 38, 135, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .modal-content h3 {
@@ -619,18 +628,21 @@ onMounted(() => {
 .form-group textarea {
   width: 100%;
   padding: 12px 16px;
-  border: 2px solid #e5e7eb;
-  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 15px;
   font-size: 1em;
   transition: all 0.3s ease;
   box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(5px);
 }
 
 .form-group input:focus,
 .form-group textarea:focus {
   outline: none;
   border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
 }
 
 .form-actions {
@@ -641,48 +653,50 @@ onMounted(() => {
 }
 
 .cancel-btn {
-  background: #f3f4f6;
-  color: #374151;
-  border: none;
+  background: rgba(255, 255, 255, 0.5);
+  color: #333;
+  border: 1px solid rgba(255, 255, 255, 0.3);
   padding: 12px 30px;
-  border-radius: 10px;
+  border-radius: 15px;
   font-size: 1em;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  backdrop-filter: blur(5px);
 }
 
 .cancel-btn:hover {
-  background: #e5e7eb;
+  background: rgba(255, 255, 255, 0.7);
+  transform: translateY(-2px);
 }
 
 .submit-btn,
 .delete-confirm-btn {
-  background: #667eea;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
   padding: 12px 30px;
-  border-radius: 10px;
+  border-radius: 15px;
   font-size: 1em;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
 .submit-btn:hover,
 .delete-confirm-btn:hover {
-  background: #5568d3;
   transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }
 
 .delete-confirm-btn {
-  background: #ef4444;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
 }
 
 .delete-confirm-btn:hover {
-  background: #dc2626;
-  box-shadow: 0 5px 15px rgba(239, 68, 68, 0.3);
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
 }
 
 @media (max-width: 768px) {
@@ -701,10 +715,6 @@ onMounted(() => {
   .playlist-cover {
     width: 60px;
     height: 60px;
-  }
-  
-  .playlist-icon {
-    font-size: 30px;
   }
 }
 </style>

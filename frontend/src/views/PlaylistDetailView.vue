@@ -379,7 +379,7 @@ onMounted(() => {
 <style scoped>
 .playlist-detail-view {
   min-height: calc(100vh - 80px);
-  padding: 40px 20px;
+  padding: 20px;
 }
 
 .playlist-detail-container {
@@ -388,30 +388,35 @@ onMounted(() => {
 }
 
 .playlist-header {
-  background: white;
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border-radius: 20px;
   padding: 30px;
   margin-bottom: 30px;
   display: flex;
   align-items: center;
   gap: 30px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 15px rgba(31, 38, 135, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .back-btn {
-  background: #f3f4f6;
-  color: #666;
-  border: none;
+  background: rgba(255, 255, 255, 0.5);
+  color: #333;
+  border: 1px solid rgba(255, 255, 255, 0.3);
   padding: 10px 20px;
-  border-radius: 20px;
+  border-radius: 15px;
   font-size: 1em;
   cursor: pointer;
   transition: all 0.3s ease;
   white-space: nowrap;
+  backdrop-filter: blur(5px);
 }
 
 .back-btn:hover {
-  background: #e5e7eb;
+  background: rgba(255, 255, 255, 0.7);
+  transform: translateY(-2px);
 }
 
 .playlist-info {
@@ -427,7 +432,7 @@ onMounted(() => {
   border-radius: 15px;
   overflow: hidden;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .playlist-cover img {
@@ -473,26 +478,31 @@ onMounted(() => {
 .add-btn,
 .edit-btn,
 .delete-btn {
-  background: #f3f4f6;
-  color: #666;
-  border: none;
+  background: rgba(255, 255, 255, 0.5);
+  color: #333;
+  border: 1px solid rgba(255, 255, 255, 0.3);
   padding: 12px 24px;
-  border-radius: 12px;
+  border-radius: 15px;
   font-size: 1em;
   cursor: pointer;
   transition: all 0.3s ease;
   white-space: nowrap;
+  backdrop-filter: blur(5px);
 }
 
 .add-btn:hover,
 .edit-btn:hover {
-  background: #667eea;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
+  border-color: transparent;
+  transform: translateY(-2px);
 }
 
 .delete-btn:hover {
-  background: #ef4444;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   color: white;
+  border-color: transparent;
+  transform: translateY(-2px);
 }
 
 .loading {
@@ -504,7 +514,7 @@ onMounted(() => {
 .loading-spinner {
   width: 50px;
   height: 50px;
-  border: 4px solid #e5e7eb;
+  border: 4px solid rgba(102, 126, 234, 0.2);
   border-top-color: #667eea;
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -516,17 +526,20 @@ onMounted(() => {
 }
 
 .music-list {
-  background: white;
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 15px rgba(31, 38, 135, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .music-item {
   display: flex;
   align-items: center;
   padding: 20px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   transition: all 0.3s ease;
   cursor: pointer;
 }
@@ -536,7 +549,7 @@ onMounted(() => {
 }
 
 .music-item:hover {
-  background: #f9fafb;
+  background: rgba(255, 255, 255, 0.4);
 }
 
 .music-index {
@@ -553,6 +566,7 @@ onMounted(() => {
   overflow: hidden;
   margin-right: 20px;
   flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .music-cover img {
@@ -597,9 +611,9 @@ onMounted(() => {
 }
 
 .remove-btn {
-  background: #fef2f2;
+  background: rgba(239, 68, 68, 0.1);
   color: #ef4444;
-  border: none;
+  border: 1px solid rgba(239, 68, 68, 0.3);
   width: 36px;
   height: 36px;
   border-radius: 50%;
@@ -609,8 +623,9 @@ onMounted(() => {
 }
 
 .remove-btn:hover {
-  background: #ef4444;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   color: white;
+  border-color: transparent;
   transform: scale(1.1);
 }
 
@@ -627,7 +642,7 @@ onMounted(() => {
 }
 
 .add-music-btn {
-  background: #667eea;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
   padding: 15px 40px;
@@ -637,12 +652,12 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.3s ease;
   margin-top: 20px;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
 .add-music-btn:hover {
-  background: #5568d3;
   transform: translateY(-2px);
-  box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }
 
 .modal-overlay {
@@ -656,17 +671,21 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  backdrop-filter: blur(5px);
 }
 
 .modal-content {
-  background: white;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-radius: 20px;
   padding: 30px;
   max-width: 600px;
   width: 90%;
   max-height: 80vh;
   overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px rgba(31, 38, 135, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .modal-content h3 {
@@ -682,15 +701,19 @@ onMounted(() => {
 .search-box input {
   width: 100%;
   padding: 14px 18px;
-  border: 2px solid #e5e7eb;
-  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 15px;
   font-size: 1em;
   box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(5px);
 }
 
 .search-box input:focus {
   outline: none;
   border-color: #667eea;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
 }
 
 .search-results {
@@ -702,20 +725,23 @@ onMounted(() => {
   display: flex;
   align-items: center;
   padding: 12px;
-  border-radius: 10px;
+  border-radius: 15px;
   cursor: pointer;
   transition: all 0.3s ease;
   margin-bottom: 10px;
+  background: rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .search-result-item:hover {
-  background: #f3f4f6;
+  background: rgba(255, 255, 255, 0.5);
+  transform: translateY(-2px);
 }
 
 .result-cover {
   width: 50px;
   height: 50px;
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
   margin-right: 15px;
   flex-shrink: 0;
@@ -747,7 +773,7 @@ onMounted(() => {
 }
 
 .add-btn-small {
-  background: #667eea;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
   width: 36px;
@@ -756,11 +782,12 @@ onMounted(() => {
   cursor: pointer;
   font-size: 1.2em;
   transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
 .add-btn-small:hover {
-  background: #5568d3;
   transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
 .no-results {
