@@ -78,6 +78,7 @@ class AppUpdateManager(private val context: Context) {
      */
     suspend fun checkUpdate(): UpdateInfo? = withContext(Dispatchers.IO) {
         return@withContext try {
+            Log.d("AppUpdateManager", "开始检查更新...")
             val response: VersionResponse = client.get(versionCheckUrl).body()
             val currentVersion = getCurrentVersion()
             val currentVersionName = currentVersion.first
@@ -86,11 +87,19 @@ class AppUpdateManager(private val context: Context) {
             val versionName = response.ver
             val updateUrl = response.updateUrl
             
+            Log.d("AppUpdateManager", "当前版本: $currentVersionName ($currentVersionCode)")
+            Log.d("AppUpdateManager", "服务器版本: $versionName")
+            Log.d("AppUpdateManager", "更新URL: $updateUrl")
+            
             // 提取 versionCode（括号中的数字）
             val versionCode = extractVersionCode(versionName)
             
+            Log.d("AppUpdateManager", "提取的版本号: $versionCode")
+            
             // 判断是否需要更新：两个版本数据都必须比当前版本新
             val isUpdateAvailable = versionCode > currentVersionCode
+            
+            Log.d("AppUpdateManager", "是否需要更新: $isUpdateAvailable")
             
             UpdateInfo(
                 versionName = versionName,
@@ -105,12 +114,40 @@ class AppUpdateManager(private val context: Context) {
     }    
     /**
      * 从 versionName 中提取 versionCode
-     * 格式：versionName(versionCode)
+     * 支持多种格式：
+     * - versionName(versionCode)
+     * - versionName-VERSIONCODE
+     * - versionName-BETA-VERSIONCODE
      */
     private fun extractVersionCode(versionName: String): Int {
-        val pattern = "\\((\\d+)\\)".toRegex()
-        val match = pattern.find(versionName)
-        return match?.groupValues?.get(1)?.toIntOrNull() ?: 1
+        // 尝试多种提取方式
+        val patterns = listOf(
+            "\\((\\d+)\\)".toRegex(),  // (20)
+            "-(\\d+)$".toRegex(),         // -21
+            "-BETA-(\\d+)$".toRegex(),    // -BETA-21
+            "-RC-(\\d+)$".toRegex(),      // -RC-21
+            "-ALPHA-(\\d+)$".toRegex()    // -ALPHA-21
+        )
+        
+        for (pattern in patterns) {
+            val match = pattern.find(versionName)
+            if (match != null) {
+                return match.groupValues.get(1)?.toIntOrNull() ?: 1
+            }
+        }
+        
+        // 如果都不匹配，尝试从末尾提取所有数字
+        val lastDash = versionName.lastIndexOf('-')
+        if (lastDash != -1) {
+            val afterDash = versionName.substring(lastDash + 1)
+            val number = afterDash.toIntOrNull()
+            if (number != null) {
+                return number
+            }
+        }
+        
+        Log.w("AppUpdateManager", "无法从版本名中提取版本号: $versionName")
+        return 1
     }
     
     /**
