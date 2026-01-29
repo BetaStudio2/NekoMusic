@@ -17,10 +17,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -201,53 +204,53 @@ fun HomeScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp)
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
                         .statusBarsPadding()
                 ) {
-                    Row(
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(56.dp)
-                            .background(
-                                color = Color.White,
-                                shape = RoundedCornerShape(28.dp)
-                            )
+                            .height(52.dp)
                             .shadow(
-                                elevation = 4.dp,
-                                spotColor = Color.Black.copy(alpha = 0.1f),
+                                elevation = 8.dp,
+                                spotColor = Color.Black.copy(alpha = 0.15f),
                                 ambientColor = Color.Gray.copy(alpha = 0.1f),
-                                shape = RoundedCornerShape(28.dp)
+                                shape = RoundedCornerShape(26.dp)
                             )
-                            .padding(horizontal = 20.dp)
+                            .background(
+                                color = Color.White.copy(alpha = 0.9f),
+                                shape = RoundedCornerShape(26.dp)
+                            )
                             .clickable {
                                 Log.d("HomeScreen", "搜索框被点击")
                                 onSearchClick()
-                            },
-                        verticalAlignment = Alignment.CenterVertically
+                            }
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "搜索",
-                            tint = Color.Gray,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Text(
-                            text = "搜索音乐、歌手、专辑...",
-                            fontSize = 16.sp,
-                            color = Color.Gray.copy(alpha = 0.7f),
-                            fontWeight = FontWeight.Medium
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 22.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "搜索",
+                                tint = RoseRed.copy(alpha = 0.8f),
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(
+                                text = "搜索音乐、歌手、专辑...",
+                                fontSize = 15.sp,
+                                color = Color.Gray.copy(alpha = 0.65f),
+                                fontWeight = FontWeight.Normal
+                            )
+                        }
                     }
                 }
                 
                 // 欢迎横幅
                 WelcomeBanner()
-                
-                // 快速访问
-                QuickAccessSection(
-                    onNavigateToFavorite = onNavigateToFavorite
-                )
                 
                 // 推荐歌单
                 RecommendedPlaylists()
@@ -366,7 +369,7 @@ fun WelcomeBanner() {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 12.dp)
-            .height(110.dp)
+            .height(100.dp)
             .background(
                 brush = Brush.horizontalGradient(
                     colors = listOf(
@@ -413,7 +416,7 @@ fun WelcomeBanner() {
         ) {
             Column {
                 Text(
-                    text = "✨ 探索音乐世界",
+                    text = "探索音乐世界",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     color = RoseRed,
@@ -441,9 +444,11 @@ fun WelcomeBanner() {
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "🎧",
-                    fontSize = 32.sp
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = null,
+                    tint = RoseRed,
+                    modifier = Modifier.size(28.dp)
                 )
             }
         }
@@ -574,41 +579,7 @@ fun QuickAccessItem(
 
 @Composable
 fun RecommendedPlaylists() {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "推荐歌单",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black,
-                letterSpacing = 0.3.sp
-            )
-            Text(
-                text = "查看全部",
-                fontSize = 15.sp,
-                color = RoseRed,
-                fontWeight = FontWeight.Medium
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            items(listOf("流行", "摇滚", "古典", "电子", "爵士")) { genre ->
-                PlaylistCard(genre = genre)
-            }
-        }
-    }
+    // 已移除
 }
 
 @Composable
@@ -694,17 +665,13 @@ fun PlaylistCard(genre: String) {
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = when (genre) {
-                        "流行" -> "🎸"
-                        "摇滚" -> "🎤"
-                        "古典" -> "🎻"
-                        "电子" -> "🎹"
-                        "爵士" -> "🎷"
-                        else -> "🎵"
-                    },
-                    fontSize = 42.sp
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = null,
+                    tint = gradientColors[0],
+                    modifier = Modifier.size(40.dp)
                 )
+
             }
             Spacer(modifier = Modifier.height(16.dp))
             Text(
