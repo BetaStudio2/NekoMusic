@@ -497,102 +497,188 @@ fun MainScreen() {
         }
 
         // 只在非播放页面显示迷你播放器和底部导航栏 - 悬浮在底部
-        if (!isPlayerScreen && showBottomControls) {
-            // MiniPlayer - 悬浮在底部
-            androidx.compose.animation.AnimatedVisibility(
-                visible = true,
-                enter = if (returningFromPlayer) {
-                    androidx.compose.animation.slideInVertically(
-                        initialOffsetY = { fullHeight -> fullHeight },
-                        animationSpec = tween(
-                            durationMillis = 200,
-                            easing = androidx.compose.animation.core.FastOutSlowInEasing
-                        )
-                    )
-                } else {
-                    androidx.compose.animation.fadeIn(animationSpec = tween(durationMillis = 0))
-                },
-                label = "miniPlayer"
-            ) {
-                androidx.compose.ui.layout.Layout(
-                    content = {
-                        MiniPlayer(
-                            isPlaying = isPlaying,
-                            songTitle = currentMusicTitle ?: "暂无播放",
-                            artist = currentMusicArtist ?: "",
-                            coverUrl = currentMusicCover,
-                            progress = progress.floatValue,
-                            onPlayPauseClick = {
-                                playerManager.togglePlayPause()
-                            },
-                            onPlayerClick = {
-                                // 跳转到播放页面，传递当前音乐ID
-                                val id = currentMusicId ?: 0
-                                val encodedTitle = java.net.URLEncoder.encode(
-                                    currentMusicTitle ?: "未知歌曲", "UTF-8"
-                                )
-                                val encodedArtist = java.net.URLEncoder.encode(
-                                    currentMusicArtist ?: "未知歌手", "UTF-8"
-                                )
-                                navController.navigate("player/$id/$encodedTitle/$encodedArtist")
-                            },
-                            onPlaylistClick = {
-                                showPlaylist = true
-                            }
-                        )
-                    },
-                    measurePolicy = { measurables, constraints ->
-                        val placeable = measurables.first().measure(
-                            constraints.copy(
-                                maxWidth = constraints.maxWidth - 32.dp.roundToPx() // 减去左右padding
-                            )
-                        )
-                        layout(placeable.width, placeable.height) {
-                            placeable.place(
-                                16.dp.roundToPx(),
-                                constraints.maxHeight - placeable.height - 8.dp.roundToPx()
-                            )
-                        }
-                    }
-                )
-            }
 
-            // BottomNavigationBar - 悬浮在底部
-            androidx.compose.animation.AnimatedVisibility(
-                visible = true,
-                enter = if (returningFromPlayer) {
-                    androidx.compose.animation.slideInVertically(
-                        initialOffsetY = { fullHeight -> fullHeight },
-                        animationSpec = tween(
-                            durationMillis = 200,
-                            easing = androidx.compose.animation.core.FastOutSlowInEasing
-                        )
-                    )
-                } else {
-                    androidx.compose.animation.fadeIn(animationSpec = tween(durationMillis = 0))
-                },
-                label = "bottomNavigation"
-            ) {
-                androidx.compose.ui.layout.Layout(
-                    content = {
-                        BottomNavigationBar(navController = navController)
-                    },
-                    measurePolicy = { measurables, constraints ->
-                        val placeable = measurables.first().measure(
-                            constraints.copy(
-                                maxWidth = constraints.maxWidth - 32.dp.roundToPx() // 减去左右padding
+                if (!isPlayerScreen && showBottomControls) {
+
+                    // MiniPlayer - 悬浮在底部
+
+                    androidx.compose.animation.AnimatedVisibility(
+
+                        visible = true,
+
+                        enter = if (returningFromPlayer) {
+
+                            androidx.compose.animation.slideInVertically(
+
+                                initialOffsetY = { fullHeight -> fullHeight },
+
+                                animationSpec = tween(
+
+                                    durationMillis = 200,
+
+                                    easing = androidx.compose.animation.core.FastOutSlowInEasing
+
+                                )
+
                             )
+
+                        } else {
+
+                            androidx.compose.animation.fadeIn(animationSpec = tween(durationMillis = 0))
+
+                        },
+
+                        label = "miniPlayer"
+
+                    ) {
+
+                        androidx.compose.ui.layout.Layout(
+
+                            content = {
+
+                                MiniPlayer(
+
+                                    isPlaying = isPlaying,
+
+                                    songTitle = currentMusicTitle ?: "暂无播放",
+
+                                    artist = currentMusicArtist ?: "",
+
+                                    coverUrl = currentMusicCover,
+
+                                    progress = progress.floatValue,
+
+                                    onPlayPauseClick = {
+
+                                        playerManager.togglePlayPause()
+
+                                    },
+
+                                    onPlayerClick = {
+
+                                        // 跳转到播放页面，传递当前音乐ID
+
+                                        val id = currentMusicId ?: 0
+
+                                        val encodedTitle = java.net.URLEncoder.encode(
+
+                                            currentMusicTitle ?: "未知歌曲", "UTF-8"
+
+                                        )
+
+                                        val encodedArtist = java.net.URLEncoder.encode(
+
+                                            currentMusicArtist ?: "未知歌手", "UTF-8"
+
+                                        )
+
+                                        navController.navigate("player/$id/$encodedTitle/$encodedArtist")
+
+                                    },
+
+                                    onPlaylistClick = {
+
+                                        showPlaylist = true
+
+                                    }
+
+                                )
+
+                            },
+
+                            measurePolicy = { measurables, constraints ->
+
+                                val placeable = measurables.first().measure(
+
+                                    constraints.copy(
+
+                                        maxWidth = constraints.maxWidth - 32.dp.roundToPx() // 减去左右padding
+
+                                    )
+
+                                )
+
+                                layout(placeable.width, placeable.height) {
+
+                                    // 距离底部80dp，为导航菜单留出空间
+
+                                    placeable.place(16.dp.roundToPx(), constraints.maxHeight - placeable.height - 80.dp.roundToPx())
+
+                                }
+
+                            }
+
                         )
-                        layout(placeable.width, placeable.height) {
-                            placeable.place(
-                                16.dp.roundToPx(),
-                                constraints.maxHeight - placeable.height - 16.dp.roundToPx()
-                            )
-                        }
+
                     }
-                )
-            }
-        }
+
+        
+
+                    // BottomNavigationBar - 悬浮在底部
+
+                    androidx.compose.animation.AnimatedVisibility(
+
+                        visible = true,
+
+                        enter = if (returningFromPlayer) {
+
+                            androidx.compose.animation.slideInVertically(
+
+                                initialOffsetY = { fullHeight -> fullHeight },
+
+                                animationSpec = tween(
+
+                                    durationMillis = 200,
+
+                                    easing = androidx.compose.animation.core.FastOutSlowInEasing
+
+                                )
+
+                            )
+
+                        } else {
+
+                            androidx.compose.animation.fadeIn(animationSpec = tween(durationMillis = 0))
+
+                        },
+
+                        label = "bottomNavigation"
+
+                    ) {
+
+                        androidx.compose.ui.layout.Layout(
+
+                            content = {
+
+                                BottomNavigationBar(navController = navController)
+
+                            },
+
+                            measurePolicy = { measurables, constraints ->
+
+                                val placeable = measurables.first().measure(
+
+                                    constraints.copy(
+
+                                        maxWidth = constraints.maxWidth - 32.dp.roundToPx() // 减去左右padding
+
+                                    )
+
+                                )
+
+                                layout(placeable.width, placeable.height) {
+
+                                    placeable.place(16.dp.roundToPx(), constraints.maxHeight - placeable.height - 16.dp.roundToPx())
+
+                                }
+
+                            }
+
+                        )
+
+                    }
+
+                }
 
         // 播放列表弹窗（在所有控件之上，覆盖显示）
                 Box(modifier = Modifier.zIndex(1f)) {
