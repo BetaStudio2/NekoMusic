@@ -1,5 +1,14 @@
 <template>
   <div class="playlist-detail-view">
+    <!-- 移动端下载横幅 -->
+    <div v-if="isMobile" class="mobile-download-banner">
+      <div class="banner-content">
+        <span class="banner-text">📱 下载 App 获得更好的体验</span>
+        <a href="/mobile-download" class="banner-link">立即下载</a>
+        <button @click="closeBanner" class="banner-close">✕</button>
+      </div>
+    </div>
+    
     <div class="playlist-detail-container">
       <div class="playlist-header">
         <button @click="goBack" class="back-btn">← 返回</button>
@@ -140,6 +149,21 @@ const isOwner = computed(() => {
   if (!currentUser.value || !playlist.value) return false
   return currentUser.value.id === playlist.value.userId
 })
+
+// 移动端检测
+const isMobile = computed(() => {
+  const userAgent = navigator.userAgent || navigator.vendor || window.opera
+  return /android|ipad|iphone|ipod/i.test(userAgent)
+})
+
+// 下载横幅显示状态
+const showBanner = ref(true)
+
+// 关闭下载横幅
+const closeBanner = () => {
+  showBanner.value = false
+  localStorage.setItem('mobileDownloadBannerClosed', 'true')
+}
 
 const getToken = () => {
   return localStorage.getItem('userToken')
@@ -422,6 +446,72 @@ onMounted(() => {
 .playlist-detail-view {
   min-height: calc(100vh - 80px);
   padding: 20px;
+}
+
+/* 移动端下载横幅 */
+.mobile-download-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 15px 20px;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.banner-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  position: relative;
+}
+
+.banner-text {
+  color: white;
+  font-size: 0.95em;
+  font-weight: 500;
+}
+
+.banner-link {
+  background: white;
+  color: #667eea;
+  text-decoration: none;
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-size: 0.9em;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.banner-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.banner-close {
+  position: absolute;
+  right: 0;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.2em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.banner-close:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .playlist-detail-container {
@@ -868,6 +958,35 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
+  .playlist-detail-view {
+    padding-top: 70px; /* 为下载横幅留出空间 */
+  }
+  
+  .mobile-download-banner {
+    padding: 12px 15px;
+  }
+  
+  .banner-content {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .banner-text {
+    font-size: 0.85em;
+  }
+  
+  .banner-link {
+    padding: 8px 16px;
+    font-size: 0.85em;
+  }
+  
+  .banner-close {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  
   .playlist-header {
     flex-direction: column;
     text-align: center;

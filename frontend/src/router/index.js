@@ -225,8 +225,11 @@ const router = createRouter({
 
 // 全局路由守卫 - 更新页面标题和元数据 + 移动设备检测
 router.beforeEach((to, from, next) => {
-  // 如果是移动设备访问非下载页面和非播放页面，重定向到下载页面
-  if (isMobileDevice() && to.path !== '/download' && !to.path.startsWith('/detail/')) {
+  // 如果是移动设备访问非下载页面、非播放页面、非歌单详情页面，重定向到下载页面
+  if (isMobileDevice() && 
+      to.path !== '/download' && 
+      !to.path.startsWith('/detail/') && 
+      !to.path.startsWith('/playlist/')) {
     next('/download')
     return
   }
