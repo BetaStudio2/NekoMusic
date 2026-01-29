@@ -308,8 +308,8 @@ fun MainScreen() {
             }
             composable(BottomNavItem.MyPlaylists.route) {
                 MyPlaylistsScreen(
-                    onNavigateToPlaylistDetail = { playlistId, playlistName, playlistCover ->
-                        navController.navigate("playlist_detail/$playlistId/$playlistName/$playlistCover")
+                    onNavigateToPlaylistDetail = { playlistId, playlistName, playlistCover, playlistDescription ->
+                        navController.navigate("playlist_detail/$playlistId/$playlistName/$playlistCover/$playlistDescription")
                     },
                     onNavigateToFavorite = {
                         navController.navigate("favorites")
@@ -345,11 +345,16 @@ fun MainScreen() {
                 )
             }
             composable(
-                route = "playlist_detail/{playlistId}/{playlistName}/{playlistCover}",
+                route = "playlist_detail/{playlistId}/{playlistName}/{playlistCover}/{playlistDescription}",
                 arguments = listOf(
                     navArgument("playlistId") { type = NavType.IntType },
                     navArgument("playlistName") { type = NavType.StringType },
                     navArgument("playlistCover") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                    navArgument("playlistDescription") {
                         type = NavType.StringType
                         nullable = true
                         defaultValue = null
@@ -359,6 +364,7 @@ fun MainScreen() {
                 val playlistId = backStackEntry.arguments?.getInt("playlistId") ?: 0
                 val playlistName = backStackEntry.arguments?.getString("playlistName") ?: ""
                 val playlistCover = backStackEntry.arguments?.getString("playlistCover")
+                val playlistDescription = backStackEntry.arguments?.getString("playlistDescription")
                 PlaylistDetailScreen(
                     playlistId = playlistId,
                     playlistName = java.net.URLDecoder.decode(playlistName, "UTF-8"),
@@ -366,6 +372,11 @@ fun MainScreen() {
                         java.net.URLDecoder.decode(playlistCover, "UTF-8")
                     } else {
                         null
+                    },
+                    playlistDescription = if (!playlistDescription.isNullOrEmpty()) {
+                        java.net.URLDecoder.decode(playlistDescription, "UTF-8")
+                    } else {
+                        ""
                     },
                     onBackClick = {
                         navController.popBackStack()

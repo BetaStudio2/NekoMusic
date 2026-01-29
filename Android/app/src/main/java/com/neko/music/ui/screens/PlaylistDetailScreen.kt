@@ -44,6 +44,7 @@ fun PlaylistDetailScreen(
     playlistId: Int,
     playlistName: String,
     playlistCover: String?,
+    playlistDescription: String = "", // 歌单描述
     onBackClick: () -> Unit,
     onMusicClick: (com.neko.music.data.model.Music) -> Unit
 ) {
@@ -179,13 +180,31 @@ fun PlaylistDetailScreen(
                         overflow = TextOverflow.Ellipsis
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
                         text = "${musicList.size} 首歌曲",
                         fontSize = 14.sp,
                         color = Color.Gray
                     )
+
+                    if (playlistDescription.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = playlistDescription,
+                            fontSize = 13.sp,
+                            color = Color.Gray,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "暂无描述",
+                            fontSize = 13.sp,
+                            color = Color.Gray
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(12.dp))
 

@@ -53,7 +53,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun MyPlaylistsScreen(
-    onNavigateToPlaylistDetail: (Int, String, String?) -> Unit,
+    onNavigateToPlaylistDetail: (Int, String, String?, String?) -> Unit,
     onNavigateToFavorite: () -> Unit
 ) {
     val context = LocalContext.current
@@ -83,7 +83,7 @@ fun MyPlaylistsScreen(
                     // 转换PlaylistInfo到Playlist
                     playlists = playlistResponse.playlists?.map { info ->
                         Log.d("MyPlaylistsScreen", "API返回歌单: id=${info.id}, name=${info.name}, coverPath=${info.coverPath}")
-                        Playlist(info.id, info.name, info.musicCount, 1, info.createdAt, info.coverPath)
+                        Playlist(info.id, info.name, info.musicCount, 1, info.createdAt, info.coverPath, info.description)
                     } ?: emptyList()
                     Log.d("MyPlaylistsScreen", "歌单列表: ${playlists.size}个")
                     playlists.forEach { 
@@ -164,7 +164,7 @@ fun MyPlaylistsScreen(
                         val newPlaylistResponse: PlaylistListResponse = playlistApi.getMyPlaylists()
                         if (newPlaylistResponse.success) {
                             playlists = newPlaylistResponse.playlists?.map { info ->
-                                Playlist(info.id, info.name, info.musicCount, 1, info.createdAt, info.coverPath)
+                                Playlist(info.id, info.name, info.musicCount, 1, info.createdAt, info.coverPath, info.description)
                             } ?: emptyList()
                         }
                         showCreateDialog = false
@@ -319,7 +319,7 @@ fun MyPlaylistsScreen(
                                     onNavigateToFavorite()
                                 } else {
                                     // 其他歌单跳转到歌单详情页面
-                                    onNavigateToPlaylistDetail(playlist.id, playlist.name, playlist.coverPath)
+                                    onNavigateToPlaylistDetail(playlist.id, playlist.name, playlist.coverPath, playlist.description)
                                 }
                             }
                         )
