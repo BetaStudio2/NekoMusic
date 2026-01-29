@@ -11,8 +11,6 @@
             <h1>{{ playlist?.name }}</h1>
             <p v-if="playlist?.description" class="playlist-description">{{ playlist.description }}</p>
             <p class="playlist-meta">{{ playlist?.musicCount }} 首歌曲</p>
-            <!-- 调试信息 -->
-            <p v-if="!playlist?.description" class="debug-info" style="color: #999; font-size: 0.8em;">(无描述)</p>
           </div>
         </div>
       </div>
@@ -31,11 +29,10 @@
           <div class="music-index">{{ index + 1 }}</div>
           <div class="music-cover" @click="playMusic(music)">
             <img 
-              v-if="music.coverPath" 
-              :src="API_CONFIG.BASE_URL + music.coverPath" 
+              :src="getCoverUrl(music.id)" 
               :alt="music.title"
+              @error="handleCoverError"
             />
-            <div v-else class="default-cover">🎵</div>
           </div>
           <div class="music-info" @click="playMusic(music)">
             <div class="music-title">{{ music.title }}</div>
@@ -236,6 +233,15 @@ const formatDuration = (seconds) => {
   const mins = Math.floor(seconds / 60)
   const secs = Math.floor(seconds % 60)
   return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
+const getCoverUrl = (musicId) => {
+  return `${API_CONFIG.BASE_URL}/api/music/cover/${musicId}`
+}
+
+const handleCoverError = (event) => {
+  console.log('封面加载失败，使用默认封面')
+  event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/`
 }
 
 const showAddMusicDialog = () => {
