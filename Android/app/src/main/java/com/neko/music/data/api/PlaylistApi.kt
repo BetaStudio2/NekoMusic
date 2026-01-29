@@ -151,11 +151,7 @@ class PlaylistApi(private val token: String?) {
 
     suspend fun getPlaylistMusic(playlistId: Int): PlaylistMusicListResponse {
         return try {
-            client.get("$baseUrl/music/$playlistId") {
-                headers {
-                    append("Authorization", token ?: "")
-                }
-            }.body()
+            client.get("$baseUrl/music/$playlistId").body()
         } catch (e: Exception) {
             PlaylistMusicListResponse(false, "网络错误: ${e.message}", playlistId, 0, null)
         }

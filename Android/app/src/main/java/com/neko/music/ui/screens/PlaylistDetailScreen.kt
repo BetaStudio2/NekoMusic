@@ -69,16 +69,13 @@ fun PlaylistDetailScreen(
     LaunchedEffect(playlistId) {
         try {
             isLoading = true
-            val token = tokenManager.getToken()
-            if (token != null) {
-                val response: PlaylistMusicListResponse = playlistApi.getPlaylistMusic(playlistId)
-                Log.d("PlaylistDetailScreen", "加载歌单音乐: playlistId=$playlistId, success=${response.success}")
-                if (response.success) {
-                    musicList = response.musicList ?: emptyList()
-                    Log.d("PlaylistDetailScreen", "加载到${musicList.size}首音乐")
-                } else {
-                    errorMessage = response.message
-                }
+            val response: PlaylistMusicListResponse = playlistApi.getPlaylistMusic(playlistId)
+            Log.d("PlaylistDetailScreen", "加载歌单音乐: playlistId=$playlistId, success=${response.success}")
+            if (response.success) {
+                musicList = response.musicList ?: emptyList()
+                Log.d("PlaylistDetailScreen", "加载到${musicList.size}首音乐")
+            } else {
+                errorMessage = response.message
             }
         } catch (e: Exception) {
             Log.e("PlaylistDetailScreen", "加载歌单音乐失败", e)
