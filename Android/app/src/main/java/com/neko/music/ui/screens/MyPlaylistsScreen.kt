@@ -363,7 +363,7 @@ fun MyPlaylistsScreen(
                             .fillMaxSize()
                             .padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(bottom = 80.dp)
+                        contentPadding = PaddingValues(bottom = 150.dp)
                     ) {
                     items(allPlaylists) { playlist ->
                         PlaylistItem(

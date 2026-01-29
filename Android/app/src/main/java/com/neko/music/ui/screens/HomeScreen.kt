@@ -198,7 +198,8 @@ fun HomeScreen(
         }
         
         androidx.compose.foundation.lazy.LazyColumn(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 150.dp)
         ) {
             item {
                 // 搜索框

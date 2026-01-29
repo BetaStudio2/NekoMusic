@@ -349,7 +349,7 @@ fun PlaylistDetailScreen(
                         .fillMaxWidth()
                         .weight(1f),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 150.dp)
                 ) {
                     itemsIndexed(musicList) { index, music ->
                         PlaylistMusicItem(
