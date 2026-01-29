@@ -242,4 +242,48 @@ public class PlaylistService {
 
         return false;
     }
+
+    /**
+     * 获取歌单中的音乐列表
+     */
+    public List<com.google.gson.JsonObject> getPlaylistMusic(int playlistId) {
+        logger.info("获取歌单音乐列表: playlistId={}", playlistId);
+
+        List<com.google.gson.JsonObject> musicList = new ArrayList<>();
+        String sql = "SELECT m.id, m.title, m.artist, m.album, m.duration, m.cover_path, m.file_path, m.file_format, m.language, pm.position, pm.added_at " +
+                     "FROM playlist_music pm " +
+                     "JOIN music m ON pm.music_id = m.id " +
+                     "WHERE pm.playlist_id = ? " +
+                     "ORDER BY pm.position ASC";
+
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, playlistId);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                com.google.gson.JsonObject music = new com.google.gson.JsonObject();
+                music.addProperty("id", rs.getInt("id"));
+                music.addProperty("title", rs.getString("title"));
+                music.addProperty("artist", rs.getString("artist"));
+                music.addProperty("album", rs.getString("album"));
+                music.addProperty("duration", rs.getInt("duration"));
+                music.addProperty("coverPath", rs.getString("cover_path"));
+                music.addProperty("filePath", rs.getString("file_path"));
+                music.addProperty("fileFormat", rs.getString("file_format"));
+                music.addProperty("language", rs.getString("language"));
+                music.addProperty("position", rs.getInt("position"));
+                music.addProperty("addedAt", rs.getString("added_at"));
+                musicList.add(music);
+            }
+
+            logger.info("获取到 {} 首音乐: playlistId={}", musicList.size(), playlistId);
+        } catch (SQLException e) {
+            logger.error("获取歌单音乐列表失败: {}", e.getMessage(), e);
+        }
+
+        return musicList;
+    }
+}
 }

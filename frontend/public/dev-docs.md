@@ -304,6 +304,7 @@ Content-Type: application/json
 - [获取歌单列表](#2-获取歌单列表)
 - [更新歌单](#3-更新歌单)
 - [删除歌单](#4-删除歌单)
+- [获取歌单音乐列表](#5-获取歌单音乐列表)
 - [歌单权限说明](#歌单权限说明)
 
 ### 1. 创建歌单
@@ -465,13 +466,62 @@ Content-Type: application/json
 }
 ```
 
-**说明:** 
+**说明:**
 - 只有歌单的创建者（user_id 匹配）才能删除歌单
 - 删除歌单会级联删除 `playlist_music` 表中的所有关联记录
 - 此操作不可恢复
 
----
+### 5. 获取歌单音乐列表
 
+**端点:** `GET /api/user/playlist/music/{playlistId}`
+
+**请求头:**
+```
+Authorization: <token>
+```
+
+**路径参数:**
+- `playlistId`: 歌单 ID
+
+**响应示例（成功）:**
+```json
+{
+  "success": true,
+  "message": "获取歌单音乐列表成功",
+  "playlistId": 1,
+  "total": 5,
+  "musicList": [
+    {
+      "id": 1,
+      "title": "歌曲标题",
+      "artist": "艺术家",
+      "album": "专辑",
+      "duration": 180,
+      "coverPath": "/path/to/cover.jpg",
+      "filePath": "/path/to/music.mp3",
+      "fileFormat": "mp3",
+      "language": "中文",
+      "position": 1,
+      "addedAt": "2026-01-29 12:00:00"
+    }
+  ]
+}
+```
+
+**响应示例（歌单不存在）:**
+```json
+{
+  "success": false,
+  "message": "歌单不存在"
+}
+```
+
+**说明:**
+- 音乐列表按照 `position` 字段升序排列
+- 返回的音乐信息包含完整的歌曲详情和添加时间
+- 任何登录用户都可以查看歌单内容，无需是歌单创建者
+
+---
 ## 歌单权限说明
 
 ### 权限规则
@@ -780,7 +830,7 @@ async function updatePlaylist(playlistId, name, description) {
 ```javascript
 async function deletePlaylist(playlistId) {
   const token = localStorage.getItem('userToken');
-  
+
   const response = await fetch('https://music.cnmsb.xin/api/user/playlist/delete', {
     method: 'POST',
     headers: {
@@ -791,7 +841,7 @@ async function deletePlaylist(playlistId) {
       id: playlistId
     })
   });
-  
+
   const data = await response.json();
   if (data.success) {
     console.log('歌单删除成功');
@@ -800,6 +850,30 @@ async function deletePlaylist(playlistId) {
     alert('您没有权限删除此歌单');
   } else {
     console.error('歌单删除失败:', data.message);
+  }
+  return data;
+}
+```
+
+### 获取歌单音乐列表
+
+```javascript
+async function getPlaylistMusic(playlistId) {
+  const token = localStorage.getItem('userToken');
+
+  const response = await fetch(`https://music.cnmsb.xin/api/user/playlist/music/${playlistId}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': token
+    }
+  });
+
+  const data = await response.json();
+  if (data.success) {
+    console.log(`获取到 ${data.total} 首音乐:`, data.musicList);
+    // data.musicList 是一个数组，包含歌单中的所有音乐
+  } else {
+    console.error('获取歌单音乐列表失败:', data.message);
   }
   return data;
 }

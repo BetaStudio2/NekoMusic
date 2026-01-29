@@ -185,6 +185,10 @@ public class Main {
         // 注册删除歌单API处理器
         ServletHolder deletePlaylistHolder = new ServletHolder(new DeletePlaylistHandler());
         context.addServlet(deletePlaylistHolder, "/api/user/playlist/delete");
+
+        // 注册获取歌单音乐列表API处理器
+        ServletHolder getPlaylistMusicHolder = new ServletHolder(new GetPlaylistMusicHandler());
+        context.addServlet(getPlaylistMusicHolder, "/api/user/playlist/music/*");
         
         // 启动服务器
         server.start();
@@ -211,6 +215,7 @@ public class Main {
         logger.info("  GET /api/user/playlists - 获取歌单列表 (需要用户登录)");
         logger.info("  POST /api/user/playlist/update - 更新歌单 (需要创建者登录)");
         logger.info("  POST /api/user/playlist/delete - 删除歌单 (需要创建者登录)");
+        logger.info("  GET /api/user/playlist/music/{playlistId} - 获取歌单音乐列表 (需要登录)");
         logger.info("  POST /api/admin/login - 管理员登录");
         logger.info("  GET /api/admin/stats - 管理员统计信息 (需要管理员登录)");
         logger.info("  GET /api/admin/chart-data - 管理员图表数据 (需要管理员登录)");
