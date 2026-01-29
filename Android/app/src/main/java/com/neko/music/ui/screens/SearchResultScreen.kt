@@ -57,7 +57,9 @@ fun SearchResultScreen(
     val context = LocalContext.current
     val historyManager = remember { SearchHistoryManager(context) }
     var searchQuery by remember { mutableStateOf(initialQuery) }
+    var searchType by remember { mutableStateOf("music") } // music 或 playlist
     var searchResults by remember { mutableStateOf<List<Music>>(emptyList()) }
+    var playlistResults by remember { mutableStateOf<List<com.neko.music.data.api.PlaylistInfo>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var searchHistory by remember { mutableStateOf<List<SearchHistory>>(emptyList()) }
@@ -66,17 +68,24 @@ fun SearchResultScreen(
     val scope = rememberCoroutineScope()
     
     // 实时搜索 - 输入后立即请求
-    androidx.compose.runtime.LaunchedEffect(searchQuery) {
+    androidx.compose.runtime.LaunchedEffect(searchQuery, searchType) {
         if (searchQuery.isNotEmpty()) {
-            Log.d("SearchScreen", "实时搜索: $searchQuery")
+            Log.d("SearchScreen", "实时搜索: $searchQuery, 类型: $searchType")
             isLoading = true
-            performSearch(musicApi, searchQuery, scope) { results, error ->
-                searchResults = results
+            if (searchType == "music") {
+                performSearch(musicApi, searchQuery, scope) { results, error ->
+                    searchResults = results
+                    isLoading = false
+                    errorMessage = error
+                }
+            } else {
+                // 歌单搜索（暂未实现）
                 isLoading = false
-                errorMessage = error
+                errorMessage = "歌单搜索功能暂未完善"
             }
         } else {
             searchResults = emptyList()
+            playlistResults = emptyList()
         }
     }
     
@@ -118,7 +127,26 @@ fun SearchResultScreen(
             },
             onBackClick = onBackClick
         )
-        
+
+        // 搜索类型选择
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            SearchTypeButton(
+                text = "单曲",
+                isSelected = searchType == "music",
+                onClick = { searchType = "music" }
+            )
+            SearchTypeButton(
+                text = "歌单",
+                isSelected = searchType == "playlist",
+                onClick = { searchType = "playlist" }
+            )
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -480,10 +508,36 @@ private fun performSearch(
                 Log.d("SearchScreen", "请求成功 - 找到 ${musics.size} 条结果")
                 onResult(musics, null)
             },
-            onFailure = { error ->
+onFailure = { error ->
                 Log.e("SearchScreen", "请求失败 - ${error.message}")
                 onResult(emptyList(), error.message)
             }
+        )
+    }
+}
+
+@Composable
+fun SearchTypeButton(
+    text: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .height(36.dp)
+            .background(
+                color = if (isSelected) RoseRed else Color(0xFFF5F5F5),
+                shape = RoundedCornerShape(18.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 0.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            fontSize = 14.sp,
+            color = if (isSelected) Color.White else Color.Gray,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
         )
     }
 }
