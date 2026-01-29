@@ -197,11 +197,49 @@ fun HomeScreen(
             modifier = Modifier.fillMaxSize()
         ) {
             item {
-                // 头部区域
-                HeaderSection(
-                    onSearchClick = onSearchClick,
-                    floatOffset = floatOffset
-                )
+                // 搜索框
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .statusBarsPadding()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
+                            .background(
+                                color = Color.White,
+                                shape = RoundedCornerShape(28.dp)
+                            )
+                            .shadow(
+                                elevation = 4.dp,
+                                spotColor = Color.Black.copy(alpha = 0.1f),
+                                ambientColor = Color.Gray.copy(alpha = 0.1f),
+                                shape = RoundedCornerShape(28.dp)
+                            )
+                            .padding(horizontal = 20.dp)
+                            .clickable {
+                                Log.d("HomeScreen", "搜索框被点击")
+                                onSearchClick()
+                            },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "搜索",
+                            tint = Color.Gray,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Text(
+                            text = "搜索音乐、歌手、专辑...",
+                            fontSize = 16.sp,
+                            color = Color.Gray.copy(alpha = 0.7f),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
                 
                 // 欢迎横幅
                 WelcomeBanner()
@@ -259,58 +297,7 @@ fun HeaderSection(
         modifier = Modifier
             .fillMaxWidth()
             .height(300.dp)
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF6B5B95),
-                        RoseRed,
-                        SakuraPink.copy(alpha = 0.9f)
-                    ),
-                    startY = 0f,
-                    endY = 1000f
-                )
-            )
-    ) {
-        // 多层装饰圆圈
-        androidx.compose.foundation.Canvas(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // 大圆圈
-            drawCircle(
-                color = SakuraPink.copy(alpha = 0.2f),
-                radius = 150.dp.toPx(),
-                center = androidx.compose.ui.geometry.Offset(size.width * 0.85f, size.height * 0.25f)
-            )
-            // 中圆圈
-            drawCircle(
-                color = SkyBlue.copy(alpha = 0.15f),
-                radius = 100.dp.toPx(),
-                center = androidx.compose.ui.geometry.Offset(size.width * 0.15f, size.height * 0.65f)
-            )
-            // 小圆圈
-            drawCircle(
-                color = Lilac.copy(alpha = 0.1f),
-                radius = 60.dp.toPx(),
-                center = androidx.compose.ui.geometry.Offset(size.width * 0.5f, size.height * 0.8f)
-            )
-        }
-        
-        // 顶部高光
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.White.copy(alpha = 0.5f),
-                            Color.Transparent
-                        )
-                    )
-                )
-        )
-        
+    ) {        
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -318,60 +305,6 @@ fun HeaderSection(
                 .statusBarsPadding()
         ) {
             Spacer(modifier = Modifier.height(24.dp))
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "欢迎回来",
-                        fontSize = 15.sp,
-                        color = Color.White.copy(alpha = 0.85f),
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Neko云音乐",
-                        fontSize = 34.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        letterSpacing = 0.5.sp
-                    )
-                }
-                
-                // 浮动音乐图标 - 带光晕效果
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(
-                            brush = Brush.radialGradient(
-                                colors = listOf(
-                                    Color.White.copy(alpha = 0.3f),
-                                    Color.White.copy(alpha = 0.15f)
-                                )
-                            )
-                        )
-                        .offset(y = floatOffset.dp)
-                        .shadow(
-                            elevation = 8.dp,
-                            spotColor = RoseRed.copy(alpha = 0.4f),
-                            ambientColor = Color.White.copy(alpha = 0.2f),
-                            shape = CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "🎵",
-                        fontSize = 30.sp,
-                        modifier = Modifier.offset(y = (-2).dp)
-                    )
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(36.dp))
             
             // 搜索框 - 优化设计
             Row(
