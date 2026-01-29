@@ -74,7 +74,7 @@ fun MyPlaylistsScreen() {
                 if (playlistResponse.success) {
                     // 转换PlaylistInfo到Playlist
                     playlists = playlistResponse.playlists?.map { info ->
-                        Playlist(info.id, info.name, info.musicCount, 1, info.createdAt)
+                        Playlist(info.id, info.name, info.musicCount, 1, info.createdAt, info.coverPath)
                     } ?: emptyList()
                     Log.d("MyPlaylistsScreen", "歌单列表: ${playlists.size}个")
                 } else {
@@ -132,7 +132,7 @@ fun MyPlaylistsScreen() {
                         val newPlaylistResponse: PlaylistListResponse = playlistApi.getMyPlaylists()
                         if (newPlaylistResponse.success) {
                             playlists = newPlaylistResponse.playlists?.map { info ->
-                                Playlist(info.id, info.name, info.musicCount, 1, info.createdAt)
+                                Playlist(info.id, info.name, info.musicCount, 1, info.createdAt, info.coverPath)
                             } ?: emptyList()
                         }
                         showCreateDialog = false
@@ -161,7 +161,7 @@ fun MyPlaylistsScreen() {
                     val newPlaylistResponse: PlaylistListResponse = playlistApi.getMyPlaylists()
                     if (newPlaylistResponse.success) {
                         playlists = newPlaylistResponse.playlists?.map { info ->
-                            Playlist(info.id, info.name, info.musicCount, 1, info.createdAt)
+                            Playlist(info.id, info.name, info.musicCount, 1, info.createdAt, info.coverPath)
                         } ?: emptyList()
                     }
                 } else {
@@ -400,22 +400,27 @@ fun PlaylistItem(
     
     val isMyFavorites = playlist.id == 1 // "我的收藏"不能编辑/删除
     
-    // 获取第一首收藏音乐的封面
-    val favoriteCover = remember(favorites) {
-        val firstFavorite = favorites.firstOrNull()
-        if (firstFavorite != null) {
-            // 使用音乐ID构建封面URL
-            "https://music.cnmsb.xin/api/music/cover/${firstFavorite.id}"
-        } else {
-            null
-        }
-    }
-    
     // 确定要显示的封面URL
-    val coverUrl = if (isMyFavorites) {
-        favoriteCover ?: "https://music.cnmsb.xin/api/user/avatar/default"
-    } else {
-        null
+    val coverUrl = remember(playlist) {
+        when {
+            isMyFavorites -> {
+                // "我的收藏"使用第一首收藏音乐的封面
+                val firstFavorite = favorites.firstOrNull()
+                if (firstFavorite != null) {
+                    "https://music.cnmsb.xin/api/music/cover/${firstFavorite.id}"
+                } else {
+                    null
+                }
+            }
+            !playlist.coverPath.isNullOrEmpty() -> {
+                // 歌单有自己的封面
+                "https://music.cnmsb.xin${playlist.coverPath}"
+            }
+            else -> {
+                // 没有封面，使用默认头像
+                null
+            }
+        }
     }
     
     Row(
@@ -445,8 +450,8 @@ fun PlaylistItem(
                 .clip(RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center
         ) {
-            if (isMyFavorites) {
-                // 使用第一首收藏音乐的封面，如果没有则使用默认头像
+            if (!coverUrl.isNullOrEmpty()) {
+                // 有封面图片
                 androidx.compose.foundation.Image(
                     painter = rememberAsyncImagePainter(coverUrl),
                     contentDescription = "封面",
@@ -454,7 +459,7 @@ fun PlaylistItem(
                     contentScale = ContentScale.Crop
                 )
             } else {
-                // 其他歌单使用emoji
+                // 没有封面，显示emoji
                 Box(
                     modifier = Modifier
                         .fillMaxSize()

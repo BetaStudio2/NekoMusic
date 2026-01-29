@@ -5,7 +5,8 @@ data class Playlist(
     val name: String,
     val musicCount: Int,
     val userId: Int,
-    val createdAt: String
+    val createdAt: String,
+    val coverPath: String? = null
 )
 
 data class PlaylistResponse(
