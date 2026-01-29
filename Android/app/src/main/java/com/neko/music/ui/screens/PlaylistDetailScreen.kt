@@ -98,40 +98,11 @@ fun PlaylistDetailScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // 背景图片 - 使用渐变遮罩
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(400.dp)
-        ) {
-            AsyncImage(
-                model = coverUrl,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-            
-            // 渐变遮罩
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                Color(0xFFFFFFFF)
-                            ),
-                            startY = 0f,
-                            endY = 400f
-                        )
-                    )
-            )
-        }
-
         // 内容层
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(Color.White)
                 .statusBarsPadding()
         ) {
             // 顶部标题栏
@@ -149,7 +120,7 @@ fun PlaylistDetailScreen(
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
                         contentDescription = "返回",
-                        tint = Color.White
+                        tint = Color.Black
                     )
                 }
                 
@@ -158,71 +129,65 @@ fun PlaylistDetailScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "歌单详情",
+                        text = playlistName,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = Color.Black,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(200.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // 歌单信息卡片
-            Card(
+            // 歌单信息区域
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
-                shape = RoundedCornerShape(24.dp),
-                elevation = CardDefaults.cardElevation(
-                    defaultElevation = 8.dp,
-                    hoveredElevation = 12.dp
-                ),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color.White
-                )
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Column(
+                // 小封面
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp)
+                        .size(120.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFFF5F5F5)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    // 歌单封面
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp)
-                            .clip(RoundedCornerShape(16.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        AsyncImage(
-                            model = coverUrl,
-                            contentDescription = "歌单封面",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
+                    AsyncImage(
+                        model = coverUrl,
+                        contentDescription = "歌单封面",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
 
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // 歌单名称
+                // 歌单信息
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.Center
+                ) {
                     Text(
                         text = playlistName,
-                        fontSize = 22.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Black
+                        color = Color.Black,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // 歌曲数量
                     Text(
                         text = "${musicList.size} 首歌曲",
                         fontSize = 14.sp,
                         color = Color.Gray
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // 播放全部按钮
                     Button(
@@ -247,23 +212,23 @@ fun PlaylistDetailScreen(
                         },
                         enabled = musicList.isNotEmpty(),
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
+                            .height(36.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = RoseRed,
                             disabledContainerColor = RoseRed.copy(alpha = 0.3f)
                         ),
-                        shape = RoundedCornerShape(24.dp)
+                        shape = RoundedCornerShape(18.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.PlayArrow,
                             contentDescription = null,
-                            tint = Color.White
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "播放全部",
-                            fontSize = 16.sp,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
                             color = Color.White
                         )
@@ -271,18 +236,7 @@ fun PlaylistDetailScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // 歌曲列表标题
-            Text(
-                text = "歌曲列表",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // 歌曲列表
             if (isLoading) {
@@ -363,12 +317,9 @@ fun PlaylistMusicItem(
 ) {
     var isPressed by remember { mutableStateOf(false) }
 
-    val coverUrl = remember(music.coverPath) {
-        if (!music.coverPath.isNullOrEmpty()) {
-            "https://music.cnmsb.xin${music.coverPath}"
-        } else {
-            "https://music.cnmsb.xin/api/music/cover/${music.id}"
-        }
+    val coverUrl = remember(music.id) {
+        // 统一使用音乐ID获取封面，不依赖API返回的coverPath
+        "https://music.cnmsb.xin/api/music/cover/${music.id}"
     }
 
     Row(
