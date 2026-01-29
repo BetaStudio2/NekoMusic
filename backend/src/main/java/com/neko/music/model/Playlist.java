@@ -5,7 +5,6 @@ public class Playlist {
     private int userId;
     private String name;
     private String description;
-    private String coverPath;
     private int musicCount;
     private String createdAt;
     private String updatedAt;
@@ -51,14 +50,6 @@ public class Playlist {
 
     public void setDescription(String description) {
         this.description = description;
-    }
-
-    public String getCoverPath() {
-        return coverPath;
-    }
-
-    public void setCoverPath(String coverPath) {
-        this.coverPath = coverPath;
     }
 
     public int getMusicCount() {

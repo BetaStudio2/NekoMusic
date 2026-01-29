@@ -175,7 +175,6 @@ public class DatabaseManager {
                     user_id INT NOT NULL,
                     name VARCHAR(255) NOT NULL,
                     description VARCHAR(500),
-                    cover_path VARCHAR(500),
                     music_count INT DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -205,6 +204,35 @@ public class DatabaseManager {
                     INDEX idx_music_id (music_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                 """;
+            try (PreparedStatement stmt = conn.prepareStatement(createPlaylistMusicTable)) {
+                stmt.execute();
+                logger.info("playlist_music 表创建完成");
+            } catch (SQLException e) {
+                logger.debug("playlist_music 表可能已存在: {}", e.getMessage());
+            }
+
+            // 删除 playlists 表的 cover_path 字段（如果存在）
+            try {
+                String checkColumn = """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = DATABASE()
+                    AND table_name = 'playlists'
+                    AND column_name = 'cover_path'
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(checkColumn);
+                     ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next() && rs.getInt(1) > 0) {
+                        // 删除cover_path字段
+                        String dropColumn = "ALTER TABLE playlists DROP COLUMN cover_path";
+                        try (PreparedStatement dropStmt = conn.prepareStatement(dropColumn)) {
+                            dropStmt.execute();
+                            logger.info("已删除 playlists 表的 cover_path 字段");
+                        }
+                    }
+                }
+            } catch (SQLException e) {
+                logger.debug("删除 cover_path 字段失败（可能不存在）: {}", e.getMessage());
+            }
             try (PreparedStatement stmt = conn.prepareStatement(createPlaylistMusicTable)) {
                 stmt.execute();
                 logger.info("playlist_music 表创建完成");

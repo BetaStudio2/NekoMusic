@@ -73,7 +73,6 @@ public class GetPlaylistsHandler extends HttpServlet {
                 playlistJson.addProperty("userId", playlist.getUserId());
                 playlistJson.addProperty("name", playlist.getName());
                 playlistJson.addProperty("description", playlist.getDescription());
-                playlistJson.addProperty("coverPath", playlist.getCoverPath());
                 playlistJson.addProperty("musicCount", playlist.getMusicCount());
                 playlistJson.addProperty("createdAt", playlist.getCreatedAt());
                 playlistJson.addProperty("updatedAt", playlist.getUpdatedAt());

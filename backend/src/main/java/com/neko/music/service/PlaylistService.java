@@ -61,7 +61,7 @@ public class PlaylistService {
         logger.info("获取用户歌单: userId={}", userId);
 
         List<Playlist> playlists = new ArrayList<>();
-        String sql = "SELECT id, user_id, name, description, cover_path, music_count, created_at, updated_at " +
+        String sql = "SELECT id, user_id, name, description, music_count, created_at, updated_at " +
                      "FROM playlists WHERE user_id = ? ORDER BY created_at DESC";
 
         try (Connection conn = databaseManager.getConnection();
@@ -76,7 +76,6 @@ public class PlaylistService {
                 playlist.setUserId(rs.getInt("user_id"));
                 playlist.setName(rs.getString("name"));
                 playlist.setDescription(rs.getString("description"));
-                playlist.setCoverPath(rs.getString("cover_path"));
                 playlist.setMusicCount(rs.getInt("music_count"));
                 playlist.setCreatedAt(rs.getString("created_at"));
                 playlist.setUpdatedAt(rs.getString("updated_at"));
@@ -98,7 +97,7 @@ public class PlaylistService {
         logger.info("获取所有歌单");
 
         List<Playlist> playlists = new ArrayList<>();
-        String sql = "SELECT id, user_id, name, description, cover_path, music_count, created_at, updated_at " +
+        String sql = "SELECT id, user_id, name, description, music_count, created_at, updated_at " +
                      "FROM playlists ORDER BY created_at DESC";
 
         try (Connection conn = databaseManager.getConnection();
@@ -112,7 +111,6 @@ public class PlaylistService {
                 playlist.setUserId(rs.getInt("user_id"));
                 playlist.setName(rs.getString("name"));
                 playlist.setDescription(rs.getString("description"));
-                playlist.setCoverPath(rs.getString("cover_path"));
                 playlist.setMusicCount(rs.getInt("music_count"));
                 playlist.setCreatedAt(rs.getString("created_at"));
                 playlist.setUpdatedAt(rs.getString("updated_at"));
@@ -133,7 +131,7 @@ public class PlaylistService {
     public Optional<Playlist> getPlaylistById(int playlistId) {
         logger.info("获取歌单详情: id={}", playlistId);
 
-        String sql = "SELECT id, user_id, name, description, cover_path, music_count, created_at, updated_at " +
+        String sql = "SELECT id, user_id, name, description, music_count, created_at, updated_at " +
                      "FROM playlists WHERE id = ?";
 
         try (Connection conn = databaseManager.getConnection();
@@ -148,7 +146,6 @@ public class PlaylistService {
                 playlist.setUserId(rs.getInt("user_id"));
                 playlist.setName(rs.getString("name"));
                 playlist.setDescription(rs.getString("description"));
-                playlist.setCoverPath(rs.getString("cover_path"));
                 playlist.setMusicCount(rs.getInt("music_count"));
                 playlist.setCreatedAt(rs.getString("created_at"));
                 playlist.setUpdatedAt(rs.getString("updated_at"));

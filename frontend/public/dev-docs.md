@@ -374,7 +374,6 @@ Authorization: <token>
       "userId": 1,
       "name": "我的歌单",
       "description": "这是我的歌单描述",
-      "coverPath": null,
       "musicCount": 5,
       "createdAt": "2026-01-29 12:00:00",
       "updatedAt": "2026-01-29 12:05:00"
@@ -384,7 +383,6 @@ Authorization: <token>
       "userId": 2,
       "name": "其他用户的歌单",
       "description": "这是其他用户的歌单",
-      "coverPath": null,
       "musicCount": 3,
       "createdAt": "2026-01-29 11:00:00",
       "updatedAt": "2026-01-29 11:00:00"
@@ -1033,6 +1031,7 @@ async function changePassword(oldPassword, newPassword) {
    - `musicCount` 字段会自动更新，无需手动维护
    - 歌单按创建时间倒序排列（最新的在前面）
    - 响应中包含 `userId` 字段，可以识别歌单的创建者
+   - 歌单不包含封面字段，客户端应根据歌单中的音乐列表自动选择封面（如使用第一首音乐的封面）
 
 ---
 
