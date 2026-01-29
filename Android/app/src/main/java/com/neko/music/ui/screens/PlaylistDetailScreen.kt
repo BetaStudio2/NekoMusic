@@ -46,7 +46,8 @@ fun PlaylistDetailScreen(
     playlistCover: String?,
     playlistDescription: String = "", // 歌单描述
     onBackClick: () -> Unit,
-    onMusicClick: (com.neko.music.data.model.Music) -> Unit
+    onMusicClick: (com.neko.music.data.model.Music) -> Unit,
+    onPlayAll: (List<PlaylistMusic>) -> Unit // 播放全部回调
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -211,22 +212,9 @@ fun PlaylistDetailScreen(
                     // 播放全部按钮
                     Button(
                         onClick = {
-                            // 播放第一首
+                            // 播放全部：清空播放列表并按顺序播放当前歌单
                             if (musicList.isNotEmpty()) {
-                                val firstMusic = musicList[0]
-                                onMusicClick(
-                                    com.neko.music.data.model.Music(
-                                        firstMusic.id,
-                                        firstMusic.title,
-                                        firstMusic.artist,
-                                        firstMusic.coverPath ?: "",
-                                        firstMusic.duration,
-                                        "",
-                                        "",
-                                        0,
-                                        ""
-                                    )
-                                )
+                                onPlayAll(musicList)
                             }
                         },
                         enabled = musicList.isNotEmpty(),

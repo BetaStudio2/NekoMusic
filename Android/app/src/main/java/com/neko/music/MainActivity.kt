@@ -387,6 +387,83 @@ fun MainScreen() {
                         val encodedArtist =
                             java.net.URLEncoder.encode(music.artist, "UTF-8")
                         navController.navigate("player/$id/$encodedTitle/$encodedArtist")
+                    },
+                    onPlayAll = { musicList ->
+                        // 清空播放列表并将歌单中的所有音乐添加进去
+                        scope.launch {
+                            try {
+                                val musicApi = com.neko.music.data.api.MusicApi(context)
+                                val playlistManager = com.neko.music.data.manager.PlaylistManager.getInstance(context)
+                                
+                                // 清空当前播放列表
+                                playlistManager.clearPlaylist()
+                                
+                                // 按顺序添加音乐到播放列表
+                                musicList.forEach { playlistMusic ->
+                                    val url = musicApi.getMusicFileUrl(
+                                        com.neko.music.data.model.Music(
+                                            playlistMusic.id,
+                                            playlistMusic.title,
+                                            playlistMusic.artist,
+                                            playlistMusic.coverPath ?: "",
+                                            playlistMusic.duration,
+                                            "",
+                                            "",
+                                            0,
+                                            ""
+                                        )
+                                    )
+                                    val fullCoverUrl = "https://music.cnmsb.xin/api/music/cover/${playlistMusic.id}"
+                                    playlistManager.addToPlaylist(
+                                        com.neko.music.data.model.Music(
+                                            playlistMusic.id,
+                                            playlistMusic.title,
+                                            playlistMusic.artist,
+                                            "",
+                                            playlistMusic.duration,
+                                            url,
+                                            fullCoverUrl,
+                                            0,
+                                            ""
+                                        )
+                                    )
+                                }
+                                
+                                // 播放第一首
+                                if (musicList.isNotEmpty()) {
+                                    val firstMusic = musicList[0]
+                                    val url = musicApi.getMusicFileUrl(
+                                        com.neko.music.data.model.Music(
+                                            firstMusic.id,
+                                            firstMusic.title,
+                                            firstMusic.artist,
+                                            firstMusic.coverPath ?: "",
+                                            firstMusic.duration,
+                                            "",
+                                            "",
+                                            0,
+                                            ""
+                                        )
+                                    )
+                                    val fullCoverUrl = "https://music.cnmsb.xin/api/music/cover/${firstMusic.id}"
+                                    playerManager.playMusic(
+                                        url,
+                                        firstMusic.id,
+                                        firstMusic.title,
+                                        firstMusic.artist,
+                                        firstMusic.coverPath ?: "",
+                                        fullCoverUrl
+                                    )
+                                }
+                            } catch (e: Exception) {
+                                Log.e("MainActivity", "播放全部失败", e)
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "播放失败: ${e.message}",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
                     }
                 )
             }
