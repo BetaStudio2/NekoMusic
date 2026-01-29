@@ -154,7 +154,10 @@ fun BottomNavigationBar(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .clickable {
+                            .clickable(
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                indication = null
+                            ) {
                                 if (currentRoute != item.route) {
                                     navController.navigate(item.route) {
                                         popUpTo(navController.graph.startDestinationId) {
