@@ -40,21 +40,6 @@ public class GetPlaylistMusicHandler extends HttpServlet {
 
         logger.info("收到获取歌单音乐列表请求");
 
-        // 获取token
-        String token = req.getHeader("Authorization");
-
-        if (token == null || token.isEmpty()) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未提供认证令牌");
-            return;
-        }
-
-        // 验证token并获取用户ID
-        Integer userId = userAuthService.validateToken(token).orElse(null);
-        if (userId == null) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "无效的认证令牌");
-            return;
-        }
-
         // 从URL路径中获取歌单ID
         String pathInfo = req.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
@@ -73,10 +58,10 @@ public class GetPlaylistMusicHandler extends HttpServlet {
                 return;
             }
 
-            // 获取歌单中的音乐列表
+            // 获取歌单中的音乐列表（允许未登录访问）
             List<JsonObject> musicList = playlistService.getPlaylistMusic(playlistId);
 
-            logger.info("获取到 {} 首音乐: playlistId={}, userId={}", musicList.size(), playlistId, userId);
+            logger.info("获取到 {} 首音乐: playlistId={}", musicList.size(), playlistId);
 
             JsonObject response = new JsonObject();
             response.addProperty("success", true);

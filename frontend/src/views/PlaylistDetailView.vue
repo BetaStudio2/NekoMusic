@@ -151,13 +151,9 @@ const fetchPlaylistDetail = async () => {
     // 先获取歌单的基本信息
     await fetchPlaylistInfo()
     
-    // 然后获取歌单的音乐列表
-    const token = getToken()
+    // 然后获取歌单的音乐列表（不需要token）
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/playlist/music/${playlistId.value}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': token
-      }
+      method: 'GET'
     })
     
     const data = await response.json()
