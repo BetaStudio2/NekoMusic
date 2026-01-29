@@ -196,6 +196,76 @@ public class PlaylistService {
     }
 
     /**
+     * 添加音乐到歌单
+     */
+    public boolean addMusicToPlaylist(int playlistId, int musicId) {
+        logger.info("添加音乐到歌单: playlistId={}, musicId={}", playlistId, musicId);
+
+        // 检查音乐是否已经在歌单中
+        String checkSql = "SELECT COUNT(*) FROM playlist_music WHERE playlist_id = ? AND music_id = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
+
+            checkStmt.setInt(1, playlistId);
+            checkStmt.setInt(2, musicId);
+            ResultSet rs = checkStmt.executeQuery();
+
+            if (rs.next() && rs.getInt(1) > 0) {
+                logger.warn("音乐已存在于歌单中: playlistId={}, musicId={}", playlistId, musicId);
+                return false;
+            }
+        } catch (SQLException e) {
+            logger.error("检查音乐是否存在失败: {}", e.getMessage(), e);
+            return false;
+        }
+
+        // 获取当前歌单中的最大position
+        int nextPosition = 1;
+        String maxPositionSql = "SELECT COALESCE(MAX(position), 0) FROM playlist_music WHERE playlist_id = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement maxStmt = conn.prepareStatement(maxPositionSql)) {
+
+            maxStmt.setInt(1, playlistId);
+            ResultSet rs = maxStmt.executeQuery();
+
+            if (rs.next()) {
+                nextPosition = rs.getInt(1) + 1;
+            }
+        } catch (SQLException e) {
+            logger.error("获取最大position失败: {}", e.getMessage(), e);
+            return false;
+        }
+
+        // 添加音乐到歌单
+        String sql = "INSERT INTO playlist_music (playlist_id, music_id, position) VALUES (?, ?, ?)";
+
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, playlistId);
+            stmt.setInt(2, musicId);
+            stmt.setInt(3, nextPosition);
+
+            int affectedRows = stmt.executeUpdate();
+            boolean success = affectedRows > 0;
+
+            if (success) {
+                logger.info("音乐添加到歌单成功: playlistId={}, musicId={}, position={}", playlistId, musicId, nextPosition);
+                // 更新歌单的音乐数量
+                updateMusicCount(playlistId);
+            } else {
+                logger.warn("音乐添加到歌单失败: playlistId={}, musicId={}", playlistId, musicId);
+            }
+
+            return success;
+        } catch (SQLException e) {
+            logger.error("添加音乐到歌单失败: {}", e.getMessage(), e);
+        }
+
+        return false;
+    }
+
+    /**
      * 删除歌单
      */
     public boolean deletePlaylist(int playlistId) {

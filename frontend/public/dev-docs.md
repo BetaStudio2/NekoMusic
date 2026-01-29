@@ -305,6 +305,7 @@ Content-Type: application/json
 - [更新歌单](#3-更新歌单)
 - [删除歌单](#4-删除歌单)
 - [获取歌单音乐列表](#5-获取歌单音乐列表)
+- [添加音乐到歌单](#6-添加音乐到歌单)
 - [歌单权限说明](#歌单权限说明)
 
 ### 1. 创建歌单
@@ -532,6 +533,54 @@ Authorization: <token>
 - 返回的音乐信息包含完整的歌曲详情和添加时间
 - 任何登录用户都可以查看歌单内容，无需是歌单创建者
 
+### 6. 添加音乐到歌单
+
+**端点:** `POST /api/user/playlist/music/add`
+
+**请求头:**
+```
+Authorization: <token>
+Content-Type: application/json
+```
+
+**请求体:**
+```json
+{
+  "playlistId": 1,  // 歌单 ID (必填)
+  "musicId": 1      // 音乐 ID (必填)
+}
+```
+
+**响应示例（成功）:**
+```json
+{
+  "success": true,
+  "message": "音乐添加到歌单成功"
+}
+```
+
+**响应示例（失败）:**
+```json
+{
+  "success": false,
+  "message": "音乐添加到歌单失败或音乐已存在于歌单中"
+}
+```
+
+**响应示例（权限错误）:**
+```json
+{
+  "success": false,
+  "message": "无权限修改此歌单"
+}
+```
+
+**说明:**
+- 只有歌单的创建者才能添加音乐到歌单
+- 如果音乐已存在于歌单中，会返回失败
+- 音乐会自动添加到歌单末尾（position 自动递增）
+- 添加成功后会自动更新歌单的 `musicCount` 字段
+
 ---
 ## 歌单权限说明
 
@@ -544,6 +593,7 @@ Authorization: <token>
 | 查看歌单内容 | 任何登录用户（可以查看任何歌单的内容） |
 | 更新歌单 | 只有歌单的创建者 |
 | 删除歌单 | 只有歌单的创建者 |
+| 添加音乐到歌单 | 只有歌单的创建者 |
 
 ### 权限验证
 
@@ -889,6 +939,39 @@ async function getPlaylistMusic(playlistId) {
     // data.musicList 是一个数组，包含歌单中的所有音乐
   } else {
     console.error('获取歌单音乐列表失败:', data.message);
+  }
+  return data;
+}
+```
+
+### 添加音乐到歌单
+
+```javascript
+async function addMusicToPlaylist(playlistId, musicId) {
+  const token = localStorage.getItem('userToken');
+
+  const response = await fetch('https://music.cnmsb.xin/api/user/playlist/music/add', {
+    method: 'POST',
+    headers: {
+      'Authorization': token,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      playlistId: playlistId,
+      musicId: musicId
+    })
+  });
+
+  const data = await response.json();
+  if (data.success) {
+    console.log('音乐添加到歌单成功');
+    // 可以在这里刷新歌单内容
+  } else if (data.message === '无权限修改此歌单') {
+    alert('您没有权限修改此歌单');
+  } else if (data.message.includes('音乐已存在于歌单中')) {
+    alert('音乐已存在于歌单中');
+  } else {
+    console.error('音乐添加到歌单失败:', data.message);
   }
   return data;
 }
