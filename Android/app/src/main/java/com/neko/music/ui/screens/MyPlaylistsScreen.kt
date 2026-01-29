@@ -8,6 +8,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -51,6 +54,7 @@ import com.neko.music.data.model.Playlist
 import com.neko.music.ui.theme.*
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyPlaylistsScreen(
     onNavigateToPlaylistDetail: (Int, String, String?, String?) -> Unit,
@@ -68,6 +72,7 @@ fun MyPlaylistsScreen(
     var favorites by remember { mutableStateOf<List<com.neko.music.data.api.FavoriteMusic>>(emptyList()) }
     var playlistFirstMusicCovers by remember { mutableStateOf<Map<Int, String>>(emptyMap()) } // 存储每个歌单第一首音乐的封面
     var isLoading by remember { mutableStateOf(true) }
+    var isRefreshing by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
     var showError by remember { mutableStateOf(false) }
     
@@ -132,7 +137,59 @@ fun MyPlaylistsScreen(
             isLoading = false
         }
     }
-    
+
+    // 刷新函数
+    suspend fun refreshData() {
+        try {
+            val token = tokenManager.getToken()
+            if (token != null) {
+                // 加载歌单列表
+                val playlistResponse: PlaylistListResponse = playlistApi.getMyPlaylists()
+                Log.d("MyPlaylistsScreen", "刷新歌单API响应: success=${playlistResponse.success}")
+                if (playlistResponse.success) {
+                    playlists = playlistResponse.playlists?.map { info ->
+                        Playlist(info.id, info.name, info.musicCount, 1, info.createdAt, info.coverPath, info.description, info.username)
+                    } ?: emptyList()
+
+                    // 清空之前的封面缓存
+                    playlistFirstMusicCovers = emptyMap()
+
+                    // 异步加载每个歌单的第一首音乐封面
+                    playlists.forEach { playlist ->
+                        if (playlist.coverPath.isNullOrEmpty() && playlist.musicCount > 0) {
+                            scope.launch {
+                                try {
+                                    val musicResponse: PlaylistMusicListResponse = playlistApi.getPlaylistMusic(playlist.id)
+                                    if (musicResponse.success && musicResponse.musicList?.isNotEmpty() == true) {
+                                        val firstMusic = musicResponse.musicList[0]
+                                        val coverUrl = "https://music.cnmsb.xin/api/music/cover/${firstMusic.id}"
+                                        playlistFirstMusicCovers = playlistFirstMusicCovers + (playlist.id to coverUrl)
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("MyPlaylistsScreen", "加载歌单${playlist.id}封面失败", e)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 加载收藏列表
+                val favoriteResponse = favoriteApi.getFavorites(token)
+                Log.d("MyPlaylistsScreen", "刷新收藏API响应: success=${favoriteResponse.success}")
+                if (favoriteResponse.success) {
+                    favoritesCount = favoriteResponse.favorites.size
+                    favorites = favoriteResponse.favorites
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("MyPlaylistsScreen", "刷新失败", e)
+            errorMessage = "刷新失败: ${e.message}"
+            showError = true
+        } finally {
+            isRefreshing = false
+        }
+    }
+
     // 获取完整的歌单列表（包括"我的收藏"）
     val allPlaylists = remember(playlists, favoritesCount) {
         listOf(
@@ -288,13 +345,26 @@ fun MyPlaylistsScreen(
                 }
             } else {
                 // 歌单列表
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(bottom = 80.dp)
+                val pullRefreshState = rememberPullToRefreshState()
+
+                PullToRefreshBox(
+                    isRefreshing = isRefreshing,
+                    onRefresh = {
+                        isRefreshing = true
+                        scope.launch {
+                            refreshData()
+                        }
+                    },
+                    state = pullRefreshState,
+                    modifier = Modifier.fillMaxSize()
                 ) {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(bottom = 80.dp)
+                    ) {
                     items(allPlaylists) { playlist ->
                         PlaylistItem(
                             playlist = playlist,
@@ -367,6 +437,8 @@ fun MyPlaylistsScreen(
                         }
                     }
                 }
+                    }
+                }
             }
         }
         
@@ -422,7 +494,6 @@ fun MyPlaylistsScreen(
             }
         }
     }
-}
 
 @Composable
 fun PlaylistItem(
