@@ -10,6 +10,7 @@ Neko云音乐提供完整的 RESTful API，支持音乐搜索、播放、用户�
 
 - [认证说明](#认证说明)
 - [用户相关 API](#用户相关-api)
+- [歌单相关 API](#歌单相关-api)
 - [音乐相关 API](#音乐相关-api)
 - [错误码说明](#错误码说明)
 
@@ -297,6 +298,197 @@ Content-Type: application/json
 
 ---
 
+## 歌单相关 API
+
+- [创建歌单](#1-创建歌单)
+- [获取歌单列表](#2-获取歌单列表)
+- [更新歌单](#3-更新歌单)
+- [删除歌单](#4-删除歌单)
+- [歌单权限说明](#歌单权限说明)
+
+### 1. 创建歌单
+
+**端点:** `POST /api/user/playlist/create`
+
+**请求头:**
+```
+Authorization: <token>
+Content-Type: application/json
+```
+
+**请求体:**
+```json
+{
+  "name": "string",          // 歌单名称 (必填)
+  "description": "string"   // 歌单描述 (可选)
+}
+```
+
+**参数限制:**
+- `name`: 长度不能超过 255 个字符
+- `description`: 长度不能超过 500 个字符
+
+**响应示例（成功）:**
+```json
+{
+  "success": true,
+  "message": "歌单创建成功",
+  "playlist": {
+    "id": 1,
+    "name": "我的歌单",
+    "description": "这是我的歌单描述",
+    "musicCount": 0,
+    "createdAt": "2026-01-29 12:00:00",
+    "updatedAt": "2026-01-29 12:00:00"
+  }
+}
+```
+
+**响应示例（失败）:**
+```json
+{
+  "success": false,
+  "message": "歌单名称不能为空"
+}
+```
+
+### 2. 获取歌单列表
+
+**端点:** `GET /api/user/playlists`
+
+**请求头:**
+```
+Authorization: <token>
+```
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "message": "获取歌单列表成功",
+  "playlists": [
+    {
+      "id": 1,
+      "name": "我的歌单",
+      "description": "这是我的歌单描述",
+      "coverPath": null,
+      "musicCount": 5,
+      "createdAt": "2026-01-29 12:00:00",
+      "updatedAt": "2026-01-29 12:05:00"
+    }
+  ]
+}
+```
+
+**说明:** 此 API 返回当前用户创建的所有歌单列表，歌单按创建时间倒序排列。
+
+### 3. 更新歌单
+
+**端点:** `POST /api/user/playlist/update`
+
+**请求头:**
+```
+Authorization: <token>
+Content-Type: application/json
+```
+
+**请求体:**
+```json
+{
+  "id": 1,                   // 歌单 ID (必填)
+  "name": "string",          // 歌单名称 (必填)
+  "description": "string"   // 歌单描述 (可选)
+}
+```
+
+**参数限制:**
+- `id`: 歌单 ID，必须是当前用户创建的歌单
+- `name`: 长度不能超过 255 个字符
+- `description`: 长度不能超过 500 个字符
+
+**响应示例（成功）:**
+```json
+{
+  "success": true,
+  "message": "歌单更新成功",
+  "playlist": {
+    "id": 1,
+    "name": "更新的歌单名称",
+    "description": "更新的描述",
+    "musicCount": 5,
+    "createdAt": "2026-01-29 12:00:00",
+    "updatedAt": "2026-01-29 12:10:00"
+  }
+}
+```
+
+**响应示例（权限错误）:**
+```json
+{
+  "success": false,
+  "message": "无权限修改此歌单"
+}
+```
+
+**说明:** 只有歌单的创建者（user_id 匹配）才能更新歌单信息。
+
+### 4. 删除歌单
+
+**端点:** `POST /api/user/playlist/delete`
+
+**请求头:**
+```
+Authorization: <token>
+Content-Type: application/json
+```
+
+**请求体:**
+```json
+{
+  "id": 1  // 歌单 ID (必填)
+}
+```
+
+**响应示例（成功）:**
+```json
+{
+  "success": true,
+  "message": "歌单删除成功"
+}
+```
+
+**响应示例（权限错误）:**
+```json
+{
+  "success": false,
+  "message": "无权限删除此歌单"
+}
+```
+
+**说明:** 
+- 只有歌单的创建者（user_id 匹配）才能删除歌单
+- 删除歌单会级联删除 `playlist_music` 表中的所有关联记录
+- 此操作不可恢复
+
+---
+
+## 歌单权限说明
+
+### 权限规则
+
+| 操作 | 权限要求 |
+|------|---------|
+| 创建歌单 | 任何登录用户 |
+| 查看歌单列表 | 任何登录用户（只能查看自己创建的歌单） |
+| 更新歌单 | 只有歌单的创建者 |
+| 删除歌单 | 只有歌单的创建者 |
+
+### 权限验证
+
+所有修改和删除操作都会验证用户是否是歌单的创建者。如果用户尝试修改或删除不属于自己的歌单，服务器会返回 `403 Forbidden` 状态码和相应的错误信息。
+
+---
+
 ## 音乐相关 API
 
 ### 1. 搜索音乐
@@ -501,6 +693,118 @@ async function uploadAvatar(avatarFile) {
 }
 ```
 
+### 创建歌单
+
+```javascript
+async function createPlaylist(name, description) {
+  const token = localStorage.getItem('userToken');
+  
+  const response = await fetch('https://music.cnmsb.xin/api/user/playlist/create', {
+    method: 'POST',
+    headers: {
+      'Authorization': token,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      name: name,
+      description: description
+    })
+  });
+  
+  const data = await response.json();
+  if (data.success) {
+    console.log('歌单创建成功:', data.playlist);
+  } else {
+    console.error('歌单创建失败:', data.message);
+  }
+  return data;
+}
+```
+
+### 获取歌单列表
+
+```javascript
+async function getPlaylists() {
+  const token = localStorage.getItem('userToken');
+  
+  const response = await fetch('https://music.cnmsb.xin/api/user/playlists', {
+    method: 'GET',
+    headers: {
+      'Authorization': token
+    }
+  });
+  
+  const data = await response.json();
+  if (data.success) {
+    console.log('获取到歌单列表:', data.playlists);
+  } else {
+    console.error('获取歌单列表失败:', data.message);
+  }
+  return data;
+}
+```
+
+### 更新歌单
+
+```javascript
+async function updatePlaylist(playlistId, name, description) {
+  const token = localStorage.getItem('userToken');
+  
+  const response = await fetch('https://music.cnmsb.xin/api/user/playlist/update', {
+    method: 'POST',
+    headers: {
+      'Authorization': token,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      id: playlistId,
+      name: name,
+      description: description
+    })
+  });
+  
+  const data = await response.json();
+  if (data.success) {
+    console.log('歌单更新成功:', data.playlist);
+  } else if (data.message === '无权限修改此歌单') {
+    alert('您没有权限修改此歌单');
+  } else {
+    console.error('歌单更新失败:', data.message);
+  }
+  return data;
+}
+```
+
+### 删除歌单
+
+```javascript
+async function deletePlaylist(playlistId) {
+  const token = localStorage.getItem('userToken');
+  
+  const response = await fetch('https://music.cnmsb.xin/api/user/playlist/delete', {
+    method: 'POST',
+    headers: {
+      'Authorization': token,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      id: playlistId
+    })
+  });
+  
+  const data = await response.json();
+  if (data.success) {
+    console.log('歌单删除成功');
+    // 可以在这里刷新歌单列表
+  } else if (data.message === '无权限删除此歌单') {
+    alert('您没有权限删除此歌单');
+  } else {
+    console.error('歌单删除失败:', data.message);
+  }
+  return data;
+}
+```
+
 ### 修改用户密码
 
 ```javascript
@@ -537,7 +841,7 @@ async function changePassword(oldPassword, newPassword) {
 2. **Token 管理:** Token 有效期为 30 天，过期后需要重新登录
 3. **错误处理:** 所有 API 都返回统一的 JSON 格式，包含 `success` 和 `message` 字段
 4. **速率限制:** 建议客户端实现适当的请求速率限制，避免频繁请求
-5. **头像上传:** 
+5. **头像上传:**
    - 支持的图片格式：jpg, jpeg, png, gif, webp, bmp
    - 最大文件大小：50MiB
    - 只允许图片类型文件上传，会严格验证 MIME 类型
@@ -547,6 +851,14 @@ async function changePassword(oldPassword, newPassword) {
    - 新密码不能与原密码相同
    - 需要提供正确的原密码才能修改
    - 使用 Argon2 算法加密密码
+7. **歌单管理:**
+   - 每个歌单都有唯一的 ID 和创建者（user_id）
+   - 只有歌单的创建者才能更新和删除歌单
+   - 删除歌单会级联删除歌单中的所有音乐关联
+   - 歌单名称长度限制：255 个字符
+   - 歌单描述长度限制：500 个字符
+   - `musicCount` 字段会自动更新，无需手动维护
+   - 歌单按创建时间倒序排列（最新的在前面）
 
 ---
 
