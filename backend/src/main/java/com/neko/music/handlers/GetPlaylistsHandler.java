@@ -1,0 +1,116 @@
+package com.neko.music.handlers;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.neko.music.Main;
+import com.neko.music.model.Playlist;
+import com.neko.music.service.PlaylistService;
+import com.neko.music.service.UserAuthService;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.annotation.WebServlet;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.List;
+
+@WebServlet("/api/user/playlists")
+public class GetPlaylistsHandler extends HttpServlet {
+    private static final Logger logger = LoggerFactory.getLogger(GetPlaylistsHandler.class);
+    private final Gson gson = new Gson();
+    private PlaylistService playlistService;
+    private UserAuthService userAuthService;
+
+    @Override
+    public void init() throws ServletException {
+        playlistService = Main.getPlaylistService();
+        userAuthService = Main.getUserAuthService();
+    }
+
+    @Override
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        resp.setContentType("application/json;charset=UTF-8");
+        resp.setHeader("Access-Control-Allow-Origin", "*");
+        resp.setHeader("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, OPTIONS");
+        resp.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+        logger.info("收到获取歌单列表请求");
+
+        // 获取token
+        String token = req.getHeader("Authorization");
+
+        if (token == null || token.isEmpty()) {
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未提供认证令牌");
+            return;
+        }
+
+        // 验证token并获取用户ID
+        Integer userId = userAuthService.validateToken(token).orElse(null);
+        if (userId == null) {
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "无效的认证令牌");
+            return;
+        }
+
+        try {
+            // 获取用户的歌单列表
+            List<Playlist> playlists = playlistService.getUserPlaylists(userId);
+
+            logger.info("获取到 {} 个歌单: userId={}", playlists.size(), userId);
+
+            JsonObject response = new JsonObject();
+            response.addProperty("success", true);
+            response.addProperty("message", "获取歌单列表成功");
+
+            JsonArray playlistsArray = new JsonArray();
+            for (Playlist playlist : playlists) {
+                JsonObject playlistJson = new JsonObject();
+                playlistJson.addProperty("id", playlist.getId());
+                playlistJson.addProperty("name", playlist.getName());
+                playlistJson.addProperty("description", playlist.getDescription());
+                playlistJson.addProperty("coverPath", playlist.getCoverPath());
+                playlistJson.addProperty("musicCount", playlist.getMusicCount());
+                playlistJson.addProperty("createdAt", playlist.getCreatedAt());
+                playlistJson.addProperty("updatedAt", playlist.getUpdatedAt());
+                playlistsArray.add(playlistJson);
+            }
+
+            response.add("playlists", playlistsArray);
+
+            sendSuccessResponse(resp, response);
+        } catch (Exception e) {
+            logger.error("处理获取歌单列表请求时发生错误: {}", e.getMessage(), e);
+            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "服务器内部错误");
+        }
+    }
+
+    /**
+     * 发送成功响应
+     */
+    private void sendSuccessResponse(HttpServletResponse resp, JsonObject response) throws IOException {
+        resp.setStatus(HttpServletResponse.SC_OK);
+        try (PrintWriter out = resp.getWriter()) {
+            out.print(gson.toJson(response));
+            out.flush();
+        }
+    }
+
+    /**
+     * 发送错误响应
+     */
+    private void sendErrorResponse(HttpServletResponse resp, int statusCode, String message) throws IOException {
+        resp.setStatus(statusCode);
+        JsonObject response = new JsonObject();
+        response.addProperty("success", false);
+        response.addProperty("message", message);
+
+        try (PrintWriter out = resp.getWriter()) {
+            out.print(gson.toJson(response));
+            out.flush();
+        }
+    }
+}

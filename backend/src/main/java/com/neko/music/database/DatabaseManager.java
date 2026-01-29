@@ -167,7 +167,51 @@ public class DatabaseManager {
             } catch (SQLException e) {
                 logger.debug("修改 email 字段为 NOT NULL 失败（可能已修改）: {}", e.getMessage());
             }
-            
+
+            // 创建歌单表
+            String createPlaylistTable = """
+                CREATE TABLE IF NOT EXISTS playlists (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    description VARCHAR(500),
+                    cover_path VARCHAR(500),
+                    music_count INT DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    INDEX idx_user_id (user_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """;
+            try (PreparedStatement stmt = conn.prepareStatement(createPlaylistTable)) {
+                stmt.execute();
+                logger.info("playlists 表创建完成");
+            } catch (SQLException e) {
+                logger.debug("playlists 表可能已存在: {}", e.getMessage());
+            }
+
+            // 创建歌单音乐关联表
+            String createPlaylistMusicTable = """
+                CREATE TABLE IF NOT EXISTS playlist_music (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    playlist_id INT NOT NULL,
+                    music_id INT NOT NULL,
+                    position INT NOT NULL,
+                    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY unique_playlist_music_position (playlist_id, position),
+                    FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+                    FOREIGN KEY (music_id) REFERENCES music(id) ON DELETE CASCADE,
+                    INDEX idx_playlist_id (playlist_id),
+                    INDEX idx_music_id (music_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """;
+            try (PreparedStatement stmt = conn.prepareStatement(createPlaylistMusicTable)) {
+                stmt.execute();
+                logger.info("playlist_music 表创建完成");
+            } catch (SQLException e) {
+                logger.debug("playlist_music 表可能已存在: {}", e.getMessage());
+            }
+
             logger.info("数据库表初始化完成");
         } catch (SQLException e) {
             logger.error("数据库表初始化失败", e);

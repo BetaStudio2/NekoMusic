@@ -8,6 +8,7 @@ import com.neko.music.handlers.*;
 
 import com.neko.music.service.AdminAuthService;
 import com.neko.music.service.EmailService;
+import com.neko.music.service.PlaylistService;
 import com.neko.music.service.RedisService;
 import com.neko.music.service.UserAuthService;
 import org.eclipse.jetty.server.Server;
@@ -39,6 +40,7 @@ public class Main {
     private static UserAuthService userAuthService;
     private static EmailService emailService;
     private static RedisService redisService;
+    private static PlaylistService playlistService;
 
     public static void main(String[] args) throws Exception {
         // 重新设置System.out和System.err的编码
@@ -70,6 +72,9 @@ public class Main {
         
         // 初始化用户认证服务
         userAuthService = new UserAuthService(databaseManager, configManager, emailService, redisService);
+
+        // 初始化歌单服务
+        playlistService = new PlaylistService(databaseManager);
         
         // 创建默认管理员账号（如果不存在）
         createDefaultAdminIfNotExists();
@@ -164,6 +169,22 @@ public class Main {
         // 注册用户管理API处理器（管理员权限）
         ServletHolder userManagementHolder = new ServletHolder(new UserManagementHandler());
         context.addServlet(userManagementHolder, "/api/users/*");
+
+        // 注册创建歌单API处理器
+        ServletHolder createPlaylistHolder = new ServletHolder(new CreatePlaylistHandler());
+        context.addServlet(createPlaylistHolder, "/api/user/playlist/create");
+
+        // 注册获取歌单列表API处理器
+        ServletHolder getPlaylistsHolder = new ServletHolder(new GetPlaylistsHandler());
+        context.addServlet(getPlaylistsHolder, "/api/user/playlists");
+
+        // 注册更新歌单API处理器
+        ServletHolder updatePlaylistHolder = new ServletHolder(new UpdatePlaylistHandler());
+        context.addServlet(updatePlaylistHolder, "/api/user/playlist/update");
+
+        // 注册删除歌单API处理器
+        ServletHolder deletePlaylistHolder = new ServletHolder(new DeletePlaylistHandler());
+        context.addServlet(deletePlaylistHolder, "/api/user/playlist/delete");
         
         // 启动服务器
         server.start();
@@ -186,6 +207,10 @@ public class Main {
         logger.info("  POST /api/music/add - 添加音乐 (需要管理员登录)");
         logger.info("  PUT /api/music/edit - 编辑音乐 (需要管理员登录)");
         logger.info("  DELETE /api/music/delete/{id} - 删除音乐 (需要管理员登录)");
+        logger.info("  POST /api/user/playlist/create - 创建歌单 (需要用户登录)");
+        logger.info("  GET /api/user/playlists - 获取歌单列表 (需要用户登录)");
+        logger.info("  POST /api/user/playlist/update - 更新歌单 (需要创建者登录)");
+        logger.info("  POST /api/user/playlist/delete - 删除歌单 (需要创建者登录)");
         logger.info("  POST /api/admin/login - 管理员登录");
         logger.info("  GET /api/admin/stats - 管理员统计信息 (需要管理员登录)");
         logger.info("  GET /api/admin/chart-data - 管理员图表数据 (需要管理员登录)");
@@ -243,5 +268,9 @@ public class Main {
     
     public static RedisService getRedisService() {
         return redisService;
+    }
+
+    public static PlaylistService getPlaylistService() {
+        return playlistService;
     }
 }
