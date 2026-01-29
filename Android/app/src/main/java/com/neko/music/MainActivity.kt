@@ -312,7 +312,7 @@ fun MainScreen() {
                         val encodedName = java.net.URLEncoder.encode(playlistName, "UTF-8")
                         val encodedCover = if (playlistCover != null) java.net.URLEncoder.encode(playlistCover, "UTF-8") else "null"
                         val encodedDescription = java.net.URLEncoder.encode(playlistDescription ?: "", "UTF-8")
-                        navController.navigate("playlist_detail/$playlistId/$encodedName/$encodedCover/$encodedDescription")
+                        navController.navigate("playlist_detail/$playlistId/$encodedName/$encodedCover/$encodedDescription/true")
                     },
                     onNavigateToFavorite = {
                         navController.navigate("favorites")
@@ -348,7 +348,7 @@ fun MainScreen() {
                 )
             }
             composable(
-                route = "playlist_detail/{playlistId}/{playlistName}/{playlistCover}/{playlistDescription}",
+                route = "playlist_detail/{playlistId}/{playlistName}/{playlistCover}/{playlistDescription}/{isOwner}",
                 arguments = listOf(
                     navArgument("playlistId") { type = NavType.IntType },
                     navArgument("playlistName") { type = NavType.StringType },
@@ -361,6 +361,10 @@ fun MainScreen() {
                         type = NavType.StringType
                         nullable = true
                         defaultValue = null
+                    },
+                    navArgument("isOwner") {
+                        type = NavType.BoolType
+                        defaultValue = true
                     }
                 )
             ) { backStackEntry ->
@@ -368,6 +372,7 @@ fun MainScreen() {
                 val playlistName = backStackEntry.arguments?.getString("playlistName") ?: ""
                 val playlistCover = backStackEntry.arguments?.getString("playlistCover")
                 val playlistDescription = backStackEntry.arguments?.getString("playlistDescription")
+                val isOwner = backStackEntry.arguments?.getBoolean("isOwner") ?: true
                 PlaylistDetailScreen(
                     playlistId = playlistId,
                     playlistName = java.net.URLDecoder.decode(playlistName, "UTF-8"),
@@ -381,6 +386,7 @@ fun MainScreen() {
                     } else {
                         ""
                     },
+                    isOwner = isOwner,
                     onBackClick = {
                         navController.popBackStack()
                     },
@@ -607,7 +613,7 @@ fun MainScreen() {
                         val encodedName = java.net.URLEncoder.encode(playlistName, "UTF-8")
                         val encodedCover = if (playlistCover != null) java.net.URLEncoder.encode(playlistCover, "UTF-8") else "null"
                         val encodedDescription = java.net.URLEncoder.encode(playlistDescription ?: "", "UTF-8")
-                        navController.navigate("playlist_detail/$playlistId/$encodedName/$encodedCover/$encodedDescription")
+                        navController.navigate("playlist_detail/$playlistId/$encodedName/$encodedCover/$encodedDescription/false")
                     }
                 )
             }

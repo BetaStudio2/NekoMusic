@@ -47,6 +47,7 @@ fun PlaylistDetailScreen(
     playlistName: String,
     playlistCover: String?,
     playlistDescription: String = "",
+    isOwner: Boolean = true,
     onBackClick: () -> Unit,
     onMusicClick: (com.neko.music.data.model.Music) -> Unit,
     onPlayAll: (List<PlaylistMusic>) -> Unit
@@ -87,7 +88,12 @@ fun PlaylistDetailScreen(
 
     val coverUrl = remember(playlistCover, musicList) {
         if (!playlistCover.isNullOrEmpty()) {
-            "https://music.cnmsb.xin$playlistCover"
+            // 如果 playlistCover 已经是完整 URL，直接使用；否则拼接
+            if (playlistCover.startsWith("http")) {
+                playlistCover
+            } else {
+                "https://music.cnmsb.xin$playlistCover"
+            }
         } else {
             val firstMusic = musicList.firstOrNull()
             if (firstMusic != null) {
@@ -367,7 +373,8 @@ fun PlaylistDetailScreen(
                                     )
                                 )
                             },
-                            onRemove = { removeMusic(music) }
+                            onRemove = { removeMusic(music) },
+                            showDeleteButton = isOwner
                         )
                     }
                 }
@@ -621,7 +628,8 @@ fun PlaylistMusicItem(
     music: PlaylistMusic,
     position: Int,
     onClick: () -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    showDeleteButton: Boolean = true
 ) {
     var isPressed by remember { mutableStateOf(false) }
 
@@ -694,15 +702,17 @@ fun PlaylistMusicItem(
             color = Color.Gray
         )
 
-        IconButton(
-            onClick = onRemove,
-            modifier = Modifier.size(36.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Delete,
-                contentDescription = "移除",
-                tint = Color.Gray
-            )
+        if (showDeleteButton) {
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "移除",
+                    tint = Color.Gray
+                )
+            }
         }
     }
 }
