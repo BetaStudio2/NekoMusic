@@ -1,5 +1,6 @@
 package com.neko.music
 
+import android.R.attr.visible
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -251,319 +252,270 @@ fun MainScreen() {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // 主内容区域
-        androidx.compose.foundation.layout.Column(
+        // 主内容区域 - 铺满全屏
+        NavHost(
+            navController = navController,
+            startDestination = BottomNavItem.Home.route,
             modifier = Modifier.fillMaxSize()
         ) {
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxSize()
-            ) {
-                NavHost(
-                    navController = navController,
-                    startDestination = BottomNavItem.Home.route
-                ) {
-                    composable(BottomNavItem.Home.route) {
-                        HomeScreen(
-                            onSearchClick = {
-                                Log.d("MainActivity", "导航到搜索页面")
-                                navController.navigate("search")
-                            },
-                            onNavigateToFavorite = {
-                                navController.navigate("favorites")
-                            }
-                        )
+            composable(BottomNavItem.Home.route) {
+                HomeScreen(
+                    onSearchClick = {
+                        Log.d("MainActivity", "导航到搜索页面")
+                        navController.navigate("search")
+                    },
+                    onNavigateToFavorite = {
+                        navController.navigate("favorites")
                     }
-                    composable(BottomNavItem.Mine.route) {
-                        MineScreen(
-                            onRecentPlayClick = {
-                                navController.navigate("recent_play")
-                            },
-                            onLoginClick = {
-                                showLoginScreen = true
-                            },
-                            onLogoutClick = {
-                                showLogoutDialog = true
-                            },
-                            onFavoriteClick = {
-                                navController.navigate("favorites")
-                            },
-                            onAboutClick = {
-                                navController.navigate("about")
-                            },
-                            onNavigateToSettings = {
-                                navController.navigate("settings")
-                            },
-                            onAccountInfoClick = {
-                                navController.navigate("account_info")
-                            },
-                            isLoggedIn = isLoggedIn,
-                            username = currentUsername,
-                            userId = currentUserId,
-                            onLoginSuccess = {
-                                // 登录成功后更新状态
-                                val tokenManager = com.neko.music.data.manager.TokenManager(context)
-                                isLoggedIn = tokenManager.isLoggedIn()
-                                currentUsername = tokenManager.getUsername()
-                                currentUserId = tokenManager.getUserId()
-                            }
-                        )
-                    }
-                    composable("recent_play") {
-                        RecentPlayScreen(
-                            onBackClick = {
-                                navController.popBackStack()
-                            },
-                            onMusicClick = { music ->
-                                val id = music.id
-                                val encodedTitle = java.net.URLEncoder.encode(music.title, "UTF-8")
-                                val encodedArtist =
-                                    java.net.URLEncoder.encode(music.artist, "UTF-8")
-                                navController.navigate("player/$id/$encodedTitle/$encodedArtist")
-                            }
-                        )
-                    }
-                    composable("favorites") {
-                        FavoriteScreen(
-                            onBackClick = {
-                                navController.popBackStack()
-                            },
-                            onMusicClick = { music ->
-                                val id = music.id
-                                val encodedTitle = java.net.URLEncoder.encode(music.title, "UTF-8")
-                                val encodedArtist =
-                                    java.net.URLEncoder.encode(music.artist, "UTF-8")
-                                navController.navigate("player/$id/$encodedTitle/$encodedArtist")
-                            }
-                        )
-                    }
-                    composable("about") {
-                        AboutScreen(
-                            onBackClick = {
-                                navController.popBackStack()
-                            }
-                        )
-                    }
-                    composable("settings") {
-                        SettingsScreen(
-                            onBackClick = {
-                                navController.popBackStack()
-                            },
-                            onNavigateToCache = {
-                                navController.navigate("cache_management")
-                            }
-                        )
-                    }
-                    composable("cache_management") {
-                        CacheManagementScreen(
-                            onBackClick = {
-                                navController.popBackStack()
-                            }
-                        )
-                    }
-                    composable("account_info") {
-                        AccountInfoScreen(
-                            onBackClick = {
-                                navController.popBackStack()
-                            },
-                            userId = currentUserId,
-                            username = currentUsername ?: "",
-                            email = com.neko.music.data.manager.TokenManager(context).getEmail()
-                                ?: "",
-                            onShowBottomControls = { show ->
-                                showBottomControls = show
-                            },
-                            onAvatarUpdate = { imageData ->
-                                scope.launch {
-                                    try {
-                                        Log.d(
-                                            "MainActivity",
-                                            "开始上传头像，图片大小: ${imageData.size} bytes"
-                                        )
-                                        val token =
-                                            com.neko.music.data.manager.TokenManager(context)
-                                                .getToken()
-                                        Log.d(
-                                            "MainActivity",
-                                            "Token: ${if (token != null) "已获取 (${token.length} 字符)" else "null"}"
-                                        )
-                                        val userApi = com.neko.music.data.api.UserApi(token)
-                                        Log.d("MainActivity", "UserApi 实例已创建")
-                                        val response = userApi.updateAvatar(imageData)
-                                        Log.d(
-                                            "MainActivity",
-                                            "头像上传响应: success=${response.success}, message=${response.message}"
-                                        )
-
-                                        if (response.success) {
-                                            Log.d("MainActivity", "头像更新成功")
-                                        } else {
-                                            Log.e(
-                                                "MainActivity",
-                                                "更新头像失败: ${response.message}"
-                                            )
-                                        }
-                                    } catch (e: Exception) {
-                                        Log.e("MainActivity", "上传头像失败", e)
-                                    }
-                                }
-                            },
-                            onPasswordUpdate = { oldPassword, newPassword ->
-                                try {
-                                    val userApi = com.neko.music.data.api.UserApi(
-                                            com.neko.music.data.manager.TokenManager(context)
-                                                .getToken()
-                                        )
-                                    val response =
-                                        userApi.updatePassword(oldPassword, newPassword)
-
-                                    if (response.success) {
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            "密码修改成功",
-                                            android.widget.Toast.LENGTH_SHORT
-                                        ).show()
-                                        true
-                                    } else {
-                                        // 失败时显示错误 Toast
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            response.message,
-                                            android.widget.Toast.LENGTH_SHORT
-                                        ).show()
-                                        false
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e("MainActivity", "修改密码失败", e)
-                                    android.widget.Toast.makeText(
-                                        context,
-                                        "修改密码失败: ${e.message}",
-                                        android.widget.Toast.LENGTH_SHORT
-                                    ).show()
-                                    false
-                                }
-                            }
-                        )
-                    }
-                    composable(
-                        route = "search?query={query}",
-                        arguments = listOf(
-                            navArgument("query") {
-                                type = NavType.StringType
-                                defaultValue = ""
-                            }
-                        )
-                    ) { backStackEntry ->
-                        val query = backStackEntry.arguments?.getString("query") ?: ""
-                        Log.d("MainActivity", "搜索页面加载，查询: $query")
-                        SearchResultScreen(
-                            initialQuery = query,
-                            onBackClick = {
-                                Log.d("MainActivity", "从搜索页面返回")
-                                navController.popBackStack()
-                            },
-                            onMusicClick = { music ->
-                                Log.d("MainActivity", "点击音乐: ${music.title}")
-                                val encodedTitle = java.net.URLEncoder.encode(music.title, "UTF-8")
-                                val encodedArtist =
-                                    java.net.URLEncoder.encode(music.artist, "UTF-8")
-                                navController.navigate("player/${music.id}/$encodedTitle/$encodedArtist")
-                            }
-                        )
-                    }
-                    composable(
-                        route = "player/{id}/{title}/{artist}",
-                        arguments = listOf(
-                            navArgument("id") { type = NavType.IntType },
-                            navArgument("title") { type = NavType.StringType },
-                            navArgument("artist") { type = NavType.StringType }
-                        )
-                    ) { backStackEntry ->
-                        val id = backStackEntry.arguments?.getInt("id") ?: 0
-                        val title = java.net.URLDecoder.decode(
-                            backStackEntry.arguments?.getString("title") ?: "", "UTF-8"
-                        )
-                        val artist = java.net.URLDecoder.decode(
-                            backStackEntry.arguments?.getString("artist") ?: "", "UTF-8"
-                        )
-                        val music = Music(id, title, artist, "", 0, "", "", 0, "")
-                        Log.d("MainActivity", "播放页面加载: $title")
-                        PlayerScreen(
-                            music = music,
-                            onBackClick = {
-                                Log.d("MainActivity", "从播放页面返回")
-                                navController.popBackStack()
-                            },
-                            onPlaylistClick = {
-                                showPlaylist = true
-                            }
-                        )
-                    }
-                }
+                )
             }
-
-            // 只在非播放页面显示迷你播放器和底部导航栏
-            if (!isPlayerScreen) {
-                if (returningFromPlayer) {
-                    // 从播放页面返回时使用动画
-                    key(showBottomControls) {
-                        AnimatedVisibility(
-                            visible = showBottomControls,
-                            enter = androidx.compose.animation.slideInVertically(
-                                initialOffsetY = { fullHeight -> fullHeight },
-                                animationSpec = tween(
-                                    durationMillis = 200,
-                                    easing = androidx.compose.animation.core.FastOutSlowInEasing
+            composable(BottomNavItem.Mine.route) {
+                MineScreen(
+                    onRecentPlayClick = {
+                        navController.navigate("recent_play")
+                    },
+                    onLoginClick = {
+                        showLoginScreen = true
+                    },
+                    onLogoutClick = {
+                        showLogoutDialog = true
+                    },
+                    onFavoriteClick = {
+                        navController.navigate("favorites")
+                    },
+                    onAboutClick = {
+                        navController.navigate("about")
+                    },
+                    onNavigateToSettings = {
+                        navController.navigate("settings")
+                    },
+                    onAccountInfoClick = {
+                        navController.navigate("account_info")
+                    },
+                    isLoggedIn = isLoggedIn,
+                    username = currentUsername,
+                    userId = currentUserId,
+                    onLoginSuccess = {
+                        // 登录成功后更新状态
+                        val tokenManager = com.neko.music.data.manager.TokenManager(context)
+                        isLoggedIn = tokenManager.isLoggedIn()
+                        currentUsername = tokenManager.getUsername()
+                        currentUserId = tokenManager.getUserId()
+                    }
+                )
+            }
+            composable("recent_play") {
+                RecentPlayScreen(
+                    onBackClick = {
+                        navController.popBackStack()
+                    },
+                    onMusicClick = { music ->
+                        val id = music.id
+                        val encodedTitle = java.net.URLEncoder.encode(music.title, "UTF-8")
+                        val encodedArtist =
+                            java.net.URLEncoder.encode(music.artist, "UTF-8")
+                        navController.navigate("player/$id/$encodedTitle/$encodedArtist")
+                    }
+                )
+            }
+            composable("favorites") {
+                FavoriteScreen(
+                    onBackClick = {
+                        navController.popBackStack()
+                    },
+                    onMusicClick = { music ->
+                        val id = music.id
+                        val encodedTitle = java.net.URLEncoder.encode(music.title, "UTF-8")
+                        val encodedArtist =
+                            java.net.URLEncoder.encode(music.artist, "UTF-8")
+                        navController.navigate("player/$id/$encodedTitle/$encodedArtist")
+                    }
+                )
+            }
+            composable("about") {
+                AboutScreen(
+                    onBackClick = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+            composable("settings") {
+                SettingsScreen(
+                    onBackClick = {
+                        navController.popBackStack()
+                    },
+                    onNavigateToCache = {
+                        navController.navigate("cache_management")
+                    }
+                )
+            }
+            composable("cache_management") {
+                CacheManagementScreen(
+                    onBackClick = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+            composable("account_info") {
+                AccountInfoScreen(
+                    onBackClick = {
+                        navController.popBackStack()
+                    },
+                    userId = currentUserId,
+                    username = currentUsername ?: "",
+                    email = com.neko.music.data.manager.TokenManager(context).getEmail()
+                        ?: "",
+                    onShowBottomControls = { show ->
+                        showBottomControls = show
+                    },
+                    onAvatarUpdate = { imageData ->
+                        scope.launch {
+                            try {
+                                Log.d(
+                                    "MainActivity",
+                                    "开始上传头像，图片大小: ${imageData.size} bytes"
                                 )
-                            ),
-                            exit = androidx.compose.animation.fadeOut(
-                                animationSpec = tween(durationMillis = 0)
-                            )
-                        ) {
-                            androidx.compose.foundation.layout.Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)
-                            ) {
-                                MiniPlayer(
-                                    isPlaying = isPlaying,
-                                    songTitle = currentMusicTitle ?: "暂无播放",
-                                    artist = currentMusicArtist ?: "",
-                                    coverUrl = currentMusicCover,
-                                    progress = progress.floatValue,
-                                    onPlayPauseClick = {
-                                        playerManager.togglePlayPause()
-                                    },
-                                    onPlayerClick = {
-                                        // 跳转到播放页面，传递当前音乐ID
-                                        val id = currentMusicId ?: 0
-                                        val encodedTitle = java.net.URLEncoder.encode(
-                                            currentMusicTitle ?: "未知歌曲", "UTF-8"
-                                        )
-                                        val encodedArtist = java.net.URLEncoder.encode(
-                                            currentMusicArtist ?: "未知歌手", "UTF-8"
-                                        )
-                                        navController.navigate("player/$id/$encodedTitle/$encodedArtist")
-                                    },
-                                    onPlaylistClick = {
-                                        showPlaylist = true
-                                    }
+                                val token =
+                                    com.neko.music.data.manager.TokenManager(context)
+                                        .getToken()
+                                Log.d(
+                                    "MainActivity",
+                                    "Token: ${if (token != null) "已获取 (${token.length} 字符)" else "null"}"
+                                )
+                                val userApi = com.neko.music.data.api.UserApi(token)
+                                Log.d("MainActivity", "UserApi 实例已创建")
+                                val response = userApi.updateAvatar(imageData)
+                                Log.d(
+                                    "MainActivity",
+                                    "头像上传响应: success=${response.success}, message=${response.message}"
                                 )
 
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                BottomNavigationBar(navController = navController)
+                                if (response.success) {
+                                    Log.d("MainActivity", "头像更新成功")
+                                } else {
+                                    Log.e(
+                                        "MainActivity",
+                                        "更新头像失败: ${response.message}"
+                                    )
+                                }
+                            } catch (e: Exception) {
+                                Log.e("MainActivity", "上传头像失败", e)
                             }
                         }
+                    },
+                    onPasswordUpdate = { oldPassword, newPassword ->
+                        try {
+                            val userApi = com.neko.music.data.api.UserApi(
+                                com.neko.music.data.manager.TokenManager(context)
+                                    .getToken()
+                            )
+                            val response =
+                                userApi.updatePassword(oldPassword, newPassword)
+
+                            if (response.success) {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "密码修改成功",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                                true
+                            } else {
+                                // 失败时显示错误 Toast
+                                android.widget.Toast.makeText(
+                                    context,
+                                    response.message,
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                                false
+                            }
+                        } catch (e: Exception) {
+                            Log.e("MainActivity", "修改密码失败", e)
+                            android.widget.Toast.makeText(
+                                context,
+                                "修改密码失败: ${e.message}",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                            false
+                        }
                     }
-                } else if (showBottomControls) {
-                    // 正常显示底部控件
-                    androidx.compose.foundation.layout.Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)
-                    ) {
+                )
+            }
+            composable(
+                route = "search?query={query}",
+                arguments = listOf(
+                    navArgument("query") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    }
+                )
+            ) { backStackEntry ->
+                val query = backStackEntry.arguments?.getString("query") ?: ""
+                Log.d("MainActivity", "搜索页面加载，查询: $query")
+                SearchResultScreen(
+                    initialQuery = query,
+                    onBackClick = {
+                        Log.d("MainActivity", "从搜索页面返回")
+                        navController.popBackStack()
+                    },
+                    onMusicClick = { music ->
+                        Log.d("MainActivity", "点击音乐: ${music.title}")
+                        val encodedTitle = java.net.URLEncoder.encode(music.title, "UTF-8")
+                        val encodedArtist =
+                            java.net.URLEncoder.encode(music.artist, "UTF-8")
+                        navController.navigate("player/${music.id}/$encodedTitle/$encodedArtist")
+                    }
+                )
+            }
+            composable(
+                route = "player/{id}/{title}/{artist}",
+                arguments = listOf(
+                    navArgument("id") { type = NavType.IntType },
+                    navArgument("title") { type = NavType.StringType },
+                    navArgument("artist") { type = NavType.StringType }
+                )
+            ) { backStackEntry ->
+                val id = backStackEntry.arguments?.getInt("id") ?: 0
+                val title = java.net.URLDecoder.decode(
+                    backStackEntry.arguments?.getString("title") ?: "", "UTF-8"
+                )
+                val artist = java.net.URLDecoder.decode(
+                    backStackEntry.arguments?.getString("artist") ?: "", "UTF-8"
+                )
+                val music = Music(id, title, artist, "", 0, "", "", 0, "")
+                Log.d("MainActivity", "播放页面加载: $title")
+                PlayerScreen(
+                    music = music,
+                    onBackClick = {
+                        Log.d("MainActivity", "从播放页面返回")
+                        navController.popBackStack()
+                    },
+                    onPlaylistClick = {
+                        showPlaylist = true
+                    }
+                )
+            }
+        }
+
+        // 只在非播放页面显示迷你播放器和底部导航栏 - 悬浮在底部
+        if (!isPlayerScreen && showBottomControls) {
+            // MiniPlayer - 悬浮在底部
+            androidx.compose.animation.AnimatedVisibility(
+                visible = true,
+                enter = if (returningFromPlayer) {
+                    androidx.compose.animation.slideInVertically(
+                        initialOffsetY = { fullHeight -> fullHeight },
+                        animationSpec = tween(
+                            durationMillis = 200,
+                            easing = androidx.compose.animation.core.FastOutSlowInEasing
+                        )
+                    )
+                } else {
+                    androidx.compose.animation.fadeIn(animationSpec = tween(durationMillis = 0))
+                },
+                label = "miniPlayer"
+            ) {
+                androidx.compose.ui.layout.Layout(
+                    content = {
                         MiniPlayer(
                             isPlaying = isPlaying,
                             songTitle = currentMusicTitle ?: "暂无播放",
@@ -577,12 +529,10 @@ fun MainScreen() {
                                 // 跳转到播放页面，传递当前音乐ID
                                 val id = currentMusicId ?: 0
                                 val encodedTitle = java.net.URLEncoder.encode(
-                                    currentMusicTitle ?: "未知歌曲",
-                                    "UTF-8"
+                                    currentMusicTitle ?: "未知歌曲", "UTF-8"
                                 )
                                 val encodedArtist = java.net.URLEncoder.encode(
-                                    currentMusicArtist ?: "未知歌手",
-                                    "UTF-8"
+                                    currentMusicArtist ?: "未知歌手", "UTF-8"
                                 )
                                 navController.navigate("player/$id/$encodedTitle/$encodedArtist")
                             },
@@ -590,137 +540,184 @@ fun MainScreen() {
                                 showPlaylist = true
                             }
                         )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        BottomNavigationBar(navController = navController)
+                    },
+                    measurePolicy = { measurables, constraints ->
+                        val placeable = measurables.first().measure(
+                            constraints.copy(
+                                maxWidth = constraints.maxWidth - 32.dp.roundToPx() // 减去左右padding
+                            )
+                        )
+                        layout(placeable.width, placeable.height) {
+                            placeable.place(
+                                16.dp.roundToPx(),
+                                constraints.maxHeight - placeable.height - 8.dp.roundToPx()
+                            )
+                        }
                     }
-                }
+                )
+            }
+
+            // BottomNavigationBar - 悬浮在底部
+            androidx.compose.animation.AnimatedVisibility(
+                visible = true,
+                enter = if (returningFromPlayer) {
+                    androidx.compose.animation.slideInVertically(
+                        initialOffsetY = { fullHeight -> fullHeight },
+                        animationSpec = tween(
+                            durationMillis = 200,
+                            easing = androidx.compose.animation.core.FastOutSlowInEasing
+                        )
+                    )
+                } else {
+                    androidx.compose.animation.fadeIn(animationSpec = tween(durationMillis = 0))
+                },
+                label = "bottomNavigation"
+            ) {
+                androidx.compose.ui.layout.Layout(
+                    content = {
+                        BottomNavigationBar(navController = navController)
+                    },
+                    measurePolicy = { measurables, constraints ->
+                        val placeable = measurables.first().measure(
+                            constraints.copy(
+                                maxWidth = constraints.maxWidth - 32.dp.roundToPx() // 减去左右padding
+                            )
+                        )
+                        layout(placeable.width, placeable.height) {
+                            placeable.place(
+                                16.dp.roundToPx(),
+                                constraints.maxHeight - placeable.height - 16.dp.roundToPx()
+                            )
+                        }
+                    }
+                )
             }
         }
 
         // 播放列表弹窗（在所有控件之上，覆盖显示）
-        PlaylistScreen(
-            isVisible = showPlaylist,
-            currentMusicId = currentMusicId,
-            onBackClick = {
-                showPlaylist = false
-            },
-            onMusicClick = { music ->
-                // 播放选中的音乐
-                scope.launch {
-                    val musicApi = com.neko.music.data.api.MusicApi(context)
-                    val url = musicApi.getMusicFileUrl(music)
-                    val fullCoverUrl = if (!music.coverFilePath.isNullOrEmpty()) {
-                        "https://music.cnmsb.xin${music.coverFilePath}"
-                    } else {
-                        "https://music.cnmsb.xin/api/music/cover/${music.id}"
-                    }
-                    playerManager.playMusic(
-                        url,
-                        music.id,
-                        music.title,
-                        music.artist,
-                        music.coverFilePath ?: "",
-                        fullCoverUrl
+                Box(modifier = Modifier.zIndex(1f)) {
+                    PlaylistScreen(
+                        isVisible = showPlaylist,
+                        currentMusicId = currentMusicId,
+                        onBackClick = {
+                            showPlaylist = false
+                        },
+                        onMusicClick = { music ->
+                            // 播放选中的音乐
+                            scope.launch {
+                                val musicApi = com.neko.music.data.api.MusicApi(context)
+                                val url = musicApi.getMusicFileUrl(music)
+                                val fullCoverUrl = if (!music.coverFilePath.isNullOrEmpty()) {
+                                    "https://music.cnmsb.xin${music.coverFilePath}"
+                                } else {
+                                    "https://music.cnmsb.xin/api/music/cover/${music.id}"
+                                }
+                                playerManager.playMusic(
+                                    url,
+                                    music.id,
+                                    music.title,
+                                    music.artist,
+                                    music.coverFilePath ?: "",
+                                    fullCoverUrl
+                                )
+                            }
+                            showPlaylist = false
+                        }
                     )
-                }
-                showPlaylist = false
-            }
-        )
-
+                }                        
         // 登录和注册页面（在最顶层显示）
         AnimatedVisibility(
-            visible = showLoginScreen,
-            enter = slideInHorizontally(
-                initialOffsetX = { it },
-                animationSpec = tween(durationMillis = 150)
-            ) + fadeIn(animationSpec = tween(durationMillis = 150)),
-            exit = slideOutHorizontally(
-                targetOffsetX = { -it },
-                animationSpec = tween(durationMillis = 150)
-            ) + fadeOut(animationSpec = tween(durationMillis = 150)),
-            modifier = Modifier.zIndex(Float.MAX_VALUE)
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                LoginScreen(
-                    onLoginSuccess = {
-                        showLoginScreen = false
-                        // 更新登录状态
-                        val tokenManager = com.neko.music.data.manager.TokenManager(context)
-                        isLoggedIn = tokenManager.isLoggedIn()
-                        currentUsername = tokenManager.getUsername()
-                        currentUserId = tokenManager.getUserId()
-                    },
-                    onBackClick = {
-                        showLoginScreen = false
-                    },
-                    onRegisterClick = {
-                        showLoginScreen = false
-                        showRegisterScreen = true
-                    }
-                )
-            }
-        }
-
-        AnimatedVisibility(
-            visible = showRegisterScreen,
-            enter = slideInHorizontally(
-                initialOffsetX = { it },
-                animationSpec = tween(durationMillis = 150)
-            ) + fadeIn(animationSpec = tween(durationMillis = 150)),
-            exit = slideOutHorizontally(
-                targetOffsetX = { -it },
-                animationSpec = tween(durationMillis = 150)
-            ) + fadeOut(animationSpec = tween(durationMillis = 150)),
-            modifier = Modifier.zIndex(Float.MAX_VALUE)
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                RegisterScreen(
-                    onRegisterSuccess = {
-                        showRegisterScreen = false
-                    },
-                    onBackClick = {
-                        showRegisterScreen = false
-                    },
-                    onLoginClick = {
-                        showRegisterScreen = false
-                        showLoginScreen = true
-                    }
-                )
-            }
-        }
-
-        // 退出登录确认对话框
-        if (showLogoutDialog) {
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = { showLogoutDialog = false },
-                title = { Text("退出登录") },
-                text = { Text("确定要退出登录吗？") },
-                confirmButton = {
-                    androidx.compose.material3.TextButton(
-                        onClick = {
-                            // 清除登录状态
+                visible = showLoginScreen,
+                enter = slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(durationMillis = 150)
+                ) + fadeIn(animationSpec = tween(durationMillis = 150)),
+                exit = slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 150)
+                ) + fadeOut(animationSpec = tween(durationMillis = 150)),
+                modifier = Modifier.zIndex(Float.MAX_VALUE)
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    LoginScreen(
+                        onLoginSuccess = {
+                            showLoginScreen = false
+                            // 更新登录状态
                             val tokenManager = com.neko.music.data.manager.TokenManager(context)
-                            tokenManager.clearToken()
-                            // 更新UI状态
-                            isLoggedIn = false
-                            currentUsername = null
-                            currentUserId = -1
-                            showLogoutDialog = false
+                            isLoggedIn = tokenManager.isLoggedIn()
+                            currentUsername = tokenManager.getUsername()
+                            currentUserId = tokenManager.getUserId()
+                        },
+                        onBackClick = {
+                            showLoginScreen = false
+                        },
+                        onRegisterClick = {
+                            showLoginScreen = false
+                            showRegisterScreen = true
                         }
-                    ) {
-                        Text("确定")
-                    }
-                },
-                dismissButton = {
-                    androidx.compose.material3.TextButton(
-                        onClick = { showLogoutDialog = false }
-                    ) {
-                        Text("取消")
-                    }
+                    )
                 }
-            )
+            }
+
+            AnimatedVisibility(
+                visible = showRegisterScreen,
+                enter = slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(durationMillis = 150)
+                ) + fadeIn(animationSpec = tween(durationMillis = 150)),
+                exit = slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(durationMillis = 150)
+                ) + fadeOut(animationSpec = tween(durationMillis = 150)),
+                modifier = Modifier.zIndex(Float.MAX_VALUE)
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    RegisterScreen(
+                        onRegisterSuccess = {
+                            showRegisterScreen = false
+                        },
+                        onBackClick = {
+                            showRegisterScreen = false
+                        },
+                        onLoginClick = {
+                            showRegisterScreen = false
+                            showLoginScreen = true
+                        }
+                    )
+                }
+            }
+
+            // 退出登录确认对话框
+            if (showLogoutDialog) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showLogoutDialog = false },
+                    title = { Text("退出登录") },
+                    text = { Text("确定要退出登录吗？") },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(
+                            onClick = {
+                                // 清除登录状态
+                                val tokenManager = com.neko.music.data.manager.TokenManager(context)
+                                tokenManager.clearToken()
+                                // 更新UI状态
+                                isLoggedIn = false
+                                currentUsername = null
+                                currentUserId = -1
+                                showLogoutDialog = false
+                            }
+                        ) {
+                            Text("确定")
+                        }
+                    },
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(
+                            onClick = { showLogoutDialog = false }
+                        ) {
+                            Text("取消")
+                        }
+                    }
+                )
+            }
         }
     }
-}
+

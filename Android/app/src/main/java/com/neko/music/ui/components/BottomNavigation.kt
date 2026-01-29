@@ -72,14 +72,7 @@ fun BottomNavigationBar(
     )
 
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .shadow(
-                elevation = 16.dp,
-                spotColor = RoseRed.copy(alpha = 0.3f),
-                ambientColor = Color.Gray.copy(alpha = 0.15f),
-                shape = RoundedCornerShape(24.dp)
-            )
+        modifier = modifier.fillMaxWidth()
     ) {
         // 背景层：渐变背景
         Box(
@@ -218,13 +211,7 @@ fun MiniPlayer(
     )
 
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(
-                elevation = 12.dp,
-                spotColor = RoseRed.copy(alpha = 0.3f),
-                ambientColor = Color.Gray.copy(alpha = 0.15f)
-            ),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         color = Color.Transparent
     ) {
@@ -258,21 +245,6 @@ fun MiniPlayer(
                             colors = listOf(
                                 Color.Transparent,
                                 Color.White.copy(alpha = 0.7f),
-                                Color.Transparent
-                            )
-                        )
-                    )
-            )
-
-            // 边框
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.3f),
                                 Color.Transparent
                             )
                         )
