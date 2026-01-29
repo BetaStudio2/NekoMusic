@@ -32,12 +32,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import coil.compose.rememberAsyncImagePainter
 import com.neko.music.R
 import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.neko.music.data.manager.TokenManager
 import com.neko.music.data.api.PlaylistApi
+import com.neko.music.data.api.FavoriteApi
 import com.neko.music.data.model.Playlist
 import com.neko.music.ui.theme.*
 import kotlinx.coroutines.launch
@@ -46,17 +48,61 @@ import kotlinx.coroutines.launch
 fun MyPlaylistsScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val tokenManager = remember { TokenManager(context) }
+    val favoriteApi = remember { FavoriteApi() }
     
-    // Demo数据
-    var playlists by remember { mutableStateOf(listOf(
-        Playlist(1, "我喜欢的音乐", 128, 1, "2026-01-15"),
-        Playlist(2, "工作专用", 45, 1, "2026-01-20"),
-        Playlist(3, "运动歌单", 23, 1, "2026-01-25"),
-        Playlist(4, "睡前音乐", 67, 1, "2026-01-28")
-    ))}
-    var isLoading by remember { mutableStateOf(false) }
+    // Demo数据（除了"我的收藏"）
+    var playlists by remember { mutableStateOf(listOf<Playlist>()) }
+    var favoritesCount by remember { mutableStateOf(0) }
+    var favorites by remember { mutableStateOf<List<com.neko.music.data.api.FavoriteMusic>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf("") }
     var showError by remember { mutableStateOf(false) }
+    
+    // 初始化 - 加载收藏数据
+    LaunchedEffect(Unit) {
+        try {
+            val token = tokenManager.getToken()
+            if (token != null) {
+                val response = favoriteApi.getFavorites(token)
+                Log.d("MyPlaylistsScreen", "收藏API响应: success=${response.success}, 数量=${response.favorites.size}")
+                if (response.success) {
+                    favoritesCount = response.favorites.size
+                    favorites = response.favorites
+                    // 打印第一首音乐的详细信息
+                    if (favorites.isNotEmpty()) {
+                        val first = favorites[0]
+                        Log.d("MyPlaylistsScreen", "第一首音乐: id=${first.id}, title=${first.title}, filename=${first.filename}, cover='${first.cover}'")
+                    }
+                }
+            }
+            // 加载Demo歌单数据
+            playlists = listOf(
+                Playlist(2, "工作专用", 45, 1, "2026-01-20"),
+                Playlist(3, "运动歌单", 23, 1, "2026-01-25"),
+                Playlist(4, "睡前音乐", 67, 1, "2026-01-28")
+            )
+        } catch (e: Exception) {
+            Log.e("MyPlaylistsScreen", "初始化失败", e)
+            // 使用默认值
+            favoritesCount = 0
+            favorites = emptyList()
+            playlists = listOf(
+                Playlist(2, "工作专用", 45, 1, "2026-01-20"),
+                Playlist(3, "运动歌单", 23, 1, "2026-01-25"),
+                Playlist(4, "睡前音乐", 67, 1, "2026-01-28")
+            )
+        } finally {
+            isLoading = false
+        }
+    }
+    
+    // 获取完整的歌单列表（包括"我的收藏"）
+    val allPlaylists = remember(playlists, favoritesCount) {
+        listOf(
+            Playlist(1, "我的喜欢的音乐", favoritesCount, 1, "2026-01-15")
+        ) + playlists
+    }
     
     // 创建/编辑歌单对话框
     var showCreateDialog by remember { mutableStateOf(false) }
@@ -78,7 +124,7 @@ fun MyPlaylistsScreen() {
                 // 创建新歌单（添加到第二位，保留"我的收藏"在第一位）
                 val newId = (playlists.maxOfOrNull { it.id } ?: 0) + 1
                 val newPlaylist = Playlist(newId, dialogPlaylistName, 0, 1, "2026-01-29")
-                playlists = listOf(playlists[0]) + listOf(newPlaylist) + playlists.drop(1)
+                playlists = listOf(newPlaylist) + playlists
             }
             showCreateDialog = false
             dialogPlaylistName = ""
@@ -132,7 +178,7 @@ fun MyPlaylistsScreen() {
                 ) {
                     CircularProgressIndicator(color = RoseRed)
                 }
-            } else if (playlists.isEmpty()) {
+            } else if (allPlaylists.isEmpty()) {
                 // 空状态
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -180,9 +226,10 @@ fun MyPlaylistsScreen() {
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
-                    items(playlists) { playlist ->
+                    items(allPlaylists) { playlist ->
                         PlaylistItem(
                             playlist = playlist,
+                            favorites = favorites,
                             onEdit = {
                                 if (playlist.id != 1) { // "我的收藏"不能编辑
                                     editingPlaylist = playlist
@@ -301,6 +348,7 @@ fun MyPlaylistsScreen() {
 @Composable
 fun PlaylistItem(
     playlist: Playlist,
+    favorites: List<com.neko.music.data.api.FavoriteMusic>,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -314,6 +362,24 @@ fun PlaylistItem(
     )
     
     val isMyFavorites = playlist.id == 1 // "我的收藏"不能编辑/删除
+    
+    // 获取第一首收藏音乐的封面
+    val favoriteCover = remember(favorites) {
+        val firstFavorite = favorites.firstOrNull()
+        if (firstFavorite != null) {
+            // 使用音乐ID构建封面URL
+            "https://music.cnmsb.xin/api/music/cover/${firstFavorite.id}"
+        } else {
+            null
+        }
+    }
+    
+    // 确定要显示的封面URL
+    val coverUrl = if (isMyFavorites) {
+        favoriteCover ?: "https://music.cnmsb.xin/api/user/avatar/default"
+    } else {
+        null
+    }
     
     Row(
         modifier = Modifier
@@ -339,17 +405,31 @@ fun PlaylistItem(
         Box(
             modifier = Modifier
                 .size(48.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(
-                    if (isMyFavorites) RoseRed.copy(alpha = 0.15f)
-                    else Color.White
-                ),
+                .clip(RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = if (isMyFavorites) "❤️" else "🎵",
-                fontSize = 24.sp
-            )
+            if (isMyFavorites) {
+                // 使用第一首收藏音乐的封面，如果没有则使用默认头像
+                androidx.compose.foundation.Image(
+                    painter = rememberAsyncImagePainter(coverUrl),
+                    contentDescription = "封面",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                // 其他歌单使用emoji
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.White),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "🎵",
+                        fontSize = 24.sp
+                    )
+                }
+            }
         }
         
         // 歌单信息
@@ -378,7 +458,10 @@ fun PlaylistItem(
             ) {
                 IconButton(
                     onClick = onEdit,
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(40.dp),
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = Color.Transparent
+                    )
                 ) {
                     Icon(
                         imageVector = Icons.Default.Create,
@@ -388,7 +471,10 @@ fun PlaylistItem(
                 }
                 IconButton(
                     onClick = onDelete,
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(40.dp),
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = Color.Transparent
+                    )
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
