@@ -601,6 +601,13 @@ fun MainScreen() {
                         val encodedArtist =
                             java.net.URLEncoder.encode(music.artist, "UTF-8")
                         navController.navigate("player/${music.id}/$encodedTitle/$encodedArtist")
+                    },
+                    onPlaylistClick = { playlistId, playlistName, playlistCover, playlistDescription ->
+                        Log.d("MainActivity", "点击歌单: $playlistName (ID: $playlistId)")
+                        val encodedName = java.net.URLEncoder.encode(playlistName, "UTF-8")
+                        val encodedCover = if (playlistCover != null) java.net.URLEncoder.encode(playlistCover, "UTF-8") else "null"
+                        val encodedDescription = java.net.URLEncoder.encode(playlistDescription ?: "", "UTF-8")
+                        navController.navigate("playlist_detail/$playlistId/$encodedName/$encodedCover/$encodedDescription")
                     }
                 )
             }

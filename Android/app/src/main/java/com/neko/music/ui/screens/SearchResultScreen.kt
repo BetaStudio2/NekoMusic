@@ -59,7 +59,8 @@ import kotlinx.coroutines.launch
 fun SearchResultScreen(
     initialQuery: String = "",
     onBackClick: () -> Unit,
-    onMusicClick: (Music) -> Unit
+    onMusicClick: (Music) -> Unit,
+    onPlaylistClick: (Int, String, String?, String?) -> Unit = { _, _, _, _ -> }
 ) {
     val context = LocalContext.current
     val historyManager = remember { SearchHistoryManager(context) }
@@ -231,8 +232,7 @@ fun SearchResultScreen(
                         PlaylistList(
                             playlists = playlistResults,
                             onPlaylistClick = { playlist ->
-                                // TODO: 导航到歌单详情页面
-                                Log.d("SearchScreen", "点击歌单: ${playlist.name} (ID: ${playlist.id})")
+                                onPlaylistClick(playlist.id, playlist.name, playlist.coverPath, playlist.description)
                             }
                         )
                     }
