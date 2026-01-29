@@ -376,7 +376,6 @@ fun PlaylistItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(80.dp)
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -414,7 +413,7 @@ fun PlaylistItem(
             // 歌单信息
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(1.dp)
             ) {
                 Text(
                     text = playlist.name,
@@ -424,18 +423,16 @@ fun PlaylistItem(
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
-                if (playlist.description != null) {
-                    Text(
-                        text = playlist.description,
-                        fontSize = 13.sp,
-                        color = Color.Gray,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                    )
-                }
+                Text(
+                    text = playlist.description ?: "暂时没有描述Nya！",
+                    fontSize = 12.sp,
+                    color = Color.Gray,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
                 Text(
                     text = "${playlist.musicCount} 首音乐",
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     color = Color.Gray
                 )
             }
