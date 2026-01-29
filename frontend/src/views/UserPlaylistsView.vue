@@ -4,7 +4,7 @@
       <div class="playlists-header">
         <h2>所有歌单</h2>
         <button @click="goToCreatePlaylist" class="create-btn">
-          ➕ 创建歌单
+          创建歌单
         </button>
       </div>
       
@@ -44,7 +44,7 @@
               class="edit-btn"
               title="编辑歌单"
             >
-              ✏️
+              编辑歌单
             </button>
             <button 
               v-if="isPlaylistOwner(playlist.userId)" 
@@ -52,7 +52,7 @@
               class="delete-btn"
               title="删除歌单"
             >
-              🗑️
+              删除歌单
             </button>
           </div>
         </div>
@@ -506,16 +506,15 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.5);
   color: #666;
   border: 1px solid rgba(255, 255, 255, 0.3);
-  width: 36px;
+  width: auto;
   height: 36px;
-  border-radius: 50%;
+  padding: 0 15px;
+  border-radius: 18px;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2em;
+  font-size: 0.9em;
   transition: all 0.3s ease;
   backdrop-filter: blur(5px);
+  white-space: nowrap;
 }
 
 .edit-btn:hover {
