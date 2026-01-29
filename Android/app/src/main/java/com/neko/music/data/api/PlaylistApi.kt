@@ -33,7 +33,8 @@ data class PlaylistInfo(
     val coverPath: String? = null,
     val musicCount: Int,
     val createdAt: String,
-    val updatedAt: String
+    val updatedAt: String,
+    val username: String? = null
 )
 
 @Serializable

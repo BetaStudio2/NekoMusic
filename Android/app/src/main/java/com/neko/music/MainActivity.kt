@@ -308,8 +308,8 @@ fun MainScreen() {
             }
             composable(BottomNavItem.MyPlaylists.route) {
                 MyPlaylistsScreen(
-                    onNavigateToPlaylistDetail = { playlistId, playlistName, playlistCover, playlistDescription ->
-                        navController.navigate("playlist_detail/$playlistId/$playlistName/$playlistCover/$playlistDescription")
+                    onNavigateToPlaylistDetail = { playlistId, playlistName, playlistCover, playlistDescription, playlistCreator ->
+                        navController.navigate("playlist_detail/$playlistId/$playlistName/$playlistCover/$playlistDescription/$playlistCreator")
                     },
                     onNavigateToFavorite = {
                         navController.navigate("favorites")

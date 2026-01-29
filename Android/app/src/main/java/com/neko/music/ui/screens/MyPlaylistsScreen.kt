@@ -53,7 +53,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun MyPlaylistsScreen(
-    onNavigateToPlaylistDetail: (Int, String, String?, String?) -> Unit,
+    onNavigateToPlaylistDetail: (Int, String, String?, String?, String) -> Unit,
     onNavigateToFavorite: () -> Unit
 ) {
     val context = LocalContext.current
@@ -83,7 +83,7 @@ fun MyPlaylistsScreen(
                     // 转换PlaylistInfo到Playlist
                     playlists = playlistResponse.playlists?.map { info ->
                         Log.d("MyPlaylistsScreen", "API返回歌单: id=${info.id}, name=${info.name}, coverPath=${info.coverPath}")
-                        Playlist(info.id, info.name, info.musicCount, 1, info.createdAt, info.coverPath, info.description)
+                        Playlist(info.id, info.name, info.musicCount, 1, info.createdAt, info.coverPath, info.description, info.username)
                     } ?: emptyList()
                     Log.d("MyPlaylistsScreen", "歌单列表: ${playlists.size}个")
                     playlists.forEach { 
@@ -319,7 +319,7 @@ fun MyPlaylistsScreen(
                                     onNavigateToFavorite()
                                 } else {
                                     // 其他歌单跳转到歌单详情页面
-                                    onNavigateToPlaylistDetail(playlist.id, playlist.name, playlist.coverPath, playlist.description)
+                                    onNavigateToPlaylistDetail(playlist.id, playlist.name, playlist.coverPath, playlist.description, playlist.username ?: "")
                                 }
                             }
                         )
@@ -328,22 +328,21 @@ fun MyPlaylistsScreen(
                     // 添加创建按钮项
                     item {
                         Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(80.dp)
-                                        .clickable {
-                                            editingPlaylist = null
-                                            dialogPlaylistName = ""
-                                            showCreateDialog = true
-                                        },
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = Color.White.copy(alpha = 0.85f)
-                                    ),
-                                    elevation = CardDefaults.cardElevation(
-                                        defaultElevation = 4.dp,
-                                        hoveredElevation = 6.dp
-                                    ),
-                                    shape = RoundedCornerShape(16.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(80.dp)
+                                .clickable {
+                                    editingPlaylist = null
+                                    dialogPlaylistName = ""
+                                    showCreateDialog = true },
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color.White.copy(alpha = 0.85f)
+                            ),
+                            elevation = CardDefaults.cardElevation(
+                                defaultElevation = 4.dp,
+                                hoveredElevation = 6.dp
+                            ),
+                            shape = RoundedCornerShape(16.dp)
                                 ) {                            Box(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center

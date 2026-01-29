@@ -1,11 +1,15 @@
 package com.neko.music.ui.screens
 
 import android.util.Log
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -59,6 +64,7 @@ fun PlaylistDetailScreen(
     
     var showEditDescriptionDialog by remember { mutableStateOf(false) }
     var editingDescription by remember { mutableStateOf(playlistDescription) }
+    var showShareDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(playlistId) {
         try {
@@ -179,6 +185,19 @@ fun PlaylistDetailScreen(
                         color = Color.Black,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                IconButton(
+                    onClick = { showShareDialog = true },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .align(Alignment.CenterEnd)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = "分享",
+                        tint = Color.Black
                     )
                 }
             }
@@ -428,6 +447,175 @@ fun PlaylistDetailScreen(
                 }
             )
         }
+    }
+
+    // 分享对话框
+    if (showShareDialog) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showShareDialog = false },
+            properties = androidx.compose.ui.window.DialogProperties(
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true,
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null,
+                        onClick = { showShareDialog = false }
+                    )
+            ) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = true,
+                    enter = androidx.compose.animation.slideInVertically(
+                        initialOffsetY = { it },
+                        animationSpec = androidx.compose.animation.core.tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                    ),
+                    exit = androidx.compose.animation.slideOutVertically(
+                        targetOffsetY = { it },
+                        animationSpec = androidx.compose.animation.core.tween(250, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        .clickable(
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = null,
+                            onClick = {}
+                        )
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(0.dp),
+                        color = Color.White,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column {
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // 分享标题
+                            Text(
+                                text = "分享歌单",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // 分享选项
+                            LazyRow(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(24.dp)
+                            ) {
+                                item {
+                                    ShareGridItem(
+                                        iconRes = R.drawable.twitter,
+                                        label = "分享到推特",
+                                        color = Color(0xFF1DA1F2),
+                                        onClick = {
+                                            val shareText = "我在Neko云音乐发现了宝藏歌单《$playlistName》，里面超好听！大家快来听喵~"
+                                            val encodedText = java.net.URLEncoder.encode(shareText, "UTF-8")
+                                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                                data = android.net.Uri.parse("https://twitter.com/intent/tweet?text=$encodedText")
+                                            }
+                                            context.startActivity(intent)
+                                            showShareDialog = false
+                                        }
+                                    )
+                                }
+                                item {
+                                    ShareGridItem(
+                                        iconRes = R.drawable.qq,
+                                        label = "分享到QQ",
+                                        color = Color(0xFF12B7F5),
+                                        onClick = {
+                                            android.widget.Toast.makeText(context, "我他妈注册补上傻逼QQ开放平台！", android.widget.Toast.LENGTH_SHORT).show()
+                                            showShareDialog = false
+                                        }
+                                    )
+                                }
+                                item {
+                                    ShareGridItem(
+                                        iconRes = R.drawable.copy_link,
+                                        label = "复制链接",
+                                        color = RoseRed,
+                                        onClick = {
+                                            val shareUrl = "https://music.cnmsb.xin/playlist/$playlistId"
+                                            val shareText = "我在Neko云音乐发现了宝藏歌单《$playlistName》，里面超好听！大家快来听喵~"
+                                            val clip = android.content.ClipData.newPlainText("歌单链接", shareText)
+                                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                            clipboard.setPrimaryClip(clip)
+                                            android.widget.Toast.makeText(context, "链接已复制", android.widget.Toast.LENGTH_SHORT).show()
+                                            showShareDialog = false
+                                        }
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            // 取消按钮
+                            Divider()
+                            TextButton(
+                                onClick = { showShareDialog = false },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "取消",
+                                    fontSize = 16.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ShareGridItem(
+    iconRes: Int,
+    label: String,
+    color: Color,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .background(
+                    color = color.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(16.dp)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(id = iconRes),
+                contentDescription = label,
+                modifier = Modifier.size(28.dp),
+                colorFilter = ColorFilter.tint(color)
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = Color.Gray
+        )
     }
 }
 
