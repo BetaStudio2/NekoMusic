@@ -306,6 +306,7 @@ Content-Type: application/json
 - [删除歌单](#4-删除歌单)
 - [获取歌单音乐列表](#5-获取歌单音乐列表)
 - [添加音乐到歌单](#6-添加音乐到歌单)
+- [从歌单中移除音乐](#7-从歌单中移除音乐)
 - [歌单权限说明](#歌单权限说明)
 
 ### 1. 创建歌单
@@ -408,14 +409,21 @@ Content-Type: application/json
 {
   "id": 1,                   // 歌单 ID (必填)
   "name": "string",          // 歌单名称 (必填)
-  "description": "string"   // 歌单描述 (可选)
+  "description": "string"   // 歌单描述 (可选，不修改则不传此字段或传null)
 }
 ```
 
-**参数限制:**
-- `id`: 歌单 ID，必须是当前用户创建的歌单
-- `name`: 长度不能超过 255 个字符
-- `description`: 长度不能超过 500 个字符
+**参数说明:**
+- `id`: 歌单 ID（必填），必须是当前用户创建的歌单
+- `name`: 歌单名称（必填），长度不能超过 255 个字符
+- `description`: 歌单描述（可选），长度不能超过 500 个字符
+  - 如果只想修改描述，仍需传递 `name` 字段（使用当前名称）
+  - 如果不修改描述，可以不传此字段或传 `null`
+
+**使用场景:**
+1. **同时修改名称和描述**：传递所有字段
+2. **只修改描述**：传递 `id`、`name`（当前值）和新的 `description`
+3. **只修改名称**：传递 `id` 和新的 `name`，不传 `description`
 
 **响应示例（成功）:**
 ```json
@@ -576,8 +584,56 @@ Content-Type: application/json
 **说明:**
 - 只有歌单的创建者才能添加音乐到歌单
 - 如果音乐已存在于歌单中，会返回失败
-- 音乐会自动添加到歌单末尾（position 自动递增）
+- 音乐会自动添加到歌单**最上面**（position = 1，其他音乐position + 1）
 - 添加成功后会自动更新歌单的 `musicCount` 字段
+
+### 7. 从歌单中移除音乐
+
+**端点:** `POST /api/user/playlist/music/remove`
+
+**请求头:**
+```
+Authorization: <token>
+Content-Type: application/json
+```
+
+**请求体:**
+```json
+{
+  "playlistId": 1,  // 歌单 ID (必填)
+  "musicId": 1      // 音乐 ID (必填)
+}
+```
+
+**响应示例（成功）:**
+```json
+{
+  "success": true,
+  "message": "音乐从歌单中移除成功"
+}
+```
+
+**响应示例（失败）:**
+```json
+{
+  "success": false,
+  "message": "音乐从歌单中移除失败或音乐不存在于歌单中"
+}
+```
+
+**响应示例（权限错误）:**
+```json
+{
+  "success": false,
+  "message": "无权限修改此歌单"
+}
+```
+
+**说明:**
+- 只有歌单的创建者才能从歌单中移除音乐
+- 如果音乐不存在于歌单中，会返回失败
+- 移除音乐后会自动重新排序剩余音乐的 position（删除位置之后的position - 1）
+- 移除成功后会自动更新歌单的 `musicCount` 字段
 
 ---
 ## 歌单权限说明
@@ -592,6 +648,7 @@ Content-Type: application/json
 | 更新歌单 | 只有歌单的创建者 |
 | 删除歌单 | 只有歌单的创建者 |
 | 添加音乐到歌单 | 只有歌单的创建者 |
+| 从歌单中移除音乐 | 只有歌单的创建者 |
 
 ### 权限验证
 
@@ -970,6 +1027,39 @@ async function addMusicToPlaylist(playlistId, musicId) {
     alert('音乐已存在于歌单中');
   } else {
     console.error('音乐添加到歌单失败:', data.message);
+  }
+  return data;
+}
+```
+
+### 从歌单中移除音乐
+
+```javascript
+async function removeMusicFromPlaylist(playlistId, musicId) {
+  const token = localStorage.getItem('userToken');
+
+  const response = await fetch('https://music.cnmsb.xin/api/user/playlist/music/remove', {
+    method: 'POST',
+    headers: {
+      'Authorization': token,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      playlistId: playlistId,
+      musicId: musicId
+    })
+  });
+
+  const data = await response.json();
+  if (data.success) {
+    console.log('音乐从歌单中移除成功');
+    // 可以在这里刷新歌单内容
+  } else if (data.message === '无权限修改此歌单') {
+    alert('您没有权限修改此歌单');
+  } else if (data.message.includes('音乐不存在于歌单中')) {
+    alert('音乐不存在于歌单中');
+  } else {
+    console.error('音乐从歌单中移除失败:', data.message);
   }
   return data;
 }
