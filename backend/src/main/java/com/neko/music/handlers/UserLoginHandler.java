@@ -56,8 +56,8 @@ public class UserLoginHandler extends HttpServlet {
             String password = null;
 
             if (requestData != null) {
-                if (requestData.has("email")) {
-                    email = requestData.get("email").asText();
+                if (requestData.has("username")) {
+                    email = requestData.get("username").asText();
                 }
                 if (requestData.has("password")) {
                     password = requestData.get("password").asText();
