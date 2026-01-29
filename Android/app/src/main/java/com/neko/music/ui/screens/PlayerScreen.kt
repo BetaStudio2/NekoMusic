@@ -95,6 +95,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Surface
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -199,6 +200,10 @@ fun PlayerScreen(
     var playlists by remember { mutableStateOf<List<com.neko.music.data.api.PlaylistInfo>>(emptyList()) }
     var selectedPlaylistId by remember { mutableStateOf<Int?>(null) }
     var playlistFirstMusicCovers by remember { mutableStateOf<Map<Int, String>>(emptyMap()) }
+
+    // 创建歌单对话框状态
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var dialogPlaylistName by remember { mutableStateOf("") }
 
     // 从播放器获取当前音乐信息
     val currentMusic = remember(currentMusicId) {
@@ -590,6 +595,72 @@ fun PlayerScreen(
                         Toast.makeText(context, "添加失败: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
                 }
+            },
+            onCreatePlaylist = {
+                showCreateDialog = true
+            }
+        )
+    }
+
+    // 创建歌单对话框
+    if (showCreateDialog) {
+        PlaylistDialog(
+            title = "创建歌单",
+            playlistName = dialogPlaylistName,
+            onNameChange = { dialogPlaylistName = it },
+            onConfirm = {
+                scope.launch {
+                    try {
+                        val token = tokenManager.getToken()
+                        if (token != null) {
+                            val playlistApi = PlaylistApi(token)
+                            val response = playlistApi.createPlaylist(dialogPlaylistName)
+                            
+                            if (response.success) {
+                                Toast.makeText(context, "创建成功", Toast.LENGTH_SHORT).show()
+                                showCreateDialog = false
+                                dialogPlaylistName = ""
+                                
+                                // 重新加载歌单列表
+                                val newResponse = playlistApi.getMyPlaylists()
+                                if (newResponse.success) {
+                                    val newPlaylists = newResponse.playlists ?: emptyList()
+                                    playlists = newPlaylists
+                                    
+                                    // 为新歌单加载第一首音乐封面
+                                    val newPlaylistId = response.playlist?.id
+                                    if (newPlaylistId != null) {
+                                        scope.launch {
+                                            try {
+                                                val musicResponse = playlistApi.getPlaylistMusic(newPlaylistId)
+                                                if (musicResponse.success && musicResponse.musicList?.isNotEmpty() == true) {
+                                                    val firstMusic = musicResponse.musicList[0]
+                                                    val coverUrl = "https://music.cnmsb.xin/api/music/cover/${firstMusic.id}"
+                                                    val newCovers = playlistFirstMusicCovers.toMutableMap()
+                                                    newCovers[newPlaylistId] = coverUrl
+                                                    playlistFirstMusicCovers = newCovers
+                                                }
+                                            } catch (e: Exception) {
+                                                Log.e("PlayerScreen", "加载歌单封面失败", e)
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                Toast.makeText(context, response.message, Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            Toast.makeText(context, "请先登录", Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        Log.e("PlayerScreen", "创建歌单失败", e)
+                        Toast.makeText(context, "创建失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            onDismiss = {
+                showCreateDialog = false
+                dialogPlaylistName = ""
             }
         )
     }
@@ -1302,7 +1373,8 @@ fun ShareDialog(
     playlists: List<PlaylistInfo> = emptyList(),
     selectedPlaylistId: Int? = null,
     onPlaylistSelected: (PlaylistInfo) -> Unit = {},
-    playlistFirstMusicCovers: Map<Int, String> = emptyMap()
+    playlistFirstMusicCovers: Map<Int, String> = emptyMap(),
+    onCreatePlaylist: () -> Unit = {}
 ) {
     var showCustomSleepTimerDialog by remember { mutableStateOf(false) }
     var customHours by remember { mutableStateOf(0) }
@@ -1418,6 +1490,43 @@ fun ShareDialog(
                                             firstMusicCover = playlistFirstMusicCovers[playlist.id],
                                             onClick = { onPlaylistSelected(playlist) }
                                         )
+                                    }
+                                    // 新建歌单按钮
+                                    item {
+                                        Box(
+                                            modifier = Modifier
+                                                .width(70.dp)
+                                                .height(56.dp)
+                                                .border(
+                                                    width = 2.dp,
+                                                    color = RoseRed,
+                                                    shape = RoundedCornerShape(12.dp)
+                                                )
+                                                .background(
+                                                    color = RoseRed.copy(alpha = 0.1f),
+                                                    shape = RoundedCornerShape(12.dp)
+                                                )
+                                                .clickable(onClick = onCreatePlaylist),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Add,
+                                                    contentDescription = "新建",
+                                                    tint = RoseRed,
+                                                    modifier = Modifier.size(24.dp)
+                                                )
+                                                Text(
+                                                    text = "新建",
+                                                    fontSize = 10.sp,
+                                                    color = RoseRed,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
