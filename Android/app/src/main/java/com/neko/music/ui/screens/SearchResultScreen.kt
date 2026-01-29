@@ -175,7 +175,7 @@ fun SearchResultScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "暂无搜索历史",
+                            text = "还没有搜索历史欸",
                             color = Color.Gray,
                             fontSize = 14.sp
                         )

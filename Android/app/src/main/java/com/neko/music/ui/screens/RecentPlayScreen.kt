@@ -140,7 +140,7 @@ fun RecentPlayScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = if (searchQuery.isEmpty()) "暂无播放记录" else "未找到相关歌曲",
+                    text = if (searchQuery.isEmpty()) "欸？暂时没有播放记录欸" else "没有找到相关歌曲喵",
                     fontSize = 16.sp,
                     color = Color.Gray
                 )

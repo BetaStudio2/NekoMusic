@@ -229,7 +229,7 @@ fun PlaylistDetailScreen(
                     } else {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "暂无描述",
+                            text = "暂无描述，点击此处修改Nya！",
                             fontSize = 13.sp,
                             color = Color.Gray,
                             modifier = Modifier.clickable {
