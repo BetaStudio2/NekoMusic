@@ -210,7 +210,7 @@ fun MyPlaylistsScreen() {
                                             showCreateDialog = true
                                         },
                                     colors = CardDefaults.cardColors(
-                                        containerColor = Color.White
+                                        containerColor = Color.White.copy(alpha = 0.85f)
                                     ),
                                     elevation = CardDefaults.cardElevation(
                                         defaultElevation = 4.dp,
@@ -320,7 +320,7 @@ fun PlaylistItem(
             .fillMaxWidth()
             .height(80.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.White)
+            .background(Color.White.copy(alpha = 0.85f))
             .shadow(
                 elevation = 6.dp,
                 spotColor = RoseRed.copy(alpha = 0.2f),
