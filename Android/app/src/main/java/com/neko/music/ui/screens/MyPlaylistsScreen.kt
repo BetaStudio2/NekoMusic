@@ -66,6 +66,7 @@ fun MyPlaylistsScreen(
     var playlists by remember { mutableStateOf<List<Playlist>>(emptyList()) }
     var favoritesCount by remember { mutableStateOf(0) }
     var favorites by remember { mutableStateOf<List<com.neko.music.data.api.FavoriteMusic>>(emptyList()) }
+    var playlistFirstMusicCovers by remember { mutableStateOf<Map<Int, String>>(emptyMap()) } // 存储每个歌单第一首音乐的封面
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf("") }
     var showError by remember { mutableStateOf(false) }
@@ -87,6 +88,26 @@ fun MyPlaylistsScreen(
                     Log.d("MyPlaylistsScreen", "歌单列表: ${playlists.size}个")
                     playlists.forEach { 
                         Log.d("MyPlaylistsScreen", "转换后歌单: id=${it.id}, name=${it.name}, coverPath=${it.coverPath}")
+                    }
+                    
+                    // 异步加载每个歌单的第一首音乐封面（仅当歌单没有封面时）
+                    playlists.forEach { playlist ->
+                        if (playlist.coverPath.isNullOrEmpty() && playlist.musicCount > 0) {
+                            scope.launch {
+                                try {
+                                    val musicResponse: PlaylistMusicListResponse = playlistApi.getPlaylistMusic(playlist.id)
+                                    if (musicResponse.success && musicResponse.musicList?.isNotEmpty() == true) {
+                                        val firstMusic = musicResponse.musicList[0]
+                                        // 使用第一首音乐的ID来获取封面
+                                        val coverUrl = "https://music.cnmsb.xin/api/music/cover/${firstMusic.id}"
+                                        playlistFirstMusicCovers = playlistFirstMusicCovers + (playlist.id to coverUrl)
+                                        Log.d("MyPlaylistsScreen", "歌单${playlist.id}第一首音乐ID: ${firstMusic.id}, 封面: $coverUrl")
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("MyPlaylistsScreen", "加载歌单${playlist.id}第一首音乐封面失败", e)
+                                }
+                            }
+                        }
                     }
                 } else {
                     Log.e("MyPlaylistsScreen", "加载歌单失败: ${playlistResponse.message}")
@@ -278,6 +299,7 @@ fun MyPlaylistsScreen(
                         PlaylistItem(
                             playlist = playlist,
                             favorites = favorites,
+                            firstMusicCover = playlistFirstMusicCovers[playlist.id],
                             onEdit = {
                                 if (playlist.id != 0) { // "我的收藏"不能编辑
                                     editingPlaylist = playlist
@@ -407,6 +429,7 @@ fun MyPlaylistsScreen(
 fun PlaylistItem(
     playlist: Playlist,
     favorites: List<com.neko.music.data.api.FavoriteMusic>,
+    firstMusicCover: String? = null, // 可选：歌单第一首音乐的封面
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onClick: () -> Unit = {}
@@ -423,7 +446,7 @@ fun PlaylistItem(
     val isMyFavorites = playlist.id == 0 // "我的收藏"不能编辑/删除
     
     // 确定要显示的封面URL
-    val coverUrl = remember(playlist, favorites) {
+    val coverUrl = remember(playlist, favorites, firstMusicCover) {
         val url = when {
             playlist.id == 0 && playlist.name == "我的收藏" -> {
                 // "我的收藏"使用第一首收藏音乐的封面
@@ -439,12 +462,16 @@ fun PlaylistItem(
                 // 歌单有自己的封面
                 "https://music.cnmsb.xin${playlist.coverPath}"
             }
+            !firstMusicCover.isNullOrEmpty() -> {
+                // 使用第一首音乐的封面
+                firstMusicCover
+            }
             else -> {
                 // 没有封面，使用默认头像
                 "https://music.cnmsb.xin/api/user/avatar/default"
             }
         }
-        Log.d("PlaylistItem", "歌单ID=${playlist.id}, 名称=${playlist.name}, coverPath=${playlist.coverPath}, coverUrl=$url")
+        Log.d("PlaylistItem", "歌单ID=${playlist.id}, 名称=${playlist.name}, coverPath=${playlist.coverPath}, firstMusicCover=$firstMusicCover, coverUrl=$url")
         url
     }
     

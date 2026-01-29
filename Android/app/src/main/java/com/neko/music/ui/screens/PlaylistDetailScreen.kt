@@ -80,12 +80,20 @@ fun PlaylistDetailScreen(
         }
     }
 
-    // 获取封面URL
-    val coverUrl = remember(playlistCover) {
-        if (playlistCover != null) {
-            "https://music.cnmsb.xin${playlistCover}"
+    // 获取封面URL - 如果歌单没有封面，使用第一首音乐的ID获取封面
+    val coverUrl = remember(playlistCover, musicList) {
+        if (!playlistCover.isNullOrEmpty()) {
+            // 歌单有自己的封面
+            "https://music.cnmsb.xin$playlistCover"
         } else {
-            "https://music.cnmsb.xin/api/user/avatar/default"
+            // 歌单没有封面，使用第一首音乐的ID获取封面
+            val firstMusic = musicList.firstOrNull()
+            if (firstMusic != null) {
+                "https://music.cnmsb.xin/api/music/cover/${firstMusic.id}"
+            } else {
+                // 没有音乐，使用默认头像
+                "https://music.cnmsb.xin/api/user/avatar/default"
+            }
         }
     }
 
