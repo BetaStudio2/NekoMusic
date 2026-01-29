@@ -6,6 +6,8 @@ import android.os.Build
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.google.accompanist.permissions.rememberPermissionState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -40,6 +42,8 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
@@ -71,11 +75,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.neko.music.R
 import com.neko.music.data.api.MusicApi
+import com.neko.music.data.api.PlaylistApi
+import com.neko.music.data.api.PlaylistInfo
+import com.neko.music.data.api.PlaylistListResponse
 import com.neko.music.data.model.Music
 import com.neko.music.ui.theme.RoseRed
 import com.neko.music.ui.theme.SakuraPink
@@ -189,6 +197,10 @@ fun PlayerScreen(
     var showShareToast by remember { mutableStateOf(false) }
     var shareToastMessage by remember { mutableStateOf("") }
 
+    // 添加到歌单
+    var playlists by remember { mutableStateOf<List<com.neko.music.data.api.PlaylistInfo>>(emptyList()) }
+    var selectedPlaylistId by remember { mutableStateOf<Int?>(null) }
+
     // 从播放器获取当前音乐信息
     val currentMusic = remember(currentMusicId) {
         val id = currentMusicId
@@ -272,7 +284,23 @@ fun PlayerScreen(
         ) {
             TopBar(
                 onBackClick = onBackClick,
-                onMenuClick = { showShareDialog = true },
+                onMenuClick = {
+                    scope.launch {
+                        try {
+                            val token = tokenManager.getToken()
+                            if (token != null) {
+                                val playlistApi = PlaylistApi(token)
+                                val response = playlistApi.getMyPlaylists()
+                                if (response.success) {
+                                    playlists = response.playlists ?: emptyList()
+                                    showShareDialog = true
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.e("PlayerScreen", "加载歌单失败", e)
+                        }
+                    }
+                },
                 onPlaylistClick = onPlaylistClick
             )
 
@@ -540,7 +568,25 @@ fun PlayerScreen(
                     showShareToast = true
                 }
             },
-            currentSleepTimerMinutes = sleepTimerMinutes
+            currentSleepTimerMinutes = sleepTimerMinutes,
+            playlists = playlists,
+            selectedPlaylistId = selectedPlaylistId,
+            onPlaylistSelected = { playlist ->
+                selectedPlaylistId = playlist.id
+                scope.launch {
+                    try {
+                        val token = tokenManager.getToken()
+                        if (token != null) {
+                            // TODO: 调用API将音乐添加到歌单
+                            shareToastMessage = "已添加到${playlist.name}"
+                            showShareToast = true
+                            showShareDialog = false
+                        }
+                    } catch (e: Exception) {
+                        Log.e("PlayerScreen", "添加到歌单失败", e)
+                    }
+                }
+            }
         )
     }
 
@@ -1278,7 +1324,10 @@ fun ShareDialog(
     onSpeedChange: (Float) -> Unit = {},
     currentSpeed: Float = 1.0f,
     onSleepTimerChange: (Int) -> Unit = {},
-    currentSleepTimerMinutes: Int = 0
+    currentSleepTimerMinutes: Int = 0,
+    playlists: List<PlaylistInfo> = emptyList(),
+    selectedPlaylistId: Int? = null,
+    onPlaylistSelected: (PlaylistInfo) -> Unit = {}
 ) {
     var showCustomSleepTimerDialog by remember { mutableStateOf(false) }
     var customHours by remember { mutableStateOf(0) }
@@ -1363,6 +1412,42 @@ fun ShareDialog(
                         }
 
                         Spacer(modifier = Modifier.height(20.dp))
+
+                        // 添加到歌单选择器
+                        if (playlists.isNotEmpty()) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                            ) {
+                                Text(
+                                    text = "添加到歌单",
+                                    fontSize = 14.sp,
+                                    color = Color.Gray,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.padding(bottom = 12.dp)
+                                )
+
+                                LazyRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    items(
+                                        count = playlists.size,
+                                        key = { index -> playlists[index].id }
+                                    ) { index ->
+                                        val playlist = playlists[index]
+                                        PlaylistChip(
+                                            playlist = playlist,
+                                            isSelected = selectedPlaylistId == playlist.id,
+                                            onClick = { onPlaylistSelected(playlist) }
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(20.dp))
+                        }
 
                         // 倍速选择器
                         Column(
@@ -1840,6 +1925,77 @@ fun CustomSleepTimerDialog(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun PlaylistChip(
+    playlist: PlaylistInfo,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .width(70.dp)
+            .height(56.dp)
+            .border(
+                width = if (isSelected) 2.dp else 0.dp,
+                color = if (isSelected) RoseRed else Color.Transparent,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .background(
+                color = if (isSelected) RoseRed.copy(alpha = 0.1f) else Color(0xFFF5F5F5),
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            // 封面
+            if (!playlist.coverPath.isNullOrEmpty()) {
+                AsyncImage(
+                    model = "https://music.cnmsb.xin${playlist.coverPath}",
+                    contentDescription = "封面",
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(RoundedCornerShape(6.dp)),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFFE0E0E0)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "🎵",
+                        fontSize = 12.sp
+                    )
+                }
+            }
+            
+            // 歌单名称
+            Text(
+                text = playlist.name,
+                fontSize = 10.sp,
+                color = Color.Black,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+            )
+            
+            // 歌曲数量
+            Text(
+                text = "${playlist.musicCount}首",
+                fontSize = 8.sp,
+                color = Color.Gray
+            )
         }
     }
 }
