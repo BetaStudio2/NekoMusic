@@ -3,6 +3,7 @@ package com.neko.music.ui.screens
 import android.content.Context
 import android.util.Log
 import android.os.Build
+import android.widget.Toast
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.google.accompanist.permissions.rememberPermissionState
 import androidx.compose.foundation.background
@@ -190,12 +191,9 @@ fun PlayerScreen(
     // 登录提示
     var showLoginToast by remember { mutableStateOf(false) }
     val playModeChanged by playerManager.playModeChanged.collectAsState()
-    var showPlayModeToast by remember { mutableStateOf(false) }
 
     // 分享对话框
     var showShareDialog by remember { mutableStateOf(false) }
-    var showShareToast by remember { mutableStateOf(false) }
-    var shareToastMessage by remember { mutableStateOf("") }
 
     // 添加到歌单
     var playlists by remember { mutableStateOf<List<com.neko.music.data.api.PlaylistInfo>>(emptyList()) }
@@ -406,9 +404,12 @@ fun PlayerScreen(
     // 控制播放模式提示的显示
     LaunchedEffect(playModeChanged) {
         if (playModeChanged > 0) {
-            showPlayModeToast = true
-            delay(2000)
-            showPlayModeToast = false
+            val message = when (playMode) {
+                PlayMode.LIST_LOOP -> "列表循环"
+                PlayMode.SINGLE_LOOP -> "单曲循环"
+                PlayMode.SHUFFLE -> "随机播放"
+            }
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -417,34 +418,6 @@ fun PlayerScreen(
         if (showLoginToast) {
             delay(2000)
             showLoginToast = false
-        }
-    }
-    
-    // 播放模式提示（悬浮窗，层级最高）
-    AnimatedVisibility(
-        visible = showPlayModeToast,
-        enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(300)),
-        exit = fadeOut(animationSpec = androidx.compose.animation.core.tween(300))
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(top = 80.dp)
-                .height(32.dp)
-                .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(16.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = when (playMode) {
-                    PlayMode.LIST_LOOP -> "列表循环"
-                    PlayMode.SINGLE_LOOP -> "单曲循环"
-                    PlayMode.SHUFFLE -> "随机播放"
-                },
-                fontSize = 14.sp,
-                color = Color.White,
-                fontWeight = FontWeight.Medium
-            )
         }
     }
 
@@ -484,11 +457,10 @@ fun PlayerScreen(
                         val shareText = "【${currentMusic.title}-${currentMusic.artist}】 Neko云音乐 https://music.cnmsb.xin/detail/${currentMusic.id}"
                         val clip = android.content.ClipData.newPlainText("音乐链接", shareText)
                         clipboardManager.setPrimaryClip(clip)
-                        shareToastMessage = "链接已复制"
+                        Toast.makeText(context, "链接已复制", Toast.LENGTH_SHORT).show()
                     } catch (e: Exception) {
-                        shareToastMessage = "复制失败"
+                        Toast.makeText(context, "复制失败", Toast.LENGTH_SHORT).show()
                     }
-                    showShareToast = true
                 }
             },
             onDownload = {
@@ -499,16 +471,15 @@ fun PlayerScreen(
                         val result = downloadHelper.downloadMusicWithLyrics(currentMusic)
                         result.fold(
                             onSuccess = { message ->
-                                shareToastMessage = message
+                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                             },
                             onFailure = { error ->
-                                shareToastMessage = "下载失败: ${error.message}"
+                                Toast.makeText(context, "下载失败: ${error.message}", Toast.LENGTH_SHORT).show()
                             }
                         )
                     } catch (e: Exception) {
-                        shareToastMessage = "下载失败: ${e.message}"
+                        Toast.makeText(context, "下载失败: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
-                    showShareToast = true
                 }
             },
             onShareToTwitter = {
@@ -536,15 +507,13 @@ fun PlayerScreen(
                             context.startActivity(webIntent)
                         }
                     } catch (e: Exception) {
-                        shareToastMessage = "分享失败"
-                        showShareToast = true
+                        Toast.makeText(context, "分享失败", Toast.LENGTH_SHORT).show()
                     }
                 }
             },
             onSpeedChange = { speed ->
                 playerManager.setPlaybackSpeed(speed)
-                shareToastMessage = "倍速: ${speed}x"
-                showShareToast = true
+                Toast.makeText(context, "倍速: ${speed}x", Toast.LENGTH_SHORT).show()
             },
             currentSpeed = playbackSpeed,
             onSleepTimerChange = { minutes ->
@@ -552,7 +521,7 @@ fun PlayerScreen(
                     showNotificationPermissionDialog = true
                 } else {
                     playerManager.setSleepTimer(minutes)
-                    shareToastMessage = if (minutes == 0) {
+                    val message = if (minutes == 0) {
                         "定时关闭已取消"
                     } else {
                         val hours = minutes / 60
@@ -565,7 +534,7 @@ fun PlayerScreen(
                             "${minutes}分钟后关闭"
                         }
                     }
-                    showShareToast = true
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                 }
             },
             currentSleepTimerMinutes = sleepTimerMinutes,
@@ -586,22 +555,18 @@ fun PlayerScreen(
                             Log.d("PlayerScreen", "API响应: success=${response.success}, message=${response.message}")
                             
                             if (response.success) {
-                                shareToastMessage = "已添加到${playlist.name}"
-                                showShareToast = true
+                                Toast.makeText(context, "已添加到${playlist.name}", Toast.LENGTH_SHORT).show()
                                 showShareDialog = false
                             } else {
-                                shareToastMessage = response.message
-                                showShareToast = true
+                                Toast.makeText(context, response.message, Toast.LENGTH_SHORT).show()
                             }
                         } else {
                             Log.e("PlayerScreen", "Token为空")
-                            shareToastMessage = "请先登录"
-                            showShareToast = true
+                            Toast.makeText(context, "请先登录", Toast.LENGTH_SHORT).show()
                         }
                     } catch (e: Exception) {
                         Log.e("PlayerScreen", "添加到歌单失败", e)
-                        shareToastMessage = "添加失败: ${e.message}"
-                        showShareToast = true
+                        Toast.makeText(context, "添加失败: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -700,36 +665,6 @@ fun PlayerScreen(
             }
         }
     }
-
-    // 分享提示（悬浮窗，层级最高）
-    LaunchedEffect(showShareToast) {
-        if (showShareToast) {
-            delay(2000)
-            showShareToast = false
-        }
-    }
-
-    AnimatedVisibility(
-        visible = showShareToast,
-        enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(300)),
-        exit = fadeOut(animationSpec = androidx.compose.animation.core.tween(300))
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(top = 80.dp)
-                .height(32.dp)
-                .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(16.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = shareToastMessage,
-                color = Color.White,
-                fontSize = 14.sp
-            )
-        }
-    }
 }
 
 @Composable
@@ -739,17 +674,17 @@ fun TopBar(
     onPlaylistClick: () -> Unit = {}
 ) {
     Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = onBackClick,
-                    modifier = Modifier.size(48.dp)
-                ) {
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .padding(horizontal = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(
+            onClick = onBackClick,
+            modifier = Modifier.size(48.dp)
+        ) {
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
                         contentDescription = "返回",
