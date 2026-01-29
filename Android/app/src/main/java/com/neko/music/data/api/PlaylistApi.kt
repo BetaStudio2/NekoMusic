@@ -129,14 +129,14 @@ class PlaylistApi(private val token: String?) {
     /**
      * 更新歌单
      */
-    suspend fun updatePlaylist(playlistId: Int, name: String): PlaylistResponse {
+    suspend fun updatePlaylist(playlistId: Int, name: String, description: String? = null): PlaylistResponse {
         return try {
             client.post("$baseUrl/update") {
                 headers {
                     append("Authorization", token ?: "")
                     append("Content-Type", "application/json")
                 }
-                setBody(UpdatePlaylistRequest(playlistId, name, null))
+                setBody(UpdatePlaylistRequest(playlistId, name, description))
             }.body()
         } catch (e: Exception) {
             PlaylistResponse(false, "网络错误: ${e.message}", null)

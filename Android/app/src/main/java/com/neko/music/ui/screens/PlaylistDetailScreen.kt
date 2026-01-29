@@ -11,27 +11,20 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
-import coil.compose.rememberAsyncImagePainter
-import com.neko.music.R
 import com.neko.music.data.api.PlaylistApi
 import com.neko.music.data.api.PlaylistMusic
 import com.neko.music.data.api.PlaylistMusicListResponse
@@ -44,22 +37,26 @@ fun PlaylistDetailScreen(
     playlistId: Int,
     playlistName: String,
     playlistCover: String?,
-    playlistDescription: String = "", // 歌单描述
+    playlistDescription: String = "",
     onBackClick: () -> Unit,
     onMusicClick: (com.neko.music.data.model.Music) -> Unit,
-    onPlayAll: (List<PlaylistMusic>) -> Unit // 播放全部回调
+    onPlayAll: (List<PlaylistMusic>) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val tokenManager = remember { TokenManager(context) }
     val playlistApi = remember { PlaylistApi(tokenManager.getToken()) }
 
-    // 歌单音乐列表
     var musicList by remember { mutableStateOf<List<PlaylistMusic>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf("") }
+    
+    // 本地描述状态，用于实时更新显示
+    var currentDescription by remember { mutableStateOf(playlistDescription) }
+    
+    var showEditDescriptionDialog by remember { mutableStateOf(false) }
+    var editingDescription by remember { mutableStateOf(playlistDescription) }
 
-    // 加载歌单音乐
     LaunchedEffect(playlistId) {
         try {
             isLoading = true
@@ -82,32 +79,26 @@ fun PlaylistDetailScreen(
         }
     }
 
-    // 获取封面URL - 如果歌单没有封面，使用第一首音乐的ID获取封面
     val coverUrl = remember(playlistCover, musicList) {
         if (!playlistCover.isNullOrEmpty()) {
-            // 歌单有自己的封面
             "https://music.cnmsb.xin$playlistCover"
         } else {
-            // 歌单没有封面，使用第一首音乐的ID获取封面
             val firstMusic = musicList.firstOrNull()
             if (firstMusic != null) {
                 "https://music.cnmsb.xin/api/music/cover/${firstMusic.id}"
             } else {
-                // 没有音乐，使用默认头像
                 "https://music.cnmsb.xin/api/user/avatar/default"
             }
         }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // 内容层
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.White)
                 .statusBarsPadding()
         ) {
-            // 顶部标题栏
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -143,7 +134,6 @@ fun PlaylistDetailScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 歌单信息区域
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -151,7 +141,6 @@ fun PlaylistDetailScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // 小封面
                 Box(
                     modifier = Modifier
                         .size(120.dp)
@@ -167,7 +156,6 @@ fun PlaylistDetailScreen(
                     )
                 }
 
-                // 歌单信息
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.Center
@@ -189,37 +177,42 @@ fun PlaylistDetailScreen(
                         color = Color.Gray
                     )
 
-                    if (playlistDescription.isNotEmpty()) {
+                    if (currentDescription.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = playlistDescription,
+                            text = currentDescription,
                             fontSize = 13.sp,
                             color = Color.Gray,
                             maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.clickable {
+                                editingDescription = currentDescription
+                                showEditDescriptionDialog = true
+                            }
                         )
                     } else {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "暂无描述",
+                            text = "暂无描述，点击此处修改Nya！",
                             fontSize = 13.sp,
-                            color = Color.Gray
+                            color = Color.Gray,
+                            modifier = Modifier.clickable {
+                                editingDescription = ""
+                                showEditDescriptionDialog = true
+                            }
                         )
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // 播放全部按钮
                     Button(
                         onClick = {
-                            // 播放全部：清空播放列表并按顺序播放当前歌单
                             if (musicList.isNotEmpty()) {
                                 onPlayAll(musicList)
                             }
                         },
                         enabled = musicList.isNotEmpty(),
-                        modifier = Modifier
-                            .height(36.dp),
+                        modifier = Modifier.height(36.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = RoseRed,
                             disabledContainerColor = RoseRed.copy(alpha = 0.3f)
@@ -245,7 +238,6 @@ fun PlaylistDetailScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 歌曲列表
             if (isLoading) {
                 Box(
                     modifier = Modifier
@@ -313,6 +305,78 @@ fun PlaylistDetailScreen(
                 }
             }
         }
+
+        if (showEditDescriptionDialog) {
+            AlertDialog(
+                onDismissRequest = { showEditDescriptionDialog = false },
+                title = {
+                    Text(
+                        text = "编辑歌单描述",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    OutlinedTextField(
+                        value = editingDescription,
+                        onValueChange = { editingDescription = it },
+                        placeholder = { Text("请输入歌单描述") },
+                        singleLine = false,
+                        maxLines = 4,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp)
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                try {
+                                    val token = tokenManager.getToken()
+                                    if (token != null) {
+                                        val response = playlistApi.updatePlaylist(playlistId, playlistName, editingDescription)
+                                        if (response.success) {
+                                            // 更新本地描述状态
+                                            currentDescription = editingDescription
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                "描述已更新",
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                            showEditDescriptionDialog = false
+                                        } else {
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                response.message,
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "更新失败: ${e.message}",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                        },
+                        enabled = editingDescription != currentDescription,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = RoseRed
+                        )
+                    ) {
+                        Text("确定")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showEditDescriptionDialog = false }) {
+                        Text("取消")
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -325,7 +389,6 @@ fun PlaylistMusicItem(
     var isPressed by remember { mutableStateOf(false) }
 
     val coverUrl = remember(music.id) {
-        // 统一使用音乐ID获取封面，不依赖API返回的coverPath
         "https://music.cnmsb.xin/api/music/cover/${music.id}"
     }
 
@@ -343,7 +406,6 @@ fun PlaylistMusicItem(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // 序号
         Text(
             text = "$position",
             fontSize = 14.sp,
@@ -352,7 +414,6 @@ fun PlaylistMusicItem(
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
 
-        // 封面
         Box(
             modifier = Modifier
                 .size(48.dp)
@@ -368,7 +429,6 @@ fun PlaylistMusicItem(
             )
         }
 
-        // 歌曲信息
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.Center
@@ -391,7 +451,6 @@ fun PlaylistMusicItem(
             )
         }
 
-        // 时长
         Text(
             text = formatTime(music.duration * 1000L),
             fontSize = 13.sp,
