@@ -5,6 +5,9 @@ import PlayerView from '@/views/PlayerView.vue'
 import UserLoginView from '@/views/UserLoginView.vue'
 import UserRegisterView from '@/views/UserRegisterView.vue'
 import UserFavoritesView from '@/views/UserFavoritesView.vue'
+import UserPlaylistsView from '@/views/UserPlaylistsView.vue'
+import CreatePlaylistView from '@/views/CreatePlaylistView.vue'
+import PlaylistDetailView from '@/views/PlaylistDetailView.vue'
 import AdminLoginView from '@/views/admin/AdminLoginView.vue'
 import AdminView from '@/views/admin/AdminView.vue'
 import AdminMusicView from '@/views/admin/AdminMusicView.vue'
@@ -110,6 +113,47 @@ const router = createRouter({
         title: '用户注册 - Neko云音乐 | 免费音乐平台',
         description: '注册Neko云音乐账户，开启您的免费音乐之旅。完全免费，无需付费，永久免费。',
         keywords: '用户注册,账户注册,免费音乐注册'
+      }
+    },
+    {
+      path: '/favorites',
+      name: 'favorites',
+      component: UserFavoritesView,
+      meta: {
+        title: '我的收藏 - Neko云音乐 | 免费音乐收藏',
+        description: '查看您在Neko云音乐收藏的免费音乐，管理您的个人音乐收藏夹。完全免费，无需付费。',
+        keywords: '音乐收藏,我的收藏,免费收藏,个人音乐'
+      }
+    },
+    {
+      path: '/playlists',
+      name: 'playlists',
+      component: UserPlaylistsView,
+      meta: {
+        title: '我的歌单 - Neko云音乐 | 免费音乐歌单',
+        description: '查看和管理您的歌单，创建个性化音乐播放列表。完全免费，无需付费。',
+        keywords: '歌单,我的歌单,音乐歌单,播放列表'
+      }
+    },
+    {
+      path: '/playlist/create',
+      name: 'create-playlist',
+      component: CreatePlaylistView,
+      meta: {
+        title: '创建歌单 - Neko云音乐 | 免费音乐歌单',
+        description: '创建新的歌单，整理您喜爱的免费音乐。完全免费，无需付费。',
+        keywords: '创建歌单,新建歌单,音乐歌单'
+      }
+    },
+    {
+      path: '/playlist/:id',
+      name: 'playlist-detail',
+      component: PlaylistDetailView,
+      props: true,
+      meta: {
+        title: '歌单详情 - Neko云音乐 | 免费音乐歌单',
+        description: '查看歌单详情，播放歌单中的免费音乐。完全免费，无需付费。',
+        keywords: '歌单详情,歌单播放,音乐歌单'
       }
     },
     {
