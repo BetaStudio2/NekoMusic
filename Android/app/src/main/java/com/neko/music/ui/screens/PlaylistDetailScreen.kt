@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -51,7 +52,6 @@ fun PlaylistDetailScreen(
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf("") }
     
-    // 本地描述状态，用于实时更新显示
     var currentDescription by remember { mutableStateOf(playlistDescription) }
     
     var showEditDescriptionDialog by remember { mutableStateOf(false) }
@@ -88,6 +88,42 @@ fun PlaylistDetailScreen(
                 "https://music.cnmsb.xin/api/music/cover/${firstMusic.id}"
             } else {
                 "https://music.cnmsb.xin/api/user/avatar/default"
+            }
+        }
+    }
+
+    // 移除音乐的函数
+    val removeMusic: (PlaylistMusic) -> Unit = { music ->
+        scope.launch {
+            try {
+                val token = tokenManager.getToken()
+                if (token != null) {
+                    val response = playlistApi.removeMusicFromPlaylist(playlistId, music.id)
+                    if (response.success) {
+                        android.widget.Toast.makeText(
+                            context,
+                            "已从歌单中移除",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                        // 重新加载歌单音乐列表
+                        val newResponse: PlaylistMusicListResponse = playlistApi.getPlaylistMusic(playlistId)
+                        if (newResponse.success) {
+                            musicList = newResponse.musicList ?: emptyList()
+                        }
+                    } else {
+                        android.widget.Toast.makeText(
+                            context,
+                            response.message,
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(
+                    context,
+                    "移除失败: ${e.message}",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
             }
         }
     }
@@ -193,7 +229,7 @@ fun PlaylistDetailScreen(
                     } else {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "暂无描述，点击此处修改Nya！",
+                            text = "暂无描述",
                             fontSize = 13.sp,
                             color = Color.Gray,
                             modifier = Modifier.clickable {
@@ -299,7 +335,8 @@ fun PlaylistDetailScreen(
                                         ""
                                     )
                                 )
-                            }
+                            },
+                            onRemove = { removeMusic(music) }
                         )
                     }
                 }
@@ -337,7 +374,6 @@ fun PlaylistDetailScreen(
                                     if (token != null) {
                                         val response = playlistApi.updatePlaylist(playlistId, playlistName, editingDescription)
                                         if (response.success) {
-                                            // 更新本地描述状态
                                             currentDescription = editingDescription
                                             android.widget.Toast.makeText(
                                                 context,
@@ -384,7 +420,8 @@ fun PlaylistDetailScreen(
 fun PlaylistMusicItem(
     music: PlaylistMusic,
     position: Int,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onRemove: () -> Unit
 ) {
     var isPressed by remember { mutableStateOf(false) }
 
@@ -456,5 +493,16 @@ fun PlaylistMusicItem(
             fontSize = 13.sp,
             color = Color.Gray
         )
+
+        IconButton(
+            onClick = onRemove,
+            modifier = Modifier.size(36.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = "移除",
+                tint = Color.Gray
+            )
+        }
     }
 }

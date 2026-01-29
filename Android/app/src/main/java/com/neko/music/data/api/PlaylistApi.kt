@@ -94,9 +94,6 @@ class PlaylistApi(private val token: String?) {
 
     private val baseUrl = "https://music.cnmsb.xin/api/user/playlist"
 
-    /**
-     * 获取我的歌单列表
-     */
     suspend fun getMyPlaylists(): PlaylistListResponse {
         return try {
             client.get("https://music.cnmsb.xin/api/user/playlists") {
@@ -109,9 +106,6 @@ class PlaylistApi(private val token: String?) {
         }
     }
 
-    /**
-     * 创建歌单
-     */
     suspend fun createPlaylist(name: String): PlaylistResponse {
         return try {
             client.post("$baseUrl/create") {
@@ -126,9 +120,6 @@ class PlaylistApi(private val token: String?) {
         }
     }
 
-    /**
-     * 更新歌单
-     */
     suspend fun updatePlaylist(playlistId: Int, name: String, description: String? = null): PlaylistResponse {
         return try {
             client.post("$baseUrl/update") {
@@ -143,9 +134,6 @@ class PlaylistApi(private val token: String?) {
         }
     }
 
-    /**
-     * 删除歌单
-     */
     suspend fun deletePlaylist(playlistId: Int): PlaylistResponse {
         return try {
             client.post("$baseUrl/delete") {
@@ -160,9 +148,6 @@ class PlaylistApi(private val token: String?) {
         }
     }
 
-    /**
-     * 获取歌单音乐列表
-     */
     suspend fun getPlaylistMusic(playlistId: Int): PlaylistMusicListResponse {
         return try {
             client.get("$baseUrl/music/$playlistId") {
@@ -175,10 +160,6 @@ class PlaylistApi(private val token: String?) {
         }
     }
 
-    /**
-     * 添加音乐到歌单
-     */
-
     suspend fun addMusicToPlaylist(playlistId: Int, musicId: Int): PlaylistResponse {
         return try {
             val response = client.post("$baseUrl/music/add") {
@@ -186,7 +167,6 @@ class PlaylistApi(private val token: String?) {
                     token?.let { append("Authorization", it) }
                     append("Content-Type", "application/json")
                 }
-
                 setBody(
                     """
                         {
@@ -196,14 +176,38 @@ class PlaylistApi(private val token: String?) {
                         """.trimIndent()
                 )
             }
-
-            // 记录响应状态
             val status = response.status
             val bodyText = response.body<String>()
             Log.d("PlaylistApi", "添加到歌单响应: status=$status, body=$bodyText")
             response.body()
         } catch (e: Exception) {
             Log.e("PlaylistApi", "添加到歌单异常: ${e.message}", e)
+            PlaylistResponse(false, "网络错误: ${e.message}", null)
+        }
+    }
+
+    suspend fun removeMusicFromPlaylist(playlistId: Int, musicId: Int): PlaylistResponse {
+        return try {
+            val response = client.post("https://music.cnmsb.xin/api/user/playlist/music/remove") {
+                headers {
+                    token?.let { append("Authorization", it) }
+                    append("Content-Type", "application/json")
+                }
+                setBody(
+                    """
+                        {
+                            "playlistId": $playlistId,
+                            "musicId": $musicId
+                        }
+                        """.trimIndent()
+                )
+            }
+            val status = response.status
+            val bodyText = response.body<String>()
+            Log.d("PlaylistApi", "移除音乐响应: status=$status, body=$bodyText")
+            response.body()
+        } catch (e: Exception) {
+            Log.e("PlaylistApi", "移除音乐异常: ${e.message}", e)
             PlaylistResponse(false, "网络错误: ${e.message}", null)
         }
     }
