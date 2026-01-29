@@ -92,6 +92,42 @@ public class PlaylistService {
     }
 
     /**
+     * 获取所有歌单
+     */
+    public List<Playlist> getAllPlaylists() {
+        logger.info("获取所有歌单");
+
+        List<Playlist> playlists = new ArrayList<>();
+        String sql = "SELECT id, user_id, name, description, cover_path, music_count, created_at, updated_at " +
+                     "FROM playlists ORDER BY created_at DESC";
+
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                Playlist playlist = new Playlist();
+                playlist.setId(rs.getInt("id"));
+                playlist.setUserId(rs.getInt("user_id"));
+                playlist.setName(rs.getString("name"));
+                playlist.setDescription(rs.getString("description"));
+                playlist.setCoverPath(rs.getString("cover_path"));
+                playlist.setMusicCount(rs.getInt("music_count"));
+                playlist.setCreatedAt(rs.getString("created_at"));
+                playlist.setUpdatedAt(rs.getString("updated_at"));
+                playlists.add(playlist);
+            }
+
+            logger.info("获取到 {} 个歌单", playlists.size());
+        } catch (SQLException e) {
+            logger.error("获取所有歌单失败: {}", e.getMessage(), e);
+        }
+
+        return playlists;
+    }
+
+    /**
      * 根据ID获取歌单
      */
     public Optional<Playlist> getPlaylistById(int playlistId) {

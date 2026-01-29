@@ -370,18 +370,29 @@ Authorization: <token>
   "playlists": [
     {
       "id": 1,
+      "userId": 1,
       "name": "我的歌单",
       "description": "这是我的歌单描述",
       "coverPath": null,
       "musicCount": 5,
       "createdAt": "2026-01-29 12:00:00",
       "updatedAt": "2026-01-29 12:05:00"
+    },
+    {
+      "id": 2,
+      "userId": 2,
+      "name": "其他用户的歌单",
+      "description": "这是其他用户的歌单",
+      "coverPath": null,
+      "musicCount": 3,
+      "createdAt": "2026-01-29 11:00:00",
+      "updatedAt": "2026-01-29 11:00:00"
     }
   ]
 }
 ```
 
-**说明:** 此 API 返回当前用户创建的所有歌单列表，歌单按创建时间倒序排列。
+**说明:** 此 API 返回所有用户创建的歌单列表，歌单按创建时间倒序排列。任何登录用户都可以查看所有歌单。
 
 ### 3. 更新歌单
 
@@ -529,13 +540,16 @@ Authorization: <token>
 | 操作 | 权限要求 |
 |------|---------|
 | 创建歌单 | 任何登录用户 |
-| 查看歌单列表 | 任何登录用户（只能查看自己创建的歌单） |
+| 查看歌单列表 | 任何登录用户（可以查看所有歌单） |
+| 查看歌单内容 | 任何登录用户（可以查看任何歌单的内容） |
 | 更新歌单 | 只有歌单的创建者 |
 | 删除歌单 | 只有歌单的创建者 |
 
 ### 权限验证
 
-所有修改和删除操作都会验证用户是否是歌单的创建者。如果用户尝试修改或删除不属于自己的歌单，服务器会返回 `403 Forbidden` 状态码和相应的错误信息。
+- **查看权限**：所有登录用户都可以查看任何歌单的列表和内容，无需额外权限验证
+- **修改权限**：所有修改和删除操作都会验证用户是否是歌单的创建者（通过 token 识别用户身份）
+- 如果用户尝试修改或删除不属于自己的歌单，服务器会返回 `403 Forbidden` 状态码和相应的错误信息
 
 ---
 
@@ -776,17 +790,18 @@ async function createPlaylist(name, description) {
 ```javascript
 async function getPlaylists() {
   const token = localStorage.getItem('userToken');
-  
+
   const response = await fetch('https://music.cnmsb.xin/api/user/playlists', {
     method: 'GET',
     headers: {
       'Authorization': token
     }
   });
-  
+
   const data = await response.json();
   if (data.success) {
-    console.log('获取到歌单列表:', data.playlists);
+    console.log('获取到所有歌单列表:', data.playlists);
+    // data.playlists 包含所有用户创建的歌单，每个歌单都有 userId 字段
   } else {
     console.error('获取歌单列表失败:', data.message);
   }
@@ -927,12 +942,14 @@ async function changePassword(oldPassword, newPassword) {
    - 使用 Argon2 算法加密密码
 7. **歌单管理:**
    - 每个歌单都有唯一的 ID 和创建者（user_id）
-   - 只有歌单的创建者才能更新和删除歌单
+   - 任何登录用户都可以查看所有歌单的列表和内容
+   - 只有歌单的创建者才能更新和删除歌单（通过 token 验证）
    - 删除歌单会级联删除歌单中的所有音乐关联
    - 歌单名称长度限制：255 个字符
    - 歌单描述长度限制：500 个字符
    - `musicCount` 字段会自动更新，无需手动维护
    - 歌单按创建时间倒序排列（最新的在前面）
+   - 响应中包含 `userId` 字段，可以识别歌单的创建者
 
 ---
 

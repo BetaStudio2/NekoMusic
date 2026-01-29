@@ -57,10 +57,10 @@ public class GetPlaylistsHandler extends HttpServlet {
         }
 
         try {
-            // 获取用户的歌单列表
-            List<Playlist> playlists = playlistService.getUserPlaylists(userId);
+            // 获取所有歌单列表
+            List<Playlist> playlists = playlistService.getAllPlaylists();
 
-            logger.info("获取到 {} 个歌单: userId={}", playlists.size(), userId);
+            logger.info("获取到 {} 个歌单", playlists.size());
 
             JsonObject response = new JsonObject();
             response.addProperty("success", true);
@@ -70,6 +70,7 @@ public class GetPlaylistsHandler extends HttpServlet {
             for (Playlist playlist : playlists) {
                 JsonObject playlistJson = new JsonObject();
                 playlistJson.addProperty("id", playlist.getId());
+                playlistJson.addProperty("userId", playlist.getUserId());
                 playlistJson.addProperty("name", playlist.getName());
                 playlistJson.addProperty("description", playlist.getDescription());
                 playlistJson.addProperty("coverPath", playlist.getCoverPath());
