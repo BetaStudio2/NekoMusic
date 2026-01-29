@@ -219,38 +219,33 @@ public class PlaylistService {
             return false;
         }
 
-        // 获取当前歌单中的最大position
-        int nextPosition = 1;
-        String maxPositionSql = "SELECT COALESCE(MAX(position), 0) FROM playlist_music WHERE playlist_id = ?";
+        // 将所有现有音乐的 position + 1
+        String updateSql = "UPDATE playlist_music SET position = position + 1 WHERE playlist_id = ?";
         try (Connection conn = databaseManager.getConnection();
-             PreparedStatement maxStmt = conn.prepareStatement(maxPositionSql)) {
+             PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
 
-            maxStmt.setInt(1, playlistId);
-            ResultSet rs = maxStmt.executeQuery();
-
-            if (rs.next()) {
-                nextPosition = rs.getInt(1) + 1;
-            }
+            updateStmt.setInt(1, playlistId);
+            updateStmt.executeUpdate();
+            logger.info("已重新排序歌单中所有音乐的position: playlistId={}", playlistId);
         } catch (SQLException e) {
-            logger.error("获取最大position失败: {}", e.getMessage(), e);
+            logger.error("重新排序position失败: {}", e.getMessage(), e);
             return false;
         }
 
-        // 添加音乐到歌单
-        String sql = "INSERT INTO playlist_music (playlist_id, music_id, position) VALUES (?, ?, ?)";
+        // 添加新音乐到最上面（position = 1）
+        String insertSql = "INSERT INTO playlist_music (playlist_id, music_id, position) VALUES (?, ?, 1)";
 
         try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+             PreparedStatement stmt = conn.prepareStatement(insertSql)) {
 
             stmt.setInt(1, playlistId);
             stmt.setInt(2, musicId);
-            stmt.setInt(3, nextPosition);
 
             int affectedRows = stmt.executeUpdate();
             boolean success = affectedRows > 0;
 
             if (success) {
-                logger.info("音乐添加到歌单成功: playlistId={}, musicId={}, position={}", playlistId, musicId, nextPosition);
+                logger.info("音乐添加到歌单成功: playlistId={}, musicId={}, position=1", playlistId, musicId);
                 // 更新歌单的音乐数量
                 updateMusicCount(playlistId);
             } else {
