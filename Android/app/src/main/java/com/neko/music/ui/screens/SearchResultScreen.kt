@@ -384,11 +384,7 @@ fun PlaylistItem(
             // 封面
             if (!playlist.coverPath.isNullOrEmpty()) {
                 coil.compose.AsyncImage(
-                    model = if (playlist.coverPath.startsWith("/")) {
-                        "https://music.cnmsb.xin${playlist.coverPath}"
-                    } else {
-                        playlist.coverPath
-                    },
+                    model = playlist.coverPath,
                     contentDescription = "歌单封面",
                     modifier = Modifier
                         .size(56.dp)
@@ -670,26 +666,26 @@ suspend fun performPlaylistSearch(
             if (responseText.contains("\"success\":true")) {
                 // 提取 results 数组
                 val resultsRegex = """"results":\s*\[(.*?)\]""".toRegex()
-                                    val match = resultsRegex.find(responseText)
-                                    if (match != null) {
-                                        val resultsJson = match.groupValues[1]
-                                        // 简化处理：从 JSON 中提取歌单信息
-                                        val playlists = mutableListOf<com.neko.music.data.api.PlaylistInfo>()
-                                        // 匹配完整的歌单信息，包括 firstMusicCover
-                                        val playlistRegex = """"id":\s*(\d+),\s*"userId":\s*\d+,\s*"name":\s*"([^"]*)"(?:,\s*"description":\s*"([^"]*)")?,\s*"musicCount":\s*(\d+).*?,"firstMusicCover":\s*"([^"]*)"""".toRegex()                    
+                val match = resultsRegex.find(responseText)
+                if (match != null) {
+                    val resultsJson = match.groupValues[1]
+                    // 简化处理：从 JSON 中提取歌单信息
+                    val playlists = mutableListOf<com.neko.music.data.api.PlaylistInfo>()
+                    // 匹配完整的歌单信息，包括 firstMusicId 和 firstMusicCover
+                    val playlistRegex = """"id":\s*(\d+),\s*"userId":\s*\d+,\s*"name":\s*"([^"]*)"(?:,\s*"description":\s*"([^"]*)")?,\s*"musicCount":\s*(\d+).*?,"firstMusicId":\s*(\d+)""".toRegex()
                     playlistRegex.findAll(resultsJson).forEach { matchResult ->
                         val id = matchResult.groupValues[1].toIntOrNull() ?: 0
                         val name = matchResult.groupValues[2]
                         val description = matchResult.groupValues[3].ifBlank { null }
                         val musicCount = matchResult.groupValues[4].toIntOrNull() ?: 0
-                        val firstMusicCover = matchResult.groupValues[5]
+                        val firstMusicId = matchResult.groupValues[5].toIntOrNull() ?: 0
                         
                         playlists.add(
                             com.neko.music.data.api.PlaylistInfo(
                                 id = id,
                                 name = name,
                                 description = description,
-                                coverPath = firstMusicCover,
+                                coverPath = "https://music.cnmsb.xin/api/music/cover/$firstMusicId",
                                 musicCount = musicCount,
                                 createdAt = "",
                                 updatedAt = ""
