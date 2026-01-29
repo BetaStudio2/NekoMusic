@@ -36,6 +36,30 @@ data class PlaylistInfo(
 )
 
 @Serializable
+data class PlaylistMusic(
+    val id: Int,
+    val title: String,
+    val artist: String,
+    val album: String,
+    val duration: Int,
+    val coverPath: String?,
+    val filePath: String,
+    val fileFormat: String,
+    val language: String,
+    val position: Int,
+    val addedAt: String
+)
+
+@Serializable
+data class PlaylistMusicListResponse(
+    val success: Boolean,
+    val message: String,
+    val playlistId: Int,
+    val total: Int,
+    val musicList: List<PlaylistMusic>? = null
+)
+
+@Serializable
 data class CreatePlaylistRequest(
     val name: String,
     val description: String? = null
@@ -132,6 +156,21 @@ class PlaylistApi(private val token: String?) {
             }.body()
         } catch (e: Exception) {
             PlaylistResponse(false, "网络错误: ${e.message}", null)
+        }
+    }
+
+    /**
+     * 获取歌单音乐列表
+     */
+    suspend fun getPlaylistMusic(playlistId: Int): PlaylistMusicListResponse {
+        return try {
+            client.get("$baseUrl/music/$playlistId") {
+                headers {
+                    append("Authorization", token ?: "")
+                }
+            }.body()
+        } catch (e: Exception) {
+            PlaylistMusicListResponse(false, "网络错误: ${e.message}", playlistId, 0, null)
         }
     }
 }
