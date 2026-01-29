@@ -9,11 +9,56 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import com.neko.music.data.model.PlaylistResponse
+
+@Serializable
+data class PlaylistListResponse(
+    val success: Boolean,
+    val message: String = "",
+    val playlists: List<PlaylistInfo>? = null
+)
+
+@Serializable
+data class PlaylistResponse(
+    val success: Boolean,
+    val message: String = "",
+    val playlist: PlaylistInfo? = null
+)
+
+@Serializable
+data class PlaylistInfo(
+    val id: Int,
+    val name: String,
+    val description: String? = null,
+    val coverPath: String? = null,
+    val musicCount: Int,
+    val createdAt: String,
+    val updatedAt: String
+)
+
+@Serializable
+data class CreatePlaylistRequest(
+    val name: String,
+    val description: String? = null
+)
+
+@Serializable
+data class UpdatePlaylistRequest(
+    val id: Int,
+    val name: String,
+    val description: String? = null
+)
+
+@Serializable
+data class DeletePlaylistRequest(
+    val id: Int
+)
 
 class PlaylistApi(private val token: String?) {
     
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = Json { 
+        ignoreUnknownKeys = true
+        isLenient = true
+    }
     
     private val client = HttpClient(OkHttp) {
         expectSuccess = false
@@ -22,20 +67,20 @@ class PlaylistApi(private val token: String?) {
         }
     }
     
-    private val baseUrl = "https://music.cnmsb.xin/api"
+    private val baseUrl = "https://music.cnmsb.xin/api/user/playlist"
     
     /**
      * 获取我的歌单列表
      */
-    suspend fun getMyPlaylists(): PlaylistResponse {
+    suspend fun getMyPlaylists(): PlaylistListResponse {
         return try {
-            client.get("$baseUrl/playlist") {
+            client.get("https://music.cnmsb.xin/api/user/playlists") {
                 headers {
-                    append("Authorization", "Bearer $token")
+                    append("Authorization", token ?: "")
                 }
             }.body()
         } catch (e: Exception) {
-            PlaylistResponse(false, "网络错误: ${e.message}", null)
+            PlaylistListResponse(false, "网络错误: ${e.message}", null)
         }
     }
     
@@ -44,18 +89,12 @@ class PlaylistApi(private val token: String?) {
      */
     suspend fun createPlaylist(name: String): PlaylistResponse {
         return try {
-            client.post("$baseUrl/playlist") {
+            client.post("$baseUrl/create") {
                 headers {
-                    append("Authorization", "Bearer $token")
+                    append("Authorization", token ?: "")
                     append("Content-Type", "application/json")
                 }
-                setBody(
-                    """
-                    {
-                        "name": "$name"
-                    }
-                    """.trimIndent()
-                )
+                setBody(CreatePlaylistRequest(name, null))
             }.body()
         } catch (e: Exception) {
             PlaylistResponse(false, "网络错误: ${e.message}", null)
@@ -67,18 +106,12 @@ class PlaylistApi(private val token: String?) {
      */
     suspend fun updatePlaylist(playlistId: Int, name: String): PlaylistResponse {
         return try {
-            client.put("$baseUrl/playlist/$playlistId") {
+            client.post("$baseUrl/update") {
                 headers {
-                    append("Authorization", "Bearer $token")
+                    append("Authorization", token ?: "")
                     append("Content-Type", "application/json")
                 }
-                setBody(
-                    """
-                    {
-                        "name": "$name"
-                    }
-                    """.trimIndent()
-                )
+                setBody(UpdatePlaylistRequest(playlistId, name, null))
             }.body()
         } catch (e: Exception) {
             PlaylistResponse(false, "网络错误: ${e.message}", null)
@@ -90,10 +123,12 @@ class PlaylistApi(private val token: String?) {
      */
     suspend fun deletePlaylist(playlistId: Int): PlaylistResponse {
         return try {
-            client.delete("$baseUrl/playlist/$playlistId") {
+            client.post("$baseUrl/delete") {
                 headers {
-                    append("Authorization", "Bearer $token")
+                    append("Authorization", token ?: "")
+                    append("Content-Type", "application/json")
                 }
+                setBody(DeletePlaylistRequest(playlistId))
             }.body()
         } catch (e: Exception) {
             PlaylistResponse(false, "网络错误: ${e.message}", null)

@@ -39,6 +39,9 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.neko.music.data.manager.TokenManager
 import com.neko.music.data.api.PlaylistApi
+import com.neko.music.data.api.PlaylistInfo
+import com.neko.music.data.api.PlaylistListResponse
+import com.neko.music.data.api.PlaylistResponse
 import com.neko.music.data.api.FavoriteApi
 import com.neko.music.data.model.Playlist
 import com.neko.music.ui.theme.*
@@ -49,49 +52,50 @@ fun MyPlaylistsScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val tokenManager = remember { TokenManager(context) }
+    val playlistApi = remember { PlaylistApi(tokenManager.getToken()) }
     val favoriteApi = remember { FavoriteApi() }
     
-    // Demo数据（除了"我的收藏"）
-    var playlists by remember { mutableStateOf(listOf<Playlist>()) }
+    // 歌单数据
+    var playlists by remember { mutableStateOf<List<Playlist>>(emptyList()) }
     var favoritesCount by remember { mutableStateOf(0) }
     var favorites by remember { mutableStateOf<List<com.neko.music.data.api.FavoriteMusic>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf("") }
     var showError by remember { mutableStateOf(false) }
     
-    // 初始化 - 加载收藏数据
+    // 初始化 - 加载歌单和收藏数据
     LaunchedEffect(Unit) {
         try {
             val token = tokenManager.getToken()
             if (token != null) {
-                val response = favoriteApi.getFavorites(token)
-                Log.d("MyPlaylistsScreen", "收藏API响应: success=${response.success}, 数量=${response.favorites.size}")
-                if (response.success) {
-                    favoritesCount = response.favorites.size
-                    favorites = response.favorites
-                    // 打印第一首音乐的详细信息
+                // 加载歌单列表
+                val playlistResponse: PlaylistListResponse = playlistApi.getMyPlaylists()
+                Log.d("MyPlaylistsScreen", "歌单API响应: success=${playlistResponse.success}, message=${playlistResponse.message}")
+                if (playlistResponse.success) {
+                    // 转换PlaylistInfo到Playlist
+                    playlists = playlistResponse.playlists?.map { info ->
+                        Playlist(info.id, info.name, info.musicCount, 1, info.createdAt)
+                    } ?: emptyList()
+                    Log.d("MyPlaylistsScreen", "歌单列表: ${playlists.size}个")
+                } else {
+                    Log.e("MyPlaylistsScreen", "加载歌单失败: ${playlistResponse.message}")
+                }
+                
+                // 加载收藏列表
+                val favoriteResponse = favoriteApi.getFavorites(token)
+                Log.d("MyPlaylistsScreen", "收藏API响应: success=${favoriteResponse.success}, 数量=${favoriteResponse.favorites.size}")
+                if (favoriteResponse.success) {
+                    favoritesCount = favoriteResponse.favorites.size
+                    favorites = favoriteResponse.favorites
                     if (favorites.isNotEmpty()) {
-                        val first = favorites[0]
-                        Log.d("MyPlaylistsScreen", "第一首音乐: id=${first.id}, title=${first.title}, filename=${first.filename}, cover='${first.cover}'")
+                        Log.d("MyPlaylistsScreen", "第一首音乐: id=${favorites[0].id}, title=${favorites[0].title}")
                     }
                 }
             }
-            // 加载Demo歌单数据
-            playlists = listOf(
-                Playlist(2, "工作专用", 45, 1, "2026-01-20"),
-                Playlist(3, "运动歌单", 23, 1, "2026-01-25"),
-                Playlist(4, "睡前音乐", 67, 1, "2026-01-28")
-            )
         } catch (e: Exception) {
             Log.e("MyPlaylistsScreen", "初始化失败", e)
-            // 使用默认值
-            favoritesCount = 0
-            favorites = emptyList()
-            playlists = listOf(
-                Playlist(2, "工作专用", 45, 1, "2026-01-20"),
-                Playlist(3, "运动歌单", 23, 1, "2026-01-25"),
-                Playlist(4, "睡前音乐", 67, 1, "2026-01-28")
-            )
+            errorMessage = "加载失败: ${e.message}"
+            showError = true
         } finally {
             isLoading = false
         }
@@ -100,7 +104,7 @@ fun MyPlaylistsScreen() {
     // 获取完整的歌单列表（包括"我的收藏"）
     val allPlaylists = remember(playlists, favoritesCount) {
         listOf(
-            Playlist(1, "我的喜欢的音乐", favoritesCount, 1, "2026-01-15")
+            Playlist(1, "我的收藏", favoritesCount, 1, "2026-01-15")
         ) + playlists
     }
     
@@ -109,33 +113,66 @@ fun MyPlaylistsScreen() {
     var dialogPlaylistName by remember { mutableStateOf("") }
     var editingPlaylist by remember { mutableStateOf<Playlist?>(null) }
     
-    // 创建或更新歌单（Demo）
+    // 创建或更新歌单
     val createOrUpdatePlaylist = {
-        if (dialogPlaylistName.isNotBlank()) {
-            if (editingPlaylist != null) {
-                // 更新歌单
-                playlists = playlists.map { 
-                    if (it.id == editingPlaylist!!.id) 
-                        it.copy(name = dialogPlaylistName) 
-                    else 
-                        it 
+        scope.launch {
+            try {
+                val token = tokenManager.getToken()
+                if (token != null) {
+                    val response: PlaylistResponse = if (editingPlaylist != null) {
+                        // 更新歌单
+                        playlistApi.updatePlaylist(editingPlaylist!!.id, dialogPlaylistName)
+                    } else {
+                        // 创建歌单
+                        playlistApi.createPlaylist(dialogPlaylistName)
+                    }
+                    
+                    if (response.success) {
+                        // 重新加载歌单列表
+                        val newPlaylistResponse: PlaylistListResponse = playlistApi.getMyPlaylists()
+                        if (newPlaylistResponse.success) {
+                            playlists = newPlaylistResponse.playlists?.map { info ->
+                                Playlist(info.id, info.name, info.musicCount, 1, info.createdAt)
+                            } ?: emptyList()
+                        }
+                        showCreateDialog = false
+                        dialogPlaylistName = ""
+                        editingPlaylist = null
+                    } else {
+                        errorMessage = response.message
+                        showError = true
+                    }
                 }
-            } else {
-                // 创建新歌单（添加到第二位，保留"我的收藏"在第一位）
-                val newId = (playlists.maxOfOrNull { it.id } ?: 0) + 1
-                val newPlaylist = Playlist(newId, dialogPlaylistName, 0, 1, "2026-01-29")
-                playlists = listOf(newPlaylist) + playlists
+            } catch (e: Exception) {
+                Log.e("MyPlaylistsScreen", "操作失败", e)
+                errorMessage = "操作失败: ${e.message}"
+                showError = true
             }
-            showCreateDialog = false
-            dialogPlaylistName = ""
-            editingPlaylist = null
         }
     }
     
-    // 删除歌单（Demo）- 不能删除"我的收藏"
+    // 删除歌单
     val deletePlaylist = { playlist: Playlist ->
-        if (playlist.id != 1) { // 不能删除"我的收藏"
-            playlists = playlists.filter { it.id != playlist.id }
+        scope.launch {
+            try {
+                val response: PlaylistResponse = playlistApi.deletePlaylist(playlist.id)
+                if (response.success) {
+                    // 重新加载歌单列表
+                    val newPlaylistResponse: PlaylistListResponse = playlistApi.getMyPlaylists()
+                    if (newPlaylistResponse.success) {
+                        playlists = newPlaylistResponse.playlists?.map { info ->
+                            Playlist(info.id, info.name, info.musicCount, 1, info.createdAt)
+                        } ?: emptyList()
+                    }
+                } else {
+                    errorMessage = response.message
+                    showError = true
+                }
+            } catch (e: Exception) {
+                Log.e("MyPlaylistsScreen", "删除失败", e)
+                errorMessage = "删除失败: ${e.message}"
+                showError = true
+            }
         }
     }
     
