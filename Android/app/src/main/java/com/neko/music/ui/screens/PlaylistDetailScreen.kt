@@ -19,13 +19,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.neko.music.R
 import com.neko.music.data.api.PlaylistApi
 import com.neko.music.data.api.PlaylistMusic
 import com.neko.music.data.api.PlaylistMusicListResponse
@@ -129,10 +132,22 @@ fun PlaylistDetailScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        // 背景图片
+        Image(
+            painter = painterResource(id = R.drawable.playlist_background),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White.copy(alpha = 0.5f))
+        )
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White)
                 .statusBarsPadding()
         ) {
             Box(
