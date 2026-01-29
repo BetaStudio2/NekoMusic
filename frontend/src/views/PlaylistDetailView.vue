@@ -17,6 +17,17 @@
             <p class="playlist-meta">{{ playlist?.musicCount }} 首歌曲</p>
           </div>
         </div>
+        <button 
+          v-if="musicList.length > 0" 
+          @click="playAll" 
+          class="play-all-btn"
+          title="播放全部"
+        >
+          <svg class="play-all-icon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+          播放全部
+        </button>
       </div>
       
       <div v-if="loading" class="loading">
@@ -232,6 +243,41 @@ const playMusic = (music) => {
   }, 10)
 }
 
+const playAll = () => {
+  if (musicList.value.length === 0) {
+    toast.warning('歌单为空')
+    return
+  }
+  
+  // 将整个歌单设置为播放列表
+  const playlist = musicList.value.map(music => ({
+    id: music.id,
+    title: music.title,
+    artist: music.artist,
+    album: music.album || '',
+    duration: music.duration || 0,
+    coverUrl: music.coverPath ? `${API_CONFIG.BASE_URL}${music.coverPath}` : null,
+    fileUrl: `${API_CONFIG.BASE_URL}/api/music/file/${music.id}`
+  }))
+  
+  localStorage.setItem('globalPlaylist', JSON.stringify(playlist))
+  
+  // 广播播放列表更新事件
+  const playlistEvent = new CustomEvent('playlistUpdated', {
+    detail: {
+      playlist: playlist
+    }
+  })
+  window.dispatchEvent(playlistEvent)
+  
+  // 播放第一首
+  if (playlist.length > 0) {
+    playMusic(musicList.value[0])
+  }
+  
+  toast.success(`已开始播放全部 ${playlist.length} 首歌曲`)
+}
+
 const formatDuration = (seconds) => {
   if (!seconds) return '0:00'
   const mins = Math.floor(seconds / 60)
@@ -396,9 +442,10 @@ onMounted(() => {
   margin-bottom: 30px;
   display: flex;
   align-items: center;
-  gap: 30px;
+  gap: 20px;
   box-shadow: 0 4px 15px rgba(31, 38, 135, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.3);
+  flex-wrap: wrap;
 }
 
 .back-btn {
@@ -424,6 +471,7 @@ onMounted(() => {
   align-items: center;
   gap: 20px;
   flex: 1;
+  min-width: 0;
 }
 
 .playlist-cover {
@@ -467,6 +515,33 @@ onMounted(() => {
   color: #888;
   margin: 0;
   font-size: 1.1em;
+}
+
+.play-all-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 25px;
+  font-size: 1em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.play-all-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.play-all-icon {
+  width: 20px;
+  height: 20px;
 }
 
 .playlist-actions {
@@ -800,22 +875,101 @@ onMounted(() => {
   .playlist-header {
     flex-direction: column;
     text-align: center;
+    gap: 15px;
   }
   
   .playlist-info {
     flex-direction: column;
     text-align: center;
-  }
-  
-  .playlist-actions {
-    flex-direction: row;
     width: 100%;
   }
   
-  .add-btn,
-  .edit-btn,
-  .delete-btn {
-    flex: 1;
+  .playlist-cover {
+    width: 100px;
+    height: 100px;
+  }
+  
+  .playlist-details h1 {
+    font-size: 1.5em;
+  }
+  
+  .playlist-description {
+    font-size: 0.9em;
+  }
+  
+  .playlist-meta {
+    font-size: 0.95em;
+  }
+  
+  .back-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .play-all-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .music-item {
+    padding: 15px;
+    flex-wrap: wrap;
+  }
+  
+  .music-index {
+    width: 30px;
+    font-size: 1em;
+  }
+  
+  .music-cover {
+    width: 50px;
+    height: 50px;
+    margin-right: 15px;
+  }
+  
+  .music-title {
+    font-size: 1em;
+  }
+  
+  .music-artist {
+    font-size: 0.85em;
+  }
+  
+  .music-duration {
+    font-size: 0.85em;
+    margin-right: 10px;
+  }
+  
+  .remove-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 1em;
+  }
+  
+  .modal-content {
+    padding: 20px;
+  }
+  
+  .modal-content h3 {
+    font-size: 1.3em;
+  }
+  
+  .search-box input {
+    padding: 12px 14px;
+  }
+  
+  .search-result-item {
+    padding: 10px;
+  }
+  
+  .result-cover {
+    width: 45px;
+    height: 45px;
+  }
+  
+  .add-btn-small {
+    width: 32px;
+    height: 32px;
   }
 }
 </style>
