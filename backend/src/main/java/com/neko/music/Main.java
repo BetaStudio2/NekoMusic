@@ -178,6 +178,10 @@ public class Main {
         ServletHolder getPlaylistsHolder = new ServletHolder(new GetPlaylistsHandler());
         context.addServlet(getPlaylistsHolder, "/api/user/playlists");
 
+        // 注册获取歌单详情API处理器（无需登录）
+        ServletHolder getPlaylistDetailHolder = new ServletHolder(new GetPlaylistDetailHandler());
+        context.addServlet(getPlaylistDetailHolder, "/api/playlist/*");
+
         // 注册更新歌单API处理器
         ServletHolder updatePlaylistHolder = new ServletHolder(new UpdatePlaylistHandler());
         context.addServlet(updatePlaylistHolder, "/api/user/playlist/update");
@@ -221,6 +225,7 @@ public class Main {
         logger.info("  DELETE /api/music/delete/{id} - 删除音乐 (需要管理员登录)");
         logger.info("  POST /api/user/playlist/create - 创建歌单 (需要用户登录)");
         logger.info("  GET /api/user/playlists - 获取歌单列表 (需要用户登录)");
+        logger.info("  GET /api/playlist/{id} - 获取歌单详情 (无需登录)");
         logger.info("  POST /api/user/playlist/update - 更新歌单 (需要创建者登录)");
         logger.info("  POST /api/user/playlist/delete - 删除歌单 (需要创建者登录)");
         logger.info("  GET /api/user/playlist/music/{playlistId} - 获取歌单音乐列表 (需要登录)");
