@@ -300,16 +300,54 @@ Content-Type: application/json
 
 ## 歌单相关 API
 
-- [创建歌单](#1-创建歌单)
-- [获取歌单列表](#2-获取歌单列表)
-- [更新歌单](#3-更新歌单)
-- [删除歌单](#4-删除歌单)
-- [获取歌单音乐列表](#5-获取歌单音乐列表)
-- [添加音乐到歌单](#6-添加音乐到歌单)
-- [从歌单中移除音乐](#7-从歌单中移除音乐)
+- [获取歌单详情](#1-获取歌单详情)
+- [获取歌单音乐列表](#2-获取歌单音乐列表)
+- [创建歌单](#3-创建歌单)
+- [获取歌单列表](#4-获取歌单列表)
+- [更新歌单](#5-更新歌单)
+- [删除歌单](#6-删除歌单)
+- [添加音乐到歌单](#7-添加音乐到歌单)
+- [从歌单中移除音乐](#8-从歌单中移除音乐)
 - [歌单权限说明](#歌单权限说明)
 
-### 1. 创建歌单
+### 1. 获取歌单详情
+
+**端点:** `GET /api/playlist/{id}`
+
+**路径参数:**
+- `id`: 歌单 ID
+
+**响应示例（成功）:**
+```json
+{
+  "success": true,
+  "message": "获取歌单详情成功",
+  "playlist": {
+    "id": 1,
+    "userId": 1,
+    "name": "我的歌单",
+    "description": "这是我的歌单描述",
+    "musicCount": 5,
+    "createdAt": "2026-01-29 12:00:00",
+    "updatedAt": "2026-01-29 12:05:00"
+  }
+}
+```
+
+**响应示例（歌单不存在）:**
+```json
+{
+  "success": false,
+  "message": "歌单不存在"
+}
+```
+
+**说明:**
+- 此 API **无需登录**即可访问
+- 任何用户（包括未登录用户）都可以查看歌单的基本信息
+- 返回的歌单信息包含 `userId` 字段，可以识别歌单的创建者
+
+### 2. 获取歌单音乐列表
 
 **端点:** `POST /api/user/playlist/create`
 
@@ -537,7 +575,8 @@ Authorization: <token>
 **说明:**
 - 音乐列表按照 `position` 字段升序排列
 - 返回的音乐信息包含完整的歌曲详情和添加时间
-- 任何登录用户都可以查看歌单内容，无需是歌单创建者
+- 此 API **无需登录**即可访问（后端已移除 token 验证）
+- 任何用户（包括未登录用户）都可以查看歌单内容
 
 ### 6. 添加音乐到歌单
 
@@ -642,9 +681,10 @@ Content-Type: application/json
 
 | 操作 | 权限要求 |
 |------|---------|
-| 创建歌单 | 任何登录用户 |
+| 获取歌单详情 | 无需登录（任何用户都可以查看） |
 | 查看歌单列表 | 任何登录用户（可以查看所有歌单） |
-| 查看歌单内容 | 任何登录用户（可以查看任何歌单的内容） |
+| 查看歌单内容 | 无需登录（任何用户都可以查看歌单中的音乐） |
+| 创建歌单 | 任何登录用户 |
 | 更新歌单 | 只有歌单的创建者 |
 | 删除歌单 | 只有歌单的创建者 |
 | 添加音乐到歌单 | 只有歌单的创建者 |
@@ -652,7 +692,7 @@ Content-Type: application/json
 
 ### 权限验证
 
-- **查看权限**：所有登录用户都可以查看任何歌单的列表和内容，无需额外权限验证
+- **查看权限**：所有用户（包括未登录用户）都可以查看歌单详情和歌单内容，无需额外权限验证
 - **修改权限**：所有修改和删除操作都会验证用户是否是歌单的创建者（通过 token 识别用户身份）
 - 如果用户尝试修改或删除不属于自己的歌单，服务器会返回 `403 Forbidden` 状态码和相应的错误信息
 
@@ -862,6 +902,33 @@ async function uploadAvatar(avatarFile) {
 }
 ```
 
+### 获取歌单详情
+
+```javascript
+async function getPlaylistDetail(playlistId) {
+  // 无需登录即可访问
+  const response = await fetch(`https://music.cnmsb.xin/api/playlist/${playlistId}`, {
+    method: 'GET'
+  });
+
+  const data = await response.json();
+  if (data.success) {
+    console.log('歌单详情:', data.playlist);
+    // data.playlist 包含歌单的基本信息
+    // - id: 歌单 ID
+    // - userId: 创建者 ID
+    // - name: 歌单名称
+    // - description: 歌单描述
+    // - musicCount: 音乐数量
+    // - createdAt: 创建时间
+    // - updatedAt: 更新时间
+  } else {
+    console.error('获取歌单详情失败:', data.message);
+  }
+  return data;
+}
+```
+
 ### 创建歌单
 
 ```javascript
@@ -979,13 +1046,9 @@ async function deletePlaylist(playlistId) {
 
 ```javascript
 async function getPlaylistMusic(playlistId) {
-  const token = localStorage.getItem('userToken');
-
+  // 无需登录即可访问
   const response = await fetch(`https://music.cnmsb.xin/api/user/playlist/music/${playlistId}`, {
-    method: 'GET',
-    headers: {
-      'Authorization': token
-    }
+    method: 'GET'
   });
 
   const data = await response.json();
@@ -1113,7 +1176,8 @@ async function changePassword(oldPassword, newPassword) {
    - 使用 Argon2 算法加密密码
 7. **歌单管理:**
    - 每个歌单都有唯一的 ID 和创建者（user_id）
-   - 任何登录用户都可以查看所有歌单的列表和内容
+   - 任何用户（包括未登录用户）都可以查看歌单详情和歌单内容
+   - 任何登录用户都可以查看所有歌单的列表
    - 只有歌单的创建者才能更新和删除歌单（通过 token 验证）
    - 删除歌单会级联删除歌单中的所有音乐关联
    - 歌单名称长度限制：255 个字符
@@ -1122,6 +1186,8 @@ async function changePassword(oldPassword, newPassword) {
    - 歌单按创建时间倒序排列（最新的在前面）
    - 响应中包含 `userId` 字段，可以识别歌单的创建者
    - 歌单不包含封面字段，客户端应根据歌单中的音乐列表自动选择封面（如使用第一首音乐的封面）
+   - 新增 API：`GET /api/playlist/{id}` - 获取歌单详情（无需登录）
+   - 获取歌单音乐列表 API 已移除登录要求，任何用户都可以访问
 
 ---
 
