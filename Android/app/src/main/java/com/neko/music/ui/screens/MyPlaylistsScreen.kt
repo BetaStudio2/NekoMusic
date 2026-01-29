@@ -45,7 +45,7 @@ fun MyPlaylistsScreen() {
     
     // Demo数据
     var playlists by remember { mutableStateOf(listOf(
-        Playlist(1, "我喜欢的音乐", 128, 1, "2026-01-15"),
+        Playlist(1, "我的收藏", 128, 1, "2026-01-15"),
         Playlist(2, "工作专用", 45, 1, "2026-01-20"),
         Playlist(3, "运动歌单", 23, 1, "2026-01-25"),
         Playlist(4, "睡前音乐", 67, 1, "2026-01-28")
@@ -71,9 +71,10 @@ fun MyPlaylistsScreen() {
                         it 
                 }
             } else {
-                // 创建新歌单
+                // 创建新歌单（添加到第二位，保留"我的收藏"在第一位）
                 val newId = (playlists.maxOfOrNull { it.id } ?: 0) + 1
-                playlists = playlists + Playlist(newId, dialogPlaylistName, 0, 1, "2026-01-29")
+                val newPlaylist = Playlist(newId, dialogPlaylistName, 0, 1, "2026-01-29")
+                playlists = listOf(playlists[0]) + listOf(newPlaylist) + playlists.drop(1)
             }
             showCreateDialog = false
             dialogPlaylistName = ""
@@ -81,23 +82,18 @@ fun MyPlaylistsScreen() {
         }
     }
     
-    // 删除歌单（Demo）
+    // 删除歌单（Demo）- 不能删除"我的收藏"
     val deletePlaylist = { playlist: Playlist ->
-        playlists = playlists.filter { it.id != playlist.id }
+        if (playlist.id != 1) { // 不能删除"我的收藏"
+            playlists = playlists.filter { it.id != playlist.id }
+        }
     }
     
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFFF5F5F5),
-                        Color(0xFFFAFAFA),
-                        Color.White
-                    )
-                )
-            )
+            .background(Color.White)
+            .statusBarsPadding()
     ) {
         Column(
             modifier = Modifier.fillMaxSize()
@@ -106,17 +102,14 @@ fun MyPlaylistsScreen() {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(60.dp)
                     .background(Color.White)
-                    .shadow(elevation = 2.dp)
-                    .padding(horizontal = 16.dp)
+                    .padding(top = 8.dp, bottom = 8.dp, start = 16.dp, end = 16.dp)
             ) {
                 Text(
                     text = "我的歌单",
-                    fontSize = 20.sp,
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    modifier = Modifier.align(Alignment.Center)
+                    color = Color.Black
                 )
             }
             
@@ -169,57 +162,72 @@ fun MyPlaylistsScreen() {
             } else {
                 // 歌单列表
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
                     items(playlists) { playlist ->
                         PlaylistItem(
                             playlist = playlist,
                             onEdit = {
-                                editingPlaylist = playlist
-                                dialogPlaylistName = playlist.name
-                                showCreateDialog = true
+                                if (playlist.id != 1) { // "我的收藏"不能编辑
+                                    editingPlaylist = playlist
+                                    dialogPlaylistName = playlist.name
+                                    showCreateDialog = true
+                                }
                             },
                             onDelete = {
-                                deletePlaylist(playlist)
+                                if (playlist.id != 1) { // "我的收藏"不能删除
+                                    deletePlaylist(playlist)
+                                }
                             }
                         )
                     }
                     
+                    // 添加创建按钮项
                     item {
-                        Spacer(modifier = Modifier.height(80.dp))
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(80.dp)
+                                .clickable {
+                                    editingPlaylist = null
+                                    dialogPlaylistName = ""
+                                    showCreateDialog = true
+                                },
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color.White
+                            ),
+                            elevation = CardDefaults.cardElevation(
+                                defaultElevation = 2.dp
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = null,
+                                        tint = RoseRed
+                                    )
+                                    Text(
+                                        text = "创建新歌单",
+                                        fontSize = 16.sp,
+                                        color = RoseRed,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
                     }
-                }
-            }
-        }
-        
-        // 创建/编辑歌单按钮
-        if (!isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                contentAlignment = Alignment.BottomEnd
-            ) {
-                FloatingActionButton(
-                    onClick = {
-                        editingPlaylist = null
-                        dialogPlaylistName = ""
-                        showCreateDialog = true
-                    },
-                    containerColor = RoseRed,
-                    modifier = Modifier.shadow(
-                        elevation = 8.dp,
-                        spotColor = RoseRed.copy(alpha = 0.4f),
-                        ambientColor = Color.Gray.copy(alpha = 0.2f)
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "创建歌单",
-                        tint = Color.White
-                    )
                 }
             }
         }
@@ -293,6 +301,8 @@ fun PlaylistItem(
         )
     )
     
+    val isMyFavorites = playlist.id == 1 // "我的收藏"不能编辑/删除
+    
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -319,17 +329,13 @@ fun PlaylistItem(
                 .size(48.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            RoseRed.copy(alpha = 0.15f),
-                            SakuraPink.copy(alpha = 0.15f)
-                        )
-                    )
+                    if (isMyFavorites) RoseRed.copy(alpha = 0.15f)
+                    else Color.White
                 ),
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "🎵",
+                text = if (isMyFavorites) "❤️" else "🎵",
                 fontSize = 24.sp
             )
         }
@@ -353,29 +359,31 @@ fun PlaylistItem(
             )
         }
         
-        // 操作按钮
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            IconButton(
-                onClick = onEdit,
-                modifier = Modifier.size(40.dp)
+        // 操作按钮（"我的收藏"不显示）
+        if (!isMyFavorites) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Create,
-                    contentDescription = "编辑",
-                    tint = RoseRed
-                )
-            }
-            IconButton(
-                onClick = onDelete,
-                modifier = Modifier.size(40.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "删除",
-                    tint = Color.Gray
-                )
+                IconButton(
+                    onClick = onEdit,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Create,
+                        contentDescription = "编辑",
+                        tint = RoseRed
+                    )
+                }
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "删除",
+                        tint = Color.Gray
+                    )
+                }
             }
         }
     }
