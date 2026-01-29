@@ -200,31 +200,22 @@ const fetchPlaylistDetail = async () => {
 
 const fetchPlaylistInfo = async () => {
   try {
-    const token = getToken()
-    // 从所有歌单中找到当前歌单
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/playlists`, {
-      method: 'GET',
-      headers: {
-        'Authorization': token
-      }
+    // 直接获取歌单详情（不需要token）
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/playlist/${playlistId.value}`, {
+      method: 'GET'
     })
     
     const data = await response.json()
-    if (data.success) {
-      const allPlaylists = data.playlists || []
-      const currentPlaylist = allPlaylists.find(p => p.id === parseInt(playlistId.value))
-      if (currentPlaylist) {
-        playlist.value = currentPlaylist
-        console.log('歌单信息加载成功:', playlist.value)
-      } else {
-        console.warn('未找到歌单:', playlistId.value)
-        toast.error('歌单不存在')
-      }
+    if (data.success && data.playlist) {
+      playlist.value = data.playlist
+      console.log('歌单信息加载成功:', playlist.value)
     } else {
-      console.error('获取歌单列表失败:', data.message)
+      console.warn('未找到歌单:', playlistId.value)
+      toast.error('歌单不存在')
     }
   } catch (error) {
     console.error('获取歌单信息失败:', error)
+    // 不显示错误提示，因为可能只是未登录
   }
 }
 
