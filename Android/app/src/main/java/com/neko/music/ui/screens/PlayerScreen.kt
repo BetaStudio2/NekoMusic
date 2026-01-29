@@ -198,6 +198,7 @@ fun PlayerScreen(
     // 添加到歌单
     var playlists by remember { mutableStateOf<List<com.neko.music.data.api.PlaylistInfo>>(emptyList()) }
     var selectedPlaylistId by remember { mutableStateOf<Int?>(null) }
+    var playlistFirstMusicCovers by remember { mutableStateOf<Map<Int, String>>(emptyMap()) }
 
     // 从播放器获取当前音乐信息
     val currentMusic = remember(currentMusicId) {
@@ -291,6 +292,25 @@ fun PlayerScreen(
                                 val response = playlistApi.getMyPlaylists()
                                 if (response.success) {
                                     playlists = response.playlists ?: emptyList()
+                                    // 清空之前的封面缓存
+                                    playlistFirstMusicCovers = emptyMap()
+                                    // 异步加载每个没有封面的歌单的第一首音乐封面
+                                    playlists.forEach { playlist ->
+                                        if (playlist.coverPath.isNullOrEmpty() && playlist.musicCount > 0) {
+                                            scope.launch {
+                                                try {
+                                                    val musicResponse = playlistApi.getPlaylistMusic(playlist.id)
+                                                    if (musicResponse.success && musicResponse.musicList?.isNotEmpty() == true) {
+                                                        val firstMusic = musicResponse.musicList[0]
+                                                        val coverUrl = "https://music.cnmsb.xin/api/music/cover/${firstMusic.id}"
+                                                        playlistFirstMusicCovers = playlistFirstMusicCovers + (playlist.id to coverUrl)
+                                                    }
+                                                } catch (e: Exception) {
+                                                    Log.e("PlayerScreen", "加载歌单${playlist.id}封面失败", e)
+                                                }
+                                            }
+                                        }
+                                    }
                                     showShareDialog = true
                                 }
                             }
@@ -540,6 +560,7 @@ fun PlayerScreen(
             currentSleepTimerMinutes = sleepTimerMinutes,
             playlists = playlists,
             selectedPlaylistId = selectedPlaylistId,
+            playlistFirstMusicCovers = playlistFirstMusicCovers,
             onPlaylistSelected = { playlist ->
                 selectedPlaylistId = playlist.id
                 scope.launch {
@@ -1280,7 +1301,8 @@ fun ShareDialog(
     currentSleepTimerMinutes: Int = 0,
     playlists: List<PlaylistInfo> = emptyList(),
     selectedPlaylistId: Int? = null,
-    onPlaylistSelected: (PlaylistInfo) -> Unit = {}
+    onPlaylistSelected: (PlaylistInfo) -> Unit = {},
+    playlistFirstMusicCovers: Map<Int, String> = emptyMap()
 ) {
     var showCustomSleepTimerDialog by remember { mutableStateOf(false) }
     var customHours by remember { mutableStateOf(0) }
@@ -1393,6 +1415,7 @@ fun ShareDialog(
                                         PlaylistChip(
                                             playlist = playlist,
                                             isSelected = selectedPlaylistId == playlist.id,
+                                            firstMusicCover = playlistFirstMusicCovers[playlist.id],
                                             onClick = { onPlaylistSelected(playlist) }
                                         )
                                     }
@@ -1886,6 +1909,7 @@ fun CustomSleepTimerDialog(
 fun PlaylistChip(
     playlist: PlaylistInfo,
     isSelected: Boolean,
+    firstMusicCover: String? = null,
     onClick: () -> Unit
 ) {
     Box(
@@ -1909,26 +1933,19 @@ fun PlaylistChip(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             // 封面
-            if (!playlist.coverPath.isNullOrEmpty()) {
-                AsyncImage(
-                    model = "https://music.cnmsb.xin${playlist.coverPath}",
-                    contentDescription = "封面",
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(RoundedCornerShape(6.dp)),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                )
+            val coverUrl = if (!playlist.coverPath.isNullOrEmpty()) {
+                "https://music.cnmsb.xin${playlist.coverPath}"
             } else {
-                // 没有封面，使用默认头像
-                AsyncImage(
-                    model = "https://music.cnmsb.xin/api/user/avatar/default",
-                    contentDescription = "封面",
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(RoundedCornerShape(6.dp)),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                )
+                firstMusicCover
             }
+            AsyncImage(
+                model = coverUrl,
+                contentDescription = "封面",
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(RoundedCornerShape(6.dp)),
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+            )
             
             // 歌单名称
             Text(
