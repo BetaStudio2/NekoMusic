@@ -42,6 +42,7 @@ sealed class BottomNavItem(
 ) {
     object Home : BottomNavItem("home", "首页")
     object Mine : BottomNavItem("mine", "我的")
+    object MyPlaylists : BottomNavItem("my_playlists", "我的歌单")
 }
 
 @Composable
@@ -51,7 +52,8 @@ fun BottomNavigationBar(
 ) {
     val items = listOf(
         BottomNavItem.Home,
-        BottomNavItem.Mine
+        BottomNavItem.Mine,
+        BottomNavItem.MyPlaylists
     )
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()

@@ -304,6 +304,10 @@ fun MainScreen() {
                     }
                 )
             }
+            composable(BottomNavItem.MyPlaylists.route) {
+                // TODO: 添加MyPlaylistsScreen
+                androidx.compose.material3.Text(text = "我的歌单页面 - 待实现")
+            }
             composable("recent_play") {
                 RecentPlayScreen(
                     onBackClick = {
