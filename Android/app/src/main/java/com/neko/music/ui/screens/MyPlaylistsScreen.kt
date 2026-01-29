@@ -397,7 +397,7 @@ fun PlaylistItem(
                 // TODO: 点击歌单跳转到详情页
             }
             .scale(scale)
-            .padding(16.dp),
+            .padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -432,6 +432,8 @@ fun PlaylistItem(
             }
         }
         
+        Spacer(modifier = Modifier.width(20.dp))
+        
         // 歌单信息
         Column(
             modifier = Modifier.weight(1f),
@@ -443,7 +445,7 @@ fun PlaylistItem(
                 fontWeight = FontWeight.Bold,
                 color = Color.Black
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(1.dp))
             Text(
                 text = "${playlist.musicCount} 首歌曲",
                 fontSize = 14.sp,
