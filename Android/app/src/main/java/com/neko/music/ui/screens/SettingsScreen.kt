@@ -2,6 +2,7 @@ package com.neko.music.ui.screens
 
 import android.content.Context
 import android.os.Build
+import com.neko.music.R
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -411,56 +413,67 @@ fun SettingsUpdateDialog(
         onConfirm: () -> Unit,
         onDismiss: () -> Unit
     ) {
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            title = {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            // 喵！用 Row 把图标和文字排在一起
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    // 使用自带的更新图标，或者主人有特定的 DW 图标资源也可以换成 painterResource
+                    painter = painterResource(id = R.drawable.update),
+                    contentDescription = null,
+                    tint = RoseRed,
+                    modifier = Modifier.size(24.dp) // 比文字稍微大一点点会更好看喵
+                )
+                Spacer(modifier = Modifier.width(8.dp)) // 给图标和文字留点小缝隙
                 Text(
-                    text = "🎉 发现新版本",
+                    text = "发现新版本",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = RoseRed
                 )
-            },
-            text = {
-                Column {
-                    Text(
-                        text = "新版本：$versionName",
-                        fontSize = 16.sp,
-                        color = Color.Gray
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "版本号：$versionCode",
-                        fontSize = 16.sp,
-                        color = Color.Gray
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = onConfirm,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = RoseRed
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(
-                        text = "立即更新",
-                        fontSize = 16.sp,
-                        color = Color.White
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismiss) {
-                    Text(
-                        text = "稍后",
-                        fontSize = 16.sp,
-                        color = Color.Gray
-                    )
-                }
             }
-        )
+        },
+        text = {
+            Column {
+                Text(
+                    text = "新版本：$versionName",
+                    fontSize = 16.sp,
+                    color = Color.Gray
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "版本号：$versionCode",
+                    fontSize = 16.sp,
+                    color = Color.Gray
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = RoseRed
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = "立即更新",
+                    fontSize = 16.sp,
+                    color = Color.White
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    text = "稍后",
+                    fontSize = 16.sp,
+                    color = Color.Gray
+                )
+            }
+        }
+    )
 }
 
 @Composable

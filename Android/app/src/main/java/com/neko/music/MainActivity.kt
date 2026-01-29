@@ -69,6 +69,7 @@ import com.neko.music.ui.screens.AboutScreen
 import com.neko.music.ui.screens.SettingsScreen
 import com.neko.music.ui.screens.CacheManagementScreen
 import com.neko.music.ui.screens.AccountInfoScreen
+import com.neko.music.ui.screens.MyPlaylistsScreen
 import com.neko.music.ui.theme.Neko云音乐Theme
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -305,8 +306,7 @@ fun MainScreen() {
                 )
             }
             composable(BottomNavItem.MyPlaylists.route) {
-                // TODO: 添加MyPlaylistsScreen
-                androidx.compose.material3.Text(text = "我的歌单页面 - 待实现")
+                MyPlaylistsScreen()
             }
             composable("recent_play") {
                 RecentPlayScreen(
