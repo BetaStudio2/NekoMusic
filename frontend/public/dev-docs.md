@@ -1,5 +1,6 @@
 # Neko云音乐 API 文档
 
+#### 更新时间 2026年1月31日
 ## 概述
 
 Neko云音乐提供完整的 RESTful API，支持音乐搜索、播放、用户认证、收藏等功能。所有 API 都基于 HTTP/HTTPS 协议，使用 JSON 格式进行数据交换。
@@ -300,17 +301,91 @@ Content-Type: application/json
 
 ## 歌单相关 API
 
-- [获取歌单详情](#1-获取歌单详情)
-- [获取歌单音乐列表](#2-获取歌单音乐列表)
-- [创建歌单](#3-创建歌单)
-- [获取歌单列表](#4-获取歌单列表)
-- [更新歌单](#5-更新歌单)
-- [删除歌单](#6-删除歌单)
-- [添加音乐到歌单](#7-添加音乐到歌单)
-- [从歌单中移除音乐](#8-从歌单中移除音乐)
+- [搜索歌单](#1-搜索歌单)
+- [获取歌单详情](#2-获取歌单详情)
+- [获取歌单音乐列表](#3-获取歌单音乐列表)
+- [创建歌单](#4-创建歌单)
+- [获取歌单列表](#5-获取歌单列表)
+- [更新歌单](#6-更新歌单)
+- [删除歌单](#7-删除歌单)
+- [添加音乐到歌单](#8-添加音乐到歌单)
+- [从歌单中移除音乐](#9-从歌单中移除音乐)
 - [歌单权限说明](#歌单权限说明)
 
-### 1. 获取歌单详情
+### 1. 搜索歌单
+
+**端点:** `POST /api/playlists/search`
+
+**无需登录**
+
+**请求头:**
+```
+Content-Type: application/json
+```
+
+**请求体:**
+```json
+{
+  "query": "string"  // 搜索关键词
+}
+```
+
+**响应示例（成功）:**
+```json
+{
+  "success": true,
+  "message": "搜索成功",
+  "total": 2,
+  "results": [
+    {
+      "id": 1,
+      "userId": 1,
+      "name": "我的歌单",
+      "description": "这是我的歌单描述",
+      "musicCount": 5,
+      "createdAt": "2026-01-29 12:00:00",
+      "updatedAt": "2026-01-29 12:05:00",
+      "firstMusicId": 1,
+      "firstMusicCover": "/path/to/cover.jpg"
+    },
+    {
+      "id": 2,
+      "userId": 2,
+      "name": "流行音乐",
+      "description": "收藏的流行歌曲",
+      "musicCount": 10,
+      "createdAt": "2026-01-28 10:00:00",
+      "updatedAt": "2026-01-28 10:00:00",
+      "firstMusicCover": "/api/user/avatar/default"
+    }
+  ]
+}
+```
+
+**响应示例（失败）:**
+```json
+{
+  "success": false,
+  "message": "缺少搜索关键词"
+}
+```
+
+**说明:**
+- 此 API **无需登录**即可访问
+- 搜索关键词会匹配歌单名称和描述
+- 返回结果按创建时间倒序排列
+- 每个结果包含：
+  - 歌单基本信息（id, name, description, musicCount, createdAt, updatedAt）
+  - 第一首音乐的 ID（firstMusicId）
+  - 第一首音乐的封面 URL（firstMusicCover）
+  - 如果歌单没有音乐，firstMusicCover 为默认头像 `/api/user/avatar/default`
+
+**注意事项:**
+- 搜索关键词不能为空
+- 搜索是模糊匹配，使用 `LIKE %keyword%`
+- 使用 POST 方式，参数在请求体中传递
+
+### 2. 获取歌单详情
 
 **端点:** `GET /api/playlist/{id}`
 
@@ -678,6 +753,7 @@ Content-Type: application/json
 
 | 操作 | 权限要求 |
 |------|---------|
+| 搜索歌单 | 无需登录（任何用户都可以搜索） |
 | 获取歌单详情 | 无需登录（任何用户都可以查看） |
 | 查看歌单列表 | 任何登录用户（只返回自己的歌单） |
 | 查看歌单内容 | 无需登录（任何用户都可以查看歌单中的音乐） |
@@ -689,7 +765,7 @@ Content-Type: application/json
 
 ### 权限验证
 
-- **查看权限**：所有用户（包括未登录用户）都可以查看歌单详情和歌单内容，无需额外权限验证
+- **查看权限**：所有用户（包括未登录用户）都可以搜索歌单、查看歌单详情和歌单内容，无需额外权限验证
 - **歌单列表**：登录用户只能看到自己创建的歌单，不会看到其他用户的歌单
 - **修改权限**：所有修改和删除操作都会验证用户是否是歌单的创建者（通过 token 识别用户身份）
 - 如果用户尝试修改或删除不属于自己的歌单，服务器会返回 `403 Forbidden` 状态码和相应的错误信息
@@ -895,6 +971,35 @@ async function uploadAvatar(avatarFile) {
     console.log('头像上传成功:', data.avatarPath);
   } else {
     console.error('头像上传失败:', data.error);
+  }
+  return data;
+}
+```
+
+### 搜索歌单
+
+```javascript
+async function searchPlaylists(query) {
+  const response = await fetch('https://music.cnmsb.xin/api/playlists/search', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      query: query
+    })
+  });
+
+  const data = await response.json();
+  if (data.success) {
+    console.log(`搜索到 ${data.total} 个歌单:`, data.results);
+    // data.results 是一个数组，包含匹配的歌单
+    // 每个歌单包含：
+    // - id, name, description, musicCount, createdAt, updatedAt
+    // - firstMusicId: 第一首音乐的 ID
+    // - firstMusicCover: 第一首音乐的封面 URL
+  } else {
+    console.error('搜索歌单失败:', data.message);
   }
   return data;
 }
@@ -1175,7 +1280,7 @@ async function changePassword(oldPassword, newPassword) {
    - 使用 Argon2 算法加密密码
 7. **歌单管理:**
    - 每个歌单都有唯一的 ID 和创建者（user_id）
-   - 任何用户（包括未登录用户）都可以查看歌单详情和歌单内容
+   - 任何用户（包括未登录用户）都可以搜索歌单、查看歌单详情和歌单内容
    - 任何登录用户可以查看自己创建的歌单列表（不会混合其他用户的歌单）
    - 只有歌单的创建者才能更新和删除歌单（通过 token 验证）
    - 删除歌单会级联删除歌单中的所有音乐关联
@@ -1186,8 +1291,11 @@ async function changePassword(oldPassword, newPassword) {
    - 响应中包含 `userId` 字段，可以识别歌单的创建者
    - 歌单不包含封面字段，客户端应根据歌单中的音乐列表自动选择封面（如使用第一首音乐的封面）
    - 新增 API：`GET /api/playlist/{id}` - 获取歌单详情（无需登录）
+   - 新增 API：`POST /api/playlists/search` - 搜索歌单（无需登录）
    - 获取歌单音乐列表 API 已移除登录要求，任何用户都可以访问
    - 获取歌单列表 API 只返回当前用户的歌单，不会混合其他用户的歌单
+   - 搜索歌单 API 会返回歌单的第一首音乐封面 URL，方便客户端展示
+   - 搜索歌单 API 使用 POST 方式，参数在请求体中传递
 
 ---
 

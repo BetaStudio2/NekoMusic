@@ -451,4 +451,61 @@ public class PlaylistService {
 
         return musicList;
     }
+
+    /**
+     * 搜索歌单
+     */
+    public List<com.google.gson.JsonObject> searchPlaylists(String query) {
+        logger.info("搜索歌单: query={}", query);
+
+        List<com.google.gson.JsonObject> results = new ArrayList<>();
+        
+        // 使用子查询获取歌单中第一首音乐的封面
+        String sql = "SELECT p.*, " +
+            "(SELECT m.id FROM playlist_music pm JOIN music m ON pm.music_id = m.id " +
+            " WHERE pm.playlist_id = p.id ORDER BY pm.position ASC LIMIT 1) as first_music_id, " +
+            "(SELECT m.cover_path FROM playlist_music pm JOIN music m ON pm.music_id = m.id " +
+            " WHERE pm.playlist_id = p.id ORDER BY pm.position ASC LIMIT 1) as first_music_cover " +
+            "FROM playlists p " +
+            "WHERE p.name LIKE ? OR p.description LIKE ? " +
+            "ORDER BY p.created_at DESC";
+
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            String searchPattern = "%" + query + "%";
+            stmt.setString(1, searchPattern);
+            stmt.setString(2, searchPattern);
+
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                com.google.gson.JsonObject playlist = new com.google.gson.JsonObject();
+                playlist.addProperty("id", rs.getInt("id"));
+                playlist.addProperty("userId", rs.getInt("user_id"));
+                playlist.addProperty("name", rs.getString("name"));
+                playlist.addProperty("description", rs.getString("description"));
+                playlist.addProperty("musicCount", rs.getInt("music_count"));
+                playlist.addProperty("createdAt", rs.getString("created_at"));
+                playlist.addProperty("updatedAt", rs.getString("updated_at"));
+                
+                // 第一首音乐的封面 URL
+                int firstMusicId = rs.getInt("first_music_id");
+                if (firstMusicId > 0) {
+                    playlist.addProperty("firstMusicId", firstMusicId);
+                    playlist.addProperty("firstMusicCover", rs.getString("first_music_cover"));
+                } else {
+                    playlist.addProperty("firstMusicCover", "/api/user/avatar/default");
+                }
+                
+                results.add(playlist);
+            }
+
+            logger.info("搜索到 {} 个歌单: query={}", results.size(), query);
+        } catch (SQLException e) {
+            logger.error("搜索歌单失败: {}", e.getMessage(), e);
+        }
+
+        return results;
+    }
 }
