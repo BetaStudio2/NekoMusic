@@ -70,6 +70,7 @@ import com.neko.music.ui.screens.SettingsScreen
 import com.neko.music.ui.screens.CacheManagementScreen
 import com.neko.music.ui.screens.AccountInfoScreen
 import com.neko.music.ui.screens.MyPlaylistsScreen
+import com.neko.music.ui.screens.PlaylistDetailScreen
 import com.neko.music.ui.theme.Neko云音乐Theme
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -306,7 +307,14 @@ fun MainScreen() {
                 )
             }
             composable(BottomNavItem.MyPlaylists.route) {
-                MyPlaylistsScreen()
+                MyPlaylistsScreen(
+                    onNavigateToPlaylistDetail = { playlistId, playlistName, playlistCover ->
+                        navController.navigate("playlist_detail/$playlistId/$playlistName/$playlistCover")
+                    },
+                    onNavigateToFavorite = {
+                        navController.navigate("favorites")
+                    }
+                )
             }
             composable("recent_play") {
                 RecentPlayScreen(
@@ -324,6 +332,41 @@ fun MainScreen() {
             }
             composable("favorites") {
                 FavoriteScreen(
+                    onBackClick = {
+                        navController.popBackStack()
+                    },
+                    onMusicClick = { music ->
+                        val id = music.id
+                        val encodedTitle = java.net.URLEncoder.encode(music.title, "UTF-8")
+                        val encodedArtist =
+                            java.net.URLEncoder.encode(music.artist, "UTF-8")
+                        navController.navigate("player/$id/$encodedTitle/$encodedArtist")
+                    }
+                )
+            }
+            composable(
+                route = "playlist_detail/{playlistId}/{playlistName}/{playlistCover}",
+                arguments = listOf(
+                    navArgument("playlistId") { type = NavType.IntType },
+                    navArgument("playlistName") { type = NavType.StringType },
+                    navArgument("playlistCover") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) { backStackEntry ->
+                val playlistId = backStackEntry.arguments?.getInt("playlistId") ?: 0
+                val playlistName = backStackEntry.arguments?.getString("playlistName") ?: ""
+                val playlistCover = backStackEntry.arguments?.getString("playlistCover")
+                PlaylistDetailScreen(
+                    playlistId = playlistId,
+                    playlistName = java.net.URLDecoder.decode(playlistName, "UTF-8"),
+                    playlistCover = if (!playlistCover.isNullOrEmpty()) {
+                        java.net.URLDecoder.decode(playlistCover, "UTF-8")
+                    } else {
+                        null
+                    },
                     onBackClick = {
                         navController.popBackStack()
                     },

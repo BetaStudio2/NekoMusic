@@ -52,7 +52,10 @@ import com.neko.music.ui.theme.*
 import kotlinx.coroutines.launch
 
 @Composable
-fun MyPlaylistsScreen() {
+fun MyPlaylistsScreen(
+    onNavigateToPlaylistDetail: (Int, String, String?) -> Unit,
+    onNavigateToFavorite: () -> Unit
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val tokenManager = remember { TokenManager(context) }
@@ -120,12 +123,6 @@ fun MyPlaylistsScreen() {
     var showCreateDialog by remember { mutableStateOf(false) }
     var dialogPlaylistName by remember { mutableStateOf("") }
     var editingPlaylist by remember { mutableStateOf<Playlist?>(null) }
-    
-    // 歌单详情
-    var showPlaylistDetail by remember { mutableStateOf(false) }
-    var selectedPlaylist by remember { mutableStateOf<Playlist?>(null) }
-    var playlistMusicList by remember { mutableStateOf<List<PlaylistMusic>>(emptyList()) }
-    var isLoadingMusic by remember { mutableStateOf(false) }
     
     // 创建或更新歌单
     val createOrUpdatePlaylist = {
@@ -294,24 +291,13 @@ fun MyPlaylistsScreen() {
                                 }
                             },
                             onClick = {
-                                // 打开歌单详情
-                                selectedPlaylist = playlist
-                                showPlaylistDetail = true
-                                scope.launch {
-                                    try {
-                                        isLoadingMusic = true
-                                        val token = tokenManager.getToken()
-                                        if (token != null) {
-                                            val response: PlaylistMusicListResponse = playlistApi.getPlaylistMusic(playlist.id)
-                                            if (response.success) {
-                                                playlistMusicList = response.musicList ?: emptyList()
-                                            }
-                                        }
-                                    } catch (e: Exception) {
-                                        Log.e("MyPlaylistsScreen", "加载歌单音乐失败", e)
-                                    } finally {
-                                        isLoadingMusic = false
-                                    }
+                                // 点击歌单
+                                if (playlist.id == 0) {
+                                    // "我的收藏"直接跳转到收藏页面
+                                    onNavigateToFavorite()
+                                } else {
+                                    // 其他歌单跳转到歌单详情页面
+                                    onNavigateToPlaylistDetail(playlist.id, playlist.name, playlist.coverPath)
                                 }
                             }
                         )
@@ -413,23 +399,6 @@ fun MyPlaylistsScreen() {
                     )
                 }
             }
-        }
-        
-        // 歌单详情对话框
-        if (showPlaylistDetail && selectedPlaylist != null) {
-            PlaylistDetailDialog(
-                playlist = selectedPlaylist!!,
-                musicList = playlistMusicList,
-                isLoading = isLoadingMusic,
-                onDismiss = {
-                    showPlaylistDetail = false
-                    selectedPlaylist = null
-                    playlistMusicList = emptyList()
-                },
-                onPlayMusic = { music ->
-                    // TODO: 播放音乐
-                }
-            )
         }
     }
 }
@@ -572,201 +541,6 @@ fun PlaylistItem(
     }
 }
 
-@Composable
-fun PlaylistDetailDialog(
-    playlist: Playlist,
-    musicList: List<PlaylistMusic>,
-    isLoading: Boolean,
-    onDismiss: () -> Unit,
-    onPlayMusic: (PlaylistMusic) -> Unit
-) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)
-    ) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = Color.White,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp)
-                .shadow(
-                    elevation = 12.dp,
-                    spotColor = RoseRed.copy(alpha = 0.35f),
-                    ambientColor = Color.Gray.copy(alpha = 0.18f)
-                )
-        ) {
-            Column(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                // 标题栏
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = playlist.name,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                }
-                
-                // 分割线
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(0.5.dp)
-                        .background(Color(0xFFE8E8E8))
-                )
-                
-                // 音乐列表
-                if (isLoading) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = RoseRed)
-                    }
-                } else if (musicList.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "歌单暂无音乐",
-                            fontSize = 16.sp,
-                            color = Color.Gray
-                        )
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
-                    ) {
-                        items(musicList.size) { index ->
-                            val music = musicList[index]
-                            MusicListItem(
-                                music = music,
-                                position = index + 1,
-                                onClick = { onPlayMusic(music) }
-                            )
-                        }
-                    }
-                }
-                
-                // 底部按钮
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Button(
-                        onClick = onDismiss,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = RoseRed
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        //height = 48.dp
-                    ) {
-                        Text(
-                            text = "关闭",
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun MusicListItem(
-    music: PlaylistMusic,
-    position: Int,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(60.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFFF5F5F5))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        // 序号
-        Text(
-            text = "$position",
-            fontSize = 14.sp,
-            color = Color.Gray,
-            modifier = Modifier.width(24.dp),
-            textAlign = TextAlign.Center
-        )
-        
-        // 封面
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color(0xFFE0E0E0)),
-            contentAlignment = Alignment.Center
-        ) {
-            if (!music.coverPath.isNullOrEmpty()) {
-                AsyncImage(
-                    model = "https://music.cnmsb.xin${music.coverPath}",
-                    contentDescription = "封面",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Text(
-                    text = "🎵",
-                    fontSize = 20.sp
-                )
-            }
-        }
-        
-        // 歌曲信息
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = music.title,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color.Black,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = music.artist,
-                fontSize = 12.sp,
-                color = Color.Gray,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        
-        // 时长
-        Text(
-            text = formatTime(music.duration * 1000L),
-            fontSize = 12.sp,
-            color = Color.Gray
-        )
-    }
-}
 @Composable
 fun PlaylistDialog(
     title: String,
