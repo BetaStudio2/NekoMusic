@@ -281,10 +281,12 @@ fun SearchBar(
     onSearch: () -> Unit,
     onBackClick: () -> Unit
 ) {
+    val isDarkTheme = isSystemInDarkTheme()
+    
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(if (isDarkTheme) Color(0xFF1A1A2E).copy(alpha = 0.95f) else Color.White)
             .statusBarsPadding()
     ) {
         Row(
@@ -301,7 +303,7 @@ fun SearchBar(
                 Icon(
                     imageVector = Icons.Default.ArrowBack,
                     contentDescription = "返回",
-                    tint = MaterialTheme.colorScheme.onBackground
+                    tint = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.9f) else MaterialTheme.colorScheme.onBackground
                 )
             }
             
@@ -312,8 +314,8 @@ fun SearchBar(
                     .weight(1f)
                     .height(36.dp)
                     .background(
-                        color = if (isSystemInDarkTheme()) {
-                            Color.White.copy(alpha = 0.1f)
+                        color = if (isDarkTheme) {
+                            Color.White.copy(alpha = 0.08f)
                         } else {
                             Color(0xFFF5F5F5)
                         },
@@ -329,7 +331,7 @@ fun SearchBar(
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = "搜索",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
                     
@@ -343,7 +345,7 @@ fun SearchBar(
                         },
                         modifier = Modifier.weight(1f),
                         textStyle = androidx.compose.ui.text.TextStyle(
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else MaterialTheme.colorScheme.onSurface,
                             fontSize = 15.sp
                         ),
                         singleLine = true,
@@ -362,7 +364,7 @@ fun SearchBar(
                     if (query.isEmpty()) {
                         Text(
                             text = "搜索音乐",
-                            color = Color.Gray,
+                            color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.6f) else Color.Gray,
                             fontSize = 15.sp
                         )
                     }
@@ -374,7 +376,7 @@ fun SearchBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(Color(0xFFE0E0E0))
+                .background(if (isDarkTheme) Color(0xFF2A2A4E).copy(alpha = 0.5f) else Color(0xFFE0E0E0))
         )
     }
 }
@@ -403,11 +405,16 @@ fun PlaylistItem(
     playlist: com.neko.music.data.api.PlaylistInfo,
     onClick: () -> Unit
 ) {
+    val isDarkTheme = isSystemInDarkTheme()
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = if (isDarkTheme) Color(0xFF252545).copy(alpha = 0.6f) else Color.White
+        )
     ) {
         Row(
             modifier = Modifier
@@ -455,21 +462,21 @@ fun PlaylistItem(
                     text = playlist.name,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 Text(
                     text = playlist.description ?: "暂时没有描述Nya！",
                     fontSize = 12.sp,
-                    color = Color.Gray,
+                    color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 Text(
                     text = "${playlist.musicCount} 首音乐",
                     fontSize = 11.sp,
-                    color = Color.Gray
+                    color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.7f) else Color.Gray
                 )
             }
         }
@@ -504,6 +511,7 @@ fun MusicItem(
     val musicApi = remember { MusicApi(context) }
     val scope = rememberCoroutineScope()
     var coverUrl by remember { mutableStateOf<String?>(null) }
+    val isDarkTheme = isSystemInDarkTheme()
     
     androidx.compose.runtime.LaunchedEffect(music.id) {
         scope.launch {
@@ -517,7 +525,7 @@ fun MusicItem(
             .fillMaxWidth()
             .height(56.dp)
             .background(
-                color = Color.White,
+                color = if (isDarkTheme) Color(0xFF252545).copy(alpha = 0.6f) else Color.White,
                 shape = RoundedCornerShape(8.dp)
             )
             .clickable(onClick = onClick)
@@ -558,14 +566,14 @@ fun MusicItem(
                 text = music.title,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = "作者：${music.artist}",
                 fontSize = 13.sp,
-                color = Color.Gray,
+                color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray,
                 maxLines = 1
             )
         }
@@ -578,6 +586,8 @@ fun SearchHistoryList(
     onItemClick: (String) -> Unit,
     onClearClick: () -> Unit
 ) {
+    val isDarkTheme = isSystemInDarkTheme()
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -597,14 +607,14 @@ fun SearchHistoryList(
                 Icon(
                     imageVector = Icons.Default.Info,
                     contentDescription = "搜索历史",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp)
                 )
                 Text(
                     text = "搜索历史",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.9f) else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             
@@ -615,7 +625,7 @@ fun SearchHistoryList(
                 Icon(
                     imageVector = Icons.Default.Clear,
                     contentDescription = "清除历史",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -632,8 +642,8 @@ fun SearchHistoryList(
                         .fillMaxWidth()
                         .height(40.dp)
                         .background(
-                            color = if (isSystemInDarkTheme()) {
-                                Color.White.copy(alpha = 0.1f)
+                            color = if (isDarkTheme) {
+                                Color.White.copy(alpha = 0.08f)
                             } else {
                                 Color(0xFFF5F5F5)
                             },
@@ -646,7 +656,7 @@ fun SearchHistoryList(
                     Text(
                         text = item.query,
                         fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.9f) else MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -837,11 +847,21 @@ fun SearchTypeButton(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val isDarkTheme = isSystemInDarkTheme()
+    
     Box(
         modifier = Modifier
             .height(36.dp)
             .background(
-                color = if (isSelected) RoseRed else MaterialTheme.colorScheme.surface,
+                color = if (isSelected) {
+                    RoseRed
+                } else {
+                    if (isDarkTheme) {
+                        Color(0xFF252545).copy(alpha = 0.7f)
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    }
+                },
                 shape = RoundedCornerShape(18.dp)
             )
             .clickable(
@@ -855,7 +875,11 @@ fun SearchTypeButton(
         Text(
             text = text,
             fontSize = 14.sp,
-            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (isSelected) {
+                Color.White
+            } else {
+                if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.9f) else MaterialTheme.colorScheme.onSurfaceVariant
+            },
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
         )
     }
@@ -885,11 +909,16 @@ fun ArtistItem(
     artist: com.neko.music.data.model.Artist,
     onClick: () -> Unit
 ) {
+    val isDarkTheme = isSystemInDarkTheme()
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = if (isDarkTheme) Color(0xFF252545).copy(alpha = 0.6f) else Color.White
+        )
     ) {
         Row(
             modifier = Modifier
@@ -906,14 +935,14 @@ fun ArtistItem(
                     text = artist.name,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 Text(
                     text = "${artist.musicCount} 首歌曲",
                     fontSize = 12.sp,
-                    color = Color.Gray
+                    color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                 )
             }
         }
