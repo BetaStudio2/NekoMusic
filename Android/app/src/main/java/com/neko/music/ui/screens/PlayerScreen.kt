@@ -808,7 +808,7 @@ fun TopBar(
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
                         contentDescription = "返回",
-                        tint = Color.Black
+                        tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
 
@@ -816,7 +816,7 @@ fun TopBar(
                     text = "正在播放",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color.Black
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 IconButton(
@@ -826,7 +826,7 @@ fun TopBar(
                     Icon(
                         imageVector = Icons.Default.MoreVert,
                         contentDescription = "更多",
-                        tint = Color.Black
+                        tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -889,7 +889,7 @@ fun CoverImage(
                         text = music.title,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Black,
+                        color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center,
                         maxLines = 2
                     )
@@ -899,7 +899,7 @@ fun CoverImage(
                     Text(
                         text = music.artist,
                         fontSize = 16.sp,
-                        color = Color.Gray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
                     )
                 }
@@ -937,7 +937,7 @@ fun MusicInfo(
                     text = music.title,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.Black,
+                    color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                     maxLines = 2
                 )
@@ -947,7 +947,7 @@ fun MusicInfo(
                 Text(
                     text = music.artist,
                     fontSize = 16.sp,
-                    color = Color.Gray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
                 )
 
@@ -995,7 +995,7 @@ fun LyricSongInfoBar(
                                 text = music.title,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.Black,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1
                             )
                         }
@@ -1006,7 +1006,7 @@ fun LyricSongInfoBar(
                         Text(
                             text = music.artist,
                             fontSize = 12.sp,
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1
                         )
                     }
@@ -1020,7 +1020,7 @@ fun LyricSongInfoBar(
                             text = music.title,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.Black,
+                            color = MaterialTheme.colorScheme.onSurface,
                             textAlign = TextAlign.Center,
                             maxLines = 1
                         )
@@ -1030,7 +1030,7 @@ fun LyricSongInfoBar(
                         Text(
                             text = music.artist,
                             fontSize = 12.sp,
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
                     }
@@ -1292,7 +1292,7 @@ fun ProgressSlider(
                         Icon(
                             painter = androidx.compose.ui.res.painterResource(iconRes),
                             contentDescription = "Play Mode",
-                            tint = Color.Black,
+                            tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -1305,7 +1305,7 @@ fun ProgressSlider(
                         Icon(
                             painter = androidx.compose.ui.res.painterResource(R.drawable.previous_song),
                             contentDescription = "Previous",
-                            tint = Color.Black,
+                            tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -1367,7 +1367,7 @@ fun ProgressSlider(
                         Icon(
                             painter = androidx.compose.ui.res.painterResource(R.drawable.next_song),
                             contentDescription = "Next",
-                            tint = Color.Black,
+                            tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -1380,7 +1380,7 @@ fun ProgressSlider(
                         Icon(
                             painter = androidx.compose.ui.res.painterResource(R.drawable.playlist),
                             contentDescription = "Playlist",
-                            tint = Color.Black,
+                            tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -1662,7 +1662,7 @@ fun ShareDialog(
                             Text(
                                 text = "取消",
                                 fontSize = 17.sp,
-                                color = Color.Black,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.Medium
                             )
                         }

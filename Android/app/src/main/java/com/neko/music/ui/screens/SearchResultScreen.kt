@@ -301,7 +301,7 @@ fun SearchBar(
                 Icon(
                     imageVector = Icons.Default.ArrowBack,
                     contentDescription = "返回",
-                    tint = Color.Black
+                    tint = MaterialTheme.colorScheme.onBackground
                 )
             }
             
@@ -312,7 +312,11 @@ fun SearchBar(
                     .weight(1f)
                     .height(36.dp)
                     .background(
-                        color = Color(0xFFF5F5F5),
+                        color = if (isSystemInDarkTheme()) {
+                            Color.White.copy(alpha = 0.1f)
+                        } else {
+                            Color(0xFFF5F5F5)
+                        },
                         shape = RoundedCornerShape(18.dp)
                     )
                     .padding(horizontal = 12.dp, vertical = 0.dp),
@@ -325,7 +329,7 @@ fun SearchBar(
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = "搜索",
-                        tint = Color.Gray,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
                     
@@ -339,7 +343,7 @@ fun SearchBar(
                         },
                         modifier = Modifier.weight(1f),
                         textStyle = androidx.compose.ui.text.TextStyle(
-                            color = Color.Black,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 15.sp
                         ),
                         singleLine = true,
@@ -451,7 +455,7 @@ fun PlaylistItem(
                     text = playlist.name,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.Black,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
@@ -554,7 +558,7 @@ fun MusicItem(
                 text = music.title,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color.Black,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1
             )
             Spacer(modifier = Modifier.height(2.dp))
@@ -593,14 +597,14 @@ fun SearchHistoryList(
                 Icon(
                     imageVector = Icons.Default.Info,
                     contentDescription = "搜索历史",
-                    tint = Color.Gray,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp)
                 )
                 Text(
                     text = "搜索历史",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color.Gray
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             
@@ -611,7 +615,7 @@ fun SearchHistoryList(
                 Icon(
                     imageVector = Icons.Default.Clear,
                     contentDescription = "清除历史",
-                    tint = Color.Gray,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -628,7 +632,11 @@ fun SearchHistoryList(
                         .fillMaxWidth()
                         .height(40.dp)
                         .background(
-                            color = Color(0xFFF5F5F5),
+                            color = if (isSystemInDarkTheme()) {
+                                Color.White.copy(alpha = 0.1f)
+                            } else {
+                                Color(0xFFF5F5F5)
+                            },
                             shape = RoundedCornerShape(8.dp)
                         )
                         .clickable { onItemClick(item.query) }
@@ -638,7 +646,7 @@ fun SearchHistoryList(
                     Text(
                         text = item.query,
                         fontSize = 14.sp,
-                        color = Color.Black
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -833,7 +841,7 @@ fun SearchTypeButton(
         modifier = Modifier
             .height(36.dp)
             .background(
-                color = if (isSelected) RoseRed else Color(0xFFF5F5F5),
+                color = if (isSelected) RoseRed else MaterialTheme.colorScheme.surface,
                 shape = RoundedCornerShape(18.dp)
             )
             .clickable(
@@ -847,7 +855,7 @@ fun SearchTypeButton(
         Text(
             text = text,
             fontSize = 14.sp,
-            color = if (isSelected) Color.White else Color.Gray,
+            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
         )
     }
@@ -898,7 +906,7 @@ fun ArtistItem(
                     text = artist.name,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.Black,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
