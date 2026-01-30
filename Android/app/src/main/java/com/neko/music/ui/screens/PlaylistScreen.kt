@@ -54,6 +54,7 @@ fun PlaylistScreen(
     val playlistManager = PlaylistManager.getInstance(context)
     val playlist by playlistManager.playlist.collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
+    val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
 
     AnimatedVisibility(
         visible = isVisible,
@@ -77,7 +78,7 @@ fun PlaylistScreen(
                     .fillMaxWidth()
                     .height(600.dp)
                     .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-                    .background(Color.White)
+                    .background(if (isDarkTheme) Color(0xFF1A1A2E).copy(alpha = 0.95f) else Color.White)
                     .clickable(enabled = false) {},
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -97,7 +98,7 @@ fun PlaylistScreen(
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "返回",
-                            tint = Color.Black,
+                            tint = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.9f) else Color.Black,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -106,7 +107,7 @@ fun PlaylistScreen(
                         text = "播放列表",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Black
+                        color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black
                     )
 
                     // 清空按钮
@@ -121,7 +122,7 @@ fun PlaylistScreen(
                         Text(
                             text = "清空",
                             fontSize = 14.sp,
-                            color = Color.Gray
+                            color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                         )
                     }
                 }
@@ -130,7 +131,7 @@ fun PlaylistScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(1.dp)
-                        .background(Color(0xFFE0E0E0))
+                        .background(if (isDarkTheme) Color(0xFF2A2A4E).copy(alpha = 0.5f) else Color(0xFFE0E0E0))
                 )
 
                 // 播放列表
@@ -144,7 +145,7 @@ fun PlaylistScreen(
                         Text(
                             text = "播放列表为空",
                             fontSize = 14.sp,
-                            color = Color.Gray
+                            color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                         )
                     }
                 } else {
@@ -175,6 +176,8 @@ fun PlaylistItem(
     isPlaying: Boolean,
     onClick: () -> Unit
 ) {
+    val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
+    
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -188,7 +191,7 @@ fun PlaylistItem(
             modifier = Modifier
                 .size(48.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(Color(0xFFF5F5F5)),
+                .background(if (isDarkTheme) Color(0xFF252545).copy(alpha = 0.6f) else Color(0xFFF5F5F5)),
             contentAlignment = Alignment.Center
         ) {
             val coverUrl = if (!music.coverFilePath.isNullOrEmpty()) {
@@ -215,14 +218,14 @@ fun PlaylistItem(
                 text = music.title,
                 fontSize = 15.sp,
                 fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Medium,
-                color = if (isPlaying) RoseRed else Color.Black,
+                color = if (isPlaying) RoseRed else if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black,
                 maxLines = 1
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = music.artist,
                 fontSize = 13.sp,
-                color = Color.Gray,
+                color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray,
                 maxLines = 1
             )
         }
