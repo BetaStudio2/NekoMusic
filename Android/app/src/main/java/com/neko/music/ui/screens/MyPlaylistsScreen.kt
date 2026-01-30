@@ -417,7 +417,7 @@ fun MyPlaylistsScreen(
                                     showCreateDialog = true },
                             colors = CardDefaults.cardColors(
                                 containerColor = if (isSystemInDarkTheme()) {
-                                    Color.White.copy(alpha = 0.12f)
+                                    Color(0xFF252545).copy(alpha = 0.7f)
                                 } else {
                                     Color.White.copy(alpha = 0.85f)
                                 }
@@ -443,7 +443,11 @@ fun MyPlaylistsScreen(
                                     Text(
                                         text = "创建新歌单",
                                         fontSize = 16.sp,
-                                        color = RoseRed,
+                                        color = if (isSystemInDarkTheme()) {
+                                            RoseRed.copy(alpha = 0.9f)
+                                        } else {
+                                            RoseRed
+                                        },
                                         fontWeight = FontWeight.Medium
                                     )
                                 }
@@ -528,6 +532,7 @@ fun PlaylistItem(
     )
     
     val isMyFavorites = playlist.id == 0 // "我的收藏"不能编辑/删除
+    val isDarkTheme = isSystemInDarkTheme()
     
     // 确定要显示的封面URL
     val coverUrl = remember(playlist, favorites, firstMusicCover) {
@@ -565,8 +570,8 @@ fun PlaylistItem(
             .height(80.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(
-                if (isSystemInDarkTheme()) {
-                    Color.White.copy(alpha = 0.12f)
+                if (isDarkTheme) {
+                    Color(0xFF252545).copy(alpha = 0.7f)
                 } else {
                     Color.White.copy(alpha = 0.85f)
                 }
@@ -574,7 +579,11 @@ fun PlaylistItem(
             .shadow(
                 elevation = 6.dp,
                 spotColor = RoseRed.copy(alpha = 0.2f),
-                ambientColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
+                ambientColor = if (isDarkTheme) {
+                    Color(0xFFB8B8D1).copy(alpha = 0.1f)
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
+                }
             )
             .clickable {
                 isPressed = true
@@ -612,13 +621,21 @@ fun PlaylistItem(
                 text = playlist.name,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = if (isDarkTheme) {
+                    Color(0xFFF0F0F5).copy(alpha = 0.95f)
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                }
             )
             Spacer(modifier = Modifier.height(1.dp))
             Text(
                 text = "${playlist.musicCount} 首歌曲",
                 fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (isDarkTheme) {
+                    Color(0xFFB8B8D1).copy(alpha = 0.8f)
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
             )
         }
         
@@ -637,7 +654,11 @@ fun PlaylistItem(
                     Icon(
                         imageVector = Icons.Default.Create,
                         contentDescription = "编辑",
-                        tint = RoseRed
+                        tint = if (isDarkTheme) {
+                            RoseRed.copy(alpha = 0.9f)
+                        } else {
+                            RoseRed
+                        }
                     )
                 }
                 IconButton(
@@ -650,7 +671,11 @@ fun PlaylistItem(
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = "删除",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = if (isDarkTheme) {
+                            Color(0xFFB8B8D1).copy(alpha = 0.8f)
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
                     )
                 }
             }
@@ -666,20 +691,30 @@ fun PlaylistDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val isDarkTheme = isSystemInDarkTheme()
+    
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)
     ) {
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
+            color = if (isDarkTheme) {
+                Color(0xFF1A1A2E).copy(alpha = 0.95f)
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(24.dp)
                 .shadow(
                     elevation = 12.dp,
                     spotColor = RoseRed.copy(alpha = 0.35f),
-                    ambientColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.18f)
+                    ambientColor = if (isDarkTheme) {
+                        Color(0xFFB8B8D1).copy(alpha = 0.18f)
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.18f)
+                    }
                 )
         ) {
             Column(
@@ -701,7 +736,36 @@ fun PlaylistDialog(
                     label = { Text("歌单名称") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = RoseRed,
+                        unfocusedBorderColor = if (isDarkTheme) {
+                            Color(0xFFB8B8D1).copy(alpha = 0.5f)
+                        } else {
+                            Color.Gray
+                        },
+                        cursorColor = RoseRed,
+                        focusedTextColor = if (isDarkTheme) {
+                            Color(0xFFF0F0F5).copy(alpha = 0.95f)
+                        } else {
+                            Color.Black
+                        },
+                        unfocusedTextColor = if (isDarkTheme) {
+                            Color(0xFFF0F0F5).copy(alpha = 0.95f)
+                        } else {
+                            Color.Black
+                        },
+                        focusedPlaceholderColor = if (isDarkTheme) {
+                            Color(0xFFB8B8D1).copy(alpha = 0.6f)
+                        } else {
+                            Color.Gray
+                        },
+                        unfocusedPlaceholderColor = if (isDarkTheme) {
+                            Color(0xFFB8B8D1).copy(alpha = 0.6f)
+                        } else {
+                            Color.Gray
+                        }
+                    )
                 )
                 
                 Spacer(modifier = Modifier.height(32.dp))
@@ -714,7 +778,11 @@ fun PlaylistDialog(
                         Text(
                             text = "取消",
                             fontSize = 17.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = if (isDarkTheme) {
+                                Color(0xFFB8B8D1).copy(alpha = 0.8f)
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
                             fontWeight = FontWeight.Medium
                         )
                     }
@@ -734,7 +802,11 @@ fun PlaylistDialog(
                         Text(
                             text = "确定",
                             fontSize = 17.sp,
-                            color = MaterialTheme.colorScheme.onPrimary,
+                            color = if (isDarkTheme) {
+                                Color.White.copy(alpha = 0.95f)
+                            } else {
+                                MaterialTheme.colorScheme.onPrimary
+                            },
                             fontWeight = FontWeight.Medium
                         )
                     }

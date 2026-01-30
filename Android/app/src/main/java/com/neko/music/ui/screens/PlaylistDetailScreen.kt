@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.isSystemInDarkTheme
 import coil.compose.AsyncImage
 import com.neko.music.R
 import com.neko.music.data.api.PlaylistApi
@@ -141,6 +142,8 @@ fun PlaylistDetailScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        val isDarkTheme = isSystemInDarkTheme()
+        
         // 背景图片
         Image(
             painter = painterResource(id = R.drawable.playlist_background),
@@ -149,10 +152,23 @@ fun PlaylistDetailScreen(
             contentScale = ContentScale.Crop
         )
 
+        // 暗色模式遮罩
+        if (isDarkTheme) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.3f))
+            )
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White.copy(alpha = 0.5f))
+                .background(if (isDarkTheme) {
+                    Color(0xFF121228).copy(alpha = 0.4f)
+                } else {
+                    Color.White.copy(alpha = 0.5f)
+                })
         )
         Column(
             modifier = Modifier
@@ -173,7 +189,11 @@ fun PlaylistDetailScreen(
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
                         contentDescription = "返回",
-                        tint = Color.Black
+                        tint = if (isDarkTheme) {
+                            Color(0xFFB8B8D1).copy(alpha = 0.9f)
+                        } else {
+                            Color.Black
+                        }
                     )
                 }
                 
@@ -185,7 +205,11 @@ fun PlaylistDetailScreen(
                         text = playlistName,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Black,
+                        color = if (isDarkTheme) {
+                            Color(0xFFF0F0F5).copy(alpha = 0.95f)
+                        } else {
+                            Color.Black
+                        },
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -218,7 +242,11 @@ fun PlaylistDetailScreen(
                     modifier = Modifier
                         .size(120.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFFF5F5F5)),
+                        .background(if (isDarkTheme) {
+                            Color(0xFF252545).copy(alpha = 0.6f)
+                        } else {
+                            Color(0xFFF5F5F5)
+                        }),
                     contentAlignment = Alignment.Center
                 ) {
                     AsyncImage(
@@ -237,7 +265,11 @@ fun PlaylistDetailScreen(
                         text = playlistName,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Black,
+                        color = if (isDarkTheme) {
+                            Color(0xFFF0F0F5).copy(alpha = 0.95f)
+                        } else {
+                            Color.Black
+                        },
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -247,7 +279,11 @@ fun PlaylistDetailScreen(
                     Text(
                         text = "${musicList.size} 首歌曲",
                         fontSize = 14.sp,
-                        color = Color.Gray
+                        color = if (isDarkTheme) {
+                            Color(0xFFB8B8D1).copy(alpha = 0.8f)
+                        } else {
+                            Color.Gray
+                        }
                     )
 
                     if (currentDescription.isNotEmpty()) {
@@ -255,7 +291,11 @@ fun PlaylistDetailScreen(
                         Text(
                             text = currentDescription,
                             fontSize = 13.sp,
-                            color = Color.Gray,
+                            color = if (isDarkTheme) {
+                                Color(0xFFB8B8D1).copy(alpha = 0.8f)
+                            } else {
+                                Color.Gray
+                            },
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.clickable {
@@ -268,7 +308,11 @@ fun PlaylistDetailScreen(
                         Text(
                             text = "暂无描述，点击此处修改Nya！",
                             fontSize = 13.sp,
-                            color = Color.Gray,
+                            color = if (isDarkTheme) {
+                                Color(0xFFB8B8D1).copy(alpha = 0.8f)
+                            } else {
+                                Color.Gray
+                            },
                             modifier = Modifier.clickable {
                                 editingDescription = ""
                                 showEditDescriptionDialog = true
@@ -295,7 +339,11 @@ fun PlaylistDetailScreen(
                         Icon(
                             imageVector = Icons.Default.PlayArrow,
                             contentDescription = null,
-                            tint = Color.White,
+                            tint = if (isDarkTheme) {
+                                Color.White.copy(alpha = 0.95f)
+                            } else {
+                                Color.White
+                            },
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
@@ -303,7 +351,11 @@ fun PlaylistDetailScreen(
                             text = "播放全部",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
-                            color = Color.White
+                            color = if (isDarkTheme) {
+                                Color.White.copy(alpha = 0.95f)
+                            } else {
+                                Color.White
+                            }
                         )
                     }
                 }
@@ -330,7 +382,11 @@ fun PlaylistDetailScreen(
                     Text(
                         text = errorMessage,
                         fontSize = 16.sp,
-                        color = Color.Gray
+                        color = if (isDarkTheme) {
+                            Color(0xFFB8B8D1).copy(alpha = 0.8f)
+                        } else {
+                            Color.Gray
+                        }
                     )
                 }
             } else if (musicList.isEmpty()) {
@@ -343,7 +399,11 @@ fun PlaylistDetailScreen(
                     Text(
                         text = "暂无歌曲",
                         fontSize = 16.sp,
-                        color = Color.Gray
+                        color = if (isDarkTheme) {
+                            Color(0xFFB8B8D1).copy(alpha = 0.8f)
+                        } else {
+                            Color.Gray
+                        }
                     )
                 }
             } else {
@@ -388,19 +448,52 @@ fun PlaylistDetailScreen(
                     Text(
                         text = "编辑歌单描述",
                         fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDarkTheme) {
+                            Color(0xFFF0F0F5).copy(alpha = 0.95f)
+                        } else {
+                            Color.Black
+                        }
                     )
                 },
                 text = {
                     OutlinedTextField(
                         value = editingDescription,
                         onValueChange = { editingDescription = it },
-                        placeholder = { Text("请输入歌单描述") },
+                        placeholder = { 
+                            Text(
+                                "请输入歌单描述",
+                                color = if (isDarkTheme) {
+                                    Color(0xFFB8B8D1).copy(alpha = 0.6f)
+                                } else {
+                                    Color.Gray
+                                }
+                            )
+                        },
                         singleLine = false,
                         maxLines = 4,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(120.dp)
+                            .height(120.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = RoseRed,
+                            unfocusedBorderColor = if (isDarkTheme) {
+                                Color(0xFFB8B8D1).copy(alpha = 0.5f)
+                            } else {
+                                Color.Gray
+                            },
+                            cursorColor = RoseRed,
+                            focusedTextColor = if (isDarkTheme) {
+                                Color(0xFFF0F0F5).copy(alpha = 0.95f)
+                            } else {
+                                Color.Black
+                            },
+                            unfocusedTextColor = if (isDarkTheme) {
+                                Color(0xFFF0F0F5).copy(alpha = 0.95f)
+                            } else {
+                                Color.Black
+                            }
+                        )
                     )
                 },
                 confirmButton = {
@@ -441,12 +534,26 @@ fun PlaylistDetailScreen(
                             containerColor = RoseRed
                         )
                     ) {
-                        Text("确定")
+                        Text(
+                            "确定",
+                            color = if (isDarkTheme) {
+                                Color.White.copy(alpha = 0.95f)
+                            } else {
+                                Color.White
+                            }
+                        )
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showEditDescriptionDialog = false }) {
-                        Text("取消")
+                        Text(
+                            "取消",
+                            color = if (isDarkTheme) {
+                                Color(0xFFB8B8D1).copy(alpha = 0.8f)
+                            } else {
+                                Color.Gray
+                            }
+                        )
                     }
                 }
             )
@@ -492,9 +599,15 @@ fun PlaylistDetailScreen(
                             onClick = {}
                         )
                 ) {
+                    val shareDialogIsDarkTheme = isSystemInDarkTheme()
+                    
                     Surface(
                         shape = RoundedCornerShape(0.dp),
-                        color = Color.White,
+                        color = if (shareDialogIsDarkTheme) {
+                            Color(0xFF1A1A2E).copy(alpha = 0.95f)
+                        } else {
+                            Color.White
+                        },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column {
@@ -505,7 +618,11 @@ fun PlaylistDetailScreen(
                                 text = "分享歌单",
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.Black,
+                                color = if (shareDialogIsDarkTheme) {
+                                    Color(0xFFF0F0F5).copy(alpha = 0.95f)
+                                } else {
+                                    Color.Black
+                                },
                                 modifier = Modifier.padding(horizontal = 16.dp)
                             )
 
@@ -574,7 +691,11 @@ fun PlaylistDetailScreen(
                                 Text(
                                     text = "取消",
                                     fontSize = 16.sp,
-                                    color = Color.Gray
+                                    color = if (shareDialogIsDarkTheme) {
+                                        Color(0xFFB8B8D1).copy(alpha = 0.8f)
+                                    } else {
+                                        Color.Gray
+                                    }
                                 )
                             }
                         }
@@ -592,6 +713,8 @@ fun ShareGridItem(
     color: Color,
     onClick: () -> Unit
 ) {
+    val isDarkTheme = isSystemInDarkTheme()
+    
     Column(
         modifier = Modifier
             .clickable(onClick = onClick)
@@ -618,7 +741,11 @@ fun ShareGridItem(
         Text(
             text = label,
             fontSize = 12.sp,
-            color = Color.Gray
+            color = if (isDarkTheme) {
+                Color(0xFFB8B8D1).copy(alpha = 0.8f)
+            } else {
+                Color.Gray
+            }
         )
     }
 }
@@ -631,6 +758,7 @@ fun PlaylistMusicItem(
     onRemove: () -> Unit,
     showDeleteButton: Boolean = true
 ) {
+    val isDarkTheme = isSystemInDarkTheme()
     var isPressed by remember { mutableStateOf(false) }
 
     val coverUrl = remember(music.id) {
@@ -642,7 +770,11 @@ fun PlaylistMusicItem(
             .fillMaxWidth()
             .height(64.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFFF5F5F5))
+            .background(if (isDarkTheme) {
+                Color(0xFF252545).copy(alpha = 0.6f)
+            } else {
+                Color(0xFFF5F5F5)
+            })
             .clickable {
                 isPressed = true
                 onClick()
@@ -654,7 +786,11 @@ fun PlaylistMusicItem(
         Text(
             text = "$position",
             fontSize = 14.sp,
-            color = Color.Gray,
+            color = if (isDarkTheme) {
+                Color(0xFFB8B8D1).copy(alpha = 0.8f)
+            } else {
+                Color.Gray
+            },
             modifier = Modifier.width(24.dp),
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
@@ -663,7 +799,11 @@ fun PlaylistMusicItem(
             modifier = Modifier
                 .size(48.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color(0xFFE0E0E0)),
+                .background(if (isDarkTheme) {
+                    Color(0xFF353558).copy(alpha = 0.6f)
+                } else {
+                    Color(0xFFE0E0E0)
+                }),
             contentAlignment = Alignment.Center
         ) {
             AsyncImage(
@@ -682,7 +822,11 @@ fun PlaylistMusicItem(
                 text = music.title,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color.Black,
+                color = if (isDarkTheme) {
+                    Color(0xFFF0F0F5).copy(alpha = 0.95f)
+                } else {
+                    Color.Black
+                },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -690,7 +834,11 @@ fun PlaylistMusicItem(
             Text(
                 text = music.artist,
                 fontSize = 13.sp,
-                color = Color.Gray,
+                color = if (isDarkTheme) {
+                    Color(0xFFB8B8D1).copy(alpha = 0.8f)
+                } else {
+                    Color.Gray
+                },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -699,7 +847,11 @@ fun PlaylistMusicItem(
         Text(
             text = formatTime(music.duration * 1000L),
             fontSize = 13.sp,
-            color = Color.Gray
+            color = if (isDarkTheme) {
+                Color(0xFFB8B8D1).copy(alpha = 0.8f)
+            } else {
+                Color.Gray
+            }
         )
 
         if (showDeleteButton) {
@@ -710,7 +862,11 @@ fun PlaylistMusicItem(
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "移除",
-                    tint = Color.Gray
+                    tint = if (isDarkTheme) {
+                        Color(0xFFB8B8D1).copy(alpha = 0.8f)
+                    } else {
+                        Color.Gray
+                    }
                 )
             }
         }
