@@ -43,6 +43,7 @@ import coil.compose.AsyncImage
 import com.neko.music.R
 import androidx.compose.ui.zIndex
 import coil.request.ImageRequest
+import androidx.compose.foundation.isSystemInDarkTheme
 import com.neko.music.data.manager.TokenManager
 import com.neko.music.data.api.PlaylistApi
 import com.neko.music.data.api.PlaylistMusic
@@ -293,7 +294,7 @@ fun MyPlaylistsScreen(
                     text = "我的歌单",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.Black
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             }
             
@@ -321,7 +322,7 @@ fun MyPlaylistsScreen(
                         Text(
                             text = "还没有歌单",
                             fontSize = 18.sp,
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Medium
                         )
                         Button(
@@ -406,7 +407,11 @@ fun MyPlaylistsScreen(
                                     dialogPlaylistName = ""
                                     showCreateDialog = true },
                             colors = CardDefaults.cardColors(
-                                containerColor = Color.White.copy(alpha = 0.85f)
+                                containerColor = if (isSystemInDarkTheme()) {
+                                    Color.White.copy(alpha = 0.1f)
+                                } else {
+                                    Color.White.copy(alpha = 0.85f)
+                                }
                             ),
                             elevation = CardDefaults.cardElevation(
                                 defaultElevation = 4.dp,
@@ -481,7 +486,11 @@ fun MyPlaylistsScreen(
                             ambientColor = Color.Gray.copy(alpha = 0.18f)
                         ),
                     shape = RoundedCornerShape(20.dp),
-                    color = Color.Black.copy(alpha = 0.88f)
+                    color = if (isSystemInDarkTheme()) {
+                        Color.White.copy(alpha = 0.2f)
+                    } else {
+                        Color.Black.copy(alpha = 0.88f)
+                    }
                 ) {
                     Text(
                         text = errorMessage,
@@ -550,7 +559,13 @@ fun PlaylistItem(
             .fillMaxWidth()
             .height(80.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.85f))
+            .background(
+                if (isSystemInDarkTheme()) {
+                    Color.White.copy(alpha = 0.1f)
+                } else {
+                    Color.White.copy(alpha = 0.85f)
+                }
+            )
             .shadow(
                 elevation = 6.dp,
                 spotColor = RoseRed.copy(alpha = 0.2f),
@@ -592,13 +607,13 @@ fun PlaylistItem(
                 text = playlist.name,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.Black
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(1.dp))
             Text(
                 text = "${playlist.musicCount} 首歌曲",
                 fontSize = 14.sp,
-                color = Color.Gray
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         
@@ -630,7 +645,7 @@ fun PlaylistItem(
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = "删除",
-                        tint = Color.Gray
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -652,7 +667,7 @@ fun PlaylistDialog(
     ) {
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = Color.White,
+            color = MaterialTheme.colorScheme.surface,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(24.dp)
@@ -694,7 +709,7 @@ fun PlaylistDialog(
                         Text(
                             text = "取消",
                             fontSize = 17.sp,
-                            color = Color.Gray.copy(alpha = 0.8f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Medium
                         )
                     }

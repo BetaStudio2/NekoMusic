@@ -51,6 +51,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.isSystemInDarkTheme
 import com.neko.music.service.MusicPlayerManager
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -96,6 +97,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -283,7 +285,7 @@ fun PlayerScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White)
+                .background(MaterialTheme.colorScheme.background)
                 .statusBarsPadding()
         ) {
             TopBar(
@@ -467,12 +469,23 @@ fun PlayerScreen(
                 .padding(horizontal = 16.dp)
                 .padding(top = 80.dp)
                 .height(32.dp)
-                .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(16.dp)),
+                .background(
+                    if (isSystemInDarkTheme()) {
+                        Color.White.copy(alpha = 0.3f)
+                    } else {
+                        Color.Black.copy(alpha = 0.6f)
+                    },
+                    RoundedCornerShape(16.dp)
+                ),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = "请先登录",
-                color = Color.White,
+                color = if (isSystemInDarkTheme()) {
+                    Color.White
+                } else {
+                    Color.White
+                },
                 fontSize = 14.sp
             )
         }
@@ -687,7 +700,13 @@ fun PlayerScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.4f))
+                    .background(
+                        if (isSystemInDarkTheme()) {
+                            Color.Black.copy(alpha = 0.7f)
+                        } else {
+                            Color.Black.copy(alpha = 0.4f)
+                        }
+                    )
                     .clickable(
                         interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                         indication = null,
@@ -697,7 +716,7 @@ fun PlayerScreen(
                 Box(
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .background(Color.White, RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
                         .padding(24.dp)
                         .width(300.dp)
                 ) {
@@ -707,7 +726,7 @@ fun PlayerScreen(
                         Text(
                             text = "需要通知权限",
                             fontSize = 18.sp,
-                            color = Color.Black,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold
                         )
 
@@ -716,7 +735,7 @@ fun PlayerScreen(
                         Text(
                             text = "为了在定时关闭时提醒您，\n需要通知权限",
                             fontSize = 14.sp,
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
 
@@ -1735,8 +1754,8 @@ fun SpeedChip(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val backgroundColor = if (isSelected) RoseRed else Color(0xFFF5F5F5)
-    val textColor = if (isSelected) Color.White else Color.Gray
+    val backgroundColor = if (isSelected) RoseRed else MaterialTheme.colorScheme.surfaceVariant
+    val textColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
 
     Box(
         modifier = Modifier
@@ -1824,7 +1843,13 @@ fun CustomSleepTimerDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.4f))
+                .background(
+                    if (isSystemInDarkTheme()) {
+                        Color.Black.copy(alpha = 0.7f)
+                    } else {
+                        Color.Black.copy(alpha = 0.4f)
+                    }
+                )
                 .clickable(
                     interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                     indication = null,
@@ -1852,7 +1877,7 @@ fun CustomSleepTimerDialog(
             ) {
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.surface,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp)
@@ -1865,7 +1890,7 @@ fun CustomSleepTimerDialog(
                         Text(
                             text = "自定义定时关闭",
                             fontSize = 18.sp,
-                            color = Color.Black,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold
                         )
 
@@ -1883,7 +1908,7 @@ fun CustomSleepTimerDialog(
                                 Text(
                                     text = "小时",
                                     fontSize = 14.sp,
-                                    color = Color.Gray
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -1897,7 +1922,7 @@ fun CustomSleepTimerDialog(
                                         Icon(
                                             painter = painterResource(R.drawable.previous_song),
                                             contentDescription = "减少",
-                                            tint = Color.Gray,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.size(24.dp)
                                         )
                                     }
@@ -1905,7 +1930,7 @@ fun CustomSleepTimerDialog(
                                     Text(
                                         text = "$hours",
                                         fontSize = 32.sp,
-                                        color = Color.Black,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(horizontal = 24.dp)
                                     )
@@ -1917,7 +1942,7 @@ fun CustomSleepTimerDialog(
                                         Icon(
                                             painter = painterResource(R.drawable.next_song),
                                             contentDescription = "增加",
-                                            tint = Color.Gray,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.size(24.dp)
                                         )
                                     }
@@ -1927,7 +1952,7 @@ fun CustomSleepTimerDialog(
                             Text(
                                 text = ":",
                                 fontSize = 32.sp,
-                                color = Color.Gray,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontWeight = FontWeight.Bold
                             )
 
@@ -1938,7 +1963,7 @@ fun CustomSleepTimerDialog(
                                 Text(
                                     text = "分钟",
                                     fontSize = 14.sp,
-                                    color = Color.Gray
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -1952,7 +1977,7 @@ fun CustomSleepTimerDialog(
                                         Icon(
                                             painter = painterResource(R.drawable.previous_song),
                                             contentDescription = "减少",
-                                            tint = Color.Gray,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.size(24.dp)
                                         )
                                     }
@@ -1960,7 +1985,7 @@ fun CustomSleepTimerDialog(
                                     Text(
                                         text = String.format("%02d", minutes),
                                         fontSize = 32.sp,
-                                        color = Color.Black,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(horizontal = 24.dp)
                                     )
@@ -1972,7 +1997,7 @@ fun CustomSleepTimerDialog(
                                         Icon(
                                             painter = painterResource(R.drawable.next_song),
                                             contentDescription = "增加",
-                                            tint = Color.Gray,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.size(24.dp)
                                         )
                                     }
@@ -1990,14 +2015,14 @@ fun CustomSleepTimerDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(48.dp)
-                                    .background(Color(0xFFF5F5F5), RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
                                     .clickable { onDismiss() },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = "取消",
                                     fontSize = 16.sp,
-                                    color = Color.Gray,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
@@ -2042,7 +2067,7 @@ fun PlaylistChip(
                 shape = RoundedCornerShape(12.dp)
             )
             .background(
-                color = if (isSelected) RoseRed.copy(alpha = 0.1f) else Color(0xFFF5F5F5),
+                color = if (isSelected) RoseRed.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant,
                 shape = RoundedCornerShape(12.dp)
             )
             .clickable(onClick = onClick),
@@ -2071,7 +2096,7 @@ fun PlaylistChip(
             Text(
                 text = playlist.name,
                 fontSize = 10.sp,
-                color = Color.Black,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal

@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.neko.music.data.api.MusicApi
@@ -176,7 +177,7 @@ fun ArtistDetailScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
     ) {
         // 顶部导航栏
@@ -194,17 +195,17 @@ fun ArtistDetailScreen(
                 Icon(
                     imageVector = Icons.Default.ArrowBack,
                     contentDescription = "返回",
-                    tint = Color.Black
+                    tint = MaterialTheme.colorScheme.onBackground
                 )
             }
-            
+
             Spacer(modifier = Modifier.width(8.dp))
-            
+
             Text(
                 text = "歌手详情",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.Black
+                color = MaterialTheme.colorScheme.onBackground
             )
         }
         
@@ -236,7 +237,7 @@ fun ArtistDetailScreen(
                     ) {
                         Text(
                             text = errorMessage ?: "加载失败",
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 16.sp
                         )
                     }
@@ -266,12 +267,12 @@ fun ArtistDetailScreen(
                                         text = artistName,
                                         fontSize = 24.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.Black
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
                                         text = "$musicCount 首歌曲",
                                         fontSize = 14.sp,
-                                        color = Color.Gray
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
@@ -382,7 +383,11 @@ fun ArtistMusicItem(
             .fillMaxWidth()
             .height(56.dp)
             .background(
-                color = Color.White,
+                color = if (isSystemInDarkTheme()) {
+                    Color.White.copy(alpha = 0.05f)
+                } else {
+                    Color.White
+                },
                 shape = RoundedCornerShape(8.dp)
             )
             .clickable(onClick = onClick)
@@ -423,14 +428,14 @@ fun ArtistMusicItem(
                 text = music.title,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color.Black,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = music.album,
                 fontSize = 13.sp,
-                color = Color.Gray,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1
             )
         }
