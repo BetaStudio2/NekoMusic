@@ -12,6 +12,7 @@ Neko云音乐提供完整的 RESTful API，支持音乐搜索、播放、用户�
 - [认证说明](#认证说明)
 - [用户相关 API](#用户相关-api)
 - [歌单相关 API](#歌单相关-api)
+- [歌手相关 API](#歌手相关-api)
 - [音乐相关 API](#音乐相关-api)
 - [错误码说明](#错误码说明)
 
@@ -1005,6 +1006,35 @@ async function searchPlaylists(query) {
 }
 ```
 
+### 搜索歌手
+
+```javascript
+async function searchArtists(query) {
+  const response = await fetch('https://music.cnmsb.xin/api/artists/search', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      query: query
+    })
+  });
+
+  const data = await response.json();
+  if (data.success) {
+    console.log(`搜索到 ${data.total} 个歌手:`, data.results);
+    // data.results 是一个数组，包含匹配的歌手
+    // 每个歌手包含：
+    // - name: 歌手名称
+    // - musicCount: 该歌手的音乐数量
+    // - coverPath: 该歌手第一首音乐的封面 URL
+  } else {
+    console.error('搜索歌手失败:', data.message);
+  }
+  return data;
+}
+```
+
 ### 获取歌单详情
 
 ```javascript
@@ -1290,12 +1320,90 @@ async function changePassword(oldPassword, newPassword) {
    - 歌单按创建时间倒序排列（最新的在前面）
    - 响应中包含 `userId` 字段，可以识别歌单的创建者
    - 歌单不包含封面字段，客户端应根据歌单中的音乐列表自动选择封面（如使用第一首音乐的封面）
-   - 新增 API：`GET /api/playlist/{id}` - 获取歌单详情（无需登录）
+   - 新增 API：`POST /api/playlist/{id}` - 获取歌单详情（无需登录）
    - 新增 API：`POST /api/playlists/search` - 搜索歌单（无需登录）
+   - 新增 API：`POST /api/artists/search` - 搜索歌手（无需登录）
    - 获取歌单音乐列表 API 已移除登录要求，任何用户都可以访问
    - 获取歌单列表 API 只返回当前用户的歌单，不会混合其他用户的歌单
    - 搜索歌单 API 会返回歌单的第一首音乐封面 URL，方便客户端展示
    - 搜索歌单 API 使用 POST 方式，参数在请求体中传递
+
+---
+
+## 歌手相关 API
+
+### 1. 搜索歌手
+
+**端点:** `POST /api/artists/search`
+
+**无需登录**
+
+**请求头:**
+```
+Content-Type: application/json
+```
+
+**请求体:**
+```json
+{
+  "query": "string"  // 搜索关键词
+}
+```
+
+**响应示例（成功）:**
+```json
+{
+  "success": true,
+  "message": "搜索成功",
+  "total": 3,
+  "results": [
+    {
+      "name": "周杰伦",
+      "musicCount": 50,
+      "coverPath": "/path/to/cover.jpg"
+    },
+    {
+      "name": "周深",
+      "musicCount": 30,
+      "coverPath": "/path/to/cover2.jpg"
+    },
+    {
+      "name": "周华健",
+      "musicCount": 20,
+      "coverPath": "/api/music/cover/"
+    }
+  ]
+}
+```
+
+**响应示例（失败）:**
+```json
+{
+  "success": false,
+  "message": "缺少搜索关键词"
+}
+```
+
+**说明:**
+- 此 API **无需登录**即可访问
+- 搜索关键词会匹配歌手名称
+- 返回结果按音乐数量降序排列（音乐最多的歌手排在前面）
+- 每个结果包含：
+  - 歌手名称（name）
+  - 该歌手的音乐数量（musicCount）
+  - 该歌手第一首音乐的封面 URL（coverPath）
+  - 如果歌手没有音乐或封面不存在，coverPath 为空或默认封面
+
+**注意事项:**
+- 搜索关键词不能为空
+- 搜索是模糊匹配，使用 `LIKE %keyword%`
+- 使用 POST 方式，参数在请求体中传递
+- 返回的歌手列表会自动去重，每个歌手只出现一次
+
+**使用场景:**
+- 用户搜索歌手以查看该歌手的所有音乐
+- 展示热门歌手列表
+- 音乐分类浏览
 
 ---
 
