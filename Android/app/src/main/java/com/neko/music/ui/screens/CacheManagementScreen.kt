@@ -19,7 +19,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.neko.music.data.cache.MusicCacheManager
 import com.neko.music.ui.theme.RoseRed
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.res.painterResource
+import com.neko.music.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -362,9 +365,10 @@ fun CacheItem(
                         modifier = Modifier.fillMaxSize()
                     )
                 } else {
-                    Text(
-                        text = "🎵",
-                        fontSize = 28.sp
+                    Image(
+                        painter = painterResource(R.drawable.music),
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp)
                     )
                 }
             }

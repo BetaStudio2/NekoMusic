@@ -2,6 +2,7 @@ package com.neko.music.ui.screens
 
 import android.content.Context
 import android.util.Log
+import androidx.compose.foundation.Image
 import android.os.Build
 import android.widget.Toast
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -861,9 +862,10 @@ fun CoverImage(
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop
                     )
                 } else {
-                    Text(
-                        text = "🎵",
-                        fontSize = 60.sp
+                    Image(
+                        painter = painterResource(R.drawable.music),
+                        contentDescription = null,
+                        modifier = Modifier.size(60.dp)
                     )
                 }
             }

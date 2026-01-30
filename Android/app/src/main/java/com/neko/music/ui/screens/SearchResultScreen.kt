@@ -1,6 +1,7 @@
 package com.neko.music.ui.screens
 
 import android.util.Log
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -45,6 +46,8 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.painterResource
+import com.neko.music.R
 import com.neko.music.data.api.MusicApi
 import com.neko.music.data.manager.SearchHistoryManager
 import com.neko.music.data.model.Music
@@ -549,9 +552,10 @@ fun MusicItem(
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop
                 )
             } else {
-                Text(
-                    text = "🎵",
-                    fontSize = 22.sp
+                Image(
+                    painter = painterResource(R.drawable.music),
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp)
                 )
             }
         }

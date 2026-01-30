@@ -2,6 +2,7 @@ package com.neko.music.ui.screens
 
 import android.content.Context
 import android.os.Build
+import androidx.compose.foundation.Image
 import com.neko.music.R
 import android.util.Log
 import androidx.compose.foundation.background
@@ -230,9 +231,10 @@ fun SettingsScreen(
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = "🎵",
-                                    fontSize = 28.sp
+                                Image(
+                                    painter = painterResource(R.drawable.music),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(28.dp)
                                 )
                             }
                         }

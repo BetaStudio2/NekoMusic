@@ -485,7 +485,7 @@ fun QuickAccessSection(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             QuickAccessItem(
-                icon = "🎵",
+                icon = R.drawable.music,
                 label = "我的音乐",
                 gradientColors = listOf(RoseRed.copy(alpha = 0.12f), SakuraPink.copy(alpha = 0.12f)),
                 onClick = {
@@ -494,7 +494,7 @@ fun QuickAccessSection(
                 }
             )
             QuickAccessItem(
-                icon = "❤️",
+                icon = R.drawable.ic_favorite_filled,
                 label = "我喜欢",
                 gradientColors = listOf(Peach.copy(alpha = 0.15f), RoseRed.copy(alpha = 0.15f)),
                 onClick = {
@@ -502,7 +502,7 @@ fun QuickAccessSection(
                 }
             )
             QuickAccessItem(
-                icon = "📻",
+                icon = R.drawable.recently_played,
                 label = "电台",
                 gradientColors = listOf(SkyBlue.copy(alpha = 0.12f), Lilac.copy(alpha = 0.12f)),
                 onClick = {
@@ -511,7 +511,7 @@ fun QuickAccessSection(
                 }
             )
             QuickAccessItem(
-                icon = "🎤",
+                icon = R.drawable.ic_mine,
                 label = "歌手",
                 gradientColors = listOf(Color(0xFF6B5B95).copy(alpha = 0.12f), RoseRed.copy(alpha = 0.12f)),
                 onClick = {
@@ -525,7 +525,7 @@ fun QuickAccessSection(
 
 @Composable
 fun QuickAccessItem(
-    icon: String,
+    icon: Int,
     label: String,
     gradientColors: List<Color>,
     onClick: () -> Unit
@@ -565,9 +565,10 @@ fun QuickAccessItem(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = icon,
-                fontSize = 32.sp
+            Image(
+                painter = painterResource(icon),
+                contentDescription = null,
+                modifier = Modifier.size(32.dp)
             )
         }
         Spacer(modifier = Modifier.height(10.dp))

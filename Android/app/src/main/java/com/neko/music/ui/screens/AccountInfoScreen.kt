@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -49,10 +50,12 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.res.painterResource
 import androidx.core.view.WindowCompat
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.neko.music.ui.theme.*
+import com.neko.music.R
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -192,16 +195,17 @@ fun AccountInfoScreen(
             
             // 用户信息卡片
             InfoCard(
-                icon = "👤",
+                icon = R.drawable.user,
                 title = "用户名",
                 value = username,
-                showArrow = false
+                showArrow = false,
+                colorFilter = ColorFilter.tint(RoseRed)
             )
             
             Spacer(modifier = Modifier.height(16.dp))
             
             InfoCard(
-                icon = "📧",
+                icon = R.drawable.email,
                 title = "邮箱",
                 value = email,
                 showArrow = false
@@ -210,11 +214,12 @@ fun AccountInfoScreen(
             Spacer(modifier = Modifier.height(16.dp))
             
             InfoCard(
-                icon = "🔐",
+                icon = R.drawable.password,
                 title = "密码",
                 value = "修改密码",
                 showArrow = true,
-                onClick = { showPasswordDialog = true }
+                onClick = { showPasswordDialog = true },
+                colorFilter = ColorFilter.tint(RoseRed)
             )
             
             Spacer(modifier = Modifier.height(40.dp))
@@ -341,31 +346,32 @@ fun AccountInfoScreen(
                 selectedImageUri = null
             },
             onConfirm = { imageData ->
-                                onAvatarUpdate(imageData)
-                                // 重置时间戳以刷新头像
-                                avatarUpdateTime = System.currentTimeMillis()
-                                showCropDialog = false
-                                selectedImageUri = null
-                                // 显示系统 Toast
-                                android.widget.Toast.makeText(
-                                    context,
-                                    "头像上传成功",
-                                    android.widget.Toast.LENGTH_SHORT
-                                ).show()
-                                // 显示成功提示
-                                toastMessage = "头像更新成功"
-                                showSuccess = true
-                            }        )
+                onAvatarUpdate(imageData)
+                // 重置时间戳以刷新头像
+                avatarUpdateTime = System.currentTimeMillis()
+                showCropDialog = false
+                selectedImageUri = null
+                // 显示系统 Toast
+                android.widget.Toast.makeText(
+                    context,
+                    "头像上传成功",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+                // 显示成功提示
+                toastMessage = "头像更新成功"
+                showSuccess = true
+            }        )
     }
 }
 
 @Composable
 fun InfoCard(
-    icon: String,
+    icon: Int,
     title: String,
     value: String,
     showArrow: Boolean = false,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {},
+    colorFilter: ColorFilter? = null
 ) {
     val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
     var isPressed by remember { mutableStateOf(false) }
@@ -398,9 +404,11 @@ fun InfoCard(
             },
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = icon,
-            fontSize = 24.sp
+        Image(
+            painter = painterResource(icon),
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            colorFilter = colorFilter
         )
         
         Spacer(modifier = Modifier.width(16.dp))
