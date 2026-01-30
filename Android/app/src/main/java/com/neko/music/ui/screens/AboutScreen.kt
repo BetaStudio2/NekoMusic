@@ -1,7 +1,10 @@
 package com.neko.music.ui.screens
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -24,8 +27,12 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import com.neko.music.ui.theme.*
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import com.neko.music.R
 
+@RequiresApi(Build.VERSION_CODES.P)
 @Composable
 fun AboutScreen(
     onBackClick: () -> Unit = {}
@@ -93,7 +100,7 @@ fun AboutScreen(
             
             // 应用信息卡片
             InfoCard(
-                icon = "📱",
+                iconRes = R.drawable.about,
                 title = "应用信息",
                 items = listOf(
                     "应用名称" to "Neko云音乐",
@@ -108,7 +115,7 @@ fun AboutScreen(
             
             // 组织信息卡片
             InfoCard(
-                icon = "🏢",
+                iconRes = R.drawable.about,
                 title = "组织信息",
                 items = listOf(
                     "组织名称" to "Fantasy Network「梦幻网络」",
@@ -134,7 +141,7 @@ fun AboutScreen(
 
 @Composable
 fun InfoCard(
-    icon: String,
+    iconRes: Int,
     title: String,
     items: List<Pair<String, String>>,
     scale: Float
@@ -162,9 +169,10 @@ fun InfoCard(
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = icon,
-                    fontSize = 28.sp
+                Image(
+                    painter = painterResource(iconRes),
+                    contentDescription = title,
+                    modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
@@ -234,10 +242,13 @@ fun TechStackCard(scale: Float) {
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "⚙️",
-                    fontSize = 28.sp
+                Image(
+                    painter = painterResource(id = R.drawable.setting),
+                    contentDescription = "技术栈",
+                    modifier = Modifier.size(28.dp),
+                    colorFilter = ColorFilter.tint(RoseRed)
                 )
+
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = "技术栈",
@@ -319,86 +330,6 @@ fun TechItem(tech: String, desc: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun FeatureCard(scale: Float) {
-    val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
-    
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .scale(scale)
-            .shadow(
-                elevation = 4.dp,
-                spotColor = RoseRed.copy(alpha = 0.2f),
-                ambientColor = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.1f) else Color.Gray.copy(alpha = 0.1f)
-            ),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isDarkTheme) Color(0xFF252545).copy(alpha = 0.6f) else Color.White
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "✨",
-                    fontSize = 28.sp
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "功能特色",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Divider(
-                color = if (isDarkTheme) Color(0xFF2A2A4E).copy(alpha = 0.5f) else Color(0xFFE0E0E0),
-                thickness = 1.dp
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            val features = listOf(
-                "🎵 海量音乐资源" to "支持在线搜索和播放",
-                "❤️ 收藏功能" to "收藏喜欢的音乐",
-                "🕐 播放历史" to "记录最近播放的音乐",
-                "📻 个性化推荐" to "根据喜好推荐音乐",
-                "🎨 精美界面" to "二次元风格设计"
-            )
-            
-            features.forEach { (feature, desc) ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = feature,
-                        fontSize = 15.sp,
-                        color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.width(24.dp)
-                    )
-                    Text(
-                        text = desc,
-                        fontSize = 14.sp,
-                        color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
 fun CopyrightCard() {
     val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
     
@@ -420,11 +351,6 @@ fun CopyrightCard() {
             modifier = Modifier.padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = "📜",
-                fontSize = 32.sp
-            )
-            
             Spacer(modifier = Modifier.height(12.dp))
             
             Text(
