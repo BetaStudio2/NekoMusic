@@ -283,15 +283,23 @@ class MusicPlayerManager private constructor(context: Context) {
                     val nextMusic = playlistManager.getNextMusic(currentId)
                     android.util.Log.d("MusicPlayerManager", "nextMusic: $nextMusic")
                     if (nextMusic != null) {
-                        val fullCoverUrl = if (!nextMusic.coverFilePath.isNullOrEmpty()) {
-                            "https://music.cnmsb.xin${nextMusic.coverFilePath}"
-                        } else {
-                            "https://music.cnmsb.xin/api/music/cover/${nextMusic.id}"
-                        }
-                        // 使用 MusicApi 获取正确的播放 URL（包括缓存逻辑）
-                        val musicApi = com.neko.music.data.api.MusicApi(context)
-                        val musicUrl = musicApi.getMusicFileUrl(nextMusic)
-                        playMusic(musicUrl, nextMusic.id, nextMusic.title, nextMusic.artist, nextMusic.coverFilePath ?: "", fullCoverUrl)
+                                                    val fullCoverUrl = if (!nextMusic.coverFilePath.isNullOrEmpty()) {
+                                                        if (nextMusic.coverFilePath.startsWith("http")) {
+                                                            android.util.Log.d("MusicPlayerManager", "使用完整URL作为封面: ${nextMusic.coverFilePath}")
+                                                            nextMusic.coverFilePath
+                                                        } else {
+                                                            android.util.Log.d("MusicPlayerManager", "拼接URL作为封面: https://music.cnmsb.xin${nextMusic.coverFilePath}")
+                                                            "https://music.cnmsb.xin${nextMusic.coverFilePath}"
+                                                        }
+                                                    } else {
+                                                        android.util.Log.d("MusicPlayerManager", "使用默认API作为封面: https://music.cnmsb.xin/api/music/cover/${nextMusic.id}")
+                                                        "https://music.cnmsb.xin/api/music/cover/${nextMusic.id}"
+                                                    }
+                                                    android.util.Log.d("MusicPlayerManager", "最终封面URL: $fullCoverUrl")
+                                                    // 使用 MusicApi 获取正确的播放 URL（包括缓存逻辑）
+                                                    val musicApi = com.neko.music.data.api.MusicApi(context)
+                                                    val musicUrl = musicApi.getMusicFileUrl(nextMusic)
+                                                    playMusic(musicUrl, nextMusic.id, nextMusic.title, nextMusic.artist, nextMusic.coverFilePath ?: "", fullCoverUrl)
                     } else {
                         // 没有下一首，回到第一首
                         android.util.Log.d("MusicPlayerManager", "No next music found, getting first music")
@@ -812,11 +820,14 @@ class MusicPlayerManager private constructor(context: Context) {
                     val nextUrl = musicApi.getMusicFileUrl(nextMusic)
 
                     val fullCoverUrl = if (!nextMusic.coverFilePath.isNullOrEmpty()) {
-                        "https://music.cnmsb.xin${nextMusic.coverFilePath}"
-                    } else {
-                        "https://music.cnmsb.xin/api/music/cover/${nextMusic.id}"
-                    }
-
+                                                    if (nextMusic.coverFilePath.startsWith("http")) {
+                                                        nextMusic.coverFilePath
+                                                    } else {
+                                                        "https://music.cnmsb.xin${nextMusic.coverFilePath}"
+                                                    }
+                                                } else {
+                                                    "https://music.cnmsb.xin/api/music/cover/${nextMusic.id}"
+                                                }
                     // 缓存下一首音乐信息
                     preloadedNextMusic = nextMusic
                     preloadedNextMusicUrl = nextUrl

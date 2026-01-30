@@ -63,7 +63,9 @@ class PlaylistManager private constructor(context: Context) {
     private val dao = database.playlistDao()
     
     val playlist: Flow<List<Music>> = dao.getAllPlaylist().map { entities ->
+        android.util.Log.d("PlaylistManager", "从数据库读取 ${entities.size} 首音乐")
         entities.map { entity ->
+            android.util.Log.d("PlaylistManager", "读取音乐: id=${entity.musicId}, title=${entity.title}, coverFilePath=${entity.coverFilePath}")
             Music(
                 id = entity.musicId,
                 title = entity.title,
@@ -93,7 +95,10 @@ class PlaylistManager private constructor(context: Context) {
                 uploadUserId = music.uploadUserId,
                 createdAt = music.createdAt
             )
+            android.util.Log.d("PlaylistManager", "添加到数据库: id=${music.id}, title=${music.title}, coverFilePath=${entity.coverFilePath}")
             dao.addToPlaylist(entity)
+        } else {
+            android.util.Log.d("PlaylistManager", "音乐已存在，跳过: id=${music.id}")
         }
     }
     

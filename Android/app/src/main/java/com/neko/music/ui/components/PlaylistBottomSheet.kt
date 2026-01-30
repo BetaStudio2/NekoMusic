@@ -55,6 +55,8 @@ fun PlaylistBottomSheet(
     val playlist by playlistManager.playlist.collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
 
+    android.util.Log.d("PlaylistBottomSheet", "PlaylistBottomSheet 渲染: isVisible=$isVisible, playlist size=${playlist.size}")
+
     AnimatedVisibility(
         visible = isVisible,
         enter = slideInVertically(initialOffsetY = { it }),
@@ -185,8 +187,18 @@ fun PlaylistItem(
                 .background(Color(0xFFF5F5F5)),
             contentAlignment = Alignment.Center
         ) {
+            val coverUrl = if (!music.coverFilePath.isNullOrEmpty()) {
+                if (music.coverFilePath.startsWith("http")) {
+                    music.coverFilePath
+                } else {
+                    "https://music.cnmsb.xin${music.coverFilePath}"
+                }
+            } else {
+                "https://music.cnmsb.xin/api/music/cover/${music.id}"
+            }
+            android.util.Log.d("PlaylistBottomSheet", "音乐: ${music.title}, coverFilePath: ${music.coverFilePath}, 最终URL: $coverUrl")
             AsyncImage(
-                model = "https://music.cnmsb.xin${music.coverFilePath}",
+                model = coverUrl,
                 contentDescription = "封面",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop

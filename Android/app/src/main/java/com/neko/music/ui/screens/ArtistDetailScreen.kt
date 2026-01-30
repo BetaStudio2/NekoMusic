@@ -290,15 +290,33 @@ fun ArtistDetailScreen(
                                             
                                             // 按顺序添加音乐到播放列表
                                             musicList.forEach { music ->
-                                                playlistManager.addToPlaylist(music)
+                                                val url = musicApi.getMusicFileUrl(music)
+                                                Log.d("ArtistDetailScreen", "添加到播放列表: ${music.title}, id=${music.id}, url=$url")
+                                                playlistManager.addToPlaylist(
+                                                    Music(
+                                                        music.id,
+                                                        music.title,
+                                                        music.artist,
+                                                        "",
+                                                        music.duration,
+                                                        url,
+                                                        "",
+                                                        0,
+                                                        ""
+                                                    )
+                                                )
                                             }
+                                            
+                                            Log.d("ArtistDetailScreen", "总共添加了 ${musicList.size} 首歌曲到播放列表")
                                             
                                             // 播放第一首
                                             if (musicList.isNotEmpty()) {
                                                 val firstMusic = musicList[0]
+                                                val url = musicApi.getMusicFileUrl(firstMusic)
                                                 val fullCoverUrl = "https://music.cnmsb.xin/api/music/cover/${firstMusic.id}"
+                                                Log.d("ArtistDetailScreen", "播放第一首: ${firstMusic.title}, id=${firstMusic.id}, url=$url, cover=$fullCoverUrl")
                                                 playerManager.playMusic(
-                                                    firstMusic.filePath,
+                                                    url,
                                                     firstMusic.id,
                                                     firstMusic.title,
                                                     firstMusic.artist,
