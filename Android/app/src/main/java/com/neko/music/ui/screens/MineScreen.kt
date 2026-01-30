@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import androidx.compose.foundation.isSystemInDarkTheme
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.neko.music.R
@@ -84,10 +85,11 @@ fun MineScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFFAFAFA))
+            .background(MaterialTheme.colorScheme.background)
     ) {
         LazyColumn(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 60.dp)
         ) {
             item {
                 MineHeader(
@@ -220,11 +222,11 @@ fun MineHeader(
                 modifier = Modifier
                     .size(90.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Color.White)
+                    .background(MaterialTheme.colorScheme.surface)
                     .shadow(
                         elevation = 8.dp,
                         spotColor = RoseRed.copy(alpha = 0.4f),
-                        ambientColor = RoseRed.copy(alpha = 0.2f)
+                        ambientColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
                     )
                     .clickable {
                         if (isLoggedIn) {
@@ -338,7 +340,7 @@ fun StatItem(count: String, label: String) {
         Text(
             text = label,
             fontSize = 13.sp,
-            color = Color.Gray,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = FontWeight.Medium
         )
     }
@@ -378,7 +380,7 @@ fun NekoMemberBanner() {
             .shadow(
                 elevation = 4.dp,
                 spotColor = RoseRed.copy(alpha = 0.2f),
-                ambientColor = Color.Gray.copy(alpha = 0.1f)
+                ambientColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
             )
             .clickable {
                 // 暂未实现
@@ -414,7 +416,7 @@ fun MineMenu(
             text = "我的",
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.Black
+            color = MaterialTheme.colorScheme.onSurface
         )
         
         Spacer(modifier = Modifier.height(16.dp))
@@ -446,14 +448,14 @@ fun MenuItem(
             .fillMaxWidth()
             .padding(vertical = 8.dp)
             .background(
-                color = Color.White,
+                color = MaterialTheme.colorScheme.surface,
                 shape = RoundedCornerShape(16.dp)
             )
             .padding(16.dp)
             .shadow(
                 elevation = 2.dp,
                 spotColor = RoseRed.copy(alpha = 0.15f),
-                ambientColor = Color.Gray.copy(alpha = 0.08f)
+                ambientColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f)
             )
             .scale(scale)
             .clickable {
@@ -478,14 +480,14 @@ fun MenuItem(
         Text(
             text = title,
             fontSize = 16.sp,
-            color = Color.Black,
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.weight(1f)
         )
         Text(
             text = "›",
             fontSize = 20.sp,
-            color = Color.Gray.copy(alpha = 0.6f)
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
         )
     }
 }
@@ -507,7 +509,7 @@ fun MoreSettings(
             text = "设置",
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.Black
+            color = MaterialTheme.colorScheme.onSurface
         )
         
         Spacer(modifier = Modifier.height(16.dp))
@@ -535,13 +537,13 @@ fun MoreSettings(
         Text(
             text = "蜀ICP备2025177767号-1 如有侵权请联系support@cnmsb.xin",
             fontSize = 10.sp,
-            color = Color.Gray,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
         Text(
             text = "© 2025-2026 Fantasy Network「梦幻网络」 保留所有权利.",
             fontSize = 10.sp,
-            color = Color.Gray,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
     }
