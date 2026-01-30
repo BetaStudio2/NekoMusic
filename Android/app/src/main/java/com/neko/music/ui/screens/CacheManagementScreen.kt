@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.neko.music.data.cache.MusicCacheManager
 import com.neko.music.ui.theme.RoseRed
+import androidx.compose.foundation.isSystemInDarkTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -26,6 +27,7 @@ fun CacheManagementScreen(
     onBackClick: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val isDarkTheme = isSystemInDarkTheme()
     val cacheManager = remember { MusicCacheManager.getInstance(context) }
     
     // 缓存数据
@@ -77,7 +79,7 @@ fun CacheManagementScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(Color(0xFFFAFAFA))
+                .background(if (isDarkTheme) Color(0xFF121228) else Color(0xFFFAFAFA))
         ) {
             if (cachedItems.isEmpty()) {
                 // 空状态
@@ -90,13 +92,13 @@ fun CacheManagementScreen(
                         text = "暂无缓存",
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Gray
+                        color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "播放音乐后会自动缓存",
                         fontSize = 14.sp,
-                        color = Color.Gray
+                        color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.6f) else Color.Gray
                     )
                 }
             } else {
@@ -110,7 +112,7 @@ fun CacheManagementScreen(
                             .fillMaxWidth()
                             .padding(16.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = Color.White
+                            containerColor = if (isDarkTheme) Color(0xFF252545).copy(alpha = 0.6f) else Color.White
                         ),
                         elevation = CardDefaults.cardElevation(
                             defaultElevation = 2.dp
@@ -128,18 +130,18 @@ fun CacheManagementScreen(
                                         text = "缓存统计",
                                         fontSize = 18.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.Black
+                                        color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
                                         text = "已缓存 $cachedMusicCount 首歌曲",
                                         fontSize = 14.sp,
-                                        color = Color.Gray
+                                        color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                                     )
                                     Text(
                                         text = "占用空间：$cacheSize",
                                         fontSize = 14.sp,
-                                        color = Color.Gray
+                                        color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                                     )
                                 }
                                 Text(
@@ -156,7 +158,7 @@ fun CacheManagementScreen(
                         text = "缓存列表",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Black,
+                        color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                     )
                     
@@ -197,7 +199,7 @@ fun CacheManagementScreen(
                     Text(
                         text = "确定要清空所有缓存吗？",
                         fontSize = 16.sp,
-                        color = Color.Gray
+                        color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
@@ -263,14 +265,14 @@ fun CacheManagementScreen(
                     Text(
                         text = "确定要删除这首歌的缓存吗？",
                         fontSize = 16.sp,
-                        color = Color.Gray
+                        color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = title,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Black
+                        color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black
                     )
                 }
             },
@@ -315,6 +317,7 @@ fun CacheItem(
     onDelete: () -> Unit
 ) {
     var isPressed by remember { mutableStateOf(false) }
+    val isDarkTheme = isSystemInDarkTheme()
     val context = androidx.compose.ui.platform.LocalContext.current
     val cacheManager = remember { com.neko.music.data.cache.MusicCacheManager.getInstance(context) }
     val cachedCover = remember { cacheManager.getCachedCoverFile(musicId.toInt()) }
@@ -327,7 +330,10 @@ fun CacheItem(
                 onDelete()
             },
         colors = CardDefaults.cardColors(
-            containerColor = if (isPressed) Color(0xFFF5F5F5) else Color.White
+            containerColor = if (isPressed) 
+                (if (isDarkTheme) Color(0xFF2A2A4E).copy(alpha = 0.5f) else Color(0xFFF5F5F5))
+            else 
+                (if (isDarkTheme) Color(0xFF252545).copy(alpha = 0.6f) else Color.White)
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = 2.dp
@@ -372,13 +378,13 @@ fun CacheItem(
                     text = title,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color.Black,
+                    color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black,
                     maxLines = 1
                 )
                 Text(
                     text = "ID: $musicId",
                     fontSize = 13.sp,
-                    color = Color.Gray
+                    color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                 )
             }
             
