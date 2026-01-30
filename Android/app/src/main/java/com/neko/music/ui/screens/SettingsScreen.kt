@@ -71,9 +71,9 @@ fun SettingsScreen(
     var showUpdateErrorDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
 
-    // 缓存设置
-    val prefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
-    var isCacheEnabled by remember { mutableStateOf(prefs.getBoolean("cache_enabled", true)) }
+    // 缓存设置 - 使用与 MusicCacheManager 相同的 SharedPreferences
+    val cachePrefs = remember { context.getSharedPreferences("music_cache", Context.MODE_PRIVATE) }
+    var isCacheEnabled by remember { mutableStateOf(cachePrefs.getBoolean("cache_enabled", true)) }
     
     // 缓存管理
     val cacheManager = remember { com.neko.music.data.cache.MusicCacheManager.getInstance(context) }
@@ -251,7 +251,7 @@ fun SettingsScreen(
                         checked = isCacheEnabled,
                         onCheckedChange = { enabled ->
                             isCacheEnabled = enabled
-                            prefs.edit().putBoolean("cache_enabled", enabled).apply()
+                            cachePrefs.edit().putBoolean("cache_enabled", enabled).apply()
                         }
                     )
                     
