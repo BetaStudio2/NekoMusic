@@ -32,10 +32,12 @@ fun AboutScreen(
 ) {
     val context = LocalContext.current
     val view = LocalView.current
+    val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
+    
     SideEffect {
         val window = (view.context as android.app.Activity).window
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+        WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !isDarkTheme
     }
     
     // 获取应用版本信息
@@ -78,7 +80,7 @@ fun AboutScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFFAFAFA))
+            .background(if (isDarkTheme) Color(0xFF121228) else Color(0xFFFAFAFA))
             .statusBarsPadding()
     ) {
         Column(
@@ -136,6 +138,8 @@ fun InfoCard(
     items: List<Pair<String, String>>,
     scale: Float
 ) {
+    val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -144,11 +148,11 @@ fun InfoCard(
             .shadow(
                 elevation = 4.dp,
                 spotColor = RoseRed.copy(alpha = 0.2f),
-                ambientColor = Color.Gray.copy(alpha = 0.1f)
+                ambientColor = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.1f) else Color.Gray.copy(alpha = 0.1f)
             ),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = if (isDarkTheme) Color(0xFF252545).copy(alpha = 0.6f) else Color.White
         )
     ) {
         Column(
@@ -166,14 +170,14 @@ fun InfoCard(
                     text = title,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.Black
+                    color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black
                 )
             }
             
             Spacer(modifier = Modifier.height(16.dp))
             
             Divider(
-                color = Color(0xFFE0E0E0),
+                color = if (isDarkTheme) Color(0xFF2A2A4E).copy(alpha = 0.5f) else Color(0xFFE0E0E0),
                 thickness = 1.dp
             )
             
@@ -189,13 +193,13 @@ fun InfoCard(
                     Text(
                         text = label,
                         fontSize = 15.sp,
-                        color = Color.Gray,
+                        color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray,
                         fontWeight = FontWeight.Medium
                     )
                     Text(
                         text = value,
                         fontSize = 15.sp,
-                        color = Color.Black,
+                        color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -206,6 +210,8 @@ fun InfoCard(
 
 @Composable
 fun TechStackCard(scale: Float) {
+    val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -214,11 +220,11 @@ fun TechStackCard(scale: Float) {
             .shadow(
                 elevation = 4.dp,
                 spotColor = RoseRed.copy(alpha = 0.2f),
-                ambientColor = Color.Gray.copy(alpha = 0.1f)
+                ambientColor = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.1f) else Color.Gray.copy(alpha = 0.1f)
             ),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = if (isDarkTheme) Color(0xFF252545).copy(alpha = 0.6f) else Color.White
         )
     ) {
         Column(
@@ -236,14 +242,14 @@ fun TechStackCard(scale: Float) {
                     text = "技术栈",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.Black
+                    color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black
                 )
             }
             
             Spacer(modifier = Modifier.height(16.dp))
             
             Divider(
-                color = Color(0xFFE0E0E0),
+                color = if (isDarkTheme) Color(0xFF2A2A4E).copy(alpha = 0.5f) else Color(0xFFE0E0E0),
                 thickness = 1.dp
             )
             
@@ -275,14 +281,16 @@ fun TechStackCard(scale: Float) {
 
 @Composable
 fun TechItem(tech: String, desc: String, modifier: Modifier = Modifier) {
+    val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
+    
     Box(
         modifier = modifier
             .padding(horizontal = 4.dp)
             .background(
                 brush = Brush.linearGradient(
                     colors = listOf(
-                        RoseRed.copy(alpha = 0.1f),
-                        SakuraPink.copy(alpha = 0.1f)
+                        RoseRed.copy(alpha = 0.15f),
+                        SakuraPink.copy(alpha = 0.15f)
                     )
                 ),
                 shape = RoundedCornerShape(12.dp)
@@ -303,7 +311,7 @@ fun TechItem(tech: String, desc: String, modifier: Modifier = Modifier) {
             Text(
                 text = desc,
                 fontSize = 12.sp,
-                color = Color.Gray
+                color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
             )
         }
     }
@@ -311,6 +319,8 @@ fun TechItem(tech: String, desc: String, modifier: Modifier = Modifier) {
 
 @Composable
 fun FeatureCard(scale: Float) {
+    val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -319,11 +329,11 @@ fun FeatureCard(scale: Float) {
             .shadow(
                 elevation = 4.dp,
                 spotColor = RoseRed.copy(alpha = 0.2f),
-                ambientColor = Color.Gray.copy(alpha = 0.1f)
+                ambientColor = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.1f) else Color.Gray.copy(alpha = 0.1f)
             ),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = if (isDarkTheme) Color(0xFF252545).copy(alpha = 0.6f) else Color.White
         )
     ) {
         Column(
@@ -341,14 +351,14 @@ fun FeatureCard(scale: Float) {
                     text = "功能特色",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.Black
+                    color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black
                 )
             }
             
             Spacer(modifier = Modifier.height(16.dp))
             
             Divider(
-                color = Color(0xFFE0E0E0),
+                color = if (isDarkTheme) Color(0xFF2A2A4E).copy(alpha = 0.5f) else Color(0xFFE0E0E0),
                 thickness = 1.dp
             )
             
@@ -372,14 +382,14 @@ fun FeatureCard(scale: Float) {
                     Text(
                         text = feature,
                         fontSize = 15.sp,
-                        color = Color.Black,
+                        color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.width(24.dp)
                     )
                     Text(
                         text = desc,
                         fontSize = 14.sp,
-                        color = Color.Gray
+                        color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                     )
                 }
             }
@@ -389,6 +399,8 @@ fun FeatureCard(scale: Float) {
 
 @Composable
 fun CopyrightCard() {
+    val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -396,11 +408,11 @@ fun CopyrightCard() {
             .shadow(
                 elevation = 4.dp,
                 spotColor = RoseRed.copy(alpha = 0.2f),
-                ambientColor = Color.Gray.copy(alpha = 0.1f)
+                ambientColor = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.1f) else Color.Gray.copy(alpha = 0.1f)
             ),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = if (isDarkTheme) Color(0xFF252545).copy(alpha = 0.6f) else Color.White
         )
     ) {
         Column(
@@ -418,13 +430,13 @@ fun CopyrightCard() {
                 text = "版权信息",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.Black
+                color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black
             )
             
             Spacer(modifier = Modifier.height(16.dp))
             
             Divider(
-                color = Color(0xFFE0E0E0),
+                color = if (isDarkTheme) Color(0xFF2A2A4E).copy(alpha = 0.5f) else Color(0xFFE0E0E0),
                 thickness = 1.dp
             )
             
@@ -433,7 +445,7 @@ fun CopyrightCard() {
             Text(
                 text = "蜀ICP备2025177767号-1",
                 fontSize = 14.sp,
-                color = Color.Gray,
+                color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray,
                 textAlign = TextAlign.Center
             )
             
@@ -442,7 +454,7 @@ fun CopyrightCard() {
             Text(
                 text = "如有侵权请联系 support@cnmsb.xin",
                 fontSize = 14.sp,
-                color = Color.Gray,
+                color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray,
                 textAlign = TextAlign.Center
             )
             
@@ -451,7 +463,7 @@ fun CopyrightCard() {
             Text(
                 text = "© 2025-2026 Fantasy Network「梦幻网络」",
                 fontSize = 14.sp,
-                color = Color.Gray,
+                color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray,
                 textAlign = TextAlign.Center,
                 fontWeight = FontWeight.Medium
             )
@@ -461,7 +473,7 @@ fun CopyrightCard() {
             Text(
                 text = "保留所有权利",
                 fontSize = 14.sp,
-                color = Color.Gray,
+                color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray,
                 textAlign = TextAlign.Center
             )
         }
