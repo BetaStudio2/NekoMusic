@@ -1022,12 +1022,14 @@ async function searchArtists(query) {
 
   const data = await response.json();
   if (data.success) {
-    console.log(`搜索到 ${data.total} 个歌手:`, data.results);
-    // data.results 是一个数组，包含匹配的歌手
-    // 每个歌手包含：
-    // - name: 歌手名称
-    // - musicCount: 该歌手的音乐数量
-    // - coverPath: 该歌手第一首音乐的封面 URL
+    const artist = data.artist;
+    console.log(`歌手: ${artist.name}`);
+    console.log(`音乐数量: ${artist.musicCount}`);
+    console.log(`音乐列表:`, artist.musicList);
+    // artist.musicList 是一个数组，包含该歌手的所有音乐
+    // 每首音乐包含：
+    // - id, title, artist, album, duration
+    // - coverPath, filePath, fileFormat, language
   } else {
     console.error('搜索歌手失败:', data.message);
   }
@@ -1327,6 +1329,11 @@ async function changePassword(oldPassword, newPassword) {
    - 获取歌单列表 API 只返回当前用户的歌单，不会混合其他用户的歌单
    - 搜索歌单 API 会返回歌单的第一首音乐封面 URL，方便客户端展示
    - 搜索歌单 API 使用 POST 方式，参数在请求体中传递
+   - 搜索歌手 API 会返回匹配到的第一个歌手及其所有音乐列表
+   - 搜索歌手 API 返回的音乐列表包含完整的音乐信息
+   - 获取歌单列表 API 只返回当前用户的歌单，不会混合其他用户的歌单
+   - 搜索歌单 API 会返回歌单的第一首音乐封面 URL，方便客户端展示
+   - 搜索歌单 API 使用 POST 方式，参数在请求体中传递
 
 ---
 
@@ -1355,54 +1362,70 @@ Content-Type: application/json
 {
   "success": true,
   "message": "搜索成功",
-  "total": 3,
-  "results": [
-    {
-      "name": "周杰伦",
-      "musicCount": 50,
-      "coverPath": "/path/to/cover.jpg"
-    },
-    {
-      "name": "周深",
-      "musicCount": 30,
-      "coverPath": "/path/to/cover2.jpg"
-    },
-    {
-      "name": "周华健",
-      "musicCount": 20,
-      "coverPath": "/api/music/cover/"
-    }
-  ]
+  "artist": {
+    "name": "周杰伦",
+    "musicCount": 50,
+    "musicList": [
+      {
+        "id": 1,
+        "title": "七里香",
+        "artist": "周杰伦",
+        "album": "七里香",
+        "duration": 298,
+        "coverPath": "/path/to/cover1.jpg",
+        "filePath": "/path/to/music1.mp3",
+        "fileFormat": "mp3",
+        "language": "中文"
+      },
+      {
+        "id": 2,
+        "title": "晴天",
+        "artist": "周杰伦",
+        "album": "叶惠美",
+        "duration": 269,
+        "coverPath": "/path/to/cover2.jpg",
+        "filePath": "/path/to/music2.mp3",
+        "fileFormat": "mp3",
+        "language": "中文"
+      }
+    ]
+  }
 }
 ```
 
-**响应示例（失败）:**
+**响应示例（未找到歌手）:**
 ```json
 {
-  "success": false,
-  "message": "缺少搜索关键词"
+  "success": true,
+  "message": "搜索成功",
+  "artist": {
+    "name": "",
+    "musicCount": 0,
+    "musicList": []
+  }
 }
 ```
 
 **说明:**
 - 此 API **无需登录**即可访问
-- 搜索关键词会匹配歌手名称
-- 返回结果按音乐数量降序排列（音乐最多的歌手排在前面）
-- 每个结果包含：
+- 搜索关键词会匹配歌手名称（模糊匹配）
+- 返回匹配到的**第一个**歌手及其所有音乐
+- 返回结果包含：
   - 歌手名称（name）
   - 该歌手的音乐数量（musicCount）
-  - 该歌手第一首音乐的封面 URL（coverPath）
-  - 如果歌手没有音乐或封面不存在，coverPath 为空或默认封面
+  - 该歌手的所有音乐列表（musicList），包含完整的音乐信息
+- 如果没有找到匹配的歌手，返回空的歌手信息和空的音乐列表
 
 **注意事项:**
 - 搜索关键词不能为空
 - 搜索是模糊匹配，使用 `LIKE %keyword%`
 - 使用 POST 方式，参数在请求体中传递
-- 返回的歌手列表会自动去重，每个歌手只出现一次
+- 只返回匹配到的第一个歌手（音乐数量最多的歌手）
+- 返回的音乐列表包含完整的音乐信息，包括封面、文件路径等
 
 **使用场景:**
 - 用户搜索歌手以查看该歌手的所有音乐
-- 展示热门歌手列表
+- 展示歌手的音乐作品集
 - 音乐分类浏览
 
 ---

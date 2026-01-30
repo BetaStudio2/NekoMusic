@@ -64,21 +64,15 @@ public class SearchArtistsHandler extends HttpServlet {
             }
 
             // 搜索歌手
-            List<JsonObject> artists = searchArtists(query);
+            JsonObject artistResult = searchArtists(query);
 
-            logger.info("搜索到 {} 个歌手: query={}", artists.size(), query);
+            logger.info("搜索歌手结果: query={}", query);
 
             JsonObject response = new JsonObject();
             response.addProperty("success", true);
             response.addProperty("message", "搜索成功");
-            response.addProperty("total", artists.size());
 
-            JsonArray artistsArray = new JsonArray();
-            for (JsonObject artist : artists) {
-                artistsArray.add(artist);
-            }
-
-            response.add("results", artistsArray);
+            response.add("artist", artistResult);
 
             sendSuccessResponse(resp, response);
         } catch (Exception e) {
@@ -90,37 +84,94 @@ public class SearchArtistsHandler extends HttpServlet {
     /**
      * 搜索歌手
      */
-    private List<JsonObject> searchArtists(String query) {
-        List<JsonObject> artists = new ArrayList<>();
+    private JsonObject searchArtists(String query) {
+        JsonObject result = new JsonObject();
         
-        // SQL 查询：从 music 表中搜索 artist 字段，并统计每个歌手的音乐数量
-        String sql = "SELECT artist, COUNT(*) as music_count, " +
-                     "(SELECT cover_path FROM music m2 WHERE m2.artist = m1.artist LIMIT 1) as cover_path " +
-                     "FROM music m1 " +
-                     "WHERE artist LIKE ? " +
-                     "GROUP BY artist " +
-                     "ORDER BY music_count DESC";
+        // 首先获取匹配的歌手列表
+        List<JsonObject> artists = new ArrayList<>();
+        String artistQuerySql = "SELECT artist, COUNT(*) as music_count " +
+                               "FROM music " +
+                               "WHERE artist LIKE ? " +
+                               "GROUP BY artist " +
+                               "ORDER BY music_count DESC " +
+                               "LIMIT 1";
+
+        String foundArtist = null;
 
         try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+             PreparedStatement stmt = conn.prepareStatement(artistQuerySql)) {
 
             stmt.setString(1, "%" + query + "%");
             ResultSet rs = stmt.executeQuery();
 
-            while (rs.next()) {
-                JsonObject artist = new JsonObject();
-                artist.addProperty("name", rs.getString("artist"));
-                artist.addProperty("musicCount", rs.getInt("music_count"));
-                artist.addProperty("coverPath", rs.getString("cover_path"));
-                artists.add(artist);
+            if (rs.next()) {
+                foundArtist = rs.getString("artist");
+                artists.add(new JsonObject());
+                artists.get(0).addProperty("name", foundArtist);
+                artists.get(0).addProperty("musicCount", rs.getInt("music_count"));
             }
 
-            logger.info("搜索歌手成功: query={}, count={}", query, artists.size());
+            logger.info("搜索歌手成功: query={}, artist={}", query, foundArtist);
         } catch (Exception e) {
             logger.error("搜索歌手失败: {}", e.getMessage(), e);
+            // 返回空结果
+            result.addProperty("name", "");
+            result.addProperty("musicCount", 0);
+            result.add("musicList", new JsonArray());
+            return result;
         }
 
-        return artists;
+        // 如果没有找到歌手，返回空结果
+        if (foundArtist == null) {
+            result.addProperty("name", "");
+            result.addProperty("musicCount", 0);
+            result.add("musicList", new JsonArray());
+            return result;
+        }
+
+        // 获取该歌手的所有音乐
+        List<JsonObject> musicList = new ArrayList<>();
+        String musicSql = "SELECT id, title, artist, album, duration, cover_path, file_path, file_format, language " +
+                         "FROM music " +
+                         "WHERE artist = ? " +
+                         "ORDER BY id";
+
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(musicSql)) {
+
+            stmt.setString(1, foundArtist);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                JsonObject music = new JsonObject();
+                music.addProperty("id", rs.getInt("id"));
+                music.addProperty("title", rs.getString("title"));
+                music.addProperty("artist", rs.getString("artist"));
+                music.addProperty("album", rs.getString("album"));
+                music.addProperty("duration", rs.getInt("duration"));
+                music.addProperty("coverPath", rs.getString("cover_path"));
+                music.addProperty("filePath", rs.getString("file_path"));
+                music.addProperty("fileFormat", rs.getString("file_format"));
+                music.addProperty("language", rs.getString("language"));
+                musicList.add(music);
+            }
+
+            logger.info("获取歌手音乐成功: artist={}, count={}", foundArtist, musicList.size());
+        } catch (Exception e) {
+            logger.error("获取歌手音乐失败: {}", e.getMessage(), e);
+        }
+
+        // 构建返回结果
+        result.addProperty("name", foundArtist);
+        result.addProperty("musicCount", artists.get(0).get("musicCount").getAsInt());
+        
+        JsonArray musicArray = new JsonArray();
+        for (JsonObject music : musicList) {
+            musicArray.add(music);
+        }
+        result.add("musicList", musicArray);
+
+        return result;
     }
 
     /**
