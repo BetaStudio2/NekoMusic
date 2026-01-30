@@ -29,6 +29,10 @@ import io.ktor.client.request.headers
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 @Composable
 fun ArtistDetailScreen(
@@ -69,48 +73,97 @@ fun ArtistDetailScreen(
                 val responseText = response.body<String>()
                 Log.d("ArtistDetailScreen", "歌手详情响应: $responseText")
                 
-                // 解析音乐列表
-                val musicListRegex = """"musicList":\s*\[(.*?)\]""".toRegex()
-                val match = musicListRegex.find(responseText)
-                
-                if (match != null) {
-                    val musicListJson = match.groupValues[1]
-                    val musics = mutableListOf<Music>()
+                // 解析 JSON 响应
+                try {
+                    val jsonObject = kotlinx.serialization.json.Json.parseToJsonElement(responseText)
+                    val artistObj = jsonObject.jsonObject["artist"]?.jsonObject
+                    val musicListArray = artistObj?.get("musicList")?.jsonArray
                     
-                    // 匹配音乐信息
-                    val musicRegex = """"id":\s*(\d+),\s*"title":\s*"([^"]*)",\s*"artist":\s*"([^"]*)",\s*"album":\s*"([^"]*)",\s*"duration":\s*(\d+),\s*"coverPath":\s*"([^"]*)",\s*"filePath":\s*"([^"]*)",\s*"fileFormat":\s*"([^"]*)",\s*"language":\s*"([^"]*)"""".toRegex()
-                    musicRegex.findAll(musicListJson).forEach { matchResult ->
-                        val id = matchResult.groupValues[1].toIntOrNull() ?: 0
-                        val title = matchResult.groupValues[2]
-                        val artist = matchResult.groupValues[3]
-                        val album = matchResult.groupValues[4]
-                        val duration = matchResult.groupValues[5].toIntOrNull() ?: 0
-                        val coverPath = matchResult.groupValues[6]
-                        val filePath = matchResult.groupValues[7]
-                        val fileFormat = matchResult.groupValues[8]
-                        val language = matchResult.groupValues[9]
+                    if (musicListArray != null) {
+                        val musics = mutableListOf<Music>()
                         
-                        musics.add(
-                            Music(
-                                id = id,
-                                title = title,
-                                artist = artist,
-                                album = album,
-                                duration = duration,
-                                filePath = "https://music.cnmsb.xin$filePath",
-                                coverFilePath = if (coverPath.isNotEmpty()) "https://music.cnmsb.xin$coverPath" else null,
-                                uploadUserId = 0,
-                                createdAt = ""
+                        musicListArray.forEach { element ->
+                            val musicJson = element.jsonObject
+                            val id = musicJson["id"]?.jsonPrimitive?.int ?: 0
+                            val title = musicJson["title"]?.jsonPrimitive?.content ?: ""
+                            val artist = musicJson["artist"]?.jsonPrimitive?.content ?: ""
+                            val album = musicJson["album"]?.jsonPrimitive?.content ?: ""
+                            val duration = musicJson["duration"]?.jsonPrimitive?.int ?: 0
+                            val coverPath = musicJson["coverPath"]?.jsonPrimitive?.content ?: ""
+                            val filePath = musicJson["filePath"]?.jsonPrimitive?.content ?: ""
+                            val fileFormat = musicJson["fileFormat"]?.jsonPrimitive?.content ?: ""
+                            val language = musicJson["language"]?.jsonPrimitive?.content ?: ""
+                            
+                            musics.add(
+                                Music(
+                                    id = id,
+                                    title = title,
+                                    artist = artist,
+                                    album = album,
+                                    duration = duration,
+                                    filePath = "https://music.cnmsb.xin/api/music/file/$id",
+                                    coverFilePath = "https://music.cnmsb.xin/api/music/cover/$id",
+                                    uploadUserId = 0,
+                                    createdAt = ""
+                                )
                             )
-                        )
+                        }
+                        
+                        musicList = musics
+                        isLoading = false
+                        Log.d("ArtistDetailScreen", "加载到 ${musics.size} 首歌曲")
+                        musics.forEach { music ->
+                            Log.d("ArtistDetailScreen", "音乐: ${music.title}, 路径: ${music.filePath}, 封面: ${music.coverFilePath}")
+                        }
+                    } else {
+                        isLoading = false
+                        errorMessage = "未找到音乐"
                     }
+                } catch (e: Exception) {
+                    Log.e("ArtistDetailScreen", "JSON解析失败", e)
+                    // 降级到正则表达式解析
+                    val musicListRegex = """"musicList":\s*\[([^\]]*)\]""".toRegex()
+                    val match = musicListRegex.find(responseText)
                     
-                    musicList = musics
-                    isLoading = false
-                    Log.d("ArtistDetailScreen", "加载到 ${musics.size} 首歌曲")
-                } else {
-                    isLoading = false
-                    errorMessage = "未找到音乐"
+                    if (match != null) {
+                        val musicListJson = match.groupValues[1]
+                        val musics = mutableListOf<Music>()
+                        
+                        // 匹配音乐信息
+                        val musicRegex = """"id":\s*(\d+),\s*"title":\s*"([^"]*)",\s*"artist":\s*"([^"]*)",\s*"album":\s*"([^"]*)",\s*"duration":\s*(\d+),\s*"coverPath":\s*"([^"]*)",\s*"filePath":\s*"([^"]*)",\s*"fileFormat":\s*"([^"]*)",\s*"language":\s*"([^"]*)"""".toRegex()
+                        musicRegex.findAll(musicListJson).forEach { matchResult ->
+                            val id = matchResult.groupValues[1].toIntOrNull() ?: 0
+                            val title = matchResult.groupValues[2]
+                            val artist = matchResult.groupValues[3]
+                            val album = matchResult.groupValues[4]
+                            val duration = matchResult.groupValues[5].toIntOrNull() ?: 0
+                            val coverPath = matchResult.groupValues[6]
+                            val filePath = matchResult.groupValues[7]
+                            val fileFormat = matchResult.groupValues[8]
+                            val language = matchResult.groupValues[9]
+                            
+                            musics.add(
+                                Music(
+                                    id = id,
+                                    title = title,
+                                    artist = artist,
+                                    album = album,
+                                    duration = duration,
+                                    filePath = "https://music.cnmsb.xin/api/music/file/$id",
+                                    coverFilePath = "https://music.cnmsb.xin/api/music/cover/$id",
+                                    uploadUserId = 0,
+                                    createdAt = ""
+                                )
+                            )
+                        }
+                        
+                        musicList = musics
+                        isLoading = false
+                        Log.d("ArtistDetailScreen", "加载到 ${musics.size} 首歌曲（正则解析）")
+                    } else {
+                        isLoading = false
+                        errorMessage = "未找到音乐"
+                    }
                 }
             } catch (e: Exception) {
                 Log.e("ArtistDetailScreen", "加载歌手音乐失败", e)
@@ -304,11 +357,7 @@ fun ArtistMusicItem(
     music: Music,
     onClick: () -> Unit
 ) {
-    var coverUrl by remember { mutableStateOf<String?>(null) }
-    
-    LaunchedEffect(music.id) {
-        coverUrl = "https://music.cnmsb.xin/api/music/cover/${music.id}"
-    }
+    val coverUrl = music.coverFilePath?.takeIf { it.isNotEmpty() }
     
     Row(
         modifier = Modifier
