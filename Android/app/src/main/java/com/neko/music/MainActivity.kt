@@ -259,7 +259,63 @@ fun MainScreen() {
         NavHost(
             navController = navController,
             startDestination = BottomNavItem.Home.route,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            enterTransition = {
+                androidx.compose.animation.scaleIn(
+                    initialScale = 0.95f,
+                    animationSpec = tween(
+                        durationMillis = 280,
+                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                    )
+                ) + fadeIn(
+                    animationSpec = tween(
+                        durationMillis = 280,
+                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                    )
+                )
+            },
+            exitTransition = {
+                androidx.compose.animation.scaleOut(
+                    targetScale = 1.05f,
+                    animationSpec = tween(
+                        durationMillis = 240,
+                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                    )
+                ) + fadeOut(
+                    animationSpec = tween(
+                        durationMillis = 240,
+                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                    )
+                )
+            },
+            popEnterTransition = {
+                androidx.compose.animation.scaleIn(
+                    initialScale = 1.05f,
+                    animationSpec = tween(
+                        durationMillis = 240,
+                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                    )
+                ) + fadeIn(
+                    animationSpec = tween(
+                        durationMillis = 240,
+                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                    )
+                )
+            },
+            popExitTransition = {
+                androidx.compose.animation.scaleOut(
+                    targetScale = 0.95f,
+                    animationSpec = tween(
+                        durationMillis = 280,
+                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                    )
+                ) + fadeOut(
+                    animationSpec = tween(
+                        durationMillis = 280,
+                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                    )
+                )
+            }
         ) {
             composable(BottomNavItem.Home.route) {
                 HomeScreen(
