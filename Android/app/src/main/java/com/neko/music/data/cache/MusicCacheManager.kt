@@ -82,7 +82,9 @@ class MusicCacheManager private constructor(private val context: Context) {
             return null
         }
 
-        val fileName = "music_$musicId.mp3"
+        // 从 SharedPreferences 获取该音乐的扩展名
+        val extension = prefs.getString("music_${musicId}_ext", "mp3") ?: "mp3"
+        val fileName = "music_$musicId.$extension"
         val file = File(musicDir, fileName)
 
         // 检查文件是否存在且大小合理（至少 1KB）
@@ -121,34 +123,33 @@ class MusicCacheManager private constructor(private val context: Context) {
             return@withContext Result.failure(Exception("缓存未启用"))
         }
 
-        val fileName = "music_$musicId.mp3"
-        val file = File(musicDir, fileName)
-
         try {
             // 标记正在缓存
             prefs.edit()
                 .putBoolean("music_${musicId}_caching", true)
                 .apply()
 
-            // 下载文件
-            downloadFile(url, file)
+            // 下载文件并获取扩展名
+            val (extension, file) = downloadFileWithExtension(url, musicId)
 
             // 记录缓存信息
             prefs.edit()
                 .putLong("music_${musicId}_time", System.currentTimeMillis())
                 .putLong("music_${musicId}_size", file.length())
                 .putString("music_${musicId}_title", title)
+                .putString("music_${musicId}_ext", extension)
                 .putBoolean("music_${musicId}_caching", false)
                 .apply()
 
-            Log.d(TAG, "音乐文件缓存成功: $musicId")
+            Log.d(TAG, "音乐文件缓存成功: $musicId ($extension)")
             Result.success(file)
         } catch (e: Exception) {
             // 缓存失败，移除标记并删除不完整的文件
             prefs.edit()
                 .putBoolean("music_${musicId}_caching", false)
                 .apply()
-            file.delete()
+            // 删除可能存在的不完整文件
+            musicDir.listFiles()?.filter { it.name.startsWith("music_$musicId.") }?.forEach { it.delete() }
             Log.e(TAG, "缓存音乐文件失败: $musicId", e)
             Result.failure(e)
         }
@@ -242,6 +243,8 @@ class MusicCacheManager private constructor(private val context: Context) {
                 .remove("music_${musicId}_time")
                 .remove("music_${musicId}_size")
                 .remove("music_${musicId}_title")
+                .remove("music_${musicId}_ext")
+                .remove("music_${musicId}_caching")
                 .remove("cover_${musicId}_time")
                 .remove("cover_${musicId}_size")
                 .remove("lyrics_${musicId}_time")
@@ -340,6 +343,54 @@ class MusicCacheManager private constructor(private val context: Context) {
         connection.inputStream.use { input ->
             FileOutputStream(outputFile).use { output ->
                 input.copyTo(output)
+            }
+        }
+    }
+
+    /**
+     * 下载文件并从 Content-Type 获取扩展名
+     */
+    private fun downloadFileWithExtension(urlString: String, musicId: Int): Pair<String, File> {
+        val url = URL(urlString)
+        val connection = url.openConnection() as HttpURLConnection
+        connection.connectTimeout = 30000
+        connection.readTimeout = 30000
+        connection.requestMethod = "GET"
+
+        // 从 Content-Type 获取文件格式
+        val contentType = connection.contentType ?: "audio/mpeg"
+        val extension = mapContentTypeToExtension(contentType)
+        
+        Log.d(TAG, "Content-Type: $contentType, 扩展名: $extension")
+
+        // 创建具有正确扩展名的文件
+        val file = File(musicDir, "music_$musicId.$extension")
+
+        connection.inputStream.use { input ->
+            FileOutputStream(file).use { output ->
+                input.copyTo(output)
+            }
+        }
+
+        return Pair(extension, file)
+    }
+
+    /**
+     * 将 Content-Type 映射到文件扩展名
+     */
+    private fun mapContentTypeToExtension(contentType: String): String {
+        return when {
+            contentType.contains("flac") -> "flac"
+            contentType.contains("wav") -> "wav"
+            contentType.contains("ogg") -> "ogg"
+            contentType.contains("aac") -> "aac"
+            contentType.contains("m4a") || contentType.contains("mp4") -> "m4a"
+            contentType.contains("wma") -> "wma"
+            contentType.contains("ape") -> "ape"
+            contentType.contains("mpeg") || contentType.contains("mp3") -> "mp3"
+            else -> {
+                Log.w(TAG, "未知的 Content-Type: $contentType，使用 mp3")
+                "mp3"
             }
         }
     }
