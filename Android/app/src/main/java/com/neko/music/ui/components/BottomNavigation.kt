@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -73,22 +74,34 @@ fun BottomNavigationBar(
         )
     )
 
+    // 获取当前主题的背景色
+    val isDarkTheme = androidx.compose.material3.MaterialTheme.colorScheme.background.luminance() < 0.5f
+
     Box(
         modifier = modifier.fillMaxWidth()
     ) {
-        // 背景层：渐变背景
+        // 背景层：渐变背景（根据主题切换）
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            Color.White.copy(alpha = 0.95f),
-                            Color.White.copy(alpha = 0.88f)
+                    brush = if (isDarkTheme) {
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0xFF1A1A2E).copy(alpha = 0.85f),
+                                Color(0xFF16213E).copy(alpha = 0.75f)
+                            )
                         )
-                    )
+                    } else {
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.95f),
+                                Color.White.copy(alpha = 0.88f)
+                            )
+                        )
+                    }
                 )
         )
 
@@ -102,7 +115,11 @@ fun BottomNavigationBar(
                     brush = Brush.horizontalGradient(
                         colors = listOf(
                             Color.Transparent,
-                            Color.White.copy(alpha = 0.6f),
+                            if (isDarkTheme) {
+                                Color(0xFF2A2A4E).copy(alpha = 0.5f)
+                            } else {
+                                Color.White.copy(alpha = 0.6f)
+                            },
                             Color.Transparent
                         )
                     )
@@ -174,7 +191,11 @@ fun BottomNavigationBar(
                             text = item.title,
                             fontSize = 15.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) RoseRed else Color.Gray,
+                            color = if (isSelected) {
+                                RoseRed
+                            } else {
+                                if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.9f) else Color.Gray
+                            },
                             modifier = Modifier.scale(scaleValue)
                         )
                     }
@@ -215,6 +236,9 @@ fun MiniPlayer(
         )
     )
 
+    // 获取当前主题的背景色
+    val isDarkTheme = androidx.compose.material3.MaterialTheme.colorScheme.background.luminance() < 0.5f
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -226,17 +250,26 @@ fun MiniPlayer(
                 .height(68.dp)
                 .clip(RoundedCornerShape(24.dp))
         ) {
-            // 渐变背景
+            // 渐变背景（根据主题切换）
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.92f),
-                                Color.White.copy(alpha = 0.85f)
+                        brush = if (isDarkTheme) {
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFF1A1A2E).copy(alpha = 0.82f),
+                                    Color(0xFF16213E).copy(alpha = 0.72f)
+                                )
                             )
-                        )
+                        } else {
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.92f),
+                                    Color.White.copy(alpha = 0.85f)
+                                )
+                            )
+                        }
                     )
             )
 
@@ -249,7 +282,11 @@ fun MiniPlayer(
                         brush = Brush.horizontalGradient(
                             colors = listOf(
                                 Color.Transparent,
-                                Color.White.copy(alpha = 0.7f),
+                                if (isDarkTheme) {
+                                    Color(0xFF2A2A4E).copy(alpha = 0.6f)
+                                } else {
+                                    Color.White.copy(alpha = 0.7f)
+                                },
                                 Color.Transparent
                             )
                         )
@@ -328,14 +365,14 @@ fun MiniPlayer(
                                 text = songTitle.ifEmpty { "暂无播放" },
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.Black,
+                                color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = artist.ifEmpty { "点击播放音乐" },
                                 fontSize = 13.sp,
-                                color = Color.Gray,
+                                color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.85f) else Color.Gray,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -362,7 +399,7 @@ fun MiniPlayer(
 
                                 // 背景圆环
                                 drawCircle(
-                                    color = Color(0xFFE8E8E8),
+                                    color = if (isDarkTheme) Color(0xFF353558).copy(alpha = 0.6f) else Color(0xFFE8E8E8),
                                     radius = radius,
                                     center = center,
                                     style = Stroke(
@@ -426,14 +463,14 @@ fun MiniPlayer(
                             modifier = Modifier
                                 .size(42.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFFF3F3F3))
+                                .background(if (isDarkTheme) Color(0xFF252545).copy(alpha = 0.7f) else Color(0xFFF3F3F3))
                                 .clickable(onClick = onPlaylistClick),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 painter = painterResource(R.drawable.playlist),
                                 contentDescription = "Playlist",
-                                tint = Color.Gray,
+                                tint = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.9f) else Color.Gray,
                                 modifier = Modifier.size(22.dp)
                             )
                         }
