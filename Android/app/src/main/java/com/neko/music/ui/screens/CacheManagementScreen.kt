@@ -147,9 +147,10 @@ fun CacheManagementScreen(
                                         color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                                     )
                                 }
-                                Text(
-                                    text = "📦",
-                                    fontSize = 48.sp
+                                Image(
+                                    painter = painterResource(R.drawable.music),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp)
                                 )
                             }
                         }

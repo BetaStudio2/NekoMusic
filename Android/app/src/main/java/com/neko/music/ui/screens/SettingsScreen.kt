@@ -508,7 +508,7 @@ fun SettingsDownloadProgressDialog(
         onDismissRequest = { },
         title = {
             Text(
-                text = "⏳ 正在下载更新",
+                text = "正在下载更新",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = RoseRed

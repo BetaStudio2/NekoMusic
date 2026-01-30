@@ -252,11 +252,8 @@ fun HomeScreen(
                     }
                 }
                 
-                // 欢迎横幅
+                // 顶部横幅
                 WelcomeBanner()
-                
-                // 推荐歌单
-                RecommendedPlaylists()
                 
                 Spacer(modifier = Modifier.height(80.dp))
             }
@@ -459,71 +456,6 @@ fun WelcomeBanner() {
 }
 
 @Composable
-fun QuickAccessSection(
-    onNavigateToFavorite: () -> Unit
-) {
-    val toastMessage = remember { androidx.compose.runtime.mutableStateOf("") }
-    val showToast = remember { androidx.compose.runtime.mutableStateOf(false) }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp)
-    ) {
-        Text(
-            text = "快速访问",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black,
-            letterSpacing = 0.3.sp
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            QuickAccessItem(
-                icon = R.drawable.music,
-                label = "我的音乐",
-                gradientColors = listOf(RoseRed.copy(alpha = 0.12f), SakuraPink.copy(alpha = 0.12f)),
-                onClick = {
-                    toastMessage.value = "暂未实现"
-                    showToast.value = true
-                }
-            )
-            QuickAccessItem(
-                icon = R.drawable.ic_favorite_filled,
-                label = "我喜欢",
-                gradientColors = listOf(Peach.copy(alpha = 0.15f), RoseRed.copy(alpha = 0.15f)),
-                onClick = {
-                    onNavigateToFavorite()
-                }
-            )
-            QuickAccessItem(
-                icon = R.drawable.recently_played,
-                label = "电台",
-                gradientColors = listOf(SkyBlue.copy(alpha = 0.12f), Lilac.copy(alpha = 0.12f)),
-                onClick = {
-                    toastMessage.value = "暂未实现"
-                    showToast.value = true
-                }
-            )
-            QuickAccessItem(
-                icon = R.drawable.ic_mine,
-                label = "歌手",
-                gradientColors = listOf(Color(0xFF6B5B95).copy(alpha = 0.12f), RoseRed.copy(alpha = 0.12f)),
-                onClick = {
-                    toastMessage.value = "暂未实现"
-                    showToast.value = true
-                }
-            )
-        }
-    }
-}
-
-@Composable
 fun QuickAccessItem(
     icon: Int,
     label: String,
@@ -581,122 +513,7 @@ fun QuickAccessItem(
     }
 }
 
-@Composable
-fun RecommendedPlaylists() {
-    // 已移除
-}
-
-@Composable
-fun PlaylistCard(genre: String) {
-    var isPressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.97f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        )
-    )
-
-    val gradientColors = when (genre) {
-        "流行" -> listOf(RoseRed, SakuraPink)
-        "摇滚" -> listOf(Color(0xFF6B5B95), RoseRed)
-        "古典" -> listOf(Lilac, Peach)
-        "电子" -> listOf(SkyBlue, Lilac)
-        "爵士" -> listOf(Peach, RoseRed)
-        else -> listOf(RoseRed, SakuraPink)
-    }
-
-    Box(
-        modifier = Modifier
-            .width(150.dp)
-            .height(200.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        gradientColors[0].copy(alpha = 0.85f),
-                        gradientColors[1].copy(alpha = 0.75f),
-                        Color.White.copy(alpha = 0.95f)
-                    )
-                )
-            )
-            .scale(scale)
-            .shadow(
-                elevation = 8.dp,
-                spotColor = RoseRed.copy(alpha = 0.3f),
-                ambientColor = Color.Gray.copy(alpha = 0.15f)
-            )
-            .clickable {
-                isPressed = true
-                // 暂未实现
-            }
-    ) {
-        // 顶部高光
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(2.dp)
-                .background(
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.White.copy(alpha = 0.6f),
-                            Color.Transparent
-                        )
-                    )
-                )
-        )
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            // 图标背景
-            Box(
-                modifier = Modifier
-                    .size(70.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.4f),
-                                Color.White.copy(alpha = 0.2f)
-                            )
-                        )
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = null,
-                    tint = gradientColors[0],
-                    modifier = Modifier.size(40.dp)
-                )
-
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = genre,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black,
-                letterSpacing = 0.5.sp
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "100+ 首歌曲",
-                fontSize = 13.sp,
-                color = Color.Gray.copy(alpha = 0.8f),
-                fontWeight = FontWeight.Medium
-            )
-        }
-    }
-}
-
-// 对话框组件优化
+// 更新提示组件
 @Composable
 fun UpdateDialog(
     versionName: String,
@@ -738,9 +555,10 @@ fun UpdateDialog(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "🎉",
-                        fontSize = 36.sp
+                    Image(
+                        painter = painterResource(R.drawable.update),
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp)
                     )
                 }
 
@@ -850,9 +668,10 @@ fun DownloadProgressDialog(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "⏳",
-                        fontSize = 36.sp
+                    Image(
+                        painter = painterResource(R.drawable.download),
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp)
                     )
                 }
 

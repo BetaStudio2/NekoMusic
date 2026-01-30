@@ -175,19 +175,7 @@ fun AccountInfoScreen(
                         contentDescription = "用户头像",
                         modifier = Modifier.fillMaxSize()
                     )
-                    
-                    // 相机图标
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.3f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "📷",
-                            fontSize = 32.sp
-                        )
-                    }
+
                 }
             }
             
