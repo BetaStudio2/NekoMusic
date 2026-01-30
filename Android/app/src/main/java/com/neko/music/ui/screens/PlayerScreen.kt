@@ -1299,7 +1299,9 @@ fun ProgressSlider(
                         .background(RoseRed, CircleShape)
                         .clickable(
                             enabled = !isLoading && musicFileUrl != null,
-                            onClick = onPlayPauseClick
+                            onClick = onPlayPauseClick,
+                            indication = null,
+                            interactionSource = androidx.compose.foundation.interaction.MutableInteractionSource()
                         ),
                     contentAlignment = Alignment.Center
                 ) {
