@@ -710,6 +710,14 @@ class MusicPlayerManager private constructor(context: Context) {
             _currentMusicCover.value = fullCoverUrl ?: cover
             coverBitmap = null
 
+            // 优先使用缓存文件
+            val cacheManager = com.neko.music.data.cache.MusicCacheManager.getInstance(context)
+            val playUrl = if (id != null) {
+                cacheManager.getCachedMusicFile(id)?.absolutePath ?: url
+            } else {
+                url
+            }
+
             // 先停止当前播放，避免状态冲突
             try {
                 player.stop()
@@ -720,7 +728,7 @@ class MusicPlayerManager private constructor(context: Context) {
 
             // 立即执行 ExoPlayer 操作（同步）
             try {
-                val mediaItem = MediaItem.fromUri(url)
+                val mediaItem = MediaItem.fromUri(playUrl)
                 player.setMediaItem(mediaItem)
                 player.prepare()
             } catch (e: Exception) {
@@ -756,9 +764,35 @@ class MusicPlayerManager private constructor(context: Context) {
                     // 更新addedAt时间，标记为最近播放
                     playlistManager.updateAddedAt(id)
 
-                    // 更新缓存中的音乐标题
+                    // 缓存管理
                     val cacheManager = com.neko.music.data.cache.MusicCacheManager.getInstance(context)
-                    cacheManager.updateMusicTitle(id, title)
+                    
+                    // 检查是否已缓存，如果没有则开始缓存
+                    if (cacheManager.getCachedMusicFile(id) == null) {
+                        cacheManager.cacheMusicFile(id, url, title)
+                            .onSuccess { 
+                                Log.d("MusicPlayerManager", "音乐缓存成功: $title")
+                            }
+                            .onFailure { e ->
+                                Log.e("MusicPlayerManager", "音乐缓存失败: $title", e)
+                            }
+                    } else {
+                        // 更新缓存中的音乐标题
+                        cacheManager.updateMusicTitle(id, title)
+                    }
+
+                    // 缓存封面
+                    if (fullCoverUrl != null && fullCoverUrl.isNotEmpty()) {
+                        if (cacheManager.getCachedCoverFile(id) == null) {
+                            cacheManager.cacheCover(id, fullCoverUrl)
+                                .onSuccess {
+                                    Log.d("MusicPlayerManager", "封面缓存成功: $title")
+                                }
+                                .onFailure { e ->
+                                    Log.e("MusicPlayerManager", "封面缓存失败: $title", e)
+                                }
+                        }
+                    }
 
                     // 添加到最近播放列表
                     val recentPlayManager = com.neko.music.data.manager.RecentPlayManager(context)
