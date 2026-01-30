@@ -834,7 +834,11 @@ fun SearchTypeButton(
                 color = if (isSelected) RoseRed else Color(0xFFF5F5F5),
                 shape = RoundedCornerShape(18.dp)
             )
-            .clickable(onClick = onClick)
+            .clickable(
+                onClick = onClick,
+                indication = null,
+                interactionSource = androidx.compose.foundation.interaction.MutableInteractionSource()
+            )
             .padding(horizontal = 20.dp, vertical = 0.dp),
         contentAlignment = Alignment.Center
     ) {
