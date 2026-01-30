@@ -167,32 +167,53 @@ const downloadMusic = async (result) => {
     // 使用fetch API获取音乐文件
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/file/${result.id}`);
     const blob = await response.blob();
-    
+
+    // 从 Content-Type 响应头中提取正确的文件扩展名
+    const contentType = response.headers.get('Content-Type') || 'audio/mpeg';
+    const extension = mapContentTypeToExtension(contentType);
+
     // 创建下载链接
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = result.filename || `${result.title}.mp3`;
-    
+    link.download = result.filename || `${result.title}.${extension}`;
+
     // 添加到DOM，点击并移除
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
+
     // 释放URL对象
     window.URL.revokeObjectURL(url);
   } catch (error) {
     console.error('下载音乐失败:', error);
-    
+
     // 如果fetch方法失败，回退到直接链接方法
     const link = document.createElement('a');
     link.href = `${API_CONFIG.BASE_URL}/api/music/file/${result.id}`;
-    link.download = result.filename || `${result.title}.mp3`;
+    // 回退时尝试使用 fileFormat，如果没有则默认 mp3
+    const extension = result.fileFormat || 'mp3';
+    link.download = result.filename || `${result.title}.${extension}`;
     link.target = '_blank'; // 在新标签页中打开，而不是当前页面
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   }
+}
+
+// 将 Content-Type 映射到文件扩展名
+const mapContentTypeToExtension = (contentType) => {
+  const type = contentType.toLowerCase();
+  if (type.includes('flac')) return 'flac';
+  if (type.includes('wav')) return 'wav';
+  if (type.includes('ogg')) return 'ogg';
+  if (type.includes('aac')) return 'aac';
+  if (type.includes('m4a') || type.includes('mp4')) return 'm4a';
+  if (type.includes('wma')) return 'wma';
+  if (type.includes('ape')) return 'ape';
+  if (type.includes('mpeg') || type.includes('mp3')) return 'mp3';
+  console.warn('未知的 Content-Type:', contentType, '使用 mp3');
+  return 'mp3';
 }
 
 // 获取用户token
