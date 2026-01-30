@@ -87,6 +87,7 @@ fun AboutScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                .padding(bottom = 150.dp)
         ) {
             Spacer(modifier = Modifier.height(24.dp))
             
@@ -126,7 +127,7 @@ fun AboutScreen(
             // 版权信息
             CopyrightCard()
             
-            Spacer(modifier = Modifier.height(80.dp))
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
