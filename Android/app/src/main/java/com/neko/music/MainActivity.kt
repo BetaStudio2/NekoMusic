@@ -58,6 +58,7 @@ import com.neko.music.ui.components.MiniPlayer
 import com.neko.music.ui.components.PlaylistBottomSheet
 import com.neko.music.ui.screens.HomeScreen
 import com.neko.music.ui.screens.LoginScreen
+import com.neko.music.ui.screens.ArtistDetailScreen
 import com.neko.music.ui.screens.MineScreen
 import com.neko.music.ui.screens.PlayerScreen
 import com.neko.music.ui.screens.PlaylistScreen
@@ -614,6 +615,51 @@ fun MainScreen() {
                         val encodedCover = if (playlistCover != null) java.net.URLEncoder.encode(playlistCover, "UTF-8") else "null"
                         val encodedDescription = java.net.URLEncoder.encode(playlistDescription ?: "", "UTF-8")
                         navController.navigate("playlist_detail/$playlistId/$encodedName/$encodedCover/$encodedDescription/false")
+                    },
+                    onArtistClick = { artistName, musicCount, coverPath ->
+                        Log.d("MainActivity", "点击歌手: $artistName")
+                        val encodedName = java.net.URLEncoder.encode(artistName, "UTF-8")
+                        val encodedCover = if (coverPath != null) java.net.URLEncoder.encode(coverPath, "UTF-8") else "null"
+                        navController.navigate("artist_detail/$encodedName/$musicCount/$encodedCover")
+                    }
+                )
+            }
+            composable(
+                route = "artist_detail/{artistName}/{musicCount}/{coverPath}",
+                arguments = listOf(
+                    navArgument("artistName") { type = NavType.StringType },
+                    navArgument("musicCount") { type = NavType.IntType },
+                    navArgument("coverPath") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) { backStackEntry ->
+                val artistName = java.net.URLDecoder.decode(
+                    backStackEntry.arguments?.getString("artistName") ?: "", "UTF-8"
+                )
+                val musicCount = backStackEntry.arguments?.getInt("musicCount") ?: 0
+                val coverPath = backStackEntry.arguments?.getString("coverPath")
+                val decodedCoverPath = if (!coverPath.isNullOrEmpty() && coverPath != "null") {
+                    java.net.URLDecoder.decode(coverPath, "UTF-8")
+                } else {
+                    null
+                }
+                Log.d("MainActivity", "歌手详情页面加载: $artistName")
+                ArtistDetailScreen(
+                    artistName = artistName,
+                    musicCount = musicCount,
+                    coverPath = decodedCoverPath,
+                    onBackClick = {
+                        Log.d("MainActivity", "从歌手详情页面返回")
+                        navController.popBackStack()
+                    },
+                    onMusicClick = { music ->
+                        val encodedTitle = java.net.URLEncoder.encode(music.title, "UTF-8")
+                        val encodedArtist =
+                            java.net.URLEncoder.encode(music.artist, "UTF-8")
+                        navController.navigate("player/${music.id}/$encodedTitle/$encodedArtist")
                     }
                 )
             }

@@ -60,7 +60,8 @@ fun SearchResultScreen(
     initialQuery: String = "",
     onBackClick: () -> Unit,
     onMusicClick: (Music) -> Unit,
-    onPlaylistClick: (Int, String, String?, String?) -> Unit = { _, _, _, _ -> }
+    onPlaylistClick: (Int, String, String?, String?) -> Unit = { _, _, _, _ -> },
+    onArtistClick: (String, Int, String?) -> Unit = { _, _, _ -> }
 ) {
     val context = LocalContext.current
     val historyManager = remember { SearchHistoryManager(context) }
@@ -261,9 +262,7 @@ fun SearchResultScreen(
                         ArtistList(
                             artists = artistResults,
                             onArtistClick = { artist ->
-                                // 点击歌手时，使用歌手名搜索音乐
-                                searchQuery = artist.name
-                                searchType = "music"
+                                onArtistClick(artist.name, artist.musicCount, artist.coverPath)
                             }
                         )
                     }
@@ -778,21 +777,24 @@ suspend fun performArtistSearch(
                     val musicCount = musicCountMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
                     
                     // 提取第一首音乐的封面作为歌手封面
-                    val musicListRegex = """"musicList":\s*\[(.*?)\]""".toRegex()
+                    val musicListRegex = """"musicList":\s*\[([^\]]*)\]""".toRegex()
                     val musicListMatch = musicListRegex.find(responseText)
                     var coverPath: String? = null
                     
-                    if (musicListMatch != null) {
+                    if (musicListMatch != null && musicCount > 0) {
                         val musicListJson = musicListMatch.groupValues[1]
+                        Log.d("SearchScreen", "音乐列表JSON: $musicListJson")
                         // 匹配第一首音乐的封面
                         val coverMatch = """"coverPath":\s*"([^"]*)"""".toRegex().find(musicListJson)
-                        coverPath = coverMatch?.groupValues?.get(1)
-                        if (!coverPath.isNullOrEmpty() && coverPath != "/api/music/cover/") {
-                            coverPath = "https://music.cnmsb.xin$coverPath"
-                        } else {
-                            coverPath = null
+                        val extractedCover = coverMatch?.groupValues?.get(1)
+                        Log.d("SearchScreen", "提取到的封面路径: $extractedCover")
+                        
+                        if (!extractedCover.isNullOrEmpty() && extractedCover != "/api/music/cover/" && extractedCover != "/api/music/cover") {
+                            coverPath = "https://music.cnmsb.xin$extractedCover"
                         }
                     }
+                    
+                    Log.d("SearchScreen", "歌手封面最终路径: $coverPath")
                     
                     if (name.isNotEmpty()) {
                         artists.add(
@@ -878,42 +880,13 @@ fun ArtistItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // 封面
-            if (!artist.coverPath.isNullOrEmpty()) {
-                coil.compose.AsyncImage(
-                    model = artist.coverPath,
-                    contentDescription = "歌手封面",
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(RoundedCornerShape(28.dp)),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                )
-            } else {
-                // 默认封面
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .background(
-                            color = RoseRed.copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(28.dp)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "🎤",
-                        fontSize = 28.sp
-                    )
-                }
-            }
-
             // 歌手信息
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
                     text = artist.name,
