@@ -55,6 +55,7 @@ fun RecentPlayScreen(
     val context = androidx.compose.ui.platform.LocalContext.current
     val playerManager = MusicPlayerManager.getInstance(context)
     val scope = rememberCoroutineScope()
+    val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
     
     var playHistory by remember { mutableStateOf<List<Music>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -83,7 +84,7 @@ fun RecentPlayScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(if (isDarkTheme) Color(0xFF121228) else Color.White)
             .statusBarsPadding()
     ) {
         // 顶部导航栏
@@ -102,7 +103,7 @@ fun RecentPlayScreen(
                 Icon(
                     imageVector = Icons.Default.ArrowBack,
                     contentDescription = "返回",
-                    tint = Color.Black
+                    tint = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.9f) else Color.Black
                 )
             }
             
@@ -110,7 +111,7 @@ fun RecentPlayScreen(
                 text = "最近播放",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color.Black
+                color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black
             )
             
             Spacer(modifier = Modifier.size(48.dp))
@@ -143,7 +144,7 @@ fun RecentPlayScreen(
                 Text(
                     text = if (searchQuery.isEmpty()) "欸？暂时没有播放记录欸" else "没有找到相关歌曲喵",
                     fontSize = 16.sp,
-                    color = Color.Gray
+                    color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                 )
             }
         } else {
@@ -171,6 +172,7 @@ fun RecentPlayItem(
     val context = androidx.compose.ui.platform.LocalContext.current
     val playerManager = MusicPlayerManager.getInstance(context)
     val scope = rememberCoroutineScope()
+    val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
     
     // 获取当前播放的音乐ID
     val currentMusicId by playerManager.currentMusicId.collectAsState()
@@ -187,7 +189,10 @@ fun RecentPlayItem(
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .background(
-                if (currentMusicId == music.id) RoseRed.copy(alpha = 0.1f) else Color.Transparent,
+                if (currentMusicId == music.id) 
+                    RoseRed.copy(alpha = 0.15f) 
+                else 
+                    Color.Transparent,
                 RoundedCornerShape(8.dp)
             )
             .clickable(onClick = onClick)
@@ -221,14 +226,14 @@ fun RecentPlayItem(
                 text = music.title,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color.Black,
+                color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black,
                 maxLines = 1
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = music.artist,
                 fontSize = 14.sp,
-                color = Color.Gray,
+                color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray,
                 maxLines = 1
             )
         }
@@ -262,11 +267,13 @@ fun SearchBar(
     onQueryChange: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
+    
     Row(
         modifier = modifier
             .height(40.dp)
             .background(
-                color = Color(0xFFF5F5F5),
+                color = if (isDarkTheme) Color.White.copy(alpha = 0.08f) else Color(0xFFF5F5F5),
                 shape = RoundedCornerShape(20.dp)
             )
             .padding(horizontal = 16.dp),
@@ -275,7 +282,7 @@ fun SearchBar(
         Icon(
             imageVector = Icons.Default.Search,
             contentDescription = "搜索",
-            tint = Color.Gray,
+            tint = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.7f) else Color.Gray,
             modifier = Modifier.size(20.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
@@ -285,7 +292,7 @@ fun SearchBar(
             modifier = Modifier.weight(1f),
             textStyle = androidx.compose.ui.text.TextStyle(
                 fontSize = 14.sp,
-                color = Color.Black
+                color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black
             ),
             singleLine = true,
             decorationBox = { innerTextField ->
@@ -293,7 +300,7 @@ fun SearchBar(
                     Text(
                         text = "搜索歌曲",
                         fontSize = 14.sp,
-                        color = Color.Gray
+                        color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.6f) else Color.Gray
                     )
                 }
                 innerTextField()
