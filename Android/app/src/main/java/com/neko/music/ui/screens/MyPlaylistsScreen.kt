@@ -277,6 +277,15 @@ fun MyPlaylistsScreen(
             contentScale = ContentScale.Crop
         )
         
+        // 暗色模式灰色遮罩
+        if (isSystemInDarkTheme()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f))
+            )
+        }
+        
         // 内容层
         Column(
             modifier = Modifier
@@ -338,7 +347,7 @@ fun MyPlaylistsScreen(
                         ) {
                             Text(
                                 text = "创建歌单",
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onPrimary,
                                 fontWeight = FontWeight.Medium
                             )
                         }
@@ -483,19 +492,15 @@ fun MyPlaylistsScreen(
                         .shadow(
                             elevation = 12.dp,
                             spotColor = RoseRed.copy(alpha = 0.35f),
-                            ambientColor = Color.Gray.copy(alpha = 0.18f)
+                            ambientColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.18f)
                         ),
                     shape = RoundedCornerShape(20.dp),
-                    color = if (isSystemInDarkTheme()) {
-                        Color.White.copy(alpha = 0.2f)
-                    } else {
-                        Color.Black.copy(alpha = 0.88f)
-                    }
+                    color = MaterialTheme.colorScheme.surface
                 ) {
                     Text(
                         text = errorMessage,
                         modifier = Modifier.padding(horizontal = 28.dp, vertical = 18.dp),
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -569,7 +574,7 @@ fun PlaylistItem(
             .shadow(
                 elevation = 6.dp,
                 spotColor = RoseRed.copy(alpha = 0.2f),
-                ambientColor = Color.Gray.copy(alpha = 0.1f)
+                ambientColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
             )
             .clickable {
                 isPressed = true
@@ -674,7 +679,7 @@ fun PlaylistDialog(
                 .shadow(
                     elevation = 12.dp,
                     spotColor = RoseRed.copy(alpha = 0.35f),
-                    ambientColor = Color.Gray.copy(alpha = 0.18f)
+                    ambientColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.18f)
                 )
         ) {
             Column(
@@ -729,7 +734,7 @@ fun PlaylistDialog(
                         Text(
                             text = "确定",
                             fontSize = 17.sp,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onPrimary,
                             fontWeight = FontWeight.Medium
                         )
                     }
