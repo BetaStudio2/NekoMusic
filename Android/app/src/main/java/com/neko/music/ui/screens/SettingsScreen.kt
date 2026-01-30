@@ -6,6 +6,7 @@ import com.neko.music.R
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -144,12 +145,24 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("设置") },
+                title = { 
+                    Text(
+                        "设置",
+                        color = if (isSystemInDarkTheme()) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(
+                            Icons.Default.ArrowBack, 
+                            contentDescription = "返回",
+                            tint = if (isSystemInDarkTheme()) Color(0xFFB8B8D1).copy(alpha = 0.9f) else Color.Black
+                        )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = if (isSystemInDarkTheme()) Color(0xFF1A1A2E).copy(alpha = 0.95f) else Color.White
+                )
             )
         }
     ) { paddingValues ->
@@ -157,7 +170,7 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(Color(0xFFFAFAFA))
+                .background(if (isSystemInDarkTheme()) Color(0xFF121228) else Color(0xFFFAFAFA))
         ) {
             // 设置列表
             Column(
@@ -174,7 +187,7 @@ fun SettingsScreen(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp)),
                     colors = CardDefaults.cardColors(
-                        containerColor = Color.White
+                        containerColor = if (isSystemInDarkTheme()) Color(0xFF252545).copy(alpha = 0.6f) else Color.White
                     ),
                     elevation = CardDefaults.cardElevation(
                         defaultElevation = 2.dp
@@ -193,13 +206,13 @@ fun SettingsScreen(
                                     text = "Neko云音乐",
                                     fontSize = 20.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.Black
+                                    color = if (isSystemInDarkTheme()) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = "版本 $versionName ($versionCode)",
                                     fontSize = 14.sp,
-                                    color = Color.Gray
+                                    color = if (isSystemInDarkTheme()) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                                 )
                             }
 
@@ -297,7 +310,7 @@ fun SettingSection(
                 text = title,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color.Gray,
+                color = if (isSystemInDarkTheme()) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
             )
 
@@ -306,7 +319,7 @@ fun SettingSection(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp)),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color.White
+                    containerColor = if (isSystemInDarkTheme()) Color(0xFF252545).copy(alpha = 0.6f) else Color.White
                 ),
                 elevation = CardDefaults.cardElevation(
                     defaultElevation = 2.dp
@@ -328,6 +341,7 @@ fun SettingItem(
         onClick: () -> Unit = {}
     ) {
         var isPressed by remember { mutableStateOf(false) }
+        val isDarkTheme = isSystemInDarkTheme()
 
         Surface(
             modifier = Modifier
@@ -336,7 +350,9 @@ fun SettingItem(
                     isPressed = true
                     onClick()
                 },
-            color = if (isPressed) Color(0xFFF5F5F5) else Color.Transparent
+            color = if (isPressed) 
+                if (isDarkTheme) Color.White.copy(alpha = 0.08f) else Color(0xFFF5F5F5) 
+            else Color.Transparent
         ) {
             Row(
                 modifier = Modifier
@@ -368,14 +384,14 @@ fun SettingItem(
                         text = title,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
-                        color = Color.Black
+                        color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black
                     )
                     if (subtitle.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = subtitle,
                             fontSize = 13.sp,
-                            color = Color.Gray
+                            color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                         )
                     }
                 }
@@ -390,7 +406,7 @@ fun SettingItem(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = "更多",
-                        tint = Color.Gray,
+                        tint = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -413,6 +429,8 @@ fun SettingsUpdateDialog(
         onConfirm: () -> Unit,
         onDismiss: () -> Unit
     ) {
+    val isDarkTheme = isSystemInDarkTheme()
+    
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -439,13 +457,13 @@ fun SettingsUpdateDialog(
                 Text(
                     text = "新版本：$versionName",
                     fontSize = 16.sp,
-                    color = Color.Gray
+                    color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "版本号：$versionCode",
                     fontSize = 16.sp,
-                    color = Color.Gray
+                    color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                 )
             }
         },
@@ -469,10 +487,11 @@ fun SettingsUpdateDialog(
                 Text(
                     text = "稍后",
                     fontSize = 16.sp,
-                    color = Color.Gray
+                    color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                 )
             }
-        }
+        },
+        containerColor = if (isDarkTheme) Color(0xFF1A1A2E).copy(alpha = 0.95f) else Color.White
     )
 }
 
@@ -481,112 +500,118 @@ fun SettingsDownloadProgressDialog(
         progress: Float,
         onDismiss: () -> Unit
     ) {
-        AlertDialog(
-            onDismissRequest = { },
-            title = {
-                Text(
-                    text = "⏳ 正在下载更新",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = RoseRed
+    val isDarkTheme = isSystemInDarkTheme()
+    
+    AlertDialog(
+        onDismissRequest = { },
+        title = {
+            Text(
+                text = "⏳ 正在下载更新",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = RoseRed
+            )
+        },
+        text = {
+            Column {
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp),
+                    color = RoseRed,
+                    trackColor = if (isDarkTheme) Color(0xFF353558).copy(alpha = 0.6f) else Color.Gray.copy(alpha = 0.3f)
                 )
-            },
-            text = {
-                Column {
-                    LinearProgressIndicator(
-                        progress = { progress },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp),
-                        color = RoseRed,
-                        trackColor = Color.Gray.copy(alpha = 0.3f)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "${(progress * 100).toInt()}%",
-                        fontSize = 16.sp,
-                        color = Color.Gray,
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
-                }
-            },
-            confirmButton = {}
-        )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "${(progress * 100).toInt()}%",
+                    fontSize = 16.sp,
+                    color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        },
+        confirmButton = {},
+        containerColor = if (isDarkTheme) Color(0xFF1A1A2E).copy(alpha = 0.95f) else Color.White
+    )
 
 }
-
 @Composable
 fun SettingsUpdateSuccessDialog(
         onDismiss: () -> Unit
     ) {
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            title = {
-                Column(
-                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "✓",
-                        fontSize = 56.sp,
-                        color = Color(0xFF4CAF50)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "下载完成",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                }
-            },
-            text = {
+    val isDarkTheme = isSystemInDarkTheme()
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column(
+                horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+            ) {
                 Text(
-                    text = "正在安装更新...",
-                    fontSize = 16.sp,
-                    color = Color.Gray,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    text = "✓",
+                    fontSize = 56.sp,
+                    color = Color(0xFF4CAF50)
                 )
-            },
-            confirmButton = {}
-        )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "下载完成",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black
+                )
+            }
+        },
+        text = {
+            Text(
+                text = "正在安装更新...",
+                fontSize = 16.sp,
+                color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        },
+        confirmButton = {},
+        containerColor = if (isDarkTheme) Color(0xFF1A1A2E).copy(alpha = 0.95f) else Color.White
+    )
     }
-
 @Composable
 fun SettingsUpdateErrorDialog(
         message: String,
         onDismiss: () -> Unit
     ) {
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            title = {
+    val isDarkTheme = isSystemInDarkTheme()
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "❌ 更新失败",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFF44336)
+            )
+        },
+        text = {
+            Text(
+                text = message,
+                fontSize = 16.sp,
+                color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
                 Text(
-                    text = "❌ 更新失败",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFFF44336)
-                )
-            },
-            text = {
-                Text(
-                    text = message,
+                    text = "确定",
                     fontSize = 16.sp,
-                    color = Color.Gray
+                    color = RoseRed
                 )
-            },
-            confirmButton = {
-                TextButton(onClick = onDismiss) {
-                    Text(
-                        text = "确定",
-                        fontSize = 16.sp,
-                        color = RoseRed
-                    )
-                }
             }
-        )
-    }
-
+        },
+        containerColor = if (isDarkTheme) Color(0xFF1A1A2E).copy(alpha = 0.95f) else Color.White
+    )
+}
 @Composable
 fun SettingSwitchItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -596,6 +621,7 @@ fun SettingSwitchItem(
     onCheckedChange: (Boolean) -> Unit
 ) {
     var isPressed by remember { mutableStateOf(false) }
+    val isDarkTheme = isSystemInDarkTheme()
 
     Surface(
         modifier = Modifier
@@ -604,7 +630,9 @@ fun SettingSwitchItem(
                 isPressed = true
                 onCheckedChange(!checked)
             },
-        color = if (isPressed) Color(0xFFF5F5F5) else Color.Transparent,
+        color = if (isPressed) 
+            if (isDarkTheme) Color.White.copy(alpha = 0.08f) else Color(0xFFF5F5F5) 
+        else Color.Transparent,
         onClick = {}
     ) {
         Row(
@@ -637,14 +665,14 @@ fun SettingSwitchItem(
                     text = title,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color.Black
+                    color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black
                 )
                 if (subtitle.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = subtitle,
                         fontSize = 13.sp,
-                        color = Color.Gray
+                        color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                     )
                 }
             }
@@ -657,8 +685,8 @@ fun SettingSwitchItem(
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = RoseRed,
                     checkedTrackColor = RoseRed.copy(alpha = 0.5f),
-                    uncheckedThumbColor = Color.Gray,
-                    uncheckedTrackColor = Color.Gray.copy(alpha = 0.5f)
+                    uncheckedThumbColor = if (isDarkTheme) Color(0xFFB8B8D1) else Color.Gray,
+                    uncheckedTrackColor = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.5f) else Color.Gray.copy(alpha = 0.5f)
                 )
             )
         }
