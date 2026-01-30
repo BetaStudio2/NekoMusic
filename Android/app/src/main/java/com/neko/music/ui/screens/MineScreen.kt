@@ -421,16 +421,16 @@ fun MineMenu(
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        MenuItem("我的音乐", "🎵", RoseRed)
-        MenuItem("我的收藏", "❤️", SakuraPink, onClick = onFavoriteClick)
-        MenuItem("最近播放", "🕐", SkyBlue, onClick = onRecentPlayClick)
+        MenuItem("我的音乐", R.drawable.music, RoseRed)
+        MenuItem("我的收藏", R.drawable.ic_favorite_filled, SakuraPink, onClick = onFavoriteClick)
+        MenuItem("最近播放", R.drawable.recently_played, SkyBlue, onClick = onRecentPlayClick)
     }
 }
 
 @Composable
 fun MenuItem(
     title: String,
-    icon: String,
+    iconResId: Int,
     iconColor: Color = RoseRed,
     onClick: () -> Unit = {}
 ) {
@@ -471,9 +471,11 @@ fun MenuItem(
                 .background(iconColor.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = icon,
-                fontSize = 22.sp
+            Image(
+                painter = painterResource(id = iconResId),
+                contentDescription = title,
+                modifier = Modifier.size(28.dp),
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(iconColor)
             )
         }
         Spacer(modifier = Modifier.width(16.dp))
@@ -513,16 +515,15 @@ fun MoreSettings(
         )
         
         Spacer(modifier = Modifier.height(16.dp))
-        
-        MenuItem("设置", "⚙️", RoseRed, onClick = onNavigateToSettings)
-        MenuItem("关于我们", "ℹ️", StarYellow, onClick = onAboutClick)
+        MenuItem("设置", R.drawable.setting, RoseRed, onClick = onNavigateToSettings)
+        MenuItem("关于我们", R.drawable.about, StarYellow, onClick = onAboutClick)
         
         Spacer(modifier = Modifier.height(16.dp))
         
         if (isLoggedIn) {
-            MenuItem("退出登录", "🚪", Lilac, onClick = onLogoutClick)
+            MenuItem("退出登录", R.drawable.logout, Lilac, onClick = onLogoutClick)
         } else {
-            MenuItem("登录", "🔑", Peach, onClick = onLoginClick)
+            MenuItem("登录", R.drawable.login, Peach, onClick = onLoginClick)
         }
     }
     
