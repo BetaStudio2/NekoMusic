@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.isSystemInDarkTheme
 import com.neko.music.R
 import com.neko.music.data.api.FavoriteApi
 import com.neko.music.data.manager.TokenManager
@@ -138,7 +139,7 @@ fun FavoriteScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White.copy(alpha = 0.3f))
+                .background(MaterialTheme.colorScheme.background)
         )
 
         Scaffold(
@@ -181,13 +182,14 @@ fun FavoriteScreen(
                             Text(
                                 text = "请先登录",
                                 fontSize = 24.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
                                 text = "登录后可以查看和管理您的收藏",
                                 fontSize = 14.sp,
-                                color = Color.Gray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -329,7 +331,7 @@ fun FavoriteItem(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFFE0E0E0)),
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
                 coil.compose.AsyncImage(
@@ -349,13 +351,14 @@ fun FavoriteItem(
                     text = music.title,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = music.artist,
                     fontSize = 14.sp,
-                    color = Color.Gray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1
                 )
             }
@@ -364,7 +367,7 @@ fun FavoriteItem(
             Text(
                 text = formatDuration(music.duration),
                 fontSize = 12.sp,
-                color = Color.Gray
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -380,7 +383,11 @@ fun FavoriteSearchBar(
         modifier = modifier
             .height(40.dp)
             .background(
-                color = Color(0xFFF5F5F5),
+                color = if (isSystemInDarkTheme()) {
+                    Color.White.copy(alpha = 0.1f)
+                } else {
+                    Color(0xFFF5F5F5)
+                },
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)
             )
             .padding(horizontal = 16.dp),
@@ -389,7 +396,7 @@ fun FavoriteSearchBar(
         Icon(
             imageVector = Icons.Default.Search,
             contentDescription = "搜索",
-            tint = Color.Gray,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(20.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
@@ -398,7 +405,7 @@ fun FavoriteSearchBar(
             onValueChange = onQueryChange,
             modifier = Modifier.weight(1f),
             textStyle = androidx.compose.ui.text.TextStyle(
-                color = Color.Black,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 14.sp
             ),
             singleLine = true,
@@ -407,7 +414,7 @@ fun FavoriteSearchBar(
                     Text(
                         text = "搜索歌曲",
                         fontSize = 14.sp,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 innerTextField()

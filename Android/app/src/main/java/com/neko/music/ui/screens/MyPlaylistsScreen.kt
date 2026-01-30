@@ -408,7 +408,7 @@ fun MyPlaylistsScreen(
                                     showCreateDialog = true },
                             colors = CardDefaults.cardColors(
                                 containerColor = if (isSystemInDarkTheme()) {
-                                    Color.White.copy(alpha = 0.1f)
+                                    Color.White.copy(alpha = 0.12f)
                                 } else {
                                     Color.White.copy(alpha = 0.85f)
                                 }
@@ -561,7 +561,7 @@ fun PlaylistItem(
             .clip(RoundedCornerShape(16.dp))
             .background(
                 if (isSystemInDarkTheme()) {
-                    Color.White.copy(alpha = 0.1f)
+                    Color.White.copy(alpha = 0.12f)
                 } else {
                     Color.White.copy(alpha = 0.85f)
                 }
