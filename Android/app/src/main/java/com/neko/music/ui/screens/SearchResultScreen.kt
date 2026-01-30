@@ -68,6 +68,7 @@ fun SearchResultScreen(
     var searchType by remember { mutableStateOf("music") } // music 或 playlist
     var searchResults by remember { mutableStateOf<List<Music>>(emptyList()) }
     var playlistResults by remember { mutableStateOf<List<com.neko.music.data.api.PlaylistInfo>>(emptyList()) }
+    var artistResults by remember { mutableStateOf<List<com.neko.music.data.model.Artist>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var searchHistory by remember { mutableStateOf<List<SearchHistory>>(emptyList()) }
@@ -84,14 +85,25 @@ fun SearchResultScreen(
                 performSearch(musicApi, searchQuery, scope) { results, error ->
                     searchResults = results
                     playlistResults = emptyList()
+                    artistResults = emptyList()
                     isLoading = false
                     errorMessage = error
                 }
-            } else {
+            } else if (searchType == "playlist") {
                 // 歌单搜索
                 performPlaylistSearch(searchQuery, scope) { results, error ->
                     playlistResults = results
                     searchResults = emptyList()
+                    artistResults = emptyList()
+                    isLoading = false
+                    errorMessage = error
+                }
+            } else {
+                // 歌手搜索
+                performArtistSearch(searchQuery, scope) { results, error ->
+                    artistResults = results
+                    searchResults = emptyList()
+                    playlistResults = emptyList()
                     isLoading = false
                     errorMessage = error
                 }
@@ -99,6 +111,7 @@ fun SearchResultScreen(
         } else {
             searchResults = emptyList()
             playlistResults = emptyList()
+            artistResults = emptyList()
         }
     }
     
@@ -158,6 +171,11 @@ fun SearchResultScreen(
                 isSelected = searchType == "playlist",
                 onClick = { searchType = "playlist" }
             )
+            SearchTypeButton(
+                text = "歌手",
+                isSelected = searchType == "artist",
+                onClick = { searchType = "artist" }
+            )
         }
 
         Box(
@@ -186,7 +204,7 @@ fun SearchResultScreen(
                         )
                     }
                 }
-                searchResults.isEmpty() && playlistResults.isEmpty() && searchQuery.isEmpty() && searchHistory.isNotEmpty() -> {
+                searchResults.isEmpty() && playlistResults.isEmpty() && artistResults.isEmpty() && searchQuery.isEmpty() && searchHistory.isNotEmpty() -> {
                     SearchHistoryList(
                         history = searchHistory,
                         onItemClick = { query ->
@@ -198,13 +216,17 @@ fun SearchResultScreen(
                         }
                     )
                 }
-                searchResults.isEmpty() && playlistResults.isEmpty() && searchQuery.isNotEmpty() -> {
+                searchResults.isEmpty() && playlistResults.isEmpty() && artistResults.isEmpty() && searchQuery.isNotEmpty() -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (searchType == "music") "未找到相关音乐" else "未找到相关歌单",
+                            text = when (searchType) {
+                                "music" -> "未找到相关音乐"
+                                "playlist" -> "未找到相关歌单"
+                                else -> "未找到相关歌手"
+                            },
                             color = Color.Gray,
                             fontSize = 14.sp
                         )
@@ -228,11 +250,20 @@ fun SearchResultScreen(
                             musics = searchResults,
                             onMusicClick = onMusicClick
                         )
-                    } else {
+                    } else if (searchType == "playlist") {
                         PlaylistList(
                             playlists = playlistResults,
                             onPlaylistClick = { playlist ->
                                 onPlaylistClick(playlist.id, playlist.name, playlist.coverPath, playlist.description)
+                            }
+                        )
+                    } else {
+                        ArtistList(
+                            artists = artistResults,
+                            onArtistClick = { artist ->
+                                // 点击歌手时，使用歌手名搜索音乐
+                                searchQuery = artist.name
+                                searchType = "music"
                             }
                         )
                     }
@@ -705,6 +736,89 @@ suspend fun performPlaylistSearch(
     }
 }
 
+suspend fun performArtistSearch(
+    query: String,
+    scope: kotlinx.coroutines.CoroutineScope,
+    onResult: (List<com.neko.music.data.model.Artist>, String?) -> Unit
+) {
+    scope.launch {
+        try {
+            val client = io.ktor.client.HttpClient()
+            val response = client.post("https://music.cnmsb.xin/api/artists/search") {
+                headers {
+                    append("Content-Type", "application/json")
+                }
+                setBody(
+                    """
+                        {
+                            "query": "$query"
+                        }
+                        """.trimIndent()
+                )
+            }
+            
+            val responseText = response.body<String>()
+            Log.d("SearchScreen", "歌手搜索响应: $responseText")
+            
+            // 解析 JSON 响应 - 新格式返回单个歌手及其音乐列表
+            if (responseText.contains("\"success\":true")) {
+                // 提取 artist 对象
+                val artistRegex = """"artist":\s*\{([^}]*)\}""".toRegex()
+                val artistMatch = artistRegex.find(responseText)
+                
+                if (artistMatch != null) {
+                    val artistJson = artistMatch.groupValues[1]
+                    val artists = mutableListOf<com.neko.music.data.model.Artist>()
+                    
+                    // 匹配歌手信息：name, musicCount
+                    val nameMatch = """"name":\s*"([^"]*)"""".toRegex().find(artistJson)
+                    val musicCountMatch = """"musicCount":\s*(\d+)""".toRegex().find(artistJson)
+                    
+                    val name = nameMatch?.groupValues?.get(1) ?: ""
+                    val musicCount = musicCountMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                    
+                    // 提取第一首音乐的封面作为歌手封面
+                    val musicListRegex = """"musicList":\s*\[(.*?)\]""".toRegex()
+                    val musicListMatch = musicListRegex.find(responseText)
+                    var coverPath: String? = null
+                    
+                    if (musicListMatch != null) {
+                        val musicListJson = musicListMatch.groupValues[1]
+                        // 匹配第一首音乐的封面
+                        val coverMatch = """"coverPath":\s*"([^"]*)"""".toRegex().find(musicListJson)
+                        coverPath = coverMatch?.groupValues?.get(1)
+                        if (!coverPath.isNullOrEmpty() && coverPath != "/api/music/cover/") {
+                            coverPath = "https://music.cnmsb.xin$coverPath"
+                        } else {
+                            coverPath = null
+                        }
+                    }
+                    
+                    if (name.isNotEmpty()) {
+                        artists.add(
+                            com.neko.music.data.model.Artist(
+                                name = name,
+                                musicCount = musicCount,
+                                coverPath = coverPath
+                            )
+                        )
+                    }
+                    
+                    Log.d("SearchScreen", "搜索到 ${artists.size} 个歌手: $name")
+                    onResult(artists, null)
+                } else {
+                    onResult(emptyList(), "未找到歌手")
+                }
+            } else {
+                onResult(emptyList(), "搜索失败")
+            }
+        } catch (e: Exception) {
+            Log.e("SearchScreen", "歌手搜索请求失败 - ${e.message}", e)
+            onResult(emptyList(), e.message)
+        }
+    }
+}
+
 @Composable
 fun SearchTypeButton(
     text: String,
@@ -728,5 +842,93 @@ fun SearchTypeButton(
             color = if (isSelected) Color.White else Color.Gray,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
         )
+    }
+}
+
+@Composable
+fun ArtistList(
+    artists: List<com.neko.music.data.model.Artist>,
+    onArtistClick: (com.neko.music.data.model.Artist) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(artists) { artist ->
+            ArtistItem(
+                artist = artist,
+                onClick = { onArtistClick(artist) }
+            )
+        }
+    }
+}
+
+@Composable
+fun ArtistItem(
+    artist: com.neko.music.data.model.Artist,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // 封面
+            if (!artist.coverPath.isNullOrEmpty()) {
+                coil.compose.AsyncImage(
+                    model = artist.coverPath,
+                    contentDescription = "歌手封面",
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(28.dp)),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+            } else {
+                // 默认封面
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .background(
+                            color = RoseRed.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(28.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "🎤",
+                        fontSize = 28.sp
+                    )
+                }
+            }
+
+            // 歌手信息
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = artist.name,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "${artist.musicCount} 首歌曲",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+            }
+        }
     }
 }
