@@ -68,6 +68,7 @@ fun AccountInfoScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
     
     // 头像更新时间戳，用于绕过缓存
     var avatarUpdateTime by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -111,7 +112,7 @@ fun AccountInfoScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFFAFAFA))
+            .background(if (isDarkTheme) Color(0xFF121228) else Color(0xFFFAFAFA))
     ) {
         Column(
             modifier = Modifier
@@ -124,7 +125,8 @@ fun AccountInfoScreen(
                     Text(
                         text = "账号信息",
                         fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black
                     )
                 },
                 navigationIcon = {
@@ -132,12 +134,12 @@ fun AccountInfoScreen(
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "返回",
-                            tint = Color.Black
+                            tint = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.9f) else Color.Black
                         )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color.White
+                    containerColor = if (isDarkTheme) Color(0xFF1A1A2E).copy(alpha = 0.95f) else Color.White
                 )
             )
             
@@ -221,7 +223,7 @@ fun AccountInfoScreen(
             Text(
                 text = "点击头像可以更换头像",
                 fontSize = 13.sp,
-                color = Color.Gray,
+                color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.7f) else Color.Gray,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
@@ -232,8 +234,18 @@ fun AccountInfoScreen(
         if (showAvatarDialog) {
             AlertDialog(
                 onDismissRequest = { showAvatarDialog = false },
-                title = { Text("更换头像") },
-                text = { Text("是否要从相册选择新头像？") },
+                title = { 
+                    Text(
+                        "更换头像",
+                        color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black
+                    ) 
+                },
+                text = { 
+                    Text(
+                        "是否要从相册选择新头像？",
+                        color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
+                    ) 
+                },
                 confirmButton = {
                     TextButton(
                         onClick = {
@@ -248,7 +260,8 @@ fun AccountInfoScreen(
                     TextButton(onClick = { showAvatarDialog = false }) {
                         Text("取消")
                     }
-                }
+                },
+                containerColor = if (isDarkTheme) Color(0xFF1A1A2E).copy(alpha = 0.95f) else Color.White
             )
         }
         
@@ -279,10 +292,12 @@ fun AccountInfoScreen(
             exit = fadeOut() + scaleOut(),
             modifier = Modifier.align(Alignment.Center)
         ) {
+            val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
+            
             Box(
                 modifier = Modifier
                     .background(
-                        color = Color.White,
+                        color = if (isDarkTheme) Color(0xFF1A1A2E).copy(alpha = 0.95f) else Color.White,
                         shape = RoundedCornerShape(16.dp)
                     )
                     .padding(20.dp)
@@ -304,7 +319,8 @@ fun AccountInfoScreen(
                     Text(
                         text = toastMessage ?: "操作成功",
                         fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black
                     )
                 }
             }
@@ -351,6 +367,7 @@ fun InfoCard(
     showArrow: Boolean = false,
     onClick: () -> Unit = {}
 ) {
+    val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.98f else 1f,
@@ -365,14 +382,14 @@ fun InfoCard(
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
             .background(
-                color = Color.White,
+                color = if (isDarkTheme) Color(0xFF252545).copy(alpha = 0.6f) else Color.White,
                 shape = RoundedCornerShape(16.dp)
             )
             .padding(20.dp)
             .shadow(
                 elevation = 2.dp,
                 spotColor = RoseRed.copy(alpha = 0.15f),
-                ambientColor = Color.Gray.copy(alpha = 0.08f)
+                ambientColor = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.08f) else Color.Gray.copy(alpha = 0.08f)
             )
             .scale(scale)
             .clickable(enabled = showArrow) {
@@ -394,14 +411,14 @@ fun InfoCard(
             Text(
                 text = title,
                 fontSize = 14.sp,
-                color = Color.Gray,
+                color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray,
                 fontWeight = FontWeight.Medium
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = value,
                 fontSize = 16.sp,
-                color = Color.Black,
+                color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -410,7 +427,7 @@ fun InfoCard(
             Text(
                 text = "›",
                 fontSize = 20.sp,
-                color = Color.Gray.copy(alpha = 0.6f)
+                color = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.6f) else Color.Gray.copy(alpha = 0.6f)
             )
         }
     }
@@ -422,6 +439,7 @@ fun ChangePasswordDialog(
     onConfirm: suspend (oldPassword: String, newPassword: String) -> Boolean
 ) {
     val context = LocalContext.current
+    val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
     var oldPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
@@ -454,7 +472,12 @@ fun ChangePasswordDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("修改密码") },
+        title = { 
+            Text(
+                "修改密码",
+                color = if (isDarkTheme) Color(0xFFF0F0F5).copy(alpha = 0.95f) else Color.Black
+            ) 
+        },
         text = {
             Column(
                 modifier = Modifier
@@ -475,7 +498,8 @@ fun ChangePasswordDialog(
                         IconButton(onClick = { showOldPassword = !showOldPassword }) {
                             Icon(
                                 imageVector = if (showOldPassword) Icons.Default.Close else Icons.Default.Check,
-                                contentDescription = if (showOldPassword) "隐藏密码" else "显示密码"
+                                contentDescription = if (showOldPassword) "隐藏密码" else "显示密码",
+                                tint = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                             )
                         }
                     },
@@ -498,7 +522,8 @@ fun ChangePasswordDialog(
                         IconButton(onClick = { showNewPassword = !showNewPassword }) {
                             Icon(
                                 imageVector = if (showNewPassword) Icons.Default.Close else Icons.Default.Check,
-                                contentDescription = if (showNewPassword) "隐藏密码" else "显示密码"
+                                contentDescription = if (showNewPassword) "隐藏密码" else "显示密码",
+                                tint = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                             )
                         }
                     },
@@ -521,7 +546,8 @@ fun ChangePasswordDialog(
                         IconButton(onClick = { showConfirmPassword = !showConfirmPassword }) {
                             Icon(
                                 imageVector = if (showConfirmPassword) Icons.Default.Close else Icons.Default.Check,
-                                contentDescription = if (showConfirmPassword) "隐藏密码" else "显示密码"
+                                contentDescription = if (showConfirmPassword) "隐藏密码" else "显示密码",
+                                tint = if (isDarkTheme) Color(0xFFB8B8D1).copy(alpha = 0.8f) else Color.Gray
                             )
                         }
                     },
@@ -557,7 +583,8 @@ fun ChangePasswordDialog(
             TextButton(onClick = onDismiss) {
                 Text("取消")
             }
-        }
+        },
+        containerColor = if (isDarkTheme) Color(0xFF1A1A2E).copy(alpha = 0.95f) else Color.White
     )
 }
 
