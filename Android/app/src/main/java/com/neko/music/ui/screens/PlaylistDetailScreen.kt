@@ -56,7 +56,7 @@ fun PlaylistDetailScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val tokenManager = remember { TokenManager(context) }
-    val playlistApi = remember { PlaylistApi(tokenManager.getToken()) }
+    val playlistApi = remember { PlaylistApi(tokenManager.getToken(), context) }
 
     var musicList by remember { mutableStateOf<List<PlaylistMusic>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }

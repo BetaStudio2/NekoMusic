@@ -79,7 +79,7 @@ data class DeletePlaylistRequest(
     val id: Int
 )
 
-class PlaylistApi(private val token: String?) {
+class PlaylistApi(private val token: String?, private val context: android.content.Context) {
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -103,6 +103,7 @@ class PlaylistApi(private val token: String?) {
                 }
             }.body()
         } catch (e: Exception) {
+            com.neko.music.util.AuthErrorHandler.handleApiError(context, e)
             PlaylistListResponse(false, "网络错误: ${e.message}", null)
         }
     }
@@ -117,6 +118,7 @@ class PlaylistApi(private val token: String?) {
                 setBody(CreatePlaylistRequest(name, null))
             }.body()
         } catch (e: Exception) {
+            com.neko.music.util.AuthErrorHandler.handleApiError(context, e)
             PlaylistResponse(false, "网络错误: ${e.message}", null)
         }
     }
@@ -131,6 +133,7 @@ class PlaylistApi(private val token: String?) {
                 setBody(UpdatePlaylistRequest(playlistId, name, description))
             }.body()
         } catch (e: Exception) {
+            com.neko.music.util.AuthErrorHandler.handleApiError(context, e)
             PlaylistResponse(false, "网络错误: ${e.message}", null)
         }
     }
@@ -145,6 +148,7 @@ class PlaylistApi(private val token: String?) {
                 setBody(DeletePlaylistRequest(playlistId))
             }.body()
         } catch (e: Exception) {
+            com.neko.music.util.AuthErrorHandler.handleApiError(context, e)
             PlaylistResponse(false, "网络错误: ${e.message}", null)
         }
     }
@@ -153,6 +157,7 @@ class PlaylistApi(private val token: String?) {
         return try {
             client.get("$baseUrl/music/$playlistId").body()
         } catch (e: Exception) {
+            com.neko.music.util.AuthErrorHandler.handleApiError(context, e)
             PlaylistMusicListResponse(false, "网络错误: ${e.message}", playlistId, 0, null)
         }
     }
@@ -178,6 +183,7 @@ class PlaylistApi(private val token: String?) {
             Log.d("PlaylistApi", "添加到歌单响应: status=$status, body=$bodyText")
             response.body()
         } catch (e: Exception) {
+            com.neko.music.util.AuthErrorHandler.handleApiError(context, e)
             Log.e("PlaylistApi", "添加到歌单异常: ${e.message}", e)
             PlaylistResponse(false, "网络错误: ${e.message}", null)
         }
@@ -204,6 +210,7 @@ class PlaylistApi(private val token: String?) {
             Log.d("PlaylistApi", "移除音乐响应: status=$status, body=$bodyText")
             response.body()
         } catch (e: Exception) {
+            com.neko.music.util.AuthErrorHandler.handleApiError(context, e)
             Log.e("PlaylistApi", "移除音乐异常: ${e.message}", e)
             PlaylistResponse(false, "网络错误: ${e.message}", null)
         }

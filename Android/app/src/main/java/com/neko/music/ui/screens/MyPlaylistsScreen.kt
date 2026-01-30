@@ -65,8 +65,8 @@ fun MyPlaylistsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val tokenManager = remember { TokenManager(context) }
-    val playlistApi = remember { PlaylistApi(tokenManager.getToken()) }
-    val favoriteApi = remember { FavoriteApi() }
+    val playlistApi = remember { PlaylistApi(tokenManager.getToken(), context) }
+    val favoriteApi = remember { FavoriteApi(context) }
     
     // 歌单数据
     var playlists by remember { mutableStateOf<List<Playlist>>(emptyList()) }

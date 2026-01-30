@@ -12,7 +12,7 @@ import kotlinx.serialization.json.Json
 import android.util.Log
 import com.neko.music.data.model.Music
 
-class FavoriteApi {
+class FavoriteApi(private val context: android.content.Context) {
     private val client = HttpClient(OkHttp) {
         install(ContentNegotiation) {
             json(Json {
@@ -35,6 +35,7 @@ class FavoriteApi {
             }
             response.body()
         } catch (e: Exception) {
+            com.neko.music.util.AuthErrorHandler.handleApiError(context, e)
             Log.e("FavoriteApi", "获取收藏列表失败", e)
             FavoriteListResponse(success = false, favorites = emptyList())
         }
@@ -52,6 +53,7 @@ class FavoriteApi {
             }
             response.body()
         } catch (e: Exception) {
+            com.neko.music.util.AuthErrorHandler.handleApiError(context, e)
             Log.e("FavoriteApi", "添加收藏失败", e)
             FavoriteResponse(success = false, message = "网络错误: ${e.message}")
         }
@@ -67,6 +69,7 @@ class FavoriteApi {
             }
             response.body()
         } catch (e: Exception) {
+            com.neko.music.util.AuthErrorHandler.handleApiError(context, e)
             Log.e("FavoriteApi", "取消收藏失败", e)
             FavoriteResponse(success = false, message = "网络错误: ${e.message}")
         }

@@ -38,7 +38,7 @@ fun FavoriteScreen(
     val context = LocalContext.current
     val tokenManager = TokenManager(context)
     val scope = rememberCoroutineScope()
-    val favoriteApi = FavoriteApi()
+    val favoriteApi = FavoriteApi(context)
 
     var favorites by remember { mutableStateOf<List<com.neko.music.data.api.FavoriteMusic>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }

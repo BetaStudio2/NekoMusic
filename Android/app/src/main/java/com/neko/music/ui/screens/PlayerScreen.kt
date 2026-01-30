@@ -296,7 +296,7 @@ fun PlayerScreen(
                         try {
                             val token = tokenManager.getToken()
                             if (token != null) {
-                                val playlistApi = PlaylistApi(token)
+                                val playlistApi = PlaylistApi(token, context)
                                 val response = playlistApi.getMyPlaylists()
                                 if (response.success) {
                                     playlists = response.playlists ?: emptyList()
@@ -597,7 +597,7 @@ fun PlayerScreen(
                         Log.d("PlayerScreen", "开始添加到歌单: playlistId=${playlist.id}, musicId=${currentMusic.id}, token=$token")
                         
                         if (token != null) {
-                            val playlistApi = PlaylistApi(token)
+                            val playlistApi = PlaylistApi(token, context)
                             Log.d("PlayerScreen", "调用API添加到歌单")
                             
                             val response = playlistApi.addMusicToPlaylist(playlist.id, currentMusic.id)
@@ -636,7 +636,7 @@ fun PlayerScreen(
                     try {
                         val token = tokenManager.getToken()
                         if (token != null) {
-                            val playlistApi = PlaylistApi(token)
+                            val playlistApi = PlaylistApi(token, context)
                             val response = playlistApi.createPlaylist(dialogPlaylistName)
                             
                             if (response.success) {

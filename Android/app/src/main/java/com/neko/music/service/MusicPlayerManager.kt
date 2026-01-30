@@ -109,7 +109,7 @@ class MusicPlayerManager private constructor(context: Context) {
         fun initializeFavoriteManager() {
             context = appContext.applicationContext
             tokenManager = com.neko.music.data.manager.TokenManager(context)
-            favoriteApi = com.neko.music.data.api.FavoriteApi()
+            favoriteApi = com.neko.music.data.api.FavoriteApi(context)
         }    
     private val _playMode = MutableStateFlow(
         PlayMode.valueOf(
