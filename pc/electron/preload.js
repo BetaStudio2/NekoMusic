@@ -34,12 +34,8 @@ ipcRenderer.on('tray-favorite', () => {
   window.dispatchEvent(new CustomEvent('tray-favorite'))
 })
 
-ipcRenderer.on('tray-set-repeat', (event, mode) => {
-  window.dispatchEvent(new CustomEvent('tray-set-repeat', { detail: mode }))
-})
-
-ipcRenderer.on('tray-toggle-shuffle', (event, isShuffle) => {
-  window.dispatchEvent(new CustomEvent('tray-toggle-shuffle', { detail: isShuffle }))
+ipcRenderer.on('tray-set-play-mode', (event, mode) => {
+  window.dispatchEvent(new CustomEvent('tray-set-play-mode', { detail: mode }))
 })
 
 ipcRenderer.on('tray-toggle-desktop-lyrics', (event, enabled) => {

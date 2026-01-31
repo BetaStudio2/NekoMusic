@@ -69,8 +69,7 @@ function createWindow() {
 let playerState = {
   currentMusic: null,
   isPlaying: false,
-  isShuffle: false,
-  repeatMode: 'off', // off, all, one
+  playMode: 'list', // list, single, shuffle
   volume: 80,
   lyricsEnabled: false,
   desktopLyricsEnabled: false

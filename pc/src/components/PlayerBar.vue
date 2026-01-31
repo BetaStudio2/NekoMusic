@@ -15,10 +15,10 @@
     
     <div class="player-controls-main">
       <div class="control-buttons">
-        <button class="control-btn" @click="toggleShuffle" title="随机播放" :class="{ active: isShuffle }">
-          <svg viewBox="0 0 24 24" width="18" height="18">
-            <path fill="currentColor" d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/>
-          </svg>
+        <button class="control-btn" @click="togglePlayMode" :title="playModeTitle" :class="{ active: playMode !== 'off' }">
+          <img v-if="playMode === 'list'" src="/icon-list-loop.png" alt="列表循环" width="18" height="18" />
+          <img v-else-if="playMode === 'single'" src="/icon-single-loop.png" alt="单曲循环" width="18" height="18" />
+          <img v-else src="/icon-shuffle.png" alt="随机播放" width="18" height="18" />
         </button>
         <button class="control-btn" @click="previous" title="上一首">
           <svg viewBox="0 0 24 24" width="20" height="20">
@@ -36,11 +36,6 @@
         <button class="control-btn" @click="next" title="下一首">
           <svg viewBox="0 0 24 24" width="20" height="20">
             <path fill="currentColor" d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
-          </svg>
-        </button>
-        <button class="control-btn" @click="toggleRepeat" title="循环播放" :class="{ active: isRepeat }">
-          <svg viewBox="0 0 24 24" width="18" height="18">
-            <path fill="currentColor" d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
           </svg>
         </button>
       </div>
@@ -98,9 +93,7 @@ const router = useRouter()
 const currentMusic = ref(null)
 const isPlaying = ref(false)
 const isMuted = ref(false)
-const isShuffle = ref(false)
-const isRepeat = ref(false)
-const repeatMode = ref('off') // off, all, one
+const playMode = ref('list') // list, single, shuffle
 const currentTime = ref(0)
 const duration = ref(0)
 const volume = ref(80)
@@ -109,6 +102,15 @@ const desktopLyricsEnabled = ref(false)
 const fadeInterval = ref(null)
 const FADE_DURATION = 500 // 淡入淡出时长（毫秒）
 const FADE_STEPS = 20 // 淡入淡出步数
+
+const playModeTitle = computed(() => {
+  const titles = {
+    'list': '列表循环',
+    'single': '单曲循环',
+    'shuffle': '随机播放'
+  }
+  return titles[playMode.value] || '列表循环'
+})
 
 const currentCover = computed(() => {
   if (!currentMusic.value) {
@@ -212,25 +214,11 @@ const next = () => {
   console.log('下一首')
 }
 
-const toggleRepeat = () => {
-  isRepeat.value = !isRepeat.value
-  // 切换循环模式：off -> all -> one -> off
-  if (!isRepeat.value) {
-    repeatMode.value = 'off'
-  } else {
-    repeatMode.value = 'all'
-  }
-  notifyPlayerState()
-}
-
-const setRepeatMode = (mode) => {
-  repeatMode.value = mode
-  isRepeat.value = mode !== 'off'
-  notifyPlayerState()
-}
-
-const toggleShuffle = () => {
-  isShuffle.value = !isShuffle.value
+const togglePlayMode = () => {
+  const modes = ['list', 'single', 'shuffle']
+  const currentIndex = modes.indexOf(playMode.value)
+  const nextIndex = (currentIndex + 1) % modes.length
+  playMode.value = modes[nextIndex]
   notifyPlayerState()
 }
 
@@ -245,8 +233,7 @@ const notifyPlayerState = () => {
   if (window.electronAPI) {
     window.electronAPI.notifyPlayerState({
       isPlaying: isPlaying.value,
-      isShuffle: isShuffle.value,
-      repeatMode: repeatMode.value,
+      playMode: playMode.value,
       volume: volume.value,
       desktopLyricsEnabled: desktopLyricsEnabled.value
     })
@@ -355,11 +342,9 @@ onMounted(() => {
   window.addEventListener('tray-play-pause', togglePlay)
   window.addEventListener('tray-next', next)
   window.addEventListener('tray-favorite', handleTrayFavorite)
-  window.addEventListener('tray-set-repeat', (event) => {
-    setRepeatMode(event.detail)
-  })
-  window.addEventListener('tray-toggle-shuffle', (event) => {
-    isShuffle.value = event.detail
+  window.addEventListener('tray-set-play-mode', (event) => {
+    playMode.value = event.detail
+    notifyPlayerState()
   })
   window.addEventListener('tray-toggle-desktop-lyrics', (event) => {
     toggleDesktopLyrics(event.detail)
@@ -396,8 +381,7 @@ onUnmounted(() => {
   window.removeEventListener('tray-play-pause', togglePlay)
   window.removeEventListener('tray-next', next)
   window.removeEventListener('tray-favorite', handleTrayFavorite)
-  window.removeEventListener('tray-set-repeat', setRepeatMode)
-  window.removeEventListener('tray-toggle-shuffle', toggleShuffle)
+  window.removeEventListener('tray-set-play-mode', togglePlayMode)
   window.removeEventListener('tray-toggle-desktop-lyrics', toggleDesktopLyrics)
   window.removeEventListener('navigate-to-settings', handleNavigateToSettings)
 })
