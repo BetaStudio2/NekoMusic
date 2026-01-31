@@ -25,8 +25,14 @@
             <path fill="currentColor" d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
           </svg>
         </button>
-        <button class="control-btn play-btn" @click="togglePlay" :title="isPlaying ? '暂停' : '播放'">
-          <svg v-if="!isPlaying" viewBox="0 0 24 24" width="24" height="24">
+        <button class="control-btn play-btn" @click="togglePlay" :title="isPlaying ? '暂停' : '播放'" :disabled="!audioLoaded && currentMusic">
+          <svg v-if="!audioLoaded && currentMusic" viewBox="0 0 24 24" width="24" height="24" class="loading-icon">
+            <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+            <path d="M12 2 A10 10 0 0 1 22 12" fill="none" stroke="currentColor" stroke-width="2">
+              <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/>
+            </path>
+          </svg>
+          <svg v-else-if="!isPlaying" viewBox="0 0 24 24" width="24" height="24">
             <path fill="currentColor" d="M8 5v14l11-7z"/>
           </svg>
           <svg v-else viewBox="0 0 24 24" width="24" height="24">
@@ -55,7 +61,7 @@
             <div class="thumb-glow"></div>
           </div>
         </div>
-        <span class="time">{{ formatTime(duration) }}</span>
+        <span class="time">{{ audioLoaded ? formatTime(duration) : '--:--' }}</span>
       </div>
     </div>
     
@@ -110,6 +116,7 @@ const volume = ref(parseInt(localStorage.getItem('volume')) || 100)
 const audioElement = ref(null)
 const desktopLyricsEnabled = ref(false)
 const fadeInterval = ref(null)
+const audioLoaded = ref(false) // 音频是否已加载完成
 const FADE_DURATION = 500 // 淡入淡出时长（毫秒）
 const FADE_STEPS = 20 // 淡入淡出步数
 
@@ -148,6 +155,14 @@ const handleCoverError = (event) => {
 const togglePlay = () => {
   if (!audioElement.value) return
   
+  console.log('togglePlay: 切换播放状态，当前:', isPlaying.value, '音频源:', audioElement.value.src, '音频已加载:', audioLoaded.value, '音频就绪状态:', audioElement.value.readyState)
+  
+  // 如果要播放但音频未加载完成，不执行播放
+  if (!isPlaying.value && !audioLoaded.value) {
+    console.log('⚠️ 音频未加载完成，无法播放')
+    return
+  }
+  
   // 立即更新 UI 状态
   isPlaying.value = !isPlaying.value
   updateMediaInfo()
@@ -160,11 +175,16 @@ const togglePlay = () => {
   // 执行淡入淡出效果
   if (isPlaying.value) {
     // 淡入播放
-    audioElement.value.play().catch(err => {
-      console.error('播放失败:', err)
-      isPlaying.value = false
-      updateMediaInfo()
-    })
+    const playPromise = audioElement.value.play()
+    if (playPromise !== undefined) {
+      playPromise.then(() => {
+        console.log('✓ 音频开始播放')
+      }).catch(err => {
+        console.error('✗ 播放失败:', err)
+        isPlaying.value = false
+        updateMediaInfo()
+      })
+    }
     fadeIn()
   } else {
     // 淡出暂停
@@ -398,10 +418,13 @@ const handleVolumeClick = (event) => {
 const loadMusic = (music) => {
   if (!music) return
   
+  console.log('loadMusic: 加载音乐', music.title)
+  
   currentMusic.value = music
   isPlaying.value = false
   currentTime.value = 0
   duration.value = music.duration || 0
+  audioLoaded.value = false // 重置加载状态
   
   // 保存到 localStorage
   localStorage.setItem('currentMusic', JSON.stringify(music))
@@ -409,6 +432,7 @@ const loadMusic = (music) => {
   if (audioElement.value) {
     audioElement.value.src = `https://music.cnmsb.xin/api/music/file/${music.id}`
     audioElement.value.load()
+    console.log('✓ 音频已加载到元素，等待 loadedmetadata 事件')
   }
   
   updateMediaInfo()
@@ -420,7 +444,7 @@ const loadMusic = (music) => {
 }
 
 const handleTimeUpdate = () => {
-  if (audioElement.value) {
+  if (audioElement.value && audioLoaded.value) {
     currentTime.value = audioElement.value.currentTime
     updateMediaInfo()
   }
@@ -429,7 +453,21 @@ const handleTimeUpdate = () => {
 const handleLoadedMetadata = () => {
   if (audioElement.value) {
     duration.value = audioElement.value.duration
+    audioLoaded.value = true
+    console.log('✓ 音频元数据已加载完成，时长:', duration.value)
   }
+}
+
+const handleCanPlay = () => {
+  audioLoaded.value = true
+  console.log('✓ 音频可以播放')
+}
+
+const handleError = (error) => {
+  console.error('✗ 音频加载错误:', error)
+  audioLoaded.value = false
+  isPlaying.value = false
+  updateMediaInfo()
 }
 
 const handleEnded = () => {
@@ -440,10 +478,26 @@ const handleEnded = () => {
 
 const handleMusicPlay = (event) => {
   loadMusic(event.detail)
+  // 等待音频加载完成后再播放
   if (audioElement.value) {
-    audioElement.value.play()
-    isPlaying.value = true
-    updateMediaInfo()
+    const checkAndPlay = () => {
+      if (audioLoaded.value) {
+        audioElement.value.play()
+        isPlaying.value = true
+        updateMediaInfo()
+        audioElement.value.removeEventListener('loadedmetadata', checkAndPlay)
+      }
+    }
+    
+    // 如果已经加载完成，立即播放
+    if (audioLoaded.value) {
+      audioElement.value.play()
+      isPlaying.value = true
+      updateMediaInfo()
+    } else {
+      // 否则等待 loadedmetadata 事件
+      audioElement.value.addEventListener('loadedmetadata', checkAndPlay)
+    }
   }
 }
 
@@ -453,6 +507,8 @@ onMounted(() => {
   
   audioElement.value.addEventListener('timeupdate', handleTimeUpdate)
   audioElement.value.addEventListener('loadedmetadata', handleLoadedMetadata)
+  audioElement.value.addEventListener('canplay', handleCanPlay)
+  audioElement.value.addEventListener('error', handleError)
   audioElement.value.addEventListener('ended', handleEnded)
   
   window.addEventListener('music-play', handleMusicPlay)
@@ -508,6 +564,8 @@ onUnmounted(() => {
   if (audioElement.value) {
     audioElement.value.removeEventListener('timeupdate', handleTimeUpdate)
     audioElement.value.removeEventListener('loadedmetadata', handleLoadedMetadata)
+    audioElement.value.removeEventListener('canplay', handleCanPlay)
+    audioElement.value.removeEventListener('error', handleError)
     audioElement.value.removeEventListener('ended', handleEnded)
     audioElement.value.pause()
   }
@@ -718,7 +776,12 @@ const toggleFavorite = (music) => {
   box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
 }
 
-.play-btn:hover {
+.play-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.play-btn:hover:not(:disabled) {
   transform: scale(1.05);
   box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
 }
@@ -746,12 +809,17 @@ const toggleFavorite = (music) => {
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  transition: height var(--transition-fast);
   user-select: none;
 }
 
-.progress-bar:hover {
-  height: 8px;
+.loading-text {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.loading-icon {
+  animation: spin 1s linear infinite;
 }
 
 .progress-fill {
