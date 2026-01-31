@@ -16,18 +16,19 @@
       </div>
 
       <div class="search-results">
-        <div v-if="activeTab === 'music'" class="music-results">
-          <div class="music-list-header">
-            <button class="play-all-btn" @click="playAllMusic">
+        <Transition name="tab-content" mode="out-in">
+          <div v-if="activeTab === 'music'" class="music-results" :key="'music'">
+            <div class="music-list-header">
+              <button class="play-all-btn" @click="playAllMusic">
               <svg viewBox="0 0 24 24" width="18" height="18">
                 <path fill="currentColor" d="M8 5v14l11-7z"/>
               </svg>
               播放全部
             </button>
             <span class="result-count">{{ musicResults.length }} 首单曲</span>
-          </div>
-          
-          <div v-if="loadingMusic" class="loading">
+            </div>
+            
+            <div v-if="loadingMusic" class="loading">
             <div class="loading-spinner"></div>
             <p>加载中...</p>
           </div>
@@ -37,61 +38,63 @@
           </div>
           
           <div v-else class="music-list">
-            <div 
-              v-for="(music, index) in musicResults" 
-              :key="music.id"
-              :class="['music-item', { playing: currentMusic?.id === music.id }]"
-              @dblclick="playMusic(music)"
-            >
-              <div class="music-index">
-                <span v-if="currentMusic?.id === music.id" class="playing-icon">
-                  <svg viewBox="0 0 24 24" width="16" height="16">
-                    <path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
-                  </svg>
-                </span>
-                <span v-else class="index-num">{{ index + 1 }}</span>
-              </div>
-              
-              <div class="music-cover-wrapper">
-                <img 
-                  :src="getCoverUrl(music.id)" 
-                  :alt="music.title"
-                  class="music-cover"
-                  @error="handleCoverError"
-                />
-                <div class="cover-overlay">
-                  <button class="play-btn" @click.stop="playMusic(music)">
-                    <svg viewBox="0 0 24 24" width="24" height="24">
-                      <path fill="currentColor" d="M8 5v14l11-7z"/>
+            <TransitionGroup name="music-item" tag="div">
+              <div 
+                v-for="(music, index) in musicResults" 
+                :key="music.id"
+                :class="['music-item', { playing: currentMusic?.id === music.id }]"
+                @dblclick="playMusic(music)"
+              >
+                <div class="music-index">
+                  <span v-if="currentMusic?.id === music.id" class="playing-icon">
+                    <svg viewBox="0 0 24 24" width="16" height="16">
+                      <path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                    </svg>
+                  </span>
+                  <span v-else class="index-num">{{ index + 1 }}</span>
+                </div>
+                
+                <div class="music-cover-wrapper">
+                  <img 
+                    :src="getCoverUrl(music.id)" 
+                    :alt="music.title"
+                    class="music-cover"
+                    @error="handleCoverError"
+                  />
+                  <div class="cover-overlay">
+                    <button class="play-btn" @click.stop="playMusic(music)">
+                      <svg viewBox="0 0 24 24" width="24" height="24">
+                        <path fill="currentColor" d="M8 5v14l11-7z"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                
+                <div class="music-info">
+                  <div class="music-title">{{ music.title }}</div>
+                  <div class="music-meta">
+                    <span class="music-artist">{{ music.artist }}</span>
+                    <span v-if="music.album" class="music-album">{{ music.album }}</span>
+                  </div>
+                </div>
+                
+                <div class="music-duration">
+                  {{ formatDuration(music.duration) }}
+                </div>
+                
+                <div class="music-actions">
+                  <button class="action-btn" @click.stop="toggleFavorite(music)" :class="{ 'is-favorite': isFavorite(music.id) }">
+                    <svg viewBox="0 0 24 24" width="18" height="18">
+                      <path :fill="isFavorite(music.id) ? '#ff4545' : 'currentColor'" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                     </svg>
                   </button>
                 </div>
               </div>
-              
-              <div class="music-info">
-                <div class="music-title">{{ music.title }}</div>
-                <div class="music-meta">
-                  <span class="music-artist">{{ music.artist }}</span>
-                  <span v-if="music.album" class="music-album">{{ music.album }}</span>
-                </div>
-              </div>
-              
-              <div class="music-duration">
-                {{ formatDuration(music.duration) }}
-              </div>
-              
-              <div class="music-actions">
-                <button class="action-btn" @click.stop="toggleFavorite(music)" :class="{ 'is-favorite': isFavorite(music.id) }">
-                  <svg viewBox="0 0 24 24" width="18" height="18">
-                    <path :fill="isFavorite(music.id) ? '#ff4545' : 'currentColor'" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                  </svg>
-                </button>
-              </div>
+            </TransitionGroup>
             </div>
           </div>
-        </div>
 
-        <div v-if="activeTab === 'playlist'" class="playlist-results">
+        <div v-else-if="activeTab === 'playlist'" class="playlist-results" :key="'playlist'">
           <div v-if="loadingPlaylists" class="loading">
             <div class="loading-spinner"></div>
             <p>加载中...</p>
@@ -125,7 +128,7 @@
           </div>
         </div>
 
-        <div v-if="activeTab === 'artist'" class="artist-results">
+        <div v-else-if="activeTab === 'artist'" class="artist-results" :key="'artist'">
           <div v-if="loadingArtists" class="loading">
             <div class="loading-spinner"></div>
             <p>加载中...</p>
@@ -176,7 +179,8 @@
               </div>
             </div>
           </div>
-        </div>
+          </div>
+        </Transition>
       </div>
     </div>
     
@@ -545,6 +549,25 @@ onMounted(() => {
   box-shadow: var(--shadow-sm);
 }
 
+.music-item-enter-active,
+.music-item-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.music-item-enter-from {
+  opacity: 0;
+  transform: translateY(20px) scale(0.95);
+}
+
+.music-item-leave-to {
+  opacity: 0;
+  transform: translateY(-20px) scale(0.95);
+}
+
+.music-item-move {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 .music-item:hover {
   background: var(--bg-secondary);
   transform: translateX(4px);
@@ -875,6 +898,21 @@ onMounted(() => {
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+.tab-content-enter-active,
+.tab-content-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tab-content-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.tab-content-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 
 .empty-state {
