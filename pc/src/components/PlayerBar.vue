@@ -106,6 +106,9 @@ const duration = ref(0)
 const volume = ref(80)
 const audioElement = ref(null)
 const desktopLyricsEnabled = ref(false)
+const fadeInterval = ref(null)
+const FADE_DURATION = 500 // 淡入淡出时长（毫秒）
+const FADE_STEPS = 20 // 淡入淡出步数
 
 const currentCover = computed(() => {
   if (!currentMusic.value) {
@@ -133,17 +136,72 @@ const handleCoverError = (event) => {
 const togglePlay = () => {
   if (!audioElement.value) return
   
-  if (isPlaying.value) {
-    audioElement.value.pause()
-  } else {
-    audioElement.value.play()
-  }
+  // 立即更新 UI 状态
   isPlaying.value = !isPlaying.value
   notifyPlayerState()
   
   if (window.electronAPI) {
     window.electronAPI.notifyPlayState(isPlaying.value)
   }
+  
+  // 执行淡入淡出效果
+  if (isPlaying.value) {
+    // 淡入播放
+    audioElement.value.play().catch(err => {
+      console.error('播放失败:', err)
+      isPlaying.value = false
+    })
+    fadeIn()
+  } else {
+    // 淡出暂停
+    fadeOut(() => {
+      audioElement.value.pause()
+    })
+  }
+}
+
+// 淡入效果
+const fadeIn = () => {
+  if (fadeInterval.value) {
+    clearInterval(fadeInterval.value)
+  }
+  
+  audioElement.value.volume = 0
+  const targetVolume = volume.value / 100
+  const step = targetVolume / FADE_STEPS
+  let currentStep = 0
+  
+  fadeInterval.value = setInterval(() => {
+    currentStep++
+    audioElement.value.volume = Math.min(currentStep * step, targetVolume)
+    
+    if (currentStep >= FADE_STEPS) {
+      clearInterval(fadeInterval.value)
+      fadeInterval.value = null
+    }
+  }, FADE_DURATION / FADE_STEPS)
+}
+
+// 淡出效果
+const fadeOut = (callback) => {
+  if (fadeInterval.value) {
+    clearInterval(fadeInterval.value)
+  }
+  
+  const currentVolume = audioElement.value.volume
+  const step = currentVolume / FADE_STEPS
+  let currentStep = 0
+  
+  fadeInterval.value = setInterval(() => {
+    currentStep++
+    audioElement.value.volume = Math.max(currentVolume - currentStep * step, 0)
+    
+    if (currentStep >= FADE_STEPS) {
+      clearInterval(fadeInterval.value)
+      fadeInterval.value = null
+      if (callback) callback()
+    }
+  }, FADE_DURATION / FADE_STEPS)
 }
 
 const previous = () => {
@@ -220,6 +278,11 @@ const toggleMute = () => {
 }
 
 const handleVolumeChange = () => {
+  if (fadeInterval.value) {
+    clearInterval(fadeInterval.value)
+    fadeInterval.value = null
+  }
+  
   if (audioElement.value) {
     audioElement.value.volume = volume.value / 100
     isMuted.value = volume.value === 0
@@ -317,6 +380,11 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (fadeInterval.value) {
+    clearInterval(fadeInterval.value)
+    fadeInterval.value = null
+  }
+  
   if (audioElement.value) {
     audioElement.value.removeEventListener('timeupdate', handleTimeUpdate)
     audioElement.value.removeEventListener('loadedmetadata', handleLoadedMetadata)
