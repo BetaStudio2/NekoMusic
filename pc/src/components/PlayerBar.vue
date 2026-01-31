@@ -98,6 +98,57 @@
         </svg>
       </button>
     </div>
+    
+    <!-- 播放列表面板 -->
+    <Transition name="playlist-panel">
+      <div class="playlist-panel" v-if="showPlaylistPanel">
+        <div class="playlist-header">
+          <h3>播放列表</h3>
+          <div class="playlist-actions">
+            <span class="playlist-count">{{ playlist.length }} 首歌曲</span>
+            <button class="playlist-action-btn" @click="clearPlaylist" v-if="playlist.length > 0">清空</button>
+          </div>
+        </div>
+        <div class="playlist-content">
+          <div v-if="playlist.length === 0" class="playlist-empty">
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1">
+              <path d="M9 18V5l12-2v13"/>
+              <circle cx="6" cy="18" r="3"/>
+              <circle cx="18" cy="16" r="3"/>
+            </svg>
+            <p>播放列表为空</p>
+            <p class="hint">点击音乐添加到播放列表</p>
+          </div>
+          <TransitionGroup name="playlist-item" tag="div" class="playlist-items">
+            <div 
+              v-for="item in playlist" 
+              :key="item.localId"
+              class="playlist-item"
+              :class="{ playing: currentMusic && currentMusic.id === item.id }"
+              @click="playFromPlaylist(item.localId)"
+            >
+              <div class="playlist-item-info">
+                <div class="playlist-item-cover">
+                  <img :src="`https://music.cnmsb.xin/api/music/cover/${item.id}`" @error="handlePlaylistCoverError" />
+                  <div class="playing-indicator" v-if="currentMusic && currentMusic.id === item.id && isPlaying">
+                    <span></span><span></span><span></span>
+                  </div>
+                </div>
+                <div class="playlist-item-details">
+                  <span class="playlist-item-title">{{ item.title }}</span>
+                  <span class="playlist-item-artist">{{ item.artist }}</span>
+                </div>
+              </div>
+              <button class="playlist-item-remove" @click.stop="removeFromPlaylist(item.localId)">
+                <svg viewBox="0 0 24 24" width="16" height="16">
+                  <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+              </button>
+            </div>
+          </TransitionGroup>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -117,6 +168,8 @@ const audioElement = ref(null)
 const desktopLyricsEnabled = ref(false)
 const fadeInterval = ref(null)
 const audioLoaded = ref(false) // 音频是否已加载完成
+const playlist = ref([]) // 播放列表
+const showPlaylistPanel = ref(false) // 是否显示播放列表面板
 const FADE_DURATION = 500 // 淡入淡出时长（毫秒）
 const FADE_STEPS = 20 // 淡入淡出步数
 
@@ -150,6 +203,10 @@ const formatTime = (seconds) => {
 
 const handleCoverError = (event) => {
   event.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56"><defs><linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:%23667eea;stop-opacity:1"/><stop offset="100%" style="stop-color:%23764ba2;stop-opacity:1"/></linearGradient></defs><rect width="56" height="56" fill="url(%23grad)" rx="8"/><text x="28" y="35" font-family="Arial" font-size="24" fill="white" text-anchor="middle" font-weight="bold">M</text></svg>'
+}
+
+const handlePlaylistCoverError = (event) => {
+  event.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><defs><linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:%23667eea;stop-opacity:1"/><stop offset="100%" style="stop-color:%23764ba2;stop-opacity:1"/></linearGradient></defs><rect width="40" height="40" fill="url(%23grad)" rx="6"/><text x="20" y="25" font-family="Arial" font-size="18" fill="white" text-anchor="middle" font-weight="bold">M</text></svg>'
 }
 
 const togglePlay = () => {
@@ -404,7 +461,86 @@ const handleVolumeChange = () => {
 }
 
 const togglePlaylist = () => {
-  console.log('播放列表')
+  showPlaylistPanel.value = !showPlaylistPanel.value
+  console.log('播放列表面板:', showPlaylistPanel.value ? '显示' : '隐藏')
+}
+
+// 添加音乐到播放列表
+const addToPlaylist = (music) => {
+  if (!music) return
+  
+  // 检查是否已存在
+  const exists = playlist.value.some(item => item.id === music.id)
+  if (exists) {
+    console.log('音乐已在播放列表中:', music.title)
+    return
+  }
+  
+  // 生成本地 ID
+  const localId = Date.now() + Math.random().toString(36).substr(2, 9)
+  
+  // 添加到播放列表
+  playlist.value.push({
+    ...music,
+    localId: localId
+  })
+  
+  // 保存到 localStorage
+  savePlaylist()
+  
+  console.log('添加到播放列表:', music.title)
+}
+
+// 从播放列表移除音乐
+const removeFromPlaylist = (localId) => {
+  const index = playlist.value.findIndex(item => item.localId === localId)
+  if (index > -1) {
+    playlist.value.splice(index, 1)
+    savePlaylist()
+    console.log('从播放列表移除音乐')
+  }
+}
+
+// 清空播放列表
+const clearPlaylist = () => {
+  playlist.value = []
+  savePlaylist()
+  console.log('清空播放列表')
+}
+
+// 保存播放列表到 localStorage
+const savePlaylist = () => {
+  try {
+    localStorage.setItem('playlist', JSON.stringify(playlist.value))
+  } catch (e) {
+    console.error('保存播放列表失败:', e)
+  }
+}
+
+// 从 localStorage 加载播放列表
+const loadPlaylist = () => {
+  try {
+    const saved = localStorage.getItem('playlist')
+    if (saved) {
+      playlist.value = JSON.parse(saved)
+      console.log('加载播放列表:', playlist.value.length, '首音乐')
+    }
+  } catch (e) {
+    console.error('加载播放列表失败:', e)
+  }
+}
+
+// 播放播放列表中的指定音乐
+const playFromPlaylist = (localId) => {
+  const music = playlist.value.find(item => item.localId === localId)
+  if (music) {
+    loadMusic(music)
+    if (audioElement.value) {
+      audioElement.value.play()
+      isPlaying.value = true
+      updateMediaInfo()
+    }
+  }
 }
 
 const handleVolumeClick = (event) => {
@@ -512,6 +648,9 @@ onMounted(() => {
   audioElement.value.addEventListener('ended', handleEnded)
   
   window.addEventListener('music-play', handleMusicPlay)
+  window.addEventListener('add-to-playlist', (event) => {
+    addToPlaylist(event.detail)
+  })
   
   // 监听托盘事件
   window.addEventListener('tray-previous', previous)
@@ -553,6 +692,9 @@ onMounted(() => {
       console.error('解析音乐失败:', e)
     }
   }
+  
+  // 加载播放列表
+  loadPlaylist()
 })
 
 onUnmounted(() => {
@@ -570,6 +712,7 @@ onUnmounted(() => {
     audioElement.value.pause()
   }
   window.removeEventListener('music-play', handleMusicPlay)
+  window.removeEventListener('add-to-playlist', addToPlaylist)
   window.removeEventListener('tray-previous', previous)
   window.removeEventListener('tray-play-pause', togglePlay)
   window.removeEventListener('tray-next', next)
@@ -952,5 +1095,320 @@ const toggleFavorite = (music) => {
   font-size: 12px;
   font-weight: 500;
   color: var(--text-primary);
+}
+
+.playlist-panel {
+  position: fixed;
+  bottom: 100px;
+  right: 24px;
+  width: 380px;
+  max-height: 500px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.playlist-panel-enter-active,
+.playlist-panel-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.playlist-panel-enter-from {
+  opacity: 0;
+  transform: translateY(20px) scale(0.95);
+}
+
+.playlist-panel-leave-to {
+  opacity: 0;
+  transform: translateY(20px) scale(0.95);
+}
+
+.playlist-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(102, 126, 234, 0.05);
+}
+
+.playlist-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.playlist-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.playlist-count {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.playlist-action-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.05);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.playlist-action-btn:hover {
+  background: rgba(255, 59, 48, 0.1);
+  color: #ff3b30;
+  transform: translateY(-1px);
+}
+
+.playlist-content {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 400px;
+  padding: 8px 0;
+}
+
+.playlist-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.playlist-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.playlist-content::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+
+.playlist-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.playlist-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+}
+
+.playlist-empty svg {
+  margin-bottom: 16px;
+  opacity: 0.4;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.playlist-empty p {
+  margin: 4px 0;
+  font-size: 14px;
+}
+
+.playlist-empty .hint {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.playlist-items {
+  display: flex;
+  flex-direction: column;
+  padding: 0 8px;
+}
+
+.playlist-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  margin: 4px 0;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.playlist-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--gradient-primary);
+  border-radius: 3px 0 0 3px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.playlist-item:hover {
+  background: rgba(102, 126, 234, 0.08);
+  transform: translateX(2px);
+}
+
+.playlist-item:hover::before {
+  opacity: 0.5;
+}
+
+.playlist-item.playing {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.15), rgba(118, 75, 162, 0.15));
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+}
+
+.playlist-item.playing::before {
+  opacity: 1;
+}
+
+.playlist-item-enter-active,
+.playlist-item-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.playlist-item-enter-from {
+  opacity: 0;
+  transform: translateX(30px);
+}
+
+.playlist-item-leave-to {
+  opacity: 0;
+  transform: translateX(-30px);
+  height: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.playlist-item-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.playlist-item-cover {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s ease;
+}
+
+.playlist-item:hover .playlist-item-cover {
+  transform: scale(1.05);
+}
+
+.playlist-item-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.playing-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  align-items: flex-end;
+  height: 10px;
+  padding-bottom: 2px;
+}
+
+.playing-indicator span {
+  width: 2px;
+  background: white;
+  border-radius: 1px;
+  animation: playlist-wave 1s ease-in-out infinite;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+}
+
+.playing-indicator span:nth-child(1) { animation-delay: 0s; height: 4px; }
+.playing-indicator span:nth-child(2) { animation-delay: 0.1s; height: 6px; }
+.playing-indicator span:nth-child(3) { animation-delay: 0.2s; height: 8px; }
+
+@keyframes playlist-wave {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.5); }
+}
+
+.playlist-item-details {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.playlist-item-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+
+.playlist-item.playing .playlist-item-title {
+  color: var(--primary);
+}
+
+.playlist-item-artist {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.playlist-item-remove {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  margin-left: 8px;
+  opacity: 0;
+  transform: translateX(10px);
+}
+
+.playlist-item:hover .playlist-item-remove {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.playlist-item-remove:hover {
+  background: rgba(255, 59, 48, 0.15);
+  color: #ff3b30;
+  transform: scale(1.1) !important;
+}
+
+.playlist-item-remove:active {
+  transform: scale(0.95) !important;
 }
 </style>
