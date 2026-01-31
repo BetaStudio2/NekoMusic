@@ -248,13 +248,13 @@ const togglePlay = () => {
     if (playPromise !== undefined) {
       playPromise.then(() => {
         console.log('✓ 音频开始播放')
+        fadeIn()
       }).catch(err => {
         console.error('✗ 播放失败:', err)
         isPlaying.value = false
         updateMediaInfo()
       })
     }
-    fadeIn()
   } else {
     // 淡出暂停
     fadeOut(() => {
@@ -269,18 +269,31 @@ const fadeIn = () => {
     clearInterval(fadeInterval.value)
   }
   
-  audioElement.value.volume = 0
+  // 记录目标音量
   const targetVolume = volume.value / 100
-  const step = targetVolume / FADE_STEPS
+  
+  // 从当前音量开始淡入，而不是从0开始
+  const startVolume = audioElement.value.volume
+  
+  // 如果音量已经是目标值或更高，不需要淡入
+  if (startVolume >= targetVolume) {
+    audioElement.value.volume = targetVolume
+    return
+  }
+  
+  const step = (targetVolume - startVolume) / FADE_STEPS
   let currentStep = 0
+  
+  audioElement.value.volume = startVolume
   
   fadeInterval.value = setInterval(() => {
     currentStep++
-    audioElement.value.volume = Math.min(currentStep * step, targetVolume)
+    audioElement.value.volume = Math.min(startVolume + currentStep * step, targetVolume)
     
     if (currentStep >= FADE_STEPS) {
       clearInterval(fadeInterval.value)
       fadeInterval.value = null
+      audioElement.value.volume = targetVolume
     }
   }, FADE_DURATION / FADE_STEPS)
 }
@@ -699,18 +712,34 @@ const handleMusicPlay = (event) => {
   if (audioElement.value) {
     const checkAndPlay = () => {
       if (audioLoaded.value) {
-        audioElement.value.play()
-        isPlaying.value = true
-        updateMediaInfo()
+        console.log('handleMusicPlay: 音频已加载，开始播放')
+        // 使用淡入效果播放
+        audioElement.value.play().then(() => {
+          console.log('✓ 音频开始播放')
+          isPlaying.value = true
+          updateMediaInfo()
+          fadeIn()
+        }).catch(err => {
+          console.error('✗ 播放失败:', err)
+          isPlaying.value = false
+          updateMediaInfo()
+        })
         audioElement.value.removeEventListener('loadedmetadata', checkAndPlay)
       }
     }
     
     // 如果已经加载完成，立即播放
     if (audioLoaded.value) {
-      audioElement.value.play()
-      isPlaying.value = true
-      updateMediaInfo()
+      audioElement.value.play().then(() => {
+        console.log('✓ 音频开始播放')
+        isPlaying.value = true
+        updateMediaInfo()
+        fadeIn()
+      }).catch(err => {
+        console.error('✗ 播放失败:', err)
+        isPlaying.value = false
+        updateMediaInfo()
+      })
     } else {
       // 否则等待 loadedmetadata 事件
       audioElement.value.addEventListener('loadedmetadata', checkAndPlay)
