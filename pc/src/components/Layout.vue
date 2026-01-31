@@ -11,20 +11,28 @@
       <nav class="sidebar-nav">
         <div 
           v-for="item in navItems" 
-          :key="item.key"
-          :class="['nav-item', { active: currentRoute === item.key }]"
-          @click="navigateTo(item.key)"
+          :key="item.key || item.divider"
         >
-          <div class="nav-icon-wrapper">
-            <svg class="nav-icon" viewBox="0 0 24 24">
-              <path :d="item.icon" fill="currentColor"/>
-            </svg>
-            <div class="nav-icon-glow" v-if="currentRoute === item.key"></div>
+          <div v-if="item.divider" class="nav-divider"></div>
+          <div 
+            v-else
+            :class="['nav-item', { active: currentRoute === item.key }]"
+            @click="navigateTo(item.key)"
+          >
+            <div class="nav-icon-wrapper">
+              <svg class="nav-icon" viewBox="0 0 24 24">
+                <path :d="item.icon" fill="currentColor"/>
+              </svg>
+              <div class="nav-icon-glow" v-if="currentRoute === item.key"></div>
+            </div>
+            <span>{{ item.label }}</span>
+            <div class="nav-indicator" v-if="currentRoute === item.key"></div>
           </div>
-          <span>{{ item.label }}</span>
-          <div class="nav-indicator" v-if="currentRoute === item.key"></div>
         </div>
       </nav>
+
+      <div class="sidebar-spacer"></div>
+      
       <div class="sidebar-footer">
         <div class="user-card" @click="handleUserClick">
           <div class="user-avatar-wrapper">
@@ -239,7 +247,11 @@ const codeBtnText = computed(() => {
 })
 
 const navItems = [
-  { key: 'home', label: '首页', icon: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z' }
+  { key: 'home', label: '首页', icon: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z' },
+  { divider: true },
+  { key: 'favorites', label: '我喜欢的音乐', icon: 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z' },
+  { key: 'recent', label: '最近播放', icon: 'M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z' },
+  { key: 'local', label: '本地音乐', icon: 'M12 3v9.28c-.47-.17-.97-.28-1.5-.28C8.01 12 6 14.01 6 16.5S8.01 21 10.5 21c2.31 0 4.2-1.75 4.45-4H15V6h4V3h-7z' }
 ]
 
 const isLoggedIn = computed(() => {
@@ -608,6 +620,17 @@ const handleUserLogin = (event) => {
   background: white;
   border-radius: 2px 0 0 2px;
   box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+.nav-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  margin: 8px 16px;
+}
+
+.sidebar-spacer {
+  flex: 1;
+  min-height: 0;
 }
 
 .sidebar-footer {
