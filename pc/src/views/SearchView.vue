@@ -29,21 +29,19 @@ const searchQuery = ref('')
 
 const fetchSearchResults = async () => {
   try {
-    const response = await fetch('https://music.cnmsb.xin/api/music/search', {
+    const response = await fetch('/api/music/search', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        query: searchQuery.value,
-        page: 1,
-        pageSize: 50
+        query: searchQuery.value
       })
     })
     
     const data = await response.json()
-    if (data.success && data.data && data.data.results) {
-      return data.data.results
+    if (data.success && data.results) {
+      return data.results
     }
     return []
   } catch (error) {

@@ -50,6 +50,15 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'https://music.cnmsb.xin',
+        changeOrigin: true,
+        rewrite: (path) => path
+      }
+    }
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true
