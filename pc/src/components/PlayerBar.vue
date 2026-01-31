@@ -764,6 +764,9 @@ onMounted(() => {
   window.addEventListener('add-all-to-playlist', (event) => {
     addAllToPlaylist(event.detail)
   })
+  window.addEventListener('clear-playlist', () => {
+    clearPlaylist()
+  })
   
   // 监听托盘事件
   window.addEventListener('tray-previous', previous)
@@ -827,6 +830,7 @@ onUnmounted(() => {
   window.removeEventListener('music-play', handleMusicPlay)
   window.removeEventListener('add-to-playlist', addToPlaylist)
   window.removeEventListener('add-all-to-playlist', addAllToPlaylist)
+  window.removeEventListener('clear-playlist', clearPlaylist)
   window.removeEventListener('tray-previous', previous)
   window.removeEventListener('tray-play-pause', togglePlay)
   window.removeEventListener('tray-next', next)

@@ -348,6 +348,15 @@ const playMusic = (music) => {
 
 const playAllMusic = () => {
   if (musicResults.value.length > 0) {
+    console.log('playAllMusic: 清空播放列表并添加所有搜索结果，共', musicResults.value.length, '首')
+    
+    // 清空播放列表
+    window.dispatchEvent(new CustomEvent('clear-playlist'))
+    
+    // 添加所有搜索结果到播放列表
+    window.dispatchEvent(new CustomEvent('add-all-to-playlist', { detail: musicResults.value }))
+    
+    // 播放第一首
     playMusic(musicResults.value[0])
   }
 }
