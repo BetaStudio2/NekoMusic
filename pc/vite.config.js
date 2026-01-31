@@ -27,21 +27,7 @@ export default defineConfig({
           }
         }
       },
-      {
-        // 预加载脚本入口 - 不构建，直接复制
-        entry: 'electron/preload.cjs',
-        vite: {
-          build: {
-            outDir: 'dist-electron',
-            rollupOptions: {
-              external: ['electron']
-            },
-            minify: false  // 禁用压缩以避免格式问题
-          },
-          // 跳过构建，直接复制文件
-          buildRollup: false
-        }
-      }
+      // 注意：preload 脚本不通过 vite 构建，而是在构建后直接复制
     ]),
     renderer()
   ],
@@ -68,7 +54,8 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    emptyOutDir: true
+    emptyOutDir: true,
+    base: './'  // 使用相对路径，确保打包后能正确加载资源
   },
   clearScreen: false,
 })

@@ -79,6 +79,13 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import apiConfig from '../config/apiConfig'
+
+// 统一的 API 请求函数
+async function apiRequest(url, options = {}) {
+  const fullUrl = url.startsWith('http') ? url : `${apiConfig.BASE_URL}${url}`
+  return fetch(fullUrl, options)
+}
 
 const router = useRouter()
 const currentRoute = ref('home')
@@ -141,7 +148,7 @@ const handleSubmit = async () => {
 
   try {
     if (authTab.value === 'login') {
-      const response = await fetch('/api/user/login', {
+      const response = await apiRequest(apiConfig.USER_LOGIN, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -169,7 +176,7 @@ const handleSubmit = async () => {
         throw new Error(result.message || '登录失败')
       }
     } else {
-      const response = await fetch('/api/user/register', {
+      const response = await apiRequest(apiConfig.USER_REGISTER, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

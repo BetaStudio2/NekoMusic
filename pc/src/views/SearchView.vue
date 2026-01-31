@@ -196,6 +196,13 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import apiConfig from '../config/apiConfig'
+
+// 统一的 API 请求函数
+async function apiRequest(url, options = {}) {
+  const fullUrl = url.startsWith('http') ? url : `${apiConfig.BASE_URL}${url}`
+  return fetch(fullUrl, options)
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -238,7 +245,7 @@ const loadFavorites = async () => {
   
   // 从服务器同步
   try {
-    const response = await fetch('/api/user/favorites', {
+    const response = await apiRequest(apiConfig.USER_FAVORITES, {
       method: 'GET',
       headers: {
         'Authorization': token
@@ -258,10 +265,10 @@ const loadFavorites = async () => {
 
 const fetchMusicResults = async () => {
   if (!searchQuery.value.trim()) return
-  
+
   loadingMusic.value = true
   try {
-    const response = await fetch('/api/music/search', {
+    const response = await apiRequest(apiConfig.MUSIC_SEARCH, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -287,10 +294,10 @@ const fetchMusicResults = async () => {
 
 const fetchPlaylistResults = async () => {
   if (!searchQuery.value.trim()) return
-  
+
   loadingPlaylists.value = true
   try {
-    const response = await fetch('/api/playlists/search', {
+    const response = await apiRequest(apiConfig.PLAYLISTS_SEARCH, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -316,10 +323,10 @@ const fetchPlaylistResults = async () => {
 
 const fetchArtistResults = async () => {
   if (!searchQuery.value.trim()) return
-  
+
   loadingArtists.value = true
   try {
-    const response = await fetch('/api/artists/search', {
+    const response = await apiRequest(apiConfig.ARTISTS_SEARCH, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -443,7 +450,7 @@ const toggleFavorite = async (music) => {
       }
     } else {
       // 添加收藏
-      const response = await fetch('/api/user/favorites', {
+      const response = await apiRequest(apiConfig.USER_FAVORITES, {
         method: 'POST',
         headers: {
           'Authorization': token,

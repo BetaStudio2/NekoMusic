@@ -221,6 +221,13 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import PlayerBar from './PlayerBar.vue'
+import apiConfig from '../config/apiConfig'
+
+// 统一的 API 请求函数
+async function apiRequest(url, options = {}) {
+  const fullUrl = url.startsWith('http') ? url : `${apiConfig.BASE_URL}${url}`
+  return fetch(fullUrl, options)
+}
 
 const router = useRouter()
 const route = useRoute()
@@ -292,7 +299,7 @@ const sendVerificationCode = async () => {
   
   codeSending.value = true
   try {
-    const response = await fetch('/api/user/send-verification', {
+    const response = await apiRequest('/api/user/send-verification', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -363,7 +370,7 @@ const handleSubmit = async () => {
 
   try {
     if (authTab.value === 'login') {
-      const response = await fetch('/api/user/login', {
+      const response = await apiRequest(apiConfig.USER_LOGIN, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -392,7 +399,7 @@ const handleSubmit = async () => {
         throw new Error(result.message || '登录失败')
       }
     } else {
-      const response = await fetch('/api/user/register', {
+      const response = await apiRequest(apiConfig.USER_REGISTER, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

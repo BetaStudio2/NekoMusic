@@ -33,8 +33,8 @@ function createWindow() {
   const iconPath = isDev
     ? path.join(__dirname, '../public/icon.png')
     : path.join(app.getAppPath(), 'public/icon.png')
-  // 打包后 preload.js 在 dist-electron 目录下，使用相对路径
-  const preloadPath = path.join(__dirname, './preload.js')
+  // 打包后 preload.cjs 在 dist-electron 目录下，使用相对路径
+  const preloadPath = path.join(__dirname, './preload.cjs')
   console.log('createWindow: 图标路径 =', iconPath)
   console.log('createWindow: preload 路径 =', preloadPath)
   
@@ -52,6 +52,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       devTools: true,
+      sandbox: false,  // 关闭沙箱以允许 localStorage 访问
     },
     backgroundColor: '#667eea',
   })
@@ -84,30 +85,20 @@ function createWindow() {
     }
   })
 
-  // 开发模式加载 Vite 开发服务器
-  console.log('createWindow: 加载开发服务器 http://localhost:5173')
-  
-  // 先尝试加载开发服务器
-  win.loadURL('http://localhost:5173')
-  
+  // 根据环境判断加载开发服务器还是生产文件
+  if (isDev || !app.isPackaged) {
+    console.log('createWindow: 加载开发服务器 http://localhost:5173')
+    win.loadURL('http://localhost:5173')
+  } else {
+    console.log('createWindow: 加载生产文件')
+    const appPath = app.getAppPath()
+    const prodPath = path.join(appPath, 'dist/index.html')
+    console.log('生产文件路径:', prodPath)
+    win.loadFile(prodPath)
+  }
+
   // 打开开发者工具（开发和生产模式都打开）
   win.webContents.openDevTools()
-  
-  // 监听加载失败，如果失败则加载生产文件
-  win.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-    if (isMainFrame) {
-      console.error('加载失败:', errorCode, errorDescription)
-      // 如果开发服务器未启动，加载生产文件
-      if (errorCode === -3 || errorCode === -2) { // ERR_CONNECTION_REFUSED 或 ERR_FILE_NOT_FOUND
-        console.log('开发服务器未启动，加载生产文件')
-        // 打包后文件在 app.asar 中，使用 app.getAppPath() 获取根目录
-        const appPath = app.getAppPath()
-        const prodPath = path.join(appPath, 'dist/index.html')
-        console.log('生产文件路径:', prodPath)
-        win.loadFile(prodPath)
-      }
-    }
-  })
 
   win.on('close', (event) => {
     if (!app.isQuitting) {

@@ -166,6 +166,13 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import apiConfig from '../config/apiConfig'
+
+// 统一的 API 请求函数
+async function apiRequest(url, options = {}) {
+  const fullUrl = url.startsWith('http') ? url : `${apiConfig.BASE_URL}${url}`
+  return fetch(fullUrl, options)
+}
 
 const router = useRouter()
 const currentMusic = ref(null)
@@ -225,7 +232,7 @@ const loadFavorites = async () => {
   }
   
   try {
-    const response = await fetch('/api/user/favorites', {
+    const response = await apiRequest(apiConfig.USER_FAVORITES, {
       headers: {
         'Authorization': token
       }
@@ -297,7 +304,7 @@ const toggleFavorite = async () => {
       console.log('toggleFavorite POST request body:', requestBody)
       console.log('musicId type:', typeof currentMusic.value.id, 'value:', currentMusic.value.id)
       
-      const response = await fetch('/api/user/favorites', {
+      const response = await apiRequest(apiConfig.USER_FAVORITES, {
         method: 'POST',
         headers: {
           'Authorization': token,
