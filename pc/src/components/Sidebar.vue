@@ -140,10 +140,8 @@ const handleSubmit = async () => {
   }
 
   try {
-    const baseUrl = 'https://music.cnmsb.xin/api'
-    
     if (authTab.value === 'login') {
-      const response = await fetch(`${baseUrl}/user/login`, {
+      const response = await fetch('/api/user/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -156,15 +154,22 @@ const handleSubmit = async () => {
         throw new Error('登录失败')
       }
       
-      const data = await response.json()
-      localStorage.setItem('user', JSON.stringify(data))
-      localStorage.setItem('token', data.token || '')
-      username.value = data.username
-      isLoggedIn.value = true
-      showLoginModal.value = false
-      formData.value = { username: '', password: '', email: '' }
+      const result = await response.json()
+      if (result.success && result.data && result.data.user) {
+        const user = result.data.user
+        const token = result.data.token
+        
+        localStorage.setItem('user', JSON.stringify(user))
+        localStorage.setItem('token', token)
+        username.value = user.username
+        isLoggedIn.value = true
+        showLoginModal.value = false
+        formData.value = { username: '', password: '', email: '' }
+      } else {
+        throw new Error(result.message || '登录失败')
+      }
     } else {
-      const response = await fetch(`${baseUrl}/user/register`, {
+      const response = await fetch('/api/user/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -178,8 +183,13 @@ const handleSubmit = async () => {
         throw new Error('注册失败')
       }
       
-      authTab.value = 'login'
-      errorMessage.value = ''
+      const result = await response.json()
+      if (result.success) {
+        authTab.value = 'login'
+        errorMessage.value = ''
+      } else {
+        throw new Error(result.message || '注册失败')
+      }
     }
   } catch (error) {
     errorMessage.value = error.message || `${authTab.value === 'login' ? '登录' : '注册'}失败，请重试`

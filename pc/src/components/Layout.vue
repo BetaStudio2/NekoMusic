@@ -96,6 +96,32 @@
       <PlayerBar />
     </div>
 
+    <!-- Toast 通知 -->
+    <div class="toast-container">
+      <TransitionGroup name="toast">
+        <div 
+          v-for="toast in toasts" 
+          :key="toast.id"
+          :class="['toast', `toast-${toast.type}`]"
+        >
+          <div class="toast-icon">
+            <svg v-if="toast.type === 'success'" viewBox="0 0 24 24" width="20" height="20">
+              <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            <svg v-else-if="toast.type === 'error'" viewBox="0 0 24 24" width="20" height="20">
+              <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+            <svg v-else viewBox="0 0 24 24" width="20" height="20">
+              <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+            </svg>
+          </div>
+          <div class="toast-content">
+            <div class="toast-message">{{ toast.message }}</div>
+          </div>
+        </div>
+      </TransitionGroup>
+    </div>
+
     <Transition name="modal">
       <div v-if="showLoginModal" class="modal-overlay" @click="showLoginModal = false">
         <div class="modal-content" @click.stop>
@@ -107,7 +133,7 @@
               <h2 :key="authTab" class="modal-title">{{ authTab === 'login' ? '欢迎回来' : '创建账号' }}</h2>
             </Transition>
             <Transition name="subtitle-fade" mode="out-in">
-              <p :key="authTab" class="modal-subtitle">{{ authTab === 'login' ? '登录以继续使用猫云音乐' : '创建新账号开始您的音乐之旅' }}</p>
+              <p :key="authTab" class="modal-subtitle">{{ authTab === 'login' ? '登录以继续使用Neko云音乐' : '创建新账号开始您的音乐之旅' }}</p>
             </Transition>
           </div>
           
@@ -176,6 +202,7 @@ const router = useRouter()
 const currentRoute = ref('home')
 const searchQuery = ref('')
 const username = ref('')
+const currentUser = ref(null)
 const showLoginModal = ref(false)
 const authTab = ref('login')
 const errorMessage = ref('')
@@ -184,30 +211,34 @@ const formData = ref({
   password: '',
   email: ''
 })
+const toasts = ref([])
+let toastId = 0
 
 const navItems = [
   { key: 'home', label: '首页', icon: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z' }
 ]
 
 const isLoggedIn = computed(() => {
-  return localStorage.getItem('user') !== null
+  return currentUser.value !== null
 })
 
 const userAvatar = computed(() => {
-  const userStr = localStorage.getItem('user')
-  if (userStr) {
-    try {
-      const user = JSON.parse(userStr)
-      return `https://music.cnmsb.xin/api/user/avatar/${user.id}`
-    } catch (e) {
-      return getDefaultAvatar()
-    }
+  if (currentUser.value && currentUser.value.id) {
+    return `https://music.cnmsb.xin/api/user/avatar/${currentUser.value.id}`
   }
   return getDefaultAvatar()
 })
 
 const getDefaultAvatar = () => {
   return 'https://music.cnmsb.xin/api/user/avatar/default'
+}
+
+const showToast = (message, type = 'info') => {
+  const id = toastId++
+  toasts.value.push({ id, message, type })
+  setTimeout(() => {
+    toasts.value = toasts.value.filter(t => t.id !== id)
+  }, 3000)
 }
 
 const navigateTo = (route) => {
@@ -241,10 +272,8 @@ const handleSubmit = async () => {
   }
 
   try {
-    const baseUrl = 'https://music.cnmsb.xin/api'
-    
     if (authTab.value === 'login') {
-      const response = await fetch(`${baseUrl}/user/login`, {
+      const response = await fetch('/api/user/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -257,14 +286,23 @@ const handleSubmit = async () => {
         throw new Error('登录失败')
       }
       
-      const data = await response.json()
-      localStorage.setItem('user', JSON.stringify(data))
-      localStorage.setItem('token', data.token || '')
-      username.value = data.username
-      showLoginModal.value = false
-      formData.value = { username: '', password: '', email: '' }
+      const result = await response.json()
+      if (result.success && result.data && result.data.user) {
+        const user = result.data.user
+        const token = result.data.token
+        
+        localStorage.setItem('user', JSON.stringify(user))
+        localStorage.setItem('token', token)
+        currentUser.value = user
+        username.value = user.username
+        showLoginModal.value = false
+        formData.value = { username: '', password: '', email: '' }
+        showToast('登录成功，欢迎回来！', 'success')
+      } else {
+        throw new Error(result.message || '登录失败')
+      }
     } else {
-      const response = await fetch(`${baseUrl}/user/register`, {
+      const response = await fetch('/api/user/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -278,11 +316,18 @@ const handleSubmit = async () => {
         throw new Error('注册失败')
       }
       
-      authTab.value = 'login'
-      errorMessage.value = ''
+      const result = await response.json()
+      if (result.success) {
+        authTab.value = 'login'
+        errorMessage.value = ''
+        showToast('注册成功，请登录', 'success')
+      } else {
+        throw new Error(result.message || '注册失败')
+      }
     }
   } catch (error) {
     errorMessage.value = error.message || `${authTab.value === 'login' ? '登录' : '注册'}失败，请重试`
+    showToast(errorMessage.value, 'error')
   }
 }
 
@@ -309,6 +354,7 @@ onMounted(() => {
   if (userStr) {
     try {
       const user = JSON.parse(userStr)
+      currentUser.value = user
       username.value = user.username
     } catch (e) {
       console.error('解析用户信息失败:', e)
@@ -1092,5 +1138,104 @@ onMounted(() => {
 .button-fade-leave-to {
   opacity: 0;
   transform: translateY(10px);
+}
+
+.toast-container {
+  position: fixed;
+  top: 80px;
+  right: 24px;
+  z-index: 999999;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(255, 255, 255, 0.5);
+  min-width: 300px;
+  pointer-events: auto;
+  position: relative;
+  overflow: hidden;
+}
+
+.toast::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+}
+
+.toast-success::before {
+  background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%);
+}
+
+.toast-error::before {
+  background: linear-gradient(180deg, #f87171 0%, #ef4444 100%);
+}
+
+.toast-info::before {
+  background: linear-gradient(180deg, #60a5fa 0%, #3b82f6 100%);
+}
+
+.toast-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toast-success .toast-icon {
+  color: #22c55e;
+}
+
+.toast-error .toast-icon {
+  color: #ef4444;
+}
+
+.toast-info .toast-icon {
+  color: #3b82f6;
+}
+
+.toast-content {
+  flex: 1;
+}
+
+.toast-message {
+  font-size: 14px;
+  color: #1f2937;
+  font-weight: 500;
+}
+
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toast-enter-from {
+  opacity: 0;
+  transform: translateX(100px);
+}
+
+.toast-leave-to {
+  opacity: 0;
+  transform: translateX(100px);
+}
+
+.toast-move {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 </style>
