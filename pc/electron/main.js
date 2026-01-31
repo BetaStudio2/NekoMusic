@@ -14,20 +14,39 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     frame: false,
+    autoHideMenuBar: true,
     icon: path.join(__dirname, '../public/icon.png'),
     title: 'NekoMusic',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      devTools: false,
     },
     backgroundColor: '#667eea',
+  })
+
+  // 禁用 DevTools 和全屏快捷键
+  win.webContents.on('before-input-event', (event, input) => {
+    // 禁用 DevTools 快捷键
+    if (input.control && input.shift && (input.key === 'I' || input.key === 'i')) {
+      event.preventDefault()
+    }
+    if (input.control && (input.key === 'F12' || input.key === 'f12')) {
+      event.preventDefault()
+    }
+    if (input.alt && input.key === 'F12' || input.alt && input.key === 'f12') {
+      event.preventDefault()
+    }
+    // 禁用 F11 全屏快捷键
+    if (input.key === 'F11' || input.key === 'f11') {
+      event.preventDefault()
+    }
   })
 
   // 开发模式加载 Vite 开发服务器
   if (process.env.NODE_ENV === 'development') {
     win.loadURL('http://localhost:5173')
-    win.webContents.openDevTools()
   } else {
     // 生产模式加载打包后的文件
     win.loadFile(path.join(__dirname, '../dist/index.html'))
