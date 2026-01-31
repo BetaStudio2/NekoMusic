@@ -1,5 +1,9 @@
 import { app, BrowserWindow } from 'electron'
 import path from 'path'
+import { fileURLToPath } from 'url'
+
+// 在 ES 模块中获取 __dirname 的等效值
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 let win
 
@@ -9,13 +13,14 @@ function createWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
+    icon: path.join(__dirname, '../public/icon.png'),
+    title: 'NekoMusic',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
     },
-    titleBarStyle: 'default',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#667eea',
   })
 
   // 开发模式加载 Vite 开发服务器
