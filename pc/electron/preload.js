@@ -7,6 +7,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   maximize: () => ipcRenderer.send('window-maximize'),
   close: () => ipcRenderer.send('window-close'),
   
+  // 监听窗口状态变化
+  onWindowMaximized: (callback) => ipcRenderer.on('window-maximized', callback),
+  onWindowUnmaximized: (callback) => ipcRenderer.on('window-unmaximized', callback),
+  
   // 播放器状态通知
   notifyPlayerState: (state) => ipcRenderer.send('player-state-changed', state),
   notifyMusicPlay: (music) => ipcRenderer.send('music-play', music),

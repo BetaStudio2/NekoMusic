@@ -45,9 +45,12 @@
             <path fill="currentColor" d="M2 5h8v1H2V5z"/>
           </svg>
         </button>
-        <button class="window-btn" @click="maximize" title="最大化">
-          <svg viewBox="0 0 12 12" width="12" height="12">
+        <button class="window-btn" @click="maximize" :title="isMaximized ? '还原' : '最大化'">
+          <svg v-if="!isMaximized" viewBox="0 0 12 12" width="12" height="12">
             <path fill="none" stroke="currentColor" stroke-width="1" d="M2 2h8v8H2z"/>
+          </svg>
+          <svg v-else viewBox="0 0 12 12" width="12" height="12">
+            <path fill="none" stroke="currentColor" stroke-width="1" d="M2 5h7v5H2zM5 2h5v3H5z"/>
           </svg>
         </button>
         <button class="window-btn close-btn" @click="close" title="关闭">
@@ -67,6 +70,7 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const searchQuery = ref('')
 const username = ref('')
+const isMaximized = ref(false)
 
 const userAvatar = computed(() => {
   const userStr = localStorage.getItem('user')
@@ -92,20 +96,38 @@ const handleSearch = () => {
 }
 
 const minimize = () => {
+  console.log('===== minimize clicked =====')
+  console.log('electronAPI:', window.electronAPI)
   if (window.electronAPI?.minimize) {
     window.electronAPI.minimize()
+    console.log('electronAPI.minimize called')
+  } else {
+    console.warn('electronAPI.minimize not available - running in browser mode')
+    alert('最小化功能仅在 Electron 桌面应用中可用')
   }
 }
 
 const maximize = () => {
+  console.log('===== maximize clicked =====')
+  console.log('isMaximized:', isMaximized.value)
   if (window.electronAPI?.maximize) {
     window.electronAPI.maximize()
+    isMaximized.value = !isMaximized.value
+    console.log('electronAPI.maximize called')
+  } else {
+    console.warn('electronAPI.maximize not available - running in browser mode')
+    alert('最大化功能仅在 Electron 桌面应用中可用')
   }
 }
 
 const close = () => {
+  console.log('===== close clicked =====')
   if (window.electronAPI?.close) {
     window.electronAPI.close()
+    console.log('electronAPI.close called')
+  } else {
+    console.warn('electronAPI.close not available - running in browser mode')
+    alert('关闭功能仅在 Electron 桌面应用中可用')
   }
 }
 
@@ -118,6 +140,19 @@ onMounted(() => {
     } catch (e) {
       console.error('解析用户信息失败:', e)
     }
+  }
+  
+  // 监听窗口状态变化
+  if (window.electronAPI?.onWindowMaximized) {
+    window.electronAPI.onWindowMaximized(() => {
+      isMaximized.value = true
+    })
+  }
+  
+  if (window.electronAPI?.onWindowUnmaximized) {
+    window.electronAPI.onWindowUnmaximized(() => {
+      isMaximized.value = false
+    })
   }
 })
 </script>

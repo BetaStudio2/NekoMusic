@@ -428,20 +428,33 @@ const handleSubmit = async () => {
 }
 
 const minimize = () => {
+  console.log('===== Layout minimize clicked =====')
+  console.log('electronAPI:', window.electronAPI)
   if (window.electronAPI?.minimize) {
     window.electronAPI.minimize()
+    console.log('electronAPI.minimize called')
+  } else {
+    console.warn('electronAPI.minimize not available')
   }
 }
 
 const maximize = () => {
+  console.log('===== Layout maximize clicked =====')
   if (window.electronAPI?.maximize) {
     window.electronAPI.maximize()
+    console.log('electronAPI.maximize called')
+  } else {
+    console.warn('electronAPI.maximize not available')
   }
 }
 
 const close = () => {
+  console.log('===== Layout close clicked =====')
   if (window.electronAPI?.close) {
     window.electronAPI.close()
+    console.log('electronAPI.close called')
+  } else {
+    console.warn('electronAPI.close not available')
   }
 }
 

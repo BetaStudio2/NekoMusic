@@ -20,12 +20,22 @@ function createWindow() {
     icon: path.join(__dirname, '../public/icon.png'),
     title: 'Neko云音乐',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, '../electron/preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
-      devTools: false,
+      devTools: process.env.NODE_ENV === 'development',
     },
     backgroundColor: '#667eea',
+  })
+  
+  // 监听窗口最大化事件
+  win.on('maximize', () => {
+    win.webContents.send('window-maximized')
+  })
+  
+  // 监听窗口还原事件
+  win.on('unmaximize', () => {
+    win.webContents.send('window-unmaximized')
   })
 
   // 禁用 DevTools 和全屏快捷键
@@ -49,6 +59,8 @@ function createWindow() {
   // 开发模式加载 Vite 开发服务器
   if (process.env.NODE_ENV === 'development') {
     win.loadURL('http://localhost:5173')
+    // 开发模式下打开开发者工具
+    win.webContents.openDevTools()
   } else {
     // 生产模式加载打包后的文件
     win.loadFile(path.join(__dirname, '../dist/index.html'))

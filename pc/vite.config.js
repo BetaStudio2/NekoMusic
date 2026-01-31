@@ -29,7 +29,7 @@ export default defineConfig({
       },
       {
         // 预加载脚本入口
-        entry: 'electron/preload.js',
+        entry: 'electron/preload.cjs',
         onstart({ startup }) {
           startup()
         },
