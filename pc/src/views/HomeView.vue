@@ -7,22 +7,11 @@
       </h1>
       <p class="welcome-subtitle">发现好音乐，享受每一刻</p>
     </div>
-
-    <div class="featured-section">
-      <h2 class="section-title">
-        <svg class="title-icon" viewBox="0 0 24 24" width="24" height="24">
-          <path fill="currentColor" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-        </svg>
-        推荐音乐
-      </h2>
-      <MusicList title="" :show-search="false" :show-favorite="true" :fetch-function="fetchRecommendedMusic" />
-    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import MusicList from '../components/MusicList.vue'
+import { computed } from 'vue'
 
 const greeting = computed(() => {
   const hour = new Date().getHours()
@@ -31,19 +20,6 @@ const greeting = computed(() => {
   if (hour < 18) return '下午好'
   return '晚上好'
 })
-
-const fetchRecommendedMusic = async () => {
-  try {
-    const response = await fetch('https://music.cnmsb.xin/api/music/recommended')
-    if (!response.ok) {
-      throw new Error('获取推荐音乐失败')
-    }
-    return await response.json()
-  } catch (error) {
-    console.error('获取推荐音乐失败:', error)
-    return []
-  }
-}
 </script>
 
 <style scoped>
@@ -123,24 +99,6 @@ const fetchRecommendedMusic = async () => {
   color: var(--text-secondary);
   position: relative;
   z-index: 1;
-}
-
-.featured-section {
-  margin-bottom: 32px;
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 20px 0;
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.title-icon {
-  color: var(--primary);
 }
 
 /* 滚动条样式 */
