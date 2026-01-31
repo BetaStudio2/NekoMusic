@@ -1,11 +1,11 @@
 {
   "name": "NekoMusic",
-  "version": "0.0.0",
+  "version": "2026.201.1",
   "private": true,
   "type": "module",
   "main": "dist-electron/main.js",
   "description": "一款简洁优雅的音乐播放器",
-  "author": "Neko",
+  "author": "Fantasy Network「梦幻网络」",
   "scripts": {
     "dev": "npm run electron:dev",
     "build": "vite build && copy electron\\preload.cjs dist-electron\\preload.cjs && electron-builder",

@@ -100,6 +100,13 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import apiConfig from '../config/apiConfig'
+
+// 统一的 API 请求函数
+async function apiRequest(url, options = {}) {
+  const fullUrl = url.startsWith('http') ? url : `${apiConfig.BASE_URL}${url}`
+  return fetch(fullUrl, options)
+}
 
 const props = defineProps({
   title: {
@@ -192,13 +199,17 @@ const toggleFavorite = async (music) => {
 
   try {
     if (isFavorite(music.id)) {
-      await fetch(`https://music.cnmsb.xin/api/user/favorites/${music.id}`, {
+      await apiRequest(apiConfig.USER_FAVORITES_DELETE(music.id), {
         method: 'DELETE',
         headers: { 'Authorization': token }
       })
       favorites.value = favorites.value.filter(f => f.id !== music.id)
+      // 从当前列表中移除（适用于收藏页面）
+      musicList.value = musicList.value.filter(m => m.id !== music.id)
+      // 更新本地存储
+      localStorage.setItem('favorites', JSON.stringify(favorites.value))
     } else {
-      await fetch('https://music.cnmsb.xin/api/user/favorites', {
+      const response = await apiRequest(apiConfig.USER_FAVORITES, {
         method: 'POST',
         headers: { 
           'Authorization': token,
@@ -206,7 +217,12 @@ const toggleFavorite = async (music) => {
         },
         body: JSON.stringify({ musicId: music.id })
       })
-      favorites.value.push(music)
+      const result = await response.json()
+      if (result.success && result.data) {
+        favorites.value.push(result.data)
+        // 更新本地存储
+        localStorage.setItem('favorites', JSON.stringify(favorites.value))
+      }
     }
   } catch (error) {
     console.error('收藏操作失败:', error)
@@ -222,7 +238,17 @@ onMounted(() => {
       console.error('解析当前音乐失败:', e)
     }
   }
-  
+
+  // 加载收藏列表
+  const localFavorites = localStorage.getItem('favorites')
+  if (localFavorites) {
+    try {
+      favorites.value = JSON.parse(localFavorites)
+    } catch (e) {
+      console.error('解析收藏列表失败:', e)
+    }
+  }
+
   fetchMusicList()
 })
 
