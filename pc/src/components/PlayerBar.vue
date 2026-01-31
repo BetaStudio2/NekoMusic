@@ -42,7 +42,12 @@
       
       <div class="player-progress">
         <span class="time">{{ formatTime(currentTime) }}</span>
-        <div class="progress-bar" @click="seekTo" @mousemove="handleProgressHover" @mouseleave="handleProgressLeave">
+        <div class="progress-bar" 
+             @mousedown="handleProgressMouseDown" 
+             @mousemove="handleProgressMouseMove" 
+             @mouseup="handleProgressMouseUp"
+             @mouseleave="handleProgressLeave"
+             @click="seekTo">
           <div class="progress-fill" :style="{ width: progress + '%' }">
             <div class="progress-glow"></div>
           </div>
@@ -69,7 +74,9 @@
         </button>
         
         <div class="volume-panel">
-          <div class="volume-slider-vertical" @click="handleVolumeClick">
+          <div class="volume-slider-vertical" 
+               @mousedown="handleVolumeMouseDown" 
+               @mousemove="handleVolumeMouseMove">
             <div class="volume-track">
               <div class="volume-fill" :style="{ height: volume + '%' }"></div>
             </div>
@@ -243,13 +250,90 @@ const notifyPlayerState = () => {
   }
 }
 
+const isDragging = ref(false)
+const isVolumeDragging = ref(false)
+
 const seekTo = (event) => {
   if (!audioElement.value || !duration.value) return
   
   const rect = event.currentTarget.getBoundingClientRect()
   const x = event.clientX - rect.left
-  const percentage = x / rect.width
+  const percentage = Math.max(0, Math.min(1, x / rect.width))
   audioElement.value.currentTime = percentage * duration.value
+}
+
+const handleProgressMouseDown = (event) => {
+  isDragging.value = true
+  seekTo(event)
+  event.preventDefault()
+}
+
+const handleProgressMouseMove = (event) => {
+  if (isDragging.value && event.currentTarget) {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const x = event.clientX - rect.left
+    const percentage = Math.max(0, Math.min(1, x / rect.width))
+    if (audioElement.value && duration.value) {
+      audioElement.value.currentTime = percentage * duration.value
+    }
+  }
+}
+
+const handleGlobalMouseMove = (event) => {
+  if (isDragging.value) {
+    const progressBar = document.querySelector('.progress-bar')
+    if (progressBar) {
+      const rect = progressBar.getBoundingClientRect()
+      const x = event.clientX - rect.left
+      const percentage = Math.max(0, Math.min(1, x / rect.width))
+      if (audioElement.value && duration.value) {
+        audioElement.value.currentTime = percentage * duration.value
+      }
+    }
+  }
+}
+
+const handleProgressMouseUp = () => {
+  isDragging.value = false
+}
+
+const handleVolumeMouseDown = (event) => {
+  isVolumeDragging.value = true
+  handleVolumeClick(event)
+  event.preventDefault()
+}
+
+const handleVolumeMouseMove = (event) => {
+  if (isVolumeDragging.value && event.currentTarget) {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const y = rect.bottom - event.clientY
+    const percentage = Math.max(0, Math.min(100, (y / rect.height) * 100))
+    volume.value = Math.round(percentage)
+    if (audioElement.value) {
+      audioElement.value.volume = volume.value / 100
+    }
+    localStorage.setItem('volume', volume.value.toString())
+  }
+}
+
+const handleGlobalVolumeMouseMove = (event) => {
+  if (isVolumeDragging.value) {
+    const volumeSlider = document.querySelector('.volume-slider-vertical')
+    if (volumeSlider) {
+      const rect = volumeSlider.getBoundingClientRect()
+      const y = rect.bottom - event.clientY
+      const percentage = Math.max(0, Math.min(100, (y / rect.height) * 100))
+      volume.value = Math.round(percentage)
+      if (audioElement.value) {
+        audioElement.value.volume = volume.value / 100
+      }
+      localStorage.setItem('volume', volume.value.toString())
+    }
+  }
+}
+
+const handleVolumeMouseUp = () => {
+  isVolumeDragging.value = false
 }
 
 const handleProgressHover = () => {
@@ -257,7 +341,7 @@ const handleProgressHover = () => {
 }
 
 const handleProgressLeave = () => {
-  // 清除悬停状态
+  // 不在这里清除拖动状态，允许拖出进度条
 }
 
 const toggleMute = () => {
@@ -367,6 +451,16 @@ onMounted(() => {
     toggleDesktopLyrics(event.detail)
   })
   window.addEventListener('navigate-to-settings', handleNavigateToSettings)
+  
+  // 全局鼠标事件，处理拖动进度条和音量
+  window.addEventListener('mouseup', (event) => {
+    handleProgressMouseUp()
+    handleVolumeMouseUp()
+  })
+  window.addEventListener('mousemove', (event) => {
+    handleGlobalMouseMove(event)
+    handleGlobalVolumeMouseMove(event)
+  })
   
   // 恢复之前播放的音乐
   const savedMusic = localStorage.getItem('currentMusic')
@@ -626,6 +720,7 @@ const toggleFavorite = (music) => {
   position: relative;
   overflow: hidden;
   transition: height var(--transition-fast);
+  user-select: none;
 }
 
 .progress-bar:hover {
@@ -723,6 +818,7 @@ const toggleFavorite = (music) => {
   height: 120px;
   position: relative;
   cursor: pointer;
+  user-select: none;
 }
 
 .volume-track {
