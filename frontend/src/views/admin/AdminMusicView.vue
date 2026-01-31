@@ -62,6 +62,7 @@
                           <option value="法语">法语</option>
                           <option value="德语">德语</option>
                           <option value="俄语">俄语</option>
+                          <option value="纯音乐">纯音乐</option>
                         </select>
                       </div>
                     </div>
@@ -138,6 +139,7 @@
                           <option value="法语">法语</option>
                           <option value="德语">德语</option>
                           <option value="俄语">俄语</option>
+                          <option value="纯音乐">纯音乐</option>
                         </select>
                       </div>
                     </div>
