@@ -49,10 +49,10 @@ const userAvatar = computed(() => {
       const user = JSON.parse(userStr)
       return `https://music.cnmsb.xin/api/user/avatar/${user.id}`
     } catch (e) {
-      return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="%236a5acd"/><text x="20" y="25" font-family="Arial" font-size="16" fill="white" text-anchor="middle">U</text></svg>'
+      return 'https://music.cnmsb.xin/api/user/avatar/default'
     }
   }
-  return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="%236a5acd"/><text x="20" y="25" font-family="Arial" font-size="16" fill="white" text-anchor="middle">U</text></svg>'
+  return 'https://music.cnmsb.xin/api/user/avatar/default'
 })
 
 const navigateTo = (route) => {

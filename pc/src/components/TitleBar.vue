@@ -75,14 +75,14 @@ const userAvatar = computed(() => {
       const user = JSON.parse(userStr)
       return `https://music.cnmsb.xin/api/user/avatar/${user.id}`
     } catch (e) {
-      return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" fill="%236a5acd"/><text x="16" y="20" font-family="Arial" font-size="14" fill="white" text-anchor="middle">U</text></svg>'
+      return 'https://music.cnmsb.xin/api/user/avatar/default'
     }
   }
-  return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" fill="%236a5acd"/><text x="16" y="20" font-family="Arial" font-size="14" fill="white" text-anchor="middle">U</text></svg>'
+  return 'https://music.cnmsb.xin/api/user/avatar/default'
 })
 
 const handleAvatarError = (event) => {
-  event.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" fill="%236a5acd"/><text x="16" y="20" font-family="Arial" font-size="14" fill="white" text-anchor="middle">U</text></svg>'
+  event.target.src = 'https://music.cnmsb.xin/api/user/avatar/default'
 }
 
 const handleSearch = () => {

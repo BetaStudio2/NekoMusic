@@ -130,7 +130,7 @@ const userAvatar = computed(() => {
 })
 
 const getDefaultAvatar = () => {
-  return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><defs><linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:%23667eea;stop-opacity:1"/><stop offset="100%" style="stop-color:%23764ba2;stop-opacity:1"/></linearGradient></defs><rect width="40" height="40" fill="url(%23grad)" rx="20"/><text x="20" y="26" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">U</text></svg>'
+  return 'https://music.cnmsb.xin/api/user/avatar/default'
 }
 
 const navigateTo = (route) => {
