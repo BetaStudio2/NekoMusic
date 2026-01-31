@@ -116,13 +116,7 @@ const currentMusic = ref(null)
 const favorites = ref([])
 
 const filteredList = computed(() => {
-  if (!searchQuery.value) return musicList.value
-  const query = searchQuery.value.toLowerCase()
-  return musicList.value.filter(music => 
-    music.title.toLowerCase().includes(query) ||
-    music.artist.toLowerCase().includes(query) ||
-    (music.album && music.album.toLowerCase().includes(query))
-  )
+  return musicList.value
 })
 
 const fetchMusicList = async () => {
@@ -140,15 +134,11 @@ const fetchMusicList = async () => {
 }
 
 const handleSearch = () => {
-  // 搜索逻辑通过 filteredList 自动处理
+  // 搜索逻辑由父组件处理
 }
 
 const getCoverUrl = (id) => {
   return `https://music.cnmsb.xin/api/music/cover/${id}`
-}
-
-const handleCoverError = (event) => {
-  event.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><defs><linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:%23667eea;stop-opacity:1"/><stop offset="100%" style="stop-color:%23764ba2;stop-opacity:1"/></linearGradient></defs><rect width="40" height="40" fill="url(%23grad)" rx="8"/><text x="20" y="26" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">M</text></svg>'
 }
 
 const formatDuration = (seconds) => {
@@ -171,7 +161,6 @@ const isFavorite = (musicId) => {
 const toggleFavorite = async (music) => {
   const token = localStorage.getItem('userToken')
   if (!token) {
-    alert('请先登录')
     return
   }
 
@@ -183,7 +172,7 @@ const toggleFavorite = async (music) => {
       })
       favorites.value = favorites.value.filter(f => f.id !== music.id)
     } else {
-      await fetch(`https://music.cnmsb.xin/api/user/favorites`, {
+      await fetch('https://music.cnmsb.xin/api/user/favorites', {
         method: 'POST',
         headers: { 
           'Authorization': token,
