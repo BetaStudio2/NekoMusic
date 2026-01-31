@@ -459,7 +459,13 @@ onMounted(() => {
   
   window.addEventListener('user-logout', handleUserLogout)
   window.addEventListener('user-login', handleUserLogin)
+  window.addEventListener('show-toast', handleShowToast)
 })
+
+const handleShowToast = (event) => {
+  const { message, type } = event.detail
+  showToast(message, type)
+}
 
 const handleUserLogout = () => {
   currentUser.value = null

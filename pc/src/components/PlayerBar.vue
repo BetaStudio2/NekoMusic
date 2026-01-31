@@ -236,7 +236,9 @@ const toggleFavorite = async () => {
   
   const token = localStorage.getItem('token')
   if (!token) {
-    alert('请先登录')
+    window.dispatchEvent(new CustomEvent('show-toast', { 
+      detail: { message: '请先登录', type: 'error' } 
+    }))
     return
   }
   
@@ -252,6 +254,14 @@ const toggleFavorite = async () => {
       if (response.ok) {
         favorites.value = favorites.value.filter(f => f.musicId !== currentMusic.value.id)
         isFavorite.value = false
+        window.dispatchEvent(new CustomEvent('show-toast', { 
+          detail: { message: '已取消收藏', type: 'success' } 
+        }))
+      } else {
+        const result = await response.json()
+        window.dispatchEvent(new CustomEvent('show-toast', { 
+          detail: { message: result.message || '取消收藏失败', type: 'error' } 
+        }))
       }
     } else {
       const response = await fetch('/api/user/favorites', {
@@ -268,10 +278,21 @@ const toggleFavorite = async () => {
       if (response.ok) {
         favorites.value.push({ musicId: currentMusic.value.id })
         isFavorite.value = true
+        window.dispatchEvent(new CustomEvent('show-toast', { 
+          detail: { message: '收藏成功', type: 'success' } 
+        }))
+      } else {
+        const result = await response.json()
+        window.dispatchEvent(new CustomEvent('show-toast', { 
+          detail: { message: result.message || '收藏失败', type: 'error' } 
+        }))
       }
     }
   } catch (error) {
     console.error('收藏操作失败:', error)
+    window.dispatchEvent(new CustomEvent('show-toast', { 
+      detail: { message: '网络错误，请稍后重试', type: 'error' } 
+    }))
   }
 }
 
