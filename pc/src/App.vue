@@ -1,16 +1,28 @@
 <template>
-  <div class="container">
-    <h1>Hello World</h1>
+  <div class="app">
+    <TitleBar />
+    <div class="content">
+      <h1>Hello World</h1>
+    </div>
   </div>
 </template>
 
+<script setup>
+import TitleBar from './components/TitleBar.vue'
+</script>
+
 <style scoped>
-.container {
+.app {
+  width: 100%;
+  height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.content {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  height: calc(100vh - 40px);
 }
 
 h1 {

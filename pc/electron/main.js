@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
@@ -13,6 +13,7 @@ function createWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
+    frame: false,
     icon: path.join(__dirname, '../public/icon.png'),
     title: 'NekoMusic',
     webPreferences: {
@@ -36,6 +37,25 @@ function createWindow() {
     win = null
   })
 }
+
+// 窗口控制 IPC 处理
+ipcMain.on('window-minimize', () => {
+  if (win) win.minimize()
+})
+
+ipcMain.on('window-maximize', () => {
+  if (win) {
+    if (win.isMaximized()) {
+      win.unmaximize()
+    } else {
+      win.maximize()
+    }
+  }
+})
+
+ipcMain.on('window-close', () => {
+  if (win) win.close()
+})
 
 app.on('ready', createWindow)
 
