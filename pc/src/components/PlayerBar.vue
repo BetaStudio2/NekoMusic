@@ -44,6 +44,11 @@
             <path fill="currentColor" d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
           </svg>
         </button>
+        <button class="control-btn favorite-btn" @click="toggleFavorite" :class="{ 'is-favorite': isFavorite }" :disabled="!currentMusic" :title="isFavorite ? '取消收藏' : '收藏'">
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path :fill="isFavorite ? '#ff4545' : 'currentColor'" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+          </svg>
+        </button>
       </div>
       
       <div class="player-progress">
@@ -194,6 +199,81 @@ const currentCover = computed(() => {
   }
   return `https://music.cnmsb.xin/api/music/cover/${currentMusic.value.id}`
 })
+
+const isFavorite = ref(false)
+const favorites = ref([])
+
+const loadFavorites = async () => {
+  const token = localStorage.getItem('token')
+  if (!token) return
+  
+  try {
+    const response = await fetch('/api/user/favorites', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    
+    if (response.ok) {
+      const result = await response.json()
+      if (result.success && result.data) {
+        favorites.value = result.data
+        checkFavoriteStatus()
+      }
+    }
+  } catch (error) {
+    console.error('加载收藏列表失败:', error)
+  }
+}
+
+const checkFavoriteStatus = () => {
+  if (!currentMusic.value) return
+  isFavorite.value = favorites.value.some(f => f.musicId === currentMusic.value.id)
+}
+
+const toggleFavorite = async () => {
+  if (!currentMusic.value) return
+  
+  const token = localStorage.getItem('token')
+  if (!token) {
+    alert('请先登录')
+    return
+  }
+  
+  try {
+    if (isFavorite.value) {
+      const response = await fetch(`/api/user/favorites/${currentMusic.value.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (response.ok) {
+        favorites.value = favorites.value.filter(f => f.musicId !== currentMusic.value.id)
+        isFavorite.value = false
+      }
+    } else {
+      const response = await fetch('/api/user/favorites', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          musicId: currentMusic.value.id
+        })
+      })
+      
+      if (response.ok) {
+        favorites.value.push({ musicId: currentMusic.value.id })
+        isFavorite.value = true
+      }
+    }
+  } catch (error) {
+    console.error('收藏操作失败:', error)
+  }
+}
 
 const progress = computed(() => {
   if (duration.value === 0) return 0
@@ -697,7 +777,7 @@ const handleVolumeClick = (event) => {
 
 const loadMusic = (music) => {
   if (!music) return
-  
+
   console.log('loadMusic: 加载音乐', music.title)
   
   currentMusic.value = music
@@ -705,6 +785,9 @@ const loadMusic = (music) => {
   currentTime.value = 0
   duration.value = music.duration || 0
   audioLoaded.value = false // 重置加载状态
+  
+  // 检查收藏状态
+  checkFavoriteStatus()
   
   // 保存到 localStorage
   localStorage.setItem('currentMusic', JSON.stringify(music))
@@ -722,7 +805,6 @@ const loadMusic = (music) => {
     window.electronAPI.notifyMusicPlay(music)
   }
 }
-
 const handleTimeUpdate = () => {
   if (audioElement.value && audioLoaded.value) {
     currentTime.value = audioElement.value.currentTime
@@ -829,6 +911,14 @@ onMounted(() => {
     clearPlaylist()
   })
   
+  loadFavorites()
+  
+  window.addEventListener('user-login', loadFavorites)
+  window.addEventListener('user-logout', () => {
+    favorites.value = []
+    isFavorite.value = false
+  })
+  
   // 监听托盘事件
   window.addEventListener('tray-previous', previous)
   window.addEventListener('tray-play-pause', togglePlay)
@@ -913,37 +1003,6 @@ const handleTrayFavorite = () => {
 const handleNavigateToSettings = () => {
   const router = useRouter()
   router.push('/settings')
-}
-
-const toggleFavorite = (music) => {
-  if (!music) return
-  
-  // 获取收藏列表
-  let favorites = []
-  try {
-    const saved = localStorage.getItem('favorites')
-    if (saved) {
-      favorites = JSON.parse(saved)
-    }
-  } catch (e) {
-    console.error('解析收藏列表失败:', e)
-  }
-  
-  // 检查是否已收藏
-  const index = favorites.findIndex(f => f.id === music.id)
-  
-  if (index > -1) {
-    // 取消收藏
-    favorites.splice(index, 1)
-    console.log('取消收藏:', music.title)
-  } else {
-    // 添加收藏
-    favorites.push(music)
-    console.log('收藏成功:', music.title)
-  }
-  
-  // 保存收藏列表
-  localStorage.setItem('favorites', JSON.stringify(favorites))
 }
 </script>
 
@@ -1098,14 +1157,17 @@ const toggleFavorite = (music) => {
   box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
 }
 
-.play-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.favorite-btn:hover:not(:disabled) {
+  background: rgba(255, 69, 69, 0.1);
 }
 
-.play-btn:hover:not(:disabled) {
-  transform: scale(1.05);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+.favorite-btn.is-favorite {
+  color: #ff4545;
+}
+
+.favorite-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .player-progress {
