@@ -190,11 +190,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 
 const route = useRoute()
-const router = useRouter()
 const searchQuery = ref('')
 const activeTab = ref('music')
 const playlistResults = ref([])
@@ -299,6 +298,14 @@ const fetchArtistResults = async () => {
   }
 }
 
+const performSearch = () => {
+  if (searchQuery.value.trim()) {
+    fetchMusicResults()
+    fetchPlaylistResults()
+    fetchArtistResults()
+  }
+}
+
 const getPlaylistCover = (playlist) => {
   if (playlist.firstMusicCover) {
     return `https://music.cnmsb.xin${playlist.firstMusicCover}`
@@ -372,9 +379,11 @@ const viewPlaylist = (playlistId) => {
   router.push(`/playlist/${playlistId}`)
 }
 
-watch(activeTab, (newTab) => {
-  if (newTab === 'music' && musicResults.value.length === 0) {
-    fetchMusicResults()
+watch(() => route.query.q, (newQuery) => {
+  if (newQuery) {
+    searchQuery.value = decodeURIComponent(newQuery)
+    activeTab.value = 'music'
+    performSearch()
   }
 })
 
@@ -382,9 +391,7 @@ onMounted(() => {
   const query = route.query.q
   if (query) {
     searchQuery.value = decodeURIComponent(query)
-    fetchMusicResults()
-    fetchPlaylistResults()
-    fetchArtistResults()
+    performSearch()
   }
   
   const savedMusic = localStorage.getItem('currentMusic')
