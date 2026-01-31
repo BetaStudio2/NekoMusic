@@ -192,7 +192,7 @@ const isFavorite = (musicId) => {
 }
 
 const toggleFavorite = async (music) => {
-  const token = localStorage.getItem('userToken')
+  const token = localStorage.getItem('token')
   if (!token) {
     return
   }

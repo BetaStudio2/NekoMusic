@@ -35,7 +35,7 @@ async function apiRequest(url, options = {}) {
 }
 
 async function fetchFavorites() {
-  const token = localStorage.getItem('userToken')
+  const token = localStorage.getItem('token')
   if (!token) {
     console.log('未登录，跳过获取收藏列表')
     return []
