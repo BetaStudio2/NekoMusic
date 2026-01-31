@@ -1,910 +1,142 @@
-# NekoMusic
-
-# 用户收藏API文档
+# NekoMusic - API 缓存策略
 
 ## 概述
 
-用户收藏API允许用户收藏、取消收藏音乐，并获取收藏列表。所有API都需要用户登录认证。
+本文档说明 NekoMusic 后端 API 的 CDN 缓存策略，帮助优化前端性能和减少服务器负载。
 
-## 认证
+## ✅ 可以被 CDN 缓存的 API
 
-所有API请求都需要在HTTP头中包含用户token：
+以下 API 是 **只读** 操作，**不包含用户认证信息**，返回内容稳定，可以被 CDN 缓存：
 
-```
-Authorization: <token>
-```
+| API 端点 | 方法 | 缓存建议 | 说明 |
+|---------|------|---------|------|
+| `/api/music/cover/{id}` | GET | 长期缓存 (7-30天) | 音乐封面图片，文件不会变更 |
+| `/api/music/file/{id}` | GET | 中期缓存 (1-7天) | 音乐文件，文件不会变更 |
+| `/api/music/info/{id}` | GET | 短期缓存 (1-24小时) | 音乐元数据信息 |
+| `/api/music/lyrics/{id}` | GET | 短期缓存 (1-24小时) | 歌词内容 |
 
-Token在用户登录时生成并返回给客户端。
+### CDN 缓存配置建议
 
-## API端点
+对于上述可缓存的 API，建议在 CDN 配置中设置以下响应头：
 
-### 1. 获取收藏列表
-
-**请求:**
-```
-GET /api/user/favorites
-Authorization: <token>
-```
-
-**响应:**
-```json
-{
-  "success": true,
-  "favorites": [
-    {
-      "id": 1,
-      "title": "歌曲标题",
-      "artist": "艺术家",
-      "album": "专辑",
-      "duration": 180,
-      "filename": "song.mp3"
-    }
-  ]
-}
+```http
+Cache-Control: public, max-age=<秒数>
+ETag: "<文件hash>"
 ```
 
-### 2. 添加收藏
+**示例：**
+- 音乐封面：`Cache-Control: public, max-age=2592000` (30天)
+- 音乐文件：`Cache-Control: public, max-age=604800` (7天)
+- 音乐信息：`Cache-Control: public, max-age=86400` (1天)
+- 歌词：`Cache-Control: public, max-age=86400` (1天)
 
-**请求:**
-```
-POST /api/user/favorites
-Authorization: <token>
-Content-Type: application/json
+---
 
-{
-  "musicId": 1
-}
-```
+## ❌ 不能被 CDN 缓存的 API
 
-**响应:**
-```json
-{
-  "success": true,
-  "message": "收藏成功"
-}
-```
+以下 API **不能** 被 CDN 缓存，原因包括：
 
-### 3. 删除收藏
+### 1. 需要用户认证的 API (14个)
 
-**请求:**
-```
-DELETE /api/user/favorites/{musicId}
-Authorization: <token>
-```
+| API 端点 | 方法 | 原因 |
+|---------|------|------|
+| `/api/user/login` | POST | 涉及认证令牌，每次请求结果不同 |
+| `/api/user/register` | POST | 创建新用户，有状态变更 |
+| `/api/user/password/change` | POST | 修改密码，有状态变更 |
+| `/api/user/avatar/upload` | POST | 上传文件，有状态变更 |
+| `/api/user/avatar/{userId}` | GET | 用户头像可能更新，不适合长期缓存 |
+| `/api/user/favorites` | GET/POST/DELETE | 依赖用户登录状态，结果因用户而异 |
+| `/api/user/playlist/create` | POST | 创建资源，有状态变更 |
+| `/api/user/playlist/update` | POST | 更新资源，有状态变更 |
+| `/api/user/playlist/delete` | POST | 删除资源，有状态变更 |
+| `/api/user/playlist/music/{playlistId}` | GET | 依赖用户登录状态 |
+| `/api/user/playlist/music/add` | POST | 添加资源，有状态变更 |
+| `/api/user/playlist/music/remove` | POST | 删除资源，有状态变更 |
+| `/api/user/playlists` | GET | 依赖用户登录状态，结果因用户而异 |
+| `/api/users/*` | 所有方法 | 管理员接口，依赖权限 |
 
-**响应:**
-```json
-{
-  "success": true,
-  "message": "取消收藏成功"
-}
-```
+### 2. 需要管理员认证的 API (11个)
 
-## 错误响应
+| API 端点 | 方法 | 原因 |
+|---------|------|------|
+| `/api/admin/login` | POST | 涉及认证令牌 |
+| `/api/admin/stats` | GET | 实时统计数据，内容频繁变化 |
+| `/api/admin/chart-data` | GET | 实时图表数据，内容频繁变化 |
+| `/api/admin/users/*` | 所有方法 | 管理员操作，依赖权限 |
+| `/api/music/upload` | POST | 上传文件，有状态变更 |
+| `/api/music/list` | GET | 依赖管理员权限 |
+| `/api/music/{id}` | GET/PUT/DELETE | 管理员操作，依赖权限 |
+| `/api/music/add` | POST | 添加资源，有状态变更 |
+| `/api/music/edit` | PUT | 更新资源，有状态变更 |
+| `/api/music/delete/{id}` | DELETE | 删除资源，有状态变更 |
+| `/api/music/lyrics/{id}` | POST | 更新资源，有状态变更 |
 
-### 401 Unauthorized
-```json
-{
-  "success": false,
-  "message": "未提供认证令牌"
-}
-```
+### 3. 其他不适合缓存的 API (5个)
 
-或
+| API 端点 | 方法 | 原因 |
+|---------|------|------|
+| `/api/music/search` | POST | 搜索结果频繁变化，且依赖搜索参数 |
+| `/api/playlist/{id}` | GET | 歌单详情可能频繁更新，不适合缓存 |
+| `/api/playlists/search` | GET | 搜索结果频繁变化，且依赖搜索参数 |
+| `/api/artists/search` | GET | 搜索结果频繁变化，且依赖搜索参数 |
+| `/api/user/send-verification` | POST | 发送验证码，一次性操作 |
 
-```json
-{
-  "success": false,
-  "message": "无效的认证令牌"
-}
-```
+---
 
-### 400 Bad Request
-```json
-{
-  "success": false,
-  "message": "收藏失败或已存在"
-}
-```
+**统计：**
+- ✅ 可被 CDN 缓存：4 个 API
+- ❌ 不能被 CDN 缓存：30 个 API（14 个用户认证 + 11 个管理员认证 + 5 个其他）
 
-### 500 Internal Server Error
-```json
-{
-  "success": false,
-  "message": "服务器内部错误"
-}
-```
+### CDN 配置建议
 
-## Token管理
+对于上述不可缓存的 API，建议在 CDN 配置中设置：
 
-### 获取Token
-用户登录时会自动生成token并返回：
-
-```
-POST /api/user/login
-Content-Type: application/json
-
-{
-  "username": "用户名",
-  "password": "密码"
-}
+```http
+Cache-Control: no-cache, no-store, must-revalidate
+Pragma: no-cache
+Expires: 0
 ```
 
-**响应:**
-```json
-{
-  "success": true,
-  "message": "登录成功",
-  "data": {
-    "user": {
-      "id": 1,
-      "username": "用户名",
-      "email": "email@example.com",
-      "createdAt": "2024-01-01T00:00:00"
-    },
-    "token": "随机生成的64位十六进制字符串"
+---
+
+## 前端集成建议
+
+### 1. 为可缓存的 API 添加版本控制
+
+当音乐文件、封面等资源更新时，可以通过添加查询参数或版本号来绕过 CDN 缓存：
+
+```javascript
+// 示例：添加时间戳参数
+const coverUrl = `/api/music/cover/${musicId}?t=${new Date().getTime()}`;
+```
+
+### 2. 为不可缓存的 API 使用适当的请求策略
+
+```javascript
+// 对于用户相关的 API，确保携带认证令牌
+fetch('/api/user/favorites', {
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Cache-Control': 'no-cache'
   }
-}
+});
 ```
 
-### Token有效期
-- Token有效期为30天
-- 过期后需要重新登录获取新token
+### 3. 使用浏览器缓存配合 CDN
 
-### 存储Token
-客户端应该将token存储在浏览器的localStorage或cookie中，并在每次请求时添加到Authorization头中。
+对于静态资源（封面、音乐文件），可以在前端添加预加载：
 
-## 数据库表结构
-
-### user_favorites表
-```sql
-CREATE TABLE IF NOT EXISTS user_favorites (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    music_id INT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_user_music (user_id, music_id),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (music_id) REFERENCES music(id) ON DELETE CASCADE,
-    INDEX idx_user_id (user_id),
-    INDEX idx_music_id (music_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```html
+<link rel="preload" as="image" href="/api/music/cover/123">
 ```
 
-### user_tokens表
-```sql
-CREATE TABLE IF NOT EXISTS user_tokens (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    token VARCHAR(64) NOT NULL UNIQUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_user_id (user_id),
-    INDEX idx_token (token),
-    INDEX idx_expires_at (expires_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-```
-
-## 前端集成示例
-
-### 登录并存储Token
-```javascript
-async function login(username, password) {
-  const response = await fetch('http://localhost:8080/api/user/login', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ username, password })
-  });
-  
-  const data = await response.json();
-  if (data.success) {
-    // 存储token到localStorage
-    localStorage.setItem('userToken', data.data.token);
-    localStorage.setItem('userInfo', JSON.stringify(data.data.user));
-  }
-  return data;
-}
-```
-
-### 获取收藏列表
-```javascript
-async function getFavorites() {
-  const token = localStorage.getItem('userToken');
-  const response = await fetch('http://localhost:8080/api/user/favorites', {
-    method: 'GET',
-    headers: {
-      'Authorization': token
-    }
-  });
-  
-  return await response.json();
-}
-```
-
-### 添加收藏
-```javascript
-async function addFavorite(musicId) {
-  const token = localStorage.getItem('userToken');
-  const response = await fetch('http://localhost:8080/api/user/favorites', {
-    method: 'POST',
-    headers: {
-      'Authorization': token,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ musicId })
-  });
-  
-  return await response.json();
-}
-```
-
-### 删除收藏
-```javascript
-async function removeFavorite(musicId) {
-  const token = localStorage.getItem('userToken');
-  const response = await fetch(`http://localhost:8080/api/user/favorites/${musicId}`, {
-    method: 'DELETE',
-    headers: {
-      'Authorization': token
-    }
-  });
-  
-  return await response.json();
-}
-```
-
-# 用户头像API文档
-
-## 概述
-
-用户头像API允许用户上传和管理个人头像。上传头像需要用户登录认证，获取头像无需认证。
-
-## 认证
-
-上传头像API需要在HTTP头中包含用户token：
-
-```
-Authorization: Bearer <token>
-```
-
-Token在用户登录时生成并返回给客户端。
-
-## API端点
-
-### 1. 上传头像
-
-**请求:**
-```
-POST /api/user/avatar/upload
-Authorization: Bearer <token>
-Content-Type: multipart/form-data
-
-avatar: <图片文件>
-```
-
-**请求参数:**
-- `avatar`: 图片文件（multipart/form-data）
-  - 支持格式：jpg, jpeg, png, gif, webp, bmp
-  - 最大文件大小：50MiB
-  - 会严格验证文件MIME类型，只允许图片类型
-
-**响应（成功）:**
-```json
-{
-  "success": true,
-  "message": "头像上传成功",
-  "avatarPath": "avatars/1_550e8400-e29b-41d4-a716-446655440000.jpg"
-}
-```
-
-**响应（失败）:**
-```json
-{
-  "error": "未授权访问"
-}
-```
-
-或
-
-```json
-{
-  "error": "文件大小超过50MiB限制"
-}
-```
-
-或
-
-```json
-{
-  "error": "只支持图片文件（jpg, jpeg, png, gif, webp, bmp）"
-}
-```
-
-### 2. 获取用户头像
-
-**请求:**
-```
-GET /api/user/avatar/{userId}
-```
-
-**参数:**
-- `userId`: 用户ID（路径参数）
-
-**响应:**
-- 如果用户有头像，返回头像图片文件
-- 如果用户没有头像，返回默认头像图片
-
-## 错误响应
-
-### 401 Unauthorized
-```json
-{
-  "error": "未授权访问"
-}
-```
-
-或
-
-```json
-{
-  "error": "无效的Token"
-}
-```
-
-### 400 Bad Request
-```json
-{
-  "error": "未上传头像文件"
-}
-```
-
-或
-
-```json
-{
-  "error": "文件大小超过50MiB限制"
-}
-```
-
-或
-
-```json
-{
-  "error": "只支持图片文件（jpg, jpeg, png, gif, webp, bmp）"
-}
-```
-
-### 500 Internal Server Error
-```json
-{
-  "error": "上传头像失败: <错误信息>"
-}
-```
-
-## 目录结构
-
-头像文件保存在 `avatars/` 目录下，文件名格式为：`{userId}_{uuid}.{extension}`
-
-例如：`avatars/1_550e8400-e29b-41d4-a716-446655440000.jpg`
+---
 
 ## 注意事项
 
-1. 每次上传新头像时，旧头像文件会被自动删除
-2. 头像文件名使用 UUID 确保唯一性
-3. 支持的图片格式：jpg, jpeg, png, gif, webp, bmp
-4. 最大文件大小限制：50MiB
-5. 只允许图片类型文件上传，会严格验证 MIME 类型
-6. 如果用户没有头像，系统会返回默认头像
-
-## 数据库表结构
-
-### users表（需要添加avatar字段）
-
-```sql
-ALTER TABLE users ADD COLUMN avatar VARCHAR(255) DEFAULT NULL COMMENT '用户头像路径';
-```
-
-## 前端集成示例
-
-### 上传头像
-```javascript
-async function uploadAvatar(avatarFile) {
-  const token = localStorage.getItem('userToken');
-  const formData = new FormData();
-  formData.append('avatar', avatarFile);
-  
-  const response = await fetch('http://localhost:8080/api/user/avatar/upload', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    },
-    body: formData
-  });
-  
-  const data = await response.json();
-  if (data.success) {
-    console.log('头像上传成功:', data.avatarPath);
-    // 更新用户头像显示
-    updateAvatarDisplay(data.avatarPath);
-  } else {
-    console.error('头像上传失败:', data.error);
-  }
-  return data;
-}
-```
-
-### 获取头像URL
-```javascript
-function getAvatarUrl(userId) {
-  return `http://localhost:8080/api/user/avatar/${userId}`;
-}
-```
-
-### 在React组件中使用
-```jsx
-import React, { useState } from 'react';
-
-function AvatarUpload({ userId }) {
-  const [avatarUrl, setAvatarUrl] = useState(getAvatarUrl(userId));
-  
-  const handleFileChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    // 验证文件类型
-    if (!file.type.startsWith('image/')) {
-      alert('请选择图片文件');
-      return;
-    }
-    
-    // 验证文件大小（50MiB = 50 * 1024 * 1024 bytes）
-    if (file.size > 50 * 1024 * 1024) {
-      alert('文件大小不能超过50MiB');
-      return;
-    }
-    
-    const result = await uploadAvatar(file);
-    if (result.success) {
-      // 刷新头像
-      setAvatarUrl(getAvatarUrl(userId) + '?t=' + Date.now());
-    }
-  };
-  
-  return (
-    <div>
-      <img 
-        src={avatarUrl} 
-        alt="用户头像" 
-        style={{ width: 100, height: 100, borderRadius: '50%' }}
-      />
-      <input 
-        type="file" 
-        accept="image/*"
-        onChange={handleFileChange}
-      />
-    </div>
-  );
-}
-```
-
-### 在Vue组件中使用
-```vue
-<template>
-  <div>
-    <img 
-      :src="avatarUrl" 
-      alt="用户头像" 
-      style="width: 100px; height: 100px; border-radius: 50%;"
-    />
-    <input 
-      type="file" 
-      accept="image/*"
-      @change="handleFileChange"
-    />
-  </div>
-</template>
-
-<script>
-export default {
-  props: ['userId'],
-  data() {
-    return {
-      avatarUrl: this.getAvatarUrl(this.userId)
-    };
-  },
-  methods: {
-    getAvatarUrl(userId) {
-      return `http://localhost:8080/api/user/avatar/${userId}`;
-    },
-    async handleFileChange(e) {
-      const file = e.target.files[0];
-      if (!file) return;
-      
-      // 验证文件类型
-      if (!file.type.startsWith('image/')) {
-        alert('请选择图片文件');
-        return;
-      }
-      
-      // 验证文件大小
-      if (file.size > 50 * 1024 * 1024) {
-        alert('文件大小不能超过50MiB');
-        return;
-      }
-      
-      const result = await this.uploadAvatar(file);
-      if (result.success) {
-        // 刷新头像
-        this.avatarUrl = this.getAvatarUrl(this.userId) + '?t=' + Date.now();
-      }
-    },
-    async uploadAvatar(avatarFile) {
-      const token = localStorage.getItem('userToken');
-      const formData = new FormData();
-      formData.append('avatar', avatarFile);
-      
-      const response = await fetch('http://localhost:8080/api/user/avatar/upload', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      });
-      
-      return await response.json();
-    }
-  }
-};
-</script>
-```
-
-# 用户修改密码API文档
-
-## 概述
-
-用户修改密码API允许已登录的用户修改自己的密码。需要提供用户token、原密码和新密码。
-
-## 认证
-
-需要在HTTP头中包含用户token：
-
-```
-Authorization: Bearer <token>
-```
-
-Token在用户登录时生成并返回给客户端。
-
-## API端点
-
-### 修改密码
-
-**请求:**
-```
-POST /api/user/password/change
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "oldPassword": "原密码",
-  "newPassword": "新密码"
-}
-```
-
-**请求参数:**
-- `oldPassword`: 原密码（必填，不能为空）
-- `newPassword`: 新密码（必填，不能为空，长度不能少于6位，不能与原密码相同）
-
-**响应（成功）:**
-```json
-{
-  "success": true,
-  "message": "密码修改成功"
-}
-```
-
-**响应（失败）:**
-```json
-{
-  "error": "原密码错误"
-}
-```
-
-或
-
-```json
-{
-  "error": "新密码长度不能少于6位"
-}
-```
-
-或
-
-```json
-{
-  "error": "新密码不能与原密码相同"
-}
-```
-
-## 错误响应
-
-### 401 Unauthorized
-```json
-{
-  "error": "未授权访问"
-}
-```
-
-或
-
-```json
-{
-  "error": "无效的Token"
-}
-```
-
-### 400 Bad Request
-```json
-{
-  "error": "原密码不能为空"
-}
-```
-
-或
-
-```json
-{
-  "error": "新密码不能为空"
-}
-```
-
-或
-
-```json
-{
-  "error": "新密码长度不能少于6位"
-}
-```
-
-或
-
-```json
-{
-  "error": "新密码不能与原密码相同"
-}
-```
-
-或
-
-```json
-{
-  "error": "原密码错误"
-}
-```
-
-### 500 Internal Server Error
-```json
-{
-  "error": "密码修改失败"
-}
-```
-
-## 注意事项
-
-1. 用户必须先登录才能修改密码
-2. 必须提供正确的原密码才能修改
-3. 新密码长度不能少于6位
-4. 新密码不能与原密码相同
-5. 密码使用 SHA-256 算法加密存储
-6. 修改密码不会影响当前的登录状态，用户可以继续使用当前token
-
-## 前端集成示例
-
-### 修改密码
-```javascript
-async function changePassword(oldPassword, newPassword) {
-  const token = localStorage.getItem('userToken');
-  
-  const response = await fetch('http://localhost:8080/api/user/password/change', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      oldPassword: oldPassword,
-      newPassword: newPassword
-    })
-  });
-  
-  const data = await response.json();
-  if (data.success) {
-    alert('密码修改成功！');
-    // 可以选择让用户重新登录
-    // logout();
-  } else {
-    alert('密码修改失败：' + data.error);
-  }
-  return data;
-}
-```
-
-### 在React组件中使用
-```jsx
-import React, { useState } from 'react';
-
-function PasswordChangeForm() {
-  const [oldPassword, setOldPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [message, setMessage] = useState('');
-  
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setMessage('');
-    
-    // 验证输入
-    if (!oldPassword || !newPassword || !confirmPassword) {
-      setMessage('请填写所有字段');
-      return;
-    }
-    
-    if (newPassword.length < 6) {
-      setMessage('新密码长度不能少于6位');
-      return;
-    }
-    
-    if (newPassword !== confirmPassword) {
-      setMessage('两次输入的密码不一致');
-      return;
-    }
-    
-    if (oldPassword === newPassword) {
-      setMessage('新密码不能与原密码相同');
-      return;
-    }
-    
-    const result = await changePassword(oldPassword, newPassword);
-    if (result.success) {
-      setMessage('密码修改成功！');
-      // 清空表单
-      setOldPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-    } else {
-      setMessage('密码修改失败：' + result.error);
-    }
-  };
-  
-  return (
-    <form onSubmit={handleSubmit}>
-      <div>
-        <label>原密码：</label>
-        <input
-          type="password"
-          value={oldPassword}
-          onChange={(e) => setOldPassword(e.target.value)}
-        />
-      </div>
-      <div>
-        <label>新密码：</label>
-        <input
-          type="password"
-          value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
-        />
-      </div>
-      <div>
-        <label>确认新密码：</label>
-        <input
-          type="password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-        />
-      </div>
-      {message && <div>{message}</div>}
-      <button type="submit">修改密码</button>
-    </form>
-  );
-}
-```
-
-### 在Vue组件中使用
-```vue
-<template>
-  <form @submit.prevent="handleSubmit">
-    <div>
-      <label>原密码：</label>
-      <input
-        type="password"
-        v-model="oldPassword"
-      />
-    </div>
-    <div>
-      <label>新密码：</label>
-      <input
-        type="password"
-        v-model="newPassword"
-      />
-    </div>
-    <div>
-      <label>确认新密码：</label>
-      <input
-        type="password"
-        v-model="confirmPassword"
-      />
-    </div>
-    <div v-if="message">{{ message }}</div>
-    <button type="submit">修改密码</button>
-  </form>
-</template>
-
-<script>
-export default {
-  data() {
-    return {
-      oldPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-      message: ''
-    };
-  },
-  methods: {
-    async handleSubmit() {
-      this.message = '';
-      
-      // 验证输入
-      if (!this.oldPassword || !this.newPassword || !this.confirmPassword) {
-        this.message = '请填写所有字段';
-        return;
-      }
-      
-      if (this.newPassword.length < 6) {
-        this.message = '新密码长度不能少于6位';
-        return;
-      }
-      
-      if (this.newPassword !== this.confirmPassword) {
-        this.message = '两次输入的密码不一致';
-        return;
-      }
-      
-      if (this.oldPassword === this.newPassword) {
-        this.message = '新密码不能与原密码相同';
-        return;
-      }
-      
-      const result = await this.changePassword(this.oldPassword, this.newPassword);
-      if (result.success) {
-        this.message = '密码修改成功！';
-        // 清空表单
-        this.oldPassword = '';
-        this.newPassword = '';
-        this.confirmPassword = '';
-      } else {
-        this.message = '密码修改失败：' + result.error;
-      }
-    },
-    async changePassword(oldPassword, newPassword) {
-      const token = localStorage.getItem('userToken');
-      
-      const response = await fetch('http://localhost:8080/api/user/password/change', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          oldPassword: oldPassword,
-          newPassword: newPassword
-        })
-      });
-      
-      return await response.json();
-    }
-  }
-};
-</script>
-```
+1. **认证相关的 API 绝对不能缓存**，否则会导致安全问题
+2. **写操作（POST/PUT/DELETE）不能缓存**，会导致数据不一致
+3. **依赖用户权限的 API 不能缓存**，不同用户看到的内容不同
+4. **实时数据不能缓存**，会导致数据过期
+5. **建议为可缓存的 API 设置 ETag**，支持条件请求，节省带宽
+6. **定期清理 CDN 缓存**，当资源更新时需要主动清理对应的缓存
