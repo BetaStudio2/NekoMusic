@@ -16,7 +16,7 @@ function createWindow() {
     frame: false,
     autoHideMenuBar: true,
     icon: path.join(__dirname, '../public/icon.png'),
-    title: 'NekoMusic',
+    title: 'Neko云音乐',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
