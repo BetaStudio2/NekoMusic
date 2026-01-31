@@ -36,7 +36,14 @@
         <span class="col-artist">艺术家</span>
         <span class="col-album">专辑</span>
         <span class="col-duration">时长</span>
-        <span class="col-actions">操作</span>
+        <span class="col-actions">
+          <button class="header-action-btn" @click="addAllToPlaylist" title="全部添加到播放列表">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z"/>
+            </svg>
+            <span>全部添加</span>
+          </button>
+        </span>
       </div>
       <div class="music-items">
         <div 
@@ -156,11 +163,21 @@ const formatDuration = (seconds) => {
 const playMusic = (music) => {
   currentMusic.value = music
   localStorage.setItem('currentMusic', JSON.stringify(music))
+  
+  // 自动添加到播放列表
+  window.dispatchEvent(new CustomEvent('add-to-playlist', { detail: music }))
+  
   window.dispatchEvent(new CustomEvent('music-play', { detail: music }))
 }
 
 const addToPlaylist = (music) => {
+  console.log('addToPlaylist: 尝试添加音乐到播放列表', music)
   window.dispatchEvent(new CustomEvent('add-to-playlist', { detail: music }))
+}
+
+const addAllToPlaylist = () => {
+  console.log('addAllToPlaylist: 尝试添加全部音乐到播放列表，共', filteredList.value.length, '首')
+  window.dispatchEvent(new CustomEvent('add-all-to-playlist', { detail: filteredList.value }))
 }
 
 const isFavorite = (musicId) => {
@@ -322,13 +339,39 @@ defineExpose({
 
 .list-header-row {
   display: grid;
-  grid-template-columns: 50px 1fr 1fr 1fr 80px 120px;
+  grid-template-columns: 50px 1fr 1fr 1fr 80px 140px;
   padding: 16px 20px;
   background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
   font-size: 13px;
   color: var(--text-secondary);
   font-weight: 600;
   border-bottom: 1px solid var(--border-light);
+}
+
+.header-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary);
+  background: rgba(102, 126, 234, 0.1);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: auto;
+}
+
+.header-action-btn:hover {
+  background: rgba(102, 126, 234, 0.2);
+  border-color: rgba(102, 126, 234, 0.3);
+  transform: translateY(-1px);
+}
+
+.header-action-btn:active {
+  transform: translateY(0);
 }
 
 .music-items {

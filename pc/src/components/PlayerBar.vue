@@ -103,13 +103,11 @@
     <Transition name="playlist-panel">
       <div class="playlist-panel" v-if="showPlaylistPanel">
         <div class="playlist-header">
-          <h3>播放列表</h3>
-          <div class="playlist-actions">
-            <span class="playlist-count">{{ playlist.length }} 首歌曲</span>
-            <button class="playlist-action-btn" @click="clearPlaylist" v-if="playlist.length > 0">清空</button>
-          </div>
-        </div>
-        <div class="playlist-content">
+                <h3>播放列表</h3>
+                <div class="playlist-actions">
+                  <span class="playlist-count">{{ playlist.length }} 首歌曲</span>
+                </div>
+              </div>        <div class="playlist-content">
           <div v-if="playlist.length === 0" class="playlist-empty">
             <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1">
               <path d="M9 18V5l12-2v13"/>
@@ -118,6 +116,20 @@
             </svg>
             <p>播放列表为空</p>
             <p class="hint">点击音乐添加到播放列表</p>
+          </div>
+          <div v-else class="playlist-actions-bar">
+            <button class="playlist-action-button" @click="playAll">
+              <svg viewBox="0 0 24 24" width="16" height="16">
+                <path fill="currentColor" d="M8 5v14l11-7z"/>
+              </svg>
+              <span>播放全部</span>
+            </button>
+            <button class="playlist-action-button" @click="clearPlaylist">
+              <svg viewBox="0 0 24 24" width="16" height="16">
+                <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+              </svg>
+              <span>清空列表</span>
+            </button>
           </div>
           <TransitionGroup name="playlist-item" tag="div" class="playlist-items">
             <div 
@@ -467,7 +479,12 @@ const togglePlaylist = () => {
 
 // 添加音乐到播放列表
 const addToPlaylist = (music) => {
-  if (!music) return
+  console.log('addToPlaylist: 收到添加请求', music)
+  
+  if (!music) {
+    console.log('音乐数据为空')
+    return
+  }
   
   // 检查是否已存在
   const exists = playlist.value.some(item => item.id === music.id)
@@ -488,7 +505,45 @@ const addToPlaylist = (music) => {
   // 保存到 localStorage
   savePlaylist()
   
-  console.log('添加到播放列表:', music.title)
+  console.log('添加到播放列表成功:', music.title, '当前播放列表总数:', playlist.value.length)
+}
+
+// 添加多个音乐到播放列表
+const addAllToPlaylist = (musicList) => {
+  console.log('addAllToPlaylist: 收到添加全部请求，音乐数量:', musicList?.length)
+  
+  if (!musicList || !Array.isArray(musicList) || musicList.length === 0) {
+    console.log('无效的音乐列表')
+    return
+  }
+  
+  let addedCount = 0
+  
+  musicList.forEach(music => {
+    console.log('处理音乐:', music.title, 'ID:', music.id)
+    
+    // 检查是否已存在
+    const exists = playlist.value.some(item => item.id === music.id)
+    if (!exists) {
+      // 生成本地 ID
+      const localId = Date.now() + Math.random().toString(36).substr(2, 9)
+      
+      // 添加到播放列表
+      playlist.value.push({
+        ...music,
+        localId: localId
+      })
+      
+      addedCount++
+    } else {
+      console.log('音乐已存在，跳过:', music.title)
+    }
+  })
+  
+  // 保存到 localStorage
+  savePlaylist()
+  
+  console.log('批量添加到播放列表完成:', addedCount, '首音乐，当前播放列表总数:', playlist.value.length)
 }
 
 // 从播放列表移除音乐
@@ -512,8 +567,18 @@ const clearPlaylist = () => {
 const savePlaylist = () => {
   try {
     localStorage.setItem('playlist', JSON.stringify(playlist.value))
+    console.log('✓ 播放列表已保存到 localStorage，共', playlist.value.length, '首音乐')
+    
+    // 验证保存是否成功
+    const saved = localStorage.getItem('playlist')
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      console.log('✓ 验证成功: localStorage 中有', parsed.length, '首音乐')
+    } else {
+      console.error('✗ 验证失败: localStorage 中没有播放列表数据')
+    }
   } catch (e) {
-    console.error('保存播放列表失败:', e)
+    console.error('✗ 保存播放列表失败:', e)
   }
 }
 
@@ -521,12 +586,16 @@ const savePlaylist = () => {
 const loadPlaylist = () => {
   try {
     const saved = localStorage.getItem('playlist')
+    console.log('loadPlaylist: 从 localStorage 读取播放列表，数据:', saved?.substring(0, 100))
+    
     if (saved) {
       playlist.value = JSON.parse(saved)
-      console.log('加载播放列表:', playlist.value.length, '首音乐')
+      console.log('✓ 播放列表加载成功，共', playlist.value.length, '首音乐')
+    } else {
+      console.log('localStorage 中没有播放列表数据')
     }
   } catch (e) {
-    console.error('加载播放列表失败:', e)
+    console.error('✗ 加载播放列表失败:', e)
   }
 }
 
@@ -541,6 +610,18 @@ const playFromPlaylist = (localId) => {
       updateMediaInfo()
     }
   }
+}
+
+// 播放全部
+const playAll = () => {
+  if (playlist.value.length === 0) {
+    console.log('播放列表为空，无法播放全部')
+    return
+  }
+  
+  // 播放第一首
+  playFromPlaylist(playlist.value[0].localId)
+  console.log('开始播放全部音乐，共', playlist.value.length, '首')
 }
 
 const handleVolumeClick = (event) => {
@@ -651,6 +732,9 @@ onMounted(() => {
   window.addEventListener('add-to-playlist', (event) => {
     addToPlaylist(event.detail)
   })
+  window.addEventListener('add-all-to-playlist', (event) => {
+    addAllToPlaylist(event.detail)
+  })
   
   // 监听托盘事件
   window.addEventListener('tray-previous', previous)
@@ -713,6 +797,7 @@ onUnmounted(() => {
   }
   window.removeEventListener('music-play', handleMusicPlay)
   window.removeEventListener('add-to-playlist', addToPlaylist)
+  window.removeEventListener('add-all-to-playlist', addAllToPlaylist)
   window.removeEventListener('tray-previous', previous)
   window.removeEventListener('tray-play-pause', togglePlay)
   window.removeEventListener('tray-next', next)
@@ -1197,6 +1282,45 @@ const toggleFavorite = (music) => {
 
 .playlist-content::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.2);
+}
+
+.playlist-actions-bar {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.playlist-action-button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: rgba(102, 126, 234, 0.1);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.playlist-action-button:hover {
+  background: rgba(102, 126, 234, 0.2);
+  border-color: rgba(102, 126, 234, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+}
+
+.playlist-action-button:active {
+  transform: translateY(0);
+}
+
+.playlist-action-button svg {
+  flex-shrink: 0;
 }
 
 .playlist-empty {

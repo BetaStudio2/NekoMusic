@@ -339,6 +339,10 @@ const formatDuration = (seconds) => {
 const playMusic = (music) => {
   currentMusic.value = music
   localStorage.setItem('currentMusic', JSON.stringify(music))
+  
+  // 自动添加到播放列表
+  window.dispatchEvent(new CustomEvent('add-to-playlist', { detail: music }))
+  
   window.dispatchEvent(new CustomEvent('music-play', { detail: music }))
 }
 
