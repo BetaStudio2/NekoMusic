@@ -208,7 +208,20 @@ const loadFavorites = async () => {
   console.log('loadFavorites: token =', token)
   if (!token) {
     console.log('loadFavorites: 未找到 token')
+    favorites.value = []
     return
+  }
+  
+  // 先从本地存储读取
+  const localFavorites = localStorage.getItem('favorites')
+  if (localFavorites) {
+    try {
+      favorites.value = JSON.parse(localFavorites)
+      checkFavoriteStatus()
+    } catch (e) {
+      console.error('解析本地收藏列表失败:', e)
+      favorites.value = []
+    }
   }
   
   try {
@@ -222,8 +235,10 @@ const loadFavorites = async () => {
     
     if (response.ok) {
       const result = await response.json()
-      if (result.success && result.data) {
-        favorites.value = result.data
+      if (result.success && result.favorites) {
+        favorites.value = result.favorites
+        // 保存到本地存储
+        localStorage.setItem('favorites', JSON.stringify(favorites.value))
         checkFavoriteStatus()
       }
     } else {
@@ -236,7 +251,7 @@ const loadFavorites = async () => {
 
 const checkFavoriteStatus = () => {
   if (!currentMusic.value) return
-  isFavorite.value = favorites.value.some(f => f.musicId === currentMusic.value.id)
+  isFavorite.value = favorites.value.some(f => f.id === currentMusic.value.id)
 }
 
 const toggleFavorite = async () => {
@@ -252,6 +267,7 @@ const toggleFavorite = async () => {
   
   try {
     if (isFavorite.value) {
+      // 取消收藏
       const response = await fetch(`/api/user/favorites/${currentMusic.value.id}`, {
         method: 'DELETE',
         headers: {
@@ -260,11 +276,13 @@ const toggleFavorite = async () => {
       })
       
       if (response.ok) {
-        favorites.value = favorites.value.filter(f => f.musicId !== currentMusic.value.id)
+        favorites.value = favorites.value.filter(f => f.id !== currentMusic.value.id)
         isFavorite.value = false
+        localStorage.setItem('favorites', JSON.stringify(favorites.value))
         window.dispatchEvent(new CustomEvent('show-toast', { 
           detail: { message: '已取消收藏', type: 'success' } 
         }))
+        window.dispatchEvent(new CustomEvent('favorite-changed'))
       } else {
         const result = await response.json()
         window.dispatchEvent(new CustomEvent('show-toast', { 
@@ -272,6 +290,7 @@ const toggleFavorite = async () => {
         }))
       }
     } else {
+      // 添加收藏
       const requestBody = {
         musicId: currentMusic.value.id
       }
@@ -292,11 +311,13 @@ const toggleFavorite = async () => {
       console.log('toggleFavorite POST response body:', responseText)
       
       if (response.ok) {
-        favorites.value.push({ musicId: currentMusic.value.id })
+        favorites.value.push(currentMusic.value)
         isFavorite.value = true
+        localStorage.setItem('favorites', JSON.stringify(favorites.value))
         window.dispatchEvent(new CustomEvent('show-toast', { 
           detail: { message: '收藏成功', type: 'success' } 
         }))
+        window.dispatchEvent(new CustomEvent('favorite-changed'))
       } else {
         const result = await response.json()
         window.dispatchEvent(new CustomEvent('show-toast', { 

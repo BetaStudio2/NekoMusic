@@ -195,9 +195,10 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
+const router = useRouter()
 const searchQuery = ref('')
 const activeTab = ref('music')
 const playlistResults = ref([])
@@ -214,6 +215,46 @@ const tabs = [
   { key: 'playlist', label: '歌单' },
   { key: 'artist', label: '歌手' }
 ]
+
+// 加载收藏列表
+const loadFavorites = async () => {
+  const token = localStorage.getItem('token')
+  if (!token) {
+    favorites.value = []
+    localStorage.removeItem('favorites')
+    return
+  }
+  
+  // 先从本地存储读取
+  const localFavorites = localStorage.getItem('favorites')
+  if (localFavorites) {
+    try {
+      favorites.value = JSON.parse(localFavorites)
+    } catch (e) {
+      console.error('解析本地收藏列表失败:', e)
+      favorites.value = []
+    }
+  }
+  
+  // 从服务器同步
+  try {
+    const response = await fetch('/api/user/favorites', {
+      method: 'GET',
+      headers: {
+        'Authorization': token
+      }
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      favorites.value = data.favorites || []
+      // 保存到本地存储
+      localStorage.setItem('favorites', JSON.stringify(favorites.value))
+    }
+  } catch (error) {
+    console.error('加载收藏列表失败:', error)
+  }
+}
 
 const fetchMusicResults = async () => {
   if (!searchQuery.value.trim()) return
@@ -370,29 +411,67 @@ const isFavorite = (musicId) => {
 }
 
 const toggleFavorite = async (music) => {
-  const token = localStorage.getItem('userToken')
-  if (!token) return
-
+  const token = localStorage.getItem('token')
+  if (!token) {
+    window.dispatchEvent(new CustomEvent('show-toast', { 
+      detail: { message: '请先登录', type: 'error' } 
+    }))
+    return
+  }
+  
   try {
     if (isFavorite(music.id)) {
-      await fetch(`https://music.cnmsb.xin/api/user/favorites/${music.id}`, {
+      // 取消收藏
+      const response = await fetch(`/api/user/favorites/${music.id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': token }
+        headers: {
+          'Authorization': token
+        }
       })
-      favorites.value = favorites.value.filter(f => f.id !== music.id)
+      
+      if (response.ok) {
+        favorites.value = favorites.value.filter(f => f.id !== music.id)
+        localStorage.setItem('favorites', JSON.stringify(favorites.value))
+        window.dispatchEvent(new CustomEvent('show-toast', { 
+          detail: { message: '已取消收藏', type: 'success' } 
+        }))
+      } else {
+        const result = await response.json()
+        window.dispatchEvent(new CustomEvent('show-toast', { 
+          detail: { message: result.message || '取消收藏失败', type: 'error' } 
+        }))
+      }
     } else {
-      await fetch('https://music.cnmsb.xin/api/user/favorites', {
+      // 添加收藏
+      const response = await fetch('/api/user/favorites', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Authorization': token,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ musicId: music.id })
+        body: JSON.stringify({
+          musicId: music.id
+        })
       })
-      favorites.value.push(music)
+      
+      if (response.ok) {
+        favorites.value.push(music)
+        localStorage.setItem('favorites', JSON.stringify(favorites.value))
+        window.dispatchEvent(new CustomEvent('show-toast', { 
+          detail: { message: '收藏成功', type: 'success' } 
+        }))
+      } else {
+        const result = await response.json()
+        window.dispatchEvent(new CustomEvent('show-toast', { 
+          detail: { message: result.message || '收藏失败', type: 'error' } 
+        }))
+      }
     }
   } catch (error) {
     console.error('收藏操作失败:', error)
+    window.dispatchEvent(new CustomEvent('show-toast', { 
+      detail: { message: '网络错误，请重试', type: 'error' } 
+    }))
   }
 }
 
@@ -423,6 +502,16 @@ onMounted(() => {
       console.error('解析当前音乐失败:', e)
     }
   }
+  
+  // 加载收藏列表
+  loadFavorites()
+  
+  // 监听登录/登出事件，重新加载收藏列表
+  window.addEventListener('user-login', loadFavorites)
+  window.addEventListener('user-logout', loadFavorites)
+  
+  // 监听收藏变化
+  window.addEventListener('favorite-changed', loadFavorites)
 })
 </script>
 
