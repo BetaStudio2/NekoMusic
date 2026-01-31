@@ -7,8 +7,37 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 let win
 let tray
+app.isQuitting = false  // 声明退出标志
+
+// 防止多实例运行
+const gotTheLock = app.requestSingleInstanceLock()
+
+if (!gotTheLock) {
+  console.log('已经有实例在运行，退出新实例')
+  app.quit()
+  process.exit(0)
+} else {
+  app.on('second-instance', () => {
+    // 如果有第二个实例尝试启动，聚焦到现有窗口
+    if (win) {
+      if (win.isMinimized()) win.restore()
+      win.focus()
+    }
+  })
+}
 
 function createWindow() {
+  console.log('createWindow: 开始创建窗口')
+  // 打包后图标在 app.asar 的 public 目录中，开发环境在 public 目录
+  const isDev = process.env.NODE_ENV === 'development'
+  const iconPath = isDev
+    ? path.join(__dirname, '../public/icon.png')
+    : path.join(app.getAppPath(), 'public/icon.png')
+  // 打包后 preload.js 在 dist-electron 目录下，使用相对路径
+  const preloadPath = path.join(__dirname, './preload.js')
+  console.log('createWindow: 图标路径 =', iconPath)
+  console.log('createWindow: preload 路径 =', preloadPath)
+  
   win = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -16,13 +45,13 @@ function createWindow() {
     minHeight: 600,
     frame: false,
     autoHideMenuBar: true,
-    icon: path.join(__dirname, '../public/icon.png'),
+    icon: iconPath,
     title: 'Neko云音乐',
     webPreferences: {
-      preload: path.join(__dirname, '../electron/preload.cjs'),
+      preload: preloadPath,
       nodeIntegration: false,
       contextIsolation: true,
-      devTools: process.env.NODE_ENV === 'development',
+      devTools: true,
     },
     backgroundColor: '#667eea',
   })
@@ -56,14 +85,29 @@ function createWindow() {
   })
 
   // 开发模式加载 Vite 开发服务器
-  if (process.env.NODE_ENV === 'development') {
-    win.loadURL('http://localhost:5173')
-    // 开发模式下打开开发者工具
-    win.webContents.openDevTools()
-  } else {
-    // 生产模式加载打包后的文件
-    win.loadFile(path.join(__dirname, '../dist/index.html'))
-  }
+  console.log('createWindow: 加载开发服务器 http://localhost:5173')
+  
+  // 先尝试加载开发服务器
+  win.loadURL('http://localhost:5173')
+  
+  // 打开开发者工具（开发和生产模式都打开）
+  win.webContents.openDevTools()
+  
+  // 监听加载失败，如果失败则加载生产文件
+  win.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (isMainFrame) {
+      console.error('加载失败:', errorCode, errorDescription)
+      // 如果开发服务器未启动，加载生产文件
+      if (errorCode === -3 || errorCode === -2) { // ERR_CONNECTION_REFUSED 或 ERR_FILE_NOT_FOUND
+        console.log('开发服务器未启动，加载生产文件')
+        // 打包后文件在 app.asar 中，使用 app.getAppPath() 获取根目录
+        const appPath = app.getAppPath()
+        const prodPath = path.join(appPath, 'dist/index.html')
+        console.log('生产文件路径:', prodPath)
+        win.loadFile(prodPath)
+      }
+    }
+  })
 
   win.on('close', (event) => {
     if (!app.isQuitting) {
@@ -88,12 +132,15 @@ let playerState = {
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, '../public/icon.png')
+  const isDev = process.env.NODE_ENV === 'development'
+  const iconPath = isDev
+    ? path.join(__dirname, '../public/icon.png')
+    : path.join(app.getAppPath(), 'public/icon.png')
   const trayIcon = nativeImage.createFromPath(iconPath)
   trayIcon.resize({ width: 16, height: 16 })
-  
+
   tray = new Tray(trayIcon)
-  
+
   // 加载图标
   const loadIcons = () => {
     const icons = {}
@@ -111,17 +158,19 @@ function createTray() {
       'tray-lyrics',
       'tray-exit'
     ]
-    
+
+    const iconDir = isDev ? path.join(__dirname, '../public') : path.join(app.getAppPath(), 'public')
+
     iconList.forEach(name => {
       try {
-        const icon = nativeImage.createFromPath(path.join(__dirname, `../public/${name}.png`))
+        const icon = nativeImage.createFromPath(path.join(iconDir, `${name}.png`))
         icon.resize({ width: 18, height: 18 })
         icons[name] = icon
       } catch (e) {
         console.warn(`Failed to load icon: ${name}`, e)
       }
     })
-    
+
     return icons
   }
   
@@ -269,6 +318,21 @@ ipcMain.on('window-close', () => {
 })
 
 app.on('ready', () => {
+  // 如果已经退出，不创建窗口
+  if (app.isQuitting) {
+    console.log('应用已退出，跳过窗口创建')
+    return
+  }
+  
+  // 如果窗口已存在，不重复创建
+  if (win) {
+    console.log('窗口已存在，显示窗口')
+    win.show()
+    win.focus()
+    return
+  }
+  
+  console.log('创建新窗口，NODE_ENV:', process.env.NODE_ENV)
   createWindow()
   createTray()
 })

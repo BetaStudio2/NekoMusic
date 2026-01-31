@@ -28,18 +28,18 @@ export default defineConfig({
         }
       },
       {
-        // 预加载脚本入口
+        // 预加载脚本入口 - 不构建，直接复制
         entry: 'electron/preload.cjs',
-        onstart({ startup }) {
-          startup()
-        },
         vite: {
           build: {
             outDir: 'dist-electron',
             rollupOptions: {
               external: ['electron']
-            }
-          }
+            },
+            minify: false  // 禁用压缩以避免格式问题
+          },
+          // 跳过构建，直接复制文件
+          buildRollup: false
         }
       }
     ]),

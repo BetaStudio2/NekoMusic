@@ -37,6 +37,7 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
+      "public/**/*",
       "package.json"
     ],
     "win": {
