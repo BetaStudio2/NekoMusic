@@ -55,27 +55,30 @@
     </div>
     
     <div class="player-controls-right">
-      <button class="control-btn" @click="toggleMute" :title="isMuted ? '取消静音' : '静音'">
-        <svg v-if="!isMuted && volume > 50" viewBox="0 0 24 24" width="18" height="18">
-          <path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-        </svg>
-        <svg v-else-if="!isMuted && volume > 0" viewBox="0 0 24 24" width="18" height="18">
-          <path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
-        </svg>
-        <svg v-else viewBox="0 0 24 24" width="18" height="18">
-          <path fill="currentColor" d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
-        </svg>
-      </button>
-      <div class="volume-control">
-        <input 
-          v-model="volume" 
-          type="range" 
-          min="0" 
-          max="100" 
-          class="volume-slider"
-          @input="handleVolumeChange"
-        />
+      <div class="volume-wrapper">
+        <button class="control-btn" @click="toggleMute" :title="isMuted ? '取消静音' : '静音'">
+          <svg v-if="!isMuted && volume > 50" viewBox="0 0 24 24" width="18" height="18">
+            <path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+          </svg>
+          <svg v-else-if="!isMuted && volume > 0" viewBox="0 0 24 24" width="18" height="18">
+            <path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+          </svg>
+          <svg v-else viewBox="0 0 24 24" width="18" height="18">
+            <path fill="currentColor" d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+          </svg>
+        </button>
+        
+        <div class="volume-panel">
+          <div class="volume-slider-vertical" @click="handleVolumeClick">
+            <div class="volume-track">
+              <div class="volume-fill" :style="{ height: volume + '%' }"></div>
+            </div>
+            <div class="volume-thumb" :style="{ bottom: volume + '%' }"></div>
+          </div>
+          <div class="volume-value">{{ volume }}%</div>
+        </div>
       </div>
+      
       <button class="control-btn" @click="togglePlaylist" title="播放列表">
         <svg viewBox="0 0 24 24" width="18" height="18">
           <path fill="currentColor" d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
@@ -96,7 +99,7 @@ const isMuted = ref(false)
 const playMode = ref('list') // list, single, shuffle
 const currentTime = ref(0)
 const duration = ref(0)
-const volume = ref(80)
+const volume = ref(parseInt(localStorage.getItem('volume')) || 100)
 const audioElement = ref(null)
 const desktopLyricsEnabled = ref(false)
 const fadeInterval = ref(null)
@@ -262,6 +265,9 @@ const toggleMute = () => {
   if (audioElement.value) {
     audioElement.value.muted = isMuted.value
   }
+  
+  // 保存音量设置到本地存储
+  localStorage.setItem('volume', volume.value.toString())
 }
 
 const handleVolumeChange = () => {
@@ -274,10 +280,21 @@ const handleVolumeChange = () => {
     audioElement.value.volume = volume.value / 100
     isMuted.value = volume.value === 0
   }
+  
+  // 保存音量设置到本地存储
+  localStorage.setItem('volume', volume.value.toString())
 }
 
 const togglePlaylist = () => {
   console.log('播放列表')
+}
+
+const handleVolumeClick = (event) => {
+  const rect = event.currentTarget.getBoundingClientRect()
+  const y = rect.bottom - event.clientY
+  const percentage = Math.min(100, Math.max(0, (y / rect.height) * 100))
+  volume.value = Math.round(percentage)
+  handleVolumeChange()
 }
 
 const loadMusic = (music) => {
@@ -670,52 +687,79 @@ const toggleFavorite = (music) => {
   flex-shrink: 0;
 }
 
-.volume-control {
+.volume-wrapper {
   position: relative;
-  width: 100px;
+  display: flex;
+  align-items: center;
 }
 
-.volume-slider {
+.volume-wrapper:hover .volume-panel {
+  opacity: 1;
+  visibility: visible;
+}
+
+.volume-panel {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  padding: 16px 12px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 200;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.volume-slider-vertical {
+  width: 8px;
+  height: 120px;
+  position: relative;
+  cursor: pointer;
+}
+
+.volume-track {
   width: 100%;
-  -webkit-appearance: none;
-  appearance: none;
-  height: 4px;
+  height: 100%;
   background: rgba(0, 0, 0, 0.1);
-  border-radius: 2px;
-  outline: none;
-  cursor: pointer;
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
 }
 
-.volume-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 14px;
-  height: 14px;
-  background: var(--gradient-primary);
+.volume-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #FF3B30;
+  border-radius: 4px;
+  transition: height 0.1s;
+}
+
+.volume-thumb {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%) translateY(50%);
+  width: 20px;
+  height: 20px;
+  background: white;
   border-radius: 50%;
-  cursor: pointer;
-  box-shadow: var(--shadow-sm);
-  transition: all var(--transition-fast);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: bottom 0.1s;
 }
 
-.volume-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
-  box-shadow: var(--shadow-md);
-}
-
-.volume-slider::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  background: var(--gradient-primary);
-  border-radius: 50%;
-  cursor: pointer;
-  border: none;
-  box-shadow: var(--shadow-sm);
-  transition: all var(--transition-fast);
-}
-
-.volume-slider::-moz-range-thumb:hover {
-  transform: scale(1.2);
-  box-shadow: var(--shadow-md);
+.volume-value {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
 }
 </style>
