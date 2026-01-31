@@ -364,11 +364,18 @@ onMounted(() => {
   }
   
   window.addEventListener('user-logout', handleUserLogout)
+  window.addEventListener('user-login', handleUserLogin)
 })
 
 const handleUserLogout = () => {
   currentUser.value = null
   username.value = ''
+}
+
+const handleUserLogin = (event) => {
+  const user = event.detail
+  currentUser.value = user
+  username.value = user.username
 }
 </script>
 

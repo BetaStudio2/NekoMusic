@@ -216,6 +216,7 @@ const handleSubmit = async () => {
         currentUser.value = user
         showLoginModal.value = false
         formData.value = { username: '', password: '', email: '' }
+        window.dispatchEvent(new CustomEvent('user-login', { detail: user }))
         showToast('登录成功，欢迎回来！', 'success')
       } else {
         throw new Error(result.message || '登录失败')
