@@ -1,5 +1,5 @@
 export default {
-  BASE_URL: 'http://localhost:9999',
+  BASE_URL: 'https://music.cnmsb.xin',
   
   // 音乐相关
   MUSIC_SEARCH: '/api/music/search',

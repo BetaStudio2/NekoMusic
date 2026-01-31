@@ -1,59 +1,91 @@
 <template>
-  <div class="player-bar">
+  <div class="player-bar glass">
     <div class="player-info">
-      <img :src="currentCover" alt="封面" class="player-cover" @error="handleCoverError" />
+      <div class="player-cover-wrapper">
+        <img :src="currentCover" alt="封面" class="player-cover" @error="handleCoverError" />
+        <div class="cover-wave" v-if="isPlaying">
+          <span></span><span></span><span></span><span></span>
+        </div>
+      </div>
       <div class="player-details">
         <span class="player-title">{{ currentMusic?.title || '未播放' }}</span>
         <span class="player-artist">{{ currentMusic?.artist || '-' }}</span>
       </div>
     </div>
     
-    <div class="player-controls">
-      <button class="control-btn" @click="previous" title="上一首">
-        <svg viewBox="0 0 24 24" width="20" height="20">
-          <path fill="currentColor" d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
-        </svg>
-      </button>
-      <button class="control-btn play-btn" @click="togglePlay" :title="isPlaying ? '暂停' : '播放'">
-        <svg v-if="!isPlaying" viewBox="0 0 24 24" width="24" height="24">
-          <path fill="currentColor" d="M8 5v14l11-7z"/>
-        </svg>
-        <svg v-else viewBox="0 0 24 24" width="24" height="24">
-          <path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
-        </svg>
-      </button>
-      <button class="control-btn" @click="next" title="下一首">
-        <svg viewBox="0 0 24 24" width="20" height="20">
-          <path fill="currentColor" d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
-        </svg>
-      </button>
-    </div>
-    
-    <div class="player-progress">
-      <span class="time">{{ formatTime(currentTime) }}</span>
-      <div class="progress-bar" @click="seekTo">
-        <div class="progress-fill" :style="{ width: progress + '%' }"></div>
+    <div class="player-controls-main">
+      <div class="control-buttons">
+        <button class="control-btn" @click="toggleShuffle" title="随机播放" :class="{ active: isShuffle }">
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path fill="currentColor" d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/>
+          </svg>
+        </button>
+        <button class="control-btn" @click="previous" title="上一首">
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path fill="currentColor" d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
+          </svg>
+        </button>
+        <button class="control-btn play-btn" @click="togglePlay" :title="isPlaying ? '暂停' : '播放'">
+          <svg v-if="!isPlaying" viewBox="0 0 24 24" width="24" height="24">
+            <path fill="currentColor" d="M8 5v14l11-7z"/>
+          </svg>
+          <svg v-else viewBox="0 0 24 24" width="24" height="24">
+            <path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+          </svg>
+        </button>
+        <button class="control-btn" @click="next" title="下一首">
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path fill="currentColor" d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+          </svg>
+        </button>
+        <button class="control-btn" @click="toggleRepeat" title="循环播放" :class="{ active: isRepeat }">
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path fill="currentColor" d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+          </svg>
+        </button>
       </div>
-      <span class="time">{{ formatTime(duration) }}</span>
+      
+      <div class="player-progress">
+        <span class="time">{{ formatTime(currentTime) }}</span>
+        <div class="progress-bar" @click="seekTo" @mousemove="handleProgressHover" @mouseleave="handleProgressLeave">
+          <div class="progress-fill" :style="{ width: progress + '%' }">
+            <div class="progress-glow"></div>
+          </div>
+          <div class="progress-thumb" :style="{ left: progress + '%' }">
+            <div class="thumb-glow"></div>
+          </div>
+        </div>
+        <span class="time">{{ formatTime(duration) }}</span>
+      </div>
     </div>
     
-    <div class="player-volume">
+    <div class="player-controls-right">
       <button class="control-btn" @click="toggleMute" :title="isMuted ? '取消静音' : '静音'">
-        <svg v-if="!isMuted" viewBox="0 0 24 24" width="20" height="20">
+        <svg v-if="!isMuted && volume > 50" viewBox="0 0 24 24" width="18" height="18">
           <path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
         </svg>
-        <svg v-else viewBox="0 0 24 24" width="20" height="20">
+        <svg v-else-if="!isMuted && volume > 0" viewBox="0 0 24 24" width="18" height="18">
+          <path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+        </svg>
+        <svg v-else viewBox="0 0 24 24" width="18" height="18">
           <path fill="currentColor" d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
         </svg>
       </button>
-      <input 
-        v-model="volume" 
-        type="range" 
-        min="0" 
-        max="100" 
-        class="volume-slider"
-        @input="handleVolumeChange"
-      />
+      <div class="volume-control">
+        <input 
+          v-model="volume" 
+          type="range" 
+          min="0" 
+          max="100" 
+          class="volume-slider"
+          @input="handleVolumeChange"
+        />
+      </div>
+      <button class="control-btn" @click="togglePlaylist" title="播放列表">
+        <svg viewBox="0 0 24 24" width="18" height="18">
+          <path fill="currentColor" d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+        </svg>
+      </button>
     </div>
   </div>
 </template>
@@ -64,6 +96,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 const currentMusic = ref(null)
 const isPlaying = ref(false)
 const isMuted = ref(false)
+const isShuffle = ref(false)
+const isRepeat = ref(false)
 const currentTime = ref(0)
 const duration = ref(0)
 const volume = ref(80)
@@ -71,9 +105,9 @@ const audioElement = ref(null)
 
 const currentCover = computed(() => {
   if (!currentMusic.value) {
-    return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56"><rect width="56" height="56" fill="%236a5acd"/><text x="28" y="35" font-family="Arial" font-size="24" fill="white" text-anchor="middle">M</text></svg>'
+    return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56"><defs><linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:%23667eea;stop-opacity:1"/><stop offset="100%" style="stop-color:%23764ba2;stop-opacity:1"/></linearGradient></defs><rect width="56" height="56" fill="url(%23grad)" rx="8"/><text x="28" y="35" font-family="Arial" font-size="24" fill="white" text-anchor="middle" font-weight="bold">M</text></svg>'
   }
-  return `http://localhost:9999/api/music/cover/${currentMusic.value.id}`
+  return `https://music.cnmsb.xin/api/music/cover/${currentMusic.value.id}`
 })
 
 const progress = computed(() => {
@@ -89,7 +123,7 @@ const formatTime = (seconds) => {
 }
 
 const handleCoverError = (event) => {
-  event.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56"><rect width="56" height="56" fill="%236a5acd"/><text x="28" y="35" font-family="Arial" font-size="24" fill="white" text-anchor="middle">M</text></svg>'
+  event.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56"><defs><linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:%23667eea;stop-opacity:1"/><stop offset="100%" style="stop-color:%23764ba2;stop-opacity:1"/></linearGradient></defs><rect width="56" height="56" fill="url(%23grad)" rx="8"/><text x="28" y="35" font-family="Arial" font-size="24" fill="white" text-anchor="middle" font-weight="bold">M</text></svg>'
 }
 
 const togglePlay = () => {
@@ -104,13 +138,19 @@ const togglePlay = () => {
 }
 
 const previous = () => {
-  // 实现上一首逻辑
   console.log('上一首')
 }
 
 const next = () => {
-  // 实现下一首逻辑
   console.log('下一首')
+}
+
+const toggleShuffle = () => {
+  isShuffle.value = !isShuffle.value
+}
+
+const toggleRepeat = () => {
+  isRepeat.value = !isRepeat.value
 }
 
 const seekTo = (event) => {
@@ -120,6 +160,14 @@ const seekTo = (event) => {
   const x = event.clientX - rect.left
   const percentage = x / rect.width
   audioElement.value.currentTime = percentage * duration.value
+}
+
+const handleProgressHover = () => {
+  // 可以添加悬停预览功能
+}
+
+const handleProgressLeave = () => {
+  // 清除悬停状态
 }
 
 const toggleMute = () => {
@@ -136,6 +184,10 @@ const handleVolumeChange = () => {
   }
 }
 
+const togglePlaylist = () => {
+  console.log('播放列表')
+}
+
 const loadMusic = (music) => {
   if (!music) return
   
@@ -145,7 +197,7 @@ const loadMusic = (music) => {
   duration.value = music.duration || 0
   
   if (audioElement.value) {
-    audioElement.value.src = `http://localhost:9999/api/music/file/${music.id}`
+    audioElement.value.src = `https://music.cnmsb.xin/api/music/file/${music.id}`
     audioElement.value.load()
   }
 }
@@ -209,30 +261,81 @@ onUnmounted(() => {
 
 <style scoped>
 .player-bar {
-  height: 80px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  height: 90px;
+  border-top: 1px solid var(--border-light);
   display: flex;
   align-items: center;
-  padding: 0 20px;
-  gap: 20px;
+  padding: 0 24px;
+  gap: 24px;
+  position: relative;
+  z-index: 100;
+}
+
+.player-bar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.3), transparent);
 }
 
 .player-info {
   display: flex;
   align-items: center;
-  gap: 12px;
-  width: 300px;
+  gap: 14px;
+  width: 280px;
+  flex-shrink: 0;
+}
+
+.player-cover-wrapper {
+  position: relative;
+  width: 60px;
+  height: 60px;
   flex-shrink: 0;
 }
 
 .player-cover {
-  width: 56px;
-  height: 56px;
-  border-radius: 4px;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
   object-fit: cover;
-  flex-shrink: 0;
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-normal);
+}
+
+.player-cover-wrapper:hover .player-cover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-lg);
+}
+
+.cover-wave {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 3px;
+  align-items: flex-end;
+  height: 12px;
+}
+
+.cover-wave span {
+  width: 3px;
+  background: var(--gradient-primary);
+  border-radius: 2px;
+  animation: wave 1s ease-in-out infinite;
+}
+
+.cover-wave span:nth-child(1) { animation-delay: 0s; height: 6px; }
+.cover-wave span:nth-child(2) { animation-delay: 0.1s; height: 10px; }
+.cover-wave span:nth-child(3) { animation-delay: 0.2s; height: 8px; }
+.cover-wave span:nth-child(4) { animation-delay: 0.3s; height: 12px; }
+
+@keyframes wave {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.5); }
 }
 
 .player-details {
@@ -242,130 +345,207 @@ onUnmounted(() => {
 }
 
 .player-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: #333;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .player-artist {
-  font-size: 12px;
-  color: #666;
+  font-size: 13px;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-top: 2px;
 }
 
-.player-controls {
+.player-controls-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 400px;
+}
+
+.control-buttons {
   display: flex;
   align-items: center;
-  gap: 16px;
-  flex-shrink: 0;
+  gap: 12px;
 }
 
 .control-btn {
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border: none;
   background: transparent;
-  border-radius: 50%;
+  border-radius: var(--radius-md);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #666;
-  transition: all 0.2s;
+  color: var(--text-secondary);
+  transition: all var(--transition-normal);
 }
 
 .control-btn:hover {
   background: rgba(102, 126, 234, 0.1);
-  color: #667eea;
+  color: var(--primary);
+  transform: scale(1.1);
+}
+
+.control-btn.active {
+  color: var(--primary);
+  background: rgba(102, 126, 234, 0.1);
 }
 
 .play-btn {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: var(--gradient-primary);
   color: white;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
 }
 
 .play-btn:hover {
-  background: linear-gradient(135deg, #5568d3, #654090);
   transform: scale(1.05);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
 }
 
 .player-progress {
-  flex: 1;
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 12px;
-  min-width: 200px;
 }
 
 .time {
   font-size: 12px;
-  color: #666;
-  min-width: 40px;
+  color: var(--text-muted);
+  min-width: 42px;
   text-align: center;
+  font-weight: 500;
 }
 
 .progress-bar {
   flex: 1;
-  height: 4px;
-  background: #e0e0e0;
-  border-radius: 2px;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
   cursor: pointer;
   position: relative;
   overflow: hidden;
+  transition: height var(--transition-fast);
 }
 
 .progress-bar:hover {
-  height: 6px;
+  height: 8px;
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #667eea, #764ba2);
-  border-radius: 2px;
+  background: var(--gradient-primary);
+  border-radius: 3px;
+  position: relative;
   transition: width 0.1s;
 }
 
-.player-volume {
+.progress-glow {
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  background: var(--gradient-primary);
+  filter: blur(8px);
+  opacity: 0.5;
+}
+
+.progress-thumb {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  background: white;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  transition: all var(--transition-fast);
+}
+
+.progress-bar:hover .progress-thumb {
+  opacity: 1;
+}
+
+.thumb-glow {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  background: var(--gradient-primary);
+  border-radius: 50%;
+  filter: blur(6px);
+  opacity: 0.6;
+}
+
+.player-controls-right {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 140px;
   flex-shrink: 0;
 }
 
+.volume-control {
+  position: relative;
+  width: 100px;
+}
+
 .volume-slider {
-  flex: 1;
+  width: 100%;
   -webkit-appearance: none;
   appearance: none;
   height: 4px;
-  background: #e0e0e0;
+  background: rgba(0, 0, 0, 0.1);
   border-radius: 2px;
   outline: none;
+  cursor: pointer;
 }
 
 .volume-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 12px;
-  height: 12px;
-  background: #667eea;
+  width: 14px;
+  height: 14px;
+  background: var(--gradient-primary);
   border-radius: 50%;
   cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+}
+
+.volume-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: var(--shadow-md);
 }
 
 .volume-slider::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
-  background: #667eea;
+  width: 14px;
+  height: 14px;
+  background: var(--gradient-primary);
   border-radius: 50%;
   cursor: pointer;
   border: none;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+}
+
+.volume-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: var(--shadow-md);
 }
 </style>

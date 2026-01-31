@@ -73,7 +73,7 @@ const userAvatar = computed(() => {
   if (userStr) {
     try {
       const user = JSON.parse(userStr)
-      return `http://localhost:9999/api/user/avatar/${user.id}`
+      return `https://music.cnmsb.xin/api/user/avatar/${user.id}`
     } catch (e) {
       return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" fill="%236a5acd"/><text x="16" y="20" font-family="Arial" font-size="14" fill="white" text-anchor="middle">U</text></svg>'
     }

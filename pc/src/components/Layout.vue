@@ -1,9 +1,12 @@
 <template>
   <div class="layout">
-    <div class="layout-sidebar">
+    <div class="layout-sidebar glass-dark">
       <div class="sidebar-header">
-        <img src="/icon.png" alt="Logo" class="app-logo" />
-        <span class="app-name">Neko云音乐</span>
+        <div class="logo-wrapper">
+          <img src="/icon.png" alt="Logo" class="app-logo animate-pulse" />
+          <div class="logo-glow"></div>
+        </div>
+        <span class="app-name text-gradient">Neko云音乐</span>
       </div>
       <nav class="sidebar-nav">
         <div 
@@ -12,23 +15,34 @@
           :class="['nav-item', { active: currentRoute === item.key }]"
           @click="navigateTo(item.key)"
         >
-          <svg class="nav-icon" viewBox="0 0 24 24">
-            <path :d="item.icon" fill="currentColor"/>
-          </svg>
+          <div class="nav-icon-wrapper">
+            <svg class="nav-icon" viewBox="0 0 24 24">
+              <path :d="item.icon" fill="currentColor"/>
+            </svg>
+            <div class="nav-icon-glow" v-if="currentRoute === item.key"></div>
+          </div>
           <span>{{ item.label }}</span>
+          <div class="nav-indicator" v-if="currentRoute === item.key"></div>
         </div>
       </nav>
       <div class="sidebar-footer">
-        <div class="user-info">
-          <img :src="userAvatar" alt="用户头像" class="user-avatar" />
+        <div class="user-card" @click="handleUserClick">
+          <div class="user-avatar-wrapper">
+            <img :src="userAvatar" alt="用户头像" class="user-avatar" />
+            <div class="user-avatar-ring"></div>
+          </div>
           <div class="user-details">
             <span class="username">{{ username || '未登录' }}</span>
+            <span class="user-status">{{ isLoggedIn ? '在线' : '点击登录' }}</span>
           </div>
+          <svg class="user-arrow" viewBox="0 0 24 24" width="16" height="16">
+            <path fill="currentColor" d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+          </svg>
         </div>
       </div>
     </div>
     <div class="layout-main">
-      <div class="title-bar">
+      <div class="title-bar glass">
         <div class="title-bar-center">
           <div class="search-box">
             <svg class="search-icon" viewBox="0 0 20 20">
@@ -40,18 +54,13 @@
               placeholder="搜索音乐、艺术家..." 
               @keyup.enter="handleSearch"
             />
-            <svg class="mic-icon" viewBox="0 0 20 20">
-              <path fill="currentColor" d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"/>
-            </svg>
           </div>
         </div>
         <div class="title-bar-right">
-          <button class="action-btn" title="消息">
-            <svg viewBox="0 0 20 20" width="20" height="20">
-              <path fill="currentColor" d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
-              <path fill="currentColor" d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
+          <button class="action-btn" @click="navigateTo('settings')" title="设置">
+            <svg viewBox="0 0 24 24" width="20" height="20">
+              <path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
             </svg>
-            <span class="badge"></span>
           </button>
           <div class="window-controls">
             <button class="window-btn" @click="minimize" title="最小化">
@@ -73,7 +82,11 @@
         </div>
       </div>
       <div class="main-content">
-        <router-view />
+        <router-view v-slot="{ Component }">
+          <transition name="fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
       </div>
       <PlayerBar />
     </div>
@@ -91,26 +104,29 @@ const searchQuery = ref('')
 const username = ref('')
 
 const navItems = [
-  { key: 'home', label: '首页', icon: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z' },
-  { key: 'search', label: '搜索', icon: 'M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z' },
-  { key: 'library', label: '音乐库', icon: 'M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z' },
-  { key: 'favorites', label: '收藏', icon: 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z' },
-  { key: 'playlists', label: '歌单', icon: 'M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z' },
-  { key: 'settings', label: '设置', icon: 'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z' }
+  { key: 'home', label: '首页', icon: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z' }
 ]
+
+const isLoggedIn = computed(() => {
+  return localStorage.getItem('user') !== null
+})
 
 const userAvatar = computed(() => {
   const userStr = localStorage.getItem('user')
   if (userStr) {
     try {
       const user = JSON.parse(userStr)
-      return `http://localhost:9999/api/user/avatar/${user.id}`
+      return `https://music.cnmsb.xin/api/user/avatar/${user.id}`
     } catch (e) {
-      return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="%236a5acd"/><text x="20" y="25" font-family="Arial" font-size="16" fill="white" text-anchor="middle">U</text></svg>'
+      return getDefaultAvatar()
     }
   }
-  return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="%236a5acd"/><text x="20" y="25" font-family="Arial" font-size="16" fill="white" text-anchor="middle">U</text></svg>'
+  return getDefaultAvatar()
 })
+
+const getDefaultAvatar = () => {
+  return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><defs><linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:%23667eea;stop-opacity:1"/><stop offset="100%" style="stop-color:%23764ba2;stop-opacity:1"/></linearGradient></defs><rect width="40" height="40" fill="url(%23grad)" rx="20"/><text x="20" y="26" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">U</text></svg>'
+}
 
 const navigateTo = (route) => {
   currentRoute.value = route
@@ -120,6 +136,12 @@ const navigateTo = (route) => {
 const handleSearch = () => {
   if (searchQuery.value.trim()) {
     router.push(`/search?q=${encodeURIComponent(searchQuery.value)}`)
+  }
+}
+
+const handleUserClick = () => {
+  if (!isLoggedIn.value) {
+    router.push('/login')
   }
 }
 
@@ -160,94 +182,203 @@ onMounted(() => {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
+  background: var(--bg-main);
 }
 
+/* 侧边栏样式 */
 .layout-sidebar {
-  width: 240px;
+  width: 260px;
   min-height: 100vh;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
   display: flex;
   flex-direction: column;
-  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  border-right: 1px solid var(--border-color);
   flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.layout-sidebar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, rgba(102, 126, 234, 0.1) 0%, transparent 100%);
+  pointer-events: none;
 }
 
 .sidebar-header {
-  padding: 0 16px;
-  height: 48px;
+  padding: 24px 20px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.logo-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .app-logo {
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  position: relative;
+  z-index: 2;
+}
+
+.logo-glow {
+  position: absolute;
+  width: 50px;
+  height: 50px;
+  background: var(--gradient-primary);
+  border-radius: 50%;
+  filter: blur(20px);
+  opacity: 0.5;
+  z-index: 1;
 }
 
 .app-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: white;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
 }
 
 .sidebar-nav {
   flex: 1;
-  padding: 10px 0;
+  padding: 16px 12px;
   overflow-y: auto;
+  position: relative;
+  z-index: 1;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  padding: 12px 20px;
-  color: rgba(255, 255, 255, 0.8);
+  padding: 14px 16px;
+  color: var(--text-white-muted);
   cursor: pointer;
-  transition: all 0.2s;
-  border-left: 3px solid transparent;
+  transition: all var(--transition-normal);
+  border-radius: var(--radius-md);
+  position: relative;
+  margin-bottom: 4px;
 }
 
 .nav-item:hover {
   background: rgba(255, 255, 255, 0.1);
   color: white;
+  transform: translateX(4px);
 }
 
 .nav-item.active {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--gradient-primary);
   color: white;
-  border-left-color: white;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.nav-icon-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 14px;
 }
 
 .nav-icon {
   width: 20px;
   height: 20px;
-  margin-right: 12px;
+  position: relative;
+  z-index: 2;
+}
+
+.nav-icon-glow {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  filter: blur(8px);
+  z-index: 1;
 }
 
 .nav-item span {
   font-size: 14px;
+  font-weight: 500;
+}
+
+.nav-indicator {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: white;
+  border-radius: 2px 0 0 2px;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
 }
 
 .sidebar-footer {
-  padding: 15px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 16px 12px;
+  border-top: 1px solid var(--border-color);
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 }
 
-.user-info {
+.user-card {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  border: 1px solid transparent;
+}
+
+.user-card:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.user-avatar-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .user-avatar {
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  object-fit: cover;
+  position: relative;
+  z-index: 2;
+}
+
+.user-avatar-ring {
+  position: absolute;
+  width: 50px;
+  height: 50px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: var(--gradient-primary);
+  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: rotate 8s linear infinite;
 }
 
 .user-details {
@@ -258,54 +389,97 @@ onMounted(() => {
 .username {
   font-size: 14px;
   color: white;
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: block;
 }
 
+.user-status {
+  font-size: 12px;
+  color: var(--text-white-muted);
+  margin-top: 2px;
+  display: block;
+}
+
+.user-arrow {
+  color: var(--text-white-muted);
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: all var(--transition-normal);
+}
+
+.user-card:hover .user-arrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* 主内容区域 */
 .layout-main {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
 
+/* 标题栏 */
 .title-bar {
-  height: 48px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
-  background: white;
+  padding: 0 20px;
   flex-shrink: 0;
   -webkit-app-region: drag;
   user-select: none;
+  position: relative;
+  z-index: 10;
+}
+
+.title-bar::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 20px;
+  right: 20px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.1), transparent);
 }
 
 .title-bar-center {
   flex: 1;
   display: flex;
   justify-content: center;
-  max-width: 500px;
+  max-width: 520px;
 }
 
 .search-box {
   display: flex;
   align-items: center;
   width: 100%;
-  max-width: 400px;
-  height: 32px;
-  background: #f5f5f7;
-  border-radius: 16px;
-  padding: 0 12px;
+  max-width: 420px;
+  height: 38px;
+  background: white;
+  border-radius: var(--radius-full);
+  padding: 0 16px;
+  box-shadow: var(--shadow-sm);
   -webkit-app-region: no-drag;
+  transition: all var(--transition-normal);
+  border: 2px solid transparent;
+}
+
+.search-box:focus-within {
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary);
+  transform: scale(1.02);
 }
 
 .search-icon {
-  width: 16px;
-  height: 16px;
-  color: #999;
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
@@ -313,70 +487,49 @@ onMounted(() => {
   flex: 1;
   border: none;
   background: transparent;
-  padding: 0 8px;
-  font-size: 13px;
-  color: #333;
+  padding: 0 12px;
+  font-size: 14px;
+  color: var(--text-primary);
   outline: none;
 }
 
 .search-box input::placeholder {
-  color: #999;
-}
-
-.mic-icon {
-  width: 16px;
-  height: 16px;
-  color: #d0d0e0;
-  flex-shrink: 0;
-  cursor: pointer;
-}
-
-.mic-icon:hover {
-  color: #999;
+  color: var(--text-muted);
 }
 
 .title-bar-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
 .action-btn {
   position: relative;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border: none;
   background: transparent;
-  border-radius: 50%;
+  border-radius: var(--radius-md);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #666;
-  transition: all 0.2s;
+  color: var(--text-secondary);
+  transition: all var(--transition-normal);
   -webkit-app-region: no-drag;
 }
 
 .action-btn:hover {
-  background: #f5f5f7;
-  color: #333;
-}
-
-.badge {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #ff4545;
+  background: rgba(102, 126, 234, 0.1);
+  color: var(--primary);
+  transform: translateY(-2px);
 }
 
 .window-controls {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   -webkit-app-region: no-drag;
 }
 
@@ -385,18 +538,18 @@ onMounted(() => {
   height: 36px;
   border: none;
   background: transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #666;
-  transition: all 0.2s;
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
 }
 
 .window-btn:hover {
-  background: #f5f5f7;
-  color: #333;
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary);
 }
 
 .close-btn:hover {
@@ -404,9 +557,27 @@ onMounted(() => {
   color: white;
 }
 
+/* 主内容 */
 .main-content {
   flex: 1;
   overflow: auto;
-  background: rgba(255, 255, 255, 0.95);
+  background: transparent;
+  position: relative;
+}
+
+/* 页面过渡动画 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: all 0.3s ease;
+}
+
+.fade-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 </style>
