@@ -95,6 +95,65 @@
       </div>
       <PlayerBar />
     </div>
+
+    <Transition name="modal">
+      <div v-if="showLoginModal" class="modal-overlay" @click="showLoginModal = false">
+        <div class="modal-content" @click.stop>
+          <div class="modal-header">
+            <div class="modal-logo">
+              <img src="/icon.png" alt="Logo" />
+            </div>
+            <h2 class="modal-title">欢迎回来</h2>
+            <p class="modal-subtitle">{{ authTab === 'login' ? '登录以继续使用Neko云音乐' : '创建新账号开始您的音乐之旅' }}</p>
+          </div>
+          
+          <div class="modal-tabs">
+            <button 
+              :class="['tab-btn', { active: authTab === 'login' }]"
+              @click="authTab = 'login'"
+            >
+              登录
+            </button>
+            <button 
+              :class="['tab-btn', { active: authTab === 'register' }]"
+              @click="authTab = 'register'"
+            >
+              注册
+            </button>
+          </div>
+          
+          <div class="auth-form">
+            <input 
+              v-model="formData.username"
+              type="text" 
+              placeholder="用户名"
+              class="auth-input"
+            />
+            <input 
+              v-model="formData.password"
+              type="password" 
+              placeholder="密码"
+              class="auth-input"
+            />
+            <input 
+              v-if="authTab === 'register'"
+              v-model="formData.email"
+              type="email" 
+              placeholder="邮箱"
+              class="auth-input"
+            />
+          </div>
+
+          <div class="modal-buttons">
+            <button class="modal-btn modal-btn-primary" @click="handleSubmit">
+              {{ authTab === 'login' ? '立即登录' : '创建账号' }}
+            </button>
+          </div>
+          
+          <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -107,6 +166,14 @@ const router = useRouter()
 const currentRoute = ref('home')
 const searchQuery = ref('')
 const username = ref('')
+const showLoginModal = ref(false)
+const authTab = ref('login')
+const errorMessage = ref('')
+const formData = ref({
+  username: '',
+  password: '',
+  email: ''
+})
 
 const navItems = [
   { key: 'home', label: '首页', icon: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z' }
@@ -146,7 +213,66 @@ const handleSearch = () => {
 
 const handleUserClick = () => {
   if (!isLoggedIn.value) {
-    router.push('/login')
+    showLoginModal.value = true
+  }
+}
+
+const handleSubmit = async () => {
+  errorMessage.value = ''
+  
+  if (!formData.value.username || !formData.value.password) {
+    errorMessage.value = '请填写用户名和密码'
+    return
+  }
+
+  if (authTab.value === 'register' && !formData.value.email) {
+    errorMessage.value = '请填写邮箱'
+    return
+  }
+
+  try {
+    const baseUrl = 'https://music.cnmsb.xin/api'
+    
+    if (authTab.value === 'login') {
+      const response = await fetch(`${baseUrl}/user/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: formData.value.username,
+          password: formData.value.password
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error('登录失败')
+      }
+      
+      const data = await response.json()
+      localStorage.setItem('user', JSON.stringify(data))
+      localStorage.setItem('token', data.token || '')
+      username.value = data.username
+      showLoginModal.value = false
+      formData.value = { username: '', password: '', email: '' }
+    } else {
+      const response = await fetch(`${baseUrl}/user/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: formData.value.username,
+          password: formData.value.password,
+          email: formData.value.email
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error('注册失败')
+      }
+      
+      authTab.value = 'login'
+      errorMessage.value = ''
+    }
+  } catch (error) {
+    errorMessage.value = error.message || `${authTab.value === 'login' ? '登录' : '注册'}失败，请重试`
   }
 }
 
@@ -649,5 +775,246 @@ onMounted(() => {
 .fade-leave-to {
   opacity: 0;
   transform: translateY(-10px);
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  padding: 20px;
+}
+
+.modal-content {
+  background: linear-gradient(135deg, rgba(42, 42, 42, 0.95) 0%, rgba(30, 30, 30, 0.95) 100%);
+  border-radius: 20px;
+  padding: 32px;
+  width: 100%;
+  max-width: 380px;
+  text-align: center;
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.modal-content::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(102, 126, 234, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.modal-header {
+  text-align: center;
+  margin-bottom: 24px;
+  position: relative;
+  z-index: 1;
+}
+
+.modal-logo {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  position: relative;
+}
+
+.modal-logo img {
+  width: 100%;
+  height: 100%;
+  border-radius: 16px;
+  box-shadow: 
+    0 8px 24px rgba(102, 126, 234, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.modal-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.modal-subtitle {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0;
+}
+
+.modal-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 28px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 6px;
+  border-radius: 14px;
+  position: relative;
+  z-index: 1;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  z-index: 1;
+}
+
+.tab-btn.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 
+    0 4px 12px rgba(102, 126, 234, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transform: scale(1.02);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 24px;
+  position: relative;
+  z-index: 1;
+}
+
+.auth-input {
+  padding: 14px 18px;
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  color: white;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.auth-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.auth-input:focus {
+  border-color: #667eea;
+  background: rgba(0, 0, 0, 0.4);
+  box-shadow: 
+    0 0 0 4px rgba(102, 126, 234, 0.1),
+    0 4px 12px rgba(102, 126, 234, 0.2);
+  transform: translateY(-1px);
+}
+
+.auth-input:hover:not(:focus) {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.modal-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  z-index: 1;
+}
+
+.modal-btn {
+  padding: 14px 28px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.modal-btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 
+    0 4px 16px rgba(102, 126, 234, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.modal-btn-primary::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.modal-btn-primary:hover::before {
+  left: 100%;
+}
+
+.modal-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 8px 24px rgba(102, 126, 234, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.modal-btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.error-message {
+  color: #ff6b6b;
+  font-size: 13px;
+  margin-top: 14px;
+  padding: 10px 14px;
+  background: rgba(255, 107, 107, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 107, 107, 0.2);
+  position: relative;
+  z-index: 1;
+}
+
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-active .modal-content,
+.modal-leave-active .modal-content {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.modal-enter-from .modal-content,
+.modal-leave-to .modal-content {
+  opacity: 0;
+  transform: scale(0.9) translateY(10px);
 }
 </style>
