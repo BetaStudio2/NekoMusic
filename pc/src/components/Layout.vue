@@ -54,6 +54,11 @@
               placeholder="搜索音乐、艺术家..." 
               @keyup.enter="handleSearch"
             />
+            <button class="search-btn" @click="handleSearch" title="搜索">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path fill="currentColor" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+              </svg>
+            </button>
           </div>
         </div>
         <div class="title-bar-right">
@@ -459,28 +464,54 @@ onMounted(() => {
   display: flex;
   align-items: center;
   width: 100%;
-  max-width: 420px;
-  height: 38px;
+  max-width: 480px;
+  height: 44px;
   background: white;
-  border-radius: var(--radius-full);
-  padding: 0 16px;
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-lg);
+  padding: 0 4px 0 16px;
+  box-shadow: var(--shadow-md);
   -webkit-app-region: no-drag;
   transition: all var(--transition-normal);
   border: 2px solid transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+.search-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--gradient-primary);
+  opacity: 0;
+  transition: opacity var(--transition-normal);
+  border-radius: var(--radius-lg);
 }
 
 .search-box:focus-within {
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.25);
   border-color: var(--primary);
-  transform: scale(1.02);
+  transform: translateY(-1px);
+}
+
+.search-box:focus-within::before {
+  opacity: 0.05;
 }
 
 .search-icon {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   color: var(--text-muted);
   flex-shrink: 0;
+  transition: color var(--transition-fast);
+  position: relative;
+  z-index: 1;
+}
+
+.search-box:focus-within .search-icon {
+  color: var(--primary);
 }
 
 .search-box input {
@@ -488,13 +519,52 @@ onMounted(() => {
   border: none;
   background: transparent;
   padding: 0 12px;
-  font-size: 14px;
+  font-size: 15px;
   color: var(--text-primary);
   outline: none;
+  position: relative;
+  z-index: 1;
 }
 
 .search-box input::placeholder {
   color: var(--text-muted);
+  transition: opacity var(--transition-fast);
+}
+
+.search-box:focus-within input::placeholder {
+  opacity: 0.6;
+}
+
+.search-btn {
+  width: 40px;
+  height: 36px;
+  border: none;
+  background: var(--gradient-primary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  transition: all var(--transition-normal);
+  margin-right: 4px;
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+}
+
+.search-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.search-btn:active {
+  transform: scale(0.95);
+}
+
+.search-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
 .title-bar-right {
