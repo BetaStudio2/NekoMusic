@@ -321,11 +321,67 @@ const fadeOut = (callback) => {
 }
 
 const previous = () => {
-  console.log('上一首')
+  if (playlist.value.length === 0) {
+    console.log('播放列表为空，无法播放上一首')
+    return
+  }
+  
+  if (!currentMusic.value) {
+    console.log('没有当前音乐，无法播放上一首')
+    return
+  }
+  
+  const currentIndex = playlist.value.findIndex(item => item.id === currentMusic.value.id)
+  if (currentIndex === -1) {
+    console.log('当前音乐不在播放列表中')
+    return
+  }
+  
+  // 播放上一首
+  const prevIndex = (currentIndex - 1 + playlist.value.length) % playlist.value.length
+  playFromPlaylist(playlist.value[prevIndex].localId)
+  
+  console.log('播放上一首:', playlist.value[prevIndex].title)
 }
 
 const next = () => {
-  console.log('下一首')
+  if (playlist.value.length === 0) {
+    console.log('播放列表为空，无法播放下一首')
+    return
+  }
+  
+  if (!currentMusic.value) {
+    console.log('没有当前音乐，播放第一首')
+    playFromPlaylist(playlist.value[0].localId)
+    return
+  }
+  
+  const currentIndex = playlist.value.findIndex(item => item.id === currentMusic.value.id)
+  if (currentIndex === -1) {
+    console.log('当前音乐不在播放列表中，播放第一首')
+    playFromPlaylist(playlist.value[0].localId)
+    return
+  }
+  
+  let nextIndex = currentIndex + 1
+  
+  // 根据播放模式决定下一首
+  if (playMode.value === 'single') {
+    // 单曲循环：重新播放当前音乐
+    nextIndex = currentIndex
+  } else if (playMode.value === 'shuffle') {
+    // 随机播放：随机选择下一首（排除当前）
+    do {
+      nextIndex = Math.floor(Math.random() * playlist.value.length)
+    } while (nextIndex === currentIndex && playlist.value.length > 1)
+  } else {
+    // 列表循环：播放下一首，到达末尾时循环
+    nextIndex = nextIndex % playlist.value.length
+  }
+  
+  playFromPlaylist(playlist.value[nextIndex].localId)
+  
+  console.log('播放下一首:', playlist.value[nextIndex].title, '播放模式:', playMode.value)
 }
 
 const togglePlayMode = () => {
@@ -701,9 +757,20 @@ const handleError = (error) => {
 }
 
 const handleEnded = () => {
-  isPlaying.value = false
-  updateMediaInfo()
-  next()
+  console.log('音乐播放完成，当前播放模式:', playMode.value)
+  
+  // 根据播放模式决定下一步操作
+  if (playMode.value === 'single') {
+    // 单曲循环：重新播放当前音乐
+    console.log('单曲循环：重新播放')
+    if (audioElement.value && currentMusic.value) {
+      audioElement.value.currentTime = 0
+      audioElement.value.play()
+    }
+  } else {
+    // 列表循环或随机播放：播放下一首
+    next()
+  }
 }
 
 const handleMusicPlay = (event) => {
