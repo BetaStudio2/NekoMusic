@@ -33,7 +33,7 @@
           </div>
           <div class="user-details">
             <span class="username">{{ username || '未登录' }}</span>
-            <span class="user-status">{{ isLoggedIn ? '在线' : '点击登录' }}</span>
+            <span class="user-status">{{ isLoggedIn ? '已登录' : '点击登录' }}</span>
           </div>
           <svg class="user-arrow" viewBox="0 0 24 24" width="16" height="16">
             <path fill="currentColor" d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
@@ -253,7 +253,9 @@ const handleSearch = () => {
 }
 
 const handleUserClick = () => {
-  if (!isLoggedIn.value) {
+  if (isLoggedIn.value) {
+    navigateTo('settings')
+  } else {
     showLoginModal.value = true
   }
 }
@@ -360,7 +362,14 @@ onMounted(() => {
       console.error('解析用户信息失败:', e)
     }
   }
+  
+  window.addEventListener('user-logout', handleUserLogout)
 })
+
+const handleUserLogout = () => {
+  currentUser.value = null
+  username.value = ''
+}
 </script>
 
 <style scoped>
