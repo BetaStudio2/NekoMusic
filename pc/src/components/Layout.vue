@@ -218,11 +218,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import PlayerBar from './PlayerBar.vue'
 
 const router = useRouter()
+const route = useRoute()
 const currentRoute = ref('home')
 const searchQuery = ref('')
 const username = ref('')
@@ -470,6 +471,11 @@ const handleUserLogin = (event) => {
   currentUser.value = user
   username.value = user.username
 }
+
+watch(() => route.path, (newPath) => {
+  const path = newPath.replace(/^\//, '') || 'home'
+  currentRoute.value = path
+}, { immediate: true })
 </script>
 
 <style scoped>
