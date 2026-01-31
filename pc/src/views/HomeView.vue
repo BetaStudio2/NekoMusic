@@ -3,7 +3,6 @@
     <div class="welcome-section">
       <h1 class="welcome-title">
         <span class="greeting">{{ greeting }}</span>
-        <span class="emoji">🎵</span>
       </h1>
       <p class="welcome-subtitle">发现好音乐，享受每一刻</p>
     </div>
@@ -81,11 +80,6 @@ const greeting = computed(() => {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-}
-
-.emoji {
-  margin-left: 8px;
-  animation: bounce 2s ease-in-out infinite;
 }
 
 @keyframes bounce {
