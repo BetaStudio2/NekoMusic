@@ -39,7 +39,7 @@
       <div class="settings-section">
         <h3>关于</h3>
         <p>NekoMusic PC 版本</p>
-        <p>版本号: 1.0.0</p>
+        <p>版本号: {{ APP_VERSION }}</p>
       </div>
     </div>
 
@@ -149,6 +149,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import apiConfig from '../config/apiConfig'
+import { APP_VERSION } from '../version'
 
 // 统一的 API 请求函数
 async function apiRequest(url, options = {}) {
