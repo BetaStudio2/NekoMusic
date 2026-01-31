@@ -103,8 +103,12 @@
             <div class="modal-logo">
               <img src="/icon.png" alt="Logo" />
             </div>
-            <h2 class="modal-title">欢迎回来</h2>
-            <p class="modal-subtitle">{{ authTab === 'login' ? '登录以继续使用Neko云音乐' : '创建新账号开始您的音乐之旅' }}</p>
+            <Transition name="title-fade" mode="out-in">
+              <h2 :key="authTab" class="modal-title">{{ authTab === 'login' ? '欢迎回来' : '创建账号' }}</h2>
+            </Transition>
+            <Transition name="subtitle-fade" mode="out-in">
+              <p :key="authTab" class="modal-subtitle">{{ authTab === 'login' ? '登录以继续使用猫云音乐' : '创建新账号开始您的音乐之旅' }}</p>
+            </Transition>
           </div>
           
           <div class="modal-tabs">
@@ -122,33 +126,39 @@
             </button>
           </div>
           
-          <div class="auth-form">
-            <input 
-              v-model="formData.username"
-              type="text" 
-              placeholder="用户名"
-              class="auth-input"
-            />
-            <input 
-              v-model="formData.password"
-              type="password" 
-              placeholder="密码"
-              class="auth-input"
-            />
-            <input 
-              v-if="authTab === 'register'"
-              v-model="formData.email"
-              type="email" 
-              placeholder="邮箱"
-              class="auth-input"
-            />
-          </div>
+          <Transition name="form-slide" mode="out-in">
+            <div :key="authTab" class="auth-form">
+              <input 
+                v-model="formData.username"
+                type="text" 
+                placeholder="用户名"
+                class="auth-input"
+              />
+              <input 
+                v-model="formData.password"
+                type="password" 
+                placeholder="密码"
+                class="auth-input"
+              />
+              <Transition name="field-fade">
+                <input 
+                  v-if="authTab === 'register'"
+                  v-model="formData.email"
+                  type="email" 
+                  placeholder="邮箱"
+                  class="auth-input"
+                />
+              </Transition>
+            </div>
+          </Transition>
 
-          <div class="modal-buttons">
-            <button class="modal-btn modal-btn-primary" @click="handleSubmit">
-              {{ authTab === 'login' ? '立即登录' : '创建账号' }}
-            </button>
-          </div>
+          <Transition name="button-fade" mode="out-in">
+            <div :key="authTab" class="modal-buttons">
+              <button class="modal-btn modal-btn-primary" @click="handleSubmit">
+                {{ authTab === 'login' ? '立即登录' : '创建账号' }}
+              </button>
+            </div>
+          </Transition>
           
           <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
         </div>
@@ -1016,5 +1026,71 @@ onMounted(() => {
 .modal-leave-to .modal-content {
   opacity: 0;
   transform: scale(0.9) translateY(10px);
+}
+
+.title-fade-enter-active,
+.title-fade-leave-active {
+  transition: all 0.3s ease;
+}
+
+.title-fade-enter-from,
+.title-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.subtitle-fade-enter-active,
+.subtitle-fade-leave-active {
+  transition: all 0.3s ease 0.1s;
+}
+
+.subtitle-fade-enter-from,
+.subtitle-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.form-slide-enter-active,
+.form-slide-leave-active {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.form-slide-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.form-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+.field-fade-enter-active {
+  transition: all 0.3s ease;
+}
+
+.field-fade-enter-from {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.field-fade-leave-active {
+  transition: all 0.2s ease;
+}
+
+.field-fade-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.button-fade-enter-active,
+.button-fade-leave-active {
+  transition: all 0.3s ease;
+}
+
+.button-fade-enter-from,
+.button-fade-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
 }
 </style>
