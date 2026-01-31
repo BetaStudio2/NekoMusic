@@ -55,6 +55,13 @@ export default defineConfig({
       '/api': {
         target: 'https://music.cnmsb.xin',
         changeOrigin: true,
+        configure: (proxy, options) => {
+          proxy.on('proxyReq', (proxyReq, req, res) => {
+            if (req.headers['authorization']) {
+              proxyReq.setHeader('Authorization', req.headers['authorization'])
+            }
+          })
+        },
         rewrite: (path) => path
       }
     }

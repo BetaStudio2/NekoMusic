@@ -205,14 +205,20 @@ const favorites = ref([])
 
 const loadFavorites = async () => {
   const token = localStorage.getItem('token')
-  if (!token) return
+  console.log('loadFavorites: token =', token)
+  if (!token) {
+    console.log('loadFavorites: 未找到 token')
+    return
+  }
   
   try {
     const response = await fetch('/api/user/favorites', {
       headers: {
-        'Authorization': `Bearer ${token}`
+        'Authorization': token
       }
     })
+    
+    console.log('loadFavorites: response status =', response.status)
     
     if (response.ok) {
       const result = await response.json()
@@ -220,6 +226,8 @@ const loadFavorites = async () => {
         favorites.value = result.data
         checkFavoriteStatus()
       }
+    } else {
+      console.log('loadFavorites: 请求失败', response.status)
     }
   } catch (error) {
     console.error('加载收藏列表失败:', error)
@@ -247,7 +255,7 @@ const toggleFavorite = async () => {
       const response = await fetch(`/api/user/favorites/${currentMusic.value.id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': token
         }
       })
       
@@ -264,16 +272,24 @@ const toggleFavorite = async () => {
         }))
       }
     } else {
+      const requestBody = {
+        musicId: currentMusic.value.id
+      }
+      console.log('toggleFavorite POST request body:', requestBody)
+      console.log('musicId type:', typeof currentMusic.value.id, 'value:', currentMusic.value.id)
+      
       const response = await fetch('/api/user/favorites', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': token,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          musicId: currentMusic.value.id
-        })
+        body: JSON.stringify(requestBody)
       })
+      
+      console.log('toggleFavorite POST response status:', response.status)
+      const responseText = await response.text()
+      console.log('toggleFavorite POST response body:', responseText)
       
       if (response.ok) {
         favorites.value.push({ musicId: currentMusic.value.id })
