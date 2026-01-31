@@ -150,6 +150,7 @@ const togglePlay = () => {
   
   // 立即更新 UI 状态
   isPlaying.value = !isPlaying.value
+  updateMediaInfo()
   notifyPlayerState()
   
   if (window.electronAPI) {
@@ -162,6 +163,7 @@ const togglePlay = () => {
     audioElement.value.play().catch(err => {
       console.error('播放失败:', err)
       isPlaying.value = false
+      updateMediaInfo()
     })
     fadeIn()
   } else {
@@ -354,6 +356,18 @@ const toggleMute = () => {
   localStorage.setItem('volume', volume.value.toString())
 }
 
+// 更新媒体信息
+const updateMediaInfo = () => {
+  if (window.electronAPI && currentMusic.value) {
+    window.electronAPI.updateMediaInfo({
+      music: currentMusic.value,
+      isPlaying: isPlaying.value,
+      currentTime: currentTime.value,
+      duration: duration.value
+    })
+  }
+}
+
 const handleVolumeChange = () => {
   if (fadeInterval.value) {
     clearInterval(fadeInterval.value)
@@ -397,6 +411,8 @@ const loadMusic = (music) => {
     audioElement.value.load()
   }
   
+  updateMediaInfo()
+  
   // 通知主进程
   if (window.electronAPI) {
     window.electronAPI.notifyMusicPlay(music)
@@ -406,6 +422,7 @@ const loadMusic = (music) => {
 const handleTimeUpdate = () => {
   if (audioElement.value) {
     currentTime.value = audioElement.value.currentTime
+    updateMediaInfo()
   }
 }
 
@@ -417,6 +434,7 @@ const handleLoadedMetadata = () => {
 
 const handleEnded = () => {
   isPlaying.value = false
+  updateMediaInfo()
   next()
 }
 
@@ -425,6 +443,7 @@ const handleMusicPlay = (event) => {
   if (audioElement.value) {
     audioElement.value.play()
     isPlaying.value = true
+    updateMediaInfo()
   }
 }
 
@@ -451,6 +470,11 @@ onMounted(() => {
     toggleDesktopLyrics(event.detail)
   })
   window.addEventListener('navigate-to-settings', handleNavigateToSettings)
+  
+  // 监听媒体控制事件
+  window.addEventListener('media-play-pause', togglePlay)
+  window.addEventListener('media-next', next)
+  window.addEventListener('media-previous', previous)
   
   // 全局鼠标事件，处理拖动进度条和音量
   window.addEventListener('mouseup', (event) => {
@@ -495,6 +519,9 @@ onUnmounted(() => {
   window.removeEventListener('tray-set-play-mode', togglePlayMode)
   window.removeEventListener('tray-toggle-desktop-lyrics', toggleDesktopLyrics)
   window.removeEventListener('navigate-to-settings', handleNavigateToSettings)
+  window.removeEventListener('media-play-pause', togglePlay)
+  window.removeEventListener('media-next', next)
+  window.removeEventListener('media-previous', previous)
 })
 
 const handleTrayFavorite = () => {

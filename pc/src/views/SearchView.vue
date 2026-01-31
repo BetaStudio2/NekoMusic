@@ -308,7 +308,11 @@ const performSearch = () => {
 
 const getPlaylistCover = (playlist) => {
   if (playlist.firstMusicCover) {
-    return `https://music.cnmsb.xin${playlist.firstMusicCover}`
+    // 从路径中提取音乐 ID，例如 /music/covers/372.jpg -> 372
+    const match = playlist.firstMusicCover.match(/\/(\d+)\.jpg$/)
+    if (match) {
+      return `https://music.cnmsb.xin/api/music/cover/${match[1]}`
+    }
   }
   return 'https://music.cnmsb.xin/api/user/avatar/default'
 }

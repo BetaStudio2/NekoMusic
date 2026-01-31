@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   notifyPlayerState: (state) => ipcRenderer.send('player-state-changed', state),
   notifyMusicPlay: (music) => ipcRenderer.send('music-play', music),
   notifyPlayState: (isPlaying) => ipcRenderer.send('play-state-changed', isPlaying),
+  updateMediaInfo: (info) => ipcRenderer.send('update-media-info', info),
   
   // 其他可以暴露的 API
   platform: process.platform,
@@ -44,6 +45,19 @@ ipcRenderer.on('tray-toggle-desktop-lyrics', (event, enabled) => {
 
 ipcRenderer.on('navigate-to-settings', () => {
   window.dispatchEvent(new CustomEvent('navigate-to-settings'))
+})
+
+// 监听媒体控制事件
+ipcRenderer.on('media-play-pause', () => {
+  window.dispatchEvent(new CustomEvent('media-play-pause'))
+})
+
+ipcRenderer.on('media-next', () => {
+  window.dispatchEvent(new CustomEvent('media-next'))
+})
+
+ipcRenderer.on('media-previous', () => {
+  window.dispatchEvent(new CustomEvent('media-previous'))
 })
 
 // 监听主进程事件
