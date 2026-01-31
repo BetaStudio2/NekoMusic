@@ -300,8 +300,9 @@ const getPlaylistCover = (playlist) => {
     // 可以在 fetchPlaylists 中为每个歌单添加第一首音乐的封面信息
     fetchPlaylistFirstMusicCover(playlist.id)
   }
-  // 如果歌单没有音乐，使用默认用户头像
-  return `${API_CONFIG.BASE_URL}/api/user/avatar/default`
+  // 如果歌单没有音乐，使用用户头像
+  const userId = user.value ? user.value.id : 'default';
+  return `${API_CONFIG.BASE_URL}/api/user/avatar/${userId}`;
 }
 
 // 异步获取歌单第一首音乐的封面
@@ -331,7 +332,8 @@ const fetchPlaylistFirstMusicCover = async (playlistId) => {
 
 // 处理封面加载错误
 const handleCoverError = (event) => {
-  event.target.src = `${API_CONFIG.BASE_URL}/api/user/avatar/default`
+  const userId = user.value ? user.value.id : 'default';
+  event.target.src = `${API_CONFIG.BASE_URL}/api/user/avatar/${userId}`;
 }
 
 // 格式化时间

@@ -305,8 +305,9 @@ const getPlaylistCover = () => {
   if (musicList.value && musicList.value.length > 0) {
     return getCoverUrl(musicList.value[0].id)
   }
-  // 如果没有音乐，使用默认用户头像
-  return `${API_CONFIG.BASE_URL}/api/user/avatar/default`
+  // 如果没有音乐，使用用户头像
+  const userId = currentUser.value ? currentUser.value.id : 'default';
+  return `${API_CONFIG.BASE_URL}/api/user/avatar/${userId}`;
 }
 
 const handleCoverError = (event) => {
@@ -316,7 +317,8 @@ const handleCoverError = (event) => {
 
 const handlePlaylistCoverError = (event) => {
   console.log('歌单封面加载失败，使用默认头像')
-  event.target.src = `${API_CONFIG.BASE_URL}/api/user/avatar/default`
+  const userId = currentUser.value ? currentUser.value.id : 'default';
+  event.target.src = `${API_CONFIG.BASE_URL}/api/user/avatar/${userId}`;
 }
 
 const showAddMusicDialog = () => {

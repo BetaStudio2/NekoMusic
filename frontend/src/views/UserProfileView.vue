@@ -104,7 +104,9 @@ if (!isLoggedIn.value || !user.value) {
 }
 
 const userAvatar = computed(() => {
-  return `${API_CONFIG.BASE_URL}/api/user/avatar/default`;
+  // 使用用户 ID 获取头像
+  const userId = user.value ? user.value.id : 'default';
+  return `${API_CONFIG.BASE_URL}/api/user/avatar/${userId}`;
 })
 
 const activeTab = ref('profile')

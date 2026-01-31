@@ -148,8 +148,9 @@ const handleAvatarError = (event) => {
 }
 
 const userAvatar = computed(() => {
-  // 使用后端的默认头像
-  return `${API_CONFIG.BASE_URL}/api/user/avatar/default`;
+  // 使用用户 ID 获取头像
+  const userId = user.value ? user.value.id : 'default';
+  return `${API_CONFIG.BASE_URL}/api/user/avatar/${userId}`;
 })
 
 // 防抖搜索函数 - 只获取结果，不跳转页面
