@@ -366,12 +366,7 @@ const togglePlay = () => {
   
   // 立即更新 UI 状态
   isPlaying.value = !isPlaying.value
-  updateMediaInfo()
   notifyPlayerState()
-  
-  if (window.electronAPI) {
-    window.electronAPI.notifyPlayState(isPlaying.value)
-  }
   
   // 执行淡入淡出效果
   if (isPlaying.value) {
@@ -384,7 +379,6 @@ const togglePlay = () => {
       }).catch(err => {
         console.error('✗ 播放失败:', err)
         isPlaying.value = false
-        updateMediaInfo()
       })
     }
   } else {
@@ -648,14 +642,7 @@ const toggleMute = () => {
 
 // 更新媒体信息
 const updateMediaInfo = () => {
-  if (window.electronAPI && currentMusic.value) {
-    window.electronAPI.updateMediaInfo({
-      music: currentMusic.value,
-      isPlaying: isPlaying.value,
-      currentTime: currentTime.value,
-      duration: duration.value
-    })
-  }
+  // 系统媒体控制已移除，此函数保留但不执行任何操作
 }
 
 const handleVolumeChange = () => {
@@ -808,7 +795,6 @@ const playFromPlaylist = (localId) => {
     if (audioElement.value) {
       audioElement.value.play()
       isPlaying.value = true
-      updateMediaInfo()
     }
   }
 }
@@ -856,17 +842,11 @@ const loadMusic = (music) => {
     console.log('✓ 音频已加载到元素，等待 loadedmetadata 事件')
   }
   
-  updateMediaInfo()
-  
-  // 通知主进程
-  if (window.electronAPI) {
-    window.electronAPI.notifyMusicPlay(music)
-  }
+  // 通知主进程 (已移除)
 }
 const handleTimeUpdate = () => {
   if (audioElement.value && audioLoaded.value) {
     currentTime.value = audioElement.value.currentTime
-    updateMediaInfo()
   }
 }
 
@@ -887,7 +867,6 @@ const handleError = (error) => {
   console.error('✗ 音频加载错误:', error)
   audioLoaded.value = false
   isPlaying.value = false
-  updateMediaInfo()
 }
 
 const handleEnded = () => {
@@ -918,12 +897,10 @@ const handleMusicPlay = (event) => {
         audioElement.value.play().then(() => {
           console.log('✓ 音频开始播放')
           isPlaying.value = true
-          updateMediaInfo()
           fadeIn()
         }).catch(err => {
           console.error('✗ 播放失败:', err)
           isPlaying.value = false
-          updateMediaInfo()
         })
         audioElement.value.removeEventListener('loadedmetadata', checkAndPlay)
       }
@@ -934,12 +911,10 @@ const handleMusicPlay = (event) => {
       audioElement.value.play().then(() => {
         console.log('✓ 音频开始播放')
         isPlaying.value = true
-        updateMediaInfo()
         fadeIn()
       }).catch(err => {
         console.error('✗ 播放失败:', err)
         isPlaying.value = false
-        updateMediaInfo()
       })
     } else {
       // 否则等待 loadedmetadata 事件
@@ -990,11 +965,6 @@ onMounted(() => {
     toggleDesktopLyrics(event.detail)
   })
   window.addEventListener('navigate-to-settings', handleNavigateToSettings)
-  
-  // 监听媒体控制事件
-  window.addEventListener('media-play-pause', togglePlay)
-  window.addEventListener('media-next', next)
-  window.addEventListener('media-previous', previous)
   
   // 全局鼠标事件，处理拖动进度条和音量
   window.addEventListener('mouseup', (event) => {
@@ -1048,9 +1018,7 @@ onUnmounted(() => {
   window.removeEventListener('tray-toggle-desktop-lyrics', toggleDesktopLyrics)
   window.removeEventListener('navigate-to-settings', handleNavigateToSettings)
   window.removeEventListener('media-play-pause', togglePlay)
-  window.removeEventListener('media-next', next)
-  window.removeEventListener('media-previous', previous)
-})
+  })
 
 const handleTrayFavorite = () => {
   if (currentMusic.value) {

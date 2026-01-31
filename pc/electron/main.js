@@ -1,7 +1,6 @@
 import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import MediaService from 'electron-media-service'
 
 // 在 ES 模块中获取 __dirname 的等效值
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -269,68 +268,13 @@ ipcMain.on('window-close', () => {
   if (win) win.hide()
 })
 
-// 更新媒体信息
-ipcMain.on('update-media-info', (event, { music, isPlaying, currentTime, duration }) => {
-  if (!mediaService) return
-  
-  if (music) {
-    mediaService.setMetadata({
-      title: music.title || '未知歌曲',
-      artist: music.artist || '未知艺术家',
-      album: music.album || '',
-      cover: `https://music.cnmsb.xin/api/music/cover/${music.id}`,
-      duration: duration || 0
-    })
-  }
-  
-  mediaService.setPlaybackState(isPlaying ? 'playing' : 'paused', currentTime || 0)
-})
-
 app.on('ready', () => {
   createWindow()
   createTray()
-  
-  // 初始化媒体服务
-  initMediaService()
 })
 
-// 媒体服务实例
-let mediaService = null
-
-// 初始化媒体服务
-function initMediaService() {
-  mediaService = new MediaService({
-    name: 'Neko云音乐',
-    controls: ['play', 'pause', 'next', 'previous'],
-  })
-  
-  // 播放/暂停
-  mediaService.on('play', () => {
-    if (win) win.webContents.send('media-play-pause')
-  })
-  
-  mediaService.on('pause', () => {
-    if (win) win.webContents.send('media-play-pause')
-  })
-  
-  // 下一首
-  mediaService.on('next', () => {
-    if (win) win.webContents.send('media-next')
-  })
-  
-  // 上一首
-  mediaService.on('previous', () => {
-    if (win) win.webContents.send('media-previous')
-  })
-  
-  console.log('媒体服务已初始化')
-}
-
 app.on('will-quit', () => {
-  if (mediaService) {
-    mediaService.destroy()
-    mediaService = null
-  }
+  // 清理资源
 })
 
 app.on('window-all-closed', () => {
