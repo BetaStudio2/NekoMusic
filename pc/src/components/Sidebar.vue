@@ -1,8 +1,6 @@
 <template>
   <div class="sidebar">
-    <div class="sidebar-logo">
-      <span>NekoMusic</span>
-    </div>
+    <slot name="title-bar" />
     <nav class="sidebar-nav">
       <div 
         v-for="item in navItems" 
@@ -78,24 +76,12 @@ onMounted(() => {
 <style scoped>
 .sidebar {
   width: 240px;
-  height: calc(100vh - 40px - 80px);
+  height: 100%;
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   display: flex;
   flex-direction: column;
   border-right: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.sidebar-logo {
-  padding: 20px;
-  text-align: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.sidebar-logo span {
-  font-size: 20px;
-  font-weight: bold;
-  color: white;
 }
 
 .sidebar-nav {
