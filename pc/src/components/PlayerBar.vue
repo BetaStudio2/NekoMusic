@@ -92,16 +92,20 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 
+const router = useRouter()
 const currentMusic = ref(null)
 const isPlaying = ref(false)
 const isMuted = ref(false)
 const isShuffle = ref(false)
 const isRepeat = ref(false)
+const repeatMode = ref('off') // off, all, one
 const currentTime = ref(0)
 const duration = ref(0)
 const volume = ref(80)
 const audioElement = ref(null)
+const desktopLyricsEnabled = ref(false)
 
 const currentCover = computed(() => {
   if (!currentMusic.value) {
@@ -135,6 +139,11 @@ const togglePlay = () => {
     audioElement.value.play()
   }
   isPlaying.value = !isPlaying.value
+  notifyPlayerState()
+  
+  if (window.electronAPI) {
+    window.electronAPI.notifyPlayState(isPlaying.value)
+  }
 }
 
 const previous = () => {
@@ -145,12 +154,45 @@ const next = () => {
   console.log('下一首')
 }
 
-const toggleShuffle = () => {
-  isShuffle.value = !isShuffle.value
-}
-
 const toggleRepeat = () => {
   isRepeat.value = !isRepeat.value
+  // 切换循环模式：off -> all -> one -> off
+  if (!isRepeat.value) {
+    repeatMode.value = 'off'
+  } else {
+    repeatMode.value = 'all'
+  }
+  notifyPlayerState()
+}
+
+const setRepeatMode = (mode) => {
+  repeatMode.value = mode
+  isRepeat.value = mode !== 'off'
+  notifyPlayerState()
+}
+
+const toggleShuffle = () => {
+  isShuffle.value = !isShuffle.value
+  notifyPlayerState()
+}
+
+const toggleDesktopLyrics = (enabled) => {
+  desktopLyricsEnabled.value = enabled
+  // 这里可以添加桌面歌词窗口的显示/隐藏逻辑
+  console.log('桌面歌词:', enabled ? '开启' : '关闭')
+}
+
+// 通知主进程播放状态变化
+const notifyPlayerState = () => {
+  if (window.electronAPI) {
+    window.electronAPI.notifyPlayerState({
+      isPlaying: isPlaying.value,
+      isShuffle: isShuffle.value,
+      repeatMode: repeatMode.value,
+      volume: volume.value,
+      desktopLyricsEnabled: desktopLyricsEnabled.value
+    })
+  }
 }
 
 const seekTo = (event) => {
@@ -196,9 +238,17 @@ const loadMusic = (music) => {
   currentTime.value = 0
   duration.value = music.duration || 0
   
+  // 保存到 localStorage
+  localStorage.setItem('currentMusic', JSON.stringify(music))
+  
   if (audioElement.value) {
     audioElement.value.src = `https://music.cnmsb.xin/api/music/file/${music.id}`
     audioElement.value.load()
+  }
+  
+  // 通知主进程
+  if (window.electronAPI) {
+    window.electronAPI.notifyMusicPlay(music)
   }
 }
 
@@ -237,11 +287,29 @@ onMounted(() => {
   
   window.addEventListener('music-play', handleMusicPlay)
   
+  // 监听托盘事件
+  window.addEventListener('tray-previous', previous)
+  window.addEventListener('tray-play-pause', togglePlay)
+  window.addEventListener('tray-next', next)
+  window.addEventListener('tray-favorite', handleTrayFavorite)
+  window.addEventListener('tray-set-repeat', (event) => {
+    setRepeatMode(event.detail)
+  })
+  window.addEventListener('tray-toggle-shuffle', (event) => {
+    isShuffle.value = event.detail
+  })
+  window.addEventListener('tray-toggle-desktop-lyrics', (event) => {
+    toggleDesktopLyrics(event.detail)
+  })
+  window.addEventListener('navigate-to-settings', handleNavigateToSettings)
+  
+  // 恢复之前播放的音乐
   const savedMusic = localStorage.getItem('currentMusic')
   if (savedMusic) {
     try {
       const music = JSON.parse(savedMusic)
       loadMusic(music)
+      isPlaying.value = false // 恢复时默认暂停
     } catch (e) {
       console.error('解析音乐失败:', e)
     }
@@ -256,7 +324,57 @@ onUnmounted(() => {
     audioElement.value.pause()
   }
   window.removeEventListener('music-play', handleMusicPlay)
+  window.removeEventListener('tray-previous', previous)
+  window.removeEventListener('tray-play-pause', togglePlay)
+  window.removeEventListener('tray-next', next)
+  window.removeEventListener('tray-favorite', handleTrayFavorite)
+  window.removeEventListener('tray-set-repeat', setRepeatMode)
+  window.removeEventListener('tray-toggle-shuffle', toggleShuffle)
+  window.removeEventListener('tray-toggle-desktop-lyrics', toggleDesktopLyrics)
+  window.removeEventListener('navigate-to-settings', handleNavigateToSettings)
 })
+
+const handleTrayFavorite = () => {
+  if (currentMusic.value) {
+    toggleFavorite(currentMusic.value)
+  }
+}
+
+const handleNavigateToSettings = () => {
+  const router = useRouter()
+  router.push('/settings')
+}
+
+const toggleFavorite = (music) => {
+  if (!music) return
+  
+  // 获取收藏列表
+  let favorites = []
+  try {
+    const saved = localStorage.getItem('favorites')
+    if (saved) {
+      favorites = JSON.parse(saved)
+    }
+  } catch (e) {
+    console.error('解析收藏列表失败:', e)
+  }
+  
+  // 检查是否已收藏
+  const index = favorites.findIndex(f => f.id === music.id)
+  
+  if (index > -1) {
+    // 取消收藏
+    favorites.splice(index, 1)
+    console.log('取消收藏:', music.title)
+  } else {
+    // 添加收藏
+    favorites.push(music)
+    console.log('收藏成功:', music.title)
+  }
+  
+  // 保存收藏列表
+  localStorage.setItem('favorites', JSON.stringify(favorites))
+}
 </script>
 
 <style scoped>

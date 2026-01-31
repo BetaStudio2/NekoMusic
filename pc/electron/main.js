@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 let win
+let tray
 
 function createWindow() {
   win = new BrowserWindow({
@@ -52,9 +53,189 @@ function createWindow() {
     win.loadFile(path.join(__dirname, '../dist/index.html'))
   }
 
+  win.on('close', (event) => {
+    if (!app.isQuitting) {
+      event.preventDefault()
+      win.hide()
+    }
+  })
+
   win.on('closed', () => {
     win = null
   })
+}
+
+// 全局状态
+let playerState = {
+  currentMusic: null,
+  isPlaying: false,
+  isShuffle: false,
+  repeatMode: 'off', // off, all, one
+  volume: 80,
+  lyricsEnabled: false,
+  desktopLyricsEnabled: false
+}
+
+function createTray() {
+  const iconPath = path.join(__dirname, '../public/icon.png')
+  const trayIcon = nativeImage.createFromPath(iconPath)
+  trayIcon.resize({ width: 16, height: 16 })
+  
+  tray = new Tray(trayIcon)
+  
+  // 加载图标
+  const loadIcons = () => {
+    const icons = {}
+    const iconList = [
+      'tray-previous',
+      'tray-play',
+      'tray-pause',
+      'tray-next',
+      'tray-favorite',
+      'tray-shuffle',
+      'tray-setting',
+      'tray-list-loop',
+      'tray-single-loop',
+      'tray-minimize',
+      'tray-lyrics',
+      'tray-exit'
+    ]
+    
+    iconList.forEach(name => {
+      try {
+        const icon = nativeImage.createFromPath(path.join(__dirname, `../public/${name}.png`))
+        icon.resize({ width: 18, height: 18 })
+        icons[name] = icon
+      } catch (e) {
+        console.warn(`Failed to load icon: ${name}`, e)
+      }
+    })
+    
+    return icons
+  }
+  
+  const icons = loadIcons()
+  
+  // 获取播放器状态
+  const syncPlayerState = async () => {
+    if (!win) return
+    
+    try {
+      const musicJson = await win.webContents.executeJavaScript('localStorage.getItem("currentMusic")')
+      if (musicJson) {
+        playerState.currentMusic = JSON.parse(musicJson)
+      } else {
+        playerState.currentMusic = null
+      }
+      
+      // 同步播放状态（通过 window 对象获取实时状态）
+      const state = await win.webContents.executeJavaScript(`
+        (function() {
+          const audio = document.querySelector('audio');
+          return {
+            isPlaying: audio ? !audio.paused : false,
+            currentTime: audio ? audio.currentTime : 0,
+            duration: audio ? audio.duration : 0
+          };
+        })()
+      `)
+      
+      if (state) {
+        playerState.isPlaying = state.isPlaying
+      }
+    } catch (e) {
+      console.error('同步播放状态失败:', e)
+    }
+  }
+  
+  // 更新托盘菜单
+  const updateContextMenu = async () => {
+    await syncPlayerState()
+    
+    const music = playerState.currentMusic
+    
+    // 构建当前播放信息标题
+    let playingLabel = '暂无播放'
+    if (music) {
+      const title = music.title || '未知歌曲'
+      const artist = music.artist || '未知艺术家'
+      // 截断过长文本
+      const displayTitle = title.length > 15 ? title.substring(0, 15) + '...' : title
+      playingLabel = `${displayTitle} - ${artist}`
+    }
+    
+    const menuTemplate = [
+      // 顶部：当前播放信息
+      {
+        label: playingLabel,
+        enabled: false
+      },
+      { type: 'separator' },
+      
+      // 退出
+      {
+        label: '退出',
+        icon: icons['tray-exit'],
+        click: () => {
+          app.isQuitting = true
+          app.quit()
+        }
+      }
+    ]
+    
+    const contextMenu = Menu.buildFromTemplate(menuTemplate)
+    tray.setContextMenu(contextMenu)
+    
+    // 更新提示信息
+    if (music) {
+      tray.setToolTip(`正在播放: ${music.title} - ${music.artist}`)
+    } else {
+      tray.setToolTip('Neko云音乐')
+    }
+  }
+  
+  // 初始化菜单
+  updateContextMenu()
+  
+  // 监听渲染进程状态变化
+  ipcMain.on('player-state-changed', (event, state) => {
+    if (state) {
+      playerState = { ...playerState, ...state }
+      updateContextMenu()
+    }
+  })
+  
+  // 监听音乐播放事件
+  ipcMain.on('music-play', (event, music) => {
+    playerState.currentMusic = music
+    playerState.isPlaying = true
+    updateContextMenu()
+  })
+  
+  // 监听播放状态变化
+  ipcMain.on('play-state-changed', (event, isPlaying) => {
+    playerState.isPlaying = isPlaying
+    updateContextMenu()
+  })
+  
+  // 点击托盘图标
+  tray.on('click', () => {
+    if (win) {
+      if (win.isVisible()) {
+        if (win.isFocused()) {
+          win.hide()
+        } else {
+          win.focus()
+        }
+      } else {
+        win.show()
+        win.focus()
+      }
+    }
+  })
+  
+  // 定期同步状态（可选）
+  setInterval(updateContextMenu, 5000)
 }
 
 // 窗口控制 IPC 处理
@@ -73,10 +254,13 @@ ipcMain.on('window-maximize', () => {
 })
 
 ipcMain.on('window-close', () => {
-  if (win) win.close()
+  if (win) win.hide()
 })
 
-app.on('ready', createWindow)
+app.on('ready', () => {
+  createWindow()
+  createTray()
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -87,5 +271,7 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (win === null) {
     createWindow()
+  } else {
+    win.show()
   }
 })
