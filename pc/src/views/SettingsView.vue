@@ -82,13 +82,29 @@
                 class="auth-input"
               />
               <Transition name="field-fade">
-                <input 
-                  v-if="authTab === 'register'"
-                  v-model="formData.email"
-                  type="email" 
-                  placeholder="邮箱"
-                  class="auth-input"
-                />
+                <div v-if="authTab === 'register'" class="email-field">
+                  <input 
+                    v-model="formData.email"
+                    type="email" 
+                    placeholder="邮箱"
+                    class="auth-input"
+                  />
+                  <div class="verification-code">
+                    <input 
+                      v-model="formData.verificationCode"
+                      type="text" 
+                      placeholder="验证码"
+                      class="auth-input"
+                    />
+                    <button 
+                      class="send-code-btn"
+                      @click="sendVerificationCode"
+                      :disabled="codeSending || countdown > 0"
+                    >
+                      {{ codeBtnText }}
+                    </button>
+                  </div>
+                </div>
               </Transition>
               <button class="submit-btn" @click="handleSubmit">
                 {{ authTab === 'login' ? '登录' : '注册' }}
@@ -140,10 +156,18 @@ const errorMessage = ref('')
 const formData = ref({
   username: '',
   password: '',
-  email: ''
+  email: '',
+  verificationCode: ''
 })
+const codeSending = ref(false)
+const countdown = ref(0)
+const countdownInterval = ref(null)
 const toasts = ref([])
 let toastId = 0
+
+const codeBtnText = computed(() => {
+  return countdown.value > 0 ? `${countdown.value}秒后重发` : '获取验证码'
+})
 
 const userAvatar = computed(() => {
   if (currentUser.value && currentUser.value.id) {
@@ -170,6 +194,52 @@ const showToast = (message, type = 'info') => {
   }, 3000)
 }
 
+const sendVerificationCode = async () => {
+  if (!formData.value.email) {
+    showToast('请先输入邮箱地址', 'error')
+    return
+  }
+  
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(formData.value.email)) {
+    showToast('请输入有效的邮箱地址', 'error')
+    return
+  }
+  
+  codeSending.value = true
+  try {
+    const response = await fetch('/api/user/send-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: formData.value.email
+      })
+    })
+    
+    const result = await response.json()
+    if (result.success) {
+      showToast('验证码已发送至您的邮箱', 'success')
+      startCountdown()
+    } else {
+      showToast(result.message || '发送验证码失败', 'error')
+    }
+  } catch (error) {
+    showToast('网络错误，请检查服务器连接', 'error')
+  } finally {
+    codeSending.value = false
+  }
+}
+
+const startCountdown = () => {
+  countdown.value = 60
+  countdownInterval.value = setInterval(() => {
+    countdown.value--
+    if (countdown.value <= 0) {
+      clearInterval(countdownInterval.value)
+    }
+  }, 1000)
+}
+
 const handleLogout = () => {
   localStorage.removeItem('user')
   localStorage.removeItem('token')
@@ -188,6 +258,11 @@ const handleSubmit = async () => {
 
   if (authTab.value === 'register' && !formData.value.email) {
     errorMessage.value = '请填写邮箱'
+    return
+  }
+
+  if (authTab.value === 'register' && !formData.value.verificationCode) {
+    errorMessage.value = '请填写验证码'
     return
   }
 
@@ -228,7 +303,8 @@ const handleSubmit = async () => {
         body: JSON.stringify({
           username: formData.value.username,
           password: formData.value.password,
-          email: formData.value.email
+          email: formData.value.email,
+          verificationCode: formData.value.verificationCode
         })
       })
       
@@ -240,6 +316,11 @@ const handleSubmit = async () => {
       if (result.success) {
         authTab.value = 'login'
         errorMessage.value = ''
+        formData.value = { username: '', password: '', email: '', verificationCode: '' }
+        countdown.value = 0
+        if (countdownInterval.value) {
+          clearInterval(countdownInterval.value)
+        }
         showToast('注册成功，请登录', 'success')
       } else {
         throw new Error(result.message || '注册失败')
@@ -569,6 +650,45 @@ onMounted(() => {
 
 .submit-btn:active {
   transform: translateY(0);
+}
+
+.email-field {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.verification-code {
+  display: flex;
+  gap: 10px;
+}
+
+.verification-code .auth-input {
+  flex: 1;
+}
+
+.send-code-btn {
+  padding: 0 20px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  min-width: 100px;
+}
+
+.send-code-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.send-code-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .error-message {
