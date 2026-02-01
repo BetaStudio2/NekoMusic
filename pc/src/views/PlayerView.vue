@@ -295,14 +295,37 @@ const loadLyrics = async () => {
   if (!currentMusic.value) return
   
   try {
-    const response = await fetch(`${apiConfig.BASE_URL}${apiConfig.MUSIC_LYRICS(currentMusic.value.id)}`)
-    const result = await response.json()
+    console.log('loadLyrics: 开始加载歌词，音乐ID:', currentMusic.value.id)
     
-    if (result.success && result.lyrics) {
-      lyrics.value = parseLyrics(result.lyrics)
+    // 先尝试从内存缓存读取
+    if (window.cachedLyrics && window.cachedLyrics[currentMusic.value.id]) {
+      console.log('loadLyrics: 从内存缓存读取歌词成功')
+      lyrics.value = parseLyrics(window.cachedLyrics[currentMusic.value.id])
+      return
+    }
+    
+    // 如果内存中没有，从 API 获取
+    const url = `${apiConfig.BASE_URL}${apiConfig.MUSIC_LYRICS(currentMusic.value.id)}`
+    console.log('loadLyrics: 从 API 获取歌词，请求URL:', url)
+    
+    const response = await fetch(url)
+    console.log('loadLyrics: 响应状态:', response.status)
+    
+    const result = await response.json()
+    console.log('loadLyrics: 响应数据:', result)
+    
+    if (result.success && result.data) {
+      const lyricsText = result.data
+      lyrics.value = parseLyrics(lyricsText)
+      // 缓存到内存
+      window.cachedLyrics = window.cachedLyrics || {}
+      window.cachedLyrics[currentMusic.value.id] = lyricsText
+      console.log('loadLyrics: 歌词解析成功，共', lyrics.value.length, '行')
+    } else {
+      console.log('loadLyrics: 响应中没有歌词数据')
     }
   } catch (error) {
-    console.error('加载歌词失败:', error)
+    console.error('loadLyrics: 加载歌词失败:', error)
   }
 }
 

@@ -862,7 +862,7 @@ const addToRecent = (music) => {
   }
 }
 
-const loadMusic = (music) => {
+const loadMusic = async (music) => {
   if (!music) return
 
   console.log('loadMusic: 加载音乐', music.title)
@@ -881,6 +881,23 @@ const loadMusic = (music) => {
   
   // 添加到最近播放
   addToRecent(music)
+  
+  // 加载歌词并缓存到内存
+  try {
+    console.log('loadMusic: 开始加载歌词')
+    const lyricsUrl = `${apiConfig.BASE_URL}${apiConfig.MUSIC_LYRICS(music.id)}`
+    const response = await fetch(lyricsUrl)
+    const result = await response.json()
+    
+    if (result.success && result.data) {
+      console.log('loadMusic: 歌词加载成功')
+      // 缓存歌词到内存变量
+      window.cachedLyrics = window.cachedLyrics || {}
+      window.cachedLyrics[music.id] = result.data
+    }
+  } catch (error) {
+    console.error('loadMusic: 加载歌词失败:', error)
+  }
   
   if (audioElement.value) {
     audioElement.value.src = `https://music.cnmsb.xin/api/music/file/${music.id}`
