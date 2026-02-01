@@ -38,7 +38,7 @@
       
       <div class="settings-section">
         <h3>关于</h3>
-        <p>NekoMusic PC 版本</p>
+        <p>NekoMusic {{ osType }} 版本</p>
         <p>版本号: {{ APP_VERSION }}</p>
       </div>
     </div>
@@ -150,6 +150,17 @@
 import { ref, computed, onMounted } from 'vue'
 import apiConfig from '../config/apiConfig'
 import { APP_VERSION } from '../version'
+
+// 检测系统类型
+const getOSType = () => {
+  const platform = navigator.platform.toLowerCase()
+  if (platform.includes('win')) return 'Windows'
+  if (platform.includes('mac')) return 'macOS'
+  if (platform.includes('linux')) return 'Linux'
+  return 'Unknown'
+}
+
+const osType = ref(getOSType())
 
 // 统一的 API 请求函数
 async function apiRequest(url, options = {}) {
