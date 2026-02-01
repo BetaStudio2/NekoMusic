@@ -1,14 +1,36 @@
 <template>
   <div class="player-view">
-    <!-- 关闭按钮 -->
-    <button class="close-btn" @click="closePlayer">
-      <svg viewBox="0 0 24 24" width="24" height="24">
-        <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-      </svg>
-    </button>
+    <!-- 顶部控制栏 -->
+    <div class="top-bar">
+      <!-- 左侧关闭按钮 -->
+      <button class="close-btn" @click="closePlayer" title="关闭">
+        <svg viewBox="0 0 24 24" width="20" height="20">
+          <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+        </svg>
+      </button>
+
+      <!-- 右侧窗口控制按钮 -->
+      <div class="window-controls">
+        <button class="window-control-btn" @click="minimizeWindow" title="最小化">
+          <svg viewBox="0 0 24 24" width="16" height="16">
+            <path fill="currentColor" d="M19 13H5v-2h14v2z"/>
+          </svg>
+        </button>
+        <button class="window-control-btn" @click="maximizeWindow" title="全屏">
+          <svg viewBox="0 0 24 24" width="16" height="16">
+            <path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+          </svg>
+        </button>
+        <button class="window-control-btn close" @click="closeWindow" title="关闭窗口">
+          <svg viewBox="0 0 24 24" width="16" height="16">
+            <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
 
     <div v-if="currentMusic" class="player-content">
-      <!-- 封面区域 -->
+      <!-- 左侧封面 -->
       <div class="cover-section">
         <div class="cover-container" :class="{ rotating: isPlaying }">
           <img :src="getCoverUrl(currentMusic.id)" alt="封面" class="album-cover" @error="handleCoverError" />
@@ -16,84 +38,90 @@
         </div>
       </div>
 
-      <!-- 歌曲信息 -->
-      <div class="music-info">
-        <h1 class="music-title">{{ currentMusic.title }}</h1>
-        <p class="music-artist">{{ currentMusic.artist }}</p>
-        <p class="music-album">{{ currentMusic.album || '-' }}</p>
-      </div>
-
-      <!-- 歌词区域 -->
-      <div class="lyrics-section">
-        <div class="lyrics-container" ref="lyricsContainer">
-          <div v-if="lyrics && lyrics.length > 0" class="lyrics-content">
-            <p 
-              v-for="(line, index) in lyrics" 
-              :key="index"
-              :class="['lyric-line', { active: currentLyricIndex === index }]"
-              @click="seekToLyric(line.time)"
-            >
-              {{ line.text }}
-            </p>
+      <!-- 右侧内容 -->
+      <div class="content-section">
+        <!-- 歌曲信息 -->
+        <div class="music-info">
+          <h1 class="music-title">{{ currentMusic.title }}</h1>
+          <div class="music-meta">
+            <span class="music-album">{{ currentMusic.album || '-' }}</span>
+            <span class="separator">·</span>
+            <span class="music-artist">{{ currentMusic.artist }}</span>
           </div>
-          <div v-else class="no-lyrics">
-            <svg viewBox="0 0 24 24" width="48" height="48">
-              <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-            </svg>
-            <p>暂无歌词</p>
+        </div>
+
+        <!-- 歌词区域 -->
+        <div class="lyrics-section">
+          <div class="lyrics-container" ref="lyricsContainer">
+            <div v-if="lyrics && lyrics.length > 0" class="lyrics-content">
+              <p 
+                v-for="(line, index) in lyrics" 
+                :key="index"
+                :class="['lyric-line', { active: currentLyricIndex === index }]"
+                @click="seekToLyric(line.time)"
+              >
+                {{ line.text }}
+              </p>
+            </div>
+            <div v-else class="no-lyrics">
+              <svg viewBox="0 0 24 24" width="48" height="48">
+                <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+              </svg>
+              <p>暂无歌词</p>
+            </div>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- 播放控制 -->
-      <div class="player-controls">
-        <!-- 进度条 -->
-        <div class="progress-section">
-          <span class="time">{{ formatTime(currentTime) }}</span>
-          <div class="progress-bar" @click="seekTo">
-            <div class="progress-fill" :style="{ width: progress + '%' }"></div>
-            <div class="progress-thumb" :style="{ left: progress + '%' }"></div>
-          </div>
-          <span class="time">{{ formatTime(duration) }}</span>
+    <!-- 底部播放控制 -->
+    <div v-if="currentMusic" class="player-controls">
+      <!-- 进度条 -->
+      <div class="progress-section">
+        <span class="time">{{ formatTime(currentTime) }}</span>
+        <div class="progress-bar" @click="seekTo">
+          <div class="progress-fill" :style="{ width: progress + '%' }"></div>
+          <div class="progress-thumb" :style="{ left: progress + '%' }"></div>
         </div>
+        <span class="time">{{ formatTime(duration) }}</span>
+      </div>
 
-        <!-- 控制按钮 -->
-        <div class="control-buttons">
-          <button class="control-btn" @click="togglePlayMode" :title="playModeTitle">
-            <svg v-if="playMode === 'list'" viewBox="0 0 24 24" width="24" height="24">
-              <path fill="currentColor" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
-            </svg>
-            <svg v-else-if="playMode === 'single'" viewBox="0 0 24 24" width="24" height="24">
-              <path fill="currentColor" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
-            </svg>
-            <svg v-else viewBox="0 0 24 24" width="24" height="24">
-              <path fill="currentColor" d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/>
-            </svg>
-          </button>
-          <button class="control-btn" @click="previous" title="上一首">
-            <svg viewBox="0 0 24 24" width="24" height="24">
-              <path fill="currentColor" d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
-            </svg>
-          </button>
-          <button class="control-btn play-btn" @click="togglePlay">
-            <svg v-if="!isPlaying" viewBox="0 0 24 24" width="32" height="32">
-              <path fill="currentColor" d="M8 5v14l11-7z"/>
-            </svg>
-            <svg v-else viewBox="0 0 24 24" width="32" height="32">
-              <path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
-            </svg>
-          </button>
-          <button class="control-btn" @click="next" title="下一首">
-            <svg viewBox="0 0 24 24" width="24" height="24">
-              <path fill="currentColor" d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
-            </svg>
-          </button>
-          <button class="control-btn favorite-btn" @click="toggleFavorite" :class="{ active: isFavorite }" title="收藏">
-            <svg viewBox="0 0 24 24" width="24" height="24">
-              <path fill="currentColor" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-            </svg>
-          </button>
-        </div>
+      <!-- 控制按钮 -->
+      <div class="control-buttons">
+        <button class="control-btn" @click="togglePlayMode" :title="playModeTitle">
+          <svg v-if="playMode === 'list'" viewBox="0 0 24 24" width="20" height="20">
+            <path fill="currentColor" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+          </svg>
+          <svg v-else-if="playMode === 'single'" viewBox="0 0 24 24" width="20" height="20">
+            <path fill="currentColor" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+          </svg>
+          <svg v-else viewBox="0 0 24 24" width="20" height="20">
+            <path fill="currentColor" d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/>
+          </svg>
+        </button>
+        <button class="control-btn" @click="previous" title="上一首">
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path fill="currentColor" d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
+          </svg>
+        </button>
+        <button class="control-btn play-btn" @click="togglePlay">
+          <svg v-if="!isPlaying" viewBox="0 0 24 24" width="28" height="28">
+            <path fill="currentColor" d="M8 5v14l11-7z"/>
+          </svg>
+          <svg v-else viewBox="0 0 24 24" width="28" height="28">
+            <path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+          </svg>
+        </button>
+        <button class="control-btn" @click="next" title="下一首">
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path fill="currentColor" d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+          </svg>
+        </button>
+        <button class="control-btn favorite-btn" @click="toggleFavorite" :class="{ active: isFavorite }" title="收藏">
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path fill="currentColor" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+          </svg>
+        </button>
       </div>
     </div>
 
@@ -158,13 +186,8 @@ const closePlayer = () => {
 const togglePlay = () => {
   if (!audioElement.value || !currentMusic.value) return
   
-  if (isPlaying.value) {
-    audioElement.value.pause()
-    isPlaying.value = false
-  } else {
-    audioElement.value.play()
-    isPlaying.value = true
-  }
+  // 通过 PlayerBar 控制播放
+  window.dispatchEvent(new CustomEvent('toggle-play'))
 }
 
 const previous = () => {
@@ -176,11 +199,7 @@ const next = () => {
 }
 
 const togglePlayMode = () => {
-  const modes = ['list', 'single', 'shuffle']
-  const currentIndex = modes.indexOf(playMode.value)
-  const nextIndex = (currentIndex + 1) % modes.length
-  playMode.value = modes[nextIndex]
-  window.dispatchEvent(new CustomEvent('tray-set-play-mode', { detail: playMode.value }))
+  window.dispatchEvent(new CustomEvent('tray-toggle-play-mode'))
 }
 
 const toggleFavorite = async () => {
@@ -237,12 +256,15 @@ const seekTo = (event) => {
   const rect = event.currentTarget.getBoundingClientRect()
   const x = event.clientX - rect.left
   const percentage = Math.max(0, Math.min(1, x / rect.width))
-  audioElement.value.currentTime = percentage * duration.value
+  const seekTime = percentage * duration.value
+  
+  // 通过 PlayerBar 控制进度
+  window.dispatchEvent(new CustomEvent('seek-to', { detail: seekTime }))
 }
 
 const seekToLyric = (time) => {
   if (!audioElement.value) return
-  audioElement.value.currentTime = time
+  window.dispatchEvent(new CustomEvent('seek-to', { detail: time }))
 }
 
 const parseLyrics = (lyricsText) => {
@@ -310,6 +332,97 @@ const loadFavorites = async () => {
   }
 }
 
+const minimizeWindow = () => {
+  if (window.electronAPI) {
+    window.electronAPI.minimize()
+  }
+}
+
+const maximizeWindow = () => {
+  if (window.electronAPI) {
+    window.electronAPI.maximize()
+  }
+}
+
+const closeWindow = () => {
+  if (window.electronAPI) {
+    window.electronAPI.close()
+  }
+}
+
+// 从 localStorage 加载播放状态
+const loadPlayerState = () => {
+  const savedMusic = localStorage.getItem('currentMusic')
+  const savedPlayMode = localStorage.getItem('playMode')
+  const savedProgress = localStorage.getItem('playProgress')
+  
+  if (savedMusic) {
+    try {
+      currentMusic.value = JSON.parse(savedMusic)
+      loadLyrics()
+      checkFavoriteStatus()
+    } catch (e) {
+      console.error('解析当前音乐失败:', e)
+    }
+  }
+  
+  if (savedPlayMode) {
+    playMode.value = savedPlayMode
+  }
+  
+  if (savedProgress) {
+    try {
+      const progress = JSON.parse(savedProgress)
+      if (progress.musicId === currentMusic.value?.id) {
+        currentTime.value = progress.currentTime
+        duration.value = progress.duration
+      }
+    } catch (e) {
+      console.error('解析播放进度失败:', e)
+    }
+  }
+}
+
+// 保存播放状态到 localStorage
+const savePlayerState = () => {
+  if (currentMusic.value) {
+    localStorage.setItem('playMode', playMode.value)
+    localStorage.setItem('playProgress', JSON.stringify({
+      musicId: currentMusic.value.id,
+      currentTime: currentTime.value,
+      duration: duration.value
+    }))
+  }
+}
+
+// 监听 PlayerBar 的播放状态变化
+const handlePlayerStateChange = (event) => {
+  if (event.detail?.isPlaying !== undefined) {
+    isPlaying.value = event.detail.isPlaying
+  }
+  if (event.detail?.currentTime !== undefined) {
+    currentTime.value = event.detail.currentTime
+  }
+  if (event.detail?.duration !== undefined) {
+    duration.value = event.detail.duration
+  }
+  if (event.detail?.playMode !== undefined) {
+    playMode.value = event.detail.playMode
+  }
+}
+
+// 同步播放状态到 PlayerBar
+const syncToPlayerBar = () => {
+  window.dispatchEvent(new CustomEvent('player-state-sync', {
+    detail: {
+      isPlaying: isPlaying.value,
+      currentTime: currentTime.value,
+      duration: duration.value,
+      playMode: playMode.value
+    }
+  }))
+}
+
 const handleTimeUpdate = () => {
   if (!audioElement.value) return
   
@@ -332,43 +445,24 @@ const handleTimeUpdate = () => {
       }
     }
   }
+  
+  // 保存播放进度
+  savePlayerState()
+  
+  // 同步到 PlayerBar
+  syncToPlayerBar()
 }
 
 const handleCoverError = (event) => {
   event.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300"><defs><linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:%23667eea;stop-opacity:1"/><stop offset="100%" style="stop-color:%23764ba2;stop-opacity:1"/></linearGradient></defs><rect width="300" height="300" fill="url(%23grad)" rx="20"/><text x="150" y="160" font-family="Arial" font-size="24" fill="white" text-anchor="middle" font-weight="bold">M</text></svg>'
 }
 
-// 监听播放状态变化
-const handlePlayerStateChange = () => {
-  const savedMusic = localStorage.getItem('currentMusic')
-  if (savedMusic) {
-    try {
-      currentMusic.value = JSON.parse(savedMusic)
-      loadLyrics()
-      checkFavoriteStatus()
-    } catch (e) {
-      console.error('解析当前音乐失败:', e)
-    }
-  }
-}
-
-// 监听播放状态
-const handlePlayStateChange = (event) => {
-  isPlaying.value = event.detail?.isPlaying || false
-  if (event.detail?.currentTime !== undefined) {
-    currentTime.value = event.detail.currentTime
-  }
-  if (event.detail?.duration !== undefined) {
-    duration.value = event.detail.duration
-  }
-}
-
 onMounted(() => {
-  handlePlayerStateChange()
+  loadPlayerState()
   loadFavorites()
   
-  // 监听播放器状态变化
-  window.addEventListener('player-state-change', handlePlayStateChange)
+  // 监听 PlayerBar 的播放状态变化
+  window.addEventListener('player-state-change', handlePlayerStateChange)
   window.addEventListener('music-play', handlePlayerStateChange)
   
   // 获取当前播放状态
@@ -376,13 +470,21 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  window.removeEventListener('player-state-change', handlePlayStateChange)
+  window.removeEventListener('player-state-change', handlePlayerStateChange)
   window.removeEventListener('music-play', handlePlayerStateChange)
+  
+  // 保存播放状态
+  savePlayerState()
 })
 
 // 监听路由变化，重新加载数据
 watch(() => router.currentRoute.value, () => {
-  handlePlayerStateChange()
+  loadPlayerState()
+})
+
+// 监听播放状态变化，同步到 PlayerBar
+watch([isPlaying, currentTime, duration, playMode], () => {
+  syncToPlayerBar()
 })
 </script>
 
@@ -395,8 +497,7 @@ watch(() => router.currentRoute.value, () => {
   bottom: 0;
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   z-index: 1000;
   animation: fadeIn 0.3s ease;
 }
@@ -410,50 +511,87 @@ watch(() => router.currentRoute.value, () => {
   }
 }
 
-.close-btn {
-  position: fixed;
-  top: 20px;
-  right: 120px;
-  width: 48px;
+/* 顶部控制栏 */
+.top-bar {
   height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.close-btn {
+  width: 32px;
+  height: 32px;
   border: none;
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 50%;
+  border-radius: 6px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
   transition: all 0.2s ease;
-  z-index: 1001;
+  -webkit-app-region: no-drag;
 }
 
 .close-btn:hover {
   background: rgba(255, 255, 255, 0.2);
-  transform: scale(1.1);
+}
+
+.window-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.window-control-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  transition: all 0.2s ease;
+  -webkit-app-region: no-drag;
+}
+
+.window-control-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.window-control-btn.close:hover {
+  background: #ff5f57;
 }
 
 .player-content {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 60px;
+  grid-template-columns: 400px 1fr;
+  gap: 0;
   width: 100%;
-  max-width: 1400px;
-  padding: 80px 120px 40px 120px;
-  height: 100%;
+  height: calc(100% - 120px);
+  padding: 0;
 }
 
 .cover-section {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 40px;
 }
 
 .cover-container {
   position: relative;
-  width: 400px;
-  height: 400px;
-  border-radius: 20px;
+  width: 280px;
+  height: 280px;
+  border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
   transition: all 0.3s ease;
@@ -474,60 +612,47 @@ watch(() => router.currentRoute.value, () => {
   object-fit: cover;
 }
 
-.cover-center {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 80px;
-  height: 80px;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  border-radius: 50%;
-  border: 4px solid rgba(255, 255, 255, 0.1);
-}
-
-.info-section {
+.content-section {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  padding: 40px 60px 0 0;
+  overflow: hidden;
 }
 
 .music-info {
-  text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 24px;
 }
 
 .music-title {
-  font-size: 48px;
+  font-size: 36px;
   font-weight: 700;
   color: white;
-  margin: 0 0 16px 0;
+  margin: 0 0 12px 0;
   line-height: 1.3;
 }
 
-.music-artist {
-  font-size: 24px;
-  color: rgba(255, 255, 255, 0.7);
-  margin: 0 0 8px 0;
+.music-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.6);
 }
 
-.music-album {
-  font-size: 18px;
-  color: rgba(255, 255, 255, 0.5);
-  margin: 0;
+.separator {
+  color: rgba(255, 255, 255, 0.3);
 }
 
 .lyrics-section {
   flex: 1;
   display: flex;
   align-items: flex-start;
-  justify-content: center;
-  margin-bottom: 40px;
+  overflow: hidden;
 }
 
 .lyrics-container {
   width: 100%;
-  max-height: 300px;
+  height: 100%;
   overflow-y: auto;
   text-align: center;
   padding: 20px 0;
@@ -573,10 +698,18 @@ watch(() => router.currentRoute.value, () => {
   height: 200px;
 }
 
+/* 底部播放控制 */
 .player-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  padding: 20px 40px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
 }
 
 .progress-section {
@@ -676,6 +809,7 @@ watch(() => router.currentRoute.value, () => {
   justify-content: center;
   gap: 24px;
   color: rgba(255, 255, 255, 0.6);
+  height: 100%;
 }
 
 .btn-back {

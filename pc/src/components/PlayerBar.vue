@@ -893,6 +893,16 @@ const loadMusic = (music) => {
 const handleTimeUpdate = () => {
   if (audioElement.value && audioLoaded.value) {
     currentTime.value = audioElement.value.currentTime
+    
+    // 通知播放页面更新
+    window.dispatchEvent(new CustomEvent('player-state-change', {
+      detail: {
+        isPlaying: isPlaying.value,
+        currentTime: currentTime.value,
+        duration: duration.value,
+        playMode: playMode.value
+      }
+    }))
   }
 }
 
@@ -991,6 +1001,48 @@ onMounted(() => {
   })
   window.addEventListener('clear-playlist', () => {
     clearPlaylist()
+  })
+  
+  // 监听播放页面的同步请求
+  window.addEventListener('get-player-state', () => {
+    window.dispatchEvent(new CustomEvent('player-state-change', {
+      detail: {
+        isPlaying: isPlaying.value,
+        currentTime: currentTime.value,
+        duration: duration.value,
+        playMode: playMode.value
+      }
+    }))
+  })
+  
+  // 监听播放页面的同步
+  window.addEventListener('player-state-sync', (event) => {
+    if (event.detail?.isPlaying !== undefined) {
+      isPlaying.value = event.detail.isPlaying
+    }
+    if (event.detail?.currentTime !== undefined) {
+      currentTime.value = event.detail.currentTime
+      if (audioElement.value) {
+        audioElement.value.currentTime = event.detail.currentTime
+      }
+    }
+    if (event.detail?.duration !== undefined) {
+      duration.value = event.detail.duration
+    }
+    if (event.detail?.playMode !== undefined) {
+      playMode.value = event.detail.playMode
+    }
+  })
+  
+  // 监听播放页面的控制请求
+  window.addEventListener('toggle-play', () => {
+    togglePlay()
+  })
+  
+  window.addEventListener('seek-to', (event) => {
+    if (audioElement.value && duration.value) {
+      audioElement.value.currentTime = event.detail
+    }
   })
   
   loadFavorites()
