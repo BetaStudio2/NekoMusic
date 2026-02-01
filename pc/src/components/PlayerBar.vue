@@ -1,5 +1,6 @@
 <template>
-  <div class="player-bar glass">
+  <div class="player-bar-wrapper">
+    <div class="player-bar glass">
     <div class="player-info">
       <div class="player-cover-wrapper" @click="openPlayer" style="cursor: pointer;">
         <img :src="currentCover" alt="封面" class="player-cover" @error="handleCoverError" />
@@ -105,7 +106,8 @@
     </div>
     
     <!-- 播放列表面板 -->
-    <Transition name="playlist-panel">
+      <Teleport to="body">
+      <Transition name="playlist-panel">
       <div class="playlist-panel" v-if="showPlaylistPanel">
         <div class="playlist-header">
                 <h3>播放列表</h3>
@@ -159,7 +161,9 @@
           </TransitionGroup>
         </div>
       </div>
-    </Transition>
+      </Transition>
+      </Teleport>
+    </div>
   </div>
 </template>
 
@@ -674,6 +678,18 @@ const handleVolumeChange = () => {
 const togglePlaylist = () => {
   showPlaylistPanel.value = !showPlaylistPanel.value
   console.log('播放列表面板:', showPlaylistPanel.value ? '显示' : '隐藏')
+  
+  // 使用 nextTick 检查 DOM 元素
+  import('vue').then(({ nextTick }) => {
+    nextTick(() => {
+      const panel = document.querySelector('.playlist-panel')
+      if (panel) {
+        console.log('播放列表面板 DOM 元素存在，样式:', window.getComputedStyle(panel).display, 'opacity:', window.getComputedStyle(panel).opacity, 'visibility:', window.getComputedStyle(panel).visibility, 'z-index:', window.getComputedStyle(panel).zIndex)
+      } else {
+        console.log('播放列表面板 DOM 元素不存在')
+      }
+    })
+  })
 }
 
 // 添加音乐到播放列表
@@ -1189,6 +1205,10 @@ const handleNavigateToSettings = () => {
 </script>
 
 <style scoped>
+.player-bar-wrapper {
+  /* 不设置 position: relative，避免创建层叠上下文 */
+}
+
 .player-bar {
   height: 90px;
   border-top: 1px solid var(--border-light);
@@ -1532,9 +1552,10 @@ const handleNavigateToSettings = () => {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
-  z-index: 2000;
+  z-index: 100000;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.5);
+  pointer-events: auto;
 }
 
 .playlist-panel-enter-active,
@@ -1872,5 +1893,18 @@ const handleNavigateToSettings = () => {
 
 .playlist-item-remove:active {
   transform: scale(0.95) !important;
+}
+</style>
+
+<style>
+/* 全局样式 - 确保播放列表面板正确显示 */
+.playlist-panel {
+  position: fixed !important;
+  bottom: 100px !important;
+  right: 24px !important;
+  z-index: 2147483647 !important;
+  pointer-events: auto !important;
+  transform: translateZ(0) !important;
+  isolation: isolate !important;
 }
 </style>

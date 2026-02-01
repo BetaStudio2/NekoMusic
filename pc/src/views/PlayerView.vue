@@ -152,7 +152,7 @@
           </button>
           
           <div class="volume-panel">
-            <div class="volume-slider-vertical" @mousedown="handleVolumeMouseDown" @mousemove="handleVolumeMouseMove">
+            <div class="volume-slider-vertical" @mousedown="handleVolumeMouseDown">
               <div class="volume-track">
                 <div class="volume-fill" :style="{ height: volume + '%' }"></div>
               </div>
@@ -430,13 +430,16 @@ const handleVolumeMouseDown = (event) => {
 }
 
 const handleVolumeMouseMove = (event) => {
-  if (isVolumeDragging.value && event.currentTarget) {
-    const rect = event.currentTarget.getBoundingClientRect()
-    const y = rect.bottom - event.clientY
-    const percentage = Math.max(0, Math.min(100, (y / rect.height) * 100))
-    volume.value = Math.round(percentage)
-    // 通知 PlayerBar 更新音量
-    window.dispatchEvent(new CustomEvent('set-volume', { detail: volume.value }))
+  if (isVolumeDragging.value) {
+    const volumeSlider = document.querySelector('.volume-slider-vertical')
+    if (volumeSlider) {
+      const rect = volumeSlider.getBoundingClientRect()
+      const y = rect.bottom - event.clientY
+      const percentage = Math.max(0, Math.min(100, (y / rect.height) * 100))
+      volume.value = Math.round(percentage)
+      // 通知 PlayerBar 更新音量
+      window.dispatchEvent(new CustomEvent('set-volume', { detail: volume.value }))
+    }
   }
 }
 
@@ -560,6 +563,14 @@ onMounted(() => {
   // 监听音频时间更新（用于歌词同步）
   window.addEventListener('audio-time-update', handleTimeUpdate)
   
+  // 全局鼠标事件，处理音量拖动
+  window.addEventListener('mouseup', handleVolumeMouseUp)
+  window.addEventListener('mousemove', (event) => {
+    if (isVolumeDragging.value) {
+      handleVolumeMouseMove(event)
+    }
+  })
+  
   // 获取当前播放状态
   window.dispatchEvent(new CustomEvent('get-player-state'))
 })
@@ -568,6 +579,7 @@ onUnmounted(() => {
   window.removeEventListener('player-state-change', handlePlayerStateChange)
   window.removeEventListener('music-play', handlePlayerStateChange)
   window.removeEventListener('audio-time-update', handleTimeUpdate)
+  window.removeEventListener('mouseup', handleVolumeMouseUp)
   
   // 保存播放状态
   savePlayerState()
@@ -976,70 +988,79 @@ watch(() => router.currentRoute.value, () => {
 
 .volume-wrapper {
   position: relative;
+  display: flex;
+  align-items: center;
 }
 
 .volume-panel {
   position: absolute;
-  bottom: 100%;
+  bottom: calc(100% + 12px);
   left: 50%;
   transform: translateX(-50%);
-  margin-bottom: 12px;
-  padding: 12px 8px;
-  background: rgba(0, 0, 0, 0.8);
-  border-radius: 8px;
-  display: none;
+  width: 60px;
+  padding: 16px 12px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  z-index: 200;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
 }
 
 .volume-wrapper:hover .volume-panel {
-  display: flex;
+  opacity: 1;
+  visibility: visible;
 }
 
 .volume-slider-vertical {
-  width: 24px;
-  height: 100px;
+  width: 8px;
+  height: 120px;
   position: relative;
   cursor: pointer;
+  user-select: none;
 }
 
 .volume-track {
-  width: 4px;
+  width: 100%;
   height: 100%;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 2px;
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
 }
 
 .volume-fill {
   position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 4px;
-  background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
-  border-radius: 2px;
   bottom: 0;
+  left: 0;
+  right: 0;
+  background: #FF3B30;
+  border-radius: 4px;
+  transition: height 0.1s;
 }
 
 .volume-thumb {
   position: absolute;
   left: 50%;
-  transform: translateX(-50%);
-  width: 12px;
-  height: 12px;
+  transform: translateX(-50%) translateY(50%);
+  width: 20px;
+  height: 20px;
   background: white;
   border-radius: 50%;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: bottom 0.1s;
 }
 
 .volume-value {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.8);
+  margin-top: 8px;
+  font-size: 12px;
   font-weight: 500;
+  color: var(--text-primary);
 }
 
 /* 滚动条样式 */
