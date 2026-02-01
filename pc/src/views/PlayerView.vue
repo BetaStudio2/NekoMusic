@@ -142,6 +142,10 @@
       
       <!-- 右侧控制 -->
       <div class="player-controls-right">
+        <button class="control-btn" @click="showAddToPlaylistModal" title="添加到歌单" :disabled="!currentMusic">
+          <img src="/add_play_list.png" alt="添加到歌单" width="18" height="18" />
+        </button>
+
         <div class="volume-wrapper">
           <button class="control-btn" @click="toggleMute" :title="isMuted ? '取消静音' : '静音'">
             <svg v-if="!isMuted && volume > 50" viewBox="0 0 24 24" width="18" height="18">
@@ -181,6 +185,89 @@
       <p>暂无播放音乐</p>
       <button class="btn-back" @click="closePlayer">返回</button>
     </div>
+
+    <!-- 添加到歌单模态框 -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="showAddToPlaylistPanel" class="modal-overlay" @click="showAddToPlaylistPanel = false">
+          <div class="modal-content modal-small" @click.stop>
+            <div class="modal-header">
+              <h3 class="modal-title">添加到歌单</h3>
+              <button class="modal-close-btn" @click="showAddToPlaylistPanel = false">
+                <svg viewBox="0 0 24 24" width="20" height="20">
+                  <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- 当前音乐信息 -->
+            <div class="current-music-info">
+              <img :src="getCoverUrl(currentMusic?.id)" alt="封面" class="current-music-cover" />
+              <div class="current-music-details">
+                <span class="current-music-title">{{ currentMusic?.title || '-' }}</span>
+                <span class="current-music-artist">{{ currentMusic?.artist || '-' }}</span>
+              </div>
+            </div>
+
+            <div class="playlist-section">
+              <div class="section-header">
+                <span class="section-title">选择歌单</span>
+              </div>
+              <div class="playlist-selector">
+                <div
+                  v-for="playlist in userPlaylists"
+                  :key="playlist.id"
+                  class="playlist-option"
+                  @click="addToUserPlaylist(playlist.id)"
+                >
+                  <img :src="getPlaylistCover(playlist)" alt="封面" class="playlist-option-cover" />
+                  <span class="playlist-option-name">{{ playlist.name }}</span>
+                  <span class="playlist-option-count">{{ playlist.musicCount || 0 }}首</span>
+                </div>
+                <div v-if="userPlaylists.length === 0" class="playlists-empty">
+                  <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1">
+                    <path d="M9 18V5l12-2v13"/>
+                    <circle cx="6" cy="18" r="3"/>
+                    <circle cx="18" cy="16" r="3"/>
+                  </svg>
+                  <p>暂无歌单</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 新建歌单区域 -->
+            <div class="create-playlist-section">
+              <div class="section-header">
+                <span class="section-title">或创建新歌单</span>
+              </div>
+              <div class="create-playlist-form">
+                <input
+                  v-model="newPlaylistName"
+                  type="text"
+                  placeholder="输入歌单名称"
+                  class="playlist-name-input"
+                  @keyup.enter="handleCreateNewPlaylist"
+                />
+                <button
+                  class="create-playlist-btn"
+                  @click="handleCreateNewPlaylist"
+                  :disabled="!newPlaylistName.trim()"
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16">
+                    <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                  </svg>
+                  <span>创建</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="modal-buttons">
+              <button class="modal-btn modal-btn-secondary" @click="showAddToPlaylistPanel = false">取消</button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -203,6 +290,11 @@ const isMuted = ref(false)
 const isVolumeDragging = ref(false)
 const isFavorite = ref(false)
 const favorites = ref([])
+
+// 添加到歌单相关
+const showAddToPlaylistPanel = ref(false)
+const userPlaylists = ref([])
+const newPlaylistName = ref('')
 
 const playModeTitle = computed(() => {
   const titles = {
@@ -503,6 +595,195 @@ const handleVolumeClick = (event) => {
 const togglePlaylist = () => {
   // 通知 PlayerBar 切换播放列表面板
   window.dispatchEvent(new CustomEvent('toggle-playlist-panel'))
+}
+
+// 统一的 API 请求函数
+async function apiRequest(url, options = {}) {
+  const fullUrl = url.startsWith('http') ? url : `${apiConfig.BASE_URL}${url}`
+  return fetch(fullUrl, options)
+}
+
+// 显示添加到歌单面板
+const showAddToPlaylistModal = async () => {
+  if (!currentMusic.value) return
+
+  const token = localStorage.getItem('token')
+  if (!token) {
+    window.dispatchEvent(new CustomEvent('show-toast', {
+      detail: { message: '请先登录', type: 'error' }
+    }))
+    return
+  }
+
+  // 加载用户歌单列表
+  await loadUserPlaylists()
+
+  if (userPlaylists.value.length === 0) {
+    window.dispatchEvent(new CustomEvent('show-toast', {
+      detail: { message: '暂无歌单，请先创建歌单', type: 'info' }
+    }))
+    return
+  }
+
+  showAddToPlaylistPanel.value = true
+}
+
+// 加载用户歌单列表
+const loadUserPlaylists = async () => {
+  const token = localStorage.getItem('token')
+  if (!token) {
+    userPlaylists.value = []
+    return
+  }
+
+  try {
+    const timestamp = Date.now()
+    const response = await apiRequest(`${apiConfig.PLAYLISTS}?t=${timestamp}`, {
+      method: 'GET',
+      headers: { 'Authorization': token }
+    })
+
+    const data = await response.json()
+    if (data.success && data.playlists) {
+      const playlistsWithCovers = []
+
+      for (const playlist of data.playlists) {
+        try {
+          // 获取歌单音乐列表以获取第一首歌的封面
+          const musicResponse = await apiRequest(`${apiConfig.PLAYLIST_MUSIC(playlist.id)}?t=${timestamp}`, {
+            method: 'GET',
+            headers: { 'Authorization': token }
+          })
+
+          const musicData = await musicResponse.json()
+          if (musicData.success && musicData.musicList && musicData.musicList.length > 0) {
+            playlistsWithCovers.push({
+              ...playlist,
+              firstMusicId: musicData.musicList[0].id
+            })
+          } else {
+            playlistsWithCovers.push(playlist)
+          }
+        } catch (error) {
+          playlistsWithCovers.push(playlist)
+        }
+      }
+
+      userPlaylists.value = playlistsWithCovers
+    }
+  } catch (error) {
+    console.error('加载用户歌单列表失败:', error)
+  }
+}
+
+// 添加到用户歌单
+const addToUserPlaylist = async (playlistId) => {
+  if (!currentMusic.value) return
+
+  const token = localStorage.getItem('token')
+  if (!token) {
+    window.dispatchEvent(new CustomEvent('show-toast', {
+      detail: { message: '请先登录', type: 'error' }
+    }))
+    return
+  }
+
+  try {
+    const response = await apiRequest(apiConfig.PLAYLIST_MUSIC_ADD, {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        playlistId: playlistId,
+        musicId: currentMusic.value.id
+      })
+    })
+
+    const data = await response.json()
+    if (data.success) {
+      window.dispatchEvent(new CustomEvent('show-toast', {
+        detail: { message: '添加到歌单成功', type: 'success' }
+      }))
+      showAddToPlaylistPanel.value = false
+    } else {
+      window.dispatchEvent(new CustomEvent('show-toast', {
+        detail: { message: data.message || '添加失败', type: 'error' }
+      }))
+    }
+  } catch (error) {
+    console.error('添加到歌单失败:', error)
+    window.dispatchEvent(new CustomEvent('show-toast', {
+      detail: { message: '网络错误，请重试', type: 'error' }
+    }))
+  }
+}
+
+// 获取歌单封面
+const getPlaylistCover = (playlist) => {
+  if (playlist.firstMusicId) {
+    return `https://music.cnmsb.xin/api/music/cover/${playlist.firstMusicId}`
+  }
+  return 'https://music.cnmsb.xin/api/user/avatar/default'
+}
+
+// 处理创建新歌单
+const handleCreateNewPlaylist = async () => {
+  if (!newPlaylistName.value.trim()) {
+    window.dispatchEvent(new CustomEvent('show-toast', {
+      detail: { message: '请输入歌单名称', type: 'error' }
+    }))
+    return
+  }
+
+  const token = localStorage.getItem('token')
+  if (!token) {
+    window.dispatchEvent(new CustomEvent('show-toast', {
+      detail: { message: '请先登录', type: 'error' }
+    }))
+    return
+  }
+
+  try {
+    const response = await apiRequest(apiConfig.PLAYLIST_CREATE, {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: newPlaylistName.value.trim(),
+        description: ''
+      })
+    })
+
+    const data = await response.json()
+    if (data.success) {
+      window.dispatchEvent(new CustomEvent('show-toast', {
+        detail: { message: '歌单创建成功', type: 'success' }
+      }))
+
+      // 重新加载歌单列表
+      await loadUserPlaylists()
+
+      // 自动将音乐添加到新创建的歌单
+      if (data.playlist && data.playlist.id) {
+        await addToUserPlaylist(data.playlist.id)
+      }
+
+      newPlaylistName.value = ''
+    } else {
+      window.dispatchEvent(new CustomEvent('show-toast', {
+        detail: { message: data.message || '创建失败', type: 'error' }
+      }))
+    }
+  } catch (error) {
+    console.error('创建歌单失败:', error)
+    window.dispatchEvent(new CustomEvent('show-toast', {
+      detail: { message: '网络错误，请重试', type: 'error' }
+    }))
+  }
 }
 
 // 从 localStorage 加载播放状态
@@ -1168,5 +1449,300 @@ watch(() => router.currentRoute.value, () => {
 
 .btn-back:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+
+/* 添加到歌单模态框样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  padding: 20px;
+}
+
+.modal-content {
+  background: linear-gradient(135deg, rgba(42, 42, 42, 0.95) 0%, rgba(30, 30, 30, 0.95) 100%);
+  border-radius: 20px;
+  padding: 24px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-content.modal-small {
+  max-width: 380px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: white;
+}
+
+.modal-close-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.6);
+  transition: all 0.2s;
+}
+
+.modal-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.current-music-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.current-music-cover {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.current-music-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.current-music-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.current-music-artist {
+  display: block;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.playlist-section {
+  margin-bottom: 20px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.playlist-selector {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.playlist-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgba(255, 255, 255, 0.03);
+  margin-bottom: 6px;
+}
+
+.playlist-option:hover {
+  background: rgba(102, 126, 234, 0.15);
+  transform: translateX(2px);
+}
+
+.playlist-option-cover {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.playlist-option-name {
+  flex: 1;
+  font-size: 14px;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.playlist-option-count {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+}
+
+.playlists-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.playlists-empty svg {
+  margin-bottom: 12px;
+  opacity: 0.6;
+}
+
+.playlists-empty p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.create-playlist-section {
+  margin-bottom: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.create-playlist-form {
+  display: flex;
+  gap: 8px;
+}
+
+.playlist-name-input {
+  flex: 1;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.playlist-name-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.playlist-name-input:focus {
+  border-color: rgba(102, 126, 234, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.create-playlist-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.create-playlist-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.create-playlist-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.modal-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modal-btn-secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.modal-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.modal-enter-active,
+.modal-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.playlist-selector::-webkit-scrollbar {
+  width: 4px;
+}
+
+.playlist-selector::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.playlist-selector::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.playlist-selector::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 </style>

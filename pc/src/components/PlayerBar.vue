@@ -173,22 +173,76 @@
         <Transition name="modal">
           <div v-if="showAddToPlaylistPanel" class="modal-overlay" @click="showAddToPlaylistPanel = false">
             <div class="modal-content modal-small" @click.stop>
-              <h3 class="modal-title">添加到歌单</h3>
-              <div class="playlist-selector">
-                <div 
-                  v-for="playlist in userPlaylists" 
-                  :key="playlist.id"
-                  class="playlist-option"
-                  @click="addToUserPlaylist(playlist.id)"
-                >
-                  <img :src="getPlaylistCover(playlist)" alt="封面" class="playlist-option-cover" />
-                  <span class="playlist-option-name">{{ playlist.name }}</span>
-                </div>
-                <div v-if="userPlaylists.length === 0" class="playlists-empty">
-                  <p>暂无歌单</p>
-                  <button class="create-playlist-btn" @click="handleCreatePlaylist">创建新歌单</button>
+              <div class="modal-header">
+                <h3 class="modal-title">添加到歌单</h3>
+                <button class="modal-close-btn" @click="showAddToPlaylistPanel = false">
+                  <svg viewBox="0 0 24 24" width="20" height="20">
+                    <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                  </svg>
+                </button>
+              </div>
+
+              <!-- 当前音乐信息 -->
+              <div class="current-music-info">
+                <img :src="currentCover" alt="封面" class="current-music-cover" />
+                <div class="current-music-details">
+                  <span class="current-music-title">{{ currentMusic?.title || '-' }}</span>
+                  <span class="current-music-artist">{{ currentMusic?.artist || '-' }}</span>
                 </div>
               </div>
+
+              <div class="playlist-section">
+                <div class="section-header">
+                  <span class="section-title">选择歌单</span>
+                </div>
+                <div class="playlist-selector">
+                  <div
+                    v-for="playlist in userPlaylists"
+                    :key="playlist.id"
+                    class="playlist-option"
+                    @click="addToUserPlaylist(playlist.id)"
+                  >
+                    <img :src="getPlaylistCover(playlist)" alt="封面" class="playlist-option-cover" />
+                    <span class="playlist-option-name">{{ playlist.name }}</span>
+                    <span class="playlist-option-count">{{ playlist.musicCount || 0 }}首</span>
+                  </div>
+                  <div v-if="userPlaylists.length === 0" class="playlists-empty">
+                    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1">
+                      <path d="M9 18V5l12-2v13"/>
+                      <circle cx="6" cy="18" r="3"/>
+                      <circle cx="18" cy="16" r="3"/>
+                    </svg>
+                    <p>暂无歌单</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 新建歌单区域 -->
+              <div class="create-playlist-section">
+                <div class="section-header">
+                  <span class="section-title">或创建新歌单</span>
+                </div>
+                <div class="create-playlist-form">
+                  <input
+                    v-model="newPlaylistName"
+                    type="text"
+                    placeholder="输入歌单名称"
+                    class="playlist-name-input"
+                    @keyup.enter="handleCreateNewPlaylist"
+                  />
+                  <button
+                    class="create-playlist-btn"
+                    @click="handleCreateNewPlaylist"
+                    :disabled="!newPlaylistName.trim()"
+                  >
+                    <svg viewBox="0 0 24 24" width="16" height="16">
+                      <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                    </svg>
+                    <span>创建</span>
+                  </button>
+                </div>
+              </div>
+
               <div class="modal-buttons">
                 <button class="modal-btn modal-btn-secondary" @click="showAddToPlaylistPanel = false">取消</button>
               </div>
@@ -227,6 +281,7 @@ const playlist = ref([]) // 播放列表
 const showPlaylistPanel = ref(false) // 是否显示播放列表面板
 const showAddToPlaylistPanel = ref(false) // 是否显示添加到歌单面板
 const userPlaylists = ref([]) // 用户歌单列表
+const newPlaylistName = ref('') // 新建歌单名称
 const FADE_DURATION = 500 // 淡入淡出时长（毫秒）
 const FADE_STEPS = 20 // 淡入淡出步数
 
@@ -769,7 +824,31 @@ const loadUserPlaylists = async () => {
 
     const data = await response.json()
     if (data.success && data.playlists) {
-      userPlaylists.value = data.playlists
+      const playlistsWithCovers = []
+
+      for (const playlist of data.playlists) {
+        try {
+          // 获取歌单音乐列表以获取第一首歌的封面
+          const musicResponse = await apiRequest(`${apiConfig.PLAYLIST_MUSIC(playlist.id)}?t=${timestamp}`, {
+            method: 'GET',
+            headers: { 'Authorization': token }
+          })
+
+          const musicData = await musicResponse.json()
+          if (musicData.success && musicData.musicList && musicData.musicList.length > 0) {
+            playlistsWithCovers.push({
+              ...playlist,
+              firstMusicId: musicData.musicList[0].id
+            })
+          } else {
+            playlistsWithCovers.push(playlist)
+          }
+        } catch (error) {
+          playlistsWithCovers.push(playlist)
+        }
+      }
+
+      userPlaylists.value = playlistsWithCovers
     }
   } catch (error) {
     console.error('加载用户歌单列表失败:', error)
@@ -828,11 +907,62 @@ const getPlaylistCover = (playlist) => {
   return 'https://music.cnmsb.xin/api/user/avatar/default'
 }
 
-// 处理创建歌单
-const handleCreatePlaylist = () => {
-  showAddToPlaylistPanel.value = false
-  // 触发 Layout 组件的创建歌单功能
-  window.dispatchEvent(new CustomEvent('show-create-playlist-modal'))
+// 处理创建新歌单
+const handleCreateNewPlaylist = async () => {
+  if (!newPlaylistName.value.trim()) {
+    window.dispatchEvent(new CustomEvent('show-toast', {
+      detail: { message: '请输入歌单名称', type: 'error' }
+    }))
+    return
+  }
+
+  const token = localStorage.getItem('token')
+  if (!token) {
+    window.dispatchEvent(new CustomEvent('show-toast', {
+      detail: { message: '请先登录', type: 'error' }
+    }))
+    return
+  }
+
+  try {
+    const response = await apiRequest(apiConfig.PLAYLIST_CREATE, {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: newPlaylistName.value.trim(),
+        description: ''
+      })
+    })
+
+    const data = await response.json()
+    if (data.success) {
+      window.dispatchEvent(new CustomEvent('show-toast', {
+        detail: { message: '歌单创建成功', type: 'success' }
+      }))
+
+      // 重新加载歌单列表
+      await loadUserPlaylists()
+
+      // 自动将音乐添加到新创建的歌单
+      if (data.playlist && data.playlist.id) {
+        await addToUserPlaylist(data.playlist.id)
+      }
+
+      newPlaylistName.value = ''
+    } else {
+      window.dispatchEvent(new CustomEvent('show-toast', {
+        detail: { message: data.message || '创建失败', type: 'error' }
+      }))
+    }
+  } catch (error) {
+    console.error('创建歌单失败:', error)
+    window.dispatchEvent(new CustomEvent('show-toast', {
+      detail: { message: '网络错误，请重试', type: 'error' }
+    }))
+  }
 }
 
 // 添加音乐到播放列表
@@ -2104,27 +2234,113 @@ const handleNavigateToSettings = () => {
   border-radius: 20px;
   padding: 24px;
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .modal-content.modal-small {
-  max-width: 360px;
+  max-width: 380px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
 }
 
 .modal-title {
-  margin: 0 0 20px 0;
-  font-size: 18px;
+  margin: 0;
+  font-size: 20px;
   font-weight: 600;
   color: white;
-  text-align: center;
+}
+
+.modal-close-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: all 0.2s;
+}
+
+.modal-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+/* 当前音乐信息 */
+.current-music-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.current-music-cover {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.current-music-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.current-music-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.current-music-artist {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 歌单区域 */
+.playlist-section {
+  margin-bottom: 20px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .playlist-selector {
-  max-height: 300px;
+  max-height: 200px;
   overflow-y: auto;
-  margin-bottom: 20px;
+  padding: 4px;
 }
 
 .playlist-option {
@@ -2132,16 +2348,16 @@ const handleNavigateToSettings = () => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border-radius: 12px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: all 0.2s;
-  background: rgba(255, 255, 255, 0.05);
-  margin-bottom: 8px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgba(255, 255, 255, 0.03);
+  margin-bottom: 6px;
 }
 
 .playlist-option:hover {
-  background: rgba(102, 126, 234, 0.2);
-  transform: translateX(4px);
+  background: rgba(102, 126, 234, 0.15);
+  transform: translateX(2px);
 }
 
 .playlist-option-cover {
@@ -2149,6 +2365,7 @@ const handleNavigateToSettings = () => {
   height: 40px;
   border-radius: 8px;
   object-fit: cover;
+  flex-shrink: 0;
 }
 
 .playlist-option-name {
@@ -2160,30 +2377,85 @@ const handleNavigateToSettings = () => {
   text-overflow: ellipsis;
 }
 
+.playlist-option-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
 .playlists-empty {
   text-align: center;
   padding: 40px 20px;
   color: var(--text-muted);
 }
 
+.playlists-empty svg {
+  margin-bottom: 12px;
+  opacity: 0.4;
+}
+
 .playlists-empty p {
-  margin-bottom: 16px;
+  margin: 0;
+  font-size: 14px;
+}
+
+/* 新建歌单区域 */
+.create-playlist-section {
+  margin-bottom: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.create-playlist-form {
+  display: flex;
+  gap: 8px;
+}
+
+.playlist-name-input {
+  flex: 1;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.playlist-name-input::placeholder {
+  color: var(--text-muted);
+}
+
+.playlist-name-input:focus {
+  border-color: rgba(102, 126, 234, 0.5);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .create-playlist-btn {
-  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
   background: var(--gradient-primary);
   border: none;
   border-radius: 8px;
   color: white;
   font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
+  white-space: nowrap;
 }
 
-.create-playlist-btn:hover {
-  transform: translateY(-2px);
+.create-playlist-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.create-playlist-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .modal-buttons {
@@ -2220,5 +2492,23 @@ const handleNavigateToSettings = () => {
 .modal-leave-to {
   opacity: 0;
   transform: scale(0.95);
+}
+
+/* 滚动条样式 */
+.playlist-selector::-webkit-scrollbar {
+  width: 4px;
+}
+
+.playlist-selector::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.playlist-selector::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.playlist-selector::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 </style>
