@@ -337,6 +337,20 @@ const handleGlobalProgressMouseMove = (event) => {
   }
 }
 
+const handleGlobalMouseUp = () => {
+  handleVolumeMouseUp()
+  handleProgressMouseUp()
+}
+
+const handleGlobalMouseMove = (event) => {
+  if (isVolumeDragging.value) {
+    handleVolumeMouseMove(event)
+  }
+  if (isProgressDragging.value) {
+    handleGlobalProgressMouseMove(event)
+  }
+}
+
 const seekToLyric = (time) => {
   window.dispatchEvent(new CustomEvent('seek-to', { detail: time }))
 }
@@ -594,20 +608,6 @@ onMounted(() => {
   window.addEventListener('audio-time-update', handleTimeUpdate)
   
   // 全局鼠标事件，处理音量拖动和进度条拖动
-  const handleGlobalMouseUp = () => {
-    handleVolumeMouseUp()
-    handleProgressMouseUp()
-  }
-  
-  const handleGlobalMouseMove = (event) => {
-    if (isVolumeDragging.value) {
-      handleVolumeMouseMove(event)
-    }
-    if (isProgressDragging.value) {
-      handleGlobalProgressMouseMove(event)
-    }
-  }
-  
   window.addEventListener('mouseup', handleGlobalMouseUp)
   window.addEventListener('mousemove', handleGlobalMouseMove)
   

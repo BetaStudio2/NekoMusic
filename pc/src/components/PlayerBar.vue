@@ -819,9 +819,37 @@ const playFromPlaylist = (localId) => {
   const music = playlist.value.find(item => item.localId === localId)
   if (music) {
     loadMusic(music)
-    if (audioElement.value) {
-      audioElement.value.play()
-      isPlaying.value = true
+    // 等待音频加载完成后再播放
+    const checkAndPlay = () => {
+      if (audioLoaded.value) {
+        console.log('playFromPlaylist: 音频已加载，开始播放')
+        if (audioElement.value) {
+          audioElement.value.play().then(() => {
+            console.log('✓ 音频开始播放')
+            isPlaying.value = true
+            fadeIn()
+          }).catch(err => {
+            console.error('✗ 播放失败:', err)
+            isPlaying.value = false
+          })
+        }
+        audioElement.value.removeEventListener('loadedmetadata', checkAndPlay)
+      }
+    }
+    
+    // 如果已经加载完成，立即播放
+    if (audioLoaded.value) {
+      audioElement.value.play().then(() => {
+        console.log('✓ 音频开始播放')
+        isPlaying.value = true
+        fadeIn()
+      }).catch(err => {
+        console.error('✗ 播放失败:', err)
+        isPlaying.value = false
+      })
+    } else {
+      // 否则等待 loadedmetadata 事件
+      audioElement.value.addEventListener('loadedmetadata', checkAndPlay)
     }
   }
 }
