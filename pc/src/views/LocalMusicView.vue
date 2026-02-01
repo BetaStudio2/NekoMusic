@@ -3,7 +3,10 @@
     <div class="header">
       <div class="header-left">
         <h2 class="section-title">本地音乐</h2>
-        <span v-if="musicList.length > 0" class="music-count">{{ musicList.length }} 首歌曲</span>
+        <div class="header-info">
+          <span v-if="musicList.length > 0" class="music-count">{{ musicList.length }} 首歌曲</span>
+          <span class="scan-path">扫描目录: {{ defaultScanPath || '加载中...' }}</span>
+        </div>
       </div>
       <div class="header-actions">
         <button class="btn-scan" @click="scanDefaultDirectory" title="扫描下载目录/NekoMusic">
@@ -104,13 +107,33 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const musicList = ref([])
 const loading = ref(false)
 const currentMusic = ref(null)
+const defaultScanPath = ref('')
+
+// 获取默认扫描目录
+const getDefaultScanDirectory = async () => {
+  if (!window.electronAPI) {
+    return '下载目录/NekoMusic'
+  }
+  
+  try {
+    const result = await window.electronAPI.getDefaultScanPath()
+    if (result.success) {
+      defaultScanPath.value = result.path
+      return result.path
+    }
+  } catch (error) {
+    console.error('获取默认扫描目录失败:', error)
+  }
+  
+  return '下载目录/NekoMusic'
+}
 
 const loadMusicLibrary = async () => {
   if (!window.electronAPI) {
@@ -121,11 +144,14 @@ const loadMusicLibrary = async () => {
   loading.value = true
   try {
     const result = await window.electronAPI.getLocalMusicLibrary()
-    if (result.success) {
+    if (result && result.success) {
       musicList.value = result.music || []
+    } else {
+      musicList.value = []
     }
   } catch (error) {
     console.error('加载本地音乐库失败:', error)
+    musicList.value = []
   } finally {
     loading.value = false
   }
@@ -302,6 +328,7 @@ onMounted(() => {
     }
   }
 
+  getDefaultScanDirectory()
   loadMusicLibrary()
 })
 </script>
@@ -322,8 +349,14 @@ onMounted(() => {
 
 .header-left {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.header-info {
+  display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .section-title {
@@ -343,6 +376,19 @@ onMounted(() => {
   background: rgba(102, 126, 234, 0.1);
   padding: 4px 12px;
   border-radius: 12px;
+}
+
+.scan-path {
+  font-size: 13px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.scan-path::before {
+  content: '📁';
+  font-size: 14px;
 }
 
 .header-actions {

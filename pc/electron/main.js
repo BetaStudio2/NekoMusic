@@ -73,6 +73,17 @@ function getDefaultScanDirectory() {
   return nekoMusicPath
 }
 
+// IPC 处理：获取默认扫描目录路径
+ipcMain.handle('get-default-scan-path', async () => {
+  try {
+    const scanPath = getDefaultScanDirectory()
+    return { success: true, path: scanPath }
+  } catch (error) {
+    console.error('获取默认扫描目录失败:', error)
+    return { success: false, message: error.message }
+  }
+})
+
 // 递归扫描目录中的音频文件
 function scanDirectoryForMusic(dirPath, supportedExtensions = ['.mp3', '.wav', '.flac', '.m4a', '.ogg', '.aac']) {
   const musicFiles = []
