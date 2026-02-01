@@ -49,6 +49,11 @@ export default defineConfig({
           })
         },
         rewrite: (path) => path
+      },
+      '/version.json': {
+        target: 'https://music.cnmsb.xin',
+        changeOrigin: true,
+        rewrite: (path) => path
       }
     },
     headers: {

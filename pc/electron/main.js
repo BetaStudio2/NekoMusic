@@ -351,6 +351,29 @@ ipcMain.handle('open-file', async (event, filePath) => {
   }
 })
 
+ipcMain.handle('http-request', async (event, url, options = {}) => {
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        ...(options.headers || {})
+      }
+    })
+    
+    const data = await response.text()
+    return {
+      success: true,
+      status: response.status,
+      data: data,
+      headers: Object.fromEntries(response.headers.entries())
+    }
+  } catch (error) {
+    console.error('HTTP请求失败:', error)
+    return { success: false, error: error.message }
+  }
+})
+
 app.on('ready', () => {
   // 如果已经退出，不创建窗口
   if (app.isQuitting) {

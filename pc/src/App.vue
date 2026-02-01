@@ -76,6 +76,30 @@ const getOSType = () => {
 
 // 统一的 API 请求函数
 async function apiRequest(url, options = {}) {
+  console.log('API请求:', url)
+  
+  // 如果是 Electron 环境，使用 IPC 避免跨域问题
+  if (window.electronAPI && window.electronAPI.httpRequest) {
+    const fullUrl = url.startsWith('http') ? url : `${apiConfig.BASE_URL}${url}`
+    const separator = fullUrl.includes('?') ? '&' : '?'
+    const urlWithTimestamp = `${fullUrl}${separator}_t=${Date.now()}`
+    
+    const result = await window.electronAPI.httpRequest(urlWithTimestamp, options)
+    
+    if (result.success) {
+      return {
+        ok: result.status >= 200 && result.status < 300,
+        status: result.status,
+        json: async () => JSON.parse(result.data),
+        text: async () => result.data,
+        headers: new Headers(result.headers)
+      }
+    } else {
+      throw new Error(result.error || '请求失败')
+    }
+  }
+  
+  // 开发环境或非 Electron 环境，使用 fetch
   const fullUrl = url.startsWith('http') ? url : `${apiConfig.BASE_URL}${url}`
   const separator = fullUrl.includes('?') ? '&' : '?'
   const urlWithTimestamp = `${fullUrl}${separator}_t=${Date.now()}`
@@ -93,6 +117,7 @@ async function apiRequest(url, options = {}) {
 }
 
 const checkForUpdates = async () => {
+  console.log('开始检查更新，当前版本:', APP_VERSION)
   try {
     const response = await apiRequest(apiConfig.UPDATE_CHECK, {
       cache: 'no-store',
@@ -102,12 +127,16 @@ const checkForUpdates = async () => {
         'Expires': '0'
       }
     })
+    console.log('更新检查响应状态:', response.status)
     const data = await response.json()
+    console.log('更新数据:', data)
     
     if (data.pc && data.pc.pc_ver) {
       const remoteVersion = data.pc.pc_ver
+      console.log('远程版本:', remoteVersion, '本地版本:', APP_VERSION)
       
       if (remoteVersion !== APP_VERSION) {
+        console.log('发现新版本!')
         const osType = getOSType()
         let downloadUrl = ''
         
@@ -122,6 +151,9 @@ const checkForUpdates = async () => {
           version: remoteVersion,
           downloadUrl: downloadUrl
         }
+        console.log('更新信息已设置:', updateInfo.value)
+      } else {
+        console.log('当前已是最新版本')
       }
     }
   } catch (error) {

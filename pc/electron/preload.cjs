@@ -19,6 +19,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   writeFile: (filePath, data) => ipcRenderer.invoke('write-file', filePath, data),
   openFile: (filePath) => ipcRenderer.invoke('open-file', filePath),
   
+  // HTTP 请求（用于处理跨域）
+  httpRequest: (url, options) => ipcRenderer.invoke('http-request', url, options),
+  
   // 其他可以暴露的 API
   platform: process.platform,
   arch: process.arch
