@@ -190,7 +190,20 @@ const downloadUrl = ref('')
 // 统一的 API 请求函数
 async function apiRequest(url, options = {}) {
   const fullUrl = url.startsWith('http') ? url : `${apiConfig.BASE_URL}${url}`
-  return fetch(fullUrl, options)
+  // 添加时间戳参数防止缓存
+  const separator = fullUrl.includes('?') ? '&' : '?'
+  const urlWithTimestamp = `${fullUrl}${separator}_t=${Date.now()}`
+  
+  return fetch(urlWithTimestamp, {
+    ...options,
+    headers: {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      ...(options.headers || {})
+    },
+    cache: 'no-store'
+  })
 }
 
 const currentUser = ref(null)
@@ -244,7 +257,14 @@ const checkForUpdates = async () => {
   noUpdate.value = false
   
   try {
-    const response = await apiRequest(apiConfig.UPDATE_CHECK)
+    const response = await apiRequest(apiConfig.UPDATE_CHECK, {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    })
     const data = await response.json()
     
     if (data.pc && data.pc.pc_ver) {
