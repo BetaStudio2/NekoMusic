@@ -917,7 +917,16 @@ const handleTimeUpdate = () => {
         isPlaying: isPlaying.value,
         currentTime: currentTime.value,
         duration: duration.value,
-        playMode: playMode.value
+        playMode: playMode.value,
+        volume: volume.value
+      }
+    }))
+    
+    // 广播音频时间更新（用于歌词同步）
+    window.dispatchEvent(new CustomEvent('audio-time-update', {
+      detail: {
+        currentTime: currentTime.value,
+        duration: duration.value
       }
     }))
   }
@@ -1060,6 +1069,21 @@ onMounted(() => {
     if (audioElement.value && duration.value) {
       audioElement.value.currentTime = event.detail
     }
+  })
+  
+  window.addEventListener('toggle-mute', () => {
+    toggleMute()
+  })
+  
+  window.addEventListener('set-volume', (event) => {
+    volume.value = event.detail
+    if (audioElement.value) {
+      audioElement.value.volume = volume.value / 100
+    }
+  })
+  
+  window.addEventListener('toggle-playlist-panel', () => {
+    togglePlaylist()
   })
   
   loadFavorites()

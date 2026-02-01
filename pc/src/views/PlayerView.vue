@@ -4,18 +4,8 @@
     <div class="top-bar">
       <!-- 左侧关闭按钮 -->
       <button class="close-btn" @click="closePlayer" title="关闭">
-        <svg
-            t="1769917770785"
-            class="icon"
-            viewBox="0 0 1024 1024"
-            version="1.1"
-            xmlns="http://www.w3.org/2000/svg"
-            width="128"
-            height="128"
-        >
-          <g transform="scale(1,-1) translate(0,-1024)">
-            <path d="M579.669333 280.661333a64.426667 64.426667 0 0 0-54.272-24.405333c-19.029333-3.157333-36.949333 11.605333-51.712 24.32L104.277333 648.789333a59.733333 59.733333 0 1 0 84.48 84.48L526.506667 387.328l311.637333 352.426667a59.733333 59.733333 0 0 0 84.48-84.48z"></path>
-          </g>
+        <svg viewBox="0 0 24 24" width="20" height="20">
+          <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
         </svg>
       </button>
 
@@ -42,9 +32,8 @@
     <div v-if="currentMusic" class="player-content">
       <!-- 左侧封面 -->
       <div class="cover-section">
-        <div class="cover-container" :class="{ rotating: isPlaying }">
+        <div class="cover-container">
           <img :src="getCoverUrl(currentMusic.id)" alt="封面" class="album-cover" @error="handleCoverError" />
-          <div class="cover-center"></div>
         </div>
       </div>
 
@@ -198,52 +187,10 @@ const currentTime = ref(0)
 const duration = ref(0)
 const lyrics = ref([])
 const currentLyricIndex = ref(0)
+const lyricsContainer = ref(null)
 const volume = ref(100)
 const isMuted = ref(false)
-
-const toggleMute = () => {
-  isMuted.value = !isMuted.value
-  if (audioElement.value) {
-    audioElement.value.muted = isMuted.value
-  }
-}
-
-const handleVolumeMouseDown = (event) => {
-  isVolumeDragging.value = true
-  handleVolumeClick(event)
-  event.preventDefault()
-}
-
-const handleVolumeMouseMove = (event) => {
-  if (isVolumeDragging.value && event.currentTarget) {
-    const rect = event.currentTarget.getBoundingClientRect()
-    const y = rect.bottom - event.clientY
-    const percentage = Math.max(0, Math.min(100, (y / rect.height) * 100))
-    volume.value = Math.round(percentage)
-    if (audioElement.value) {
-      audioElement.value.volume = volume.value / 100
-    }
-  }
-}
-
-const handleVolumeMouseUp = () => {
-  isVolumeDragging.value = false
-}
-
-const handleVolumeClick = (event) => {
-  const rect = event.currentTarget.getBoundingClientRect()
-  const y = rect.bottom - event.clientY
-  const percentage = Math.min(100, Math.max(0, (y / rect.height) * 100))
-  volume.value = Math.round(percentage)
-  if (audioElement.value) {
-    audioElement.value.volume = volume.value / 100
-  }
-}
-
-const togglePlaylist = () => {
-  console.log('切换播放列表')
-}
-
+const isVolumeDragging = ref(false)
 const isFavorite = ref(false)
 const favorites = ref([])
 
@@ -277,9 +224,8 @@ const closePlayer = () => {
 }
 
 const togglePlay = () => {
-  if (!audioElement.value || !currentMusic.value) return
-  
-  // 通过 PlayerBar 控制播放
+  if (!currentMusic.value) return
+  // 直接通知 PlayerBar 切换播放状态
   window.dispatchEvent(new CustomEvent('toggle-play'))
 }
 
@@ -344,19 +290,18 @@ const toggleFavorite = async () => {
 }
 
 const seekTo = (event) => {
-  if (!audioElement.value || !duration.value) return
+  if (!currentMusic.value || !duration.value) return
   
   const rect = event.currentTarget.getBoundingClientRect()
   const x = event.clientX - rect.left
   const percentage = Math.max(0, Math.min(1, x / rect.width))
   const seekTime = percentage * duration.value
   
-  // 通过 PlayerBar 控制进度
+  // 直接通知 PlayerBar 跳转进度
   window.dispatchEvent(new CustomEvent('seek-to', { detail: seekTime }))
 }
 
 const seekToLyric = (time) => {
-  if (!audioElement.value) return
   window.dispatchEvent(new CustomEvent('seek-to', { detail: time }))
 }
 
@@ -466,6 +411,47 @@ const closeWindow = () => {
   }
 }
 
+const toggleMute = () => {
+  isMuted.value = !isMuted.value
+  // 通知 PlayerBar 切换静音
+  window.dispatchEvent(new CustomEvent('toggle-mute'))
+}
+
+const handleVolumeMouseDown = (event) => {
+  isVolumeDragging.value = true
+  handleVolumeClick(event)
+  event.preventDefault()
+}
+
+const handleVolumeMouseMove = (event) => {
+  if (isVolumeDragging.value && event.currentTarget) {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const y = rect.bottom - event.clientY
+    const percentage = Math.max(0, Math.min(100, (y / rect.height) * 100))
+    volume.value = Math.round(percentage)
+    // 通知 PlayerBar 更新音量
+    window.dispatchEvent(new CustomEvent('set-volume', { detail: volume.value }))
+  }
+}
+
+const handleVolumeMouseUp = () => {
+  isVolumeDragging.value = false
+}
+
+const handleVolumeClick = (event) => {
+  const rect = event.currentTarget.getBoundingClientRect()
+  const y = rect.bottom - event.clientY
+  const percentage = Math.min(100, Math.max(0, (y / rect.height) * 100))
+  volume.value = Math.round(percentage)
+  // 通知 PlayerBar 更新音量
+  window.dispatchEvent(new CustomEvent('set-volume', { detail: volume.value }))
+}
+
+const togglePlaylist = () => {
+  // 通知 PlayerBar 切换播放列表面板
+  window.dispatchEvent(new CustomEvent('toggle-playlist-panel'))
+}
+
 // 从 localStorage 加载播放状态
 const loadPlayerState = () => {
   const savedMusic = localStorage.getItem('currentMusic')
@@ -525,25 +511,12 @@ const handlePlayerStateChange = (event) => {
   if (event.detail?.playMode !== undefined) {
     playMode.value = event.detail.playMode
   }
-}
-
-// 同步播放状态到 PlayerBar
-const syncToPlayerBar = () => {
-  window.dispatchEvent(new CustomEvent('player-state-sync', {
-    detail: {
-      isPlaying: isPlaying.value,
-      currentTime: currentTime.value,
-      duration: duration.value,
-      playMode: playMode.value
-    }
-  }))
+  if (event.detail?.volume !== undefined) {
+    volume.value = event.detail.volume
+  }
 }
 
 const handleTimeUpdate = () => {
-  if (!audioElement.value) return
-  
-  currentTime.value = audioElement.value.currentTime
-  
   // 更新歌词高亮
   if (lyrics.value.length > 0) {
     for (let i = lyrics.value.length - 1; i >= 0; i--) {
@@ -564,9 +537,6 @@ const handleTimeUpdate = () => {
   
   // 保存播放进度
   savePlayerState()
-  
-  // 同步到 PlayerBar
-  syncToPlayerBar()
 }
 
 const handleCoverError = (event) => {
@@ -581,6 +551,9 @@ onMounted(() => {
   window.addEventListener('player-state-change', handlePlayerStateChange)
   window.addEventListener('music-play', handlePlayerStateChange)
   
+  // 监听音频时间更新（用于歌词同步）
+  window.addEventListener('audio-time-update', handleTimeUpdate)
+  
   // 获取当前播放状态
   window.dispatchEvent(new CustomEvent('get-player-state'))
 })
@@ -588,6 +561,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('player-state-change', handlePlayerStateChange)
   window.removeEventListener('music-play', handlePlayerStateChange)
+  window.removeEventListener('audio-time-update', handleTimeUpdate)
   
   // 保存播放状态
   savePlayerState()
@@ -596,11 +570,6 @@ onUnmounted(() => {
 // 监听路由变化，重新加载数据
 watch(() => router.currentRoute.value, () => {
   loadPlayerState()
-})
-
-// 监听播放状态变化，同步到 PlayerBar
-watch([isPlaying, currentTime, duration, playMode], () => {
-  syncToPlayerBar()
 })
 </script>
 
@@ -716,15 +685,6 @@ watch([isPlaying, currentTime, duration, playMode], () => {
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
   transition: all 0.3s ease;
-}
-
-.cover-container.rotating {
-  animation: rotate 20s linear infinite;
-}
-
-@keyframes rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }
 
 .album-cover {
