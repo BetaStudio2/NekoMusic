@@ -37,6 +37,23 @@
       <!-- 列表头部标签 -->
       <div class="list-tabs">
         <div class="tab active">歌曲 {{ musicList.length }}</div>
+        <div class="search-wrapper">
+          <svg class="search-icon" viewBox="0 0 20 20">
+            <path fill="currentColor" d="M8 3a5 5 0 100 10A5 5 0 008 3zM0 8a8 8 0 1114.32 4.906l5.387 5.387a1 1 0 01-1.414 1.414l-5.387-5.387A8 8 0 010 8z"/>
+          </svg>
+          <input 
+            v-model="searchQuery" 
+            type="text" 
+            placeholder="搜索音乐..." 
+            class="search-input"
+            @input="handleSearch"
+          />
+          <button v-if="searchQuery" class="clear-btn" @click="clearSearch">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <!-- 歌曲列表 -->
@@ -48,7 +65,7 @@
         <span class="col-actions">操作</span>
       </div>
       <div 
-        v-for="(music, index) in musicList" 
+        v-for="(music, index) in filteredList" 
         :key="music.id"
         :class="['music-item', { playing: currentMusic?.id === music.id }]"
         @dblclick="playMusic(music)"
@@ -100,12 +117,31 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import apiConfig from '../config/apiConfig'
 
 const musicList = ref([])
 const currentMusic = ref(null)
 const favorites = ref([])
+const searchQuery = ref('')
+
+const handleSearch = () => {
+  // 搜索响应由 computed 属性自动处理，这里留空或添加其他逻辑
+}
+
+const clearSearch = () => {
+  searchQuery.value = ''
+}
+
+const filteredList = computed(() => {
+  if (!searchQuery.value) return musicList.value
+  const query = searchQuery.value.toLowerCase()
+  return musicList.value.filter(music => 
+    music.title.toLowerCase().includes(query) ||
+    music.artist.toLowerCase().includes(query) ||
+    (music.album && music.album.toLowerCase().includes(query))
+  )
+})
 
 async function fetchFavorites() {
   const token = localStorage.getItem('token')
@@ -381,8 +417,67 @@ onMounted(async () => {
 .list-tabs {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 16px 0;
   border-bottom: 2px solid transparent;
+}
+
+.search-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e5e5e5;
+  transition: all 0.2s ease;
+  width: 280px;
+}
+
+.search-wrapper:focus-within {
+  border-color: #ED4040;
+  box-shadow: 0 2px 12px rgba(237, 64, 64, 0.15);
+}
+
+.search-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.clear-btn {
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.clear-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary);
 }
 
 .tab {
