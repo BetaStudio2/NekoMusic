@@ -114,7 +114,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import apiConfig from '../config/apiConfig'
 
@@ -350,6 +350,14 @@ const toggleCollect = () => {
     detail: { message, type: 'success' } 
   }))
 }
+
+// 监听路由参数变化，重新加载歌单详情
+watch(() => route.params.id, (newId, oldId) => {
+  if (newId && newId !== oldId) {
+    console.log('歌单ID变化:', oldId, '->', newId)
+    loadPlaylistDetail()
+  }
+})
 
 onMounted(() => {
   loadPlaylistDetail()

@@ -118,11 +118,7 @@
         </div>
       </div>
       <div class="main-content">
-        <router-view v-slot="{ Component }">
-          <transition name="fade" mode="out-in">
-            <component :is="Component" />
-          </transition>
-        </router-view>
+        <router-view />
       </div>
       <PlayerBar />
     </div>
@@ -388,7 +384,6 @@ const loadMyPlaylists = async () => {
 }
 
 const getPlaylistCover = (playlist) => {
-  console.log('获取歌单封面:', playlist)
   if (playlist.firstMusicId) {
     return `https://music.cnmsb.xin/api/music/cover/${playlist.firstMusicId}`
   }
@@ -396,7 +391,14 @@ const getPlaylistCover = (playlist) => {
 }
 
 const openPlaylist = (playlistId) => {
+  console.log('点击歌单:', playlistId)
+  if (currentPlaylistId.value === playlistId && route.path === `/playlist/${playlistId}`) {
+    console.log('已经是当前歌单，跳过')
+    return
+  }
+  currentRoute.value = 'playlist'
   currentPlaylistId.value = playlistId
+  console.log('跳转到歌单详情:', `/playlist/${playlistId}`)
   router.push(`/playlist/${playlistId}`)
 }
 
@@ -706,8 +708,20 @@ const handleUserLogin = (event) => {
 }
 
 watch(() => route.path, (newPath) => {
+  console.log('路由变化:', newPath)
   const path = newPath.replace(/^\//, '') || 'home'
   currentRoute.value = path
+  if (path.startsWith('playlist/')) {
+    const playlistId = parseInt(path.split('/')[1])
+    if (playlistId) {
+      currentPlaylistId.value = playlistId
+      console.log('设置当前歌单ID:', playlistId)
+    } else {
+      currentPlaylistId.value = null
+    }
+  } else {
+    currentPlaylistId.value = null
+  }
 }, { immediate: true })
 </script>
 
@@ -930,6 +944,11 @@ watch(() => route.path, (newPath) => {
 .playlist-item.active {
   background: rgba(255, 255, 255, 0.15);
   border-left-color: var(--primary);
+}
+
+.playlist-item.active .playlist-name {
+  color: white;
+  font-weight: 500;
 }
 
 .playlist-cover {
