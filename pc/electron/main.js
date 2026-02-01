@@ -267,13 +267,16 @@ ipcMain.handle('remove-local-music', async (event, musicId) => {
 
 // 注册本地文件协议
 function registerLocalFileProtocol() {
-  protocol.registerBufferProtocol('local-file', (request, callback) => {
-    // 从 URL 中提取文件路径
-    const filePath = request.url.replace('local-file:///', '')
-    
+  protocol.handle('local-file', async (request) => {
     try {
+      // 从 URL 中提取文件路径
+      const url = new URL(request.url)
+      const filePath = decodeURIComponent(url.pathname.replace(/^\//, ''))
+      
+      console.log('local-file protocol request:', filePath)
+      
       // 读取文件
-      const fileData = fs.readFileSync(filePath)
+      const fileData = await fs.promises.readFile(filePath)
       const ext = path.extname(filePath).toLowerCase()
       
       // 根据 MIME 类型设置
@@ -286,13 +289,17 @@ function registerLocalFileProtocol() {
         '.aac': 'audio/aac'
       }[ext] || 'application/octet-stream'
       
-      callback({
-        data: fileData,
-        mimeType: mimeType
+      console.log('local-file protocol success:', filePath, 'size:', fileData.length, 'type:', mimeType)
+      
+      return new Response(fileData, {
+        headers: {
+          'Content-Type': mimeType,
+          'Content-Length': fileData.length.toString()
+        }
       })
     } catch (error) {
       console.error('读取本地文件失败:', error)
-      callback({ error: -2 }) // 读取失败
+      return new Response('File not found', { status: 404 })
     }
   })
 }

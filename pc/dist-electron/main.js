@@ -1,13 +1,13 @@
-import { app as c, ipcMain as d, dialog as F, shell as N, protocol as C, BrowserWindow as z, nativeImage as S, Tray as I, Menu as L } from "electron";
+import { app as c, ipcMain as f, dialog as F, shell as j, protocol as N, BrowserWindow as L, nativeImage as S, Tray as z, Menu as I } from "electron";
 import i from "path";
 import m from "fs";
 import { fileURLToPath as E } from "url";
-const b = i.dirname(E(import.meta.url)), P = i.join(c.getPath("userData"), "music-library.json"), M = i.join(c.getPath("userData"), "music-cache");
+const b = i.dirname(E(import.meta.url)), v = i.join(c.getPath("userData"), "music-library.json"), M = i.join(c.getPath("userData"), "music-cache");
 m.existsSync(M) || m.mkdirSync(M, { recursive: !0 });
 function x() {
   try {
-    if (m.existsSync(P)) {
-      const e = m.readFileSync(P, "utf-8");
+    if (m.existsSync(v)) {
+      const e = m.readFileSync(v, "utf-8");
       return JSON.parse(e);
     }
   } catch (e) {
@@ -15,16 +15,16 @@ function x() {
   }
   return [];
 }
-function v(e) {
+function P(e) {
   try {
-    return m.writeFileSync(P, JSON.stringify(e, null, 2)), !0;
+    return m.writeFileSync(v, JSON.stringify(e, null, 2)), !0;
   } catch (o) {
     return console.error("保存音乐库失败:", o), !1;
   }
 }
 async function k(e) {
   try {
-    const o = m.statSync(e), s = i.basename(e, i.extname(e)), t = s.split(" - "), r = t[t.length - 1] || s, l = t.length > 1 ? t[0] : "未知艺术家";
+    const o = m.statSync(e), t = i.basename(e, i.extname(e)), s = t.split(" - "), r = s[s.length - 1] || t, l = s.length > 1 ? s[0] : "未知艺术家";
     return {
       id: `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       title: r,
@@ -45,12 +45,12 @@ function D() {
   if (!m.existsSync(o))
     try {
       m.mkdirSync(o, { recursive: !0 }), console.log("已自动创建 NekoMusic 目录:", o);
-    } catch (s) {
-      console.error("创建 NekoMusic 目录失败:", s);
+    } catch (t) {
+      console.error("创建 NekoMusic 目录失败:", t);
     }
   return o;
 }
-d.handle("get-default-scan-path", async () => {
+f.handle("get-default-scan-path", async () => {
   try {
     return { success: !0, path: D() };
   } catch (e) {
@@ -58,60 +58,60 @@ d.handle("get-default-scan-path", async () => {
   }
 });
 function $(e, o = [".mp3", ".wav", ".flac", ".m4a", ".ogg", ".aac"]) {
-  const s = [];
+  const t = [];
   try {
-    let t = function(r) {
+    let s = function(r) {
       const l = m.readdirSync(r);
       for (const u of l) {
         const a = i.join(r, u);
         if (m.statSync(a).isDirectory())
-          t(a);
+          s(a);
         else {
           const y = i.extname(u).toLowerCase();
-          o.includes(y) && s.push(a);
+          o.includes(y) && t.push(a);
         }
       }
     };
     if (!m.existsSync(e))
-      return console.log("默认扫描目录不存在:", e), s;
-    t(e), console.log(`扫描目录 ${e}，找到 ${s.length} 个音频文件`);
-  } catch (t) {
-    console.error("扫描目录失败:", t);
+      return console.log("默认扫描目录不存在:", e), t;
+    s(e), console.log(`扫描目录 ${e}，找到 ${t.length} 个音频文件`);
+  } catch (s) {
+    console.error("扫描目录失败:", s);
   }
-  return s;
+  return t;
 }
-d.handle("scan-default-directory", async () => {
+f.handle("scan-default-directory", async () => {
   try {
     const e = D();
     console.log("开始扫描默认目录:", e);
     const o = $(e);
     if (o.length === 0)
       return { success: !0, message: "默认目录中没有找到音频文件", music: [], total: 0 };
-    const s = x(), t = [];
+    const t = x(), s = [];
     for (const r of o) {
-      if (s.some((a) => a.filePath === r))
+      if (t.some((a) => a.filePath === r))
         continue;
       const u = await k(r);
-      u && (s.push(u), t.push(u));
+      u && (t.push(u), s.push(u));
     }
-    return t.length > 0 ? (v(s), {
+    return s.length > 0 ? (P(t), {
       success: !0,
-      message: `成功导入 ${t.length} 首音乐`,
-      music: t,
-      total: s.length,
+      message: `成功导入 ${s.length} 首音乐`,
+      music: s,
+      total: t.length,
       scanned: o.length
     }) : {
       success: !0,
       message: "所有文件已存在于音乐库中",
       music: [],
-      total: s.length,
+      total: t.length,
       scanned: o.length
     };
   } catch (e) {
     return console.error("扫描默认目录失败:", e), { success: !1, message: e.message };
   }
 });
-d.handle("select-local-music-files", async () => {
+f.handle("select-local-music-files", async () => {
   const e = await F.showOpenDialog({
     properties: ["openFile", "multiSelections"],
     filters: [
@@ -121,38 +121,39 @@ d.handle("select-local-music-files", async () => {
   if (e.canceled || e.filePaths.length === 0)
     return { success: !1, message: "未选择文件" };
   try {
-    const o = x(), s = [];
-    for (const t of e.filePaths) {
-      if (o.some((u) => u.filePath === t))
+    const o = x(), t = [];
+    for (const s of e.filePaths) {
+      if (o.some((u) => u.filePath === s))
         continue;
-      const l = await k(t);
-      l && (o.push(l), s.push(l));
+      const l = await k(s);
+      l && (o.push(l), t.push(l));
     }
-    return s.length > 0 ? (v(o), { success: !0, music: s, total: o.length }) : { success: !1, message: "文件已存在或解析失败" };
+    return t.length > 0 ? (P(o), { success: !0, music: t, total: o.length }) : { success: !1, message: "文件已存在或解析失败" };
   } catch (o) {
     return console.error("导入音乐失败:", o), { success: !1, message: o.message };
   }
 });
-d.handle("get-local-music-library", async () => {
+f.handle("get-local-music-library", async () => {
   try {
     return { success: !0, music: x() };
   } catch (e) {
     return console.error("获取音乐库失败:", e), { success: !1, message: e.message };
   }
 });
-d.handle("remove-local-music", async (e, o) => {
+f.handle("remove-local-music", async (e, o) => {
   try {
-    const s = x(), t = s.findIndex((r) => r.id === o);
-    return t === -1 ? { success: !1, message: "音乐不存在" } : (s.splice(t, 1), v(s), { success: !0, total: s.length });
-  } catch (s) {
-    return console.error("移除音乐失败:", s), { success: !1, message: s.message };
+    const t = x(), s = t.findIndex((r) => r.id === o);
+    return s === -1 ? { success: !1, message: "音乐不存在" } : (t.splice(s, 1), P(t), { success: !0, total: t.length });
+  } catch (t) {
+    return console.error("移除音乐失败:", t), { success: !1, message: t.message };
   }
 });
 function A() {
-  C.registerBufferProtocol("local-file", (e, o) => {
-    const s = e.url.replace("local-file:///", "");
+  N.handle("local-file", async (e) => {
     try {
-      const t = m.readFileSync(s), r = i.extname(s).toLowerCase(), l = {
+      const o = new URL(e.url), t = decodeURIComponent(o.pathname.replace(/^\//, ""));
+      console.log("local-file protocol request:", t);
+      const s = await m.promises.readFile(t), r = i.extname(t).toLowerCase(), l = {
         ".mp3": "audio/mpeg",
         ".wav": "audio/wav",
         ".flac": "audio/flac",
@@ -160,12 +161,14 @@ function A() {
         ".ogg": "audio/ogg",
         ".aac": "audio/aac"
       }[r] || "application/octet-stream";
-      o({
-        data: t,
-        mimeType: l
+      return console.log("local-file protocol success:", t, "size:", s.length, "type:", l), new Response(s, {
+        headers: {
+          "Content-Type": l,
+          "Content-Length": s.length.toString()
+        }
       });
-    } catch (t) {
-      console.error("读取本地文件失败:", t), o({ error: -2 });
+    } catch (o) {
+      return console.error("读取本地文件失败:", o), new Response("File not found", { status: 404 });
     }
   });
 }
@@ -177,8 +180,8 @@ W ? c.on("second-instance", () => {
 }) : (console.log("已经有实例在运行，退出新实例"), c.quit(), process.exit(0));
 function T() {
   console.log("createWindow: 开始创建窗口");
-  const e = process.env.NODE_ENV === "development", o = e ? i.join(b, "../public/icon.png") : i.join(c.getAppPath(), "public/icon.png"), s = i.join(b, "./preload.cjs");
-  if (console.log("createWindow: 图标路径 =", o), console.log("createWindow: preload 路径 =", s), n = new z({
+  const e = process.env.NODE_ENV === "development", o = e ? i.join(b, "../public/icon.png") : i.join(c.getAppPath(), "public/icon.png"), t = i.join(b, "./preload.cjs");
+  if (console.log("createWindow: 图标路径 =", o), console.log("createWindow: preload 路径 =", t), n = new L({
     width: 1200,
     height: 800,
     minWidth: 800,
@@ -188,7 +191,7 @@ function T() {
     icon: o,
     title: "Neko云音乐",
     webPreferences: {
-      preload: s,
+      preload: t,
       nodeIntegration: !1,
       contextIsolation: !0,
       devTools: !0,
@@ -200,17 +203,17 @@ function T() {
     n.webContents.send("window-maximized");
   }), n.on("unmaximize", () => {
     n.webContents.send("window-unmaximized");
-  }), n.webContents.on("before-input-event", (t, r) => {
-    r.control && r.shift && (r.key === "I" || r.key === "i") && t.preventDefault(), r.control && (r.key === "F12" || r.key === "f12") && t.preventDefault(), (r.alt && r.key === "F12" || r.alt && r.key === "f12") && t.preventDefault(), (r.key === "F11" || r.key === "f11") && t.preventDefault();
+  }), n.webContents.on("before-input-event", (s, r) => {
+    r.control && r.shift && (r.key === "I" || r.key === "i") && s.preventDefault(), r.control && (r.key === "F12" || r.key === "f12") && s.preventDefault(), (r.alt && r.key === "F12" || r.alt && r.key === "f12") && s.preventDefault(), (r.key === "F11" || r.key === "f11") && s.preventDefault();
   }), e || !c.isPackaged)
     console.log("createWindow: 加载开发服务器 http://localhost:5173"), n.loadURL("http://localhost:5173");
   else {
     console.log("createWindow: 加载生产文件");
-    const t = c.getAppPath(), r = i.join(t, "dist/index.html");
+    const s = c.getAppPath(), r = i.join(s, "dist/index.html");
     console.log("生产文件路径:", r), n.loadFile(r);
   }
-  n.webContents.openDevTools(), n.on("close", (t) => {
-    c.isQuitting || (t.preventDefault(), n.hide());
+  n.webContents.openDevTools(), n.on("close", (s) => {
+    c.isQuitting || (s.preventDefault(), n.hide());
   }), n.on("closed", () => {
     n = null;
   });
@@ -225,10 +228,10 @@ let h = {
   desktopLyricsEnabled: !1
 };
 function _() {
-  const e = process.env.NODE_ENV === "development", o = e ? i.join(b, "../public/icon.png") : i.join(c.getAppPath(), "public/icon.png"), s = S.createFromPath(o);
-  s.resize({ width: 16, height: 16 }), w = new I(s);
+  const e = process.env.NODE_ENV === "development", o = e ? i.join(b, "../public/icon.png") : i.join(c.getAppPath(), "public/icon.png"), t = S.createFromPath(o);
+  t.resize({ width: 16, height: 16 }), w = new z(t);
   const r = (() => {
-    const a = {}, f = [
+    const a = {}, d = [
       "tray-previous",
       "tray-play",
       "tray-pause",
@@ -242,7 +245,7 @@ function _() {
       "tray-lyrics",
       "tray-exit"
     ], y = e ? i.join(b, "../public") : i.join(c.getAppPath(), "public");
-    return f.forEach((p) => {
+    return d.forEach((p) => {
       try {
         const g = S.createFromPath(i.join(y, `${p}.png`));
         g.resize({ width: 18, height: 18 }), a[p] = g;
@@ -255,7 +258,7 @@ function _() {
       try {
         const a = await n.webContents.executeJavaScript('localStorage.getItem("currentMusic")');
         a ? h.currentMusic = JSON.parse(a) : h.currentMusic = null;
-        const f = await n.webContents.executeJavaScript(`
+        const d = await n.webContents.executeJavaScript(`
         (function() {
           const audio = document.querySelector('audio');
           return {
@@ -265,22 +268,22 @@ function _() {
           };
         })()
       `);
-        f && (h.isPlaying = f.isPlaying);
+        d && (h.isPlaying = d.isPlaying);
       } catch (a) {
         console.error("同步播放状态失败:", a);
       }
   }, u = async () => {
     await l();
     const a = h.currentMusic;
-    let f = "暂无播放";
+    let d = "暂无播放";
     if (a) {
-      const g = a.title || "未知歌曲", j = a.artist || "未知艺术家";
-      f = `${g.length > 15 ? g.substring(0, 15) + "..." : g} - ${j}`;
+      const g = a.title || "未知歌曲", C = a.artist || "未知艺术家";
+      d = `${g.length > 15 ? g.substring(0, 15) + "..." : g} - ${C}`;
     }
     const y = [
       // 顶部：当前播放信息
       {
-        label: f,
+        label: d,
         enabled: !1
       },
       { type: "separator" },
@@ -292,65 +295,65 @@ function _() {
           c.isQuitting = !0, c.quit();
         }
       }
-    ], p = L.buildFromTemplate(y);
+    ], p = I.buildFromTemplate(y);
     w.setContextMenu(p), a ? w.setToolTip(`正在播放: ${a.title} - ${a.artist}`) : w.setToolTip("Neko云音乐");
   };
-  u(), d.on("player-state-changed", (a, f) => {
-    f && (h = { ...h, ...f }, u());
-  }), d.on("music-play", (a, f) => {
-    h.currentMusic = f, h.isPlaying = !0, u();
-  }), d.on("play-state-changed", (a, f) => {
-    h.isPlaying = f, u();
+  u(), f.on("player-state-changed", (a, d) => {
+    d && (h = { ...h, ...d }, u());
+  }), f.on("music-play", (a, d) => {
+    h.currentMusic = d, h.isPlaying = !0, u();
+  }), f.on("play-state-changed", (a, d) => {
+    h.isPlaying = d, u();
   }), w.on("click", () => {
     n && (n.isVisible() ? n.isFocused() ? n.hide() : n.focus() : (n.show(), n.focus()));
   }), setInterval(u, 5e3);
 }
-d.on("window-minimize", () => {
+f.on("window-minimize", () => {
   n && n.minimize();
 });
-d.on("window-maximize", () => {
+f.on("window-maximize", () => {
   n && (n.isMaximized() ? n.unmaximize() : n.maximize());
 });
-d.on("window-close", () => {
+f.on("window-close", () => {
   n && n.hide();
 });
-d.handle("save-file", async (e, o) => {
-  const { fileName: s, fileType: t, suggestedPath: r } = o;
+f.handle("save-file", async (e, o) => {
+  const { fileName: t, fileType: s, suggestedPath: r } = o;
   let l = c.getPath("userData");
-  return r && (l = i.join(l, r)), m.existsSync(l) || m.mkdirSync(l, { recursive: !0 }), i.join(l, s);
+  return r && (l = i.join(l, r)), m.existsSync(l) || m.mkdirSync(l, { recursive: !0 }), i.join(l, t);
 });
-d.handle("write-file", async (e, o, s) => {
+f.handle("write-file", async (e, o, t) => {
   try {
-    const t = Buffer.from(s);
-    return m.writeFileSync(o, t), { success: !0, path: o };
-  } catch (t) {
-    return console.error("写入文件失败:", t), { success: !1, error: t.message };
-  }
-});
-d.handle("open-file", async (e, o) => {
-  try {
-    return await N.openPath(o), { success: !0 };
+    const s = Buffer.from(t);
+    return m.writeFileSync(o, s), { success: !0, path: o };
   } catch (s) {
-    return console.error("打开文件失败:", s), { success: !1, error: s.message };
+    return console.error("写入文件失败:", s), { success: !1, error: s.message };
   }
 });
-d.handle("http-request", async (e, o, s = {}) => {
+f.handle("open-file", async (e, o) => {
   try {
-    const t = await fetch(o, {
-      ...s,
+    return await j.openPath(o), { success: !0 };
+  } catch (t) {
+    return console.error("打开文件失败:", t), { success: !1, error: t.message };
+  }
+});
+f.handle("http-request", async (e, o, t = {}) => {
+  try {
+    const s = await fetch(o, {
+      ...t,
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        ...s.headers || {}
+        ...t.headers || {}
       }
-    }), r = await t.text();
+    }), r = await s.text();
     return {
       success: !0,
-      status: t.status,
+      status: s.status,
       data: r,
-      headers: Object.fromEntries(t.headers.entries())
+      headers: Object.fromEntries(s.headers.entries())
     };
-  } catch (t) {
-    return console.error("HTTP请求失败:", t), { success: !1, error: t.message };
+  } catch (s) {
+    return console.error("HTTP请求失败:", s), { success: !1, error: s.message };
   }
 });
 c.on("ready", () => {

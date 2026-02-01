@@ -958,8 +958,10 @@ const loadMusic = async (music) => {
     // 判断是本地音乐还是在线音乐
     if (music.isLocal && music.filePath) {
       // 本地音乐：通过 Electron 自定义协议加载
-      audioElement.value.src = `local-file:///${music.filePath.replace(/\\/g, '/')}`
-      console.log('✓ 本地音频已加载:', music.filePath)
+      // 使用 encodeURIComponent 正确处理路径中的特殊字符
+      const normalizedPath = music.filePath.replace(/\\/g, '/')
+      audioElement.value.src = `local-file:///${encodeURIComponent(normalizedPath)}`
+      console.log('✓ 本地音频已加载:', music.filePath, 'URL:', audioElement.value.src)
     } else {
       // 在线音乐：通过 API 加载
       audioElement.value.src = `https://music.cnmsb.xin/api/music/file/${music.id}`
