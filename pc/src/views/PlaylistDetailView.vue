@@ -20,7 +20,6 @@
           <h1 class="playlist-name">{{ playlist.name }}</h1>
           <div class="playlist-description">{{ playlist.description || '暂无描述' }}</div>
           <div class="playlist-meta">
-            <span class="playlist-creator">创建者: {{ playlist.creator || '未知' }}</span>
             <span class="playlist-count">{{ playlist.musicCount || musicList.length }} 首音乐</span>
           </div>
           <div class="playlist-actions">
@@ -34,7 +33,7 @@
               <svg viewBox="0 0 24 24" width="20" height="20">
                 <path :fill="isCollected ? '#ff4545' : 'currentColor'" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
               </svg>
-              {{ isCollected ? '已收藏' : '收藏' }}
+              {{ isCollected ? '已收藏歌单' : '收藏歌单' }}
             </button>
           </div>
         </div>
@@ -142,12 +141,27 @@ const loadPlaylistDetail = async () => {
 
   loading.value = true
   try {
-    const response = await apiRequest(apiConfig.PLAYLIST_DETAIL(playlistId))
-    const data = await response.json()
+    // 获取歌单基本信息
+    const detailResponse = await apiRequest(apiConfig.PLAYLIST_DETAIL(playlistId))
+    const detailData = await detailResponse.json()
     
-    if (data.success && data.playlist) {
-      playlist.value = data.playlist
-      musicList.value = data.playlist.musicList || []
+    console.log('歌单详情响应:', detailData)
+    
+    if (detailData.success && detailData.playlist) {
+      playlist.value = detailData.playlist
+      
+      // 获取歌单音乐列表
+      const musicResponse = await apiRequest(apiConfig.PLAYLIST_MUSIC(playlistId))
+      const musicData = await musicResponse.json()
+      
+      console.log('歌单音乐列表响应:', musicData)
+      
+      if (musicData.success && musicData.musicList) {
+        musicList.value = musicData.musicList
+      } else {
+        musicList.value = []
+      }
+      console.log('歌单音乐列表:', musicList.value)
     } else {
       playlist.value = null
       musicList.value = []
@@ -199,12 +213,19 @@ const loadFavorites = async () => {
 }
 
 const getPlaylistCover = () => {
-  if (playlist.value?.firstMusicCover) {
-    const match = playlist.value.firstMusicCover.match(/\/(\d+)\.jpg$/)
-    if (match) {
-      return `https://music.cnmsb.xin/api/music/cover/${match[1]}`
+  // 优先使用歌单详情中的第一首音乐 ID 获取封面
+  if (playlist.value?.firstMusicId) {
+    return `https://music.cnmsb.xin/api/music/cover/${playlist.value.firstMusicId}`
+  }
+  
+  // 如果没有，使用音乐列表中第一首音乐的 ID 获取封面
+  if (musicList.value && musicList.value.length > 0) {
+    const firstMusic = musicList.value[0]
+    if (firstMusic.id) {
+      return `https://music.cnmsb.xin/api/music/cover/${firstMusic.id}`
     }
   }
+  
   return 'https://music.cnmsb.xin/api/user/avatar/default'
 }
 
@@ -321,6 +342,10 @@ const toggleCollect = () => {
   
   isCollected.value = !isCollected.value
   const message = isCollected.value ? '已收藏歌单' : '已取消收藏歌单'
+  /* TODO：未来需要接入API
+  *  暂时无可接入API只作为土司提示
+   */
+
   window.dispatchEvent(new CustomEvent('show-toast', { 
     detail: { message, type: 'success' } 
   }))
@@ -475,7 +500,7 @@ onMounted(() => {
 
 .action-btn.play-all {
   background: var(--gradient-primary);
-  color: white;
+  color: #ffc3c3;
   box-shadow: var(--shadow-md);
 }
 
