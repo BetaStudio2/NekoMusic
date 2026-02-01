@@ -21,6 +21,11 @@ const routes = [
     component: () => import('../views/FavoritesView.vue')
   },
   {
+    path: '/recent',
+    name: 'RecentPlay',
+    component: () => import('../views/RecentPlayView.vue')
+  },
+  {
     path: '/library',
     name: 'Library',
     component: () => import('../views/LibraryView.vue')

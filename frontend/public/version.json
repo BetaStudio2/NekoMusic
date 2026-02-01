@@ -1,4 +1,10 @@
 {
-  "ver": "20260110(8)",
-  "updateUrl": "https://music.cnmsb.xin/20260110-1.apk"
+  "ver": "20260130-27",
+  "updateUrl": "https://music.cnmsb.xin/20260130-27.apk",
+  "pc": {
+    "ver": "20260130-27",
+    "windows": "https://music.cnmsb.xin/20260130-27_pc.zip",
+    "linux": "https://music.cnmsb.xin/20260130-27_pc_linux.zip",
+    "mac": "https://music.cnmsb.xin/20260130-27_pc_mac.zip"
+  }
 }

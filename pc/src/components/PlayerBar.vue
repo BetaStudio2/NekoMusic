@@ -826,6 +826,42 @@ const handleVolumeClick = (event) => {
   handleVolumeChange()
 }
 
+// 添加到最近播放
+const addToRecent = (music) => {
+  if (!music) return
+  
+  try {
+    // 获取当前最近播放列表
+    const recentData = localStorage.getItem('recentPlay')
+    let recentList = []
+    
+    if (recentData) {
+      try {
+        recentList = JSON.parse(recentData)
+      } catch (e) {
+        console.error('解析最近播放列表失败:', e)
+        recentList = []
+      }
+    }
+    
+    // 移除已存在的相同音乐
+    const index = recentList.findIndex(m => m.id === music.id)
+    if (index !== -1) {
+      recentList.splice(index, 1)
+    }
+    
+    // 添加到开头
+    recentList.unshift(music)
+    
+    // 保存到 localStorage
+    localStorage.setItem('recentPlay', JSON.stringify(recentList))
+    
+    console.log('✓ 已添加到最近播放:', music.title, '当前最近播放总数:', recentList.length)
+  } catch (e) {
+    console.error('添加到最近播放失败:', e)
+  }
+}
+
 const loadMusic = (music) => {
   if (!music) return
 
@@ -842,6 +878,9 @@ const loadMusic = (music) => {
   
   // 保存到 localStorage
   localStorage.setItem('currentMusic', JSON.stringify(music))
+  
+  // 添加到最近播放
+  addToRecent(music)
   
   if (audioElement.value) {
     audioElement.value.src = `https://music.cnmsb.xin/api/music/file/${music.id}`
@@ -894,7 +933,10 @@ const handleEnded = () => {
 }
 
 const handleMusicPlay = (event) => {
-  loadMusic(event.detail)
+  const music = event.detail
+  loadMusic(music)
+  // 添加到最近播放
+  addToRecent(music)
   // 等待音频加载完成后再播放
   if (audioElement.value) {
     const checkAndPlay = () => {
