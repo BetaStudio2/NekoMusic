@@ -45,6 +45,7 @@
             :key="playlist.id"
             :class="['playlist-item', { active: currentRoute === 'playlist' && currentPlaylistId === playlist.id }]"
             @click="openPlaylist(playlist.id)"
+            @contextmenu.prevent="showPlaylistContextMenu($event, playlist)"
           >
             <img :src="getPlaylistCover(playlist)" alt="封面" class="playlist-cover" />
             <span class="playlist-name">{{ playlist.name }}</span>
@@ -252,6 +253,55 @@
         </div>
       </div>
     </Transition>
+
+    <!-- 右键菜单 -->
+    <Transition name="context-menu">
+      <div 
+        v-if="contextMenu.visible" 
+        class="context-menu"
+        :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+        @click="contextMenu.visible = false"
+      >
+        <div class="context-menu-item" @click="handleRenamePlaylist">
+          <svg viewBox="0 0 24 24" width="16" height="16">
+            <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+          </svg>
+          <span>重命名</span>
+        </div>
+        <div class="context-menu-item" @click="handleEditPlaylistDescription">
+          <svg viewBox="0 0 24 24" width="16" height="16">
+            <path fill="currentColor" d="M14.06 9.02l.92.92L5.92 19H5v-.92l9.06-9.06M17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83 3.75 3.75 1.83-1.83c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29zm-3.6 3.19L3 17.25V21h3.75L17.81 9.94l-3.75-3.75z"/>
+          </svg>
+          <span>修改描述</span>
+        </div>
+        <div class="context-menu-item danger" @click="handleDeletePlaylist">
+          <svg viewBox="0 0 24 24" width="16" height="16">
+            <path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+          </svg>
+          <span>删除歌单</span>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- 编辑歌单模态框 -->
+    <Transition name="modal">
+      <div v-if="showEditPlaylistModal" class="modal-overlay" @click="showEditPlaylistModal = false">
+        <div class="modal-content modal-small" @click.stop>
+          <h2 class="modal-title">{{ editMode === 'name' ? '重命名歌单' : '修改歌单描述' }}</h2>
+          <input 
+            v-model="editPlaylistValue"
+            type="text" 
+            :placeholder="editMode === 'name' ? '输入新歌单名称' : '输入歌单描述'"
+            class="auth-input"
+            @keyup.enter="handleSavePlaylistEdit"
+          />
+          <div class="modal-buttons">
+            <button class="modal-btn modal-btn-secondary" @click="showEditPlaylistModal = false">取消</button>
+            <button class="modal-btn modal-btn-primary" @click="handleSavePlaylistEdit">保存</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -275,9 +325,23 @@ const username = ref('')
 const currentUser = ref(null)
 const showLoginModal = ref(false)
 const showCreatePlaylistModal = ref(false)
+const showEditPlaylistModal = ref(false)
 const authTab = ref('login')
 const errorMessage = ref('')
 const newPlaylistName = ref('')
+
+// 右键菜单
+const contextMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  playlist: null
+})
+
+// 编辑歌单
+const editMode = ref('name') // 'name' 或 'description'
+const editPlaylistValue = ref('')
+const currentEditPlaylist = ref(null)
 const formData = ref({
   username: '',
   password: '',
@@ -466,6 +530,117 @@ const createPlaylist = async (name) => {
 
   }
 
+}
+
+// 显示右键菜单
+const showPlaylistContextMenu = (event, playlist) => {
+  event.preventDefault()
+  event.stopPropagation()
+  contextMenu.value = {
+    visible: true,
+    x: event.clientX,
+    y: event.clientY,
+    playlist: playlist
+  }
+}
+
+// 处理重命名歌单
+const handleRenamePlaylist = () => {
+  if (!contextMenu.value.playlist) return
+  editMode.value = 'name'
+  editPlaylistValue.value = contextMenu.value.playlist.name
+  currentEditPlaylist.value = contextMenu.value.playlist
+  showEditPlaylistModal.value = true
+}
+
+// 处理修改歌单描述
+const handleEditPlaylistDescription = () => {
+  if (!contextMenu.value.playlist) return
+  editMode.value = 'description'
+  editPlaylistValue.value = contextMenu.value.playlist.description || ''
+  currentEditPlaylist.value = contextMenu.value.playlist
+  showEditPlaylistModal.value = true
+}
+
+// 保存歌单编辑
+const handleSavePlaylistEdit = async () => {
+  if (!currentEditPlaylist.value || !editPlaylistValue.value.trim()) {
+    showToast('请输入有效的内容', 'error')
+    return
+  }
+
+  const token = localStorage.getItem('token')
+  if (!token) {
+    showLoginModal.value = true
+    return
+  }
+
+  try {
+    const updateData = {
+      id: currentEditPlaylist.value.id,
+      name: editMode.value === 'name' ? editPlaylistValue.value.trim() : currentEditPlaylist.value.name
+    }
+    
+    // 只在修改描述时添加 description 字段
+    if (editMode.value === 'description') {
+      updateData.description = editPlaylistValue.value.trim()
+    }
+
+    const response = await apiRequest(apiConfig.PLAYLIST_UPDATE, {
+      method: 'POST',
+      headers: { 'Authorization': token, 'Content-Type': 'application/json' },
+      body: JSON.stringify(updateData)
+    })
+
+    const data = await response.json()
+    if (data.success) {
+      showToast(editMode.value === 'name' ? '歌单重命名成功' : '歌单描述修改成功', 'success')
+      showEditPlaylistModal.value = false
+      loadMyPlaylists()
+    } else {
+      showToast(data.message || '修改失败', 'error')
+    }
+  } catch (error) {
+    console.error('修改歌单失败:', error)
+    showToast('修改失败', 'error')
+  }
+}
+
+// 处理删除歌单
+const handleDeletePlaylist = async () => {
+  if (!contextMenu.value.playlist) return
+
+  const confirmed = confirm(`确定要删除歌单"${contextMenu.value.playlist.name}"吗？此操作不可恢复。`)
+  if (!confirmed) return
+
+  const token = localStorage.getItem('token')
+  if (!token) {
+    showLoginModal.value = true
+    return
+  }
+
+  try {
+    const response = await apiRequest(apiConfig.PLAYLIST_DELETE, {
+      method: 'POST',
+      headers: { 'Authorization': token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: contextMenu.value.playlist.id })
+    })
+
+    const data = await response.json()
+    if (data.success) {
+      showToast('歌单删除成功', 'success')
+      loadMyPlaylists()
+      // 如果删除的是当前正在查看的歌单，跳转到首页
+      if (currentPlaylistId.value === contextMenu.value.playlist.id) {
+        router.push('/home')
+      }
+    } else {
+      showToast(data.message || '删除失败', 'error')
+    }
+  } catch (error) {
+    console.error('删除歌单失败:', error)
+    showToast('删除失败', 'error')
+  }
 }
 
 const isLoggedIn = computed(() => {
@@ -688,6 +863,16 @@ onMounted(() => {
   window.addEventListener('user-logout', handleUserLogout)
   window.addEventListener('user-login', handleUserLogin)
   window.addEventListener('show-toast', handleShowToast)
+  
+  // 点击其他地方关闭右键菜单
+  document.addEventListener('click', () => {
+    contextMenu.value.visible = false
+  })
+  
+  // 路由变化时关闭右键菜单
+  router.afterEach(() => {
+    contextMenu.value.visible = false
+  })
 })
 
 const handleShowToast = (event) => {
@@ -1752,6 +1937,59 @@ watch(() => route.path, (newPath) => {
 .toast-enter-from {
   opacity: 0;
   transform: translateX(100px);
+}
+
+/* 右键菜单 */
+.context-menu {
+  position: fixed;
+  z-index: 999999;
+  background: rgba(42, 42, 42, 0.98);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  min-width: 160px;
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-white-muted);
+  font-size: 14px;
+}
+
+.context-menu-item:hover {
+  background: rgba(102, 126, 234, 0.2);
+  color: white;
+}
+
+.context-menu-item.danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.context-menu-item svg {
+  flex-shrink: 0;
+}
+
+.context-menu-enter-active,
+.context-menu-leave-active {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.context-menu-enter-from {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.context-menu-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
 }
 
 .toast-leave-to {
