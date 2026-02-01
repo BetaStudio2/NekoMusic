@@ -36,6 +36,11 @@ const routes = [
     component: () => import('../views/LibraryView.vue')
   },
   {
+    path: '/local',
+    name: 'LocalMusic',
+    component: () => import('../views/LocalMusicView.vue')
+  },
+  {
     path: '/playlists',
     name: 'Playlists',
     component: () => import('../views/PlaylistsView.vue')
