@@ -124,7 +124,11 @@
         
         <div class="player-progress">
           <span class="time">{{ formatTime(currentTime) }}</span>
-          <div class="progress-bar" @click="seekTo">
+          <div class="progress-bar" 
+             @mousedown="handleProgressMouseDown" 
+             @mouseup="handleProgressMouseUp"
+             @mouseleave="handleProgressMouseUp"
+             @click="seekTo">
             <div class="progress-fill" :style="{ width: progress + '%' }">
               <div class="progress-glow"></div>
             </div>
@@ -305,6 +309,32 @@ const seekTo = (event) => {
   
   // 直接通知 PlayerBar 跳转进度
   window.dispatchEvent(new CustomEvent('seek-to', { detail: seekTime }))
+}
+
+const isProgressDragging = ref(false)
+
+const handleProgressMouseDown = (event) => {
+  isProgressDragging.value = true
+  seekTo(event)
+  event.preventDefault()
+}
+
+const handleProgressMouseUp = () => {
+  isProgressDragging.value = false
+}
+
+const handleGlobalProgressMouseMove = (event) => {
+  if (isProgressDragging.value) {
+    const progressBar = document.querySelector('.progress-bar')
+    if (progressBar) {
+      const rect = progressBar.getBoundingClientRect()
+      const x = event.clientX - rect.left
+      const percentage = Math.max(0, Math.min(1, x / rect.width))
+      const seekTime = percentage * duration.value
+      // 直接通知 PlayerBar 跳转进度
+      window.dispatchEvent(new CustomEvent('seek-to', { detail: seekTime }))
+    }
+  }
 }
 
 const seekToLyric = (time) => {
@@ -563,13 +593,23 @@ onMounted(() => {
   // 监听音频时间更新（用于歌词同步）
   window.addEventListener('audio-time-update', handleTimeUpdate)
   
-  // 全局鼠标事件，处理音量拖动
-  window.addEventListener('mouseup', handleVolumeMouseUp)
-  window.addEventListener('mousemove', (event) => {
+  // 全局鼠标事件，处理音量拖动和进度条拖动
+  const handleGlobalMouseUp = () => {
+    handleVolumeMouseUp()
+    handleProgressMouseUp()
+  }
+  
+  const handleGlobalMouseMove = (event) => {
     if (isVolumeDragging.value) {
       handleVolumeMouseMove(event)
     }
-  })
+    if (isProgressDragging.value) {
+      handleGlobalProgressMouseMove(event)
+    }
+  }
+  
+  window.addEventListener('mouseup', handleGlobalMouseUp)
+  window.addEventListener('mousemove', handleGlobalMouseMove)
   
   // 获取当前播放状态
   window.dispatchEvent(new CustomEvent('get-player-state'))
@@ -579,12 +619,12 @@ onUnmounted(() => {
   window.removeEventListener('player-state-change', handlePlayerStateChange)
   window.removeEventListener('music-play', handlePlayerStateChange)
   window.removeEventListener('audio-time-update', handleTimeUpdate)
-  window.removeEventListener('mouseup', handleVolumeMouseUp)
-  
+  window.removeEventListener('mouseup', handleGlobalMouseUp)
+  window.removeEventListener('mousemove', handleGlobalMouseMove)
+
   // 保存播放状态
   savePlayerState()
 })
-
 // 监听路由变化，重新加载数据
 watch(() => router.currentRoute.value, () => {
   loadPlayerState()
