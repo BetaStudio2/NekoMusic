@@ -153,28 +153,40 @@
           </div>
           <span class="toast-message">{{ toast.message }}</span>
         </div>
+        
+        <div v-if="downloading" key="download-progress" class="toast toast-download">
+          <div class="toast-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20">
+              <path fill="currentColor" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+            </svg>
+          </div>
+          <div class="download-toast-content">
+            <span class="toast-message">下载更新中... {{ downloadProgress }}%</span>
+            <div class="toast-progress-bar">
+              <div class="toast-progress-fill" :style="{ width: downloadProgress + '%' }"></div>
+            </div>
+            <span class="toast-speed">{{ downloadSpeed }}</span>
+          </div>
+        </div>
       </TransitionGroup>
     </div>
 
     <Transition name="modal">
-      <div v-if="showDownloadModal" class="modal-overlay" @click.self="showDownloadModal = false">
+      <div v-if="showUpdateConfirm" class="modal-overlay" @click.self="showUpdateConfirm = false">
         <div class="download-modal">
           <div class="download-header">
-            <h3>下载更新</h3>
-            <p v-if="downloading">正在下载版本 {{ latestVersion }}</p>
-            <p v-else>下载完成！</p>
-          </div>
-          <div class="download-progress">
-            <div class="progress-bar">
-              <div class="progress-fill" :style="{ width: downloadProgress + '%' }"></div>
+            <div class="success-icon">
+              <svg viewBox="0 0 24 24" width="64" height="64">
+                <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+              </svg>
             </div>
-            <div class="progress-info">
-              <span class="progress-text">{{ downloadProgress }}%</span>
-              <span class="progress-speed">{{ downloadSpeed }}</span>
-            </div>
+            <h3>更新下载完成</h3>
+            <p>版本 {{ latestVersion }} 已下载完成</p>
+            <p class="file-path">{{ downloadedFilePath }}</p>
           </div>
-          <div v-if="!downloading" class="download-actions">
-            <button class="download-action-btn" @click="showDownloadModal = false">关闭</button>
+          <div class="download-actions">
+            <button class="download-action-btn btn-cancel" @click="handleCancelUpdate">稍后安装</button>
+            <button class="download-action-btn btn-install" @click="handleInstallUpdate">立即安装</button>
           </div>
         </div>
       </div>
@@ -216,6 +228,8 @@ const downloading = ref(false)
 const downloadProgress = ref(0)
 const downloadSpeed = ref('')
 const showDownloadModal = ref(false)
+const showUpdateConfirm = ref(false)
+const downloadedFilePath = ref('')
 
 // 监听全局下载事件
 onMounted(() => {
@@ -231,9 +245,11 @@ onMounted(() => {
   
   // 监听来自 App.vue 的下载事件
   window.addEventListener('start-download', (event) => {
+    console.log('收到下载事件:', event.detail)
     const { url, version } = event.detail
     downloadUrl.value = url
     latestVersion.value = version
+    console.log('开始下载:', url, version)
     handleDownload()
   })
 })
@@ -347,7 +363,6 @@ const handleDownload = async () => {
   downloading.value = true
   downloadProgress.value = 0
   downloadSpeed.value = ''
-  showDownloadModal.value = true
   
   try {
     const response = await fetch(downloadUrl.value)
@@ -393,7 +408,8 @@ const handleDownload = async () => {
       
       if (filePath) {
         await window.electronAPI.writeFile(filePath, await blob.arrayBuffer())
-        showToast(`下载完成，保存到: ${filePath}`, 'success')
+        downloadedFilePath.value = filePath
+        showUpdateConfirm.value = true
       } else {
         showToast('下载已取消', 'info')
       }
@@ -409,10 +425,21 @@ const handleDownload = async () => {
     showToast('下载失败: ' + error.message, 'error')
   } finally {
     downloading.value = false
-    setTimeout(() => {
-      showDownloadModal.value = false
-    }, 2000)
+    downloadProgress.value = 0
+    downloadSpeed.value = ''
   }
+}
+
+const handleInstallUpdate = () => {
+  if (downloadedFilePath.value && window.electronAPI) {
+    window.electronAPI.openFile(downloadedFilePath.value)
+    showUpdateConfirm.value = false
+  }
+}
+
+const handleCancelUpdate = () => {
+  showUpdateConfirm.value = false
+  downloadedFilePath.value = ''
 }
 
 const sendVerificationCode = async () => {
@@ -552,26 +579,6 @@ const handleSubmit = async () => {
     showToast(errorMessage.value, 'error')
   }
 }
-
-onMounted(() => {
-  const userStr = localStorage.getItem('user')
-  if (userStr) {
-    try {
-      const user = JSON.parse(userStr)
-      currentUser.value = user
-    } catch (e) {
-      console.error('解析用户信息失败:', e)
-    }
-  }
-  
-  // 监听来自 App.vue 的下载事件
-  window.addEventListener('start-download', (event) => {
-    const { url, version } = event.detail
-    downloadUrl.value = url
-    latestVersion.value = version
-    handleDownload()
-  })
-})
 </script>
 
 <style scoped>
@@ -687,82 +694,74 @@ onMounted(() => {
   border-radius: 16px;
   padding: 32px;
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
 .download-header {
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
+}
+
+.success-icon {
+  color: #4caf50;
+  margin-bottom: 16px;
 }
 
 .download-header h3 {
-  font-size: 20px;
+  font-size: 22px;
   color: #333;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  font-weight: 600;
 }
 
 .download-header p {
   color: #666;
   font-size: 14px;
-  margin: 0;
+  margin: 4px 0;
 }
 
-.download-progress {
-  margin-bottom: 24px;
-}
-
-.progress-bar {
-  height: 8px;
-  background: #f0f0f0;
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 12px;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-  transition: width 0.3s ease;
-  border-radius: 4px;
-}
-
-.progress-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.progress-text {
-  color: #333;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.progress-speed {
+.download-header .file-path {
+  font-size: 12px;
   color: #999;
-  font-size: 13px;
+  word-break: break-all;
+  margin-top: 8px;
 }
 
 .download-actions {
   display: flex;
-  justify-content: center;
+  gap: 12px;
 }
 
 .download-action-btn {
-  padding: 12px 32px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  flex: 1;
+  padding: 14px 20px;
   border: none;
   border-radius: 8px;
-  color: white;
   font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
 }
 
-.download-action-btn:hover {
+.btn-cancel {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.btn-cancel:hover {
+  background: #e8e8e8;
+  color: #333;
+}
+
+.btn-install {
+  background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+  color: white;
+}
+
+.btn-install:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
 }
 
 .account-info {
@@ -1182,6 +1181,40 @@ onMounted(() => {
 .toast-info {
   background: rgba(33, 150, 243, 0.9);
   border-left: 4px solid #2196f3;
+}
+
+.toast-download {
+  background: rgba(102, 126, 234, 0.95);
+  border-left: 4px solid #667eea;
+  min-width: 320px;
+}
+
+.download-toast-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  flex: 1;
+}
+
+.toast-progress-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.toast-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.7) 100%);
+  transition: width 0.3s ease;
+  border-radius: 2px;
+}
+
+.toast-speed {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .toast-icon {

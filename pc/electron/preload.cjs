@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 文件操作
   saveFile: (options) => ipcRenderer.invoke('save-file', options),
   writeFile: (filePath, data) => ipcRenderer.invoke('write-file', filePath, data),
+  openFile: (filePath) => ipcRenderer.invoke('open-file', filePath),
   
   // 其他可以暴露的 API
   platform: process.platform,

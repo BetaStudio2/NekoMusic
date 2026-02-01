@@ -48,17 +48,14 @@ onMounted(() => {
 })
 
 const handleIgnore = () => {
+  emit('ignore')
   show.value = false
-  setTimeout(() => {
-    emit('ignore')
-  }, 300)
 }
 
 const handleUpdate = () => {
+  console.log('UpdateNotification handleUpdate 被调用')
+  emit('update')
   show.value = false
-  setTimeout(() => {
-    emit('update')
-  }, 300)
 }
 </script>
 

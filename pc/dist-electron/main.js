@@ -1,28 +1,28 @@
-import { app as o, ipcMain as d, BrowserWindow as k, nativeImage as v, Tray as T, Menu as M } from "electron";
-import a from "path";
-import b from "fs";
-import { fileURLToPath as z } from "url";
-const h = a.dirname(z(import.meta.url));
-let e, g;
+import { app as o, ipcMain as u, shell as k, BrowserWindow as T, nativeImage as b, Tray as M, Menu as z } from "electron";
+import r from "path";
+import v from "fs";
+import { fileURLToPath as D } from "url";
+const g = r.dirname(D(import.meta.url));
+let e, h;
 o.isQuitting = !1;
-const D = o.requestSingleInstanceLock();
-D ? o.on("second-instance", () => {
+const j = o.requestSingleInstanceLock();
+j ? o.on("second-instance", () => {
   e && (e.isMinimized() && e.restore(), e.focus());
 }) : (console.log("已经有实例在运行，退出新实例"), o.quit(), process.exit(0));
 function P() {
   console.log("createWindow: 开始创建窗口");
-  const f = process.env.NODE_ENV === "development", r = f ? a.join(h, "../public/icon.png") : a.join(o.getAppPath(), "public/icon.png"), l = a.join(h, "./preload.cjs");
-  if (console.log("createWindow: 图标路径 =", r), console.log("createWindow: preload 路径 =", l), e = new k({
+  const d = process.env.NODE_ENV === "development", c = d ? r.join(g, "../public/icon.png") : r.join(o.getAppPath(), "public/icon.png"), a = r.join(g, "./preload.cjs");
+  if (console.log("createWindow: 图标路径 =", c), console.log("createWindow: preload 路径 =", a), e = new T({
     width: 1200,
     height: 800,
     minWidth: 800,
     minHeight: 600,
     frame: !1,
     autoHideMenuBar: !0,
-    icon: r,
+    icon: c,
     title: "Neko云音乐",
     webPreferences: {
-      preload: l,
+      preload: a,
       nodeIntegration: !1,
       contextIsolation: !0,
       devTools: !0,
@@ -36,11 +36,11 @@ function P() {
     e.webContents.send("window-unmaximized");
   }), e.webContents.on("before-input-event", (n, t) => {
     t.control && t.shift && (t.key === "I" || t.key === "i") && n.preventDefault(), t.control && (t.key === "F12" || t.key === "f12") && n.preventDefault(), (t.alt && t.key === "F12" || t.alt && t.key === "f12") && n.preventDefault(), (t.key === "F11" || t.key === "f11") && n.preventDefault();
-  }), f || !o.isPackaged)
+  }), d || !o.isPackaged)
     console.log("createWindow: 加载开发服务器 http://localhost:5173"), e.loadURL("http://localhost:5173");
   else {
     console.log("createWindow: 加载生产文件");
-    const n = o.getAppPath(), t = a.join(n, "dist/index.html");
+    const n = o.getAppPath(), t = r.join(n, "dist/index.html");
     console.log("生产文件路径:", t), e.loadFile(t);
   }
   e.webContents.openDevTools(), e.on("close", (n) => {
@@ -49,7 +49,7 @@ function P() {
     e = null;
   });
 }
-let c = {
+let l = {
   currentMusic: null,
   isPlaying: !1,
   playMode: "list",
@@ -58,9 +58,9 @@ let c = {
   lyricsEnabled: !1,
   desktopLyricsEnabled: !1
 };
-function j() {
-  const f = process.env.NODE_ENV === "development", r = f ? a.join(h, "../public/icon.png") : a.join(o.getAppPath(), "public/icon.png"), l = v.createFromPath(r);
-  l.resize({ width: 16, height: 16 }), g = new T(l);
+function N() {
+  const d = process.env.NODE_ENV === "development", c = d ? r.join(g, "../public/icon.png") : r.join(o.getAppPath(), "public/icon.png"), a = b.createFromPath(c);
+  a.resize({ width: 16, height: 16 }), h = new M(a);
   const t = (() => {
     const i = {}, s = [
       "tray-previous",
@@ -75,20 +75,20 @@ function j() {
       "tray-minimize",
       "tray-lyrics",
       "tray-exit"
-    ], w = f ? a.join(h, "../public") : a.join(o.getAppPath(), "public");
+    ], w = d ? r.join(g, "../public") : r.join(o.getAppPath(), "public");
     return s.forEach((m) => {
       try {
-        const u = v.createFromPath(a.join(w, `${m}.png`));
-        u.resize({ width: 18, height: 18 }), i[m] = u;
-      } catch (u) {
-        console.warn(`Failed to load icon: ${m}`, u);
+        const f = b.createFromPath(r.join(w, `${m}.png`));
+        f.resize({ width: 18, height: 18 }), i[m] = f;
+      } catch (f) {
+        console.warn(`Failed to load icon: ${m}`, f);
       }
     }), i;
   })(), p = async () => {
     if (e)
       try {
         const i = await e.webContents.executeJavaScript('localStorage.getItem("currentMusic")');
-        i ? c.currentMusic = JSON.parse(i) : c.currentMusic = null;
+        i ? l.currentMusic = JSON.parse(i) : l.currentMusic = null;
         const s = await e.webContents.executeJavaScript(`
         (function() {
           const audio = document.querySelector('audio');
@@ -99,17 +99,17 @@ function j() {
           };
         })()
       `);
-        s && (c.isPlaying = s.isPlaying);
+        s && (l.isPlaying = s.isPlaying);
       } catch (i) {
         console.error("同步播放状态失败:", i);
       }
   }, y = async () => {
     await p();
-    const i = c.currentMusic;
+    const i = l.currentMusic;
     let s = "暂无播放";
     if (i) {
-      const u = i.title || "未知歌曲", x = i.artist || "未知艺术家";
-      s = `${u.length > 15 ? u.substring(0, 15) + "..." : u} - ${x}`;
+      const f = i.title || "未知歌曲", x = i.artist || "未知艺术家";
+      s = `${f.length > 15 ? f.substring(0, 15) + "..." : f} - ${x}`;
     }
     const w = [
       // 顶部：当前播放信息
@@ -126,39 +126,46 @@ function j() {
           o.isQuitting = !0, o.quit();
         }
       }
-    ], m = M.buildFromTemplate(w);
-    g.setContextMenu(m), i ? g.setToolTip(`正在播放: ${i.title} - ${i.artist}`) : g.setToolTip("Neko云音乐");
+    ], m = z.buildFromTemplate(w);
+    h.setContextMenu(m), i ? h.setToolTip(`正在播放: ${i.title} - ${i.artist}`) : h.setToolTip("Neko云音乐");
   };
-  y(), d.on("player-state-changed", (i, s) => {
-    s && (c = { ...c, ...s }, y());
-  }), d.on("music-play", (i, s) => {
-    c.currentMusic = s, c.isPlaying = !0, y();
-  }), d.on("play-state-changed", (i, s) => {
-    c.isPlaying = s, y();
-  }), g.on("click", () => {
+  y(), u.on("player-state-changed", (i, s) => {
+    s && (l = { ...l, ...s }, y());
+  }), u.on("music-play", (i, s) => {
+    l.currentMusic = s, l.isPlaying = !0, y();
+  }), u.on("play-state-changed", (i, s) => {
+    l.isPlaying = s, y();
+  }), h.on("click", () => {
     e && (e.isVisible() ? e.isFocused() ? e.hide() : e.focus() : (e.show(), e.focus()));
   }), setInterval(y, 5e3);
 }
-d.on("window-minimize", () => {
+u.on("window-minimize", () => {
   e && e.minimize();
 });
-d.on("window-maximize", () => {
+u.on("window-maximize", () => {
   e && (e.isMaximized() ? e.unmaximize() : e.maximize());
 });
-d.on("window-close", () => {
+u.on("window-close", () => {
   e && e.hide();
 });
-d.handle("save-file", async (f, r) => {
-  const { fileName: l, fileType: n, suggestedPath: t } = r;
+u.handle("save-file", async (d, c) => {
+  const { fileName: a, fileType: n, suggestedPath: t } = c;
   let p = o.getPath("userData");
-  return t && (p = a.join(p, t)), b.existsSync(p) || b.mkdirSync(p, { recursive: !0 }), a.join(p, l);
+  return t && (p = r.join(p, t)), v.existsSync(p) || v.mkdirSync(p, { recursive: !0 }), r.join(p, a);
 });
-d.handle("write-file", async (f, r, l) => {
+u.handle("write-file", async (d, c, a) => {
   try {
-    const n = Buffer.from(l);
-    return b.writeFileSync(r, n), { success: !0, path: r };
+    const n = Buffer.from(a);
+    return v.writeFileSync(c, n), { success: !0, path: c };
   } catch (n) {
     return console.error("写入文件失败:", n), { success: !1, error: n.message };
+  }
+});
+u.handle("open-file", async (d, c) => {
+  try {
+    return await k.openPath(c), { success: !0 };
+  } catch (a) {
+    return console.error("打开文件失败:", a), { success: !1, error: a.message };
   }
 });
 o.on("ready", () => {
@@ -170,7 +177,7 @@ o.on("ready", () => {
     console.log("窗口已存在，显示窗口"), e.show(), e.focus();
     return;
   }
-  console.log("创建新窗口，NODE_ENV:", process.env.NODE_ENV), P(), j();
+  console.log("创建新窗口，NODE_ENV:", process.env.NODE_ENV), P(), N();
 });
 o.on("will-quit", () => {
 });

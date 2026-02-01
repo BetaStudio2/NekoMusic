@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
@@ -337,6 +337,16 @@ ipcMain.handle('write-file', async (event, filePath, data) => {
     return { success: true, path: filePath }
   } catch (error) {
     console.error('写入文件失败:', error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle('open-file', async (event, filePath) => {
+  try {
+    await shell.openPath(filePath)
+    return { success: true }
+  } catch (error) {
+    console.error('打开文件失败:', error)
     return { success: false, error: error.message }
   }
 })
