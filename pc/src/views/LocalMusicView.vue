@@ -383,12 +383,6 @@ onMounted(() => {
   color: var(--text-muted);
   display: flex;
   align-items: center;
-  gap: 6px;
-}
-
-.scan-path::before {
-  content: '📁';
-  font-size: 14px;
 }
 
 .header-actions {

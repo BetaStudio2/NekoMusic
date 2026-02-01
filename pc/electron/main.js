@@ -70,6 +70,17 @@ async function getAudioMetadata(filePath) {
 function getDefaultScanDirectory() {
   const downloadsPath = app.getPath('downloads')
   const nekoMusicPath = path.join(downloadsPath, 'NekoMusic')
+  
+  // 如果目录不存在，自动创建
+  if (!fs.existsSync(nekoMusicPath)) {
+    try {
+      fs.mkdirSync(nekoMusicPath, { recursive: true })
+      console.log('已自动创建 NekoMusic 目录:', nekoMusicPath)
+    } catch (error) {
+      console.error('创建 NekoMusic 目录失败:', error)
+    }
+  }
+  
   return nekoMusicPath
 }
 
