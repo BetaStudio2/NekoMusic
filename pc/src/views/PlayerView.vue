@@ -4,8 +4,18 @@
     <div class="top-bar">
       <!-- 左侧关闭按钮 -->
       <button class="close-btn" @click="closePlayer" title="关闭">
-        <svg viewBox="0 0 24 24" width="20" height="20">
-          <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+        <svg
+            t="1769917770785"
+            class="icon"
+            viewBox="0 0 1024 1024"
+            version="1.1"
+            xmlns="http://www.w3.org/2000/svg"
+            width="128"
+            height="128"
+        >
+          <g transform="scale(1,-1) translate(0,-1024)">
+            <path d="M579.669333 280.661333a64.426667 64.426667 0 0 0-54.272-24.405333c-19.029333-3.157333-36.949333 11.605333-51.712 24.32L104.277333 648.789333a59.733333 59.733333 0 1 0 84.48 84.48L526.506667 387.328l311.637333 352.426667a59.733333 59.733333 0 0 0 84.48-84.48z"></path>
+          </g>
         </svg>
       </button>
 
@@ -75,51 +85,91 @@
     </div>
 
     <!-- 底部播放控制 -->
-    <div v-if="currentMusic" class="player-controls">
-      <!-- 进度条 -->
-      <div class="progress-section">
-        <span class="time">{{ formatTime(currentTime) }}</span>
-        <div class="progress-bar" @click="seekTo">
-          <div class="progress-fill" :style="{ width: progress + '%' }"></div>
-          <div class="progress-thumb" :style="{ left: progress + '%' }"></div>
+    <div v-if="currentMusic" class="player-controls glass">
+      <!-- 左侧歌曲信息（不显示封面） -->
+      <div class="player-info">
+        <div class="player-details">
+          <span class="player-title">{{ currentMusic.title }}</span>
+          <span class="player-artist">{{ currentMusic.artist }}</span>
         </div>
-        <span class="time">{{ formatTime(duration) }}</span>
       </div>
-
-      <!-- 控制按钮 -->
-      <div class="control-buttons">
-        <button class="control-btn" @click="togglePlayMode" :title="playModeTitle">
-          <svg v-if="playMode === 'list'" viewBox="0 0 24 24" width="20" height="20">
-            <path fill="currentColor" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
-          </svg>
-          <svg v-else-if="playMode === 'single'" viewBox="0 0 24 24" width="20" height="20">
-            <path fill="currentColor" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
-          </svg>
-          <svg v-else viewBox="0 0 24 24" width="20" height="20">
-            <path fill="currentColor" d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/>
-          </svg>
-        </button>
-        <button class="control-btn" @click="previous" title="上一首">
-          <svg viewBox="0 0 24 24" width="20" height="20">
-            <path fill="currentColor" d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
-          </svg>
-        </button>
-        <button class="control-btn play-btn" @click="togglePlay">
-          <svg v-if="!isPlaying" viewBox="0 0 24 24" width="28" height="28">
-            <path fill="currentColor" d="M8 5v14l11-7z"/>
-          </svg>
-          <svg v-else viewBox="0 0 24 24" width="28" height="28">
-            <path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
-          </svg>
-        </button>
-        <button class="control-btn" @click="next" title="下一首">
-          <svg viewBox="0 0 24 24" width="20" height="20">
-            <path fill="currentColor" d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
-          </svg>
-        </button>
-        <button class="control-btn favorite-btn" @click="toggleFavorite" :class="{ active: isFavorite }" title="收藏">
-          <svg viewBox="0 0 24 24" width="20" height="20">
-            <path fill="currentColor" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+      
+      <!-- 中间播放控制 -->
+      <div class="player-controls-main">
+        <div class="control-buttons">
+          <button class="control-btn" @click="togglePlayMode" :title="playModeTitle" :class="{ active: playMode !== 'off' }">
+            <img v-if="playMode === 'list'" src="/icon-list-loop.png" alt="列表循环" width="18" height="18" />
+            <img v-else-if="playMode === 'single'" src="/icon-single-loop.png" alt="单曲循环" width="18" height="18" />
+            <img v-else src="/icon-shuffle.png" alt="随机播放" width="18" height="18" />
+          </button>
+          <button class="control-btn" @click="previous" title="上一首">
+            <svg viewBox="0 0 24 24" width="20" height="20">
+              <path fill="currentColor" d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
+            </svg>
+          </button>
+          <button class="control-btn play-btn" @click="togglePlay" :title="isPlaying ? '暂停' : '播放'">
+            <svg v-if="!isPlaying" viewBox="0 0 24 24" width="24" height="24">
+              <path fill="currentColor" d="M8 5v14l11-7z"/>
+            </svg>
+            <svg v-else viewBox="0 0 24 24" width="24" height="24">
+              <path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+            </svg>
+          </button>
+          <button class="control-btn" @click="next" title="下一首">
+            <svg viewBox="0 0 24 24" width="20" height="20">
+              <path fill="currentColor" d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+            </svg>
+          </button>
+          <button class="control-btn favorite-btn" @click="toggleFavorite" :class="{ active: isFavorite }" title="收藏">
+            <svg viewBox="0 0 24 24" width="20" height="20">
+              <path :fill="isFavorite ? '#ff4545' : 'currentColor'" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+            </svg>
+          </button>
+        </div>
+        
+        <div class="player-progress">
+          <span class="time">{{ formatTime(currentTime) }}</span>
+          <div class="progress-bar" @click="seekTo">
+            <div class="progress-fill" :style="{ width: progress + '%' }">
+              <div class="progress-glow"></div>
+            </div>
+            <div class="progress-thumb" :style="{ left: progress + '%' }">
+              <div class="thumb-glow"></div>
+            </div>
+          </div>
+          <span class="time">{{ formatTime(duration) }}</span>
+        </div>
+      </div>
+      
+      <!-- 右侧控制 -->
+      <div class="player-controls-right">
+        <div class="volume-wrapper">
+          <button class="control-btn" @click="toggleMute" :title="isMuted ? '取消静音' : '静音'">
+            <svg v-if="!isMuted && volume > 50" viewBox="0 0 24 24" width="18" height="18">
+              <path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+            </svg>
+            <svg v-else-if="!isMuted && volume > 0" viewBox="0 0 24 24" width="18" height="18">
+              <path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+            </svg>
+            <svg v-else viewBox="0 0 24 24" width="18" height="18">
+              <path fill="currentColor" d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+            </svg>
+          </button>
+          
+          <div class="volume-panel">
+            <div class="volume-slider-vertical" @mousedown="handleVolumeMouseDown" @mousemove="handleVolumeMouseMove">
+              <div class="volume-track">
+                <div class="volume-fill" :style="{ height: volume + '%' }"></div>
+              </div>
+              <div class="volume-thumb" :style="{ bottom: volume + '%' }"></div>
+            </div>
+            <div class="volume-value">{{ volume }}%</div>
+          </div>
+        </div>
+        
+        <button class="control-btn" @click="togglePlaylist" title="播放列表">
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path fill="currentColor" d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
           </svg>
         </button>
       </div>
@@ -148,8 +198,51 @@ const currentTime = ref(0)
 const duration = ref(0)
 const lyrics = ref([])
 const currentLyricIndex = ref(0)
-const audioElement = ref(null)
-const lyricsContainer = ref(null)
+const volume = ref(100)
+const isMuted = ref(false)
+
+const toggleMute = () => {
+  isMuted.value = !isMuted.value
+  if (audioElement.value) {
+    audioElement.value.muted = isMuted.value
+  }
+}
+
+const handleVolumeMouseDown = (event) => {
+  isVolumeDragging.value = true
+  handleVolumeClick(event)
+  event.preventDefault()
+}
+
+const handleVolumeMouseMove = (event) => {
+  if (isVolumeDragging.value && event.currentTarget) {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const y = rect.bottom - event.clientY
+    const percentage = Math.max(0, Math.min(100, (y / rect.height) * 100))
+    volume.value = Math.round(percentage)
+    if (audioElement.value) {
+      audioElement.value.volume = volume.value / 100
+    }
+  }
+}
+
+const handleVolumeMouseUp = () => {
+  isVolumeDragging.value = false
+}
+
+const handleVolumeClick = (event) => {
+  const rect = event.currentTarget.getBoundingClientRect()
+  const y = rect.bottom - event.clientY
+  const percentage = Math.min(100, Math.max(0, (y / rect.height) * 100))
+  volume.value = Math.round(percentage)
+  if (audioElement.value) {
+    audioElement.value.volume = volume.value / 100
+  }
+}
+
+const togglePlaylist = () => {
+  console.log('切换播放列表')
+}
 
 const isFavorite = ref(false)
 const favorites = ref([])
@@ -525,6 +618,11 @@ watch([isPlaying, currentTime, duration, playMode], () => {
   animation: fadeIn 0.3s ease;
 }
 
+:root {
+  --radius-md: 8px;
+  --transition-normal: 0.2s ease;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -727,25 +825,118 @@ watch([isPlaying, currentTime, duration, playMode], () => {
   bottom: 0;
   left: 0;
   right: 0;
-  background: rgba(0, 0, 0, 0.3);
+  height: 90px;
+  background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
-  padding: 20px 40px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.progress-section {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
-  gap: 16px;
+  padding: 0 24px;
+  gap: 24px;
+}
+
+.player-info {
+  display: flex;
+  align-items: center;
+  width: 280px;
+  flex-shrink: 0;
+}
+
+.player-details {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.player-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-artist {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.player-controls-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 400px;
+}
+
+.control-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.control-btn {
+  width: 38px;
+  height: 38px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  transition: all var(--transition-normal);
+}
+
+.control-btn:hover {
+  background: rgba(102, 126, 234, 0.1);
+  color: var(--primary);
+  transform: scale(1.1);
+}
+
+.control-btn.active {
+  color: var(--primary);
+  background: rgba(102, 126, 234, 0.1);
+}
+
+.play-btn {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+}
+
+.favorite-btn.active {
+  color: #ff4545;
+  background: rgba(255, 69, 69, 0.2);
+}
+
+.favorite-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.player-progress {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .time {
-  font-size: 14px;
+  font-size: 12px;
   color: rgba(255, 255, 255, 0.6);
-  min-width: 50px;
+  min-width: 42px;
   text-align: center;
+  font-weight: 500;
 }
 
 .progress-bar {
@@ -770,6 +961,17 @@ watch([isPlaying, currentTime, duration, playMode], () => {
   transition: width 0.1s linear;
 }
 
+.progress-glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  filter: blur(8px);
+  opacity: 0.6;
+}
+
 .progress-thumb {
   position: absolute;
   top: 50%;
@@ -782,47 +984,114 @@ watch([isPlaying, currentTime, duration, playMode], () => {
   transition: all 0.2s ease;
 }
 
+.thumb-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  background: white;
+  border-radius: 50%;
+  filter: blur(8px);
+  opacity: 0.5;
+}
+
 .progress-bar:hover .progress-thumb {
   width: 18px;
   height: 18px;
 }
 
-.control-buttons {
+.player-controls-right {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 24px;
+  gap: 8px;
 }
 
-.control-btn {
-  width: 48px;
-  height: 48px;
-  border: none;
-  background: rgba(255, 255, 255, 0.1);
+.volume-wrapper {
+  position: relative;
+}
+
+.volume-panel {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 12px;
+  padding: 12px 8px;
+  background: rgba(0, 0, 0, 0.8);
+  border-radius: 8px;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.volume-wrapper:hover .volume-panel {
+  display: flex;
+}
+
+.volume-slider-vertical {
+  width: 24px;
+  height: 100px;
+  position: relative;
+  cursor: pointer;
+}
+
+.volume-track {
+  width: 4px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.volume-fill {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+  border-radius: 2px;
+  bottom: 0;
+}
+
+.volume-thumb {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 12px;
+  background: white;
   border-radius: 50%;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-.control-btn:hover {
+.volume-value {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+}
+
+/* 滚动条样式 */
+.lyrics-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.lyrics-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.lyrics-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.lyrics-container::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
-  transform: scale(1.1);
-}
-
-.play-btn {
-  width: 64px;
-  height: 64px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
-}
-
-.favorite-btn.active {
-  color: #ff4545;
-  background: rgba(255, 69, 69, 0.2);
 }
 
 .no-music {
@@ -847,24 +1116,6 @@ watch([isPlaying, currentTime, duration, playMode], () => {
 }
 
 .btn-back:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-/* 滚动条样式 */
-.lyrics-container::-webkit-scrollbar {
-  width: 6px;
-}
-
-.lyrics-container::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.lyrics-container::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
-}
-
-.lyrics-container::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
 </style>
