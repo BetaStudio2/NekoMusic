@@ -217,6 +217,27 @@ const downloadProgress = ref(0)
 const downloadSpeed = ref('')
 const showDownloadModal = ref(false)
 
+// 监听全局下载事件
+onMounted(() => {
+  const userStr = localStorage.getItem('user')
+  if (userStr) {
+    try {
+      const user = JSON.parse(userStr)
+      currentUser.value = user
+    } catch (e) {
+      console.error('解析用户信息失败:', e)
+    }
+  }
+  
+  // 监听来自 App.vue 的下载事件
+  window.addEventListener('start-download', (event) => {
+    const { url, version } = event.detail
+    downloadUrl.value = url
+    latestVersion.value = version
+    handleDownload()
+  })
+})
+
 // 统一的 API 请求函数
 async function apiRequest(url, options = {}) {
   const fullUrl = url.startsWith('http') ? url : `${apiConfig.BASE_URL}${url}`
@@ -542,6 +563,14 @@ onMounted(() => {
       console.error('解析用户信息失败:', e)
     }
   }
+  
+  // 监听来自 App.vue 的下载事件
+  window.addEventListener('start-download', (event) => {
+    const { url, version } = event.detail
+    downloadUrl.value = url
+    latestVersion.value = version
+    handleDownload()
+  })
 })
 </script>
 
