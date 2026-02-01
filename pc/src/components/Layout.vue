@@ -302,6 +302,25 @@
         </div>
       </div>
     </Transition>
+
+    <!-- 确认对话框 -->
+    <Transition name="modal">
+      <div v-if="showConfirmDialog" class="modal-overlay" @click="showConfirmDialog = false">
+        <div class="modal-content modal-small modal-confirm" @click.stop>
+          <div class="confirm-icon-wrapper">
+            <svg class="confirm-icon" viewBox="0 0 24 24" width="48" height="48">
+              <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            </svg>
+          </div>
+          <h2 class="modal-title">{{ confirmDialog.title }}</h2>
+          <p class="confirm-message">{{ confirmDialog.message }}</p>
+          <div class="modal-buttons">
+            <button class="modal-btn modal-btn-secondary" @click="showConfirmDialog = false">取消</button>
+            <button class="modal-btn modal-btn-danger" @click="handleConfirmDialog">确认删除</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -342,6 +361,15 @@ const contextMenu = ref({
 const editMode = ref('name') // 'name' 或 'description'
 const editPlaylistValue = ref('')
 const currentEditPlaylist = ref(null)
+
+// 确认对话框
+const showConfirmDialog = ref(false)
+const confirmDialog = ref({
+  title: '',
+  message: '',
+  onConfirm: null
+})
+
 const formData = ref({
   username: '',
   password: '',
@@ -631,40 +659,52 @@ const handleSavePlaylistEdit = async () => {
 }
 
 // 处理删除歌单
-const handleDeletePlaylist = async () => {
+const handleDeletePlaylist = () => {
   if (!contextMenu.value.playlist) return
 
-  const confirmed = confirm(`确定要删除歌单"${contextMenu.value.playlist.name}"吗？此操作不可恢复。`)
-  if (!confirmed) return
-
-  const token = localStorage.getItem('token')
-  if (!token) {
-    showLoginModal.value = true
-    return
-  }
-
-  try {
-    const response = await apiRequest(apiConfig.PLAYLIST_DELETE, {
-      method: 'POST',
-      headers: { 'Authorization': token, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: contextMenu.value.playlist.id })
-    })
-
-    const data = await response.json()
-    if (data.success) {
-      showToast('歌单删除成功', 'success')
-      loadMyPlaylists()
-      // 如果删除的是当前正在查看的歌单，跳转到首页
-      if (currentPlaylistId.value === contextMenu.value.playlist.id) {
-        router.push('/home')
+  confirmDialog.value = {
+    title: '删除歌单',
+    message: `确定要删除歌单"${contextMenu.value.playlist.name}"吗？此操作不可恢复。`,
+    onConfirm: async () => {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        showLoginModal.value = true
+        return
       }
-    } else {
-      showToast(data.message || '删除失败', 'error')
+
+      try {
+        const response = await apiRequest(apiConfig.PLAYLIST_DELETE, {
+          method: 'POST',
+          headers: { 'Authorization': token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: contextMenu.value.playlist.id })
+        })
+
+        const data = await response.json()
+        if (data.success) {
+          showToast('歌单删除成功', 'success')
+          loadMyPlaylists()
+          // 如果删除的是当前正在查看的歌单，跳转到首页
+          if (currentPlaylistId.value === contextMenu.value.playlist.id) {
+            router.push('/home')
+          }
+        } else {
+          showToast(data.message || '删除失败', 'error')
+        }
+      } catch (error) {
+        console.error('删除歌单失败:', error)
+        showToast('删除失败', 'error')
+      }
     }
-  } catch (error) {
-    console.error('删除歌单失败:', error)
-    showToast('删除失败', 'error')
   }
+  showConfirmDialog.value = true
+}
+
+// 处理确认对话框确认
+const handleConfirmDialog = () => {
+  if (confirmDialog.value.onConfirm) {
+    confirmDialog.value.onConfirm()
+  }
+  showConfirmDialog.value = false
 }
 
 const isLoggedIn = computed(() => {
@@ -2014,6 +2054,44 @@ watch(() => route.path, (newPath) => {
 .context-menu-leave-to {
   opacity: 0;
   transform: scale(0.95);
+}
+
+/* 确认对话框 */
+.modal-confirm {
+  text-align: center;
+}
+
+.confirm-icon-wrapper {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.confirm-icon {
+  color: #ef4444;
+}
+
+.confirm-message {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+.modal-btn-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  transition: all var(--transition-normal);
+}
+
+.modal-btn-danger:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
 }
 
 .toast-leave-to {
