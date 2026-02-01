@@ -1,7 +1,7 @@
 <template>
   <div class="player-bar glass">
     <div class="player-info">
-      <div class="player-cover-wrapper">
+      <div class="player-cover-wrapper" @click="openPlayer" style="cursor: pointer;">
         <img :src="currentCover" alt="封面" class="player-cover" @error="handleCoverError" />
         <div class="cover-wave" v-if="isPlaying">
           <span></span><span></span><span></span><span></span>
@@ -1072,6 +1072,12 @@ onUnmounted(() => {
 const handleTrayFavorite = () => {
   if (currentMusic.value) {
     toggleFavorite(currentMusic.value)
+  }
+}
+
+const openPlayer = () => {
+  if (currentMusic.value) {
+    router.push('/player')
   }
 }
 

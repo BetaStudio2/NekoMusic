@@ -26,6 +26,11 @@ const routes = [
     component: () => import('../views/RecentPlayView.vue')
   },
   {
+    path: '/player',
+    name: 'Player',
+    component: () => import('../views/PlayerView.vue')
+  },
+  {
     path: '/library',
     name: 'Library',
     component: () => import('../views/LibraryView.vue')
