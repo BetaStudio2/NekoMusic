@@ -33,7 +33,7 @@
         <div class="sidebar-playlists">
         <div class="playlists-header">
           <span class="playlists-title">我的歌单</span>
-          <button class="add-playlist-btn" @click="handleCreatePlaylist" title="创建歌单">
+          <button class="add-playlist-btn" @click="showCreatePlaylistModal = true" title="创建歌单">
             <svg viewBox="0 0 24 24" width="16" height="16">
               <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
             </svg>
@@ -237,6 +237,25 @@
         </div>
       </div>
     </Transition>
+
+    <Transition name="modal">
+      <div v-if="showCreatePlaylistModal" class="modal-overlay" @click="showCreatePlaylistModal = false">
+        <div class="modal-content modal-small" @click.stop>
+          <h2 class="modal-title">创建歌单</h2>
+          <input 
+            v-model="newPlaylistName"
+            type="text" 
+            placeholder="输入歌单名称"
+            class="auth-input"
+            @keyup.enter="handleCreatePlaylist"
+          />
+          <div class="modal-buttons">
+            <button class="modal-btn modal-btn-secondary" @click="showCreatePlaylistModal = false">取消</button>
+            <button class="modal-btn modal-btn-primary" @click="handleCreatePlaylist">创建</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -259,8 +278,10 @@ const searchQuery = ref('')
 const username = ref('')
 const currentUser = ref(null)
 const showLoginModal = ref(false)
+const showCreatePlaylistModal = ref(false)
 const authTab = ref('login')
 const errorMessage = ref('')
+const newPlaylistName = ref('')
 const formData = ref({
   username: '',
   password: '',
@@ -314,30 +335,56 @@ const loadMyPlaylists = async () => {
 
     if (data.success && data.playlists) {
 
-      myPlaylists.value = data.playlists
-
-      console.log('我的歌单列表:', data.playlists)
+      const playlistsWithCovers = []
 
       for (const playlist of data.playlists) {
 
         try {
+
           const musicResponse = await apiRequest(apiConfig.PLAYLIST_MUSIC(playlist.id), {
+
             method: 'GET',
+
             headers: { 'Authorization': token }
+
           })
+
           const musicData = await musicResponse.json()
+
           if (musicData.success && musicData.musicList && musicData.musicList.length > 0) {
-            playlist.firstMusicId = musicData.musicList[0].id
-            console.log(`歌单 ${playlist.name} 的第一首音乐 ID:`, playlist.firstMusicId)
+
+            playlistsWithCovers.push({
+
+              ...playlist,
+
+              firstMusicId: musicData.musicList[0].id
+
+            })
+
+          } else {
+
+            playlistsWithCovers.push(playlist)
+
           }
+
         } catch (error) {
-          console.error(`获取歌单 ${playlist.name} 的音乐列表失败:`, error)
+
+          playlistsWithCovers.push(playlist)
+
         }
+
       }
+
+      myPlaylists.value = playlistsWithCovers
+
     }
+
   } catch (error) {
+
     console.error('加载我的歌单失败:', error)
+
   }
+
 }
 
 const getPlaylistCover = (playlist) => {
@@ -354,45 +401,69 @@ const openPlaylist = (playlistId) => {
 }
 
 const handleCreatePlaylist = () => {
-  const name = prompt('请输入歌单名称')
-  if (!name) return
-  createPlaylist(name)
+
+  if (!newPlaylistName.value.trim()) {
+
+    showToast('请输入歌单名称', 'error')
+
+    return
+
+  }
+
+  createPlaylist(newPlaylistName.value)
+
 }
 
 const createPlaylist = async (name) => {
+
   const token = localStorage.getItem('token')
+
   if (!token) {
+
     showLoginModal.value = true
+
     return
+
   }
 
   try {
-    const response = await apiRequest(apiConfig.PLAYLIST_CREATE, {
-      method: 'POST',
-      headers: {
-        'Authorization': token,
-        'Content-Type': 'application/json'
-      },
 
-      body: JSON.stringify({
-        name: name,
-        description: ''
-      })
+    const response = await apiRequest(apiConfig.PLAYLIST_CREATE, {
+
+      method: 'POST',
+
+      headers: { 'Authorization': token, 'Content-Type': 'application/json' },
+
+      body: JSON.stringify({ name: name, description: '' })
+
     })
+
     const data = await response.json()
 
     if (data.success) {
+
       showToast('歌单创建成功', 'success')
+
+      showCreatePlaylistModal.value = false
+
+      newPlaylistName.value = ''
+
       loadMyPlaylists()
 
     } else {
+
       showToast(data.message || '创建失败', 'error')
+
     }
 
   } catch (error) {
+
     console.error('创建歌单失败:', error)
+
     showToast('创建失败', 'error')
+
   }
+
 }
 
 const isLoggedIn = computed(() => {
@@ -631,6 +702,7 @@ const handleUserLogin = (event) => {
   const user = event.detail
   currentUser.value = user
   username.value = user.username
+  loadMyPlaylists()
 }
 
 watch(() => route.path, (newPath) => {
@@ -1249,6 +1321,11 @@ watch(() => route.path, (newPath) => {
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   position: relative;
   overflow: hidden;
+}
+
+.modal-content.modal-small {
+  max-width: 320px;
+  padding: 24px;
 }
 
 .modal-content::before {
