@@ -29,5 +29,8 @@ export default {
   PLAYLISTS_SEARCH: '/api/playlists/search',
   
   // 搜索相关
-  ARTISTS_SEARCH: '/api/artists/search'
+  ARTISTS_SEARCH: '/api/artists/search',
+  
+  // 更新检测
+  UPDATE_CHECK: '/version.json'
 }

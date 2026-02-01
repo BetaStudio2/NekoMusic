@@ -38,8 +38,18 @@
       
       <div class="settings-section">
         <h3>关于</h3>
-        <p>NekoMusic {{ osType }} 版本</p>
+        <p>NekoMusic {{ getDisplayOSType() }} 版本</p>
         <p>版本号: {{ APP_VERSION }}</p>
+        <div class="update-section">
+          <button class="check-update-btn" @click="checkForUpdates" :disabled="checkingUpdate">
+            {{ checkingUpdate ? '检查中...' : '检查更新' }}
+          </button>
+          <div v-if="updateAvailable" class="update-available">
+            <p class="update-message">发现新版本: {{ latestVersion }}</p>
+            <a :href="downloadUrl" class="download-btn" target="_blank">立即下载</a>
+          </div>
+          <p v-if="noUpdate" class="no-update">当前已是最新版本</p>
+        </div>
       </div>
     </div>
 
@@ -154,6 +164,14 @@ import { APP_VERSION } from '../version'
 // 检测系统类型
 const getOSType = () => {
   const platform = navigator.platform.toLowerCase()
+  if (platform.includes('win')) return 'windows'
+  if (platform.includes('mac')) return 'mac'
+  if (platform.includes('linux')) return 'linux'
+  return 'windows'
+}
+
+const getDisplayOSType = () => {
+  const platform = navigator.platform.toLowerCase()
   if (platform.includes('win')) return 'Windows'
   if (platform.includes('mac')) return 'macOS'
   if (platform.includes('linux')) return 'Linux'
@@ -161,6 +179,13 @@ const getOSType = () => {
 }
 
 const osType = ref(getOSType())
+
+// 更新检测
+const checkingUpdate = ref(false)
+const updateAvailable = ref(false)
+const noUpdate = ref(false)
+const latestVersion = ref('')
+const downloadUrl = ref('')
 
 // 统一的 API 请求函数
 async function apiRequest(url, options = {}) {
@@ -211,6 +236,38 @@ const showToast = (message, type = 'info') => {
   setTimeout(() => {
     toasts.value = toasts.value.filter(t => t.id !== id)
   }, 3000)
+}
+
+const checkForUpdates = async () => {
+  checkingUpdate.value = true
+  updateAvailable.value = false
+  noUpdate.value = false
+  
+  try {
+    const response = await apiRequest(apiConfig.UPDATE_CHECK)
+    const data = await response.json()
+    
+    if (data.pc && data.pc.pc_ver) {
+      const remoteVersion = data.pc.pc_ver
+      latestVersion.value = remoteVersion
+      
+      if (remoteVersion !== APP_VERSION) {
+        updateAvailable.value = true
+        const osKey = osType.value
+        if (data.pc[osKey]) {
+          downloadUrl.value = data.pc[osKey].replace('{pc_ver}', remoteVersion)
+        } else {
+          downloadUrl.value = data.pc.windows.replace('{pc_ver}', remoteVersion)
+        }
+      } else {
+        noUpdate.value = true
+      }
+    }
+  } catch (error) {
+    showToast('检查更新失败，请稍后重试', 'error')
+  } finally {
+    checkingUpdate.value = false
+  }
 }
 
 const sendVerificationCode = async () => {
@@ -401,6 +458,67 @@ onMounted(() => {
 .settings-section p {
   color: #666;
   margin: 8px 0;
+}
+
+.update-section {
+  margin-top: 16px;
+}
+
+.check-update-btn {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.check-update-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.check-update-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.update-available {
+  margin-top: 12px;
+  padding: 12px;
+  background: #e8f5e9;
+  border-radius: 8px;
+  border-left: 4px solid #4caf50;
+}
+
+.update-message {
+  color: #2e7d32;
+  font-size: 14px;
+  margin: 0 0 8px 0;
+}
+
+.download-btn {
+  display: inline-block;
+  padding: 8px 16px;
+  background: #4caf50;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.download-btn:hover {
+  background: #45a049;
+  transform: translateY(-1px);
+}
+
+.no-update {
+  color: #4caf50;
+  font-size: 14px;
+  margin: 12px 0 0 0;
 }
 
 .account-info {
