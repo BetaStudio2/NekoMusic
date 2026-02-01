@@ -29,9 +29,8 @@
             <div class="nav-indicator" v-if="currentRoute === item.key"></div>
           </div>
         </div>
-      </nav>
-
-      <div class="sidebar-playlists">
+        
+        <div class="sidebar-playlists">
         <div class="playlists-header">
           <span class="playlists-title">我的歌单</span>
           <button class="add-playlist-btn" @click="handleCreatePlaylist" title="创建歌单">
@@ -55,6 +54,7 @@
           </div>
         </div>
       </div>
+      </nav>
       
       <div class="sidebar-footer">
         <div class="user-card" @click="handleUserClick">
@@ -278,26 +278,15 @@ const codeBtnText = computed(() => {
 })
 
 const navItems = [
-
   { key: 'home', label: '首页', icon: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z' },
-
   { divider: true },
-
   { key: 'favorites', label: '我喜欢的音乐', icon: 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z' },
-
   { key: 'recent', label: '最近播放', icon: 'M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z' },
-
   { divider: true }
-
 ]
 
-
-
 const myPlaylists = ref([])
-
 const currentPlaylistId = ref(null)
-
-
 
 const loadMyPlaylists = async () => {
 
