@@ -1,10 +1,10 @@
 {
   "name": "NekoMusic",
-  "version": "2026.201.1",
+  "version": "2026.202.1",
   "private": true,
   "type": "module",
   "main": "dist-electron/main.js",
-  "description": "一款简洁优雅的音乐播放器",
+  "description": "Neko云音乐。完全免费的音乐平台！",
   "author": "Fantasy Network「梦幻网络」",
   "scripts": {
     "dev": "npm run electron:dev",
