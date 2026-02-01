@@ -166,8 +166,11 @@ const scanDefaultDirectory = async () => {
   loading.value = true
   try {
     const result = await window.electronAPI.scanDefaultDirectory()
+    
+    // 重新加载音乐库
+    await loadMusicLibrary()
+    
     if (result.success) {
-      musicList.value = await loadMusicLibrary()
       window.dispatchEvent(new CustomEvent('show-toast', {
         detail: { 
           message: result.message || '扫描完成', 
