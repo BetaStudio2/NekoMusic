@@ -383,7 +383,9 @@ const loadMyPlaylists = async () => {
 
   try {
 
-    const response = await apiRequest(apiConfig.PLAYLISTS, {
+    // 添加时间戳参数禁用浏览器缓存
+    const timestamp = Date.now()
+    const response = await apiRequest(`${apiConfig.PLAYLISTS}?t=${timestamp}`, {
 
       method: 'GET',
 
@@ -401,7 +403,8 @@ const loadMyPlaylists = async () => {
 
         try {
 
-          const musicResponse = await apiRequest(apiConfig.PLAYLIST_MUSIC(playlist.id), {
+          // 添加时间戳参数禁用浏览器缓存
+          const musicResponse = await apiRequest(`${apiConfig.PLAYLIST_MUSIC(playlist.id)}?t=${timestamp}`, {
 
             method: 'GET',
 
@@ -580,7 +583,7 @@ const handleSavePlaylistEdit = async () => {
       id: currentEditPlaylist.value.id,
       name: editMode.value === 'name' ? editPlaylistValue.value.trim() : currentEditPlaylist.value.name
     }
-    
+
     // 只在修改描述时添加 description 字段
     if (editMode.value === 'description') {
       updateData.description = editPlaylistValue.value.trim()
@@ -596,7 +599,28 @@ const handleSavePlaylistEdit = async () => {
     if (data.success) {
       showToast(editMode.value === 'name' ? '歌单重命名成功' : '歌单描述修改成功', 'success')
       showEditPlaylistModal.value = false
-      loadMyPlaylists()
+
+      // 直接更新本地数据，立即反映变化
+      const playlistIndex = myPlaylists.value.findIndex(p => p.id === currentEditPlaylist.value.id)
+      if (playlistIndex !== -1) {
+        if (editMode.value === 'name') {
+          myPlaylists.value[playlistIndex].name = editPlaylistValue.value.trim()
+        } else {
+          myPlaylists.value[playlistIndex].description = editPlaylistValue.value.trim()
+        }
+      }
+
+      // 同时更新当前正在查看的歌单详情（如果正在查看这个歌单）
+      if (currentPlaylistId.value === currentEditPlaylist.value.id) {
+        // 发送事件通知 PlaylistDetailView 刷新
+        window.dispatchEvent(new CustomEvent('playlist-updated', {
+          detail: {
+            id: currentEditPlaylist.value.id,
+            name: editMode.value === 'name' ? editPlaylistValue.value.trim() : myPlaylists.value[playlistIndex].name,
+            description: editMode.value === 'description' ? editPlaylistValue.value.trim() : myPlaylists.value[playlistIndex].description
+          }
+        }))
+      }
     } else {
       showToast(data.message || '修改失败', 'error')
     }

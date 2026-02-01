@@ -141,21 +141,24 @@ const loadPlaylistDetail = async () => {
 
   loading.value = true
   try {
+    // 添加时间戳参数禁用浏览器缓存
+    const timestamp = Date.now()
+
     // 获取歌单基本信息
-    const detailResponse = await apiRequest(apiConfig.PLAYLIST_DETAIL(playlistId))
+    const detailResponse = await apiRequest(`${apiConfig.PLAYLIST_DETAIL(playlistId)}?t=${timestamp}`)
     const detailData = await detailResponse.json()
-    
+
     console.log('歌单详情响应:', detailData)
-    
+
     if (detailData.success && detailData.playlist) {
       playlist.value = detailData.playlist
-      
+
       // 获取歌单音乐列表
-      const musicResponse = await apiRequest(apiConfig.PLAYLIST_MUSIC(playlistId))
+      const musicResponse = await apiRequest(`${apiConfig.PLAYLIST_MUSIC(playlistId)}?t=${timestamp}`)
       const musicData = await musicResponse.json()
-      
+
       console.log('歌单音乐列表响应:', musicData)
-      
+
       if (musicData.success && musicData.musicList) {
         musicList.value = musicData.musicList
       } else {
@@ -361,7 +364,7 @@ watch(() => route.params.id, (newId, oldId) => {
 
 onMounted(() => {
   loadPlaylistDetail()
-  
+
   const savedMusic = localStorage.getItem('currentMusic')
   if (savedMusic) {
     try {
@@ -370,10 +373,26 @@ onMounted(() => {
       console.error('解析当前音乐失败:', e)
     }
   }
-  
+
   loadFavorites()
   window.addEventListener('favorite-changed', loadFavorites)
+
+  // 监听歌单更新事件
+  window.addEventListener('playlist-updated', handlePlaylistUpdated)
 })
+
+// 处理歌单更新事件
+const handlePlaylistUpdated = (event) => {
+  const { id, name, description } = event.detail
+  if (playlist.value && playlist.value.id === id) {
+    if (name) {
+      playlist.value.name = name
+    }
+    if (description) {
+      playlist.value.description = description
+    }
+  }
+}
 </script>
 
 <style scoped>
