@@ -309,7 +309,7 @@ const addToPlaylist = (music) => {
 
 const getCoverUrl = (music) => {
   if (music.isLocal) {
-    return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><defs><linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:%23667eea;stop-opacity:1"/><stop offset="100%" style="stop-color:%23764ba2;stop-opacity:1"/></linearGradient></defs><rect width="44" height="44" fill="url(%23grad)" rx="8"/><text x="22" y="28" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">🎵</text></svg>'
+    return 'https://music.cnmsb.xin/api/user/avatar/default'
   }
   return `https://music.cnmsb.xin/api/music/cover/${music.id}`
 }
