@@ -4,9 +4,15 @@
     <div class="top-bar">
       <!-- 左侧关闭按钮 -->
       <button class="close-btn" @click="closePlayer" title="关闭">
-        <svg viewBox="0 0 24 24" width="20" height="20">
-          <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+        <svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg">
+          <g transform="scale(1,-1) translate(0,-24)">
+            <path
+                fill="#ffffff"
+                d="M13.586 6.576a1.51 1.51 0 0 0-1.272-.572c-.446-.074-.866.272-1.216.57L2.45 15.21a1.4 1.4 0 1 0 1.98 1.98L12.37 9.08l7.3 8.26a1.4 1.4 0 0 0 1.98-1.98z"
+            />
+          </g>
         </svg>
+
       </button>
 
       <!-- 右侧窗口控制按钮 -->
@@ -238,7 +244,7 @@ const next = () => {
 }
 
 const togglePlayMode = () => {
-  window.dispatchEvent(new CustomEvent('tray-toggle-play-mode'))
+  window.dispatchEvent(new CustomEvent('tray-set-play-mode', { detail: playMode.value === 'list' ? 'single' : playMode.value === 'single' ? 'shuffle' : 'list' }))
 }
 
 const toggleFavorite = async () => {

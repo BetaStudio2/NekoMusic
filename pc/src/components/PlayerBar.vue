@@ -523,6 +523,10 @@ const togglePlayMode = () => {
   const nextIndex = (currentIndex + 1) % modes.length
   playMode.value = modes[nextIndex]
   notifyPlayerState()
+  // 通知 PlayerView 播放模式变化
+  window.dispatchEvent(new CustomEvent('player-state-change', {
+    detail: { playMode: playMode.value }
+  }))
 }
 
 const toggleDesktopLyrics = (enabled) => {
@@ -1102,6 +1106,10 @@ onMounted(() => {
   window.addEventListener('tray-set-play-mode', (event) => {
     playMode.value = event.detail
     notifyPlayerState()
+    // 通知 PlayerView 播放模式变化
+    window.dispatchEvent(new CustomEvent('player-state-change', {
+      detail: { playMode: playMode.value }
+    }))
   })
   window.addEventListener('tray-toggle-desktop-lyrics', (event) => {
     toggleDesktopLyrics(event.detail)
@@ -1524,7 +1532,7 @@ const handleNavigateToSettings = () => {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
-  z-index: 1000;
+  z-index: 2000;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.5);
 }
