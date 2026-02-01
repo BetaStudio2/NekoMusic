@@ -46,7 +46,9 @@
           </button>
           <div v-if="updateAvailable" class="update-available">
             <p class="update-message">发现新版本: {{ latestVersion }}</p>
-            <a :href="downloadUrl" class="download-btn" target="_blank">立即下载</a>
+            <button class="download-btn" @click="handleDownload" :disabled="downloading">
+              {{ downloading ? '下载中...' : '立即下载' }}
+            </button>
           </div>
           <p v-if="noUpdate" class="no-update">当前已是最新版本</p>
         </div>
@@ -153,6 +155,30 @@
         </div>
       </TransitionGroup>
     </div>
+
+    <Transition name="modal">
+      <div v-if="showDownloadModal" class="modal-overlay" @click.self="showDownloadModal = false">
+        <div class="download-modal">
+          <div class="download-header">
+            <h3>下载更新</h3>
+            <p v-if="downloading">正在下载版本 {{ latestVersion }}</p>
+            <p v-else>下载完成！</p>
+          </div>
+          <div class="download-progress">
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: downloadProgress + '%' }"></div>
+            </div>
+            <div class="progress-info">
+              <span class="progress-text">{{ downloadProgress }}%</span>
+              <span class="progress-speed">{{ downloadSpeed }}</span>
+            </div>
+          </div>
+          <div v-if="!downloading" class="download-actions">
+            <button class="download-action-btn" @click="showDownloadModal = false">关闭</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -186,6 +212,10 @@ const updateAvailable = ref(false)
 const noUpdate = ref(false)
 const latestVersion = ref('')
 const downloadUrl = ref('')
+const downloading = ref(false)
+const downloadProgress = ref(0)
+const downloadSpeed = ref('')
+const showDownloadModal = ref(false)
 
 // 统一的 API 请求函数
 async function apiRequest(url, options = {}) {
@@ -287,6 +317,80 @@ const checkForUpdates = async () => {
     showToast('检查更新失败，请稍后重试', 'error')
   } finally {
     checkingUpdate.value = false
+  }
+}
+
+const handleDownload = async () => {
+  if (!downloadUrl.value || downloading.value) return
+  
+  downloading.value = true
+  downloadProgress.value = 0
+  downloadSpeed.value = ''
+  showDownloadModal.value = true
+  
+  try {
+    const response = await fetch(downloadUrl.value)
+    if (!response.ok) throw new Error('下载失败')
+    
+    const contentLength = response.headers.get('content-length')
+    const total = parseInt(contentLength, 10)
+    let loaded = 0
+    
+    const reader = response.body.getReader()
+    const chunks = []
+    const startTime = Date.now()
+    
+    while (true) {
+      const { done, value } = await reader.read()
+      
+      if (done) break
+      
+      chunks.push(value)
+      loaded += value.length
+      
+      if (total) {
+        downloadProgress.value = Math.round((loaded / total) * 100)
+        
+        const elapsed = (Date.now() - startTime) / 1000
+        if (elapsed > 0) {
+          const speed = loaded / elapsed
+          const speedMB = (speed / 1024 / 1024).toFixed(2)
+          downloadSpeed.value = `${speedMB} MB/s`
+        }
+      }
+    }
+    
+    const blob = new Blob(chunks)
+    
+    if (window.electronAPI && window.electronAPI.saveFile) {
+      const fileName = downloadUrl.value.split('/').pop()
+      const filePath = await window.electronAPI.saveFile({
+        fileName: fileName,
+        fileType: 'application/octet-stream',
+        suggestedPath: 'tmp'
+      })
+      
+      if (filePath) {
+        await window.electronAPI.writeFile(filePath, await blob.arrayBuffer())
+        showToast(`下载完成，保存到: ${filePath}`, 'success')
+      } else {
+        showToast('下载已取消', 'info')
+      }
+    } else {
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = downloadUrl.value.split('/').pop()
+      link.click()
+      URL.revokeObjectURL(link.href)
+      showToast('下载完成', 'success')
+    }
+  } catch (error) {
+    showToast('下载失败: ' + error.message, 'error')
+  } finally {
+    downloading.value = false
+    setTimeout(() => {
+      showDownloadModal.value = false
+    }, 2000)
   }
 }
 
@@ -528,17 +632,108 @@ onMounted(() => {
   border-radius: 6px;
   font-size: 13px;
   transition: all 0.2s;
+  border: none;
+  cursor: pointer;
 }
 
-.download-btn:hover {
+.download-btn:hover:not(:disabled) {
   background: #45a049;
   transform: translateY(-1px);
+}
+
+.download-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .no-update {
   color: #4caf50;
   font-size: 14px;
   margin: 12px 0 0 0;
+}
+
+.download-modal {
+  background: white;
+  border-radius: 16px;
+  padding: 32px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.download-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.download-header h3 {
+  font-size: 20px;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.download-header p {
+  color: #666;
+  font-size: 14px;
+  margin: 0;
+}
+
+.download-progress {
+  margin-bottom: 24px;
+}
+
+.progress-bar {
+  height: 8px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  transition: width 0.3s ease;
+  border-radius: 4px;
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.progress-text {
+  color: #333;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.progress-speed {
+  color: #999;
+  font-size: 13px;
+}
+
+.download-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.download-action-btn {
+  padding: 12px 32px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.download-action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
 .account-info {

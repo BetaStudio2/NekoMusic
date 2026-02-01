@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog } from 'electron'
 import path from 'path'
+import fs from 'fs'
 import { fileURLToPath } from 'url'
 
 // 在 ES 模块中获取 __dirname 的等效值
@@ -306,6 +307,38 @@ ipcMain.on('window-maximize', () => {
 
 ipcMain.on('window-close', () => {
   if (win) win.hide()
+})
+
+// 文件保存 IPC 处理
+ipcMain.handle('save-file', async (event, options) => {
+  const { fileName, fileType, suggestedPath } = options
+  
+  // 获取应用运行目录
+  let basePath = app.getPath('userData')
+  if (suggestedPath) {
+    basePath = path.join(basePath, suggestedPath)
+  }
+  
+  // 确保目录存在
+  if (!fs.existsSync(basePath)) {
+    fs.mkdirSync(basePath, { recursive: true })
+  }
+  
+  // 构建完整文件路径
+  const filePath = path.join(basePath, fileName)
+  
+  return filePath
+})
+
+ipcMain.handle('write-file', async (event, filePath, data) => {
+  try {
+    const buffer = Buffer.from(data)
+    fs.writeFileSync(filePath, buffer)
+    return { success: true, path: filePath }
+  } catch (error) {
+    console.error('写入文件失败:', error)
+    return { success: false, error: error.message }
+  }
 })
 
 app.on('ready', () => {
