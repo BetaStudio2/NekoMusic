@@ -73,7 +73,7 @@
     
     <div class="player-controls-right">
       <button class="control-btn" @click="showAddToPlaylistModal" title="添加到歌单" :disabled="!currentMusic">
-        <img src="/add_play_list.png" alt="添加到歌单" width="18" height="18" />
+        <svg t="1769972862864" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="1813" width="128" height="128"><path d="M384 640m-85.333333 0a85.333333 85.333333 0 1 0 170.666666 0 85.333333 85.333333 0 1 0-170.666666 0Z" fill="#37455C" p-id="1814"></path><path d="M597.333333 597.333333m-85.333333 0a85.333333 85.333333 0 1 0 170.666667 0 85.333333 85.333333 0 1 0-170.666667 0Z" fill="#37455C" p-id="1815"></path><path d="M631.637333 299.52a42.666667 42.666667 0 0 1 50.773334 36.864L682.666667 341.333333v256a42.666667 42.666667 0 0 1-85.034667 4.992L597.333333 597.333333V393.344l-128 25.6V640a42.666667 42.666667 0 0 1-37.674666 42.368L426.666667 682.666667a42.666667 42.666667 0 0 1-42.368-37.674667L384 640V384a42.666667 42.666667 0 0 1 29.44-40.533333l4.864-1.28 213.333333-42.666667z" fill="#37455C" p-id="1816"></path><path d="M682.666667 128a213.333333 213.333333 0 0 1 213.12 204.074667L896 341.333333v256a42.666667 42.666667 0 0 1-85.034667 4.992L810.666667 597.333333V341.333333a128 128 0 0 0-120.490667-127.786666L682.666667 213.333333H341.333333a128 128 0 0 0-127.786666 120.490667L213.333333 341.333333v341.333334a128 128 0 0 0 120.490667 127.786666L341.333333 810.666667h256a42.666667 42.666667 0 0 1 4.992 85.034666L597.333333 896H341.333333a213.333333 213.333333 0 0 1-213.12-204.074667L128 682.666667V341.333333a213.333333 213.333333 0 0 1 204.074667-213.12L341.333333 128h341.333334z" fill="#37455C" p-id="1817"></path><path d="M640 725.333333m42.666667 0l170.666666 0q42.666667 0 42.666667 42.666667l0 0q0 42.666667-42.666667 42.666667l-170.666666 0q-42.666667 0-42.666667-42.666667l0 0q0-42.666667 42.666667-42.666667Z" fill="#37455C" p-id="1818"></path><path d="M810.666667 640m0 42.666667l0 170.666666q0 42.666667-42.666667 42.666667l0 0q-42.666667 0-42.666667-42.666667l0-170.666666q0-42.666667 42.666667-42.666667l0 0q42.666667 0 42.666667 42.666667Z" fill="#37455C" p-id="1819"></path></svg>
       </button>
       
       <div class="volume-wrapper">
@@ -1645,15 +1645,32 @@ const handleNavigateToSettings = () => {
   transition: all var(--transition-normal);
 }
 
+.control-btn svg {
+  fill: currentColor;
+}
+
+.control-btn img {
+  filter: brightness(0) saturate(100%) opacity(0.6);
+  transition: all var(--transition-normal);
+}
+
 .control-btn:hover {
   background: rgba(102, 126, 234, 0.1);
   color: var(--primary);
   transform: scale(1.1);
 }
 
+.control-btn:hover img {
+  filter: brightness(0) saturate(100%) opacity(1) hue-rotate(240deg);
+}
+
 .control-btn.active {
   color: var(--primary);
   background: rgba(102, 126, 234, 0.1);
+}
+
+.control-btn.active img {
+  filter: brightness(0) saturate(100%) opacity(1) hue-rotate(240deg);
 }
 
 .play-btn {
