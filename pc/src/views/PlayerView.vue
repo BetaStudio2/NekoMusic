@@ -569,6 +569,26 @@ const handlePlayerStateChange = (event) => {
   }
 }
 
+// 处理音乐切换事件
+const handleMusicChanged = (event) => {
+  const newMusic = event.detail
+  if (!newMusic) return
+  
+  console.log('handleMusicChanged: 音乐已切换到', newMusic.title)
+  
+  // 更新当前音乐
+  currentMusic.value = newMusic
+  
+  // 重置播放进度
+  currentTime.value = 0
+  
+  // 加载新歌词
+  loadLyrics()
+  
+  // 检查收藏状态
+  checkFavoriteStatus()
+}
+
 const handleTimeUpdate = () => {
   // 更新歌词高亮
   if (lyrics.value.length > 0) {
@@ -604,6 +624,9 @@ onMounted(() => {
   window.addEventListener('player-state-change', handlePlayerStateChange)
   window.addEventListener('music-play', handlePlayerStateChange)
   
+  // 监听音乐切换事件
+  window.addEventListener('music-changed', handleMusicChanged)
+  
   // 监听音频时间更新（用于歌词同步）
   window.addEventListener('audio-time-update', handleTimeUpdate)
   
@@ -618,6 +641,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('player-state-change', handlePlayerStateChange)
   window.removeEventListener('music-play', handlePlayerStateChange)
+  window.removeEventListener('music-changed', handleMusicChanged)
   window.removeEventListener('audio-time-update', handleTimeUpdate)
   window.removeEventListener('mouseup', handleGlobalMouseUp)
   window.removeEventListener('mousemove', handleGlobalMouseMove)

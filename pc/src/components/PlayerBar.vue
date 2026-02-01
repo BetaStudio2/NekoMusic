@@ -930,6 +930,11 @@ const loadMusic = async (music) => {
   // 添加到最近播放
   addToRecent(music)
   
+  // 通知 PlayerView 音乐已切换
+  window.dispatchEvent(new CustomEvent('music-changed', {
+    detail: music
+  }))
+  
   // 加载歌词并缓存到内存
   try {
     console.log('loadMusic: 开始加载歌词')
