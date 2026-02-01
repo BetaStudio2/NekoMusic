@@ -31,7 +31,30 @@
         </div>
       </nav>
 
-      <div class="sidebar-spacer"></div>
+      <div class="sidebar-playlists">
+        <div class="playlists-header">
+          <span class="playlists-title">我的歌单</span>
+          <button class="add-playlist-btn" @click="handleCreatePlaylist" title="创建歌单">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="playlists-list">
+          <div 
+            v-for="playlist in myPlaylists" 
+            :key="playlist.id"
+            :class="['playlist-item', { active: currentRoute === 'playlist' && currentPlaylistId === playlist.id }]"
+            @click="openPlaylist(playlist.id)"
+          >
+            <img :src="getPlaylistCover(playlist)" alt="封面" class="playlist-cover" />
+            <span class="playlist-name">{{ playlist.name }}</span>
+          </div>
+          <div v-if="myPlaylists.length === 0" class="playlists-empty">
+            <span>暂无歌单</span>
+          </div>
+        </div>
+      </div>
       
       <div class="sidebar-footer">
         <div class="user-card" @click="handleUserClick">
@@ -255,12 +278,106 @@ const codeBtnText = computed(() => {
 })
 
 const navItems = [
+
   { key: 'home', label: '首页', icon: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z' },
+
   { divider: true },
+
   { key: 'favorites', label: '我喜欢的音乐', icon: 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z' },
+
   { key: 'recent', label: '最近播放', icon: 'M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z' },
+
   { divider: true }
+
 ]
+
+
+
+const myPlaylists = ref([])
+
+const currentPlaylistId = ref(null)
+
+
+
+const loadMyPlaylists = async () => {
+
+  const token = localStorage.getItem('token')
+
+  if (!token) {
+    myPlaylists.value = []
+    return
+  }
+
+  try {
+    const response = await apiRequest(apiConfig.PLAYLISTS, {
+      method: 'GET',
+      headers: {
+        'Authorization': token
+      }
+    })
+
+    const data = await response.json()
+    if (data.success && data.playlists) {
+      myPlaylists.value = data.playlists
+    }
+  } catch (error) {
+    console.error('加载我的歌单失败:', error)
+  }
+}
+
+const getPlaylistCover = (playlist) => {
+  if (playlist.firstMusicId) {
+    return `https://music.cnmsb.xin/api/music/cover/${playlist.firstMusicId}`
+  }
+  return 'https://music.cnmsb.xin/api/user/avatar/default'
+}
+
+const openPlaylist = (playlistId) => {
+  currentPlaylistId.value = playlistId
+  router.push(`/playlist/${playlistId}`)
+}
+
+const handleCreatePlaylist = () => {
+  const name = prompt('请输入歌单名称')
+  if (!name) return
+  createPlaylist(name)
+}
+
+const createPlaylist = async (name) => {
+  const token = localStorage.getItem('token')
+  if (!token) {
+    showLoginModal.value = true
+    return
+  }
+
+  try {
+    const response = await apiRequest(apiConfig.PLAYLIST_CREATE, {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+
+      body: JSON.stringify({
+        name: name,
+        description: ''
+      })
+    })
+    const data = await response.json()
+
+    if (data.success) {
+      showToast('歌单创建成功', 'success')
+      loadMyPlaylists()
+
+    } else {
+      showToast(data.message || '创建失败', 'error')
+    }
+
+  } catch (error) {
+    console.error('创建歌单失败:', error)
+    showToast('创建失败', 'error')
+  }
+}
 
 const isLoggedIn = computed(() => {
   return currentUser.value !== null
@@ -477,6 +594,8 @@ onMounted(() => {
     }
   }
   
+  loadMyPlaylists()
+  
   window.addEventListener('user-logout', handleUserLogout)
   window.addEventListener('user-login', handleUserLogin)
   window.addEventListener('show-toast', handleShowToast)
@@ -663,6 +782,107 @@ watch(() => route.path, (newPath) => {
 .sidebar-spacer {
   flex: 1;
   min-height: 0;
+}
+
+.sidebar-playlists {
+  padding: 0 0 12px 0;
+}
+
+.playlists-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px 8px 16px;
+}
+
+.playlists-title {
+  font-size: 13px;
+  color: var(--text-white-muted);
+  font-weight: 500;
+}
+
+.add-playlist-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  color: var(--text-white-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.add-playlist-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.playlists-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.playlist-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-left: 3px solid transparent;
+}
+
+.playlist-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.playlist-item.active {
+  background: rgba(255, 255, 255, 0.15);
+  border-left-color: var(--primary);
+}
+
+.playlist-cover {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.playlist-name {
+  font-size: 13px;
+  color: var(--text-white-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.playlists-empty {
+  padding: 20px 16px;
+  text-align: center;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.playlists-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.playlists-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.playlists-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.playlists-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .sidebar-footer {
