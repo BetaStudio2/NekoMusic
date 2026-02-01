@@ -17,11 +17,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   notifyPlayState: (isPlaying) => ipcRenderer.send('play-state-changed', isPlaying),
   updateMediaInfo: (info) => ipcRenderer.send('update-media-info', info),
   
-  // 本地音乐 API
-  selectLocalMusicFiles: () => ipcRenderer.invoke('select-local-music-files'),
-  getLocalMusicLibrary: () => ipcRenderer.invoke('get-local-music-library'),
-  removeLocalMusic: (musicId) => ipcRenderer.invoke('remove-local-music', musicId),
-  scanDefaultDirectory: () => ipcRenderer.invoke('scan-default-directory'),
+
   
   // 其他可以暴露的 API
   platform: process.platform,

@@ -935,36 +935,25 @@ const loadMusic = async (music) => {
     detail: music
   }))
   
-  // 加载歌词并缓存到内存（仅限在线音乐）
-  if (!music.isLocal) {
-    try {
-      console.log('loadMusic: 开始加载歌词')
-      const lyricsUrl = `${apiConfig.BASE_URL}${apiConfig.MUSIC_LYRICS(music.id)}`
-      const response = await fetch(lyricsUrl)
-      const result = await response.json()
-      
-      if (result.success && result.data) {
-        console.log('loadMusic: 歌词加载成功')
-        // 缓存歌词到内存变量
-        window.cachedLyrics = window.cachedLyrics || {}
-        window.cachedLyrics[music.id] = result.data
-      }
-    } catch (error) {
-      console.error('loadMusic: 加载歌词失败:', error)
+  // 加载歌词并缓存到内存
+  try {
+    console.log('loadMusic: 开始加载歌词')
+    const lyricsUrl = `${apiConfig.BASE_URL}${apiConfig.MUSIC_LYRICS(music.id)}`
+    const response = await fetch(lyricsUrl)
+    const result = await response.json()
+    
+    if (result.success && result.data) {
+      console.log('loadMusic: 歌词加载成功')
+      window.cachedLyrics = window.cachedLyrics || {}
+      window.cachedLyrics[music.id] = result.data
     }
+  } catch (error) {
+    console.error('loadMusic: 加载歌词失败:', error)
   }
   
   if (audioElement.value) {
-    // 判断是本地音乐还是在线音乐
-    if (music.isLocal && music.filePath) {
-      // 本地音乐：通过 Electron 自定义协议加载
-      audioElement.value.src = `local-file:///${music.filePath.replace(/\\/g, '/')}`
-      console.log('✓ 本地音频已加载:', music.filePath)
-    } else {
-      // 在线音乐：通过 API 加载
-      audioElement.value.src = `https://music.cnmsb.xin/api/music/file/${music.id}`
-      console.log('✓ 音频已加载到元素，等待 loadedmetadata 事件')
-    }
+    audioElement.value.src = `https://music.cnmsb.xin/api/music/file/${music.id}`
+    console.log('✓ 音频已加载到元素，等待 loadedmetadata 事件')
     audioElement.value.load()
   }
   

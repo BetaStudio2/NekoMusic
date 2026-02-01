@@ -14,13 +14,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 播放器状态通知
   notifyPlayerState: (state) => ipcRenderer.send('player-state-changed', state),
   
-  // 本地音乐 API
-  selectLocalMusicFiles: () => ipcRenderer.invoke('select-local-music-files'),
-  getLocalMusicLibrary: () => ipcRenderer.invoke('get-local-music-library'),
-  removeLocalMusic: (musicId) => ipcRenderer.invoke('remove-local-music', musicId),
-  scanDefaultDirectory: () => ipcRenderer.invoke('scan-default-directory'),
-  getDefaultScanPath: () => ipcRenderer.invoke('get-default-scan-path'),
-  
   // 文件操作
   saveFile: (options) => ipcRenderer.invoke('save-file', options),
   writeFile: (filePath, data) => ipcRenderer.invoke('write-file', filePath, data),
