@@ -293,21 +293,47 @@ const loadMyPlaylists = async () => {
   const token = localStorage.getItem('token')
 
   if (!token) {
+
     myPlaylists.value = []
+
     return
+
   }
 
   try {
+
     const response = await apiRequest(apiConfig.PLAYLISTS, {
+
       method: 'GET',
-      headers: {
-        'Authorization': token
-      }
+
+      headers: { 'Authorization': token }
+
     })
 
     const data = await response.json()
+
     if (data.success && data.playlists) {
+
       myPlaylists.value = data.playlists
+
+      console.log('我的歌单列表:', data.playlists)
+
+      for (const playlist of data.playlists) {
+
+        try {
+          const musicResponse = await apiRequest(apiConfig.PLAYLIST_MUSIC(playlist.id), {
+            method: 'GET',
+            headers: { 'Authorization': token }
+          })
+          const musicData = await musicResponse.json()
+          if (musicData.success && musicData.musicList && musicData.musicList.length > 0) {
+            playlist.firstMusicId = musicData.musicList[0].id
+            console.log(`歌单 ${playlist.name} 的第一首音乐 ID:`, playlist.firstMusicId)
+          }
+        } catch (error) {
+          console.error(`获取歌单 ${playlist.name} 的音乐列表失败:`, error)
+        }
+      }
     }
   } catch (error) {
     console.error('加载我的歌单失败:', error)
@@ -315,6 +341,7 @@ const loadMyPlaylists = async () => {
 }
 
 const getPlaylistCover = (playlist) => {
+  console.log('获取歌单封面:', playlist)
   if (playlist.firstMusicId) {
     return `https://music.cnmsb.xin/api/music/cover/${playlist.firstMusicId}`
   }
