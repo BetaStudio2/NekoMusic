@@ -1,1 +1,10 @@
-{"ver": "20260130-27", "updateUrl": "https://music.cnmsb.xin/20260130-27.apk", "pc": {"pc_ver": "2026.202.2", "downloadUrl": "https://music.cnmsb.xin/Neko云音乐2026.202.2.exe", "windows": "https://music.cnmsb.xin/Neko云音乐{pc_ver}.exe", "Linux": "https://music.cnmsb.xin/NekoMusic_{pc_ver}_amd64.deb", "mac": "https://music.cnmsb.xin/Neko云音乐{pc_ver}.dmg", "features": ["完全免费，无需付费即可享受所有音乐", "海量音乐资源，高品质音频播放", "支持歌词显示和同步", "个性化歌单和收藏功能", "本地音乐播放支持", "简洁美观的界面设计"]}}
+{
+  "ver": "20260130-27",
+  "updateUrl": "https://music.cnmsb.xin/20260130-27.apk",
+  "pc": {
+    "pc_ver": "2026.202.2",
+    "windows": "https://music.cnmsb.xin/Neko云音乐{pc_ver}.exe",
+    "Linux": "https://music.cnmsb.xin/NekoMusic_{pc_ver}_amd64.deb",
+    "mac": "https://music.cnmsb.xin/Neko云音乐{pc_ver}.dmg"
+  }
+}

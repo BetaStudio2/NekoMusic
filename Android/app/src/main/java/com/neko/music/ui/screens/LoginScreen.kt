@@ -230,7 +230,7 @@ fun LoginScreen(
                 Button(
                     onClick = {
                         if (username.isEmpty() || password.isEmpty()) {
-                            errorMessage = "请输入用户名和密码"
+                            errorMessage = "请输入邮箱和密码"
                             return@Button
                         }
 
