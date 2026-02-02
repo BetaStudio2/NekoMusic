@@ -36,6 +36,9 @@ class MusicPlayerService : Service() {
         playerManager = MusicPlayerManager.getInstance(this)
         createNotificationChannel()
 
+        // 确保 MediaSession 已初始化
+        playerManager.ensureMediaSessionInitialized(this)
+
         // 启动前台服务以确保后台播放正常
         startForeground(NOTIFICATION_ID, createMusicNotification())
 

@@ -68,10 +68,46 @@ class MusicPlayerManager private constructor(context: Context) {
     private var preloadedNextMusic: com.neko.music.data.model.Music? = null
     private var preloadedNextMusicUrl: String? = null
     private var preloadedNextMusicFullCoverUrl: String? = null
-    
-    // 媒体会话
-    private val mediaSession = MediaSessionCompat(appContext, "MusicPlayerSession")
-    
+
+    // 媒体会话 - 延迟初始化
+    private var mediaSession: MediaSessionCompat? = null
+
+    // 标记 MediaSession 是否已初始化
+    private var isMediaSessionInitialized = false
+
+    fun ensureMediaSessionInitialized(serviceContext: Context) {
+        if (isMediaSessionInitialized) {
+            return
+        }
+
+        try {
+            // 创建 MediaSession，使用组件名以确保兼容性
+            mediaSession = MediaSessionCompat(serviceContext, "MusicPlayerSession")
+
+            // 设置 MediaSession 标志以兼容国产厂商
+            mediaSession?.setFlags(
+                MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or
+                MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS
+            )
+
+            // 激活 MediaSession
+            mediaSession?.isActive = true
+
+            // 延迟激活以确保系统完全准备好
+            // 某些国产厂商 ROM 需要延迟激活
+            scope.launch {
+                delay(300) // 延迟 300ms
+                mediaSession?.isActive = true
+                Log.d("MusicPlayerManager", "MediaSession 延迟激活完成")
+            }
+
+            isMediaSessionInitialized = true
+            Log.d("MusicPlayerManager", "MediaSession 初始化成功")
+        } catch (e: Exception) {
+            Log.e("MusicPlayerManager", "MediaSession 初始化失败", e)
+        }
+    }
+
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
     
@@ -100,17 +136,18 @@ class MusicPlayerManager private constructor(context: Context) {
     private val playHistory = mutableListOf<Int>()
     
     private val _isFavorite = MutableStateFlow(false)
-        val isFavorite: StateFlow<Boolean> = _isFavorite.asStateFlow()
-    
-        private lateinit var context: android.content.Context
-        private lateinit var tokenManager: com.neko.music.data.manager.TokenManager
-        private lateinit var favoriteApi: com.neko.music.data.api.FavoriteApi
-    
-        fun initializeFavoriteManager() {
-            context = appContext.applicationContext
-            tokenManager = com.neko.music.data.manager.TokenManager(context)
-            favoriteApi = com.neko.music.data.api.FavoriteApi(context)
-        }    
+    val isFavorite: StateFlow<Boolean> = _isFavorite.asStateFlow()
+
+    private lateinit var context: android.content.Context
+    private lateinit var tokenManager: com.neko.music.data.manager.TokenManager
+    private lateinit var favoriteApi: com.neko.music.data.api.FavoriteApi
+
+    fun initializeFavoriteManager() {
+        context = appContext.applicationContext
+        tokenManager = com.neko.music.data.manager.TokenManager(context)
+        favoriteApi = com.neko.music.data.api.FavoriteApi(context)
+    }
+
     private val _playMode = MutableStateFlow(
         PlayMode.valueOf(
             prefs.getString(KEY_PLAY_MODE, PlayMode.LIST_LOOP.name) ?: PlayMode.LIST_LOOP.name
@@ -421,40 +458,11 @@ class MusicPlayerManager private constructor(context: Context) {
     private var updateJob: Job? = null
     private var fadeJob: Job? = null
     private var coverBitmap: Bitmap? = null
-    
+
     init {
-        // 设置媒体会话
-        mediaSession.isActive = true
-        mediaSession.setCallback(object : MediaSessionCompat.Callback() {
-            override fun onPlay() {
-                fadeIn()
-            }
-            
-            override fun onPause() {
-                fadeOut {}
-            }
-            
-            override fun onSeekTo(pos: Long) {
-                player.seekTo(pos)
-            }
-            
-            override fun onSkipToNext() {
-                next()
-            }
-            
-            override fun onSkipToPrevious() {
-                previous()
-            }
-            
-            override fun onCustomAction(action: String, extras: android.os.Bundle?) {
-                when (action) {
-                    "ACTION_TOGGLE_FAVORITE" -> {
-                        toggleFavorite()
-                    }
-                }
-            }
-        })
-        
+        // 设置 MediaSession 回调（如果 MediaSession 已初始化）
+        setupMediaSessionCallback()
+
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 if (!isReleased) {
@@ -503,6 +511,7 @@ class MusicPlayerManager private constructor(context: Context) {
                             preloadNextMusic()
                         }
                     }
+
                     Player.STATE_ENDED -> {
                         if (isReleased) return
 
@@ -520,6 +529,7 @@ class MusicPlayerManager private constructor(context: Context) {
                                     player.play()
                                 }
                             }
+
                             else -> {
                                 // 列表循环和随机播放都调用 next()
                                 next()
@@ -529,10 +539,54 @@ class MusicPlayerManager private constructor(context: Context) {
                 }
             }
         })
-        
+
         updatePlaybackState()
     }
-    
+
+    private fun setupMediaSessionCallback() {
+        // 延迟设置回调，等待 MediaSession 初始化
+        scope.launch {
+            // 等待 MediaSession 初始化
+            while (mediaSession == null) {
+                delay(100)
+            }
+
+            mediaSession?.setCallback(object : MediaSessionCompat.Callback() {
+                override fun onPlay() {
+                    fadeIn()
+                }
+
+                override fun onPause() {
+                    fadeOut {}
+                }
+
+                override fun onSeekTo(pos: Long) {
+                    player.seekTo(pos)
+                }
+
+                override fun onSkipToNext() {
+                    next()
+                }
+
+                override fun onSkipToPrevious() {
+                    previous()
+                }
+
+                override fun onCustomAction(action: String, extras: android.os.Bundle?) {
+                    when (action) {
+                        "ACTION_TOGGLE_FAVORITE" -> {
+                            toggleFavorite()
+                        }
+                    }
+                }
+            })
+
+            // 设置完成后立即更新一次播放状态
+            updatePlaybackState()
+            Log.d("MusicPlayerManager", "MediaSession 回调设置完成")
+        }
+    }
+
     private suspend fun loadCoverBitmap(url: String?): Bitmap? {
         if (url == null) return null
         return try {
@@ -549,8 +603,13 @@ class MusicPlayerManager private constructor(context: Context) {
             null
         }
     }
-    
+
     private fun updatePlaybackState() {
+        // 检查 MediaSession 是否已初始化
+        if (mediaSession == null) {
+            return
+        }
+
         val stateBuilder = PlaybackStateCompat.Builder()
             .setActions(
                 PlaybackStateCompat.ACTION_PLAY or
@@ -572,30 +631,30 @@ class MusicPlayerManager private constructor(context: Context) {
                 player.currentPosition,
                 1.0f
             )
-        
-        mediaSession.setPlaybackState(stateBuilder.build())
-        
+
+        mediaSession?.setPlaybackState(stateBuilder.build())
+
         // 更新媒体元数据
         val title = _currentMusicTitle.value ?: ""
         val artist = _currentMusicArtist.value ?: ""
         val coverUrl = _currentMusicCover.value
-        
+
         if (title.isNotEmpty() || artist.isNotEmpty()) {
             scope.launch {
                 val bitmap = coverBitmap ?: loadCoverBitmap(coverUrl)
                 coverBitmap = bitmap
-                
+
                 val metadataBuilder = android.support.v4.media.MediaMetadataCompat.Builder()
                     .putString(android.support.v4.media.MediaMetadataCompat.METADATA_KEY_TITLE, title)
                     .putString(android.support.v4.media.MediaMetadataCompat.METADATA_KEY_ARTIST, artist)
                     .putString(android.support.v4.media.MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, coverUrl)
                     .putLong(android.support.v4.media.MediaMetadataCompat.METADATA_KEY_DURATION, player.duration)
-                
+
                 if (bitmap != null) {
                     metadataBuilder.putBitmap(android.support.v4.media.MediaMetadataCompat.METADATA_KEY_ALBUM_ART, bitmap)
                 }
-                
-                mediaSession.setMetadata(metadataBuilder.build())
+
+                mediaSession?.setMetadata(metadataBuilder.build())
             }
         }
     }
