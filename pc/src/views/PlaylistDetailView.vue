@@ -56,6 +56,7 @@
               :key="music.id"
               :class="['music-item', { playing: currentMusic?.id === music.id }]"
               @dblclick="playMusic(music)"
+              @contextmenu.prevent="showContextMenu($event, music)"
             >
               <div class="music-index">
                 <span v-if="currentMusic?.id === music.id" class="playing-icon">
@@ -110,6 +111,25 @@
     <div v-else class="empty">
       <p>歌单不存在或已被删除</p>
     </div>
+
+    <!-- 右键菜单 -->
+    <Transition name="context-menu">
+      <div 
+        v-if="contextMenu && selectedMusic" 
+        class="context-menu"
+        :style="{ left: contextMenuPosition.x + 'px', top: contextMenuPosition.y + 'px' }"
+      >
+        <div 
+          class="context-menu-item delete"
+          @click.stop="removeMusic(selectedMusic.id)"
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16">
+            <path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+          </svg>
+          从歌单中移除
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -127,6 +147,29 @@ const loading = ref(false)
 const currentMusic = ref(null)
 const favorites = ref([])
 const isCollected = ref(false)
+const contextMenu = ref(null)
+const contextMenuPosition = ref({ x: 0, y: 0 })
+const selectedMusic = ref(null)
+
+// 当前用户信息
+const currentUser = computed(() => {
+  const token = localStorage.getItem('token')
+  if (!token) return null
+  
+  try {
+    const userStr = localStorage.getItem('currentUser')
+    return userStr ? JSON.parse(userStr) : null
+  } catch (e) {
+    console.error('解析用户信息失败:', e)
+    return null
+  }
+})
+
+// 判断当前用户是否是歌单所有者
+const isOwner = computed(() => {
+  if (!currentUser.value || !playlist.value) return false
+  return currentUser.value.id === playlist.value.userId
+})
 
 // 统一的 API 请求函数
 async function apiRequest(url, options = {}) {
@@ -379,6 +422,13 @@ onMounted(() => {
 
   // 监听歌单更新事件
   window.addEventListener('playlist-updated', handlePlaylistUpdated)
+
+  // 点击外部关闭右键菜单
+  document.addEventListener('mousedown', (e) => {
+    if (contextMenu.value && !e.target.closest('.context-menu')) {
+      hideContextMenu()
+    }
+  })
 })
 
 // 处理歌单更新事件
@@ -391,6 +441,80 @@ const handlePlaylistUpdated = (event) => {
     if (description) {
       playlist.value.description = description
     }
+  }
+}
+
+// 显示右键菜单
+const showContextMenu = (event, music) => {
+  selectedMusic.value = music
+  contextMenuPosition.value = {
+    x: event.clientX,
+    y: event.clientY
+  }
+  contextMenu.value = true
+  
+  console.log('右键菜单显示:', {
+    isOwner: isOwner.value,
+    currentUser: currentUser.value,
+    playlistUserId: playlist.value?.userId,
+    selectedMusic: music
+  })
+}
+
+// 隐藏右键菜单
+const hideContextMenu = () => {
+  contextMenu.value = false
+  selectedMusic.value = null
+}
+
+// 从歌单中移除音乐
+const removeMusic = async (musicId) => {
+  hideContextMenu()
+  
+  const token = localStorage.getItem('token')
+  if (!token) {
+    window.dispatchEvent(new CustomEvent('show-toast', { 
+      detail: { message: '请先登录', type: 'error' } 
+    }))
+    return
+  }
+
+  if (!confirm('确定要从歌单中移除这首音乐吗？')) {
+    return
+  }
+
+  try {
+    const response = await fetch(`${apiConfig.BASE_URL}/api/user/playlist/music/remove`, {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        playlistId: playlist.value.id,
+        musicId: musicId
+      })
+    })
+
+    const result = await response.json()
+
+    if (result.success) {
+      window.dispatchEvent(new CustomEvent('show-toast', { 
+        detail: { message: '音乐已从歌单中移除', type: 'success' } 
+      }))
+      
+      // 重新加载歌单详情
+      await loadPlaylistDetail()
+    } else {
+      window.dispatchEvent(new CustomEvent('show-toast', { 
+        detail: { message: result.message || '移除失败', type: 'error' } 
+      }))
+    }
+  } catch (error) {
+    console.error('移除音乐失败:', error)
+    window.dispatchEvent(new CustomEvent('show-toast', { 
+      detail: { message: '网络错误，请重试', type: 'error' } 
+    }))
   }
 }
 </script>
@@ -758,5 +882,56 @@ const handlePlaylistUpdated = (event) => {
 
 .music-actions .action-btn.is-favorite {
   color: #ff4545;
+}
+
+.context-menu {
+  position: fixed;
+  background: white;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 8px 0;
+  z-index: 1000;
+  min-width: 180px;
+  border: 1px solid var(--border-color);
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.context-menu-item:hover {
+  background: var(--bg-secondary);
+}
+
+.context-menu-item.delete {
+  color: #ef4444;
+}
+
+.context-menu-item.delete:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.context-menu-enter-active,
+.context-menu-leave-active {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.context-menu-enter-from,
+.context-menu-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.context-menu-enter-to,
+.context-menu-leave-from {
+  opacity: 1;
+  transform: scale(1);
 }
 </style>
