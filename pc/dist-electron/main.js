@@ -1,18 +1,18 @@
-import { app as i, ipcMain as l, shell as T, BrowserWindow as k, nativeImage as v, Tray as M, Menu as z } from "electron";
+import { app as i, ipcMain as l, shell as k, BrowserWindow as T, nativeImage as v, Tray as M, Menu as z } from "electron";
 import c from "path";
 import b from "fs";
-import { fileURLToPath as D } from "url";
-const g = c.dirname(D(import.meta.url));
+import { fileURLToPath as j } from "url";
+const g = c.dirname(j(import.meta.url));
 let e, m;
 i.isQuitting = !1;
-const j = i.requestSingleInstanceLock();
-j ? i.on("second-instance", () => {
+const D = i.requestSingleInstanceLock();
+D ? i.on("second-instance", () => {
   e && (e.isMinimized() && e.restore(), e.focus());
 }) : (console.log("已经有实例在运行，退出新实例"), i.quit(), process.exit(0));
 function P() {
   console.log("createWindow: 开始创建窗口");
   const u = process.env.NODE_ENV === "development", r = u ? c.join(g, "../public/icon.png") : c.join(i.getAppPath(), "public/icon.png"), s = c.join(g, "./preload.cjs");
-  if (console.log("createWindow: 图标路径 =", r), console.log("createWindow: preload 路径 =", s), e = new k({
+  if (console.log("createWindow: 图标路径 =", r), console.log("createWindow: preload 路径 =", s), e = new T({
     width: 1200,
     height: 800,
     minWidth: 800,
@@ -43,7 +43,7 @@ function P() {
     const o = i.getAppPath(), t = c.join(o, "dist/index.html");
     console.log("生产文件路径:", t), e.loadFile(t);
   }
-  e.webContents.openDevTools(), e.on("close", (o) => {
+  e.on("close", (o) => {
     i.isQuitting || (o.preventDefault(), e.hide());
   }), e.on("closed", () => {
     e = null;
@@ -163,7 +163,7 @@ l.handle("write-file", async (u, r, s) => {
 });
 l.handle("open-file", async (u, r) => {
   try {
-    return await T.openPath(r), { success: !0 };
+    return await k.openPath(r), { success: !0 };
   } catch (s) {
     return console.error("打开文件失败:", s), { success: !1, error: s.message };
   }
