@@ -146,7 +146,7 @@ fun LoginScreen(
                         username = it
                         errorMessage = ""
                     },
-                    label = { Text("用户名/邮箱") },
+                    label = { Text("邮箱") },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.Email,
