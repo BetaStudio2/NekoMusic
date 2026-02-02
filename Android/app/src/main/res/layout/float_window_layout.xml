@@ -71,14 +71,5 @@
             android:src="@drawable/ic_widget_next"
             android:background="@android:color/transparent"
             android:padding="8dp" />
-
-        <ImageButton
-            android:id="@+id/float_close"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:src="@drawable/ic_close"
-            android:background="@android:color/transparent"
-            android:padding="8dp"
-            android:layout_marginStart="8dp" />
     </LinearLayout>
 </LinearLayout>

@@ -22,6 +22,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class FuckChinaOSFloatService : Service() {
@@ -29,9 +30,13 @@ class FuckChinaOSFloatService : Service() {
     private var windowManager: WindowManager? = null
     private var floatView: View? = null
     private var isViewAdded = false
+    private var shouldShow = true // 控制是否应该显示悬浮窗
+    private var isAppInForeground = false // 应用是否在前台
     
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private var updateJob: Job? = null
+    private var appVisibilityJob: Job? = null
+    private var layoutParams: WindowManager.LayoutParams? = null
 
     companion object {
         const val ACTION_SHOW = "com.neko.music.action.SHOW_FLOAT"
@@ -48,6 +53,8 @@ class FuckChinaOSFloatService : Service() {
         super.onCreate()
         instance = this
         createFloatView()
+        showFloatView() // 初始化 layoutParams
+        startAppVisibilityMonitor()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -73,7 +80,6 @@ class FuckChinaOSFloatService : Service() {
         val btnPlayPause = floatView?.findViewById<ImageButton>(R.id.float_play_pause)
         val btnPrevious = floatView?.findViewById<ImageButton>(R.id.float_previous)
         val btnNext = floatView?.findViewById<ImageButton>(R.id.float_next)
-        val btnClose = floatView?.findViewById<ImageButton>(R.id.float_close)
         val layoutFloat = floatView?.findViewById<LinearLayout>(R.id.float_layout)
         
         btnPlayPause?.setOnClickListener {
@@ -93,10 +99,6 @@ class FuckChinaOSFloatService : Service() {
             MusicPlayerManager.getInstance(this).next()
         }
         
-        btnClose?.setOnClickListener {
-            hideFloatView()
-        }
-        
         layoutFloat?.setOnClickListener {
             // 点击悬浮窗打开应用
             val openIntent = Intent(this, com.neko.music.MainActivity::class.java).apply {
@@ -109,7 +111,7 @@ class FuckChinaOSFloatService : Service() {
     private fun showFloatView() {
         if (isViewAdded || floatView == null) return
         
-        val params = WindowManager.LayoutParams(
+        layoutParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -124,10 +126,10 @@ class FuckChinaOSFloatService : Service() {
             PixelFormat.TRANSLUCENT
         )
         
-        params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        layoutParams?.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
         
         try {
-            windowManager?.addView(floatView, params)
+            windowManager?.addView(floatView, layoutParams)
             isViewAdded = true
             updateFloatView()
         } catch (e: Exception) {
@@ -166,5 +168,48 @@ class FuckChinaOSFloatService : Service() {
         hideFloatView()
         serviceScope.cancel()
         instance = null
+    }
+
+    private fun startAppVisibilityMonitor() {
+        appVisibilityJob = serviceScope.launch {
+            while (isActive) {
+                val inForeground = checkAppInForeground()
+                
+                if (inForeground != isAppInForeground) {
+                    isAppInForeground = inForeground
+                    if (isAppInForeground) {
+                        // 应用进入前台，隐藏悬浮窗
+                        if (isViewAdded) {
+                            windowManager?.removeView(floatView)
+                            isViewAdded = false
+                        }
+                    } else {
+                        // 应用进入后台，显示悬浮窗
+                        if (!isViewAdded && floatView != null && layoutParams != null) {
+                            windowManager?.addView(floatView, layoutParams)
+                            isViewAdded = true
+                        }
+                    }
+                }
+                delay(500) // 每0.5秒检查一次
+            }
+        }
+    }
+
+    private fun checkAppInForeground(): Boolean {
+        try {
+            val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            val runningProcesses = activityManager.runningAppProcesses ?: return false
+            
+            for (process in runningProcesses) {
+                if (process.processName == packageName) {
+                    return process.importance == android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+                }
+            }
+            return false
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return false
+        }
     }
 }

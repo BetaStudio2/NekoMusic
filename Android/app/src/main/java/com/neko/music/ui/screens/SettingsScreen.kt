@@ -297,8 +297,8 @@ fun SettingsScreen(
                 SettingSection(title = "FuckChinaOS") {
                     SettingSwitchItem(
                         icon = Icons.Default.Info,
-                        title = "FuckChinaOS",
-                        subtitle = "在顶部状态栏中央显示播放控制",
+                        title = "灵动岛",
+                        subtitle = "在顶部状态栏中央显示播放控制。操你妈国产系统",
                         checked = isFuckChinaOSEnabled,
                         onCheckedChange = { enabled ->
                             // 如果开启但没有权限，先请求权限（开关状态不变，等用户授权后手动开启）
