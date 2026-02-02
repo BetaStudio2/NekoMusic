@@ -13,7 +13,7 @@ import AdminView from '@/views/admin/AdminView.vue'
 import AdminMusicView from '@/views/admin/AdminMusicView.vue'
 import AdminUsersView from '@/views/admin/AdminUsersView.vue'
 import AdminSettingsView from '@/views/admin/AdminSettingsView.vue'
-import MobileDownloadView from '@/views/MobileDownloadView.vue'
+import DownloadView from '@/views/DownloadView.vue'
 import DevDocsView from '@/views/DevDocsView.vue'
 
 // 检查是否是移动设备
@@ -56,7 +56,7 @@ const router = createRouter({
     {
       path: '/download',
       name: 'download',
-      component: MobileDownloadView,
+      component: DownloadView,
       meta: {
         title: '下载客户端 - Neko云音乐 | 免费音乐应用',
         description: '下载Neko云音乐客户端，享受完全免费的音乐体验。支持移动端和PC端。无需付费，永久免费。',
