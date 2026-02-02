@@ -29,6 +29,10 @@
             <span class="dev-icon">📚</span>
             <span class="dev-text">开发者文档</span>
           </a>
+          <a href="/download" class="download-link-btn">
+            <span class="download-icon">💻</span>
+            <span class="download-text">下载客户端</span>
+          </a>
         </div>
         <div class="decoration-element">
           <div class="music-note note-1">♪</div>
@@ -213,6 +217,53 @@ onMounted(() => {
 }
 
 .dev-text {
+  position: relative;
+  z-index: 1;
+}
+
+.download-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 30px;
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+  text-decoration: none;
+  border-radius: 30px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4);
+  position: relative;
+  overflow: hidden;
+  margin-left: 15px;
+}
+
+.download-link-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s ease;
+}
+
+.download-link-btn:hover::before {
+  left: 100%;
+}
+
+.download-link-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(245, 87, 108, 0.6);
+}
+
+.download-icon {
+  font-size: 1.3rem;
+}
+
+.download-text {
   position: relative;
   z-index: 1;
 }

@@ -58,9 +58,9 @@ const router = createRouter({
       name: 'download',
       component: MobileDownloadView,
       meta: {
-        title: '下载APP - Neko云音乐 | 免费音乐应用',
-        description: '下载Neko云音乐APP，享受完全免费的移动音乐体验。无需付费，永久免费。',
-        keywords: 'Neko云音乐下载,APP下载,免费音乐APP,移动音乐'
+        title: '下载客户端 - Neko云音乐 | 免费音乐应用',
+        description: '下载Neko云音乐客户端，享受完全免费的音乐体验。支持移动端和PC端。无需付费，永久免费。',
+        keywords: 'Neko云音乐下载,APP下载,免费音乐APP,移动音乐,PC下载,桌面音乐'
       }
     },
     {
