@@ -57,6 +57,25 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- 音乐桌面组件 -->
+        <receiver android:name=".widget.MusicWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.neko.music.action.PLAY_PAUSE" />
+                <action android:name="com.neko.music.action.PREVIOUS" />
+                <action android:name="com.neko.music.action.NEXT" />
+                <action android:name="com.neko.music.action.UPDATE_WIDGET" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/music_widget_info" />
+        </receiver>
+
+        <!-- 桌面组件更新服务 -->
+        <service android:name=".widget.MusicWidgetUpdateService"
+            android:exported="false" />
     </application>
 
 </manifest>

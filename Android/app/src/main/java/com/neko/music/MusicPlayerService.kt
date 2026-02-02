@@ -53,6 +53,11 @@ class MusicPlayerService : Service() {
         kotlinx.coroutines.GlobalScope.launch {
             playerManager.isPlaying.collect { isPlaying ->
                 updateMusicNotification()
+                // 发送广播更新桌面组件
+                val updateIntent = Intent(this@MusicPlayerService, com.neko.music.widget.MusicWidgetProvider::class.java).apply {
+                    action = com.neko.music.widget.MusicWidgetProvider.ACTION_UPDATE_WIDGET
+                }
+                sendBroadcast(updateIntent)
             }
         }
 
@@ -60,6 +65,11 @@ class MusicPlayerService : Service() {
         kotlinx.coroutines.GlobalScope.launch {
             playerManager.currentMusicTitle.collect {
                 updateMusicNotification()
+                // 发送广播更新桌面组件
+                val updateIntent = Intent(this@MusicPlayerService, com.neko.music.widget.MusicWidgetProvider::class.java).apply {
+                    action = com.neko.music.widget.MusicWidgetProvider.ACTION_UPDATE_WIDGET
+                }
+                sendBroadcast(updateIntent)
             }
         }
     }
