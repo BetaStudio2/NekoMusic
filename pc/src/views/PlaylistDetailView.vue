@@ -130,6 +130,25 @@
         </div>
       </div>
     </Transition>
+
+    <!-- 确认对话框 -->
+    <Transition name="modal">
+      <div v-if="showConfirmDialog" class="modal-overlay" @click="handleCancel">
+        <div class="modal-content" @click.stop>
+          <div class="modal-icon">
+            <svg viewBox="0 0 24 24" width="48" height="48">
+              <path fill="#ef4444" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            </svg>
+          </div>
+          <h3 class="modal-title">确认移除</h3>
+          <p class="modal-message">确定要从歌单中移除这首音乐吗？</p>
+          <div class="modal-actions">
+            <button class="modal-btn cancel" @click="handleCancel">取消</button>
+            <button class="modal-btn confirm" @click="handleConfirm">确认移除</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -150,6 +169,8 @@ const isCollected = ref(false)
 const contextMenu = ref(null)
 const contextMenuPosition = ref({ x: 0, y: 0 })
 const selectedMusic = ref(null)
+const showConfirmDialog = ref(false)
+const confirmAction = ref(null)
 
 // 当前用户信息
 const currentUser = computed(() => {
@@ -479,43 +500,56 @@ const removeMusic = async (musicId) => {
     return
   }
 
-  if (!confirm('确定要从歌单中移除这首音乐吗？')) {
-    return
-  }
-
-  try {
-    const response = await fetch(`${apiConfig.BASE_URL}/api/user/playlist/music/remove`, {
-      method: 'POST',
-      headers: {
-        'Authorization': token,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        playlistId: playlist.value.id,
-        musicId: musicId
+  // 显示自定义确认对话框
+  showConfirmDialog.value = true
+  confirmAction.value = async () => {
+    try {
+      const response = await fetch(`${apiConfig.BASE_URL}/api/user/playlist/music/remove`, {
+        method: 'POST',
+        headers: {
+          'Authorization': token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          playlistId: playlist.value.id,
+          musicId: musicId
+        })
       })
-    })
 
-    const result = await response.json()
+      const result = await response.json()
 
-    if (result.success) {
+      if (result.success) {
+        window.dispatchEvent(new CustomEvent('show-toast', { 
+          detail: { message: '音乐已从歌单中移除', type: 'success' } 
+        }))
+        
+        // 重新加载歌单详情
+        await loadPlaylistDetail()
+      } else {
+        window.dispatchEvent(new CustomEvent('show-toast', { 
+          detail: { message: result.message || '移除失败', type: 'error' } 
+        }))
+      }
+    } catch (error) {
+      console.error('移除音乐失败:', error)
       window.dispatchEvent(new CustomEvent('show-toast', { 
-        detail: { message: '音乐已从歌单中移除', type: 'success' } 
-      }))
-      
-      // 重新加载歌单详情
-      await loadPlaylistDetail()
-    } else {
-      window.dispatchEvent(new CustomEvent('show-toast', { 
-        detail: { message: result.message || '移除失败', type: 'error' } 
+        detail: { message: '网络错误，请重试', type: 'error' } 
       }))
     }
-  } catch (error) {
-    console.error('移除音乐失败:', error)
-    window.dispatchEvent(new CustomEvent('show-toast', { 
-      detail: { message: '网络错误，请重试', type: 'error' } 
-    }))
   }
+}
+
+const handleConfirm = () => {
+  if (confirmAction.value) {
+    confirmAction.value()
+  }
+  showConfirmDialog.value = false
+  confirmAction.value = null
+}
+
+const handleCancel = () => {
+  showConfirmDialog.value = false
+  confirmAction.value = null
 }
 </script>
 
@@ -933,5 +967,105 @@ const removeMusic = async (musicId) => {
 .context-menu-leave-from {
   opacity: 1;
   transform: scale(1);
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  width: 90%;
+  max-width: 400px;
+  text-align: center;
+  box-shadow: var(--shadow-xl);
+}
+
+.modal-icon {
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.modal-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 12px 0;
+}
+
+.modal-message {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 24px 0;
+  line-height: 1.6;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.modal-btn {
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: none;
+}
+
+.modal-btn.cancel {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.modal-btn.cancel:hover {
+  background: var(--bg-tertiary);
+}
+
+.modal-btn.confirm {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.modal-btn.confirm:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+}
+
+.modal-enter-active,
+.modal-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-from .modal-content,
+.modal-leave-to .modal-content {
+  transform: scale(0.9) translateY(20px);
+}
+
+.modal-enter-to .modal-content,
+.modal-leave-from .modal-content {
+  transform: scale(1) translateY(0);
 }
 </style>
