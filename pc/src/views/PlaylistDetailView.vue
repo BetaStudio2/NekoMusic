@@ -346,7 +346,7 @@ const toggleFavorite = async (music) => {
   
   try {
     if (isFavorite(music.id)) {
-      const response = await fetch(`/api/user/favorites/${music.id}`, {
+      const response = await fetch(`${apiConfig.BASE_URL}/api/user/favorites/${music.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': token
