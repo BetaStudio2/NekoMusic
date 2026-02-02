@@ -15,6 +15,7 @@ import AdminUsersView from '@/views/admin/AdminUsersView.vue'
 import AdminSettingsView from '@/views/admin/AdminSettingsView.vue'
 import DownloadView from '@/views/DownloadView.vue'
 import DevDocsView from '@/views/DevDocsView.vue'
+import ErrorView from '@/views/ErrorView.vue'
 
 // 检查是否是移动设备
 function isMobileDevice() {
@@ -218,6 +219,16 @@ const router = createRouter({
         title: '音乐详情 - Neko云音乐 | 免费音乐播放',
         description: '查看免费音乐详细信息，免费播放高品质音乐。Neko云音乐提供完全免费的音乐播放服务。',
         keywords: '音乐详情,音乐播放,免费音乐播放,免费听歌'
+      }
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'not-found',
+      component: ErrorView,
+      meta: {
+        title: '404 - 页面未找到 - Neko云音乐',
+        description: '您访问的页面不存在或已被移除。返回首页继续探索免费音乐。',
+        keywords: '404,页面未找到,错误页面'
       }
     }
   ]
