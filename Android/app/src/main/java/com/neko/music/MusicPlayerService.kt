@@ -81,6 +81,15 @@ class MusicPlayerService : Service() {
                     action = com.neko.music.widget.MusicWidgetProvider.ACTION_UPDATE_WIDGET
                 }
                 sendBroadcast(updateIntent)
+                
+                // 更新悬浮窗
+                val floatPrefs = getSharedPreferences("float_window", Context.MODE_PRIVATE)
+                if (floatPrefs.getBoolean("fuck_china_os_enabled", false)) {
+                    val floatUpdateIntent = Intent(this@MusicPlayerService, com.neko.music.floatwindow.FuckChinaOSFloatService::class.java).apply {
+                        action = com.neko.music.floatwindow.FuckChinaOSFloatService.ACTION_UPDATE
+                    }
+                    startService(floatUpdateIntent)
+                }
             }
         }
     }

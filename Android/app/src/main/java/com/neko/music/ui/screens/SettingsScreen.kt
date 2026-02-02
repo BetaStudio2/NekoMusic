@@ -1,7 +1,10 @@
 package com.neko.music.ui.screens
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.compose.foundation.Image
 import com.neko.music.R
 import android.util.Log
@@ -75,6 +78,21 @@ fun SettingsScreen(
     val cachePrefs = remember { context.getSharedPreferences("music_cache", Context.MODE_PRIVATE) }
     var isCacheEnabled by remember { mutableStateOf(cachePrefs.getBoolean("cache_enabled", true)) }
     
+    // FuckChinaOS 悬浮窗设置
+    val floatPrefs = remember { context.getSharedPreferences("float_window", Context.MODE_PRIVATE) }
+    var isFuckChinaOSEnabled by remember { mutableStateOf(floatPrefs.getBoolean("fuck_china_os_enabled", false)) }
+    
+    // 悬浮窗权限检查
+    var hasOverlayPermission by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                android.provider.Settings.canDrawOverlays(context)
+            } else {
+                true
+            }
+        )
+    }
+    
     // 缓存管理
     val cacheManager = remember { com.neko.music.data.cache.MusicCacheManager.getInstance(context) }
     var cacheSize by remember { mutableStateOf(cacheManager.getCacheSizeFormatted()) }
@@ -84,6 +102,15 @@ fun SettingsScreen(
     LaunchedEffect(isCacheEnabled) {
         cacheSize = cacheManager.getCacheSizeFormatted()
         cachedMusicCount = cacheManager.getCachedMusicCount()
+    }
+    
+    // 监听权限状态变化
+    LaunchedEffect(Unit) {
+        hasOverlayPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            android.provider.Settings.canDrawOverlays(context)
+        } else {
+            true
+        }
     }
 
     // 检查更新
@@ -263,6 +290,41 @@ fun SettingsScreen(
                             onClick = { onNavigateToCache() }
                         )
                     }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                SettingSection(title = "FuckChinaOS") {
+                    SettingSwitchItem(
+                        icon = Icons.Default.Info,
+                        title = "FuckChinaOS",
+                        subtitle = "在顶部状态栏中央显示播放控制",
+                        checked = isFuckChinaOSEnabled,
+                        onCheckedChange = { enabled ->
+                            // 如果开启但没有权限，先请求权限（开关状态不变，等用户授权后手动开启）
+                            if (enabled && !hasOverlayPermission) {
+                                val intent = Intent(
+                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    android.net.Uri.parse("package:${context.packageName}")
+                                )
+                                context.startActivity(intent)
+                            } else {
+                                // 有权限或关闭时，直接执行
+                                isFuckChinaOSEnabled = enabled
+                                floatPrefs.edit().putBoolean("fuck_china_os_enabled", enabled).apply()
+                                
+                                // 控制悬浮窗服务
+                                val serviceIntent = Intent(context, com.neko.music.floatwindow.FuckChinaOSFloatService::class.java)
+                                if (enabled) {
+                                    serviceIntent.action = com.neko.music.floatwindow.FuckChinaOSFloatService.ACTION_SHOW
+                                    context.startService(serviceIntent)
+                                } else {
+                                    serviceIntent.action = com.neko.music.floatwindow.FuckChinaOSFloatService.ACTION_HIDE
+                                    context.startService(serviceIntent)
+                                }
+                            }
+                        }
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(80.dp))
