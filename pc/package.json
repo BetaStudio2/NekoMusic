@@ -5,14 +5,15 @@
   "type": "module",
   "main": "dist-electron/main.js",
   "description": "Neko云音乐。完全免费的音乐平台！",
-  "author": "Fantasy Network「梦幻网络」",
+  "author": "Fantasy Network「梦幻网络」<support@cnmsb.xin>",
+  "homepage": "https://music.cnmsb.xin",
   "scripts": {
     "dev": "npm run electron:dev",
     "build": "vite build && copy electron\\preload.cjs dist-electron\\preload.cjs && electron-builder",
     "build:dir": "vite build && copy electron\\preload.cjs dist-electron\\preload.cjs && electron-builder --dir",
     "build:win": "vite build && copy electron\\preload.cjs dist-electron\\preload.cjs && electron-builder --win",
     "build:mac": "vite build && cp electron\\preload.cjs dist-electron\\preload.cjs && electron-builder --mac",
-    "build:linux": "vite build && cp electron\\preload.cjs dist-electron\\preload.cjs && electron-builder --linux",
+    "build:linux": "vite build && cp electron/preload.cjs dist-electron/preload.cjs && electron-builder --linux",
     "build:all": "vite build && copy electron\\preload.cjs dist-electron\\preload.cjs && electron-builder -wl",
     "preview": "vite preview",
     "electron:dev": "vite && electron ."
