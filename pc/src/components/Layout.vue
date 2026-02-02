@@ -161,7 +161,7 @@
               <h2 :key="authTab" class="modal-title">{{ authTab === 'login' ? '欢迎回来' : '创建账号' }}</h2>
             </Transition>
             <Transition name="subtitle-fade" mode="out-in">
-              <p :key="authTab" class="modal-subtitle">{{ authTab === 'login' ? '登录以继续使用Neko云音乐' : '创建新账号开始您的音乐之旅' }}</p>
+
             </Transition>
           </div>
           
@@ -185,7 +185,7 @@
               <input 
                 v-model="formData.username"
                 type="text" 
-                placeholder="用户名"
+                placeholder="邮箱"
                 class="auth-input"
               />
               <input 
