@@ -439,4 +439,328 @@ onMounted(() => {
   opacity: 0;
   transform: scale(0.95);
 }
+
+/* ========================================
+   响应式适配
+   ======================================== */
+
+/* 小屏幕适配 (< 640px) */
+@media screen and (max-width: 639px) {
+  .sidebar {
+    position: fixed;
+    left: -100%;
+    top: 0;
+    height: 100vh;
+    z-index: 9999;
+    transition: left 0.3s ease;
+    box-shadow: 0 0 0 transparent;
+  }
+  
+  .sidebar.open {
+    left: 0;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+  }
+  
+  .nav-item {
+    padding: 14px 16px;
+  }
+  
+  .nav-icon {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .nav-item span {
+    font-size: 14px;
+  }
+  
+  .user-avatar {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .username {
+    font-size: 13px;
+  }
+  
+  .modal-content {
+    max-width: 90vw;
+    padding: 20px;
+  }
+  
+  .modal-title {
+    font-size: 18px;
+  }
+}
+
+/* 中等屏幕适配 (640px - 1023px) */
+@media screen and (min-width: 640px) and (max-width: 1023px) {
+  .sidebar {
+    width: 200px;
+  }
+  
+  .nav-item {
+    padding: 12px 16px;
+  }
+  
+  .nav-icon {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .nav-item span {
+    font-size: 13px;
+  }
+}
+
+/* 大屏幕适配 (1024px - 1279px) */
+@media screen and (min-width: 1024px) and (max-width: 1279px) {
+  .sidebar {
+    width: 220px;
+  }
+}
+
+/* 2K屏幕适配 (1536px - 1919px) */
+@media screen and (min-width: 1536px) and (max-width: 1919px) {
+  .sidebar {
+    width: 260px;
+  }
+  
+  .nav-item {
+    padding: 14px 20px;
+    gap: 14px;
+  }
+  
+  .nav-icon {
+    width: 22px;
+    height: 22px;
+  }
+  
+  .nav-item span {
+    font-size: 15px;
+  }
+  
+  .user-avatar {
+    width: 44px;
+    height: 44px;
+  }
+  
+  .username {
+    font-size: 15px;
+  }
+  
+  .modal-content {
+    padding: 28px;
+    max-width: 400px;
+  }
+  
+  .modal-title {
+    font-size: 22px;
+  }
+  
+  .auth-input {
+    padding: 14px 18px;
+    font-size: 15px;
+  }
+  
+  .modal-btn {
+    padding: 14px 24px;
+    font-size: 15px;
+  }
+}
+
+/* 3K屏幕适配 (1920px - 2559px) */
+@media screen and (min-width: 1920px) and (max-width: 2559px) {
+  .sidebar {
+    width: 280px;
+  }
+  
+  .nav-item {
+    padding: 16px 24px;
+    gap: 16px;
+  }
+  
+  .nav-icon {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .nav-item span {
+    font-size: 16px;
+  }
+  
+  .user-avatar {
+    width: 48px;
+    height: 48px;
+  }
+  
+  .username {
+    font-size: 16px;
+  }
+  
+  .modal-content {
+    padding: 32px;
+    max-width: 440px;
+  }
+  
+  .modal-title {
+    font-size: 24px;
+  }
+  
+  .auth-input {
+    padding: 16px 20px;
+    font-size: 16px;
+  }
+  
+  .modal-btn {
+    padding: 16px 28px;
+    font-size: 16px;
+  }
+}
+
+/* 4K屏幕适配 (>= 2560px) */
+@media screen and (min-width: 2560px) {
+  .sidebar {
+    width: 320px;
+  }
+  
+  .nav-item {
+    padding: 20px 28px;
+    gap: 18px;
+  }
+  
+  .nav-icon {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .nav-item span {
+    font-size: 18px;
+  }
+  
+  .user-avatar {
+    width: 56px;
+    height: 56px;
+  }
+  
+  .username {
+    font-size: 18px;
+  }
+  
+  .modal-content {
+    padding: 40px;
+    max-width: 500px;
+    border-radius: 20px;
+  }
+  
+  .modal-title {
+    font-size: 28px;
+  }
+  
+  .auth-input {
+    padding: 20px 24px;
+    font-size: 18px;
+    border-radius: 16px;
+  }
+  
+  .modal-btn {
+    padding: 20px 36px;
+    font-size: 18px;
+    border-radius: 16px;
+  }
+}
+
+/* 5K屏幕适配 (>= 5120px) */
+@media screen and (min-width: 5120px) {
+  .sidebar {
+    width: 400px;
+  }
+  
+  .nav-item {
+    padding: 28px 36px;
+    gap: 24px;
+  }
+  
+  .nav-icon {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .nav-item span {
+    font-size: 22px;
+  }
+  
+  .user-avatar {
+    width: 72px;
+    height: 72px;
+  }
+  
+  .username {
+    font-size: 22px;
+  }
+  
+  .modal-content {
+    padding: 56px;
+    max-width: 600px;
+    border-radius: 28px;
+  }
+  
+  .modal-title {
+    font-size: 36px;
+  }
+  
+  .auth-input {
+    padding: 28px 32px;
+    font-size: 22px;
+    border-radius: 20px;
+  }
+  
+  .modal-btn {
+    padding: 28px 48px;
+    font-size: 22px;
+    border-radius: 20px;
+  }
+}
+
+/* 高度适配 - 短屏幕 */
+@media screen and (max-height: 720px) {
+  .nav-item {
+    padding: 10px 14px;
+  }
+  
+  .user-avatar {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .modal-content {
+    padding: 16px;
+  }
+}
+
+/* 高度适配 - 超高屏幕 */
+@media screen and (min-height: 1440px) {
+  .nav-item {
+    padding: 18px 24px;
+  }
+  
+  .modal-content {
+    padding: 36px;
+  }
+}
+
+/* 横屏/竖屏适配 */
+@media screen and (orientation: portrait) {
+  .sidebar {
+    position: fixed;
+    left: -100%;
+    top: 0;
+    height: 100vh;
+    z-index: 9999;
+  }
+  
+  .sidebar.open {
+    left: 0;
+  }
+}
 </style>

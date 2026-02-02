@@ -42,10 +42,10 @@ function createWindow() {
   console.log('createWindow: preload 路径 =', preloadPath)
   
   win = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 800,
-    minHeight: 600,
+    width: 1280,
+    height: 720,
+    minWidth: 1280,
+    minHeight: 720,
     frame: false,
     autoHideMenuBar: true,
     icon: iconPath,

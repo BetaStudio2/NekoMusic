@@ -2548,4 +2548,749 @@ const handleNavigateToSettings = () => {
 .play-mode-icon {
   filter: brightness(0);
 }
+
+/* ========================================
+   响应式适配
+   ======================================== */
+
+/* 小屏幕适配 (< 640px) */
+@media screen and (max-width: 639px) {
+  .player-bar-wrapper {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 9998;
+  }
+  
+  .player-bar {
+    height: var(--player-bar-height);
+    padding: clamp(6px, 1.5vw, 10px);
+    gap: clamp(8px, 2vw, 12px);
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+  
+  .player-info {
+    width: clamp(120px, 30vw, 160px);
+    gap: clamp(8px, 2vw, 12px);
+  }
+  
+  .player-cover-wrapper {
+    width: clamp(36px, 10vw, 44px);
+    height: clamp(36px, 10vw, 44px);
+    flex-shrink: 0;
+  }
+  
+  .player-cover {
+    border-radius: 6px;
+  }
+  
+  .player-details {
+    margin-left: 0;
+    min-width: 0;
+    flex: 1;
+  }
+  
+  .player-title {
+    font-size: clamp(12px, 3vw, 14px);
+    max-width: 100%;
+  }
+  
+  .player-artist {
+    font-size: clamp(10px, 2.5vw, 12px);
+  }
+  
+  .player-controls-main {
+    min-width: 0;
+    flex: 1;
+    gap: clamp(4px, 1vw, 6px);
+  }
+  
+  .control-buttons {
+    gap: clamp(2px, 0.5vw, 6px);
+  }
+  
+  .control-btn {
+    width: clamp(28px, 7vw, 36px);
+    height: clamp(28px, 7vw, 36px);
+    flex-shrink: 0;
+  }
+  
+  .play-btn {
+    width: clamp(36px, 9vw, 44px);
+    height: clamp(36px, 9vw, 44px);
+  }
+  
+  .player-progress {
+    gap: clamp(4px, 1vw, 8px);
+    min-width: 0;
+  }
+  
+  .time {
+    font-size: clamp(10px, 2.5vw, 12px);
+    min-width: clamp(24px, 6vw, 32px);
+  }
+  
+  .progress-bar {
+    height: 3px;
+    flex: 1;
+    min-width: 60px;
+  }
+  
+  .progress-thumb {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .player-controls-right {
+    gap: clamp(4px, 1vw, 6px);
+    flex-shrink: 0;
+  }
+  
+  .volume-wrapper {
+    display: none;
+  }
+  
+  .volume-panel {
+    display: none;
+  }
+  
+  .playlist-panel {
+    bottom: var(--player-bar-height);
+    max-height: calc(100vh - var(--player-bar-height) - 20px);
+  }
+  
+  .playlist-content {
+    padding: clamp(12px, 3vw, 16px);
+  }
+  
+  .playlist-item {
+    padding: clamp(10px, 2.5vw, 14px);
+  }
+  
+  .playlist-item-cover {
+    width: clamp(32px, 8vw, 40px);
+    height: clamp(32px, 8vw, 40px);
+  }
+  
+  .playlist-item-title {
+    font-size: clamp(12px, 3vw, 14px);
+  }
+  
+  .playlist-item-artist {
+    font-size: clamp(10px, 2.5vw, 12px);
+  }
+}
+
+/* 超小屏幕适配 (< 480px) */
+@media screen and (max-width: 479px) {
+  .player-bar {
+    padding: 6px;
+    gap: 6px;
+  }
+  
+  .player-info {
+    width: 100px;
+    gap: 6px;
+  }
+  
+  .player-cover-wrapper {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .player-title {
+    font-size: 12px;
+  }
+  
+  .player-artist {
+    font-size: 11px;
+  }
+  
+  .player-controls-main {
+    gap: 4px;
+  }
+  
+  .control-buttons {
+    gap: 2px;
+  }
+  
+  .control-btn {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .play-btn {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .control-btn svg,
+  .play-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .player-progress {
+    gap: 4px;
+  }
+  
+  .time {
+    font-size: 10px;
+    min-width: 24px;
+  }
+  
+  .progress-bar {
+    min-width: 50px;
+  }
+  
+  .progress-thumb {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .player-controls-right {
+    gap: 4px;
+  }
+  
+  .player-controls-right .control-btn {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .player-controls-right .control-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+/* 极小屏幕适配 (< 380px) */
+@media screen and (max-width: 379px) {
+  .player-bar {
+    padding: 4px;
+    gap: 4px;
+  }
+  
+  .player-info {
+    width: 90px;
+    gap: 4px;
+  }
+  
+  .player-cover-wrapper {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .player-title {
+    font-size: 11px;
+  }
+  
+  .player-artist {
+    font-size: 10px;
+  }
+  
+  .control-buttons {
+    gap: 1px;
+  }
+  
+  .control-btn {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .play-btn {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .control-btn svg,
+  .play-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .time {
+    font-size: 9px;
+    min-width: 20px;
+  }
+  
+  .progress-bar {
+    min-width: 40px;
+  }
+  
+  .player-controls-right .control-btn {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+/* 中等屏幕适配 (640px - 1023px) */
+@media screen and (min-width: 640px) and (max-width: 1023px) {
+  .player-bar {
+    padding: 12px clamp(16px, 3vw, 20px);
+  }
+  
+  .player-cover-wrapper {
+    width: 48px;
+    height: 48px;
+  }
+  
+  .player-details {
+    margin-left: 12px;
+  }
+  
+  .player-title {
+    font-size: 14px;
+    max-width: 180px;
+  }
+  
+  .player-artist {
+    font-size: 12px;
+  }
+  
+  .volume-panel {
+    display: none;
+  }
+  
+  .playlist-panel {
+    right: clamp(10px, 2vw, 20px);
+    bottom: calc(var(--player-bar-height) + 10px);
+    width: clamp(300px, 40vw, 400px);
+  }
+}
+
+/* 大屏幕适配 (1024px - 1279px) */
+@media screen and (min-width: 1024px) and (max-width: 1279px) {
+  .player-bar {
+    padding: 14px 24px;
+  }
+  
+  .player-cover-wrapper {
+    width: 52px;
+    height: 52px;
+  }
+  
+  .player-title {
+    max-width: 200px;
+  }
+}
+
+/* 2K屏幕适配 (1536px - 1919px) */
+@media screen and (min-width: 1536px) and (max-width: 1919px) {
+  .player-bar {
+    padding: 18px 32px;
+    height: var(--player-bar-height);
+  }
+  
+  .player-cover-wrapper {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .player-cover {
+    border-radius: 12px;
+  }
+  
+  .player-details {
+    margin-left: 16px;
+  }
+  
+  .player-title {
+    font-size: 16px;
+    max-width: 240px;
+  }
+  
+  .player-artist {
+    font-size: 14px;
+  }
+  
+  .control-btn {
+    width: 44px;
+    height: 44px;
+  }
+  
+  .play-btn {
+    width: 52px;
+    height: 52px;
+  }
+  
+  .control-buttons {
+    gap: 10px;
+  }
+  
+  .progress-bar {
+    height: 5px;
+  }
+  
+  .progress-thumb {
+    width: 12px;
+    height: 12px;
+  }
+  
+  .time {
+    font-size: 14px;
+    min-width: 42px;
+  }
+  
+  .volume-panel {
+    width: 40px;
+    height: 120px;
+    padding: 8px;
+  }
+  
+  .volume-thumb {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .playlist-panel {
+    width: 420px;
+    max-height: 500px;
+  }
+  
+  .playlist-item {
+    padding: 14px 16px;
+  }
+  
+  .playlist-item-cover {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* 3K屏幕适配 (1920px - 2559px) */
+@media screen and (min-width: 1920px) and (max-width: 2559px) {
+  .player-bar {
+    padding: 20px 40px;
+    height: var(--player-bar-height);
+  }
+  
+  .player-cover-wrapper {
+    width: 68px;
+    height: 68px;
+  }
+  
+  .player-cover {
+    border-radius: 14px;
+  }
+  
+  .player-details {
+    margin-left: 18px;
+  }
+  
+  .player-title {
+    font-size: 17px;
+    max-width: 280px;
+  }
+  
+  .player-artist {
+    font-size: 15px;
+  }
+  
+  .control-btn {
+    width: 48px;
+    height: 48px;
+  }
+  
+  .play-btn {
+    width: 58px;
+    height: 58px;
+  }
+  
+  .control-buttons {
+    gap: 12px;
+  }
+  
+  .progress-bar {
+    height: 6px;
+  }
+  
+  .progress-thumb {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .time {
+    font-size: 15px;
+    min-width: 48px;
+  }
+  
+  .volume-panel {
+    width: 44px;
+    height: 140px;
+    padding: 10px;
+  }
+  
+  .volume-thumb {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .playlist-panel {
+    width: 480px;
+    max-height: 560px;
+  }
+  
+  .playlist-item {
+    padding: 16px 18px;
+  }
+  
+  .playlist-item-cover {
+    width: 48px;
+    height: 48px;
+  }
+  
+  .playlist-item-title {
+    font-size: 15px;
+  }
+  
+  .playlist-item-artist {
+    font-size: 13px;
+  }
+}
+
+/* 4K屏幕适配 (>= 2560px) */
+@media screen and (min-width: 2560px) {
+  .player-bar {
+    padding: 24px 48px;
+    height: var(--player-bar-height);
+  }
+  
+  .player-cover-wrapper {
+    width: 80px;
+    height: 80px;
+  }
+  
+  .player-cover {
+    border-radius: 16px;
+  }
+  
+  .player-details {
+    margin-left: 20px;
+  }
+  
+  .player-title {
+    font-size: 20px;
+    max-width: 320px;
+  }
+  
+  .player-artist {
+    font-size: 17px;
+  }
+  
+  .control-btn {
+    width: 54px;
+    height: 54px;
+  }
+  
+  .play-btn {
+    width: 66px;
+    height: 66px;
+  }
+  
+  .control-buttons {
+    gap: 14px;
+  }
+  
+  .progress-bar {
+    height: 8px;
+  }
+  
+  .progress-thumb {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .time {
+    font-size: 17px;
+    min-width: 56px;
+  }
+  
+  .volume-panel {
+    width: 48px;
+    height: 160px;
+    padding: 12px;
+  }
+  
+  .volume-thumb {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .playlist-panel {
+    width: 560px;
+    max-height: 640px;
+    border-radius: 20px;
+  }
+  
+  .playlist-item {
+    padding: 18px 20px;
+  }
+  
+  .playlist-item-cover {
+    width: 56px;
+    height: 56px;
+  }
+  
+  .playlist-item-title {
+    font-size: 17px;
+  }
+  
+  .playlist-item-artist {
+    font-size: 15px;
+  }
+  
+  .playlist-header h3 {
+    font-size: 20px;
+  }
+}
+
+/* 5K屏幕适配 (>= 5120px) */
+@media screen and (min-width: 5120px) {
+  .player-bar {
+    padding: 36px 64px;
+    height: var(--player-bar-height);
+  }
+  
+  .player-cover-wrapper {
+    width: 100px;
+    height: 100px;
+  }
+  
+  .player-cover {
+    border-radius: 20px;
+  }
+  
+  .player-details {
+    margin-left: 28px;
+  }
+  
+  .player-title {
+    font-size: 26px;
+    max-width: 400px;
+  }
+  
+  .player-artist {
+    font-size: 22px;
+  }
+  
+  .control-btn {
+    width: 68px;
+    height: 68px;
+  }
+  
+  .play-btn {
+    width: 84px;
+    height: 84px;
+  }
+  
+  .control-buttons {
+    gap: 18px;
+  }
+  
+  .progress-bar {
+    height: 10px;
+  }
+  
+  .progress-thumb {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .time {
+    font-size: 22px;
+    min-width: 72px;
+  }
+  
+  .volume-panel {
+    width: 56px;
+    height: 200px;
+    padding: 16px;
+  }
+  
+  .volume-thumb {
+    width: 22px;
+    height: 22px;
+  }
+  
+  .playlist-panel {
+    width: 680px;
+    max-height: 800px;
+    border-radius: 28px;
+  }
+  
+  .playlist-item {
+    padding: 24px 28px;
+  }
+  
+  .playlist-item-cover {
+    width: 72px;
+    height: 72px;
+  }
+  
+  .playlist-item-title {
+    font-size: 22px;
+  }
+  
+  .playlist-item-artist {
+    font-size: 18px;
+  }
+}
+
+/* 高度适配 - 短屏幕 */
+@media screen and (max-height: 720px) {
+  .player-bar {
+    padding: 8px 16px;
+  }
+  
+  .player-cover-wrapper {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .control-btn {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .play-btn {
+    width: 44px;
+    height: 44px;
+  }
+  
+  .volume-panel {
+    display: none;
+  }
+}
+
+/* 高度适配 - 超高屏幕 */
+@media screen and (min-height: 1440px) {
+  .player-bar {
+    padding: 22px 44px;
+  }
+  
+  .player-cover-wrapper {
+    width: 72px;
+    height: 72px;
+  }
+}
+
+/* 触摸设备适配 */
+@media (hover: none) and (pointer: coarse) {
+  .control-btn,
+  .volume-btn {
+    min-width: 48px;
+    min-height: 48px;
+  }
+  
+  .progress-bar {
+    height: 10px;
+  }
+  
+  .progress-thumb {
+    width: 20px;
+    height: 20px;
+  }
+}
 </style>

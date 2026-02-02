@@ -31,11 +31,6 @@ const routes = [
     component: () => import('../views/PlayerView.vue')
   },
   {
-    path: '/library',
-    name: 'Library',
-    component: () => import('../views/LibraryView.vue')
-  },
-  {
     path: '/playlists',
     name: 'Playlists',
     component: () => import('../views/PlaylistsView.vue')

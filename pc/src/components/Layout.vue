@@ -2105,6 +2105,431 @@ watch(() => route.path, (newPath) => {
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
 }
 
+/* ========================================
+   响应式适配
+   ======================================== */
+
+/* 小屏幕适配 (< 640px) */
+@media screen and (max-width: 639px) {
+  .layout-sidebar {
+    position: fixed;
+    left: -100%;
+    top: 0;
+    height: 100vh;
+    z-index: 9999;
+    box-shadow: 0 0 0 transparent;
+  }
+  
+  .layout-sidebar.open {
+    left: 0;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+  }
+  
+  .layout-main {
+    margin-left: 0 !important;
+  }
+  
+  .title-bar {
+    padding: 0 clamp(8px, 2vw, 12px);
+  }
+  
+  .search-box {
+    max-width: clamp(120px, 30vw, 180px);
+  }
+  
+  .search-box input {
+    font-size: 12px;
+  }
+  
+  .modal-content {
+    padding: clamp(16px, 4vw, 24px);
+    max-width: 90vw;
+  }
+  
+  .modal-title {
+    font-size: clamp(18px, 4.5vw, 22px);
+  }
+  
+  .toast {
+    min-width: auto;
+    width: auto;
+    max-width: 85vw;
+    padding: 12px 16px;
+  }
+  
+  .toast-message {
+    font-size: 13px;
+  }
+  
+  .user-avatar,
+  .playlist-cover {
+    width: clamp(28px, 7vw, 36px);
+    height: clamp(28px, 7vw, 36px);
+  }
+}
+
+/* 中等屏幕适配 (640px - 1023px) */
+@media screen and (min-width: 640px) and (max-width: 1023px) {
+  .layout-sidebar {
+    width: var(--sidebar-width);
+  }
+  
+  .title-bar {
+    padding: 0 clamp(12px, 2vw, 16px);
+  }
+  
+  .search-box {
+    max-width: clamp(200px, 35vw, 300px);
+  }
+  
+  .nav-item span {
+    font-size: 13px;
+  }
+}
+
+/* 大屏幕适配 (1024px - 1279px) */
+@media screen and (min-width: 1024px) and (max-width: 1279px) {
+  .layout-sidebar {
+    width: var(--sidebar-width);
+  }
+  
+  .modal-content {
+    padding: 28px;
+  }
+}
+
+/* 2K屏幕适配 (1536px - 1919px) */
+@media screen and (min-width: 1536px) and (max-width: 1919px) {
+  .layout-sidebar {
+    width: var(--sidebar-width);
+  }
+  
+  .sidebar-header {
+    padding: 24px;
+  }
+  
+  .nav-item {
+    padding: 14px 18px;
+    gap: 14px;
+  }
+  
+  .nav-item span {
+    font-size: 15px;
+  }
+  
+  .modal-content {
+    padding: 32px;
+    max-width: 480px;
+  }
+  
+  .modal-title {
+    font-size: 24px;
+  }
+  
+  .toast {
+    padding: 18px 24px;
+    min-width: 340px;
+  }
+  
+  .toast-message {
+    font-size: 15px;
+  }
+}
+
+/* 3K屏幕适配 (1920px - 2559px) */
+@media screen and (min-width: 1920px) and (max-width: 2559px) {
+  .layout-sidebar {
+    width: var(--sidebar-width);
+  }
+  
+  .sidebar-header {
+    padding: 28px;
+    gap: 16px;
+  }
+  
+  .app-name {
+    font-size: 18px;
+  }
+  
+  .nav-item {
+    padding: 16px 20px;
+    gap: 16px;
+  }
+  
+  .nav-item span {
+    font-size: 16px;
+  }
+  
+  .modal-content {
+    padding: 40px;
+    max-width: 520px;
+  }
+  
+  .modal-title {
+    font-size: 26px;
+  }
+  
+  .auth-input {
+    padding: 16px 20px;
+    font-size: 16px;
+  }
+  
+  .modal-btn {
+    padding: 16px 28px;
+    font-size: 16px;
+  }
+  
+  .toast {
+    padding: 20px 28px;
+    min-width: 380px;
+  }
+  
+  .toast-message {
+    font-size: 16px;
+  }
+}
+
+/* 4K屏幕适配 (>= 2560px) */
+@media screen and (min-width: 2560px) {
+  .layout-sidebar {
+    width: var(--sidebar-width);
+  }
+  
+  .sidebar-header {
+    padding: 36px;
+    gap: 20px;
+  }
+  
+  .logo-wrapper {
+    width: 48px;
+    height: 48px;
+  }
+  
+  .app-name {
+    font-size: 22px;
+  }
+  
+  .nav-item {
+    padding: 20px 24px;
+    gap: 18px;
+  }
+  
+  .nav-icon {
+    width: 26px;
+    height: 26px;
+  }
+  
+  .nav-icon-wrapper {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .nav-item span {
+    font-size: 18px;
+  }
+  
+  .nav-divider {
+    margin: 16px 12px;
+  }
+  
+  .modal-content {
+    padding: 56px;
+    max-width: 600px;
+  }
+  
+  .modal-title {
+    font-size: 32px;
+    margin-bottom: 32px;
+  }
+  
+  .auth-input {
+    padding: 20px 24px;
+    font-size: 18px;
+    border-radius: 16px;
+  }
+  
+  .modal-btn {
+    padding: 20px 36px;
+    font-size: 18px;
+    border-radius: 16px;
+  }
+  
+  .toast {
+    padding: 24px 32px;
+    min-width: 440px;
+    border-radius: 20px;
+  }
+  
+  .toast-icon {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .toast-message {
+    font-size: 18px;
+  }
+  
+  .context-menu {
+    min-width: 200px;
+    border-radius: 16px;
+  }
+  
+  .context-menu-item {
+    padding: 16px 20px;
+    font-size: 16px;
+    gap: 12px;
+  }
+  
+  .playlist-item {
+    padding: 16px 20px;
+  }
+  
+  .playlist-cover {
+    width: 52px;
+    height: 52px;
+  }
+  
+  .playlist-name {
+    font-size: 16px;
+  }
+}
+
+/* 5K屏幕适配 (>= 5120px) */
+@media screen and (min-width: 5120px) {
+  .layout-sidebar {
+    width: var(--sidebar-width);
+  }
+  
+  .sidebar-header {
+    padding: 52px;
+    gap: 28px;
+  }
+  
+  .logo-wrapper {
+    width: 64px;
+    height: 64px;
+  }
+  
+  .app-logo {
+    border-radius: 16px;
+  }
+  
+  .app-name {
+    font-size: 28px;
+  }
+  
+  .nav-item {
+    padding: 28px 32px;
+    gap: 24px;
+  }
+  
+  .nav-icon {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .nav-icon-wrapper {
+    width: 44px;
+    height: 44px;
+  }
+  
+  .nav-item span {
+    font-size: 22px;
+  }
+  
+  .modal-content {
+    padding: 80px;
+    max-width: 720px;
+    border-radius: 32px;
+  }
+  
+  .modal-title {
+    font-size: 40px;
+    margin-bottom: 40px;
+  }
+  
+  .auth-input {
+    padding: 28px 32px;
+    font-size: 22px;
+    border-radius: 20px;
+  }
+  
+  .modal-btn {
+    padding: 28px 48px;
+    font-size: 22px;
+    border-radius: 20px;
+  }
+  
+  .toast {
+    padding: 32px 40px;
+    min-width: 560px;
+    border-radius: 28px;
+  }
+  
+  .toast-icon {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .toast-message {
+    font-size: 22px;
+  }
+}
+
+/* 高度适配 - 短屏幕 */
+@media screen and (max-height: 720px) {
+  .sidebar-header {
+    padding: 12px;
+  }
+  
+  .nav-item {
+    padding: 8px 12px;
+  }
+  
+  .modal-content {
+    padding: 20px;
+  }
+}
+
+/* 高度适配 - 超高屏幕 */
+@media screen and (min-height: 1440px) {
+  .sidebar-header {
+    padding: 32px;
+  }
+  
+  .nav-item {
+    padding: 18px 22px;
+  }
+  
+  .modal-content {
+    padding: 48px;
+  }
+}
+
+/* 横屏/竖屏适配 */
+@media screen and (orientation: portrait) {
+  .layout-sidebar {
+    position: fixed;
+    left: -100%;
+    top: 0;
+    height: 100vh;
+    z-index: 9999;
+  }
+  
+  .layout-sidebar.open {
+    left: 0;
+  }
+  
+  .layout-main {
+    margin-left: 0 !important;
+  }
+}
+
+.modal-btn-danger:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
 .toast-leave-to {
   opacity: 0;
   transform: translateX(100px);

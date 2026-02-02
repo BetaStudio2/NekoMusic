@@ -344,4 +344,414 @@ onMounted(() => {
   background: #e81123;
   color: white;
 }
+
+/* ========================================
+   响应式适配
+   ======================================== */
+
+/* 小屏幕适配 (< 640px) */
+@media screen and (max-width: 639px) {
+  .title-bar {
+    height: 44px;
+    padding: 0 clamp(8px, 2vw, 12px);
+  }
+  
+  .title-bar-left {
+    gap: 6px;
+  }
+  
+  .app-logo {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .title {
+    font-size: 14px;
+  }
+  
+  .title-bar-center {
+    max-width: clamp(120px, 40vw, 200px);
+  }
+  
+  .search-box {
+    height: 28px;
+    padding: 0 10px;
+  }
+  
+  .search-box input {
+    font-size: 12px;
+  }
+  
+  .search-icon,
+  .mic-icon {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .title-bar-right {
+    gap: 8px;
+  }
+  
+  .action-btn {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .user-avatar {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .username {
+    font-size: 12px;
+    max-width: 60px;
+  }
+  
+  .window-btn {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* 中等屏幕适配 (640px - 1023px) */
+@media screen and (min-width: 640px) and (max-width: 1023px) {
+  .title-bar {
+    height: 46px;
+    padding: 0 14px;
+  }
+  
+  .title-bar-center {
+    max-width: clamp(280px, 40vw, 360px);
+  }
+  
+  .search-box {
+    height: 30px;
+    padding: 0 12px;
+  }
+  
+  .username {
+    max-width: 80px;
+  }
+}
+
+/* 大屏幕适配 (1024px - 1279px) */
+@media screen and (min-width: 1024px) and (max-width: 1279px) {
+  .title-bar {
+    height: 48px;
+  }
+  
+  .title-bar-center {
+    max-width: 420px;
+  }
+}
+
+/* 2K屏幕适配 (1536px - 1919px) */
+@media screen and (min-width: 1536px) and (max-width: 1919px) {
+  .title-bar {
+    height: 52px;
+    padding: 0 20px;
+  }
+  
+  .app-logo {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .title {
+    font-size: 17px;
+  }
+  
+  .title-bar-center {
+    max-width: 480px;
+  }
+  
+  .search-box {
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 18px;
+  }
+  
+  .search-box input {
+    font-size: 14px;
+    padding: 0 10px;
+  }
+  
+  .search-icon,
+  .mic-icon {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .action-btn {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .user-avatar {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .username {
+    font-size: 15px;
+    max-width: 120px;
+  }
+  
+  .window-btn {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* 3K屏幕适配 (1920px - 2559px) */
+@media screen and (min-width: 1920px) and (max-width: 2559px) {
+  .title-bar {
+    height: 56px;
+    padding: 0 24px;
+  }
+  
+  .title-bar-left {
+    gap: 12px;
+  }
+  
+  .app-logo {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .title {
+    font-size: 18px;
+  }
+  
+  .title-bar-center {
+    max-width: 540px;
+  }
+  
+  .search-box {
+    height: 38px;
+    padding: 0 16px;
+    border-radius: 19px;
+  }
+  
+  .search-box input {
+    font-size: 15px;
+    padding: 0 12px;
+  }
+  
+  .search-icon,
+  .mic-icon {
+    width: 19px;
+    height: 19px;
+  }
+  
+  .action-btn {
+    width: 42px;
+    height: 42px;
+  }
+  
+  .user-avatar {
+    width: 38px;
+    height: 38px;
+  }
+  
+  .username {
+    font-size: 15px;
+    max-width: 140px;
+  }
+  
+  .window-btn {
+    width: 42px;
+    height: 42px;
+  }
+}
+
+/* 4K屏幕适配 (>= 2560px) */
+@media screen and (min-width: 2560px) {
+  .title-bar {
+    height: 64px;
+    padding: 0 32px;
+  }
+  
+  .title-bar-left {
+    gap: 14px;
+  }
+  
+  .app-logo {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .title {
+    font-size: 20px;
+  }
+  
+  .title-bar-center {
+    max-width: 600px;
+  }
+  
+  .search-box {
+    height: 42px;
+    padding: 0 18px;
+    border-radius: 21px;
+  }
+  
+  .search-box input {
+    font-size: 16px;
+    padding: 0 14px;
+  }
+  
+  .search-icon,
+  .mic-icon {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .action-btn {
+    width: 44px;
+    height: 44px;
+  }
+  
+  .user-avatar {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .username {
+    font-size: 16px;
+    max-width: 160px;
+  }
+  
+  .window-btn {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* 5K屏幕适配 (>= 5120px) */
+@media screen and (min-width: 5120px) {
+  .title-bar {
+    height: 80px;
+    padding: 0 48px;
+  }
+  
+  .title-bar-left {
+    gap: 20px;
+  }
+  
+  .app-logo {
+    width: 52px;
+    height: 52px;
+  }
+  
+  .title {
+    font-size: 26px;
+  }
+  
+  .title-bar-center {
+    max-width: 800px;
+  }
+  
+  .search-box {
+    height: 52px;
+    padding: 0 24px;
+    border-radius: 26px;
+  }
+  
+  .search-box input {
+    font-size: 20px;
+    padding: 0 18px;
+  }
+  
+  .search-icon,
+  .mic-icon {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .action-btn {
+    width: 56px;
+    height: 56px;
+  }
+  
+  .user-avatar {
+    width: 52px;
+    height: 52px;
+  }
+  
+  .username {
+    font-size: 20px;
+    max-width: 200px;
+  }
+  
+  .window-btn {
+    width: 56px;
+    height: 56px;
+  }
+}
+
+/* 高度适配 - 短屏幕 */
+@media screen and (max-height: 720px) {
+  .title-bar {
+    height: 40px;
+    padding: 0 12px;
+  }
+  
+  .app-logo {
+    width: 22px;
+    height: 22px;
+  }
+  
+  .title {
+    font-size: 13px;
+  }
+  
+  .search-box {
+    height: 26px;
+    padding: 0 8px;
+  }
+  
+  .search-box input {
+    font-size: 11px;
+  }
+  
+  .action-btn,
+  .window-btn {
+    width: 30px;
+    height: 30px;
+  }
+  
+  .user-avatar {
+    width: 26px;
+    height: 26px;
+  }
+  
+  .username {
+    font-size: 11px;
+  }
+}
+
+/* 高度适配 - 超高屏幕 */
+@media screen and (min-height: 1440px) {
+  .title-bar {
+    height: 60px;
+    padding: 0 28px;
+  }
+  
+  .search-box {
+    height: 40px;
+  }
+}
+
+/* 触摸设备适配 */
+@media (hover: none) and (pointer: coarse) {
+  .action-btn,
+  .window-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  .search-box {
+    height: 44px;
+  }
+}
 </style>
