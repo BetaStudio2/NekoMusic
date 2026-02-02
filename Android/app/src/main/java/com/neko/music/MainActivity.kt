@@ -128,10 +128,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onBackPressed() {
-        // 将返回键行为转换为 Home 键行为，让应用挂起到后台而不是退出
-        moveTaskToBack(false)
-    }
+    
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -251,6 +248,22 @@ fun MainScreen() {
             kotlinx.coroutines.delay(500)
             showBottomControls = true
             returningFromPlayer = false
+        }
+    }
+
+    // 检查是否在底部导航的三个主页面之一
+    val isBottomNavItem = currentRoute == BottomNavItem.Home.route ||
+                          currentRoute == BottomNavItem.Mine.route ||
+                          currentRoute == BottomNavItem.MyPlaylists.route
+
+    // 处理返回事件：Android 16 及以下版本自定义处理，Android 16 以上使用原生返回
+    androidx.activity.compose.BackHandler(enabled = android.os.Build.VERSION.SDK_INT <= 16) {
+        if (isBottomNavItem) {
+            // 在主页、我的、我的歌单页面按返回键，退出到桌面（挂起到后台）
+            (context as MainActivity).moveTaskToBack(false)
+        } else {
+            // 其他页面正常返回上一级
+            navController.popBackStack()
         }
     }
 
