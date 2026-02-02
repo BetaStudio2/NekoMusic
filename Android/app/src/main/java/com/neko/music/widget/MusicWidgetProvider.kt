@@ -17,6 +17,7 @@ class MusicWidgetProvider : AppWidgetProvider() {
         const val ACTION_PREVIOUS = "com.neko.music.action.PREVIOUS"
         const val ACTION_NEXT = "com.neko.music.action.NEXT"
         const val ACTION_UPDATE_WIDGET = "com.neko.music.action.UPDATE_WIDGET"
+        const val ACTION_OPEN_PLAYER = "com.neko.music.action.OPEN_PLAYER"
     }
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
@@ -46,6 +47,29 @@ class MusicWidgetProvider : AppWidgetProvider() {
                 MusicPlayerManager.getInstance(context).next()
                 updateAllWidgets(context)
             }
+            ACTION_OPEN_PLAYER -> {
+                // 打开应用并跳转到播放页面
+                val playerManager = MusicPlayerManager.getInstance(context)
+                val musicId = playerManager.currentMusicId.value
+                val title = playerManager.currentMusicTitle.value
+                val artist = playerManager.currentMusicArtist.value
+
+                if (musicId != null && title != null && artist != null) {
+                    val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
+                    val encodedArtist = java.net.URLEncoder.encode(artist, "UTF-8")
+                    val openIntent = Intent(context, com.neko.music.MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        data = android.net.Uri.parse("neko://player/$musicId/$encodedTitle/$encodedArtist")
+                    }
+                    context.startActivity(openIntent)
+                } else {
+                    // 没有播放的音乐，只打开应用
+                    val openIntent = Intent(context, com.neko.music.MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+                    context.startActivity(openIntent)
+                }
+            }
             ACTION_UPDATE_WIDGET -> {
                 updateAllWidgets(context)
             }
@@ -62,11 +86,25 @@ class MusicWidgetProvider : AppWidgetProvider() {
 
         // 更新播放/暂停按钮图标
         val playPauseIcon = if (playerManager.isPlaying.value) {
-            android.R.drawable.ic_media_pause
+            R.drawable.ic_widget_pause
         } else {
-            android.R.drawable.ic_media_play
+            R.drawable.ic_widget_play
         }
         views.setImageViewResource(R.id.widget_play_pause, playPauseIcon)
+
+        // 更新进度条
+        val currentPosition = playerManager.currentPosition.value
+        val duration = playerManager.duration.value
+        if (duration > 0) {
+            val progress = ((currentPosition.toFloat() / duration.toFloat()) * 100).toInt()
+            views.setProgressBar(R.id.widget_progress_bar, 100, progress, false)
+            views.setTextViewText(R.id.widget_current_time, formatTime(currentPosition))
+            views.setTextViewText(R.id.widget_total_time, formatTime(duration))
+        } else {
+            views.setProgressBar(R.id.widget_progress_bar, 100, 0, false)
+            views.setTextViewText(R.id.widget_current_time, "0:00")
+            views.setTextViewText(R.id.widget_total_time, "0:00")
+        }
 
         // 设置点击事件
         views.setOnClickPendingIntent(R.id.widget_play_pause, getPendingIntent(context, ACTION_PLAY_PAUSE))
@@ -74,6 +112,12 @@ class MusicWidgetProvider : AppWidgetProvider() {
         views.setOnClickPendingIntent(R.id.widget_next, getPendingIntent(context, ACTION_NEXT))
 
         appWidgetManager.updateAppWidget(appWidgetId, views)
+    }
+
+    private fun formatTime(milliseconds: Long): String {
+        val seconds = (milliseconds / 1000) % 60
+        val minutes = (milliseconds / (1000 * 60)) % 60
+        return String.format("%d:%02d", minutes, seconds)
     }
 
     private fun updateAllWidgets(context: Context) {
