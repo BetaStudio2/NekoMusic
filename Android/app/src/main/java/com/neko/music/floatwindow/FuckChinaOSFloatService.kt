@@ -11,9 +11,11 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.compose.ui.platform.LocalContext
+import coil.load
 import com.neko.music.R
 import com.neko.music.service.MusicPlayerManager
 import kotlinx.coroutines.CoroutineScope
@@ -30,12 +32,9 @@ class FuckChinaOSFloatService : Service() {
     private var windowManager: WindowManager? = null
     private var floatView: View? = null
     private var isViewAdded = false
-    private var shouldShow = true // 控制是否应该显示悬浮窗
-    private var isAppInForeground = false // 应用是否在前台
     
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private var updateJob: Job? = null
-    private var appVisibilityJob: Job? = null
     private var layoutParams: WindowManager.LayoutParams? = null
 
     companion object {
@@ -51,10 +50,11 @@ class FuckChinaOSFloatService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        android.util.Log.d("FuckChinaOSFloatService", "Service onCreate")
         instance = this
         createFloatView()
-        showFloatView() // 初始化 layoutParams
-        startAppVisibilityMonitor()
+        showFloatView()
+        startProgressUpdate()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -81,6 +81,8 @@ class FuckChinaOSFloatService : Service() {
         val btnPrevious = floatView?.findViewById<ImageButton>(R.id.float_previous)
         val btnNext = floatView?.findViewById<ImageButton>(R.id.float_next)
         val layoutFloat = floatView?.findViewById<LinearLayout>(R.id.float_layout)
+        val infoLayout = floatView?.findViewById<LinearLayout>(R.id.float_info_layout)
+        val playAnimation = floatView?.findViewById<PlayAnimationView>(R.id.float_play_animation)
         
         btnPlayPause?.setOnClickListener {
             val playerManager = MusicPlayerManager.getInstance(this)
@@ -98,42 +100,74 @@ class FuckChinaOSFloatService : Service() {
         btnNext?.setOnClickListener {
             MusicPlayerManager.getInstance(this).next()
         }
-        
+
+        // 点击整个悬浮窗打开应用
         layoutFloat?.setOnClickListener {
-            // 点击悬浮窗打开应用
+            android.util.Log.d("FuckChinaOSFloatService", "Layout clicked")
             val openIntent = Intent(this, com.neko.music.MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
             startActivity(openIntent)
         }
+        
+        // 确保按钮可以点击
+        btnPlayPause?.isClickable = true
+        btnPrevious?.isClickable = true
+        btnNext?.isClickable = true
+        layoutFloat?.isClickable = true
     }
 
     private fun showFloatView() {
         if (isViewAdded || floatView == null) return
         
-        layoutParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            } else {
-                @Suppress("DEPRECATION")
-                WindowManager.LayoutParams.TYPE_PHONE
-            },
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-            PixelFormat.TRANSLUCENT
-        )
-        
-        layoutParams?.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-        
         try {
+            layoutParams = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                } else {
+                    @Suppress("DEPRECATION")
+                    WindowManager.LayoutParams.TYPE_PHONE
+                },
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT
+            )
+            
+            layoutParams?.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            layoutParams?.y = 80 // 距离顶部80像素
+            
+            // 直接显示
+            floatView?.alpha = 1f
+            floatView?.scaleX = 1f
+            floatView?.scaleY = 1f
+            
+            // 确保所有子视图都可见
+            floatView?.findViewById<LinearLayout>(R.id.float_info_layout)?.visibility = View.VISIBLE
+            floatView?.findViewById<android.widget.ImageView>(R.id.float_cover)?.visibility = View.VISIBLE
+            floatView?.findViewById<ImageButton>(R.id.float_previous)?.visibility = View.VISIBLE
+            floatView?.findViewById<ImageButton>(R.id.float_play_pause)?.visibility = View.VISIBLE
+            floatView?.findViewById<ImageButton>(R.id.float_next)?.visibility = View.VISIBLE
+            floatView?.findViewById<LinearLayout>(R.id.float_controls_layout)?.visibility = View.VISIBLE
+            
             windowManager?.addView(floatView, layoutParams)
             isViewAdded = true
+            
             updateFloatView()
+            android.util.Log.d("FuckChinaOSFloatService", "Float view added successfully")
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("FuckChinaOSFloatService", "Error showing float view", e)
+        }
+    }
+
+    private fun startProgressUpdate() {
+        updateJob = serviceScope.launch {
+            while (isActive) {
+                updateFloatView()
+                delay(500) // 每0.5秒更新一次
+            }
         }
     }
 
@@ -154,6 +188,8 @@ class FuckChinaOSFloatService : Service() {
         val tvTitle = floatView?.findViewById<TextView>(R.id.float_title)
         val tvArtist = floatView?.findViewById<TextView>(R.id.float_artist)
         val btnPlayPause = floatView?.findViewById<ImageButton>(R.id.float_play_pause)
+        val coverView = floatView?.findViewById<android.widget.ImageView>(R.id.float_cover)
+        val playAnimation = floatView?.findViewById<PlayAnimationView>(R.id.float_play_animation)
         
         tvTitle?.text = playerManager.currentMusicTitle.value ?: "Neko云音乐"
         tvArtist?.text = playerManager.currentMusicArtist.value ?: "暂无播放"
@@ -161,55 +197,44 @@ class FuckChinaOSFloatService : Service() {
         btnPlayPause?.setImageResource(
             if (playerManager.isPlaying.value) R.drawable.ic_widget_pause else R.drawable.ic_widget_play
         )
+
+        // 更新播放动画
+        if (playerManager.isPlaying.value) {
+            playAnimation?.visibility = View.VISIBLE
+            playAnimation?.setPlaying(true)
+        } else {
+            playAnimation?.visibility = View.INVISIBLE
+            playAnimation?.setPlaying(false)
+        }
+
+        // 更新封面（如果有）
+        val coverPath = playerManager.currentMusicCover.value
+        if (coverPath != null && coverPath.isNotEmpty()) {
+            if (coverPath.startsWith("http")) {
+                // 网络URL，使用 Coil 加载
+                coverView?.load(coverPath) {
+                    placeholder(R.mipmap.ic_launcher)
+                    error(R.mipmap.ic_launcher)
+                    crossfade(true)
+                }
+            } else {
+                // 本地路径，使用 Uri
+                try {
+                    coverView?.setImageURI(android.net.Uri.parse(coverPath))
+                } catch (e: Exception) {
+                    coverView?.setImageResource(R.mipmap.ic_launcher)
+                }
+            }
+        } else {
+            coverView?.setImageResource(R.mipmap.ic_launcher)
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         hideFloatView()
+        updateJob?.cancel()
         serviceScope.cancel()
         instance = null
-    }
-
-    private fun startAppVisibilityMonitor() {
-        appVisibilityJob = serviceScope.launch {
-            while (isActive) {
-                val inForeground = checkAppInForeground()
-                
-                if (inForeground != isAppInForeground) {
-                    isAppInForeground = inForeground
-                    if (isAppInForeground) {
-                        // 应用进入前台，隐藏悬浮窗
-                        if (isViewAdded) {
-                            windowManager?.removeView(floatView)
-                            isViewAdded = false
-                        }
-                    } else {
-                        // 应用进入后台，显示悬浮窗
-                        if (!isViewAdded && floatView != null && layoutParams != null) {
-                            windowManager?.addView(floatView, layoutParams)
-                            isViewAdded = true
-                        }
-                    }
-                }
-                delay(500) // 每0.5秒检查一次
-            }
-        }
-    }
-
-    private fun checkAppInForeground(): Boolean {
-        try {
-            val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
-            val runningProcesses = activityManager.runningAppProcesses ?: return false
-            
-            for (process in runningProcesses) {
-                if (process.processName == packageName) {
-                    return process.importance == android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
-                }
-            }
-            return false
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return false
-        }
     }
 }
