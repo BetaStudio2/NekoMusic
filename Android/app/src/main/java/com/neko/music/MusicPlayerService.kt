@@ -95,6 +95,26 @@ class MusicPlayerService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        intent?.action?.let { action ->
+            when (action) {
+                "ACTION_PLAY" -> {
+                    if (!playerManager.isPlaying.value) {
+                        playerManager.togglePlayPause()
+                    }
+                }
+                "ACTION_PAUSE" -> {
+                    if (playerManager.isPlaying.value) {
+                        playerManager.pause()
+                    }
+                }
+                "ACTION_PREVIOUS" -> {
+                    playerManager.previous()
+                }
+                "ACTION_NEXT" -> {
+                    playerManager.next()
+                }
+            }
+        }
         return START_STICKY
     }
 
@@ -104,13 +124,20 @@ class MusicPlayerService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // 先删除旧的通知频道
+            notificationManager.deleteNotificationChannel(CHANNEL_ID)
+
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "音乐播放",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
                 description = "音乐播放通知"
                 setShowBadge(false)
+                enableVibration(false)
+                setSound(null, null)
+                enableLights(true)
+                lightColor = android.graphics.Color.BLUE
             }
 
             notificationManager.createNotificationChannel(channel)
@@ -150,14 +177,71 @@ class MusicPlayerService : Service() {
             artist
         }
 
+        // 创建播放控制按钮的 PendingIntent
+        val playPauseIntent = Intent(this, MusicPlayerService::class.java).apply {
+            action = if (isPlaying) "ACTION_PAUSE" else "ACTION_PLAY"
+        }
+        val playPausePendingIntent = PendingIntent.getService(
+            this,
+            1,
+            playPauseIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val previousIntent = Intent(this, MusicPlayerService::class.java).apply {
+            action = "ACTION_PREVIOUS"
+        }
+        val previousPendingIntent = PendingIntent.getService(
+            this,
+            2,
+            previousIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val nextIntent = Intent(this, MusicPlayerService::class.java).apply {
+            action = "ACTION_NEXT"
+        }
+        val nextPendingIntent = PendingIntent.getService(
+            this,
+            3,
+            nextIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // 获取 MediaSession Token
+        val mediaSessionToken = playerManager.getMediaSessionToken()
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(contentText)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setOngoing(true)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setOngoing(false)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            // 添加 MediaStyle 以显示播放控制按钮
+            .setStyle(
+                androidx.media.app.NotificationCompat.MediaStyle()
+                    .setMediaSession(mediaSessionToken)
+                    .setShowActionsInCompactView(0, 1, 2) // 在紧凑视图显示所有按钮
+                    .setShowCancelButton(false)
+            )
+            // 添加播放控制按钮
+            .addAction(
+                android.R.drawable.ic_media_previous,
+                "上一首",
+                previousPendingIntent
+            )
+            .addAction(
+                if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
+                if (isPlaying) "暂停" else "播放",
+                playPausePendingIntent
+            )
+            .addAction(
+                android.R.drawable.ic_media_next,
+                "下一首",
+                nextPendingIntent
+            )
             .build()
     }
 

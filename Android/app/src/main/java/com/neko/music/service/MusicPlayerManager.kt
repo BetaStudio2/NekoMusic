@@ -108,6 +108,10 @@ class MusicPlayerManager private constructor(context: Context) {
         }
     }
 
+    fun getMediaSessionToken(): android.support.v4.media.session.MediaSessionCompat.Token? {
+        return mediaSession?.sessionToken
+    }
+
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
     
