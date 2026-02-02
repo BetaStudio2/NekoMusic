@@ -454,14 +454,10 @@ onMounted(() => {
 
 // 处理歌单更新事件
 const handlePlaylistUpdated = (event) => {
-  const { id, name, description } = event.detail
-  if (playlist.value && playlist.value.id === id) {
-    if (name) {
-      playlist.value.name = name
-    }
-    if (description) {
-      playlist.value.description = description
-    }
+  const { id, action } = event.detail
+  // 如果是当前歌单的音乐发生变化，重新加载歌单详情
+  if (playlist.value && playlist.value.id === id && (action === 'music-removed' || action === 'music-added')) {
+    loadPlaylistDetail()
   }
 }
 
