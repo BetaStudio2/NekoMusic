@@ -72,6 +72,17 @@ class MusicPlayerService : Service() {
                 sendBroadcast(updateIntent)
             }
         }
+
+        // 监听播放位置变化，实时更新进度条
+        kotlinx.coroutines.GlobalScope.launch {
+            playerManager.currentPosition.collect {
+                // 发送广播更新桌面组件
+                val updateIntent = Intent(this@MusicPlayerService, com.neko.music.widget.MusicWidgetProvider::class.java).apply {
+                    action = com.neko.music.widget.MusicWidgetProvider.ACTION_UPDATE_WIDGET
+                }
+                sendBroadcast(updateIntent)
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
