@@ -893,6 +893,14 @@ const addToUserPlaylist = async (playlistId) => {
         detail: { message: '添加到歌单成功', type: 'success' }
       }))
       showAddToPlaylistPanel.value = false
+      
+      // 通知侧边栏刷新歌单列表
+      window.dispatchEvent(new CustomEvent('playlist-updated', {
+        detail: {
+          id: playlistId,
+          action: 'music-added'
+        }
+      }))
     } else {
       window.dispatchEvent(new CustomEvent('show-toast', {
         detail: { message: data.message || '添加失败', type: 'error' }

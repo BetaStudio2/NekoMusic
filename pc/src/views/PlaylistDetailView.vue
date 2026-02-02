@@ -525,6 +525,14 @@ const removeMusic = async (musicId) => {
         
         // 重新加载歌单详情
         await loadPlaylistDetail()
+        
+        // 通知侧边栏刷新歌单列表
+        window.dispatchEvent(new CustomEvent('playlist-updated', {
+          detail: {
+            id: playlist.value.id,
+            action: 'music-removed'
+          }
+        }))
       } else {
         window.dispatchEvent(new CustomEvent('show-toast', { 
           detail: { message: result.message || '移除失败', type: 'error' } 

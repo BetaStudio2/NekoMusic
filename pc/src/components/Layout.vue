@@ -707,6 +707,16 @@ const handleConfirmDialog = () => {
   showConfirmDialog.value = false
 }
 
+// 处理歌单更新事件
+const handlePlaylistUpdated = (event) => {
+  const { id, action } = event.detail
+  
+  // 如果是音乐被添加或移除，重新加载歌单列表以更新音乐数量和封面
+  if (action === 'music-removed' || action === 'music-added') {
+    loadMyPlaylists()
+  }
+}
+
 const isLoggedIn = computed(() => {
   return currentUser.value !== null
 })
@@ -927,6 +937,7 @@ onMounted(() => {
   window.addEventListener('user-logout', handleUserLogout)
   window.addEventListener('user-login', handleUserLogin)
   window.addEventListener('show-toast', handleShowToast)
+  window.addEventListener('playlist-updated', handlePlaylistUpdated)
   
   // 点击其他地方关闭右键菜单
   document.addEventListener('click', () => {
