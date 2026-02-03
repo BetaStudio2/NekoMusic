@@ -17,6 +17,10 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.List;
 
 @WebServlet("/api/user/playlists")
@@ -76,6 +80,13 @@ public class GetPlaylistsHandler extends HttpServlet {
                 playlistJson.addProperty("musicCount", playlist.getMusicCount());
                 playlistJson.addProperty("createdAt", playlist.getCreatedAt());
                 playlistJson.addProperty("updatedAt", playlist.getUpdatedAt());
+                
+                // 添加创建者信息
+                JsonObject creator = new JsonObject();
+                creator.addProperty("id", playlist.getUserId());
+                creator.addProperty("username", getUserName(playlist.getUserId()));
+                playlistJson.add("creator", creator);
+                
                 playlistsArray.add(playlistJson);
             }
 
@@ -112,5 +123,27 @@ public class GetPlaylistsHandler extends HttpServlet {
             out.print(gson.toJson(response));
             out.flush();
         }
+    }
+    
+    /**
+     * 获取用户名
+     */
+    private String getUserName(int userId) {
+        String sql = "SELECT username FROM users WHERE id = ?";
+        
+        try (Connection conn = Main.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setInt(1, userId);
+            ResultSet rs = stmt.executeQuery();
+            
+            if (rs.next()) {
+                return rs.getString("username");
+            }
+        } catch (SQLException e) {
+            logger.error("获取用户名失败: {}", e.getMessage(), e);
+        }
+        
+        return "未知用户";
     }
 }
