@@ -216,45 +216,67 @@ public class PlaylistService {
             return false;
         }
 
-        // 将所有现有音乐的 position + 1
-        String updateSql = "UPDATE playlist_music SET position = position + 1 WHERE playlist_id = ?";
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
-
-            updateStmt.setInt(1, playlistId);
-            updateStmt.executeUpdate();
-            logger.info("已重新排序歌单中所有音乐的position: playlistId={}", playlistId);
-        } catch (SQLException e) {
-            logger.error("重新排序position失败: {}", e.getMessage(), e);
-            return false;
-        }
-
-        // 添加新音乐到最上面（position = 1）
+        // 从最大的position开始倒序更新，避免重复键冲突
+        String getMaxPositionSql = "SELECT MAX(position) as max_position FROM playlist_music WHERE playlist_id = ?";
         String insertSql = "INSERT INTO playlist_music (playlist_id, music_id, position) VALUES (?, ?, 1)";
 
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(insertSql)) {
+        try (Connection conn = databaseManager.getConnection()) {
+            // 开启事务
+            conn.setAutoCommit(false);
 
-            stmt.setInt(1, playlistId);
-            stmt.setInt(2, musicId);
+            try {
+                // 获取当前最大的 position
+                int maxPosition = 0;
+                try (PreparedStatement stmt = conn.prepareStatement(getMaxPositionSql)) {
+                    stmt.setInt(1, playlistId);
+                    ResultSet rs = stmt.executeQuery();
+                    if (rs.next()) {
+                        maxPosition = rs.getInt("max_position");
+                    }
+                }
 
-            int affectedRows = stmt.executeUpdate();
-            boolean success = affectedRows > 0;
+                // 从最大的 position 开始倒序更新，每个 position + 1
+                // 这样可以避免重复键冲突
+                for (int i = maxPosition; i >= 1; i--) {
+                    String updateSql = "UPDATE playlist_music SET position = position + 1 WHERE playlist_id = ? AND position = ?";
+                    try (PreparedStatement stmt = conn.prepareStatement(updateSql)) {
+                        stmt.setInt(1, playlistId);
+                        stmt.setInt(2, i);
+                        stmt.executeUpdate();
+                    }
+                }
 
-            if (success) {
+                // 插入新音乐到 position = 1
+                try (PreparedStatement stmt = conn.prepareStatement(insertSql)) {
+                    stmt.setInt(1, playlistId);
+                    stmt.setInt(2, musicId);
+                    
+                    int affectedRows = stmt.executeUpdate();
+                    if (affectedRows == 0) {
+                        logger.warn("音乐添加到歌单失败: playlistId={}, musicId={}", playlistId, musicId);
+                        conn.rollback();
+                        return false;
+                    }
+                }
+
+                // 提交事务
+                conn.commit();
                 logger.info("音乐添加到歌单成功: playlistId={}, musicId={}, position=1", playlistId, musicId);
+                
                 // 更新歌单的音乐数量
                 updateMusicCount(playlistId);
-            } else {
-                logger.warn("音乐添加到歌单失败: playlistId={}, musicId={}", playlistId, musicId);
+                return true;
+
+            } catch (SQLException e) {
+                // 发生异常，回滚事务
+                conn.rollback();
+                logger.error("添加音乐到歌单失败: {}", e.getMessage(), e);
+                return false;
             }
-
-            return success;
         } catch (SQLException e) {
-            logger.error("添加音乐到歌单失败: {}", e.getMessage(), e);
+            logger.error("获取数据库连接失败: {}", e.getMessage(), e);
+            return false;
         }
-
-        return false;
     }
 
     /**
