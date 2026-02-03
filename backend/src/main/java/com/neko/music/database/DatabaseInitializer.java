@@ -59,6 +59,28 @@ public class DatabaseInitializer {
                 logger.warn("创建 user_tokens 表失败（可能是表已存在）: {}", e.getMessage());
             }
             
+            // 创建用户收藏歌单表
+            String createFavoritePlaylistsTable = """
+                CREATE TABLE IF NOT EXISTS user_favorite_playlists (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    playlist_id INT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY unique_user_playlist (user_id, playlist_id),
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+                    INDEX idx_user_id (user_id),
+                    INDEX idx_playlist_id (playlist_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """;
+            
+            try {
+                stmt.execute(createFavoritePlaylistsTable);
+                logger.info("user_favorite_playlists 表创建成功");
+            } catch (Exception e) {
+                logger.warn("创建 user_favorite_playlists 表失败（可能是表已存在）: {}", e.getMessage());
+            }
+            
             logger.info("数据库表初始化完成");
             
         } catch (Exception e) {

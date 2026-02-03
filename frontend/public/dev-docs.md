@@ -210,7 +210,138 @@ Authorization: <token>
 }
 ```
 
-### 8. 上传用户头像
+### 8. 获取收藏歌单列表
+
+**端点:** `GET /api/user/favorite-playlists`
+
+**请求头:**
+```
+Authorization: <token>
+```
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "playlists": [
+    {
+      "id": 1,
+      "name": "我的歌单",
+      "description": "这是我的歌单描述",
+      "musicCount": 5,
+      "createdAt": 1706500800000,
+      "updatedAt": 1706501100000,
+      "favoriteTime": 1706501400000,
+      "creator": {
+        "id": 1,
+        "username": "用户名"
+      }
+    }
+  ]
+}
+```
+
+**说明:**
+- `createdAt`, `updatedAt`, `favoriteTime` 为 Unix 时间戳（毫秒）
+- 只返回当前用户收藏的歌单列表
+- 按收藏时间倒序排列
+
+### 9. 收藏歌单
+
+**端点:** `POST /api/user/favorite-playlists`
+
+**请求头:**
+```
+Authorization: <token>
+Content-Type: application/json
+```
+
+**请求体:**
+```json
+{
+  "playlistId": 1  // 歌单 ID
+}
+```
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "message": "收藏歌单成功"
+}
+```
+
+**响应示例（已收藏）:**
+```json
+{
+  "success": false,
+  "message": "收藏歌单失败或已收藏"
+}
+```
+
+### 10. 取消收藏歌单
+
+**端点:** `DELETE /api/user/favorite-playlists/{playlistId}`
+
+**请求头:**
+```
+Authorization: <token>
+```
+
+**路径参数:**
+- `playlistId`: 歌单 ID
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "message": "取消收藏歌单成功"
+}
+```
+
+### 11. 获取收藏歌单内音乐
+
+**端点:** `GET /api/user/favorite-playlists/{playlistId}`
+
+**请求头:**
+```
+Authorization: <token>
+```
+
+**路径参数:**
+- `playlistId`: 歌单 ID
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "music": [
+    {
+      "id": 1,
+      "title": "歌曲标题",
+      "artist": "艺术家",
+      "album": "专辑",
+      "duration": 180,
+      "filename": "song.mp3",
+      "position": 1
+    }
+  ]
+}
+```
+
+**响应示例（未收藏）:**
+```json
+{
+  "success": false,
+  "message": "用户未收藏该歌单"
+}
+```
+
+**说明:**
+- 只有收藏过该歌单的用户才能查看歌单内的音乐
+- 音乐按 position 字段升序排列
+
+### 12. 上传用户头像
 
 **端点:** `POST /api/user/avatar/upload`
 
@@ -1292,6 +1423,116 @@ async function changePassword(oldPassword, newPassword) {
 }
 ```
 
+### 获取收藏歌单列表
+
+```javascript
+async function getFavoritePlaylists() {
+  const token = localStorage.getItem('userToken');
+  
+  const response = await fetch('https://music.cnmsb.xin/api/user/favorite-playlists', {
+    method: 'GET',
+    headers: {
+      'Authorization': token
+    }
+  });
+  
+  const data = await response.json();
+  if (data.success) {
+    console.log('收藏歌单列表:', data.playlists);
+    // data.playlists 包含用户收藏的所有歌单
+    // 每个歌单包含：
+    // - id, name, description, musicCount
+    // - createdAt, updatedAt, favoriteTime (Unix时间戳)
+    // - creator: 创建者信息 {id, username}
+  } else {
+    console.error('获取收藏歌单列表失败');
+  }
+  return data;
+}
+```
+
+### 收藏歌单
+
+```javascript
+async function favoritePlaylist(playlistId) {
+  const token = localStorage.getItem('userToken');
+  
+  const response = await fetch('https://music.cnmsb.xin/api/user/favorite-playlists', {
+    method: 'POST',
+    headers: {
+      'Authorization': token,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      playlistId: playlistId
+    })
+  });
+  
+  const data = await response.json();
+  if (data.success) {
+    console.log('收藏歌单成功');
+    // 可以在这里刷新收藏列表
+  } else if (data.message.includes('已收藏')) {
+    alert('您已经收藏过这个歌单了');
+  } else {
+    console.error('收藏歌单失败:', data.message);
+  }
+  return data;
+}
+```
+
+### 取消收藏歌单
+
+```javascript
+async function unfavoritePlaylist(playlistId) {
+  const token = localStorage.getItem('userToken');
+  
+  const response = await fetch(`https://music.cnmsb.xin/api/user/favorite-playlists/${playlistId}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': token
+    }
+  });
+  
+  const data = await response.json();
+  if (data.success) {
+    console.log('取消收藏歌单成功');
+    // 可以在这里刷新收藏列表
+  } else {
+    console.error('取消收藏歌单失败:', data.message);
+  }
+  return data;
+}
+```
+
+### 获取收藏歌单内音乐
+
+```javascript
+async function getFavoritePlaylistMusic(playlistId) {
+  const token = localStorage.getItem('userToken');
+  
+  const response = await fetch(`https://music.cnmsb.xin/api/user/favorite-playlists/${playlistId}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': token
+    }
+  });
+  
+  const data = await response.json();
+  if (data.success) {
+    console.log('歌单音乐列表:', data.music);
+    // data.music 包含歌单内的所有音乐
+    // 每首音乐包含：
+    // - id, title, artist, album, duration, filename, position
+  } else if (data.message === '用户未收藏该歌单') {
+    alert('您未收藏该歌单，无法查看音乐');
+  } else {
+    console.error('获取歌单音乐失败:', data.message);
+  }
+  return data;
+}
+```
+
 ---
 
 ## 注意事项
@@ -1334,6 +1575,19 @@ async function changePassword(oldPassword, newPassword) {
    - 获取歌单列表 API 只返回当前用户的歌单，不会混合其他用户的歌单
    - 搜索歌单 API 会返回歌单的第一首音乐封面 URL，方便客户端展示
    - 搜索歌单 API 使用 POST 方式，参数在请求体中传递
+
+8. **收藏歌单:**
+   - 用户可以收藏其他用户创建的歌单
+   - 收藏歌单需要登录，通过 Authorization header 验证
+   - 同一用户不能重复收藏同一个歌单
+   - 只有收藏过该歌单的用户才能查看歌单内的音乐（权限控制）
+   - 取消收藏歌单后，无法再查看该歌单内的音乐
+   - 收藏歌单列表按收藏时间倒序排列（最新收藏的在前面）
+   - 收藏歌单列表包含歌单的创建者信息
+   - 新增 API：`GET /api/user/favorite-playlists` - 获取收藏歌单列表（需要登录）
+   - 新增 API：`POST /api/user/favorite-playlists` - 收藏歌单（需要登录）
+   - 新增 API：`DELETE /api/user/favorite-playlists/{id}` - 取消收藏歌单（需要登录）
+   - 新增 API：`GET /api/user/favorite-playlists/{id}` - 获取收藏歌单内音乐（需要登录）
 
 ---
 

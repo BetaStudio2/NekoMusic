@@ -166,6 +166,10 @@ public class Main {
         ServletHolder userFavoriteHolder = new ServletHolder(new UserFavoriteHandler());
         context.addServlet(userFavoriteHolder, "/api/user/favorites/*");
         
+        // 注册用户收藏歌单API处理器
+        ServletHolder userFavoritePlaylistHolder = new ServletHolder(new UserFavoritePlaylistHandler());
+        context.addServlet(userFavoritePlaylistHolder, "/api/user/favorite-playlists/*");
+        
         // 注册用户管理API处理器（管理员权限）
         ServletHolder userManagementHolder = new ServletHolder(new UserManagementHandler());
         context.addServlet(userManagementHolder, "/api/users/*");
@@ -221,6 +225,10 @@ public class Main {
         logger.info("  GET /api/user/favorites - 获取用户收藏列表 (需要用户登录)");
         logger.info("  POST /api/user/favorites - 添加收藏 (需要用户登录)");
         logger.info("  DELETE /api/user/favorites/{id} - 删除收藏 (需要用户登录)");
+        logger.info("  GET /api/user/favorite-playlists - 获取收藏歌单列表 (需要用户登录)");
+        logger.info("  POST /api/user/favorite-playlists - 收藏歌单 (需要用户登录)");
+        logger.info("  DELETE /api/user/favorite-playlists/{id} - 取消收藏歌单 (需要用户登录)");
+        logger.info("  GET /api/user/favorite-playlists/{id} - 获取收藏歌单内音乐 (需要用户登录)");
         logger.info("  GET /api/music/list - 获取音乐列表 (需要管理员登录)");
         logger.info("  GET /api/music/{id} - 获取特定音乐 (需要管理员登录)");
         logger.info("  GET /api/music/info/{id} - 获取音乐信息");
