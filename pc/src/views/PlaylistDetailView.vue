@@ -20,6 +20,10 @@
           <h1 class="playlist-name">{{ playlist.name }}</h1>
           <div class="playlist-description">{{ playlist.description || '暂无描述' }}</div>
           <div class="playlist-meta">
+            <div class="creator-info" v-if="playlist.creator">
+              <img :src="getAvatarUrl(playlist.creator.id)" alt="创建者头像" class="creator-avatar" @error="handleAvatarError" />
+              <span class="creator-name">{{ playlist.creator.username }}</span>
+            </div>
             <span class="playlist-count">{{ playlist.musicCount || musicList.length }} 首音乐</span>
           </div>
           <div class="playlist-actions">
@@ -29,7 +33,12 @@
               </svg>
               播放全部
             </button>
-            <button class="action-btn collect" @click="toggleCollect" :class="{ collected: isCollected }">
+            <button 
+              v-if="!isOwner" 
+              class="action-btn collect" 
+              @click="toggleCollect" 
+              :class="{ collected: isCollected }"
+            >
               <svg viewBox="0 0 24 24" width="20" height="20">
                 <path :fill="isCollected ? '#ff4545' : 'currentColor'" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
               </svg>
@@ -178,7 +187,7 @@ const currentUser = computed(() => {
   if (!token) return null
   
   try {
-    const userStr = localStorage.getItem('currentUser')
+    const userStr = localStorage.getItem('user')
     return userStr ? JSON.parse(userStr) : null
   } catch (e) {
     console.error('解析用户信息失败:', e)
@@ -217,6 +226,9 @@ const loadPlaylistDetail = async () => {
     if (detailData.success && detailData.playlist) {
       playlist.value = detailData.playlist
 
+      // 检查是否已收藏此歌单
+      await checkIfCollected(playlistId)
+
       // 获取歌单音乐列表
       const musicResponse = await apiRequest(`${apiConfig.PLAYLIST_MUSIC(playlistId)}?t=${timestamp}`)
       const musicData = await musicResponse.json()
@@ -239,6 +251,32 @@ const loadPlaylistDetail = async () => {
     musicList.value = []
   } finally {
     loading.value = false
+  }
+}
+
+// 检查歌单是否已收藏
+const checkIfCollected = async (playlistId) => {
+  const token = localStorage.getItem('token')
+  if (!token) {
+    isCollected.value = false
+    return
+  }
+
+  try {
+    const response = await apiRequest(`${apiConfig.FAVORITE_PLAYLISTS}?t=${Date.now()}`, {
+      method: 'GET',
+      headers: { 'Authorization': token }
+    })
+
+    const data = await response.json()
+    if (data.success && data.playlists) {
+      isCollected.value = data.playlists.some(p => p.id === parseInt(playlistId))
+    } else {
+      isCollected.value = false
+    }
+  } catch (error) {
+    console.error('检查收藏状态失败:', error)
+    isCollected.value = false
   }
 }
 
@@ -302,6 +340,14 @@ const handleCoverError = (event) => {
 
 const getCoverUrl = (id) => {
   return `https://music.cnmsb.xin/api/music/cover/${id}`
+}
+
+const getAvatarUrl = (userId) => {
+  return `https://music.cnmsb.xin/api/user/avatar/${userId}`
+}
+
+const handleAvatarError = (event) => {
+  event.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" fill="%23667eea"/><path d="M12 14c-6.1 0-8 4-8 4v2h16v-2s-1.9-4-8-4z" fill="%23764ba2"/></svg>'
 }
 
 const handleMusicCoverError = (event) => {
@@ -398,7 +444,7 @@ const toggleFavorite = async (music) => {
   }
 }
 
-const toggleCollect = () => {
+const toggleCollect = async () => {
   const token = localStorage.getItem('token')
   if (!token) {
     window.dispatchEvent(new CustomEvent('show-toast', { 
@@ -407,15 +453,58 @@ const toggleCollect = () => {
     return
   }
   
-  isCollected.value = !isCollected.value
-  const message = isCollected.value ? '已收藏歌单' : '已取消收藏歌单'
-  /* TODO：未来需要接入API
-  *  暂时无可接入API只作为土司提示
-   */
-
-  window.dispatchEvent(new CustomEvent('show-toast', { 
-    detail: { message, type: 'success' } 
-  }))
+  try {
+    if (isCollected.value) {
+      // 取消收藏
+      const response = await fetch(`${apiConfig.BASE_URL}${apiConfig.FAVORITE_PLAYLISTS_DELETE(playlist.value.id)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': token }
+      })
+      
+      const data = await response.json()
+      if (data.success) {
+        isCollected.value = false
+        window.dispatchEvent(new CustomEvent('show-toast', { 
+          detail: { message: '已取消收藏歌单', type: 'success' } 
+        }))
+        // 触发收藏歌单更新事件
+        window.dispatchEvent(new CustomEvent('favorite-playlist-updated'))
+      } else {
+        window.dispatchEvent(new CustomEvent('show-toast', { 
+          detail: { message: data.message || '取消收藏失败', type: 'error' } 
+        }))
+      }
+    } else {
+      // 添加收藏
+      const response = await fetch(`${apiConfig.BASE_URL}${apiConfig.FAVORITE_PLAYLISTS}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ playlistId: playlist.value.id })
+      })
+      
+      const data = await response.json()
+      if (data.success) {
+        isCollected.value = true
+        window.dispatchEvent(new CustomEvent('show-toast', { 
+          detail: { message: '已收藏歌单', type: 'success' } 
+        }))
+        // 触发收藏歌单更新事件
+        window.dispatchEvent(new CustomEvent('favorite-playlist-updated'))
+      } else {
+        window.dispatchEvent(new CustomEvent('show-toast', { 
+          detail: { message: data.message || '收藏失败', type: 'error' } 
+        }))
+      }
+    }
+  } catch (error) {
+    console.error('收藏操作失败:', error)
+    window.dispatchEvent(new CustomEvent('show-toast', { 
+      detail: { message: '网络错误，请重试', type: 'error' } 
+    }))
+  }
 }
 
 // 监听路由参数变化，重新加载歌单详情
@@ -667,6 +756,29 @@ const handleCancel = () => {
   font-size: 13px;
   color: var(--text-muted);
   margin-bottom: 20px;
+  align-items: center;
+}
+
+.creator-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: rgba(102, 126, 234, 0.05);
+  border-radius: 16px;
+}
+
+.creator-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.creator-name {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .playlist-actions {
