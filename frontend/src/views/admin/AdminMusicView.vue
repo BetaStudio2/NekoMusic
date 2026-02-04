@@ -1159,7 +1159,8 @@ const dragOffset = ref({ x: 0, y: 0 })
 const fetchMusicList = async () => {
   isLoading.value = true
   try {
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/list`, {
+    const timestamp = Date.now()
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/list?t=${timestamp}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
