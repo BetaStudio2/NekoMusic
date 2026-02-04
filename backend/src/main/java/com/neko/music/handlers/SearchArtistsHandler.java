@@ -87,28 +87,72 @@ public class SearchArtistsHandler extends HttpServlet {
     private JsonObject searchArtists(String query) {
         JsonObject result = new JsonObject();
         
-        // 首先获取匹配的歌手列表
-        List<JsonObject> artists = new ArrayList<>();
-        String artistQuerySql = "SELECT artist, COUNT(*) as music_count " +
-                               "FROM music " +
-                               "WHERE artist LIKE ? " +
-                               "GROUP BY artist " +
-                               "ORDER BY music_count DESC " +
-                               "LIMIT 1";
-
+        // 判断查询是否是拼音
+        boolean isPinyin = com.neko.music.util.PinyinUtil.isLikelyPinyin(query);
+        
         String foundArtist = null;
+        int musicCount = 0;
 
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(artistQuerySql)) {
+        try {
+            if (isPinyin) {
+                // 如果是拼音，查询所有歌手（在应用层面进行拼音匹配）
+                String sql = "SELECT artist, COUNT(*) as music_count " +
+                           "FROM music " +
+                           "GROUP BY artist " +
+                           "ORDER BY music_count DESC " +
+                           "LIMIT 100";
+                
+                try (Connection conn = databaseManager.getConnection();
+                     PreparedStatement stmt = conn.prepareStatement(sql)) {
+                    
+                    ResultSet rs = stmt.executeQuery();
+                    String queryLower = query.toLowerCase();
+                    String queryInitials = com.neko.music.util.PinyinUtil.getPinyinInitials(query);
+                    
+                    while (rs.next()) {
+                        String artist = rs.getString("artist");
+                        if (matchFieldPinyin(artist, queryLower, queryInitials)) {
+                            foundArtist = artist;
+                            musicCount = rs.getInt("music_count");
+                            break;
+                        }
+                    }
+                }
+            } else {
+                // 如果不是拼音，使用正常的繁简体搜索
+                List<String> variants = com.neko.music.util.ChineseConverter.getFullSearchVariants(query);
+                
+                StringBuilder sqlBuilder = new StringBuilder();
+                sqlBuilder.append("SELECT artist, COUNT(*) as music_count ");
+                sqlBuilder.append("FROM music ");
+                sqlBuilder.append("WHERE (");
+                
+                List<String> conditions = new ArrayList<>();
+                for (int i = 0; i < variants.size(); i++) {
+                    conditions.add("artist LIKE ?");
+                }
+                sqlBuilder.append(String.join(" OR ", conditions));
+                sqlBuilder.append(") ");
+                sqlBuilder.append("GROUP BY artist ");
+                sqlBuilder.append("ORDER BY music_count DESC ");
+                sqlBuilder.append("LIMIT 1");
 
-            stmt.setString(1, "%" + query + "%");
-            ResultSet rs = stmt.executeQuery();
+                try (Connection conn = databaseManager.getConnection();
+                     PreparedStatement stmt = conn.prepareStatement(sqlBuilder.toString())) {
 
-            if (rs.next()) {
-                foundArtist = rs.getString("artist");
-                artists.add(new JsonObject());
-                artists.get(0).addProperty("name", foundArtist);
-                artists.get(0).addProperty("musicCount", rs.getInt("music_count"));
+                    // 设置参数
+                    int paramIndex = 1;
+                    for (String variant : variants) {
+                        stmt.setString(paramIndex++, "%" + variant + "%");
+                    }
+                    
+                    ResultSet rs = stmt.executeQuery();
+
+                    if (rs.next()) {
+                        foundArtist = rs.getString("artist");
+                        musicCount = rs.getInt("music_count");
+                    }
+                }
             }
 
             logger.info("搜索歌手成功: query={}, artist={}", query, foundArtist);
@@ -163,7 +207,7 @@ public class SearchArtistsHandler extends HttpServlet {
 
         // 构建返回结果
         result.addProperty("name", foundArtist);
-        result.addProperty("musicCount", artists.get(0).get("musicCount").getAsInt());
+        result.addProperty("musicCount", musicCount);
         
         JsonArray musicArray = new JsonArray();
         for (JsonObject music : musicList) {
@@ -172,6 +216,38 @@ public class SearchArtistsHandler extends HttpServlet {
         result.add("musicList", musicArray);
 
         return result;
+    }
+    
+    /**
+     * 检查单个字段是否匹配拼音查询
+     */
+    private boolean matchFieldPinyin(String field, String queryLower, String queryInitials) {
+        if (field == null || field.isEmpty()) {
+            return false;
+        }
+        
+        // 获取字段的拼音变体
+        java.util.Set<String> variants = com.neko.music.util.PinyinUtil.getPinyinVariants(field);
+        
+        for (String variant : variants) {
+            if (variant.contains(queryLower)) {
+                return true;
+            }
+        }
+        
+        // 检查拼音首字母匹配
+        String fieldInitials = com.neko.music.util.PinyinUtil.getPinyinInitials(field);
+        if (fieldInitials.contains(queryInitials)) {
+            return true;
+        }
+        
+        // 检查完整拼音匹配
+        String fieldPinyin = com.neko.music.util.PinyinUtil.getPinyin(field);
+        if (fieldPinyin.contains(queryLower)) {
+            return true;
+        }
+        
+        return false;
     }
 
     /**

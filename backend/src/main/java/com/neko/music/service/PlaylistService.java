@@ -481,53 +481,179 @@ public class PlaylistService {
         logger.info("搜索歌单: query={}", query);
 
         List<com.google.gson.JsonObject> results = new ArrayList<>();
+        int limit = 50;
         
-        // 使用子查询获取歌单中第一首音乐的封面
-        String sql = "SELECT p.*, " +
-            "(SELECT m.id FROM playlist_music pm JOIN music m ON pm.music_id = m.id " +
-            " WHERE pm.playlist_id = p.id ORDER BY pm.position ASC LIMIT 1) as first_music_id, " +
-            "(SELECT m.cover_path FROM playlist_music pm JOIN music m ON pm.music_id = m.id " +
-            " WHERE pm.playlist_id = p.id ORDER BY pm.position ASC LIMIT 1) as first_music_cover " +
-            "FROM playlists p " +
-            "WHERE p.name LIKE ? OR p.description LIKE ? " +
-            "ORDER BY p.created_at DESC";
-
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            String searchPattern = "%" + query + "%";
-            stmt.setString(1, searchPattern);
-            stmt.setString(2, searchPattern);
-
-            ResultSet rs = stmt.executeQuery();
-
-            while (rs.next()) {
-                com.google.gson.JsonObject playlist = new com.google.gson.JsonObject();
-                playlist.addProperty("id", rs.getInt("id"));
-                playlist.addProperty("userId", rs.getInt("user_id"));
-                playlist.addProperty("name", rs.getString("name"));
-                playlist.addProperty("description", rs.getString("description"));
-                playlist.addProperty("musicCount", rs.getInt("music_count"));
-                playlist.addProperty("createdAt", rs.getString("created_at"));
-                playlist.addProperty("updatedAt", rs.getString("updated_at"));
+        try {
+            // 判断查询是否是拼音
+            boolean isPinyin = com.neko.music.util.PinyinUtil.isLikelyPinyin(query);
+            
+            if (isPinyin) {
+                // 如果是拼音，查询所有歌单（在应用层面进行拼音匹配）
+                String sql = "SELECT p.*, " +
+                    "(SELECT m.id FROM playlist_music pm JOIN music m ON pm.music_id = m.id " +
+                    " WHERE pm.playlist_id = p.id ORDER BY pm.position ASC LIMIT 1) as first_music_id, " +
+                    "(SELECT m.cover_path FROM playlist_music pm JOIN music m ON pm.music_id = m.id " +
+                    " WHERE pm.playlist_id = p.id ORDER BY pm.position ASC LIMIT 1) as first_music_cover " +
+                    "FROM playlists p " +
+                    "ORDER BY p.created_at DESC " +
+                    "LIMIT 500";
                 
-                // 第一首音乐的封面 URL
-                int firstMusicId = rs.getInt("first_music_id");
-                if (firstMusicId > 0) {
-                    playlist.addProperty("firstMusicId", firstMusicId);
-                    playlist.addProperty("firstMusicCover", rs.getString("first_music_cover"));
-                } else {
-                    playlist.addProperty("firstMusicCover", "/api/user/avatar/default");
+                try (Connection conn = databaseManager.getConnection();
+                     PreparedStatement stmt = conn.prepareStatement(sql)) {
+                    
+                    ResultSet rs = stmt.executeQuery();
+                    List<com.google.gson.JsonObject> allPlaylists = new ArrayList<>();
+                    
+                    while (rs.next()) {
+                        com.google.gson.JsonObject playlist = new com.google.gson.JsonObject();
+                        playlist.addProperty("id", rs.getInt("id"));
+                        playlist.addProperty("userId", rs.getInt("user_id"));
+                        playlist.addProperty("name", rs.getString("name"));
+                        playlist.addProperty("description", rs.getString("description"));
+                        playlist.addProperty("musicCount", rs.getInt("music_count"));
+                        playlist.addProperty("createdAt", rs.getString("created_at"));
+                        playlist.addProperty("updatedAt", rs.getString("updated_at"));
+                        
+                        // 第一首音乐的封面 URL
+                        int firstMusicId = rs.getInt("first_music_id");
+                        if (firstMusicId > 0) {
+                            playlist.addProperty("firstMusicId", firstMusicId);
+                            playlist.addProperty("firstMusicCover", rs.getString("first_music_cover"));
+                        } else {
+                            playlist.addProperty("firstMusicCover", "/api/user/avatar/default");
+                        }
+                        
+                        allPlaylists.add(playlist);
+                    }
+                    
+                    // 在内存中进行拼音匹配
+                    String queryLower = query.toLowerCase();
+                    String queryInitials = com.neko.music.util.PinyinUtil.getPinyinInitials(query);
+                    
+                    for (com.google.gson.JsonObject playlist : allPlaylists) {
+                        if (matchPlaylistPinyin(playlist, queryLower, queryInitials)) {
+                            results.add(playlist);
+                            if (results.size() >= limit) {
+                                break;
+                            }
+                        }
+                    }
                 }
+            } else {
+                // 如果不是拼音，使用正常的繁简体搜索
+                List<String> variants = com.neko.music.util.ChineseConverter.getFullSearchVariants(query);
                 
-                results.add(playlist);
+                // 构建 SQL 查询，支持繁简体搜索
+                StringBuilder sqlBuilder = new StringBuilder();
+                sqlBuilder.append("SELECT p.*, ");
+                sqlBuilder.append("(SELECT m.id FROM playlist_music pm JOIN music m ON pm.music_id = m.id ");
+                sqlBuilder.append(" WHERE pm.playlist_id = p.id ORDER BY pm.position ASC LIMIT 1) as first_music_id, ");
+                sqlBuilder.append("(SELECT m.cover_path FROM playlist_music pm JOIN music m ON pm.music_id = m.id ");
+                sqlBuilder.append(" WHERE pm.playlist_id = p.id ORDER BY pm.position ASC LIMIT 1) as first_music_cover ");
+                sqlBuilder.append("FROM playlists p ");
+                sqlBuilder.append("WHERE (");
+                
+                List<String> conditions = new ArrayList<>();
+                for (int i = 0; i < variants.size(); i++) {
+                    conditions.add("(p.name LIKE ? OR p.description LIKE ?)");
+                }
+                sqlBuilder.append(String.join(" OR ", conditions));
+                sqlBuilder.append(") ");
+                sqlBuilder.append("ORDER BY p.created_at DESC ");
+                sqlBuilder.append("LIMIT ?");
+                
+                try (Connection conn = databaseManager.getConnection();
+                     PreparedStatement stmt = conn.prepareStatement(sqlBuilder.toString())) {
+                    
+                    // 设置参数
+                    int paramIndex = 1;
+                    for (String variant : variants) {
+                        stmt.setString(paramIndex++, "%" + variant + "%");
+                        stmt.setString(paramIndex++, "%" + variant + "%");
+                    }
+                    stmt.setInt(paramIndex, limit);
+                    
+                    ResultSet rs = stmt.executeQuery();
+                    
+                    while (rs.next()) {
+                        com.google.gson.JsonObject playlist = new com.google.gson.JsonObject();
+                        playlist.addProperty("id", rs.getInt("id"));
+                        playlist.addProperty("userId", rs.getInt("user_id"));
+                        playlist.addProperty("name", rs.getString("name"));
+                        playlist.addProperty("description", rs.getString("description"));
+                        playlist.addProperty("musicCount", rs.getInt("music_count"));
+                        playlist.addProperty("createdAt", rs.getString("created_at"));
+                        playlist.addProperty("updatedAt", rs.getString("updated_at"));
+                        
+                        // 第一首音乐的封面 URL
+                        int firstMusicId = rs.getInt("first_music_id");
+                        if (firstMusicId > 0) {
+                            playlist.addProperty("firstMusicId", firstMusicId);
+                            playlist.addProperty("firstMusicCover", rs.getString("first_music_cover"));
+                        } else {
+                            playlist.addProperty("firstMusicCover", "/api/user/avatar/default");
+                        }
+                        
+                        results.add(playlist);
+                    }
+                }
             }
-
+            
             logger.info("搜索到 {} 个歌单: query={}", results.size(), query);
         } catch (SQLException e) {
             logger.error("搜索歌单失败: {}", e.getMessage(), e);
         }
 
         return results;
+    }
+    
+    /**
+     * 检查歌单是否匹配拼音查询
+     */
+    private boolean matchPlaylistPinyin(com.google.gson.JsonObject playlist, String queryLower, String queryInitials) {
+        // 检查歌单名称
+        if (matchFieldPinyin(playlist.get("name").getAsString(), queryLower, queryInitials)) {
+            return true;
+        }
+        // 检查描述
+        if (playlist.has("description") && playlist.get("description") != null) {
+            String description = playlist.get("description").getAsString();
+            if (matchFieldPinyin(description, queryLower, queryInitials)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * 检查单个字段是否匹配拼音查询
+     */
+    private boolean matchFieldPinyin(String field, String queryLower, String queryInitials) {
+        if (field == null || field.isEmpty()) {
+            return false;
+        }
+        
+        // 获取字段的拼音变体
+        java.util.Set<String> variants = com.neko.music.util.PinyinUtil.getPinyinVariants(field);
+        
+        for (String variant : variants) {
+            if (variant.contains(queryLower)) {
+                return true;
+            }
+        }
+        
+        // 检查拼音首字母匹配
+        String fieldInitials = com.neko.music.util.PinyinUtil.getPinyinInitials(field);
+        if (fieldInitials.contains(queryInitials)) {
+            return true;
+        }
+        
+        // 检查完整拼音匹配
+        String fieldPinyin = com.neko.music.util.PinyinUtil.getPinyin(field);
+        if (fieldPinyin.contains(queryLower)) {
+            return true;
+        }
+        
+        return false;
     }
 }

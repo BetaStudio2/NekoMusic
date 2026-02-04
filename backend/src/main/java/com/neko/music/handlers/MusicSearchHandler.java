@@ -66,49 +66,95 @@ public class MusicSearchHandler extends HttpServlet {
         int limit = 50; // 设置默认限制
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            // 获取繁简体变体
-            String[] variants = com.neko.music.util.ChineseConverter.getSearchVariants(query);
+            // 判断查询是否是拼音
+            boolean isPinyin = com.neko.music.util.PinyinUtil.isLikelyPinyin(query);
             
-            // 构建 SQL 查询，支持繁简体搜索
-            StringBuilder sqlBuilder = new StringBuilder();
-            sqlBuilder.append("SELECT id, title, artist, album, duration, file_path, cover_path, upload_user_id, created_at ");
-            sqlBuilder.append("FROM music ");
-            sqlBuilder.append("WHERE (");
+            List<Music> allMusic = new ArrayList<>();
             
-            List<String> conditions = new ArrayList<>();
-            for (int i = 0; i < variants.length; i++) {
-                conditions.add("(title LIKE ? OR artist LIKE ? OR album LIKE ?)");
-            }
-            sqlBuilder.append(String.join(" OR ", conditions));
-            sqlBuilder.append(") ");
-            sqlBuilder.append("ORDER BY created_at DESC ");
-            sqlBuilder.append("LIMIT ?");
-            
-            try (PreparedStatement stmt = conn.prepareStatement(sqlBuilder.toString())) {
-                // 设置参数
-                int paramIndex = 1;
-                for (String variant : variants) {
-                    stmt.setString(paramIndex++, "%" + variant + "%");
-                    stmt.setString(paramIndex++, "%" + variant + "%");
-                    stmt.setString(paramIndex++, "%" + variant + "%");
-                }
-                stmt.setInt(paramIndex, limit);
+            if (isPinyin) {
+                // 如果是拼音，查询所有音乐（在应用层面进行拼音匹配）
+                String sql = "SELECT id, title, artist, album, duration, file_path, cover_path, upload_user_id, created_at " +
+                           "FROM music " +
+                           "ORDER BY created_at DESC " +
+                           "LIMIT 500"; // 限制查询数量以提高性能
                 
-                ResultSet rs = stmt.executeQuery();
-                
-                while (rs.next()) {
-                    Music music = new Music();
-                    music.setId(rs.getInt("id"));
-                    music.setTitle(rs.getString("title"));
-                    music.setArtist(rs.getString("artist"));
-                    music.setAlbum(rs.getString("album"));
-                    music.setDuration(rs.getInt("duration"));
-                    music.setFilePath(rs.getString("file_path"));
-                    music.setCoverFilePath(rs.getString("cover_path"));
-                    music.setUploadUserId(rs.getInt("upload_user_id"));
-                    music.setCreatedAt(rs.getTimestamp("created_at").toString());
+                try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                    ResultSet rs = stmt.executeQuery();
                     
-                    results.add(music);
+                    while (rs.next()) {
+                        Music music = new Music();
+                        music.setId(rs.getInt("id"));
+                        music.setTitle(rs.getString("title"));
+                        music.setArtist(rs.getString("artist"));
+                        music.setAlbum(rs.getString("album"));
+                        music.setDuration(rs.getInt("duration"));
+                        music.setFilePath(rs.getString("file_path"));
+                        music.setCoverFilePath(rs.getString("cover_path"));
+                        music.setUploadUserId(rs.getInt("upload_user_id"));
+                        music.setCreatedAt(rs.getTimestamp("created_at").toString());
+                        
+                        allMusic.add(music);
+                    }
+                }
+                
+                // 在内存中进行拼音匹配
+                String queryLower = query.toLowerCase();
+                String queryInitials = com.neko.music.util.PinyinUtil.getPinyinInitials(query);
+                
+                for (Music music : allMusic) {
+                    if (matchPinyin(music, queryLower, queryInitials)) {
+                        results.add(music);
+                        if (results.size() >= limit) {
+                            break;
+                        }
+                    }
+                }
+                
+            } else {
+                // 如果不是拼音，使用正常的繁简体搜索
+                List<String> variants = com.neko.music.util.ChineseConverter.getFullSearchVariants(query);
+                
+                // 构建 SQL 查询，支持繁简体搜索
+                StringBuilder sqlBuilder = new StringBuilder();
+                sqlBuilder.append("SELECT id, title, artist, album, duration, file_path, cover_path, upload_user_id, created_at ");
+                sqlBuilder.append("FROM music ");
+                sqlBuilder.append("WHERE (");
+                
+                List<String> conditions = new ArrayList<>();
+                for (int i = 0; i < variants.size(); i++) {
+                    conditions.add("(title LIKE ? OR artist LIKE ? OR album LIKE ?)");
+                }
+                sqlBuilder.append(String.join(" OR ", conditions));
+                sqlBuilder.append(") ");
+                sqlBuilder.append("ORDER BY created_at DESC ");
+                sqlBuilder.append("LIMIT ?");
+                
+                try (PreparedStatement stmt = conn.prepareStatement(sqlBuilder.toString())) {
+                    // 设置参数
+                    int paramIndex = 1;
+                    for (String variant : variants) {
+                        stmt.setString(paramIndex++, "%" + variant + "%");
+                        stmt.setString(paramIndex++, "%" + variant + "%");
+                        stmt.setString(paramIndex++, "%" + variant + "%");
+                    }
+                    stmt.setInt(paramIndex, limit);
+                    
+                    ResultSet rs = stmt.executeQuery();
+                    
+                    while (rs.next()) {
+                        Music music = new Music();
+                        music.setId(rs.getInt("id"));
+                        music.setTitle(rs.getString("title"));
+                        music.setArtist(rs.getString("artist"));
+                        music.setAlbum(rs.getString("album"));
+                        music.setDuration(rs.getInt("duration"));
+                        music.setFilePath(rs.getString("file_path"));
+                        music.setCoverFilePath(rs.getString("cover_path"));
+                        music.setUploadUserId(rs.getInt("upload_user_id"));
+                        music.setCreatedAt(rs.getTimestamp("created_at").toString());
+                        
+                        results.add(music);
+                    }
                 }
             }
         } catch (Exception e) {
@@ -116,6 +162,57 @@ public class MusicSearchHandler extends HttpServlet {
         }
         
         return results;
+    }
+    
+    /**
+     * 检查音乐是否匹配拼音查询
+     */
+    private boolean matchPinyin(Music music, String queryLower, String queryInitials) {
+        // 检查标题
+        if (matchFieldPinyin(music.getTitle(), queryLower, queryInitials)) {
+            return true;
+        }
+        // 检查歌手
+        if (matchFieldPinyin(music.getArtist(), queryLower, queryInitials)) {
+            return true;
+        }
+        // 检查专辑
+        if (matchFieldPinyin(music.getAlbum(), queryLower, queryInitials)) {
+            return true;
+        }
+        return false;
+    }
+    
+    /**
+     * 检查单个字段是否匹配拼音查询
+     */
+    private boolean matchFieldPinyin(String field, String queryLower, String queryInitials) {
+        if (field == null || field.isEmpty()) {
+            return false;
+        }
+        
+        // 获取字段的拼音变体
+        java.util.Set<String> variants = com.neko.music.util.PinyinUtil.getPinyinVariants(field);
+        
+        for (String variant : variants) {
+            if (variant.contains(queryLower)) {
+                return true;
+            }
+        }
+        
+        // 检查拼音首字母匹配
+        String fieldInitials = com.neko.music.util.PinyinUtil.getPinyinInitials(field);
+        if (fieldInitials.contains(queryInitials)) {
+            return true;
+        }
+        
+        // 检查完整拼音匹配
+        String fieldPinyin = com.neko.music.util.PinyinUtil.getPinyin(field);
+        if (fieldPinyin.contains(queryLower)) {
+            return true;
+        }
+        
+        return false;
     }
     
     // 内部类用于表示搜索请求
