@@ -84,14 +84,14 @@ public class MusicSearchHandler extends HttpServlet {
                     while (rs.next()) {
                         Music music = new Music();
                         music.setId(rs.getInt("id"));
-                        music.setTitle(rs.getString("title"));
-                        music.setArtist(rs.getString("artist"));
-                        music.setAlbum(rs.getString("album"));
+                        music.setTitle(rs.getString("title") != null ? rs.getString("title") : "");
+                        music.setArtist(rs.getString("artist") != null ? rs.getString("artist") : "");
+                        music.setAlbum(rs.getString("album") != null ? rs.getString("album") : "");
                         music.setDuration(rs.getInt("duration"));
-                        music.setFilePath(rs.getString("file_path"));
-                        music.setCoverFilePath(rs.getString("cover_path"));
+                        music.setFilePath(rs.getString("file_path") != null ? rs.getString("file_path") : "");
+                        music.setCoverFilePath(rs.getString("cover_path") != null ? rs.getString("cover_path") : "");
                         music.setUploadUserId(rs.getInt("upload_user_id"));
-                        music.setCreatedAt(rs.getTimestamp("created_at").toString());
+                        music.setCreatedAt(rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toString() : "");
                         
                         allMusic.add(music);
                     }
@@ -144,14 +144,14 @@ public class MusicSearchHandler extends HttpServlet {
                     while (rs.next()) {
                         Music music = new Music();
                         music.setId(rs.getInt("id"));
-                        music.setTitle(rs.getString("title"));
-                        music.setArtist(rs.getString("artist"));
-                        music.setAlbum(rs.getString("album"));
+                        music.setTitle(rs.getString("title") != null ? rs.getString("title") : "");
+                        music.setArtist(rs.getString("artist") != null ? rs.getString("artist") : "");
+                        music.setAlbum(rs.getString("album") != null ? rs.getString("album") : "");
                         music.setDuration(rs.getInt("duration"));
-                        music.setFilePath(rs.getString("file_path"));
-                        music.setCoverFilePath(rs.getString("cover_path"));
+                        music.setFilePath(rs.getString("file_path") != null ? rs.getString("file_path") : "");
+                        music.setCoverFilePath(rs.getString("cover_path") != null ? rs.getString("cover_path") : "");
                         music.setUploadUserId(rs.getInt("upload_user_id"));
-                        music.setCreatedAt(rs.getTimestamp("created_at").toString());
+                        music.setCreatedAt(rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toString() : "");
                         
                         results.add(music);
                     }

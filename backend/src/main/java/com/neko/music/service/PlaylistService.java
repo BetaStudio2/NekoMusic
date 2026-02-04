@@ -509,7 +509,11 @@ public class PlaylistService {
                         playlist.addProperty("id", rs.getInt("id"));
                         playlist.addProperty("userId", rs.getInt("user_id"));
                         playlist.addProperty("name", rs.getString("name"));
-                        playlist.addProperty("description", rs.getString("description"));
+                        
+                        // 处理可能为 null 的 description
+                        String desc = rs.getString("description");
+                        playlist.addProperty("description", desc != null ? desc : "");
+                        
                         playlist.addProperty("musicCount", rs.getInt("music_count"));
                         playlist.addProperty("createdAt", rs.getString("created_at"));
                         playlist.addProperty("updatedAt", rs.getString("updated_at"));
@@ -612,11 +616,14 @@ public class PlaylistService {
      */
     private boolean matchPlaylistPinyin(com.google.gson.JsonObject playlist, String queryLower, String queryInitials) {
         // 检查歌单名称
-        if (matchFieldPinyin(playlist.get("name").getAsString(), queryLower, queryInitials)) {
-            return true;
+        if (playlist.has("name") && !playlist.get("name").isJsonNull()) {
+            String name = playlist.get("name").getAsString();
+            if (matchFieldPinyin(name, queryLower, queryInitials)) {
+                return true;
+            }
         }
         // 检查描述
-        if (playlist.has("description") && playlist.get("description") != null) {
+        if (playlist.has("description") && !playlist.get("description").isJsonNull()) {
             String description = playlist.get("description").getAsString();
             if (matchFieldPinyin(description, queryLower, queryInitials)) {
                 return true;
