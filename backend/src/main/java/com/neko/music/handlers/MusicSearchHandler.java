@@ -66,13 +66,13 @@ public class MusicSearchHandler extends HttpServlet {
         int limit = 50; // 设置默认限制
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            // 判断查询是否是拼音
-            boolean isPinyin = com.neko.music.util.PinyinUtil.isLikelyPinyin(query);
+            // 判断查询是否包含拼音（纯拼音或混合输入）
+            boolean containsPinyin = com.neko.music.util.PinyinUtil.isLikelyPinyin(query);
             
             List<Music> allMusic = new ArrayList<>();
             
-            if (isPinyin) {
-                // 如果是拼音，查询所有音乐（在应用层面进行拼音匹配）
+            if (containsPinyin) {
+                // 如果包含拼音，查询所有音乐（在应用层面进行拼音匹配）
                 String sql = "SELECT id, title, artist, album, duration, file_path, cover_path, upload_user_id, created_at " +
                            "FROM music " +
                            "ORDER BY created_at DESC " +
@@ -97,12 +97,9 @@ public class MusicSearchHandler extends HttpServlet {
                     }
                 }
                 
-                // 在内存中进行拼音匹配
-                String queryLower = query.toLowerCase();
-                String queryInitials = com.neko.music.util.PinyinUtil.getPinyinInitials(query);
-                
+                // 在内存中进行混合匹配（拼音+中文）
                 for (Music music : allMusic) {
-                    if (matchPinyin(music, queryLower, queryInitials)) {
+                    if (matchMixedInput(music, query)) {
                         results.add(music);
                         if (results.size() >= limit) {
                             break;
@@ -165,54 +162,144 @@ public class MusicSearchHandler extends HttpServlet {
     }
     
     /**
-     * 检查音乐是否匹配拼音查询
+     * 检查音乐是否匹配混合输入（拼音+中文）
      */
-    private boolean matchPinyin(Music music, String queryLower, String queryInitials) {
+    private boolean matchMixedInput(Music music, String query) {
         // 检查标题
-        if (matchFieldPinyin(music.getTitle(), queryLower, queryInitials)) {
+        if (matchFieldMixedInput(music.getTitle(), query)) {
             return true;
         }
         // 检查歌手
-        if (matchFieldPinyin(music.getArtist(), queryLower, queryInitials)) {
+        if (matchFieldMixedInput(music.getArtist(), query)) {
             return true;
         }
         // 检查专辑
-        if (matchFieldPinyin(music.getAlbum(), queryLower, queryInitials)) {
+        if (matchFieldMixedInput(music.getAlbum(), query)) {
             return true;
         }
         return false;
     }
     
     /**
-     * 检查单个字段是否匹配拼音查询
+     * 检查单个字段是否匹配混合输入
+     * 支持以下匹配方式：
+     * 1. 纯拼音：hddjp 匹配 豪大大鸡排
+     * 2. 完整拼音：haodadajipai 匹配 豪大大鸡排
+     * 3. 混合输入：hao大大鸡排 匹配 豪大大鸡排
+     * 4. 中文匹配：豪大大鸡排 匹配 豪大大鸡排
      */
-    private boolean matchFieldPinyin(String field, String queryLower, String queryInitials) {
+    private boolean matchFieldMixedInput(String field, String query) {
         if (field == null || field.isEmpty()) {
             return false;
         }
         
-        // 获取字段的拼音变体
-        java.util.Set<String> variants = com.neko.music.util.PinyinUtil.getPinyinVariants(field);
+        String queryLower = query.toLowerCase();
         
-        for (String variant : variants) {
-            if (variant.contains(queryLower)) {
+        // 首先检查是否是混合输入（同时包含拼音和中文）
+        String pinyinPart = extractPinyinPart(query);
+        String chinesePart = extractChinesePart(query);
+        boolean isMixedInput = !pinyinPart.isEmpty() && !chinesePart.isEmpty();
+        
+        if (isMixedInput) {
+            // 处理混合输入（如 hao大大鸡排）
+            String fieldPinyin = com.neko.music.util.PinyinUtil.getPinyin(field);
+            String fieldInitials = com.neko.music.util.PinyinUtil.getPinyinInitials(field);
+            
+            String pinyinPartLower = pinyinPart.toLowerCase();
+            logger.info("混合输入检查: field={}, query={}, pinyinPart={}, chinesePart={}, fieldPinyin={}, fieldInitials={}", 
+                field, query, pinyinPart, chinesePart, fieldPinyin, fieldInitials);
+            
+            // 检查拼音部分是否匹配（宽松匹配：可以是前缀、包含等）
+            boolean pinyinMatch = fieldPinyin.contains(pinyinPartLower) || 
+                                  fieldInitials.contains(pinyinPartLower) ||
+                                  fieldPinyin.startsWith(pinyinPartLower) ||
+                                  fieldInitials.startsWith(pinyinPartLower);
+            
+            // 检查中文部分是否匹配（宽松匹配：可以是子串）
+            boolean chineseMatch = field.contains(chinesePart);
+            
+            logger.info("混合输入匹配结果: pinyinMatch={}, chineseMatch={}, field.contains(chinesePart)={}", 
+                pinyinMatch, chineseMatch, field.contains(chinesePart));
+            
+            if (pinyinMatch && chineseMatch) {
+                logger.info("混合输入匹配成功(严格): field={}, query={}", field, query);
+                return true;
+            }
+            
+            // 尝试另一种匹配方式：只要拼音匹配或中文匹配即可
+            // 例如：hao大大鸡排 可能只想匹配拼音 hao 开头的，或者包含 大大鸡排 的
+            if (pinyinMatch || chineseMatch) {
+                logger.info("混合输入匹配成功(宽松): field={}, query={}", field, query);
                 return true;
             }
         }
         
-        // 检查拼音首字母匹配
-        String fieldInitials = com.neko.music.util.PinyinUtil.getPinyinInitials(field);
-        if (fieldInitials.contains(queryInitials)) {
+        // 1. 直接匹配（中文或英文）
+        if (field.toLowerCase().contains(queryLower)) {
+            logger.info("直接匹配成功: field={}, query={}", field, query);
             return true;
         }
         
-        // 检查完整拼音匹配
+        // 2. 获取字段的拼音变体
+        java.util.Set<String> variants = com.neko.music.util.PinyinUtil.getPinyinVariants(field);
+        
+        // 3. 检查查询字符串是否匹配任何拼音变体
+        for (String variant : variants) {
+            if (variant.contains(queryLower)) {
+                logger.info("拼音变体匹配成功: field={}, query={}, variant={}", field, query, variant);
+                return true;
+            }
+        }
+        
+        // 4. 检查拼音首字母匹配（如 hddjp）
+        String fieldInitials = com.neko.music.util.PinyinUtil.getPinyinInitials(field);
+        if (fieldInitials.contains(queryLower)) {
+            logger.info("拼音首字母匹配成功: field={}, query={}, initials={}", field, query, fieldInitials);
+            return true;
+        }
+        
+        // 5. 检查完整拼音匹配
         String fieldPinyin = com.neko.music.util.PinyinUtil.getPinyin(field);
         if (fieldPinyin.contains(queryLower)) {
+            logger.info("完整拼音匹配成功: field={}, query={}, pinyin={}", field, query, fieldPinyin);
             return true;
         }
         
         return false;
+    }
+    
+    /**
+     * 从混合字符串中提取拼音部分
+     */
+    private String extractPinyinPart(String str) {
+        StringBuilder pinyinPart = new StringBuilder();
+        for (char c : str.toCharArray()) {
+            if (Character.isLetter(c)) {
+                pinyinPart.append(c);
+            }
+        }
+        return pinyinPart.toString();
+    }
+    
+    /**
+     * 从混合字符串中提取中文部分
+     */
+    private String extractChinesePart(String str) {
+        StringBuilder chinesePart = new StringBuilder();
+        for (char c : str.toCharArray()) {
+            if (isChinese(c)) {
+                chinesePart.append(c);
+            }
+        }
+        return chinesePart.toString();
+    }
+    
+    /**
+     * 判断字符是否是中文字符
+     */
+    private boolean isChinese(char c) {
+        return (c >= 0x4E00 && c <= 0x9FA5) || 
+               (c >= 0x3400 && c <= 0x4DBF);
     }
     
     // 内部类用于表示搜索请求
