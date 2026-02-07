@@ -1471,7 +1471,7 @@ const handlePlaylistUpdated = (e) => {
 onMounted(() => {
   // 加载播放列表
   loadPlaylist()
-  
+
   // 监听storage事件，以响应其他标签页的播放变化
   window.addEventListener('storage', handleStorageChange)
   // 监听自定义事件，以响应播放页面的状态变化
@@ -1480,6 +1480,10 @@ onMounted(() => {
   window.addEventListener('forcePlay', handleForcePlay)
   // 监听播放列表更新事件
   window.addEventListener('playlistUpdated', handlePlaylistUpdated)
+  // 监听URL hash变化，处理播放请求
+  window.addEventListener('hashchange', handleHashChange)
+  // 初始检查hash
+  handleHashChange()
   
   // 初始化当前播放音乐
   const storedMusic = localStorage.getItem('currentPlayingMusic')
@@ -1534,6 +1538,71 @@ onMounted(() => {
 })
 
 // 加载播放列表
+// 处理URL hash变化，响应播放请求
+const handleHashChange = () => {
+  const hash = window.location.hash
+
+  if (hash.startsWith('#play=')) {
+    // 单曲播放
+    try {
+      const musicData = JSON.parse(decodeURIComponent(hash.substring(6)))
+      currentMusic.value = musicData
+      localStorage.setItem('currentPlayingMusic', JSON.stringify(musicData))
+
+      // 确保音乐在播放列表中
+      if (playlist.value) {
+        const existingIndex = playlist.value.findIndex(item => item.id === musicData.id)
+        if (existingIndex === -1) {
+          playlist.value.push(musicData)
+          localStorage.setItem('globalPlaylist', JSON.stringify(playlist.value))
+        }
+      }
+
+      // 加载歌词并开始播放
+      loadLyrics(musicData.id)
+      if (audioPlayer.value) {
+        audioPlayer.value.load()
+        audioPlayer.value.play()
+      }
+      isPlaying.value = true
+
+      // 清除hash
+      history.replaceState(null, null, ' ')
+    } catch (error) {
+      console.error('解析播放数据失败:', error)
+    }
+  } else if (hash.startsWith('#playlist=')) {
+    // 播放列表播放
+    try {
+      const params = hash.substring(1).split('&')
+      const playlistData = JSON.parse(decodeURIComponent(params[0].substring(9)))
+      const startIndex = parseInt(params[1].substring(6)) || 0
+
+      // 更新播放列表
+      playlist.value = playlistData
+      localStorage.setItem('globalPlaylist', JSON.stringify(playlistData))
+
+      // 播放指定索引的音乐
+      if (playlistData[startIndex]) {
+        currentMusic.value = playlistData[startIndex]
+        localStorage.setItem('currentPlayingMusic', JSON.stringify(playlistData[startIndex]))
+
+        loadLyrics(playlistData[startIndex].id)
+        if (audioPlayer.value) {
+          audioPlayer.value.load()
+          audioPlayer.value.play()
+        }
+        isPlaying.value = true
+      }
+
+      // 清除hash
+      history.replaceState(null, null, ' ')
+    } catch (error) {
+      console.error('解析播放列表数据失败:', error)
+    }
+  }
+}
+
 const loadPlaylist = async () => {
   try {
     // 首先尝试从 localStorage 读取播放列表
@@ -1692,6 +1761,7 @@ onUnmounted(() => {
   window.removeEventListener('playerStateChange', handlePlayerStateChange)
   window.removeEventListener('forcePlay', handleForcePlay)
   window.removeEventListener('playlistUpdated', handlePlaylistUpdated)
+  window.removeEventListener('hashchange', handleHashChange)
   
   // 清除媒体会话
   if ('mediaSession' in navigator) {

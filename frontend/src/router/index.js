@@ -8,6 +8,7 @@ import UserFavoritesView from '@/views/UserFavoritesView.vue'
 import UserPlaylistsView from '@/views/UserPlaylistsView.vue'
 import CreatePlaylistView from '@/views/CreatePlaylistView.vue'
 import PlaylistDetailView from '@/views/PlaylistDetailView.vue'
+import RankingView from '@/views/RankingView.vue'
 import AdminLoginView from '@/views/admin/AdminLoginView.vue'
 import AdminView from '@/views/admin/AdminView.vue'
 import AdminMusicView from '@/views/admin/AdminMusicView.vue'
@@ -134,6 +135,16 @@ const router = createRouter({
         title: '我的歌单 - Neko云音乐 | 免费音乐歌单',
         description: '查看和管理您的歌单，创建个性化音乐播放列表。完全免费，无需付费。',
         keywords: '歌单,我的歌单,音乐歌单,播放列表'
+      }
+    },
+    {
+      path: '/ranking',
+      name: 'ranking',
+      component: RankingView,
+      meta: {
+        title: '热门音乐排行榜 - Neko云音乐 | 免费音乐排行',
+        description: '查看基于播放次数排序的热门音乐排行榜，发现最受欢迎的免费音乐。完全免费，无需付费。',
+        keywords: '热门音乐,音乐排行榜,免费音乐排行,热门排行'
       }
     },
     {
