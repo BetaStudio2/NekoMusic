@@ -1,6 +1,6 @@
 # Neko云音乐 API 文档
 
-#### 更新时间 2026年2月4日
+#### 更新时间 2026年2月7日
 ## 概述
 
 Neko云音乐提供完整的 RESTful API，支持音乐搜索、播放、用户认证、收藏等功能。所有 API 都基于 HTTP/HTTPS 协议，使用 JSON 格式进行数据交换。
@@ -995,11 +995,87 @@ Content-Type: application/json
 **路径参数:**
 - `id`: 音乐 ID
 
+**查询参数:**
+- `t`: 时间戳（可选，用于避免缓存）
+
 **响应示例:**
 ```json
 {
   "success": true,
-  "lyrics": "歌词内容"
+  "message": "获取歌词成功",
+  "data": "歌词内容"
+}
+```
+
+**说明:**
+- 此 API **无需登录**即可访问
+- 获取歌词时会自动增加该音乐的播放次数（play_count + 1）
+- 建议在请求时添加时间戳参数以避免浏览器缓存
+
+### 6. 获取播放次数排行榜
+
+**端点:** `GET /api/music/ranking`
+
+**无需登录**
+
+**查询参数:**
+- `limit`: 返回数量（可选，默认为 200，最大为 200）
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "message": "获取播放次数排行榜成功",
+  "data": [
+    {
+      "id": 1,
+      "title": "歌曲标题",
+      "artist": "艺术家",
+      "album": "专辑",
+      "duration": 180,
+      "coverPath": "/path/to/cover.jpg",
+      "coverUrl": "/path/to/cover.jpg",
+      "language": "中文",
+      "tags": "流行",
+      "playCount": 100
+    }
+  ]
+}
+```
+
+**说明:**
+- 此 API **无需登录**即可访问
+- 返回按播放次数从高到低排序的音乐列表
+- 只返回播放次数大于 0 的音乐
+- 默认返回前 200 首，最多支持返回 200 首
+- 每首音乐包含：
+  - id, title, artist, album, duration
+  - coverPath: 封面文件路径
+  - coverUrl: 封面访问 URL（如果封面不存在则为默认图标）
+  - language: 语言
+  - tags: 标签
+  - playCount: 播放次数
+
+**使用场景:**
+- 首页展示热门音乐
+- 音乐排行榜页面
+- 推荐热门音乐给用户
+
+**前端集成示例:**
+```javascript
+async function getMusicRanking(limit = 200) {
+  const response = await fetch(`https://music.cnmsb.xin/api/music/ranking?limit=${limit}`, {
+    method: 'GET'
+  });
+
+  const data = await response.json();
+  if (data.success) {
+    console.log(`获取到 ${data.data.length} 首热门音乐:`, data.data);
+    // data.data 是一个数组，包含按播放次数排序的音乐
+  } else {
+    console.error('获取排行榜失败:', data.message);
+  }
+  return data;
 }
 ```
 
