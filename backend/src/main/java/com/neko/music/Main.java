@@ -135,7 +135,11 @@ public class Main {
         // 注册歌词API处理器（无需管理员权限）
         ServletHolder musicLyricsHolder = new ServletHolder(new MusicLyricsHandler());
         context.addServlet(musicLyricsHolder, "/api/music/lyrics/*");
-        
+
+        // 注册播放次数排行榜API处理器（无需管理员权限）
+        ServletHolder musicRankingHolder = new ServletHolder(new MusicRankingHandler());
+        context.addServlet(musicRankingHolder, "/api/music/ranking");
+
         // 注册用户登录API处理器
         ServletHolder userLoginHolder = new ServletHolder(new UserLoginHandler());
         context.addServlet(userLoginHolder, "/api/user/login");
