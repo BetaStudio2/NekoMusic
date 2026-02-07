@@ -489,7 +489,7 @@ const getCoverUrl = (musicId) => {
 
 // 获取歌词
 const getLyricsUrl = (musicId) => {
-  return `${API_CONFIG.BASE_URL}/api/music/lyrics/${musicId}`
+  return `${API_CONFIG.BASE_URL}/api/music/lyrics/${musicId}?t=${Date.now()}`
 }
 
 // 加载歌词
