@@ -74,12 +74,84 @@ class FavoriteApi(private val context: android.content.Context) {
             FavoriteResponse(success = false, message = "网络错误: ${e.message}")
         }
     }
+
+    /**
+     * 获取收藏歌单列表
+     */
+    suspend fun getFavoritePlaylists(token: String): FavoritePlaylistListResponse {
+        return try {
+            val response = client.get("$baseUrl/api/user/favorite-playlists") {
+                header("Authorization", token)
+            }
+            response.body()
+        } catch (e: Exception) {
+            com.neko.music.util.AuthErrorHandler.handleApiError(context, e)
+            Log.e("FavoriteApi", "获取收藏歌单列表失败", e)
+            FavoritePlaylistListResponse(success = false, playlists = emptyList())
+        }
+    }
+
+    /**
+     * 收藏歌单
+     */
+    suspend fun addFavoritePlaylist(token: String, playlistId: Int): FavoriteResponse {
+        return try {
+            val response = client.post("$baseUrl/api/user/favorite-playlists") {
+                header("Authorization", token)
+                contentType(ContentType.Application.Json)
+                setBody(AddFavoritePlaylistRequest(playlistId = playlistId))
+            }
+            response.body()
+        } catch (e: Exception) {
+            com.neko.music.util.AuthErrorHandler.handleApiError(context, e)
+            Log.e("FavoriteApi", "收藏歌单失败", e)
+            FavoriteResponse(success = false, message = "网络错误: ${e.message}")
+        }
+    }
+
+    /**
+     * 取消收藏歌单
+     */
+    suspend fun removeFavoritePlaylist(token: String, playlistId: Int): FavoriteResponse {
+        return try {
+            val response = client.delete("$baseUrl/api/user/favorite-playlists/$playlistId") {
+                header("Authorization", token)
+            }
+            response.body()
+        } catch (e: Exception) {
+            com.neko.music.util.AuthErrorHandler.handleApiError(context, e)
+            Log.e("FavoriteApi", "取消收藏歌单失败", e)
+            FavoriteResponse(success = false, message = "网络错误: ${e.message}")
+        }
+    }
+
+    /**
+     * 检查歌单是否已收藏
+     */
+    suspend fun isPlaylistFavorited(token: String, playlistId: Int): Boolean {
+        return try {
+            val response: FavoritePlaylistListResponse = getFavoritePlaylists(token)
+            if (response.success) {
+                response.playlists.any { it.id == playlistId }
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            Log.e("FavoriteApi", "检查收藏状态失败", e)
+            false
+        }
+    }
 }
 
 // 数据模型
 @Serializable
 data class AddFavoriteRequest(
     val musicId: Int
+)
+
+@Serializable
+data class AddFavoritePlaylistRequest(
+    val playlistId: Int
 )
 
 @Serializable
@@ -103,4 +175,28 @@ data class FavoriteMusic(
     val duration: Int,
     val filename: String,
     val cover: String = ""
+)
+
+@Serializable
+data class FavoritePlaylistInfo(
+    val id: Int,
+    val name: String,
+    val description: String? = null,
+    val musicCount: Int,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val favoriteTime: Long,
+    val creator: CreatorInfo? = null
+)
+
+@Serializable
+data class CreatorInfo(
+    val id: Int,
+    val username: String
+)
+
+@Serializable
+data class FavoritePlaylistListResponse(
+    val success: Boolean,
+    val playlists: List<FavoritePlaylistInfo>
 )

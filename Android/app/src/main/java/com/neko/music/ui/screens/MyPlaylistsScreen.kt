@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -60,7 +61,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyPlaylistsScreen(
-    onNavigateToPlaylistDetail: (Int, String, String?, String?) -> Unit,
+    onNavigateToPlaylistDetail: (Int, String, String?, String?, String?, Int?) -> Unit,
     onNavigateToFavorite: () -> Unit
 ) {
     val context = LocalContext.current
@@ -71,6 +72,7 @@ fun MyPlaylistsScreen(
     
     // 歌单数据
     var playlists by remember { mutableStateOf<List<Playlist>>(emptyList()) }
+    var favoritePlaylists by remember { mutableStateOf<List<Playlist>>(emptyList()) }
     var favoritesCount by remember { mutableStateOf(0) }
     var favorites by remember { mutableStateOf<List<com.neko.music.data.api.FavoriteMusic>>(emptyList()) }
     var playlistFirstMusicCovers by remember { mutableStateOf<Map<Int, String>>(emptyMap()) } // 存储每个歌单第一首音乐的封面
@@ -90,12 +92,14 @@ fun MyPlaylistsScreen(
                 if (playlistResponse.success) {
                     // 转换PlaylistInfo到Playlist
                     playlists = playlistResponse.playlists?.map { info ->
-                        Log.d("MyPlaylistsScreen", "API返回歌单: id=${info.id}, name=${info.name}, coverPath=${info.coverPath}")
-                        Playlist(info.id, info.name, info.musicCount, 1, info.createdAt, info.coverPath, info.description, info.username)
+                        val creatorUserId = info.creator?.id ?: info.userId ?: 1
+                        val creatorUsername = info.creator?.username ?: info.username
+                        Log.d("MyPlaylistsScreen", "API返回歌单: id=${info.id}, name=${info.name}, userId=${info.userId}, creator=${info.creator}, creatorUsername=$creatorUsername")
+                        Playlist(info.id, info.name, info.musicCount, creatorUserId, info.createdAt, info.coverPath, info.description, creatorUsername)
                     } ?: emptyList()
                     Log.d("MyPlaylistsScreen", "歌单列表: ${playlists.size}个")
                     playlists.forEach { 
-                        Log.d("MyPlaylistsScreen", "转换后歌单: id=${it.id}, name=${it.name}, coverPath=${it.coverPath}")
+                        Log.d("MyPlaylistsScreen", "转换后歌单: id=${it.id}, name=${it.name}, userId=${it.userId}, username=${it.username}")
                     }
                     
                     // 异步加载每个歌单的第一首音乐封面（仅当歌单没有封面时）
@@ -129,6 +133,49 @@ fun MyPlaylistsScreen(
                     favorites = favoriteResponse.favorites
                     if (favorites.isNotEmpty()) {
                         Log.d("MyPlaylistsScreen", "第一首音乐: id=${favorites[0].id}, title=${favorites[0].title}")
+                        
+                        // 为"我喜欢的音乐"加载封面（使用第一首收藏音乐的封面）
+                        val firstFavorite = favorites[0]
+                        val coverUrl = "https://music.cnmsb.xin/api/music/cover/${firstFavorite.id}"
+                        playlistFirstMusicCovers = playlistFirstMusicCovers + (0 to coverUrl)
+                    }
+                }
+
+                // 加载收藏歌单列表
+                val favoritePlaylistResponse = favoriteApi.getFavoritePlaylists(token)
+                Log.d("MyPlaylistsScreen", "收藏歌单API响应: success=${favoritePlaylistResponse.success}, 数量=${favoritePlaylistResponse.playlists.size}")
+                if (favoritePlaylistResponse.success) {
+                    favoritePlaylists = favoritePlaylistResponse.playlists.map { info ->
+                        Playlist(
+                            info.id,
+                            info.name,
+                            info.musicCount,
+                            1,
+                            java.text.SimpleDateFormat("yyyy-MM-dd").format(java.util.Date(info.createdAt)),
+                            null,
+                            info.description,
+                            info.creator?.username
+                        )
+                    }
+                    Log.d("MyPlaylistsScreen", "收藏歌单列表: ${favoritePlaylists.size}个")
+
+                    // 异步加载每个收藏歌单的第一首音乐封面
+                    favoritePlaylists.forEach { playlist ->
+                        if (playlist.musicCount > 0) {
+                            scope.launch {
+                                try {
+                                    // 使用收藏歌单的API获取音乐列表
+                                    val musicResponse: PlaylistMusicListResponse = playlistApi.getPlaylistMusic(playlist.id)
+                                    if (musicResponse.success && musicResponse.musicList?.isNotEmpty() == true) {
+                                        val firstMusic = musicResponse.musicList[0]
+                                        val coverUrl = "https://music.cnmsb.xin/api/music/cover/${firstMusic.id}"
+                                        playlistFirstMusicCovers = playlistFirstMusicCovers + (playlist.id to coverUrl)
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("MyPlaylistsScreen", "加载收藏歌单${playlist.id}封面失败", e)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -182,6 +229,49 @@ fun MyPlaylistsScreen(
                 if (favoriteResponse.success) {
                     favoritesCount = favoriteResponse.favorites.size
                     favorites = favoriteResponse.favorites
+                    
+                    // 为"我喜欢的音乐"加载封面（使用第一首收藏音乐的封面）
+                    if (favorites.isNotEmpty()) {
+                        val firstFavorite = favorites[0]
+                        val coverUrl = "https://music.cnmsb.xin/api/music/cover/${firstFavorite.id}"
+                        playlistFirstMusicCovers = playlistFirstMusicCovers + (0 to coverUrl)
+                    }
+                }
+
+                // 加载收藏歌单列表
+                val favoritePlaylistResponse = favoriteApi.getFavoritePlaylists(token)
+                Log.d("MyPlaylistsScreen", "刷新收藏歌单API响应: success=${favoritePlaylistResponse.success}")
+                if (favoritePlaylistResponse.success) {
+                    favoritePlaylists = favoritePlaylistResponse.playlists.map { info ->
+                        Playlist(
+                            info.id,
+                            info.name,
+                            info.musicCount,
+                            1,
+                            java.text.SimpleDateFormat("yyyy-MM-dd").format(java.util.Date(info.createdAt)),
+                            null,
+                            info.description,
+                            info.creator?.username
+                        )
+                    }
+
+                    // 异步加载每个收藏歌单的第一首音乐封面
+                    favoritePlaylists.forEach { playlist ->
+                        if (playlist.musicCount > 0) {
+                            scope.launch {
+                                try {
+                                    val musicResponse: PlaylistMusicListResponse = playlistApi.getPlaylistMusic(playlist.id)
+                                    if (musicResponse.success && musicResponse.musicList?.isNotEmpty() == true) {
+                                        val firstMusic = musicResponse.musicList[0]
+                                        val coverUrl = "https://music.cnmsb.xin/api/music/cover/${firstMusic.id}"
+                                        playlistFirstMusicCovers = playlistFirstMusicCovers + (playlist.id to coverUrl)
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("MyPlaylistsScreen", "加载收藏歌单${playlist.id}封面失败", e)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -193,11 +283,11 @@ fun MyPlaylistsScreen(
         }
     }
 
-    // 获取完整的歌单列表（包括"我的收藏"）
-    val allPlaylists = remember(playlists, favoritesCount) {
+    // 获取完整的歌单列表
+    val allPlaylists = remember(playlists, favoritePlaylists, favoritesCount) {
         listOf(
-            Playlist(0, "我的收藏", favoritesCount, 1, "2026-01-15", null)
-        ) + playlists
+            Playlist(0, "我喜欢的音乐", favoritesCount, 1, "2026-01-15", null, null, null)
+        ) + playlists + favoritePlaylists
     }
     
     // 创建/编辑歌单对话框
@@ -337,27 +427,6 @@ fun MyPlaylistsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Medium
                         )
-                        Button(
-                            onClick = {
-                                if (tokenManager.getToken() != null) {
-                                    editingPlaylist = null
-                                    dialogPlaylistName = ""
-                                    showCreateDialog = true
-                                } else {
-                                    Toast.makeText(context, "请先登录", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = RoseRed
-                            ),
-                            shape = RoundedCornerShape(20.dp)
-                        ) {
-                            Text(
-                                text = "创建歌单",
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
                     }
                 }
             } else {
@@ -382,7 +451,27 @@ fun MyPlaylistsScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = PaddingValues(bottom = 150.dp)
                     ) {
-                    items(allPlaylists) { playlist ->
+                    itemsIndexed(allPlaylists) { index, playlist ->
+                        // 检查是否是第一个收藏歌单（"我喜欢的音乐"的索引是0，所以用户歌单从1开始）
+                        val isFirstFavoritePlaylist = index == playlists.size + 1 && favoritePlaylists.isNotEmpty()
+                        
+                        // 如果是第一个收藏歌单，先显示分割线
+                        if (isFirstFavoritePlaylist) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp)
+                                    .height(1.dp)
+                                    .background(
+                                        if (isSystemInDarkTheme()) {
+                                            Color.White.copy(alpha = 0.1f)
+                                        } else {
+                                            Color.Black.copy(alpha = 0.1f)
+                                        }
+                                    )
+                            )
+                        }
+                        
                         PlaylistItem(
                             playlist = playlist,
                             favorites = favorites,
@@ -406,7 +495,14 @@ fun MyPlaylistsScreen(
                                     onNavigateToFavorite()
                                 } else {
                                     // 其他歌单跳转到歌单详情页面
-                                    onNavigateToPlaylistDetail(playlist.id, playlist.name, playlist.coverPath, playlist.description)
+                                    onNavigateToPlaylistDetail(
+                                        playlist.id,
+                                        playlist.name,
+                                        playlist.coverPath,
+                                        playlist.description,
+                                        playlist.username,
+                                        playlist.userId
+                                    )
                                 }
                             }
                         )

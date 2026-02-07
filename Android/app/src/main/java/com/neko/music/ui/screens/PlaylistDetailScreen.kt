@@ -35,9 +35,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.isSystemInDarkTheme
 import coil.compose.AsyncImage
 import com.neko.music.R
+import com.neko.music.data.api.FavoriteApi
 import com.neko.music.data.api.PlaylistApi
 import com.neko.music.data.api.PlaylistMusic
 import com.neko.music.data.api.PlaylistMusicListResponse
+import com.neko.music.data.api.PlaylistResponse
 import com.neko.music.data.manager.TokenManager
 import com.neko.music.ui.theme.RoseRed
 import kotlinx.coroutines.launch
@@ -48,6 +50,8 @@ fun PlaylistDetailScreen(
     playlistName: String,
     playlistCover: String?,
     playlistDescription: String = "",
+    creatorUsername: String? = null,
+    creatorUserId: Int? = null,
     isOwner: Boolean = true,
     onBackClick: () -> Unit,
     onMusicClick: (com.neko.music.data.model.Music) -> Unit,
@@ -57,33 +61,61 @@ fun PlaylistDetailScreen(
     val scope = rememberCoroutineScope()
     val tokenManager = remember { TokenManager(context) }
     val playlistApi = remember { PlaylistApi(tokenManager.getToken(), context) }
+    val favoriteApi = remember { FavoriteApi(context) }
 
     var musicList by remember { mutableStateOf<List<PlaylistMusic>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf("") }
+    var actualCreatorUsername by remember { mutableStateOf<String?>(null) }
+    var actualCreatorUserId by remember { mutableStateOf<Int?>(null) }
     
     var currentDescription by remember { mutableStateOf(playlistDescription) }
     
     var showEditDescriptionDialog by remember { mutableStateOf(false) }
     var editingDescription by remember { mutableStateOf(playlistDescription) }
     var showShareDialog by remember { mutableStateOf(false) }
+    
+    var isFavorited by remember { mutableStateOf(false) }
+    var isCheckingFavorite by remember { mutableStateOf(true) }
 
     LaunchedEffect(playlistId) {
         try {
             isLoading = true
-            val response: PlaylistMusicListResponse = playlistApi.getPlaylistMusic(playlistId)
-            Log.d("PlaylistDetailScreen", "加载歌单音乐: playlistId=$playlistId, success=${response.success}")
-            if (response.success) {
-                musicList = response.musicList ?: emptyList()
+            isCheckingFavorite = true
+            
+            // 先获取歌单详情（包含创建者信息）
+            val detailResponse: PlaylistResponse = playlistApi.getPlaylistDetail(playlistId)
+            Log.d("PlaylistDetailScreen", "歌单详情: playlist=${detailResponse.playlist}")
+            if (detailResponse.success && detailResponse.playlist != null) {
+                actualCreatorUsername = detailResponse.playlist.creator?.username
+                actualCreatorUserId = detailResponse.playlist.creator?.id ?: detailResponse.playlist.userId
+                Log.d("PlaylistDetailScreen", "创建者: username=$actualCreatorUsername, userId=$actualCreatorUserId")
+            }
+            
+            // 再获取歌单音乐列表
+            val musicResponse: PlaylistMusicListResponse = playlistApi.getPlaylistMusic(playlistId)
+            Log.d("PlaylistDetailScreen", "加载歌单音乐: playlistId=$playlistId, success=${musicResponse.success}")
+            if (musicResponse.success) {
+                musicList = musicResponse.musicList ?: emptyList()
                 Log.d("PlaylistDetailScreen", "加载到${musicList.size}首音乐")
             } else {
-                errorMessage = response.message
+                errorMessage = musicResponse.message
+            }
+            
+            // 检查收藏状态（仅当不是自己的歌单时）
+            val currentUserId = tokenManager.getUserId()
+            if (currentUserId != -1 && actualCreatorUserId != currentUserId) {
+                val token = tokenManager.getToken()
+                if (token != null) {
+                    isFavorited = favoriteApi.isPlaylistFavorited(token, playlistId)
+                }
             }
         } catch (e: Exception) {
             Log.e("PlaylistDetailScreen", "加载歌单音乐失败", e)
             errorMessage = "加载失败: ${e.message}"
         } finally {
             isLoading = false
+            isCheckingFavorite = false
         }
     }
 
@@ -101,6 +133,46 @@ fun PlaylistDetailScreen(
                 "https://music.cnmsb.xin/api/music/cover/${firstMusic.id}"
             } else {
                 "https://music.cnmsb.xin/api/user/avatar/default"
+            }
+        }
+    }
+
+    // 判断是否是自己的歌单
+    val isOwnPlaylist = tokenManager.getUserId() == actualCreatorUserId
+
+    // 收藏/取消收藏歌单的函数
+    val toggleFavorite: () -> Unit = {
+        scope.launch {
+            try {
+                val token = tokenManager.getToken()
+                if (token != null) {
+                    val response = if (isFavorited) {
+                        favoriteApi.removeFavoritePlaylist(token, playlistId)
+                    } else {
+                        favoriteApi.addFavoritePlaylist(token, playlistId)
+                    }
+                    
+                    if (response.success) {
+                        isFavorited = !isFavorited
+                        android.widget.Toast.makeText(
+                            context,
+                            if (isFavorited) "收藏成功" else "取消收藏成功",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        android.widget.Toast.makeText(
+                            context,
+                            response.message,
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(
+                    context,
+                    "操作失败: ${e.message}",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
             }
         }
     }
@@ -215,11 +287,28 @@ fun PlaylistDetailScreen(
                     )
                 }
 
+                Row(
+                modifier = Modifier.align(Alignment.CenterEnd),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (!isOwnPlaylist && !isCheckingFavorite) {
+                    IconButton(
+                        onClick = toggleFavorite,
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(
+                                id = if (isFavorited) R.drawable.ic_favorite_filled else R.drawable.ic_favorite_border
+                            ),
+                            contentDescription = if (isFavorited) "取消收藏" else "收藏",
+                            tint = RoseRed
+                        )
+                    }
+                }
+                
                 IconButton(
                     onClick = { showShareDialog = true },
-                    modifier = Modifier
-                        .size(48.dp)
-                        .align(Alignment.CenterEnd)
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Share,
@@ -227,6 +316,7 @@ fun PlaylistDetailScreen(
                         tint = Color.Black
                     )
                 }
+            }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -318,6 +408,35 @@ fun PlaylistDetailScreen(
                                 showEditDescriptionDialog = true
                             }
                         )
+                    }
+
+                    // 创建者信息
+                    val displayCreatorUsername = actualCreatorUsername ?: creatorUsername
+                    val displayCreatorUserId = actualCreatorUserId ?: creatorUserId
+                    
+                    if (displayCreatorUserId != null && displayCreatorUserId != -1) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            AsyncImage(
+                                model = "https://music.cnmsb.xin/api/user/avatar/$displayCreatorUserId",
+                                contentDescription = "创建者头像",
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                            )
+                            Text(
+                                text = if (displayCreatorUsername != null) "创建者: $displayCreatorUsername" else "创建者ID: $displayCreatorUserId",
+                                fontSize = 12.sp,
+                                color = if (isDarkTheme) {
+                                    Color(0xFFB8B8D1).copy(alpha = 0.8f)
+                                } else {
+                                    Color.Gray
+                                }
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
