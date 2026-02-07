@@ -990,7 +990,7 @@ Content-Type: application/json
 
 ### 5. 获取歌词
 
-**端点:** `GET /api/music/lyrics/{id}`
+**端点:** `GET /api/music/lyrics/{id}?t={时间戳}`
 
 **路径参数:**
 - `id`: 音乐 ID
