@@ -59,6 +59,9 @@ public class MusicLyricsHandler extends HttpServlet {
             return;
         }
         
+        // 增加播放次数
+        incrementPlayCount(musicId);
+        
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
         LyricsResponse lyricsResponse = new LyricsResponse(true, "获取歌词成功", lyrics);
@@ -198,6 +201,25 @@ public class MusicLyricsHandler extends HttpServlet {
         } catch (Exception e) {
             logger.error("更新歌词文件时出错: {}", e.getMessage(), e);
             return false;
+        }
+    }
+
+    /**
+     * 增加音乐的播放次数
+     */
+    private void incrementPlayCount(int musicId) {
+        try (java.sql.Connection conn = Main.getDatabaseManager().getConnection();
+             java.sql.PreparedStatement stmt = conn.prepareStatement(
+                 "UPDATE music SET play_count = play_count + 1 WHERE id = ?")) {
+            stmt.setInt(1, musicId);
+            int rowsAffected = stmt.executeUpdate();
+            if (rowsAffected > 0) {
+                logger.info("已增加音乐ID {} 的播放次数", musicId);
+            } else {
+                logger.warn("未找到音乐ID {}，无法更新播放次数", musicId);
+            }
+        } catch (Exception e) {
+            logger.error("增加播放次数时出错: {}", e.getMessage(), e);
         }
     }
     

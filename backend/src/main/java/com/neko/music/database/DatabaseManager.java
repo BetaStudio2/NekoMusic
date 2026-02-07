@@ -94,6 +94,22 @@ public class DatabaseManager {
                 logger.debug("file_format 字段可能已存在，跳过添加");
             }
 
+            // 为已存在的 music 表添加 play_count 字段（如果不存在）
+            try {
+                String alterPlayCountTable = """
+                    ALTER TABLE music
+                    ADD COLUMN IF NOT EXISTS play_count INT DEFAULT 0
+                    AFTER file_format
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(alterPlayCountTable)) {
+                    stmt.execute();
+                }
+                logger.info("已为 music 表添加 play_count 字段");
+            } catch (SQLException e) {
+                // 字段可能已存在，忽略错误
+                logger.debug("play_count 字段可能已存在，跳过添加");
+            }
+
             // 为已存在的 users 表迁移约束（移除username唯一约束，添加email唯一约束）
             try {
                 // 检查是否有username的唯一索引
