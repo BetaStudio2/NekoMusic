@@ -1014,7 +1014,7 @@ Content-Type: application/json
 
 ### 6. 获取播放次数排行榜
 
-**端点:** `GET /api/music/ranking`
+**端点:** `GET /api/music/ranking?t={时间戳}`
 
 **无需登录**
 
