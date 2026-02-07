@@ -58,7 +58,8 @@ const loading = ref(false)
 const fetchRanking = async () => {
   loading.value = true
   try {
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/ranking`)
+    const timestamp = Date.now()
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/ranking?t=${timestamp}`)
     const data = await response.json()
 
     if (data.success && data.data) {
