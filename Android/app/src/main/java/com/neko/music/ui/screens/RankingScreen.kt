@@ -1,20 +1,24 @@
 package com.neko.music.ui.screens
 
 import android.util.Log
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -39,12 +43,15 @@ fun RankingScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val musicApi = remember { MusicApi(context) }
+    val listState = rememberLazyListState()
+    val isDarkMode = isSystemInDarkTheme()
     
     var musicList by remember { mutableStateOf<List<Music>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
+    var refreshing by remember { mutableStateOf(false) }
     var loadError by remember { mutableStateOf(false) }
     
-    LaunchedEffect(Unit) {
+    fun loadData() {
         loading = true
         scope.launch {
             try {
@@ -66,6 +73,32 @@ fun RankingScreen(
         }
     }
     
+    fun refreshData() {
+        refreshing = true
+        scope.launch {
+            try {
+                val result = musicApi.getRanking(200)
+                result.onSuccess { list ->
+                    musicList = list
+                    loadError = false
+                    Log.d("RankingScreen", "刷新成功: ${list.size}首")
+                }.onFailure { error ->
+                    Log.e("RankingScreen", "刷新失败: ${error.message}")
+                    loadError = true
+                }
+            } catch (e: Exception) {
+                Log.e("RankingScreen", "刷新异常: ${e.message}", e)
+                loadError = true
+            } finally {
+                refreshing = false
+            }
+        }
+    }
+    
+    LaunchedEffect(Unit) {
+        loadData()
+    }
+    
     Scaffold(
         topBar = {
             TopAppBar(
@@ -74,7 +107,7 @@ fun RankingScreen(
                         text = "热门音乐",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = RoseRed.copy(alpha = 0.8f)
+                        color = if (isDarkMode) Color.White.copy(alpha = 0.95f) else RoseRed
                     )
                 },
                 navigationIcon = {
@@ -82,7 +115,7 @@ fun RankingScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "返回",
-                            tint = RoseRed.copy(alpha = 0.8f)
+                            tint = if (isDarkMode) Color.White.copy(alpha = 0.9f) else RoseRed
                         )
                     }
                 },
@@ -94,83 +127,73 @@ fun RankingScreen(
                                 onPlayAll(musicList)
                             }
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = "播放全部",
-                                tint = RoseRed.copy(alpha = 0.8f),
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = "播放全部",
                                 fontSize = 14.sp,
-                                color = RoseRed.copy(alpha = 0.8f)
+                                fontWeight = FontWeight.Medium,
+                                color = if (isDarkMode) Color.White.copy(alpha = 0.9f) else RoseRed
                             )
                         }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent
+                    containerColor = if (isDarkMode) DeepBlue else Color.Transparent
                 )
             )
         },
-        containerColor = Color.Transparent
+        containerColor = if (isDarkMode) DeepBlue else Color.Transparent
     ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            SakuraPink.copy(alpha = 0.15f),
-                            SkyBlue.copy(alpha = 0.15f)
-                        )
-                    )
-                )
         ) {
             when {
-                loading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(
-                            color = RoseRed.copy(alpha = 0.8f)
-                        )
-                    }
+                loading && musicList.isEmpty() -> {
+                    LoadingState()
                 }
-                loadError -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "网络错误",
-                            fontSize = 16.sp,
-                            color = RoseRed.copy(alpha = 0.6f)
-                        )
-                    }
+                loadError && musicList.isEmpty() -> {
+                    ErrorState(
+                        onRetry = { loadData() }
+                    )
                 }
                 musicList.isEmpty() -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "暂无热门音乐",
-                            fontSize = 16.sp,
-                            color = RoseRed.copy(alpha = 0.6f)
-                        )
-                    }
+                    EmptyState()
                 }
                 else -> {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    colors = if (isDarkMode) {
+                                        listOf(
+                                            DeepBlue.copy(alpha = 0.3f),
+                                            DeepBlue.copy(alpha = 0.2f),
+                                            DeepBlue.copy(alpha = 0.1f)
+                                        )
+                                    } else {
+                                        listOf(
+                                            SakuraPink.copy(alpha = 0.12f),
+                                            SkyBlue.copy(alpha = 0.08f),
+                                            Lilac.copy(alpha = 0.05f)
+                                        )
+                                    }
+                                )
+                            ),
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = 12.dp,
+                            bottom = 160.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        itemsIndexed(musicList) { index, music ->
+                        itemsIndexed(
+                            items = musicList,
+                            key = { _, music -> music.id }
+                        ) { index, music ->
                             RankingItem(
                                 music = music,
                                 rank = index + 1,
@@ -188,6 +211,136 @@ fun RankingScreen(
 }
 
 @Composable
+fun LoadingState() {
+    val isDarkMode = isSystemInDarkTheme()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = if (isDarkMode) {
+                        listOf(
+                            DeepBlue.copy(alpha = 0.3f),
+                            DeepBlue.copy(alpha = 0.2f),
+                            DeepBlue.copy(alpha = 0.1f)
+                        )
+                    } else {
+                        listOf(
+                            SakuraPink.copy(alpha = 0.12f),
+                            SkyBlue.copy(alpha = 0.08f),
+                            Lilac.copy(alpha = 0.05f)
+                        )
+                    }
+                )
+            ),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        CircularProgressIndicator(
+            color = RoseRed,
+            strokeWidth = 3.dp
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "正在加载热门音乐...",
+            fontSize = 14.sp,
+            color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else RoseRed.copy(alpha = 0.7f)
+        )
+    }
+}
+
+@Composable
+fun ErrorState(
+    onRetry: () -> Unit
+) {
+    val isDarkMode = isSystemInDarkTheme()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = if (isDarkMode) {
+                        listOf(
+                            DeepBlue.copy(alpha = 0.3f),
+                            DeepBlue.copy(alpha = 0.2f),
+                            DeepBlue.copy(alpha = 0.1f)
+                        )
+                    } else {
+                        listOf(
+                            SakuraPink.copy(alpha = 0.12f),
+                            SkyBlue.copy(alpha = 0.08f),
+                            Lilac.copy(alpha = 0.05f)
+                        )
+                    }
+                )
+            ),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "加载失败",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Medium,
+            color = if (isDarkMode) Color.White.copy(alpha = 0.95f) else RoseRed
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "网络连接似乎出现了问题",
+            fontSize = 14.sp,
+            color = if (isDarkMode) Color.White.copy(alpha = 0.6f) else RoseRed.copy(alpha = 0.6f)
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+        Button(
+            onClick = onRetry,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = RoseRed
+            ),
+            shape = RoundedCornerShape(20.dp)
+        ) {
+            Text(
+                text = "重试",
+                fontSize = 14.sp,
+                color = Color.White
+            )
+        }
+    }
+}
+
+@Composable
+fun EmptyState() {
+    val isDarkMode = isSystemInDarkTheme()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = if (isDarkMode) {
+                        listOf(
+                            DeepBlue.copy(alpha = 0.3f),
+                            DeepBlue.copy(alpha = 0.2f),
+                            DeepBlue.copy(alpha = 0.1f)
+                        )
+                    } else {
+                        listOf(
+                            SakuraPink.copy(alpha = 0.12f),
+                            SkyBlue.copy(alpha = 0.08f),
+                            Lilac.copy(alpha = 0.05f)
+                        )
+                    }
+                )
+            ),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "暂无热门音乐",
+            fontSize = 16.sp,
+            color = if (isDarkMode) Color.White.copy(alpha = 0.6f) else RoseRed.copy(alpha = 0.6f)
+        )
+    }
+}
+
+@Composable
 fun RankingItem(
     music: Music,
     rank: Int,
@@ -195,88 +348,161 @@ fun RankingItem(
 ) {
     val context = LocalContext.current
     val musicApi = remember { MusicApi(context) }
+    val isDarkMode = isSystemInDarkTheme()
     var coverUrl by remember { mutableStateOf<String?>(null) }
+    var isLoaded by remember { mutableStateOf(false) }
     
     LaunchedEffect(music.id) {
         coverUrl = musicApi.getMusicCoverUrl(music)
+        isLoaded = true
     }
     
-    // 排名颜色
     val rankColor = when (rank) {
-        1 -> Color(0xFFFFD700) // 金色
-        2 -> Color(0xFFC0C0C0) // 银色
-        3 -> Color(0xFFCD7F32) // 铜色
-        else -> RoseRed.copy(alpha = 0.6f)
+        1 -> Color(0xFFFFD700)
+        2 -> Color(0xFFC0C0C0)
+        3 -> Color(0xFFCD7F32)
+        else -> RoseRed.copy(alpha = 0.5f)
+    }
+    
+    val backgroundColor = when {
+        rank <= 3 -> Brush.horizontalGradient(
+            colors = if (isDarkMode) {
+                listOf(
+                    RoseRed.copy(alpha = 0.25f),
+                    RoseRed.copy(alpha = 0.15f)
+                )
+            } else {
+                listOf(
+                    RoseRed.copy(alpha = 0.15f),
+                    SakuraPink.copy(alpha = 0.1f)
+                )
+            }
+        )
+        else -> Brush.horizontalGradient(
+            colors = if (isDarkMode) {
+                listOf(
+                    RoseRed.copy(alpha = 0.12f),
+                    Color.Transparent
+                )
+            } else {
+                listOf(
+                    RoseRed.copy(alpha = 0.08f),
+                    Color.Transparent
+                )
+            }
+        )
     }
     
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(80.dp)
+            .height(64.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(
-                color = RoseRed.copy(alpha = 0.1f),
-                shape = RoundedCornerShape(12.dp)
+            .background(backgroundColor)
+            .shadow(
+                elevation = if (rank <= 3) 6.dp else 1.dp,
+                spotColor = RoseRed.copy(alpha = 0.3f),
+                ambientColor = RoseRed.copy(alpha = 0.1f)
             )
             .clickable { onClick() }
-            .padding(12.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 排名
-        Text(
-            text = rank.toString(),
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            color = rankColor,
-            modifier = Modifier.width(40.dp)
-        )
-        
-        Spacer(modifier = Modifier.width(12.dp))
-        
-        // 封面
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(coverUrl ?: "https://music.cnmsb.xin/api/user/avatar/default")
-                .crossfade(true)
-                .build(),
-            contentDescription = music.title,
-            modifier = Modifier
-                .size(56.dp)
-                .clip(RoundedCornerShape(8.dp)),
-            contentScale = ContentScale.Crop
-        )
-        
-        Spacer(modifier = Modifier.width(12.dp))
-        
-        // 歌曲信息
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.Center
+        AnimatedVisibility(
+            visible = isLoaded,
+            enter = fadeIn(
+                animationSpec = tween(300, delayMillis = rank * 30)
+            ) + slideInHorizontally(
+                animationSpec = tween(300, delayMillis = rank * 30),
+                initialOffsetX = { -50 }
+            )
         ) {
-            Text(
-                text = music.title,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color.White.copy(alpha = 0.95f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = music.artist,
-                fontSize = 14.sp,
-                color = RoseRed.copy(alpha = 0.7f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier.width(36.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Text(
+                        text = rank.toString(),
+                        fontSize = if (rank <= 3) 18.sp else 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = rankColor
+                    )
+                }
+                
+                Spacer(modifier = Modifier.width(6.dp))
+                
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    RoseRed.copy(alpha = 0.2f),
+                                    RoseRed.copy(alpha = 0.05f)
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(coverUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = music.title,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(10.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+                
+                Spacer(modifier = Modifier.width(10.dp))
+                
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = music.title,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (isDarkMode) Color.White.copy(alpha = 0.95f) else RoseRed.copy(alpha = 0.9f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = music.artist,
+                        fontSize = 12.sp,
+                        color = if (isDarkMode) Color.White.copy(alpha = 0.6f) else RoseRed.copy(alpha = 0.6f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                
+                if (music.playCount != null && music.playCount > 0) {
+                    Text(
+                        text = formatPlayCount(music.playCount),
+                        fontSize = 11.sp,
+                        color = if (isDarkMode) Color.White.copy(alpha = 0.5f) else RoseRed.copy(alpha = 0.7f),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
         }
-        
-        // 播放次数
-        Text(
-            text = "${music.playCount ?: 0}次",
-            fontSize = 14.sp,
-            color = RoseRed.copy(alpha = 0.8f),
-            fontWeight = FontWeight.Medium
-        )
+    }
+}
+
+fun formatPlayCount(count: Int): String {
+    return when {
+        count >= 1000000 -> "${count / 1000000}M"
+        count >= 1000 -> "${count / 1000}K"
+        else -> count.toString()
     }
 }
