@@ -111,18 +111,25 @@ public class MusicSearchHandler extends HttpServlet {
                 
                 logger.info("查询到 {} 条音乐记录，开始匹配", allMusic.size());
                 
-                // 在内存中进行混合匹配（拼音+中文）
+                // 在内存中进行混合匹配（拼音+中文），并计算匹配分数
+                List<java.util.AbstractMap.SimpleEntry<Music, Integer>> scoredResults = new ArrayList<>();
                 int matchCount = 0;
+                
                 for (Music music : allMusic) {
-                    boolean matched = matchMixedInput(music, query);
-                    if (matched) {
+                    int score = calculateMatchScore(music, query);
+                    if (score > 0) {
                         matchCount++;
-                        results.add(music);
-                        logger.info("匹配成功: title={}, artist={}", music.getTitle(), music.getArtist());
-                        if (results.size() >= limit) {
-                            break;
-                        }
+                        scoredResults.add(new java.util.AbstractMap.SimpleEntry<>(music, score));
+                        logger.info("匹配成功: title={}, artist={}, score={}", music.getTitle(), music.getArtist(), score);
                     }
+                }
+                
+                // 按分数排序，分数高的在前
+                scoredResults.sort((a, b) -> b.getValue().compareTo(a.getValue()));
+                
+                // 取前 limit 条结果
+                for (int i = 0; i < Math.min(limit, scoredResults.size()); i++) {
+                    results.add(scoredResults.get(i).getKey());
                 }
                 
                 logger.info("拼音搜索完成: 检查了 {} 条音乐，匹配到 {} 条", allMusic.size(), matchCount);
@@ -184,6 +191,78 @@ public class MusicSearchHandler extends HttpServlet {
         }
         
         return results;
+    }
+    
+    /**
+     * 计算音乐的匹配分数
+     * 分数越高，匹配度越高
+     * 评分规则：
+     * - 标题精确匹配（不区分大小写）：100分
+     * - 标题以查询开头：80分
+     * - 标题包含查询：60分
+     * - 歌手精确匹配：50分
+     * - 歌手以查询开头：40分
+     * - 歌手包含查询：30分
+     * - 专辑精确匹配：20分
+     * - 专辑以查询开头：15分
+     * - 专辑包含查询：10分
+     * - 拼音匹配：90分
+     */
+    private int calculateMatchScore(Music music, String query) {
+        if (query == null || query.isEmpty()) {
+            return 0;
+        }
+        
+        String queryLower = query.toLowerCase();
+        int score = 0;
+        
+        // 检查标题
+        String title = music.getTitle();
+        if (title != null && !title.isEmpty()) {
+            String titleLower = title.toLowerCase();
+            if (titleLower.equals(queryLower)) {
+                score += 100; // 标题精确匹配
+            } else if (titleLower.startsWith(queryLower)) {
+                score += 80; // 标题以查询开头
+            } else if (titleLower.contains(queryLower)) {
+                score += 60; // 标题包含查询
+            }
+        }
+        
+        // 检查歌手
+        String artist = music.getArtist();
+        if (artist != null && !artist.isEmpty()) {
+            String artistLower = artist.toLowerCase();
+            if (artistLower.equals(queryLower)) {
+                score += 50; // 歌手精确匹配
+            } else if (artistLower.startsWith(queryLower)) {
+                score += 40; // 歌手以查询开头
+            } else if (artistLower.contains(queryLower)) {
+                score += 30; // 歌手包含查询
+            }
+        }
+        
+        // 检查专辑
+        String album = music.getAlbum();
+        if (album != null && !album.isEmpty()) {
+            String albumLower = album.toLowerCase();
+            if (albumLower.equals(queryLower)) {
+                score += 20; // 专辑精确匹配
+            } else if (albumLower.startsWith(queryLower)) {
+                score += 15; // 专辑以查询开头
+            } else if (albumLower.contains(queryLower)) {
+                score += 10; // 专辑包含查询
+            }
+        }
+        
+        // 如果以上都没有匹配，检查拼音匹配
+        if (score == 0) {
+            if (matchMixedInput(music, query)) {
+                score += 90; // 拼音匹配
+            }
+        }
+        
+        return score;
     }
     
     /**
