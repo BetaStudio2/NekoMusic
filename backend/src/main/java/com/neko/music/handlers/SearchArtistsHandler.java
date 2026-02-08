@@ -103,22 +103,31 @@ public class SearchArtistsHandler extends HttpServlet {
                 String sql = "SELECT artist, COUNT(*) as music_count " +
                            "FROM music " +
                            "GROUP BY artist " +
-                           "ORDER BY music_count DESC " +
-                           "LIMIT 100";
+                           "ORDER BY music_count DESC";
+                
+                logger.info("拼音搜索模式: 查询所有歌手");
                 
                 try (Connection conn = databaseManager.getConnection();
                      PreparedStatement stmt = conn.prepareStatement(sql)) {
                     
                     ResultSet rs = stmt.executeQuery();
+                    int artistCount = 0;
                     
                     while (rs.next()) {
+                        artistCount++;
                         String artist = rs.getString("artist");
-                        if (matchFieldMixedInput(artist, query)) {
+                        boolean matched = matchFieldMixedInput(artist, query);
+                        logger.info("检查歌手: artist={}, matched={}", artist, matched);
+                        
+                        if (matched) {
                             foundArtist = artist;
                             musicCount = rs.getInt("music_count");
+                            logger.info("找到匹配歌手: artist={}, musicCount={}", foundArtist, musicCount);
                             break;
                         }
                     }
+                    
+                    logger.info("拼音搜索完成: 检查了 {} 个歌手", artistCount);
                 }
             } else {
                 // 如果不是拼音，使用正常的繁简体搜索

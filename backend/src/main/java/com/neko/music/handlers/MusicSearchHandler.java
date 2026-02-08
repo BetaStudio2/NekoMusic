@@ -62,12 +62,16 @@ public class MusicSearchHandler extends HttpServlet {
     }
     
     private List<Music> searchMusic(String query) {
+        logger.info("=== searchMusic 方法开始执行 ===");
+        logger.info("查询字符串: query='{}', 长度={}", query, query != null ? query.length() : 0);
+        
         List<Music> results = new ArrayList<>();
         int limit = 50; // 设置默认限制
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             // 判断查询是否包含拼音（纯拼音或混合输入）
             boolean containsPinyin = com.neko.music.util.PinyinUtil.isLikelyPinyin(query);
+            logger.info("是否包含拼音: containsPinyin={}", containsPinyin);
             
             List<Music> allMusic = new ArrayList<>();
             
@@ -75,11 +79,13 @@ public class MusicSearchHandler extends HttpServlet {
                 // 如果包含拼音，查询所有音乐（在应用层面进行拼音匹配）
                 String sql = "SELECT id, title, artist, album, duration, file_path, cover_path, upload_user_id, created_at " +
                            "FROM music " +
-                           "ORDER BY created_at DESC " +
-                           "LIMIT 500"; // 限制查询数量以提高性能
+                           "ORDER BY created_at DESC";
+                
+                logger.info("拼音搜索模式: 查询所有音乐");
                 
                 try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                     ResultSet rs = stmt.executeQuery();
+                    int index = 0;
                     
                     while (rs.next()) {
                         Music music = new Music();
@@ -94,22 +100,37 @@ public class MusicSearchHandler extends HttpServlet {
                         music.setCreatedAt(rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toString() : "");
                         
                         allMusic.add(music);
+                        
+                        // 记录前10条音乐
+                        if (index < 10) {
+                            logger.info("音乐记录 {}: title={}, artist={}", index + 1, music.getTitle(), music.getArtist());
+                        }
+                        index++;
                     }
                 }
                 
+                logger.info("查询到 {} 条音乐记录，开始匹配", allMusic.size());
+                
                 // 在内存中进行混合匹配（拼音+中文）
+                int matchCount = 0;
                 for (Music music : allMusic) {
-                    if (matchMixedInput(music, query)) {
+                    boolean matched = matchMixedInput(music, query);
+                    if (matched) {
+                        matchCount++;
                         results.add(music);
+                        logger.info("匹配成功: title={}, artist={}", music.getTitle(), music.getArtist());
                         if (results.size() >= limit) {
                             break;
                         }
                     }
                 }
                 
+                logger.info("拼音搜索完成: 检查了 {} 条音乐，匹配到 {} 条", allMusic.size(), matchCount);
+                
             } else {
                 // 如果不是拼音，使用正常的繁简体搜索
                 List<String> variants = com.neko.music.util.ChineseConverter.getFullSearchVariants(query);
+                logger.info("搜索变体: query={}, variants={}", query, variants);
                 
                 // 构建 SQL 查询，支持繁简体搜索
                 StringBuilder sqlBuilder = new StringBuilder();
@@ -126,6 +147,8 @@ public class MusicSearchHandler extends HttpServlet {
                 sqlBuilder.append("ORDER BY created_at DESC ");
                 sqlBuilder.append("LIMIT ?");
                 
+                logger.info("SQL查询: {}", sqlBuilder.toString());
+
                 try (PreparedStatement stmt = conn.prepareStatement(sqlBuilder.toString())) {
                     // 设置参数
                     int paramIndex = 1;
@@ -152,6 +175,8 @@ public class MusicSearchHandler extends HttpServlet {
                         
                         results.add(music);
                     }
+                    
+                    logger.info("找到 {} 条音乐记录", results.size());
                 }
             }
         } catch (Exception e) {

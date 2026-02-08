@@ -495,8 +495,7 @@ public class PlaylistService {
                     "(SELECT m.cover_path FROM playlist_music pm JOIN music m ON pm.music_id = m.id " +
                     " WHERE pm.playlist_id = p.id ORDER BY pm.position ASC LIMIT 1) as first_music_cover " +
                     "FROM playlists p " +
-                    "ORDER BY p.created_at DESC " +
-                    "LIMIT 500";
+                    "ORDER BY p.created_at DESC";
                 
                 try (Connection conn = databaseManager.getConnection();
                      PreparedStatement stmt = conn.prepareStatement(sql)) {
