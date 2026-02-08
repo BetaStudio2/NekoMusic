@@ -117,7 +117,7 @@ public class SearchArtistsHandler extends HttpServlet {
                         artistCount++;
                         String artist = rs.getString("artist");
                         boolean matched = matchFieldMixedInput(artist, query);
-                        logger.info("检查歌手: artist={}, matched={}", artist, matched);
+                        logger.debug("检查歌手: artist={}, matched={}", artist, matched);
                         
                         if (matched) {
                             foundArtist = artist;
