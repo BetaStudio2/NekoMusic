@@ -130,6 +130,11 @@ public class MusicSearchHandler extends HttpServlet {
                 // 取前 limit 条结果
                 for (int i = 0; i < Math.min(limit, scoredResults.size()); i++) {
                     results.add(scoredResults.get(i).getKey());
+                    logger.info("结果 {}: title={}, artist={}, score={}", 
+                        i + 1, 
+                        scoredResults.get(i).getKey().getTitle(), 
+                        scoredResults.get(i).getKey().getArtist(), 
+                        scoredResults.get(i).getValue());
                 }
                 
                 logger.info("拼音搜索完成: 检查了 {} 条音乐，匹配到 {} 条", allMusic.size(), matchCount);
@@ -151,7 +156,7 @@ public class MusicSearchHandler extends HttpServlet {
                 }
                 sqlBuilder.append(String.join(" OR ", conditions));
                 sqlBuilder.append(") ");
-                sqlBuilder.append("ORDER BY created_at DESC ");
+                // 移除 ORDER BY created_at DESC，改为在内存中按分数排序
                 sqlBuilder.append("LIMIT ?");
                 
                 logger.info("SQL查询: {}", sqlBuilder.toString());
@@ -164,7 +169,8 @@ public class MusicSearchHandler extends HttpServlet {
                         stmt.setString(paramIndex++, "%" + variant + "%");
                         stmt.setString(paramIndex++, "%" + variant + "%");
                     }
-                    stmt.setInt(paramIndex, limit);
+                    // 这里设置一个较大的限制，确保能获取所有匹配的记录
+                    stmt.setInt(paramIndex, 1000);
                     
                     ResultSet rs = stmt.executeQuery();
                     
@@ -180,11 +186,37 @@ public class MusicSearchHandler extends HttpServlet {
                         music.setUploadUserId(rs.getInt("upload_user_id"));
                         music.setCreatedAt(rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toString() : "");
                         
-                        results.add(music);
+                        allMusic.add(music);
                     }
-                    
-                    logger.info("找到 {} 条音乐记录", results.size());
                 }
+                
+                logger.info("找到 {} 条音乐记录，开始计算分数", allMusic.size());
+                
+                // 计算每条记录的匹配分数
+                List<java.util.AbstractMap.SimpleEntry<Music, Integer>> scoredResults = new ArrayList<>();
+                for (Music music : allMusic) {
+                    int score = calculateMatchScore(music, query);
+                    if (score > 0) {
+                        scoredResults.add(new java.util.AbstractMap.SimpleEntry<>(music, score));
+                        logger.info("匹配: title={}, artist={}, score={}", 
+                            music.getTitle(), music.getArtist(), score);
+                    }
+                }
+                
+                // 按分数排序，分数高的在前
+                scoredResults.sort((a, b) -> b.getValue().compareTo(a.getValue()));
+                
+                // 取前 limit 条结果
+                for (int i = 0; i < Math.min(limit, scoredResults.size()); i++) {
+                    results.add(scoredResults.get(i).getKey());
+                    logger.info("结果 {}: title={}, artist={}, score={}", 
+                        i + 1, 
+                        scoredResults.get(i).getKey().getTitle(), 
+                        scoredResults.get(i).getKey().getArtist(), 
+                        scoredResults.get(i).getValue());
+                }
+                
+                logger.info("找到 {} 条音乐记录，最终返回 {} 条", allMusic.size(), results.size());
             }
         } catch (Exception e) {
             logger.error("搜索音乐时出错", e);
