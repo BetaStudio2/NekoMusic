@@ -138,9 +138,9 @@ public class PinyinUtil {
             return false;
         }
         
-        // 检查是否只包含英文字母和数字
+        // 检查是否包含英文字母（排除中文字符）
         for (char c : query.toCharArray()) {
-            if (Character.isLetter(c)) {
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
                 return true;
             }
         }

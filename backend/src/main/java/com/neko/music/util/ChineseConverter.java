@@ -63,9 +63,12 @@ public class ChineseConverter {
      * 生成完整的搜索变体（包含繁简体和拼音）
      * 支持以下搜索方式：
      * 1. 原始文本（简体/繁体）
-     * 2. 拼音首字母（如 "hddjp" 搜索 "豪大大鸡排"）
-     * 3. 完整拼音（如 "haodadajipai" 搜索 "豪大大鸡排"）
-     * 4. 同音字/错别字（通过模糊匹配）
+     * 2. 繁简体转换后的版本
+     * 3. 拼音搜索（仅当查询本身是拼音时）
+     * 
+     * 注意：当查询包含中文时，不添加拼音变体到 SQL LIKE 查询中，
+     * 因为这会导致不正确的匹配。拼音搜索应该由 MusicSearchHandler
+     * 中的拼音分支处理。
      * 
      * @param query 搜索关键词
      * @return 包含所有搜索变体的列表
@@ -101,24 +104,11 @@ public class ChineseConverter {
             }
         }
         
-        // 4. 如果查询包含中文，生成拼音变体用于反向匹配
-        if (containsChinese(query)) {
-            // 获取拼音首字母
-            String initials = PinyinUtil.getPinyinInitials(query);
-            if (!initials.isEmpty()) {
-                uniqueVariants.add(initials);
-            }
-            
-            // 获取完整拼音
-            String fullPinyin = PinyinUtil.getPinyin(query);
-            if (!fullPinyin.isEmpty()) {
-                uniqueVariants.add(fullPinyin);
-            }
-            
-            // 获取所有拼音变体（包括部分组合）
-            Set<String> pinyinVariants = PinyinUtil.getPinyinVariants(query);
-            uniqueVariants.addAll(pinyinVariants);
-        }
+        // 注意：当查询包含中文时，不添加拼音变体到 SQL LIKE 查询中
+        // 因为这会导致不正确的匹配。例如搜索"但"会生成 "d" 和 "dan"，
+        // 在 SQL LIKE 查询中使用 "%d%" 会匹配所有包含字母 "d" 的内容，
+        // 而不是匹配拼音首字母为 "d" 的中文。
+        // 拼音搜索应该由 MusicSearchHandler 中的拼音分支处理。
         
         // 转换为列表并去重
         variants.addAll(uniqueVariants);

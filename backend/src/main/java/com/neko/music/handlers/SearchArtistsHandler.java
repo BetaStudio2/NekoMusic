@@ -85,10 +85,14 @@ public class SearchArtistsHandler extends HttpServlet {
      * 搜索歌手
      */
     private JsonObject searchArtists(String query) {
+        logger.info("=== searchArtists 方法开始执行 ===");
+        logger.info("查询字符串: query='{}', 长度={}", query, query != null ? query.length() : 0);
+        
         JsonObject result = new JsonObject();
         
         // 判断查询是否是拼音
         boolean isPinyin = com.neko.music.util.PinyinUtil.isLikelyPinyin(query);
+        logger.info("是否是拼音: isPinyin={}", isPinyin);
         
         String foundArtist = null;
         int musicCount = 0;
@@ -119,6 +123,7 @@ public class SearchArtistsHandler extends HttpServlet {
             } else {
                 // 如果不是拼音，使用正常的繁简体搜索
                 List<String> variants = com.neko.music.util.ChineseConverter.getFullSearchVariants(query);
+                logger.info("搜索变体: query={}, variants={}", query, variants);
                 
                 StringBuilder sqlBuilder = new StringBuilder();
                 sqlBuilder.append("SELECT artist, COUNT(*) as music_count ");
@@ -135,13 +140,17 @@ public class SearchArtistsHandler extends HttpServlet {
                 sqlBuilder.append("ORDER BY music_count DESC ");
                 sqlBuilder.append("LIMIT 1");
 
+                logger.info("SQL查询: {}", sqlBuilder.toString());
+
                 try (Connection conn = databaseManager.getConnection();
                      PreparedStatement stmt = conn.prepareStatement(sqlBuilder.toString())) {
 
                     // 设置参数
                     int paramIndex = 1;
                     for (String variant : variants) {
-                        stmt.setString(paramIndex++, "%" + variant + "%");
+                        String paramValue = "%" + variant + "%";
+                        stmt.setString(paramIndex++, paramValue);
+                        logger.info("参数 {}: {}", paramIndex - 1, paramValue);
                     }
                     
                     ResultSet rs = stmt.executeQuery();
