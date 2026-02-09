@@ -184,6 +184,21 @@ public class DatabaseManager {
                 logger.debug("修改 email 字段为 NOT NULL 失败（可能已修改）: {}", e.getMessage());
             }
 
+            // 为已存在的 users 表添加 avatar 字段（如果不存在）
+            try {
+                String alterAvatarTable = """
+                    ALTER TABLE users
+                    ADD COLUMN IF NOT EXISTS avatar VARCHAR(500) DEFAULT NULL
+                    AFTER email
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(alterAvatarTable)) {
+                    stmt.execute();
+                    logger.info("已为 users 表添加 avatar 字段");
+                }
+            } catch (SQLException e) {
+                logger.debug("avatar 字段可能已存在，跳过添加: {}", e.getMessage());
+            }
+
             // 创建歌单表
             String createPlaylistTable = """
                 CREATE TABLE IF NOT EXISTS playlists (
