@@ -3,7 +3,14 @@
     <div class="upload-container">
       <!-- 左侧封面 -->
       <div class="cover-side">
-        <div class="cover-upload" :class="{ 'has-cover': coverFile }" @click="selectCoverFile">
+        <div 
+              class="cover-upload" 
+              :class="{ 'has-cover': coverFile, 'drag-over': isCoverDragging }"
+              @click="selectCoverFile"
+              @dragover.prevent="isCoverDragging = true"
+              @dragleave.prevent="isCoverDragging = false"
+              @drop.prevent="handleCoverDrop"
+            >
           <input
             ref="coverFileInput"
             type="file"
@@ -36,7 +43,14 @@
         <form @submit.prevent="handleSubmit" class="upload-form">
           <!-- 音乐文件 -->
           <div class="form-group">
-            <div class="file-upload" :class="{ 'has-file': musicFile }" @click="selectMusicFile">
+            <div 
+              class="file-upload" 
+              :class="{ 'has-file': musicFile, 'drag-over': isDragging }"
+              @click="selectMusicFile"
+              @dragover.prevent="isDragging = true"
+              @dragleave.prevent="isDragging = false"
+              @drop.prevent="handleDrop"
+            >
               <input
                 ref="musicFileInput"
                 type="file"
@@ -147,6 +161,9 @@ const formData = ref({
 const uploading = ref(false)
 const uploadProgress = ref(0)
 
+const isDragging = ref(false)
+const isCoverDragging = ref(false)
+
 const selectMusicFile = () => {
   musicFileInput.value.click()
 }
@@ -183,6 +200,27 @@ const removeCoverFile = () => {
   coverFile.value = null
   coverPreview.value = null
   coverFileInput.value.value = ''
+}
+
+const handleDrop = (event) => {
+  isDragging.value = false
+  const file = event.dataTransfer.files[0]
+  if (file && file.type.startsWith('audio/')) {
+    musicFile.value = file
+    const fileName = file.name.replace(/\.[^/.]+$/, '')
+    if (!formData.value.title) {
+      formData.value.title = fileName
+    }
+  }
+}
+
+const handleCoverDrop = (event) => {
+  isCoverDragging.value = false
+  const file = event.dataTransfer.files[0]
+  if (file && file.type.startsWith('image/')) {
+    coverFile.value = file
+    coverPreview.value = URL.createObjectURL(file)
+  }
 }
 
 const handleSubmit = async () => {
@@ -278,9 +316,11 @@ const handleSubmit = async () => {
   border: 2px dashed rgba(102, 126, 234, 0.3);
 }
 
-.cover-upload:hover {
+.cover-upload:hover,
+.cover-upload.drag-over {
   border-color: #667eea;
   transform: scale(1.02);
+  background: rgba(102, 126, 234, 0.1);
 }
 
 .cover-upload.has-cover {
@@ -410,9 +450,10 @@ const handleSubmit = async () => {
   background: rgba(255, 255, 255, 0.2);
 }
 
-.file-upload:hover {
+.file-upload:hover,
+.file-upload.drag-over {
   border-color: #667eea;
-  background: rgba(255, 255, 255, 0.4);
+  background: rgba(102, 126, 234, 0.1);
 }
 
 .file-upload.has-file {
