@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>NekoMusic - 雫の审定报告</title>
+    <style>
+        body {
+            background-color: #f0f8ff;
+            margin: 0;
+            padding: 20px;
+            font-family: 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }
+
+        /* 主容器：延续雫蓝渐变边框与毛玻璃质感 */
+        .container {
+            max-width: 580px;
+            margin: 40px auto;
+            background: #ffffff;
+            border-radius: 40px 10px 40px 10px;
+            border: 2px solid #a2d2ff;
+            box-shadow: 0 20px 60px rgba(162, 210, 255, 0.3);
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 顶部华丽装饰区 - 通过时使用蓝色系 */
+        .header-art {
+            background: linear-gradient(135deg, #bde0fe 0%, #a2d2ff 100%);
+            height: 120px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 猫耳装饰 */
+        .neko-ears {
+            position: absolute;
+            top: -20px;
+            width: 100%;
+            text-align: center;
+            z-index: 10;
+        }
+
+        /* 标题设计 */
+        .title-group h1 {
+            color: #ffffff;
+            margin: 0;
+            font-size: 26px;
+            letter-spacing: 5px;
+            text-shadow: 2px 2px 8px rgba(0,0,0,0.1);
+            font-weight: 900;
+        }
+
+        /* 内容区布局 */
+        .main-body {
+            padding: 40px;
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 30L35 25L30 20L25 25Z' fill='%23bde0fe' fill-opacity='0.2'/%3E%3C/svg%3E");
+            color: #5b7083;
+        }
+
+        .user-greet {
+            font-size: 20px;
+            color: #4895ef;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+        }
+
+        /* 审核状态卡片 */
+        .status-card {
+            margin: 35px 0;
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 30px 20px;
+            text-align: center;
+            border: 1px solid #e0f2fe;
+            box-shadow: inset 0 0 20px rgba(189, 224, 254, 0.2), 0 10px 20px rgba(0,0,0,0.05);
+            position: relative;
+        }
+
+        /* 审核状态文字展示 - 通过状态 */
+        .status-display {
+            font-size: 42px;
+            font-weight: bold;
+            background: linear-gradient(to right, #4895ef, #4cc9f0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 4px;
+            margin: 10px 0;
+        }
+
+        .music-title {
+            font-size: 18px;
+            color: #5b7083;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .music-artist {
+            font-size: 14px;
+            color: #9bb1c4;
+            margin-bottom: 15px;
+        }
+
+        .success-message {
+            background: #f0f9ff;
+            border-left: 4px solid #4895ef;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: left;
+            border-radius: 0 10px 10px 0;
+        }
+
+        .success-message-title {
+            font-size: 14px;
+            color: #4895ef;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .success-message-content {
+            font-size: 13px;
+            color: #5b7083;
+            line-height: 1.8;
+        }
+
+        /* 底部信息栏 */
+        .footer-info {
+            background: #f8fbff;
+            padding: 30px;
+            text-align: center;
+            border-top: 1px solid #eef6ff;
+        }
+
+        .svg-icon {
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+
+        .tips {
+            font-size: 13px;
+            color: #9bb1c4;
+            border-left: 4px solid #bde0fe;
+            padding-left: 15px;
+            margin-top: 20px;
+            line-height: 1.8;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="neko-ears">
+        <svg width="200" height="40" viewBox="0 0 200 40" xmlns="http://www.w3.org/2000/svg">
+            <path d="M40 40 L60 10 L80 40" fill="#bde0fe" />
+            <path d="M120 40 L140 10 L160 40" fill="#a2d2ff" />
+        </svg>
+    </div>
+
+    <div class="header-art">
+        <div class="title-group">
+            <h1>NEKOMUSIC</h1>
+        </div>
+    </div>
+
+    <div class="main-body">
+        <div class="user-greet">
+            <svg class="svg-icon" width="24" height="24" viewBox="0 0 24 24" fill="#4895ef">
+                <path d="M12 2L14.5 9H22L16 13L18.5 21L12 17L5.5 21L8 13L2 9H9.5L12 2Z" />
+            </svg>
+            契约者大人：
+        </div>
+
+        <p style="line-height: 2; margin-top: 20px;">
+            雫酱已经从星际电波中捕获了审定结果喵！<br>
+            您提交的灵魂乐章已经过 NekoMusic 委员会的认真感应。
+        </p>
+
+        <div class="status-card">
+            <svg style="position:absolute; top:10px; left:10px;" width="30" height="30" viewBox="0 0 100 100">
+                <circle cx="20" cy="20" r="10" fill="#bde0fe" />
+            </svg>
+
+            <span style="font-size: 11px; color: #a2d2ff; letter-spacing: 3px; display:block; margin-bottom: 5px;">-- AUDIT REPORT --</span>
+
+            <div class="music-title">《{{musicName}}》</div>
+            <div class="music-artist">演唱者：{{artistName}}</div>
+            <div class="status-display">审核通过</div>
+
+            <div class="success-message">
+                <div class="success-message-title">🎉 恭喜！</div>
+                <div class="success-message-content">
+                    您的音乐已成功通过审核，现已添加到 NekoMusic 音乐库中！<br>
+                    快来 NekoMusic 搜索您的作品，和大家分享美妙的旋律吧~
+                </div>
+            </div>
+
+            <div style="font-size: 12px; color: #bde0fe; margin-top: 15px;">
+                审定时间：{{auditDate}}
+            </div>
+        </div>
+
+        <div class="tips">
+            提示：感谢您为 NekoMusic 贡献优秀的音乐作品！<br>
+            我们期待您未来上传更多精彩的音乐喵~
+        </div>
+    </div>
+
+    <div class="footer-info">
+        <div style="font-size: 12px; color: #84a59d;">
+            Fantasy Network | <strong>雫の音乐工坊</strong>
+        </div>
+        <div style="font-size: 10px; color: #c0d6df; margin-top: 5px;">
+            © 2026 NekoMusic Project. All Rights Purr-served.
+        </div>
+    </div>
+</div>
+</body>
+</html>
