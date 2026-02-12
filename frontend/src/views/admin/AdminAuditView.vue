@@ -11,51 +11,57 @@
       </div>
       
       <div class="admin-content-wrapper">
-        <div class="admin-subpage">
-          <h2>审核管理</h2>
-          <p>审核用户上传的音乐，通过审核后将自动添加到音乐库中。</p>
-          
-          <div v-if="isLoading" class="loading">
-            <p>正在加载待审核列表...</p>
-          </div>
-          
-          <div v-else-if="pendingUploads.length === 0" class="no-data">
-            <p>暂无待审核的音乐</p>
-          </div>
-          
-          <div v-else class="audit-list">
-            <div v-for="upload in pendingUploads" :key="upload.id" class="audit-item">
-              <div class="audit-item-header">
-                <div class="audit-item-title">
-                  <span class="music-title">{{ upload.title }}</span>
-                  <span class="music-artist">{{ upload.artist }}</span>
-                </div>
-                <div class="audit-item-info">
-                  <span class="upload-time">{{ formatDateTime(upload.createdAt) }}</span>
-                  <span class="upload-user">用户ID: {{ upload.userId }}</span>
-                </div>
+        <div class="admin-header-section">
+          <h2 class="admin-title">审核管理</h2>
+          <p class="admin-subtitle">审核用户上传的音乐，通过审核后将自动添加到音乐库中</p>
+        </div>
+        
+        <div v-if="isLoading" class="content-placeholder">
+          <p>正在加载待审核列表...</p>
+        </div>
+        
+        <div v-else-if="pendingUploads.length === 0" class="content-placeholder">
+          <p>暂无待审核的音乐</p>
+        </div>
+        
+        <div v-else class="audit-list">
+          <div v-for="upload in pendingUploads" :key="upload.id" class="audit-card">
+            <div class="audit-card-header">
+              <div class="audit-title-section">
+                <h3 class="audit-music-title">{{ upload.title }}</h3>
+                <p class="audit-music-artist">{{ upload.artist }}</p>
               </div>
-              
-              <div class="audit-item-details">
-                <div class="detail-row">
+              <div class="audit-meta-section">
+                <span class="audit-time">{{ formatDateTime(upload.createdAt) }}</span>
+                <span class="audit-user">用户ID: {{ upload.userId }}</span>
+              </div>
+            </div>
+            
+            <div class="audit-card-body">
+              <div class="audit-details-grid">
+                <div class="audit-detail-item">
+                  <span class="detail-icon">💿</span>
                   <span class="detail-label">专辑:</span>
                   <span class="detail-value">{{ upload.album || '未知专辑' }}</span>
                 </div>
-                <div class="detail-row">
+                <div class="audit-detail-item">
+                  <span class="detail-icon">🌐</span>
                   <span class="detail-label">语言:</span>
                   <span class="detail-value">{{ upload.language }}</span>
                 </div>
-                <div class="detail-row">
+                <div class="audit-detail-item">
+                  <span class="detail-icon">⏱️</span>
                   <span class="detail-label">时长:</span>
                   <span class="detail-value">{{ formatDuration(upload.duration) }}</span>
                 </div>
-                <div class="detail-row">
+                <div class="audit-detail-item">
+                  <span class="detail-icon">🏷️</span>
                   <span class="detail-label">标签:</span>
                   <span class="detail-value">{{ upload.tags || '无' }}</span>
                 </div>
               </div>
               
-              <div class="audit-item-files">
+              <div class="audit-files-section">
                 <div class="file-item">
                   <span class="file-icon">🎵</span>
                   <span class="file-name">{{ getFileName(upload.musicFilePath) }}</span>
@@ -69,19 +75,19 @@
                   <span class="file-name">{{ getFileName(upload.lyricsFilePath) }}</span>
                 </div>
               </div>
+            </div>
+            
+            <div class="audit-card-footer">
+              <div class="player-section" v-if="currentPlayingId === upload.id">
+                <audio ref="audioPlayer" :src="getMusicPreviewUrl(upload.musicFilePath)" controls></audio>
+              </div>
               
-              <div class="audit-item-actions">
-                <div class="player-preview" v-if="currentPlayingId === upload.id">
-                  <audio ref="audioPlayer" :src="getMusicPreviewUrl(upload.musicFilePath)" controls></audio>
-                </div>
-                
-                <div class="action-buttons">
-                  <button class="preview-btn" @click="playPreview(upload.id, upload.musicFilePath)" :disabled="currentPlayingId === upload.id">
-                    {{ currentPlayingId === upload.id ? '播放中...' : '试听' }}
-                  </button>
-                  <button class="approve-btn" @click="approveUpload(upload.id)">通过</button>
-                  <button class="reject-btn" @click="showRejectModal(upload.id)">拒绝</button>
-                </div>
+              <div class="audit-actions">
+                <button class="action-btn preview-btn" @click="playPreview(upload.id, upload.musicFilePath)" :disabled="currentPlayingId === upload.id">
+                  {{ currentPlayingId === upload.id ? '播放中...' : '🎧 试听' }}
+                </button>
+                <button class="action-btn approve-btn" @click="approveUpload(upload.id)">✅ 通过</button>
+                <button class="action-btn reject-btn" @click="showRejectModal(upload.id)">❌ 拒绝</button>
               </div>
             </div>
           </div>
@@ -91,21 +97,21 @@
     
     <!-- 拒绝确认模态框 -->
     <Transition name="modal">
-      <div v-if="showRejectConfirm" class="edit-modal-overlay" @click="closeRejectModal">
-        <div class="edit-modal" @click.stop ref="rejectModalRef">
+      <div v-if="showRejectConfirm" class="modal-overlay" @click="closeRejectModal">
+        <div class="modal-content" @click.stop ref="rejectModalRef">
           <div class="modal-header">
             <h3>拒绝审核</h3>
             <button class="close-btn" @click="closeRejectModal">&times;</button>
           </div>
-          <div class="modal-content">
+          <div class="modal-body">
             <div class="form-group">
               <label>拒绝原因</label>
               <textarea v-model="rejectReason" placeholder="请输入拒绝原因（可选）" rows="4"></textarea>
             </div>
           </div>
-          <div class="form-actions modal-actions">
-            <button class="secondary-btn" @click="closeRejectModal">取消</button>
-            <button class="primary-btn reject-confirm-btn" @click="confirmReject">确认拒绝</button>
+          <div class="modal-footer">
+            <button class="action-btn secondary-btn" @click="closeRejectModal">取消</button>
+            <button class="action-btn reject-confirm-btn" @click="confirmReject">确认拒绝</button>
           </div>
         </div>
       </div>
@@ -189,9 +195,7 @@ const approveUpload = async (uploadId) => {
     
     if (result.success) {
       toast.success('审核通过，音乐已添加到库中')
-      // 从列表中移除已审核的项目
       pendingUploads.value = pendingUploads.value.filter(u => u.id !== uploadId)
-      // 停止播放
       if (currentPlayingId.value === uploadId) {
         stopPreview()
       }
@@ -240,10 +244,8 @@ const confirmReject = async () => {
     
     if (result.success) {
       toast.success('审核拒绝成功')
-      // 从列表中移除已审核的项目
       pendingUploads.value = pendingUploads.value.filter(u => u.id !== rejectUploadId.value)
       closeRejectModal()
-      // 停止播放
       if (currentPlayingId.value === rejectUploadId.value) {
         stopPreview()
       }
@@ -264,7 +266,6 @@ const playPreview = (uploadId, musicFilePath) => {
   
   currentPlayingId.value = uploadId
   
-  // 等待DOM更新后播放
   setTimeout(() => {
     if (audioPlayer.value) {
       audioPlayer.value.play().catch(error => {
@@ -287,9 +288,6 @@ const stopPreview = () => {
 
 // 获取音乐预览URL
 const getMusicPreviewUrl = (filePath) => {
-  // 对于审核目录的文件，需要特殊处理
-  // 这里假设后端有一个专门的服务来提供审核文件的访问
-  // 如果后端没有，可以暂时返回空，需要添加后端支持
   return `${API_CONFIG.BASE_URL}/api/user/upload/preview?path=${encodeURIComponent(filePath)}`
 }
 
@@ -338,76 +336,93 @@ onMounted(() => {
 .admin-layout {
   display: flex;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
 }
 
 .admin-main-content {
   flex: 1;
   margin-left: 250px;
+  padding: 20px;
+  transition: margin-left 0.3s ease;
+  min-height: calc(100vh - 40px);
   display: flex;
   flex-direction: column;
 }
 
 .admin-header {
-  background: rgba(255, 255, 255, 0.1);
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 15px;
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  padding: 15px 30px;
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  margin-bottom: 20px;
+  flex-shrink: 0;
 }
 
 .admin-user-info {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 15px;
-  color: #fff;
 }
 
 .logout-button {
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: #fff;
-  padding: 8px 16px;
+  background: linear-gradient(135deg, rgba(220, 20, 60, 0.8), rgba(255, 99, 71, 0.8));
+  color: white;
+  border: none;
   border-radius: 20px;
+  padding: 8px 16px;
   cursor: pointer;
+  font-size: 0.9rem;
   transition: all 0.3s ease;
+  box-shadow: 0 4px 10px rgba(220, 20, 60, 0.3);
 }
 
 .logout-button:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: linear-gradient(135deg, rgba(190, 10, 50, 0.9), rgba(235, 79, 51, 0.9));
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(220, 20, 60, 0.5);
 }
 
 .admin-content-wrapper {
   flex: 1;
-  padding: 30px;
-  overflow-y: auto;
+  padding: 0 20px;
+  min-height: 0;
+  overflow: auto;
 }
 
-.admin-subpage {
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 15px;
-  padding: 30px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+.admin-header-section {
+  margin-bottom: 30px;
 }
 
-.admin-subpage h2 {
-  margin: 0 0 10px;
-  color: #333;
+.admin-title {
+  color: #6a5acd;
+  margin: 0 0 10px 0;
   font-size: 1.8rem;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(45deg, #ff9ec0, #6a5acd, #84ffff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  position: relative;
+  z-index: 1;
 }
 
-.admin-subpage p {
-  margin: 0 0 30px;
-  color: #666;
+.admin-subtitle {
+  color: #887bb0;
+  font-size: 1rem;
+  margin: 0;
+  position: relative;
+  z-index: 1;
 }
 
-.loading, .no-data {
+.content-placeholder {
+  padding: 40px;
+  color: #887bb0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
   text-align: center;
-  padding: 50px;
-  color: #999;
 }
 
 .audit-list {
@@ -416,87 +431,97 @@ onMounted(() => {
   gap: 20px;
 }
 
-.audit-item {
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 10px;
+.audit-card {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 15px;
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+  transition: transform 0.3s ease;
+}
+
+.audit-card:hover {
+  transform: translateY(-3px);
+}
+
+.audit-card-header {
   padding: 20px;
-  transition: all 0.3s ease;
-}
-
-.audit-item:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.audit-item-header {
+  background: rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 15px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid #f0f0f0;
 }
 
-.audit-item-title {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+.audit-title-section h3 {
+  margin: 0 0 5px 0;
+  color: #6a5acd;
+  font-size: 1.3rem;
 }
 
-.music-title {
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: #333;
-}
-
-.music-artist {
+.audit-title-section p {
+  margin: 0;
+  color: #887bb0;
   font-size: 0.95rem;
-  color: #666;
 }
 
-.audit-item-info {
+.audit-meta-section {
   display: flex;
   flex-direction: column;
   gap: 5px;
   align-items: flex-end;
+  text-align: right;
 }
 
-.upload-time, .upload-user {
+.audit-time, .audit-user {
   font-size: 0.85rem;
-  color: #999;
+  color: #887bb0;
 }
 
-.audit-item-details {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  margin-bottom: 15px;
+.audit-card-body {
+  padding: 20px;
 }
 
-.detail-row {
+.audit-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.audit-detail-item {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 10px 15px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+
+.detail-icon {
+  font-size: 1.2rem;
 }
 
 .detail-label {
   font-weight: 500;
-  color: #666;
+  color: #887bb0;
   min-width: 50px;
 }
 
 .detail-value {
-  color: #333;
+  color: #6a5acd;
+  font-weight: 600;
 }
 
-.audit-item-files {
+.audit-files-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 15px;
-  padding: 12px;
-  background: #f9f9f9;
-  border-radius: 8px;
+  gap: 10px;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
 }
 
 .file-item {
@@ -504,7 +529,7 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
   font-size: 0.9rem;
-  color: #666;
+  color: #887bb0;
 }
 
 .file-icon {
@@ -515,42 +540,53 @@ onMounted(() => {
   word-break: break-all;
 }
 
-.audit-item-actions {
+.audit-card-footer {
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
   gap: 15px;
 }
 
-.player-preview {
-  background: #f0f0f0;
+.player-section {
+  background: rgba(255, 255, 255, 0.2);
   padding: 10px;
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
-.player-preview audio {
+.player-section audio {
   width: 100%;
   height: 32px;
 }
 
-.action-buttons {
+.audit-actions {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
 }
 
-.preview-btn {
-  background: #6a5acd;
-  color: #fff;
-  border: none;
+.action-btn {
   padding: 10px 20px;
-  border-radius: 5px;
+  border: none;
+  border-radius: 20px;
   cursor: pointer;
-  transition: all 0.3s ease;
   font-size: 0.9rem;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.preview-btn {
+  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(138, 43, 226, 0.8));
+  color: white;
+  box-shadow: 0 4px 10px rgba(106, 90, 205, 0.3);
 }
 
 .preview-btn:hover:not(:disabled) {
-  background: #5848c2;
+  background: linear-gradient(135deg, rgba(86, 70, 185, 0.9), rgba(118, 23, 206, 0.9));
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(106, 90, 205, 0.5);
 }
 
 .preview-btn:disabled {
@@ -559,37 +595,31 @@ onMounted(() => {
 }
 
 .approve-btn {
-  background: #52c41a;
-  color: #fff;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-size: 0.9rem;
+  background: linear-gradient(135deg, rgba(82, 196, 26, 0.8), rgba(50, 205, 50, 0.8));
+  color: white;
+  box-shadow: 0 4px 10px rgba(82, 196, 26, 0.3);
 }
 
 .approve-btn:hover {
-  background: #3cb814;
+  background: linear-gradient(135deg, rgba(62, 176, 6, 0.9), rgba(30, 185, 30, 0.9));
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(82, 196, 26, 0.5);
 }
 
 .reject-btn {
-  background: #f5222d;
-  color: #fff;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-size: 0.9rem;
+  background: linear-gradient(135deg, rgba(245, 34, 45, 0.8), rgba(255, 99, 71, 0.8));
+  color: white;
+  box-shadow: 0 4px 10px rgba(245, 34, 45, 0.3);
 }
 
 .reject-btn:hover {
-  background: #d91a24;
+  background: linear-gradient(135deg, rgba(225, 14, 25, 0.9), rgba(235, 79, 51, 0.9));
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(245, 34, 45, 0.5);
 }
 
 /* 模态框样式 */
-.edit-modal-overlay {
+.modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -602,13 +632,17 @@ onMounted(() => {
   z-index: 1000;
 }
 
-.edit-modal {
-  background: #fff;
-  border-radius: 10px;
+.modal-content {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 15px;
   width: 90%;
   max-width: 500px;
   max-height: 90vh;
   overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .modal-header {
@@ -616,12 +650,13 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 20px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .modal-header h3 {
   margin: 0;
-  color: #333;
+  color: #6a5acd;
+  font-size: 1.3rem;
 }
 
 .close-btn {
@@ -629,84 +664,82 @@ onMounted(() => {
   border: none;
   font-size: 24px;
   cursor: pointer;
-  color: #999;
+  color: #887bb0;
   transition: color 0.3s ease;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
 }
 
 .close-btn:hover {
-  color: #333;
+  color: #6a5acd;
+  background: rgba(106, 90, 205, 0.1);
 }
 
-.modal-content {
+.modal-body {
   padding: 20px;
 }
 
 .form-group {
-  margin-bottom: 15px;
+  margin-bottom: 0;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 8px;
-  color: #333;
+  margin-bottom: 10px;
+  color: #6a5acd;
   font-weight: 500;
 }
 
 .form-group textarea {
   width: 100%;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 5px;
+  padding: 12px;
+  border: 1px solid rgba(106, 90, 205, 0.3);
+  border-radius: 10px;
   font-family: inherit;
   resize: vertical;
   min-height: 100px;
+  background: rgba(255, 255, 255, 0.5);
+  transition: all 0.3s ease;
 }
 
 .form-group textarea:focus {
   outline: none;
   border-color: #6a5acd;
+  background: rgba(255, 255, 255, 0.8);
 }
 
-.modal-actions {
+.modal-footer {
   display: flex;
   gap: 10px;
   justify-content: flex-end;
+  padding: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .secondary-btn {
-  background: #fff;
-  color: #333;
-  border: 1px solid #ddd;
-  padding: 10px 20px;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.5);
+  color: #6a5acd;
+  border: 1px solid rgba(106, 90, 205, 0.3);
 }
 
 .secondary-btn:hover {
-  background: #f5f5f5;
-}
-
-.primary-btn {
-  background: #6a5acd;
-  color: #fff;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.primary-btn:hover {
-  background: #5848c2;
+  background: rgba(255, 255, 255, 0.8);
 }
 
 .reject-confirm-btn {
-  background: #f5222d;
+  background: linear-gradient(135deg, rgba(245, 34, 45, 0.8), rgba(255, 99, 71, 0.8));
+  color: white;
+  box-shadow: 0 4px 10px rgba(245, 34, 45, 0.3);
 }
 
 .reject-confirm-btn:hover {
-  background: #d91a24;
+  background: linear-gradient(135deg, rgba(225, 14, 25, 0.9), rgba(235, 79, 51, 0.9));
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(245, 34, 45, 0.5);
 }
 
 .modal-enter-active,
@@ -723,32 +756,33 @@ onMounted(() => {
 @media (max-width: 768px) {
   .admin-main-content {
     margin-left: 0;
+    padding: 10px;
   }
   
-  .admin-header {
-    padding: 15px;
+  .admin-layout {
+    flex-direction: column;
   }
   
-  .admin-content-wrapper {
-    padding: 15px;
-  }
-  
-  .admin-subpage {
-    padding: 20px;
-  }
-  
-  .audit-item-header {
+  .audit-card-header {
     flex-direction: column;
     gap: 10px;
   }
   
-  .audit-item-info {
+  .audit-meta-section {
     align-items: flex-start;
+    text-align: left;
   }
   
-  .audit-item-details {
+  .audit-details-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .audit-actions {
     flex-direction: column;
-    gap: 10px;
+  }
+  
+  .action-btn {
+    width: 100%;
   }
 }
 </style>
