@@ -380,6 +380,116 @@ Content-Type: multipart/form-data
 }
 ```
 
+### 13. 用户上传音乐
+
+**端点:** `POST /api/user/upload`
+
+**请求头:**
+```
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+```
+
+**请求参数:**
+- `title`: 歌曲标题（必填）
+- `artist`: 歌手名称（必填）
+- `language`: 语言（必填）
+  - 可选值：中文、粤语、上海语、英文、日语、韩语、法语、德语、俄语、纯音乐
+- `album`: 专辑名称（可选）
+- `tags`: 标签（可选）
+- `duration`: 音乐时长，单位秒（必填）
+- `uploadUserId`: 上传用户ID（通常传0）
+- `musicFile`: 音乐文件（必填，multipart/form-data）
+  - 支持格式：MP3、FLAC、WAV
+- `coverFile`: 封面图片文件（可选，multipart/form-data）
+  - 支持格式：jpg, jpeg, png, gif, webp, bmp
+- `lyricsFile`: 歌词文件（可选，multipart/form-data）
+  - 支持格式：lrc
+  - 如果不提供歌词文件，系统会自动使用默认的空歌词文件
+
+**响应示例（成功）:**
+```json
+{
+  "success": true,
+  "message": "上传成功，等待审核",
+  "data": {
+    "id": 1,
+    "status": "pending",
+    "createdAt": "2026-02-12T16:30:00"
+  }
+}
+```
+
+**响应示例（重复音乐）:**
+```json
+{
+  "success": false,
+  "message": "已有重复音乐，请检查后重新上传"
+}
+```
+
+**响应示例（未授权）:**
+```json
+{
+  "success": false,
+  "message": "未授权访问"
+}
+```
+
+**说明:**
+- 上传的音乐会进入待审核状态（`status: "pending"`）
+- 管理员审核通过后，音乐会正式添加到音乐库
+- 系统会自动检查是否有重复的音乐（相同的标题、歌手、专辑）
+- 如果没有上传歌词文件，系统会自动创建一个空的歌词文件（no_lrc.lrc）
+- 上传的文件会保存在 `user_upload/` 目录下，文件名格式为 `music_<timestamp>.<ext>`
+
+**注意事项:**
+- 标题、歌手、语言为必填项
+- 音乐文件必须提供，且必须是MP3、FLAC或WAV格式
+- 音乐时长需要用户手动输入或通过前端解析后传入
+- 封面和歌词文件是可选的
+- 上传成功后，用户需要等待管理员审核才能在音乐库中看到上传的音乐
+
+**前端集成示例:**
+```javascript
+async function uploadMusic(formData) {
+  const token = localStorage.getItem('userToken');
+  
+  const response = await fetch('https://music.cnmsb.xin/api/user/upload', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData
+  });
+  
+  const data = await response.json();
+  if (data.success) {
+    console.log('音乐上传成功，等待审核');
+    console.log('上传记录ID:', data.data.id);
+    console.log('状态:', data.data.status);
+  } else {
+    console.error('音乐上传失败:', data.message);
+  }
+  return data;
+}
+
+// 使用示例
+const formData = new FormData();
+formData.append('title', '歌曲标题');
+formData.append('artist', '歌手名称');
+formData.append('language', '中文');
+formData.append('album', '专辑名称');
+formData.append('tags', '流行,华语');
+formData.append('duration', 235); // 音乐时长（秒）
+formData.append('uploadUserId', 0);
+formData.append('musicFile', musicFileObject);
+formData.append('coverFile', coverFileObject); // 可选
+formData.append('lyricsFile', lyricsFileObject); // 可选
+
+uploadMusic(formData);
+```
+
 ### 9. 修改用户密码
 
 **端点:** `POST /api/user/password/change`
