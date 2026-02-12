@@ -225,15 +225,256 @@ const selectCoverFile = () => {
   coverFileInput.value.click()
 }
 
-const handleMusicFileChange = (event) => {
+const handleMusicFileChange = async (event) => {
   const file = event.target.files[0]
   if (file) {
+    // 检查文件格式
+    const fileName = file.name.toLowerCase()
+    const fileExtension = fileName.split('.').pop()
+    const isValidFormat = ['.mp3', '.flac', '.wav'].includes('.' + fileExtension)
+
+    if (!isValidFormat) {
+      toast.error('请选择 MP3、FLAC 或 WAV 格式的音乐文件')
+      event.target.value = ''
+      return
+    }
+
     musicFile.value = file
-    const fileName = file.name.replace(/\.[^/.]+$/, '')
-    if (!formData.value.title) {
-      formData.value.title = fileName
+
+    // 读取音频时长
+    const audio = new Audio()
+    audio.src = URL.createObjectURL(file)
+    audio.onloadedmetadata = async () => {
+      // 自动解析元数据
+      if (fileExtension === 'mp3') {
+        await parseMP3Metadata(file)
+      } else if (fileExtension === 'flac') {
+        await parseFlacMetadata(file)
+      } else if (fileExtension === 'wav') {
+        await parseWavMetadata(file)
+      }
+      URL.revokeObjectURL(audio.src)
     }
   }
+}
+
+// 解析MP3文件的元数据
+const parseMP3Metadata = async (file) => {
+  try {
+    const arrayBuffer = await file.arrayBuffer()
+    const dataView = new DataView(arrayBuffer)
+
+    // 检查文件头
+    const header = dataView.getString(0, 3)
+
+    if (header === 'ID3') {
+      const size = dataView.getUint32(6)
+      const headerSize = 10
+      let offset = headerSize
+
+      const metadata = {
+        title: '',
+        artist: '',
+        album: '',
+        cover: null
+      }
+
+      while (offset < headerSize + size) {
+        const frameId = dataView.getString(offset, 4)
+        const frameSize = dataView.getUint32(offset + 4)
+
+        if (frameSize === 0) break
+
+        const frameDataOffset = offset + 10
+        const frameDataSize = frameSize
+
+        if (frameId === 'TIT2') {
+          metadata.title = dataView.decodeTextFrame(frameDataOffset, frameDataSize)
+        } else if (frameId === 'TPE1') {
+          metadata.artist = dataView.decodeTextFrame(frameDataOffset, frameDataSize)
+        } else if (frameId === 'TALB') {
+          metadata.album = dataView.decodeTextFrame(frameDataOffset, frameDataSize)
+        } else if (frameId === 'APIC') {
+          // 解析封面图片
+          let currentOffset = frameDataOffset
+          const textEncoding = dataView.getUint8(currentOffset)
+          currentOffset += 1
+
+          // 读取MIME类型
+          let mimeTypeEnd = currentOffset
+          while (dataView.getUint8(mimeTypeEnd) !== 0) {
+            mimeTypeEnd++
+          }
+          const mimeType = dataView.getString(currentOffset, mimeTypeEnd - currentOffset)
+          currentOffset = mimeTypeEnd + 1
+
+          // 跳过图片类型
+          currentOffset += 1
+
+          // 读取描述
+          let descEnd = currentOffset
+          while (dataView.getUint8(descEnd) !== 0) {
+            descEnd++
+          }
+          currentOffset = descEnd + 1
+
+          // 读取图片数据
+          const imageSize = frameDataSize - (currentOffset - frameDataOffset)
+          if (imageSize > 0) {
+            const imageData = new Uint8Array(arrayBuffer, currentOffset, imageSize)
+            metadata.cover = new Blob([imageData], { type: mimeType })
+          }
+        }
+
+        offset += 10 + frameSize
+      }
+
+      // 自动填充表单
+      if (metadata.title) formData.value.title = metadata.title
+      if (metadata.artist) formData.value.artist = metadata.artist
+      if (metadata.album) formData.value.album = metadata.album
+      if (metadata.cover) {
+        coverFile.value = new File([metadata.cover], 'cover.jpg', { type: metadata.cover.type })
+        coverPreview.value = URL.createObjectURL(metadata.cover)
+      }
+
+      toast.success('已自动解析MP3文件信息')
+    }
+  } catch (error) {
+    console.error('解析MP3元数据失败:', error)
+  }
+}
+
+// 解析FLAC文件的元数据
+const parseFlacMetadata = async (file) => {
+  try {
+    const arrayBuffer = await file.arrayBuffer()
+    const dataView = new DataView(arrayBuffer)
+    const textDecoder = new TextDecoder('utf-8')
+
+    // 检查FLAC文件头
+    const header = String.fromCharCode(
+      dataView.getUint8(0),
+      dataView.getUint8(1),
+      dataView.getUint8(2),
+      dataView.getUint8(3)
+    )
+
+    if (header !== 'fLaC') {
+      toast.warning('该FLAC文件不包含元数据标签')
+      return
+    }
+
+    let offset = 4
+    const metadata = {
+      title: '',
+      artist: '',
+      album: '',
+      cover: null
+    }
+
+    const maxBlocks = 100
+
+    while (offset < arrayBuffer.byteLength) {
+      const blockHeader = dataView.getUint8(offset)
+      const blockType = blockHeader & 0x7F
+
+      const byte1 = dataView.getUint8(offset + 1)
+      const byte2 = dataView.getUint8(offset + 2)
+      const byte3 = dataView.getUint8(offset + 3)
+      const blockSize = (byte1 << 16) | (byte2 << 8) | byte3
+
+      offset += 4
+
+      if (offset + blockSize > arrayBuffer.byteLength) break
+
+      // VORBIS_COMMENT块
+      if (blockType === 4) {
+        let dataOffset = 0
+        const vendorLength = dataView.getUint32(offset + dataOffset, true)
+        dataOffset += 4 + vendorLength
+
+        const commentsCount = dataView.getUint32(offset + dataOffset, true)
+        dataOffset += 4
+
+        for (let i = 0; i < commentsCount; i++) {
+          const commentLength = dataView.getUint32(offset + dataOffset, true)
+          dataOffset += 4
+
+          if (dataOffset + commentLength > blockSize) break
+
+          const commentBytes = new Uint8Array(arrayBuffer, offset + dataOffset, commentLength)
+          const comment = textDecoder.decode(commentBytes)
+          dataOffset += commentLength
+
+          const equalIndex = comment.indexOf('=')
+          if (equalIndex !== -1) {
+            const field = comment.substring(0, equalIndex).toUpperCase()
+            const value = comment.substring(equalIndex + 1)
+
+            if (field === 'TITLE') metadata.title = value
+            else if (field === 'ARTIST') metadata.artist = value
+            else if (field === 'ALBUM') metadata.album = value
+          }
+        }
+      }
+      // PICTURE块
+      else if (blockType === 6) {
+        let picOffset = offset
+
+        const pictureType = dataView.getUint32(picOffset, false)
+        picOffset += 4
+
+        const mimeLength = dataView.getUint32(picOffset, false)
+        picOffset += 4
+
+        const mimeBytes = new Uint8Array(arrayBuffer, picOffset, mimeLength)
+        const mimeType = textDecoder.decode(mimeBytes)
+        picOffset += mimeLength
+
+        const descLength = dataView.getUint32(picOffset, false)
+        picOffset += 4 + descLength
+
+        const width = dataView.getUint32(picOffset, false)
+        picOffset += 4
+        const height = dataView.getUint32(picOffset, false)
+        picOffset += 4
+        const colorDepth = dataView.getUint32(picOffset, false)
+        picOffset += 4
+        const colorCount = dataView.getUint32(picOffset, false)
+        picOffset += 4
+
+        const pictureLength = dataView.getUint32(picOffset, false)
+        picOffset += 4
+
+        if (pictureLength > 0 && picOffset + pictureLength <= offset + blockSize) {
+          const imageData = new Uint8Array(arrayBuffer, picOffset, pictureLength)
+          metadata.cover = new Blob([imageData], { type: mimeType })
+        }
+      }
+
+      if (blockHeader & 0x80) break
+    }
+
+    // 自动填充表单
+    if (metadata.title) formData.value.title = metadata.title
+    if (metadata.artist) formData.value.artist = metadata.artist
+    if (metadata.album) formData.value.album = metadata.album
+    if (metadata.cover) {
+      coverFile.value = new File([metadata.cover], 'cover.jpg', { type: metadata.cover.type })
+      coverPreview.value = URL.createObjectURL(metadata.cover)
+    }
+
+    toast.success('已自动解析FLAC文件信息')
+  } catch (error) {
+    console.error('解析FLAC元数据失败:', error)
+  }
+}
+
+// 解析WAV文件的元数据（简化版）
+const parseWavMetadata = async (file) => {
+  // WAV文件通常不包含ID3标签，这里只做简单处理
+  toast.warning('WAV文件暂不支持自动解析元数据，请手动填写')
 }
 
 const handleCoverFileChange = (event) => {
@@ -271,16 +512,159 @@ const removeLyricsFile = () => {
   lyricsFileInput.value.value = ''
 }
 
-const handleDrop = (event) => {
+const handleDrop = async (event) => {
+  event.preventDefault()
   isDragging.value = false
-  const file = event.dataTransfer.files[0]
-  if (file && file.type.startsWith('audio/')) {
-    musicFile.value = file
-    const fileName = file.name.replace(/\.[^/.]+$/, '')
-    if (!formData.value.title) {
-      formData.value.title = fileName
+  
+  const files = event.dataTransfer.files
+  if (files.length > 0) {
+    const file = files[0]
+    if (file.type.startsWith('audio/')) {
+      musicFile.value = file
+      
+      // 读取音频时长
+      const audio = new Audio()
+      audio.src = URL.createObjectURL(file)
+      audio.onloadedmetadata = async () => {
+        // 自动解析元数据
+        const fileName = file.name.toLowerCase()
+        const fileExtension = fileName.split('.').pop()
+        
+        if (fileExtension === 'mp3') {
+          await parseMP3Metadata(file)
+        } else if (fileExtension === 'flac') {
+          await parseFlacMetadata(file)
+        } else if (fileExtension === 'wav') {
+          await parseWavMetadata(file)
+        }
+        URL.revokeObjectURL(audio.src)
+      }
+    } else {
+      toast.error('请拖入音频文件')
     }
   }
+}
+
+// 扩展DataView以支持读取字符串
+DataView.prototype.getString = function(offset, length) {
+  let result = ''
+  for (let i = 0; i < length; i++) {
+    const byte = this.getUint8(offset + i)
+    if (byte === 0) break
+    result += String.fromCharCode(byte)
+  }
+  return result
+}
+
+// 解码文本帧
+DataView.prototype.decodeTextFrame = function(offset, length) {
+  if (length === 0) return ''
+
+  const encoding = this.getUint8(offset)
+  const textData = new Uint8Array(this.buffer, this.byteOffset + offset + 1, length - 1)
+
+  switch (encoding) {
+    case 0:
+      return this.decodeISO88591(textData)
+    case 1:
+      return this.decodeUTF16(textData)
+    case 2:
+      return this.decodeUTF16BE(textData)
+    case 3:
+      return this.decodeUTF8(textData)
+    default:
+      return this.decodeISO88591(textData)
+  }
+}
+
+DataView.prototype.decodeISO88591 = function(data) {
+  let result = ''
+  for (let i = 0; i < data.length; i++) {
+    result += String.fromCharCode(data[i])
+  }
+  return result
+}
+
+DataView.prototype.decodeUTF16 = function(data) {
+  if (data.length < 2) return ''
+
+  const bom = (data[0] << 8) | data[1]
+
+  if (bom === 0xFEFF) {
+    return this.decodeUTF16BE(data)
+  } else if (bom === 0xFFFE) {
+    return this.decodeUTF16LE(data)
+  } else {
+    return this.decodeUTF16BE(data)
+  }
+}
+
+DataView.prototype.decodeUTF16BE = function(data) {
+  let result = ''
+  for (let i = 0; i < data.length; i += 2) {
+    if (i + 1 < data.length) {
+      const codePoint = (data[i] << 8) | data[i + 1]
+      if (codePoint === 0) break
+      result += String.fromCharCode(codePoint)
+    }
+  }
+  return result
+}
+
+DataView.prototype.decodeUTF16LE = function(data) {
+  let result = ''
+  for (let i = 0; i < data.length; i += 2) {
+    if (i + 1 < data.length) {
+      const codePoint = data[i] | (data[i + 1] << 8)
+      if (codePoint === 0) break
+      result += String.fromCharCode(codePoint)
+    }
+  }
+  return result
+}
+
+DataView.prototype.decodeUTF8 = function(data) {
+  let result = ''
+  let i = 0
+
+  while (i < data.length) {
+    const byte1 = data[i]
+
+    if (byte1 === 0) break
+
+    if (byte1 < 0x80) {
+      result += String.fromCharCode(byte1)
+      i++
+    } else if ((byte1 & 0xE0) === 0xC0) {
+      if (i + 1 < data.length) {
+        const codePoint = ((byte1 & 0x1F) << 6) | (data[i + 1] & 0x3F)
+        result += String.fromCharCode(codePoint)
+        i += 2
+      } else {
+        i++
+      }
+    } else if ((byte1 & 0xF0) === 0xE0) {
+      if (i + 2 < data.length) {
+        const codePoint = ((byte1 & 0x0F) << 12) | ((data[i + 1] & 0x3F) << 6) | (data[i + 2] & 0x3F)
+        result += String.fromCharCode(codePoint)
+        i += 3
+      } else {
+        i++
+      }
+    } else if ((byte1 & 0xF8) === 0xF0) {
+      if (i + 3 < data.length) {
+        const codePoint = ((byte1 & 0x07) << 18) | ((data[i + 1] & 0x3F) << 12) | ((data[i + 2] & 0x3F) << 6) | (data[i + 3] & 0x3F)
+        result += String.fromCodePoint(codePoint)
+        i += 4
+      } else {
+        i++
+      }
+    } else {
+      i++
+    }
+  }
+
+  return result
 }
 
 const handleCoverDrop = (event) => {
