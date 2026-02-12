@@ -735,13 +735,8 @@ const handleSubmit = async () => {
     return
   }
 
-  if (!formData.value.title || !formData.value.artist) {
-    toast.error('请填写歌曲标题和歌手')
-    return
-  }
-
-  if (!formData.value.language) {
-    toast.error('请选择语言')
+  if (!formData.value.title || !formData.value.artist || !formData.value.language) {
+    toast.error('请填写歌曲标题、歌手和语言')
     return
   }
 
@@ -750,20 +745,29 @@ const handleSubmit = async () => {
 
   try {
     const form = new FormData()
-    form.append('file', musicFile.value)
     form.append('title', formData.value.title)
     form.append('artist', formData.value.artist)
-    if (formData.value.album) form.append('album', formData.value.album)
-    if (formData.value.tags) form.append('tags', formData.value.tags)
     form.append('language', formData.value.language)
-    if (coverFile.value) form.append('cover', coverFile.value)
-    if (lyricsFile.value) form.append('lyrics', lyricsFile.value)
+    form.append('tags', formData.value.tags || '')
+    form.append('album', formData.value.album || '')
+    form.append('duration', 0)
+    form.append('uploadUserId', 0)
+    form.append('musicFile', musicFile.value)
+    
+    if (coverFile.value) {
+      form.append('coverFile', coverFile.value)
+    }
+    
+    if (lyricsFile.value) {
+      form.append('lyricsFile', lyricsFile.value)
+    }
 
     const xhr = new XMLHttpRequest()
     
     xhr.upload.addEventListener('progress', (event) => {
       if (event.lengthComputable) {
-        uploadProgress.value = Math.round((event.loaded / event.total) * 100)
+        const progress = Math.round((event.loaded / event.total) * 100)
+        uploadProgress.value = progress
       }
     })
 
@@ -771,27 +775,37 @@ const handleSubmit = async () => {
       if (xhr.status === 200) {
         const response = JSON.parse(xhr.responseText)
         if (response.success) {
-          toast.success('上传成功')
-          setTimeout(() => router.push('/'), 1500)
+          toast.success('音乐上传成功')
+          setTimeout(() => {
+            router.push('/')
+          }, 1500)
         } else {
           toast.error(response.message || '上传失败')
         }
       } else {
-        toast.error('上传失败')
+        toast.error('上传失败，请稍后重试')
       }
       uploading.value = false
     })
 
     xhr.addEventListener('error', () => {
-      toast.error('网络错误')
+      toast.error('网络错误，请检查连接后重试')
       uploading.value = false
     })
 
     xhr.open('POST', `${API_CONFIG.BASE_URL}/api/music/upload`)
+    
+    // 使用用户token
+    const token = localStorage.getItem('userToken')
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+    }
+    
     xhr.send(form)
 
   } catch (error) {
-    toast.error('上传失败')
+    console.error('上传错误:', error)
+    toast.error('上传失败，请稍后重试')
     uploading.value = false
   }
 }
