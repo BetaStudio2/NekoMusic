@@ -3,6 +3,20 @@
     <div class="content">
 <!-- 推荐卡片 -->
       <div class="recommendation-cards">
+        <a href="/upload" class="recommendation-card upload-card">
+          <div class="card-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+          </div>
+          <div class="card-content">
+            <h3 class="card-title">上传音乐</h3>
+            <p class="card-description">分享您的音乐作品，让更多人听到您的声音</p>
+          </div>
+        </a>
+
         <a href="/download" class="recommendation-card download-card">
           <div class="card-icon">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -279,6 +293,14 @@ onMounted(() => {
 
 .music-card:hover::before {
   background: linear-gradient(135deg, rgba(255, 107, 107, 0.2) 0%, rgba(255, 159, 67, 0.2) 100%);
+}
+
+.upload-card .card-icon {
+  color: #4ecdc4;
+}
+
+.upload-card:hover::before {
+  background: linear-gradient(135deg, rgba(78, 205, 196, 0.2) 0%, rgba(129, 236, 236, 0.2) 100%);
 }
 
 .download-card:hover::before {

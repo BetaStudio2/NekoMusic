@@ -17,6 +17,7 @@ import AdminSettingsView from '@/views/admin/AdminSettingsView.vue'
 import DownloadView from '@/views/DownloadView.vue'
 import DevDocsView from '@/views/DevDocsView.vue'
 import ErrorView from '@/views/ErrorView.vue'
+import UploadMusicView from '@/views/UploadMusicView.vue'
 
 // 检查是否是移动设备
 function isMobileDevice() {
@@ -73,6 +74,16 @@ const router = createRouter({
         title: '开发者文档 - Neko云音乐 | API接口文档',
         description: 'Neko云音乐开发者文档，提供完整的API接口文档和使用说明。包括用户认证、音乐搜索、收藏等功能。',
         keywords: 'Neko云音乐API,开发者文档,API文档,接口文档,RESTful API'
+      }
+    },
+    {
+      path: '/upload',
+      name: 'upload',
+      component: UploadMusicView,
+      meta: {
+        title: '上传音乐 - Neko云音乐 | 免费音乐上传',
+        description: '上传您的音乐到Neko云音乐平台，分享您的作品给更多人。完全免费，无需付费。',
+        keywords: '音乐上传,上传歌曲,分享音乐,免费上传'
       }
     },
     {
