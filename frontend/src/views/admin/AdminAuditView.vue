@@ -75,6 +75,35 @@
                   <span class="file-name">{{ getFileName(upload.lyricsFilePath) }}</span>
                 </div>
               </div>
+              
+              <!-- 歌词预览区域 -->
+              <div class="lyrics-preview-section">
+                <div class="lyrics-preview-header">
+                  <span class="lyrics-preview-title">歌词预览</span>
+                  <button 
+                    class="toggle-lyrics-btn" 
+                    @click="toggleLyricsPreview(upload.id)"
+                    :title="showLyricsPreviewId === upload.id ? '隐藏歌词' : '显示歌词'"
+                  >
+                    {{ showLyricsPreviewId === upload.id ? '📖 隐藏' : '📖 显示' }}
+                  </button>
+                </div>
+                <div v-if="showLyricsPreviewId === upload.id" class="lyrics-preview-content">
+                  <div v-if="uploadLyrics[upload.id]" class="lyrics-text">
+                    <div 
+                      v-for="(line, index) in uploadLyrics[upload.id]" 
+                      :key="index"
+                      class="lyric-line"
+                    >
+                      {{ line.text }}
+                    </div>
+                  </div>
+                  <div v-else class="lyrics-loading">
+                    <span v-if="loadingLyrics[upload.id]">加载歌词中...</span>
+                    <span v-else>无歌词</span>
+                  </div>
+                </div>
+              </div>
             </div>
             
             <div class="audit-card-footer">
@@ -142,6 +171,9 @@ const currentPlayingId = ref(null)
 const currentAudioUrl = ref(null)
 const audioPlayer = ref(null)
 const isLoadingAudio = ref(false)
+const showLyricsPreviewId = ref(null)
+const uploadLyrics = ref({})
+const loadingLyrics = ref({})
 const showRejectConfirm = ref(false)
 const rejectUploadId = ref(null)
 const rejectReason = ref('')
@@ -204,9 +236,16 @@ const approveUpload = async (uploadId) => {
     if (result.success) {
       toast.success('审核通过，音乐已添加到库中')
       pendingUploads.value = pendingUploads.value.filter(u => u.id !== uploadId)
+      
+      // 清理相关缓存
       if (currentPlayingId.value === uploadId) {
         stopPreview()
       }
+      if (showLyricsPreviewId.value === uploadId) {
+        showLyricsPreviewId.value = null
+      }
+      delete uploadLyrics.value[uploadId]
+      delete loadingLyrics.value[uploadId]
     } else {
       toast.error(result.message || '审核通过失败')
     }
@@ -253,10 +292,17 @@ const confirmReject = async () => {
     if (result.success) {
       toast.success('审核拒绝成功')
       pendingUploads.value = pendingUploads.value.filter(u => u.id !== rejectUploadId.value)
+      
+      // 清理相关缓存
       closeRejectModal()
       if (currentPlayingId.value === rejectUploadId.value) {
         stopPreview()
       }
+      if (showLyricsPreviewId.value === rejectUploadId.value) {
+        showLyricsPreviewId.value = null
+      }
+      delete uploadLyrics.value[rejectUploadId.value]
+      delete loadingLyrics.value[rejectUploadId.value]
     } else {
       toast.error(result.message || '审核拒绝失败')
     }
@@ -383,6 +429,106 @@ const formatDuration = (seconds) => {
   const minutes = Math.floor(seconds / 60)
   const secs = seconds % 60
   return `${minutes}:${secs.toString().padStart(2, '0')}`
+}
+
+// 切换歌词预览
+const toggleLyricsPreview = async (uploadId) => {
+  if (showLyricsPreviewId.value === uploadId) {
+    // 如果已经显示，则隐藏
+    showLyricsPreviewId.value = null
+    return
+  }
+  
+  // 显示歌词并加载
+  showLyricsPreviewId.value = uploadId
+  
+  // 如果还没有加载过歌词，则加载
+  if (!uploadLyrics.value[uploadId] && !loadingLyrics.value[uploadId]) {
+    await loadLyricsForUpload(uploadId)
+  }
+}
+
+// 加载上传的歌词
+const loadLyricsForUpload = async (uploadId) => {
+  loadingLyrics.value[uploadId] = true
+  
+  try {
+    const token = localStorage.getItem('adminToken')
+    if (!token) {
+      toast.error('请先登录管理员账号')
+      return
+    }
+    
+    // 获取上传记录中的歌词文件路径
+    const upload = pendingUploads.value.find(u => u.id === uploadId)
+    if (!upload || !upload.lyricsFilePath) {
+      uploadLyrics.value[uploadId] = []
+      return
+    }
+    
+    // 获取歌词文件
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/upload/preview?path=${encodeURIComponent(upload.lyricsFilePath)}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    
+    const lyricsText = await response.text()
+    
+    // 解析歌词
+    uploadLyrics.value[uploadId] = parseLrcLyrics(lyricsText)
+    
+  } catch (error) {
+    console.error('加载歌词失败:', error)
+    uploadLyrics.value[uploadId] = []
+  } finally {
+    loadingLyrics.value[uploadId] = false
+  }
+}
+
+// 解析LRC歌词格式
+const parseLrcLyrics = (lrcText) => {
+  if (!lrcText) {
+    return []
+  }
+  
+  const lines = lrcText.split('\n')
+  const parsed = []
+  
+  for (const line of lines) {
+    // 匹配 [mm:ss.xx] 或 [mm:ss.xxx] 格式的时间标签
+    const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/g
+    let match
+    const text = line.replace(timeRegex, '').trim()
+    
+    while ((match = timeRegex.exec(line)) !== null) {
+      const minutes = parseInt(match[1])
+      const seconds = parseInt(match[2])
+      const milliseconds = parseInt(match[3])
+      
+      // 根据毫秒长度调整（LRC格式可能使用2位或3位毫秒）
+      let millisecondsDivisor
+      if (milliseconds.toString().length === 2) {
+        millisecondsDivisor = 100 // 两位毫秒，如 .25
+      } else {
+        millisecondsDivisor = 1000 // 三位毫秒，如 .250
+      }
+      
+      const timeInSeconds = minutes * 60 + seconds + (milliseconds / millisecondsDivisor)
+      parsed.push({
+        time: timeInSeconds,
+        text: text
+      })
+    }
+  }
+  
+  // 按时间排序
+  parsed.sort((a, b) => a.time - b.time)
+  return parsed
 }
 
 // 退出登录
@@ -604,6 +750,76 @@ onMounted(() => {
 
 .file-name {
   word-break: break-all;
+}
+
+.lyrics-preview-section {
+  margin-top: 15px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.lyrics-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 15px;
+  background: rgba(106, 90, 205, 0.1);
+  border-bottom: 1px solid rgba(106, 90, 205, 0.2);
+}
+
+.lyrics-preview-title {
+  color: #6a5acd;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.toggle-lyrics-btn {
+  background: rgba(106, 90, 205, 0.2);
+  color: #6a5acd;
+  border: 1px solid rgba(106, 90, 205, 0.3);
+  border-radius: 15px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.3s ease;
+}
+
+.toggle-lyrics-btn:hover {
+  background: rgba(106, 90, 205, 0.3);
+  transform: translateY(-1px);
+}
+
+.lyrics-preview-content {
+  padding: 15px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.lyrics-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lyric-line {
+  color: #887bb0;
+  font-size: 0.85rem;
+  padding: 4px 8px;
+  border-radius: 5px;
+  transition: all 0.3s ease;
+}
+
+.lyric-line:hover {
+  background: rgba(106, 90, 205, 0.1);
+  color: #6a5acd;
+}
+
+.lyrics-loading {
+  text-align: center;
+  padding: 20px;
+  color: #887bb0;
+  font-size: 0.9rem;
 }
 
 .audit-card-footer {
