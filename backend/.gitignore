@@ -83,13 +83,6 @@ build/
 *.db
 *.db-journal
 
-### Upload directories ###
-user_upload/
-uploads/
-music/
-covers/
-lyrics/
-
 ### Environment specific ###
 .env
 .env.local
