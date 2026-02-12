@@ -181,6 +181,35 @@
             </select>
           </div>
 
+          <!-- 时长（可编辑，支持自动/手动解析） -->
+          <div class="form-group">
+            <label class="label">音乐时长（秒）</label>
+            <div class="duration-input-group">
+              <input
+                v-model.number="formData.duration"
+                type="number"
+                class="input duration-input"
+                min="0"
+                step="1"
+                placeholder="输入时长或点击解析"
+                :disabled="parsingDuration"
+              />
+              <button
+                type="button"
+                class="parse-duration-btn"
+                @click="parseDuration"
+                :disabled="!musicFile || parsingDuration"
+                :title="!musicFile ? '请先选择音乐文件' : '解析音频时长'"
+              >
+                {{ parsingDuration ? '解析中...' : '解析时长' }}
+              </button>
+            </div>
+            <div class="input-hint">
+              当前时长: {{ formatDuration(formData.duration) }}
+              <span v-if="formData.duration === 0" class="warning-text">⚠️ 请填写音乐时长</span>
+            </div>
+          </div>
+
           <!-- 提交按钮 -->
           <button type="submit" class="submit-btn" :disabled="uploading">
             <span v-if="!uploading">发布音乐</span>
@@ -215,11 +244,13 @@ const formData = ref({
   artist: '',
   album: '',
   tags: '',
-  language: ''
+  language: '',
+  duration: 0
 })
 
 const uploading = ref(false)
 const uploadProgress = ref(0)
+const parsingDuration = ref(false)
 
 const isDragging = ref(false)
 const isCoverDragging = ref(false)
@@ -231,6 +262,133 @@ const selectMusicFile = () => {
 
 const selectCoverFile = () => {
   coverFileInput.value.click()
+}
+
+// 手动解析时长
+const parseDuration = async () => {
+  if (!musicFile.value) {
+    toast.error('请先选择音乐文件')
+    return
+  }
+
+  if (parsingDuration.value) {
+    return
+  }
+
+  parsingDuration.value = true
+  console.log('========== 开始手动解析时长 ==========')
+  console.log('文件名:', musicFile.value.name)
+  console.log('文件类型:', musicFile.value.type)
+  console.log('文件大小:', musicFile.value.size, 'bytes')
+
+  try {
+    const audio = new Audio()
+    const objectUrl = URL.createObjectURL(musicFile.value)
+    audio.src = objectUrl
+
+    let metadataLoaded = false
+    let canPlayLoaded = false
+
+    // 设置超时（10秒）
+    const timeout = setTimeout(() => {
+      console.warn('[手动时长解析] 10秒超时')
+      console.log('[手动时长解析] audio.readyState:', audio.readyState)
+      console.log('[手动时长解析] audio.duration:', audio.duration)
+      if (!metadataLoaded && !canPlayLoaded) {
+        URL.revokeObjectURL(objectUrl)
+        toast.error('解析超时，请尝试手动输入时长')
+      }
+      parsingDuration.value = false
+    }, 10000)
+
+    // 监听多个事件
+    audio.onloadedmetadata = () => {
+      clearTimeout(timeout)
+      metadataLoaded = true
+      console.log('[手动时长解析] onloadedmetadata 触发')
+      console.log('[手动时长解析] audio.duration:', audio.duration)
+      checkAndSaveDurationManual(audio, objectUrl)
+    }
+
+    audio.oncanplay = () => {
+      if (!metadataLoaded && !canPlayLoaded) {
+        clearTimeout(timeout)
+        canPlayLoaded = true
+        console.log('[手动时长解析] oncanplay 触发')
+        console.log('[手动时长解析] audio.duration:', audio.duration)
+        checkAndSaveDurationManual(audio, objectUrl)
+      }
+    }
+
+    audio.oncanplaythrough = () => {
+      if (!metadataLoaded && !canPlayLoaded) {
+        clearTimeout(timeout)
+        canPlayLoaded = true
+        console.log('[手动时长解析] oncanplaythrough 触发')
+        console.log('[手动时长解析] audio.duration:', audio.duration)
+        checkAndSaveDurationManual(audio, objectUrl)
+      }
+    }
+
+    audio.onerror = (error) => {
+      clearTimeout(timeout)
+      console.error('[手动时长解析] 音频加载错误')
+      console.error('[手动时长解析] audio.error:', audio.error)
+      console.error('[手动时长解析] audio.error.code:', audio.error?.code)
+      console.error('[手动时长解析] audio.error.message:', audio.error?.message)
+      URL.revokeObjectURL(objectUrl)
+      toast.error('无法解析音频时长，请手动输入')
+      parsingDuration.value = false
+    }
+
+    audio.onloadeddata = () => {
+      console.log('[手动时长解析] onloadeddata 触发')
+      console.log('[手动时长解析] audio.duration:', audio.duration)
+    }
+
+  } catch (error) {
+    console.error('[手动时长解析] 解析出错:', error)
+    toast.error('解析失败: ' + error.message)
+    parsingDuration.value = false
+  }
+}
+
+// 检查并保存时长（手动版本）
+const checkAndSaveDurationManual = (audio, objectUrl) => {
+  console.log('[手动时长解析] 开始检查时长...')
+  console.log('[手动时长解析] audio.duration:', audio.duration)
+  console.log('[手动时长解析] audio.readyState:', audio.readyState)
+
+  // 尝试多次读取duration
+  const checkDuration = (attempts = 0) => {
+    const duration = audio.duration
+    console.log(`[手动时长解析] 尝试 ${attempts + 1}: duration = ${duration}`)
+
+    if (duration && duration > 0 && duration !== Infinity && !isNaN(duration)) {
+      formData.value.duration = Math.round(duration)
+      console.log('[手动时长解析] ✓✓✓ 解析成功:', duration, '秒')
+      console.log('[手动时长解析] ✓✓✓ 格式化时长:', formatDuration(formData.value.duration))
+      console.log('[手动时长解析] ✓✓✓ 已保存到formData.duration')
+      URL.revokeObjectURL(objectUrl)
+      toast.success(`时长解析成功: ${formatDuration(formData.value.duration)}`)
+      parsingDuration.value = false
+      return true
+    }
+
+    // 如果还没成功，继续尝试
+    if (attempts < 10) {
+      setTimeout(() => checkDuration(attempts + 1), 100)
+    } else {
+      console.warn('[手动时长解析] ✗✗✗ 多次尝试后仍然无法获取有效时长')
+      console.warn('[手动时长解析] 最后的duration值:', duration)
+      URL.revokeObjectURL(objectUrl)
+      toast.error('无法解析音频时长，请手动输入')
+      parsingDuration.value = false
+    }
+    return false
+  }
+
+  checkDuration()
 }
 
 const handleMusicFileChange = async (event) => {
@@ -249,31 +407,26 @@ const handleMusicFileChange = async (event) => {
 
     musicFile.value = file
 
-    // 读取音频时长
-    const audio = new Audio()
-    audio.src = URL.createObjectURL(file)
-    audio.onloadedmetadata = async () => {
-      // 自动解析元数据
-      if (fileExtension === 'mp3') {
-        await parseMP3Metadata(file)
-      } else if (fileExtension === 'flac') {
-        await parseFlacMetadata(file)
-      } else if (fileExtension === 'wav') {
-        await parseWavMetadata(file)
-      }
-      URL.revokeObjectURL(audio.src)
-    }
+    console.log('========== 音乐文件解析开始 ==========')
+    console.log('文件名:', file.name)
+    console.log('文件大小:', (file.size / 1024 / 1024).toFixed(2), 'MB')
+    console.log('文件类型:', fileExtension.toUpperCase())
+
+    // 立即解析元数据
+    await parseMetadata(fileExtension, file)
   }
 }
 
 // 解析MP3文件的元数据
 const parseMP3Metadata = async (file) => {
+  console.log('[MP3解析] 开始解析MP3文件元数据')
   try {
     const arrayBuffer = await file.arrayBuffer()
     const dataView = new DataView(arrayBuffer)
 
     // 检查文件头
     const header = dataView.getString(0, 3)
+    console.log('[MP3解析] 文件头:', header)
 
     if (header === 'ID3') {
       const size = dataView.getUint32(6)
@@ -346,15 +499,24 @@ const parseMP3Metadata = async (file) => {
         coverPreview.value = URL.createObjectURL(metadata.cover)
       }
 
+      console.log('[MP3解析] 解析结果:', {
+        title: metadata.title,
+        artist: metadata.artist,
+        album: metadata.album,
+        hasCover: !!metadata.cover
+      })
       toast.success('已自动解析MP3文件信息')
+    } else {
+      console.log('[MP3解析] 文件不是ID3格式，跳过元数据解析')
     }
   } catch (error) {
-    console.error('解析MP3元数据失败:', error)
+    console.error('[MP3解析] 解析失败:', error)
   }
 }
 
 // 解析FLAC文件的元数据
 const parseFlacMetadata = async (file) => {
+  console.log('[FLAC解析] 开始解析FLAC文件元数据')
   try {
     const arrayBuffer = await file.arrayBuffer()
     const dataView = new DataView(arrayBuffer)
@@ -368,7 +530,10 @@ const parseFlacMetadata = async (file) => {
       dataView.getUint8(3)
     )
 
+    console.log('[FLAC解析] 文件头:', header)
+
     if (header !== 'fLaC') {
+      console.log('[FLAC解析] 不是有效的FLAC文件')
       toast.warning('该FLAC文件不包含元数据标签')
       return
     }
@@ -502,15 +667,22 @@ const parseFlacMetadata = async (file) => {
       coverPreview.value = URL.createObjectURL(metadata.cover)
     }
 
+    console.log('[FLAC解析] 解析结果:', {
+      title: metadata.title,
+      artist: metadata.artist,
+      album: metadata.album,
+      hasCover: !!metadata.cover
+    })
     toast.success('已自动解析FLAC文件信息')
   } catch (error) {
-    console.error('解析FLAC元数据失败:', error)
+    console.error('[FLAC解析] 解析失败:', error)
     toast.warning('无法自动解析FLAC文件信息，请手动填写')
   }
 }
 
 // 解析WAV文件的元数据（简化版）
 const parseWavMetadata = async (file) => {
+  console.log('[WAV解析] WAV文件暂不支持自动解析元数据')
   // WAV文件通常不包含ID3标签，这里只做简单处理
   toast.warning('WAV文件暂不支持自动解析元数据，请手动填写')
 }
@@ -580,6 +752,35 @@ const handleDrop = async (event) => {
     } else {
       toast.error('请拖入音频文件')
     }
+  }
+}
+
+// 格式化时长（秒转分:秒）
+const formatDuration = (seconds) => {
+  if (!seconds || seconds <= 0) return '未设置'
+  const minutes = Math.floor(seconds / 60)
+  const secs = Math.floor(seconds % 60)
+  return `${minutes}:${secs.toString().padStart(2, '0')}`
+}
+
+// 解析元数据的辅助函数
+const parseMetadata = async (fileExtension, file) => {
+  console.log('---------- 开始解析元数据 ----------')
+  
+  try {
+    if (fileExtension === 'mp3') {
+      await parseMP3Metadata(file)
+    } else if (fileExtension === 'flac') {
+      await parseFlacMetadata(file)
+    } else if (fileExtension === 'wav') {
+      await parseWavMetadata(file)
+    }
+    
+    console.log('---------- 元数据解析完成 ----------')
+    console.log('解析后的formData:', JSON.stringify(formData.value, null, 2))
+    console.log('========== 音乐文件解析完成 ==========')
+  } catch (error) {
+    console.error('[元数据解析] 解析过程出错:', error)
   }
 }
 
@@ -730,6 +931,12 @@ const handleLyricsFileDrop = (event) => {
 }
 
 const handleSubmit = async () => {
+  console.log('========== 开始提交上传 ==========')
+  console.log('提交的数据:', JSON.stringify(formData.value, null, 2))
+  console.log('音乐文件:', musicFile.value ? musicFile.value.name : '未选择')
+  console.log('封面文件:', coverFile.value ? coverFile.value.name : '未选择')
+  console.log('歌词文件:', lyricsFile.value ? lyricsFile.value.name : '未选择')
+  
   if (!musicFile.value) {
     toast.error('请选择音乐文件')
     return
@@ -750,7 +957,7 @@ const handleSubmit = async () => {
     form.append('language', formData.value.language)
     form.append('tags', formData.value.tags || '')
     form.append('album', formData.value.album || '')
-    form.append('duration', 0)
+    form.append('duration', formData.value.duration)
     form.append('uploadUserId', 0)
     form.append('musicFile', musicFile.value)
     
@@ -992,6 +1199,78 @@ const handleSubmit = async () => {
 .required {
   color: #ef4444;
   margin-left: 2px;
+}
+
+.info-hint {
+  color: #999;
+  font-size: 12px;
+  font-weight: normal;
+  margin-left: 4px;
+}
+
+.input:read-only,
+.input:disabled {
+  background: rgba(240, 240, 240, 0.5);
+  cursor: not-allowed;
+  color: #666;
+}
+
+.input:read-only::placeholder,
+.input:disabled::placeholder {
+  color: #aaa;
+}
+
+.input-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.warning-text {
+  color: #f59e0b;
+  font-weight: 500;
+}
+
+.duration-input-group {
+  display: flex;
+  gap: 10px;
+}
+
+.duration-input {
+  flex: 1;
+}
+
+.parse-duration-btn {
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.parse-duration-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.parse-duration-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.parse-duration-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #ccc;
+  box-shadow: none;
 }
 
 .file-upload {
