@@ -81,6 +81,40 @@ public class DatabaseInitializer {
                 logger.warn("创建 user_favorite_playlists 表失败（可能是表已存在）: {}", e.getMessage());
             }
             
+            // 创建用户上传审核表
+            String createUserUploadsTable = """
+                CREATE TABLE IF NOT EXISTS user_uploads (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    title VARCHAR(255) NOT NULL,
+                    artist VARCHAR(255) NOT NULL,
+                    album VARCHAR(255),
+                    language VARCHAR(50) NOT NULL,
+                    tags VARCHAR(255),
+                    duration INT DEFAULT 0,
+                    music_file_path VARCHAR(512) NOT NULL,
+                    cover_file_path VARCHAR(512),
+                    lyrics_file_path VARCHAR(512),
+                    status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+                    reject_reason TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    reviewed_at TIMESTAMP NULL,
+                    reviewed_by_admin_id INT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    FOREIGN KEY (reviewed_by_admin_id) REFERENCES admins(id) ON DELETE SET NULL,
+                    INDEX idx_user_id (user_id),
+                    INDEX idx_status (status),
+                    INDEX idx_created_at (created_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """;
+            
+            try {
+                stmt.execute(createUserUploadsTable);
+                logger.info("user_uploads 表创建成功");
+            } catch (Exception e) {
+                logger.warn("创建 user_uploads 表失败（可能是表已存在）: {}", e.getMessage());
+            }
+            
             logger.info("数据库表初始化完成");
             
         } catch (Exception e) {

@@ -793,7 +793,7 @@ const handleSubmit = async () => {
       uploading.value = false
     })
 
-    xhr.open('POST', `${API_CONFIG.BASE_URL}/api/music/upload`)
+    xhr.open('POST', `${API_CONFIG.BASE_URL}/api/user/upload`)
     
     // 使用用户token
     const token = localStorage.getItem('userToken')

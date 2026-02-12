@@ -120,6 +120,12 @@ public class Main {
         fileUploadHolder.getRegistration().setMultipartConfig(multipartConfig);
         context.addServlet(fileUploadHolder, "/api/music/upload");
         
+        // 注册用户上传API处理器
+        ServletHolder userUploadHolder = new ServletHolder(new UserUploadHandler());
+        jakarta.servlet.MultipartConfigElement userUploadMultipartConfig = new jakarta.servlet.MultipartConfigElement(System.getProperty("java.io.tmpdir"));
+        userUploadHolder.getRegistration().setMultipartConfig(userUploadMultipartConfig);
+        context.addServlet(userUploadHolder, "/api/user/upload");
+        
         // 注册音乐封面API处理器
         ServletHolder musicCoverHolder = new ServletHolder(new MusicCoverHandler());
         context.addServlet(musicCoverHolder, "/api/music/cover/*");
@@ -255,6 +261,7 @@ public class Main {
         logger.info("  POST /api/playlist/{id} - 获取歌单详情 (无需登录)");
         logger.info("  POST /api/playlists/search - 搜索歌单 (无需登录)");
         logger.info("  POST /api/artists/search - 搜索歌手 (无需登录)");
+        logger.info("  POST /api/user/upload - 用户上传音乐 (需要用户登录)");
         logger.info("  POST /api/admin/login - 管理员登录");
         logger.info("  GET /api/admin/stats - 管理员统计信息 (需要管理员登录)");
         logger.info("  GET /api/admin/chart-data - 管理员图表数据 (需要管理员登录)");
