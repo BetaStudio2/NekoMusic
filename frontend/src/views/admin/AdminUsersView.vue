@@ -188,7 +188,8 @@ const fetchAdminUsers = async () => {
 // 获取普通用户列表
 const fetchRegularUsers = async () => {
   try {
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/users`, {
+    const timestamp = Date.now()
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/users?t=${timestamp}`, {
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
       }
