@@ -375,85 +375,114 @@ const parseFlacMetadata = async (file) => {
 
     const maxBlocks = 100
 
-    while (offset < arrayBuffer.byteLength) {
+    while (offset < arrayBuffer.byteLength - 4) {
+      // 读取块头
       const blockHeader = dataView.getUint8(offset)
       const blockType = blockHeader & 0x7F
+      const isLast = (blockHeader & 0x80) !== 0
 
-      const byte1 = dataView.getUint8(offset + 1)
-      const byte2 = dataView.getUint8(offset + 2)
-      const byte3 = dataView.getUint8(offset + 3)
-      const blockSize = (byte1 << 16) | (byte2 << 8) | byte3
+      // 读取块大小（3字节，大端序）
+      const blockSize = (dataView.getUint8(offset + 1) << 16) | 
+                        (dataView.getUint8(offset + 2) << 8) | 
+                        dataView.getUint8(offset + 3)
 
       offset += 4
 
-      if (offset + blockSize > arrayBuffer.byteLength) break
+      // 检查边界
+      if (offset + blockSize > arrayBuffer.byteLength) {
+        console.warn('FLAC块大小超出文件范围，停止解析')
+        break
+      }
 
       // VORBIS_COMMENT块
-      if (blockType === 4) {
-        let dataOffset = 0
-        const vendorLength = dataView.getUint32(offset + dataOffset, true)
-        dataOffset += 4 + vendorLength
+      if (blockType === 4 && blockSize > 8) {
+        try {
+          let dataOffset = 0
+          
+          // 读取vendor length（小端序）
+          const vendorLength = dataView.getUint32(offset + dataOffset, true)
+          dataOffset += 4 + vendorLength
 
-        const commentsCount = dataView.getUint32(offset + dataOffset, true)
-        dataOffset += 4
+          // 检查边界
+          if (dataOffset + 4 > blockSize) break
 
-        for (let i = 0; i < commentsCount; i++) {
-          const commentLength = dataView.getUint32(offset + dataOffset, true)
+          // 读取comments count（小端序）
+          const commentsCount = dataView.getUint32(offset + dataOffset, true)
           dataOffset += 4
 
-          if (dataOffset + commentLength > blockSize) break
+          // 解析每个comment
+          for (let i = 0; i < commentsCount && dataOffset + 4 <= blockSize; i++) {
+            const commentLength = dataView.getUint32(offset + dataOffset, true)
+            dataOffset += 4
 
-          const commentBytes = new Uint8Array(arrayBuffer, offset + dataOffset, commentLength)
-          const comment = textDecoder.decode(commentBytes)
-          dataOffset += commentLength
+            if (dataOffset + commentLength > blockSize) break
 
-          const equalIndex = comment.indexOf('=')
-          if (equalIndex !== -1) {
-            const field = comment.substring(0, equalIndex).toUpperCase()
-            const value = comment.substring(equalIndex + 1)
+            const commentBytes = new Uint8Array(arrayBuffer, offset + dataOffset, commentLength)
+            const comment = textDecoder.decode(commentBytes)
+            dataOffset += commentLength
 
-            if (field === 'TITLE') metadata.title = value
-            else if (field === 'ARTIST') metadata.artist = value
-            else if (field === 'ALBUM') metadata.album = value
+            const equalIndex = comment.indexOf('=')
+            if (equalIndex !== -1) {
+              const field = comment.substring(0, equalIndex).toUpperCase()
+              const value = comment.substring(equalIndex + 1)
+
+              if (field === 'TITLE') metadata.title = value
+              else if (field === 'ARTIST') metadata.artist = value
+              else if (field === 'ALBUM') metadata.album = value
+            }
           }
+        } catch (e) {
+          console.warn('解析VORBIS_COMMENT块失败:', e)
         }
       }
       // PICTURE块
-      else if (blockType === 6) {
-        let picOffset = offset
+      else if (blockType === 6 && blockSize > 32) {
+        try {
+          let picOffset = offset
 
-        const pictureType = dataView.getUint32(picOffset, false)
-        picOffset += 4
+          // 读取图片类型（大端序）
+          const pictureType = dataView.getUint32(picOffset, false)
+          picOffset += 4
 
-        const mimeLength = dataView.getUint32(picOffset, false)
-        picOffset += 4
+          // 读取MIME类型长度（大端序）
+          const mimeLength = dataView.getUint32(picOffset, false)
+          picOffset += 4
 
-        const mimeBytes = new Uint8Array(arrayBuffer, picOffset, mimeLength)
-        const mimeType = textDecoder.decode(mimeBytes)
-        picOffset += mimeLength
+          // 检查边界
+          if (picOffset + mimeLength > offset + blockSize) {
+            console.warn('FLAC图片MIME类型超出范围')
+            break
+          }
 
-        const descLength = dataView.getUint32(picOffset, false)
-        picOffset += 4 + descLength
+          const mimeBytes = new Uint8Array(arrayBuffer, picOffset, mimeLength)
+          const mimeType = textDecoder.decode(mimeBytes)
+          picOffset += mimeLength
 
-        const width = dataView.getUint32(picOffset, false)
-        picOffset += 4
-        const height = dataView.getUint32(picOffset, false)
-        picOffset += 4
-        const colorDepth = dataView.getUint32(picOffset, false)
-        picOffset += 4
-        const colorCount = dataView.getUint32(picOffset, false)
-        picOffset += 4
+          // 读取描述长度（大端序）
+          const descLength = dataView.getUint32(picOffset, false)
+          picOffset += 4 + descLength
 
-        const pictureLength = dataView.getUint32(picOffset, false)
-        picOffset += 4
+          // 跳过宽度、高度、颜色深度、颜色数（各4字节）
+          picOffset += 16
 
-        if (pictureLength > 0 && picOffset + pictureLength <= offset + blockSize) {
-          const imageData = new Uint8Array(arrayBuffer, picOffset, pictureLength)
-          metadata.cover = new Blob([imageData], { type: mimeType })
+          // 读取图片数据长度（大端序）
+          const pictureLength = dataView.getUint32(picOffset, false)
+          picOffset += 4
+
+          if (pictureLength > 0 && picOffset + pictureLength <= offset + blockSize) {
+            const imageData = new Uint8Array(arrayBuffer, picOffset, pictureLength)
+            metadata.cover = new Blob([imageData], { type: mimeType })
+          }
+        } catch (e) {
+          console.warn('解析PICTURE块失败:', e)
         }
       }
 
-      if (blockHeader & 0x80) break
+      // 如果是最后一个块，停止
+      if (isLast) break
+
+      // 移动到下一个块
+      offset += blockSize
     }
 
     // 自动填充表单
@@ -468,6 +497,7 @@ const parseFlacMetadata = async (file) => {
     toast.success('已自动解析FLAC文件信息')
   } catch (error) {
     console.error('解析FLAC元数据失败:', error)
+    toast.warning('无法自动解析FLAC文件信息，请手动填写')
   }
 }
 
