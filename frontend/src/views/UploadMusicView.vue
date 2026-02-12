@@ -34,6 +34,38 @@
             </div>
           </div>
         </div>
+
+        <!-- 歌词文件 -->
+        <div class="lyrics-upload-section">
+          <label class="side-label">歌词文件</label>
+          <div class="file-upload lyrics-upload" :class="{ 'has-file': lyricsFile }" @click="selectLyricsFile">
+            <input
+              ref="lyricsFileInput"
+              type="file"
+              accept=".lrc"
+              @change="handleLyricsFileChange"
+              style="display: none"
+            />
+            <div v-if="!lyricsFile" class="file-placeholder">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+              </svg>
+              <span>选择歌词文件</span>
+            </div>
+            <div v-else class="file-info">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+              </svg>
+              <span>{{ lyricsFile.name }}</span>
+              <button type="button" @click.stop="removeLyricsFile" class="remove-btn"></button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 右侧表单 -->
@@ -113,15 +145,33 @@
             />
           </div>
 
-          <!-- 描述 -->
+          <!-- 标签 -->
           <div class="form-group">
-            <label class="label">描述</label>
-            <textarea
-              v-model="formData.description"
-              class="textarea"
-              placeholder="输入歌曲描述"
-              rows="4"
-            ></textarea>
+            <label class="label">标签</label>
+            <input
+              v-model="formData.tags"
+              type="text"
+              class="input"
+              placeholder="输入标签，多个标签用逗号分隔"
+            />
+          </div>
+
+          <!-- 语言 -->
+          <div class="form-group">
+            <label class="label">语言 <span class="required">*</span></label>
+            <select v-model="formData.language" class="input" required>
+              <option value="" disabled>请选择语言</option>
+              <option value="中文">中文</option>
+              <option value="粤语">粤语</option>
+              <option value="上海语">上海语</option>
+              <option value="英文">英文</option>
+              <option value="日语">日语</option>
+              <option value="韩语">韩语</option>
+              <option value="法语">法语</option>
+              <option value="德语">德语</option>
+              <option value="俄语">俄语</option>
+              <option value="纯音乐">纯音乐</option>
+            </select>
           </div>
 
           <!-- 提交按钮 -->
@@ -146,16 +196,19 @@ const router = useRouter()
 
 const musicFileInput = ref(null)
 const coverFileInput = ref(null)
+const lyricsFileInput = ref(null)
 
 const musicFile = ref(null)
 const coverFile = ref(null)
 const coverPreview = ref(null)
+const lyricsFile = ref(null)
 
 const formData = ref({
   title: '',
   artist: '',
   album: '',
-  description: ''
+  tags: '',
+  language: ''
 })
 
 const uploading = ref(false)
@@ -202,6 +255,22 @@ const removeCoverFile = () => {
   coverFileInput.value.value = ''
 }
 
+const selectLyricsFile = () => {
+  lyricsFileInput.value.click()
+}
+
+const handleLyricsFileChange = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    lyricsFile.value = file
+  }
+}
+
+const removeLyricsFile = () => {
+  lyricsFile.value = null
+  lyricsFileInput.value.value = ''
+}
+
 const handleDrop = (event) => {
   isDragging.value = false
   const file = event.dataTransfer.files[0]
@@ -234,6 +303,11 @@ const handleSubmit = async () => {
     return
   }
 
+  if (!formData.value.language) {
+    toast.error('请选择语言')
+    return
+  }
+
   uploading.value = true
   uploadProgress.value = 0
 
@@ -243,8 +317,10 @@ const handleSubmit = async () => {
     form.append('title', formData.value.title)
     form.append('artist', formData.value.artist)
     if (formData.value.album) form.append('album', formData.value.album)
-    if (formData.value.description) form.append('description', formData.value.description)
+    if (formData.value.tags) form.append('tags', formData.value.tags)
+    form.append('language', formData.value.language)
     if (coverFile.value) form.append('cover', coverFile.value)
+    if (lyricsFile.value) form.append('lyrics', lyricsFile.value)
 
     const xhr = new XMLHttpRequest()
     
@@ -399,6 +475,23 @@ const handleSubmit = async () => {
 
 .change-btn:hover {
   transform: scale(1.05);
+}
+
+/* 左侧歌词上传 */
+.lyrics-upload-section {
+  margin-top: 24px;
+}
+
+.side-label {
+  color: #333;
+  font-size: 14px;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.lyrics-upload {
+  padding: 20px;
 }
 
 /* 右侧表单 */
