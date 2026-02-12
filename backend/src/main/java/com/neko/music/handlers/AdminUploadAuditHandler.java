@@ -105,8 +105,7 @@ public class AdminUploadAuditHandler extends HttpServlet {
         try {
             String sql = """
                 SELECT id, user_id, title, artist, album, language, tags, duration,
-                       music_file_path, cover_file_path, lyrics_file_path, status,
-                       reject_reason, created_at, reviewed_at, reviewed_by_admin_id
+                       music_file_path, cover_file_path, lyrics_file_path, status, created_at
                 FROM user_uploads
                 WHERE status = 'pending'
                 ORDER BY created_at DESC
@@ -132,16 +131,10 @@ public class AdminUploadAuditHandler extends HttpServlet {
                     upload.put("coverFilePath", rs.getString("cover_file_path"));
                     upload.put("lyricsFilePath", rs.getString("lyrics_file_path"));
                     upload.put("status", rs.getString("status"));
-                    upload.put("rejectReason", rs.getString("reject_reason"));
                     
                     // 将 Timestamp 转换为字符串
                     java.sql.Timestamp createdAt = rs.getTimestamp("created_at");
                     upload.put("createdAt", createdAt != null ? createdAt.toString() : null);
-                    
-                    java.sql.Timestamp reviewedAt = rs.getTimestamp("reviewed_at");
-                    upload.put("reviewedAt", reviewedAt != null ? reviewedAt.toString() : null);
-                    
-                    upload.put("reviewedByAdminId", rs.getInt("reviewed_by_admin_id"));
                     
                     pendingUploads.add(upload);
                 }
