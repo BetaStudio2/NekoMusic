@@ -18,6 +18,12 @@
           </router-link>
         </li>
         <li>
+          <router-link to="/admin/audit" class="nav-link" :class="{ 'active': isActiveRoute('/admin/audit') }">
+            <span class="nav-icon">✅</span>
+            <span class="nav-text">审核管理</span>
+          </router-link>
+        </li>
+        <li>
           <router-link to="/admin/users" class="nav-link" :class="{ 'active': isActiveRoute('/admin/users') }">
             <span class="nav-icon">👥</span>
             <span class="nav-text">用户管理</span>

@@ -1,0 +1,392 @@
+package com.neko.music.handlers;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.neko.music.Main;
+import com.neko.music.model.UserUpload;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class AdminUploadAuditHandler extends HttpServlet {
+    private static final Logger logger = LoggerFactory.getLogger(AdminUploadAuditHandler.class);
+    private static final ObjectMapper objectMapper;
+    private static final String MUSIC_DIR = "music";
+    private static final String UPLOAD_DIR = "user_upload";
+    
+    static {
+        objectMapper = new ObjectMapper();
+        // 启用 Java 8 日期时间类型支持
+        objectMapper.findAndRegisterModules();
+        // 配置日期时间格式
+        objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        objectMapper.setDateFormat(new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss"));
+    }
+    
+    @Override
+    protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        // 验证管理员权限
+        if (!verifyAdmin(request, response)) {
+            return;
+        }
+        
+        String pathInfo = request.getPathInfo();
+        
+        if (pathInfo == null || pathInfo.equals("/") || pathInfo.equals("/pending")) {
+            // 获取待审核列表
+            handleGetPendingUploads(response);
+        } else {
+            sendError(response, 404, "请求的资源不存在");
+        }
+    }
+    
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        // 验证管理员权限
+        if (!verifyAdmin(request, response)) {
+            return;
+        }
+        
+        String pathInfo = request.getPathInfo();
+        
+        if (pathInfo != null && pathInfo.startsWith("/approve/")) {
+            // 审核通过
+            int uploadId = Integer.parseInt(pathInfo.substring(9));
+            handleApproveUpload(uploadId, request, response);
+        } else if (pathInfo != null && pathInfo.startsWith("/reject/")) {
+            // 审核拒绝
+            int uploadId = Integer.parseInt(pathInfo.substring(8));
+            handleRejectUpload(uploadId, request, response);
+        } else {
+            sendError(response, 404, "请求的资源不存在");
+        }
+    }
+    
+    /**
+     * 验证管理员权限
+     */
+    private boolean verifyAdmin(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            sendError(response, 401, "未授权访问");
+            return false;
+        }
+        
+        String token = authHeader.substring(7);
+        boolean isValid = Main.getAdminAuthService().validateAdminToken(token);
+        if (!isValid) {
+            sendError(response, 401, "未授权访问");
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /**
+     * 获取待审核列表
+     */
+    private void handleGetPendingUploads(HttpServletResponse response) throws IOException {
+        try {
+            String sql = """
+                SELECT id, user_id, title, artist, album, language, tags, duration,
+                       music_file_path, cover_file_path, lyrics_file_path, status,
+                       reject_reason, created_at, reviewed_at, reviewed_by_admin_id
+                FROM user_uploads
+                WHERE status = 'pending'
+                ORDER BY created_at DESC
+                """;
+            
+            List<Map<String, Object>> pendingUploads = new ArrayList<>();
+            
+            try (Connection conn = Main.getDatabaseManager().getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(sql);
+                 java.sql.ResultSet rs = stmt.executeQuery()) {
+                
+                while (rs.next()) {
+                    Map<String, Object> upload = new HashMap<>();
+                    upload.put("id", rs.getInt("id"));
+                    upload.put("userId", rs.getInt("user_id"));
+                    upload.put("title", rs.getString("title"));
+                    upload.put("artist", rs.getString("artist"));
+                    upload.put("album", rs.getString("album"));
+                    upload.put("language", rs.getString("language"));
+                    upload.put("tags", rs.getString("tags"));
+                    upload.put("duration", rs.getInt("duration"));
+                    upload.put("musicFilePath", rs.getString("music_file_path"));
+                    upload.put("coverFilePath", rs.getString("cover_file_path"));
+                    upload.put("lyricsFilePath", rs.getString("lyrics_file_path"));
+                    upload.put("status", rs.getString("status"));
+                    upload.put("rejectReason", rs.getString("reject_reason"));
+                    
+                    // 将 Timestamp 转换为字符串
+                    java.sql.Timestamp createdAt = rs.getTimestamp("created_at");
+                    upload.put("createdAt", createdAt != null ? createdAt.toString() : null);
+                    
+                    java.sql.Timestamp reviewedAt = rs.getTimestamp("reviewed_at");
+                    upload.put("reviewedAt", reviewedAt != null ? reviewedAt.toString() : null);
+                    
+                    upload.put("reviewedByAdminId", rs.getInt("reviewed_by_admin_id"));
+                    
+                    pendingUploads.add(upload);
+                }
+            }
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            result.put("data", pendingUploads);
+            
+            sendJsonResponse(response, result);
+            logger.info("获取待审核列表成功，共 {} 条记录", pendingUploads.size());
+            
+        } catch (Exception e) {
+            logger.error("获取待审核列表失败: " + e.getMessage(), e);
+            sendError(response, 500, "服务器错误: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 审核通过 - 将文件从审核目录迁移到正常目录，并插入到music表
+     */
+    private void handleApproveUpload(int uploadId, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        try {
+            // 获取管理员ID
+            String authHeader = request.getHeader("Authorization");
+            String token = authHeader.substring(7);
+            int adminId = getAdminIdByToken(token);
+            
+            if (adminId <= 0) {
+                sendError(response, 401, "未授权访问");
+                return;
+            }
+            
+            // 获取上传记录
+            com.neko.music.database.UserUploadDatabaseManager uploadManager = 
+                new com.neko.music.database.UserUploadDatabaseManager(Main.getDatabaseManager());
+            
+            UserUpload upload = uploadManager.getUserUploadById(uploadId);
+            if (upload == null) {
+                sendError(response, 404, "上传记录不存在");
+                return;
+            }
+            
+            if (!"pending".equals(upload.getStatus())) {
+                sendError(response, 400, "该记录已被审核，无需重复操作");
+                return;
+            }
+            
+            // 创建music目录
+            File musicDir = new File(MUSIC_DIR);
+            if (!musicDir.exists()) {
+                musicDir.mkdirs();
+            }
+            
+            // 生成新的文件名（使用时间戳+上传ID）
+            String timestamp = String.valueOf(System.currentTimeMillis());
+            String newMusicFileName = uploadId + "_" + timestamp + getFileExtension(upload.getMusicFilePath());
+            String newCoverFileName = uploadId + "_" + timestamp + ".jpg";
+            String newLyricsFileName = uploadId + "_" + timestamp + ".lrc";
+            
+            // 迁移文件到music目录
+            String newMusicPath = Paths.get(MUSIC_DIR, newMusicFileName).toString();
+            String newCoverPath = null;
+            String newLyricsPath = Paths.get(MUSIC_DIR, newLyricsFileName).toString();
+            
+            // 迁移音乐文件
+            Files.move(Paths.get(upload.getMusicFilePath()), Paths.get(newMusicPath), StandardCopyOption.REPLACE_EXISTING);
+            logger.info("迁移音乐文件: {} -> {}", upload.getMusicFilePath(), newMusicPath);
+            
+            // 迁移封面文件（如果有）
+            if (upload.getCoverFilePath() != null && !upload.getCoverFilePath().isEmpty()) {
+                newCoverPath = Paths.get(MUSIC_DIR, newCoverFileName).toString();
+                Files.move(Paths.get(upload.getCoverFilePath()), Paths.get(newCoverPath), StandardCopyOption.REPLACE_EXISTING);
+                logger.info("迁移封面文件: {} -> {}", upload.getCoverFilePath(), newCoverPath);
+            }
+            
+            // 迁移歌词文件
+            if (upload.getLyricsFilePath() != null && !upload.getLyricsFilePath().isEmpty()) {
+                Files.move(Paths.get(upload.getLyricsFilePath()), Paths.get(newLyricsPath), StandardCopyOption.REPLACE_EXISTING);
+                logger.info("迁移歌词文件: {} -> {}", upload.getLyricsFilePath(), newLyricsPath);
+            }
+            
+            // 插入到music表
+            String insertMusicSql = """
+                INSERT INTO music (title, artist, album, duration, file_path, cover_path, file_format, language, tags, upload_user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """;
+            
+            try (Connection conn = Main.getDatabaseManager().getConnection();
+                 PreparedStatement pstmt = conn.prepareStatement(insertMusicSql, java.sql.Statement.RETURN_GENERATED_KEYS)) {
+                
+                pstmt.setString(1, upload.getTitle());
+                pstmt.setString(2, upload.getArtist());
+                pstmt.setString(3, upload.getAlbum());
+                pstmt.setInt(4, upload.getDuration());
+                pstmt.setString(5, newMusicPath);
+                pstmt.setString(6, newCoverPath);
+                pstmt.setString(7, getFileExtensionWithoutDot(upload.getMusicFilePath()));
+                pstmt.setString(8, upload.getLanguage());
+                pstmt.setString(9, upload.getTags());
+                pstmt.setInt(10, upload.getUserId());
+                
+                int affectedRows = pstmt.executeUpdate();
+                
+                if (affectedRows > 0) {
+                    try (java.sql.ResultSet rs = pstmt.getGeneratedKeys()) {
+                        if (rs.next()) {
+                            int musicId = rs.getInt(1);
+                            logger.info("音乐已插入到music表，ID: {}", musicId);
+                        }
+                    }
+                }
+            }
+            
+            // 更新user_uploads表状态为approved
+            uploadManager.approveUpload(uploadId, adminId);
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            result.put("message", "审核通过，音乐已添加到库中");
+            result.put("data", Map.of(
+                "uploadId", uploadId,
+                "status", "approved"
+            ));
+            
+            sendJsonResponse(response, result);
+            logger.info("审核通过成功，上传ID: {}", uploadId);
+            
+        } catch (Exception e) {
+            logger.error("审核通过失败: " + e.getMessage(), e);
+            sendError(response, 500, "服务器错误: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 审核拒绝
+     */
+    private void handleRejectUpload(int uploadId, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        try {
+            // 获取管理员ID
+            String authHeader = request.getHeader("Authorization");
+            String token = authHeader.substring(7);
+            int adminId = getAdminIdByToken(token);
+            
+            if (adminId <= 0) {
+                sendError(response, 401, "未授权访问");
+                return;
+            }
+            
+            // 读取拒绝原因
+            StringBuilder body = new StringBuilder();
+            java.io.BufferedReader reader = request.getReader();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                body.append(line);
+            }
+            
+            Map<String, String> requestData = objectMapper.readValue(body.toString(), Map.class);
+            String reason = requestData.getOrDefault("reason", "管理员拒绝审核");
+            
+            // 获取上传记录
+            com.neko.music.database.UserUploadDatabaseManager uploadManager = 
+                new com.neko.music.database.UserUploadDatabaseManager(Main.getDatabaseManager());
+            
+            UserUpload upload = uploadManager.getUserUploadById(uploadId);
+            if (upload == null) {
+                sendError(response, 404, "上传记录不存在");
+                return;
+            }
+            
+            if (!"pending".equals(upload.getStatus())) {
+                sendError(response, 400, "该记录已被审核，无需重复操作");
+                return;
+            }
+            
+            // 更新状态为rejected
+            uploadManager.rejectUpload(uploadId, adminId, reason);
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            result.put("message", "审核拒绝");
+            result.put("data", Map.of(
+                "uploadId", uploadId,
+                "status", "rejected",
+                "reason", reason
+            ));
+            
+            sendJsonResponse(response, result);
+            logger.info("审核拒绝成功，上传ID: {}, 原因: {}", uploadId, reason);
+            
+        } catch (Exception e) {
+            logger.error("审核拒绝失败: " + e.getMessage(), e);
+            sendError(response, 500, "服务器错误: " + e.getMessage());
+        }
+    }
+    
+    private String getFileExtension(String filePath) {
+        if (filePath == null || filePath.isEmpty()) {
+            return "";
+        }
+        int lastDotIndex = filePath.lastIndexOf('.');
+        if (lastDotIndex == -1) {
+            return "";
+        }
+        return filePath.substring(lastDotIndex);
+    }
+    
+    private String getFileExtensionWithoutDot(String filePath) {
+        String ext = getFileExtension(filePath);
+        return ext.isEmpty() ? "" : ext.substring(1);
+    }
+    
+    /**
+     * 根据token获取管理员ID
+     */
+    private int getAdminIdByToken(String token) {
+        String sql = "SELECT admin_id FROM admin_sessions WHERE session_token = ? AND is_active = TRUE AND expires_at > NOW()";
+        
+        try (Connection conn = Main.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setString(1, token);
+            try (java.sql.ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("admin_id");
+                }
+            }
+        } catch (java.sql.SQLException e) {
+            logger.error("获取管理员ID失败: " + e.getMessage(), e);
+        }
+        return -1;
+    }
+    
+    private void sendError(HttpServletResponse response, int status, String message) throws IOException {
+        response.setStatus(status);
+        response.setContentType("application/json;charset=UTF-8");
+        Map<String, Object> error = new HashMap<>();
+        error.put("success", false);
+        error.put("message", message);
+        response.getWriter().write(objectMapper.writeValueAsString(error));
+    }
+    
+    private void sendJsonResponse(HttpServletResponse response, Map<String, Object> data) throws IOException {
+        response.setStatus(200);
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write(objectMapper.writeValueAsString(data));
+    }
+}

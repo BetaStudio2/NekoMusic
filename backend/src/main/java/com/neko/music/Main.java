@@ -126,6 +126,14 @@ public class Main {
         userUploadHolder.getRegistration().setMultipartConfig(userUploadMultipartConfig);
         context.addServlet(userUploadHolder, "/api/user/upload");
         
+        // 注册管理员审核API处理器
+        ServletHolder adminUploadAuditHolder = new ServletHolder(new AdminUploadAuditHandler());
+        context.addServlet(adminUploadAuditHolder, "/api/admin/audit/*");
+        
+        // 注册用户上传预览API处理器
+        ServletHolder userUploadPreviewHolder = new ServletHolder(new UserUploadPreviewHandler());
+        context.addServlet(userUploadPreviewHolder, "/api/user/upload/preview");
+        
         // 注册音乐封面API处理器
         ServletHolder musicCoverHolder = new ServletHolder(new MusicCoverHandler());
         context.addServlet(musicCoverHolder, "/api/music/cover/*");
@@ -262,6 +270,9 @@ public class Main {
         logger.info("  POST /api/playlists/search - 搜索歌单 (无需登录)");
         logger.info("  POST /api/artists/search - 搜索歌手 (无需登录)");
         logger.info("  POST /api/user/upload - 用户上传音乐 (需要用户登录)");
+        logger.info("  GET /api/admin/audit/pending - 获取待审核列表 (需要管理员登录)");
+        logger.info("  POST /api/admin/audit/approve/{id} - 审核通过 (需要管理员登录)");
+        logger.info("  POST /api/admin/audit/reject/{id} - 审核拒绝 (需要管理员登录)");
         logger.info("  POST /api/admin/login - 管理员登录");
         logger.info("  GET /api/admin/stats - 管理员统计信息 (需要管理员登录)");
         logger.info("  GET /api/admin/chart-data - 管理员图表数据 (需要管理员登录)");

@@ -12,6 +12,7 @@ import RankingView from '@/views/RankingView.vue'
 import AdminLoginView from '@/views/admin/AdminLoginView.vue'
 import AdminView from '@/views/admin/AdminView.vue'
 import AdminMusicView from '@/views/admin/AdminMusicView.vue'
+import AdminAuditView from '@/views/admin/AdminAuditView.vue'
 import AdminUsersView from '@/views/admin/AdminUsersView.vue'
 import AdminSettingsView from '@/views/admin/AdminSettingsView.vue'
 import DownloadView from '@/views/DownloadView.vue'
@@ -219,6 +220,17 @@ const router = createRouter({
         title: '音乐管理 - Neko云音乐',
         description: '管理平台免费音乐资源，上传、编辑、删除免费音乐。',
         keywords: '音乐管理,音乐上传,免费音乐管理'
+      }
+    },
+    {
+      path: '/admin/audit',
+      name: 'admin-audit',
+      component: AdminAuditView,
+      beforeEnter: adminGuard,
+      meta: {
+        title: '审核管理 - Neko云音乐',
+        description: '审核用户上传的音乐，管理待审核的免费音乐内容。',
+        keywords: '审核管理,音乐审核,待审核,免费音乐审核'
       }
     },
     {
