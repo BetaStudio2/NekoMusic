@@ -47,8 +47,9 @@
         <div v-if="isLoggedIn" class="user-info">
           <img :src="userAvatar" alt="用户头像" class="user-avatar" @error="handleAvatarError" />
           <span class="username">{{ username }}</span>
-          <button @click="goToPlaylists" class="playlists-btn" title="我的歌单">📋</button>
-          <button @click="goToFavorites" class="favorites-btn" title="我的收藏">❤️</button>
+          <button @click="goToPlaylists" class="playlists-btn" title="我的歌单">我的歌单</button>
+          <button @click="goToFavorites" class="favorites-btn" title="我的收藏">我的收藏</button>
+          <button @click="goToUpload" class="upload-btn" title="上传音乐">上传音乐</button>
           <button @click="logout" class="logout-btn">退出</button>
         </div>
         <button v-else @click="goToLogin" class="login-btn">登录</button>
@@ -139,6 +140,11 @@ const goToFavorites = () => {
 
 const goToPlaylists = () => {
   router.push('/playlists')
+}
+
+// 跳转到上传页面
+const goToUpload = () => {
+  router.push('/upload')
 }
 
 // 处理头像加载错误
@@ -495,6 +501,26 @@ onUnmounted(() => {
   background: rgba(79, 70, 229, 0.9);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.6);
+}
+
+.upload-btn {
+  padding: 6px 12px;
+  background: rgba(78, 205, 196, 0.8);
+  color: white;
+  border: none;
+  border-radius: 15px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(78, 205, 196, 0.4);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+.upload-btn:hover {
+  background: rgba(45, 212, 191, 0.9);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(78, 205, 196, 0.6);
 }
 
 .logo {
