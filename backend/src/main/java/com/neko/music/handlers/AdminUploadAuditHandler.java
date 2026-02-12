@@ -259,6 +259,30 @@ public class AdminUploadAuditHandler extends HttpServlet {
             // 更新user_uploads表状态为approved
             uploadManager.approveUpload(uploadId, adminId);
             
+            // 获取用户邮箱并发送通知邮件
+            try {
+                String userEmail = getUserEmailById(upload.getUserId());
+                
+                if (userEmail != null && !userEmail.isEmpty()) {
+                    boolean emailSent = Main.getEmailService().sendReviewApprovedEmail(
+                        userEmail,
+                        upload.getTitle(),
+                        upload.getArtist()
+                    );
+                    
+                    if (emailSent) {
+                        logger.info("审核通过邮件已发送至: {}", userEmail);
+                    } else {
+                        logger.warn("审核通过邮件发送失败: {}", userEmail);
+                    }
+                } else {
+                    logger.warn("用户 {} 没有邮箱地址，无法发送审核通过邮件", upload.getUserId());
+                }
+            } catch (Exception e) {
+                logger.error("获取用户邮箱或发送邮件失败: " + e.getMessage(), e);
+                // 邮件发送失败不影响审核通过操作
+            }
+            
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);
             result.put("message", "审核通过，音乐已添加到库中");
@@ -317,12 +341,40 @@ public class AdminUploadAuditHandler extends HttpServlet {
                 return;
             }
             
-            // 更新状态为rejected
-            uploadManager.rejectUpload(uploadId, adminId, reason);
+            // 1. 先获取用户邮箱并发送邮件（在删除记录之前）
+            try {
+                String userEmail = getUserEmailById(upload.getUserId());
+                
+                if (userEmail != null && !userEmail.isEmpty()) {
+                    boolean emailSent = Main.getEmailService().sendReviewRejectedEmail(
+                        userEmail,
+                        upload.getTitle(),
+                        upload.getArtist(),
+                        reason
+                    );
+                    
+                    if (emailSent) {
+                        logger.info("审核拒绝邮件已发送至: {}", userEmail);
+                    } else {
+                        logger.warn("审核拒绝邮件发送失败: {}", userEmail);
+                    }
+                } else {
+                    logger.warn("用户 {} 没有邮箱地址，无法发送审核拒绝邮件", upload.getUserId());
+                }
+            } catch (Exception e) {
+                logger.error("获取用户邮箱或发送邮件失败: " + e.getMessage(), e);
+                // 邮件发送失败不影响后续删除操作
+            }
+            
+            // 2. 删除上传的文件
+            deleteUploadFiles(upload);
+            
+            // 3. 删除数据库记录
+            uploadManager.deleteUserUpload(uploadId);
             
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);
-            result.put("message", "审核拒绝");
+            result.put("message", "审核拒绝，文件已删除");
             result.put("data", Map.of(
                 "uploadId", uploadId,
                 "status", "rejected",
@@ -335,6 +387,42 @@ public class AdminUploadAuditHandler extends HttpServlet {
         } catch (Exception e) {
             logger.error("审核拒绝失败: " + e.getMessage(), e);
             sendError(response, 500, "服务器错误: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 删除上传的文件
+     */
+    private void deleteUploadFiles(UserUpload upload) {
+        try {
+            // 删除音乐文件
+            if (upload.getMusicFilePath() != null && !upload.getMusicFilePath().isEmpty()) {
+                Path musicPath = Paths.get(upload.getMusicFilePath());
+                if (Files.exists(musicPath)) {
+                    Files.delete(musicPath);
+                    logger.info("已删除音乐文件: {}", upload.getMusicFilePath());
+                }
+            }
+            
+            // 删除封面文件
+            if (upload.getCoverFilePath() != null && !upload.getCoverFilePath().isEmpty()) {
+                Path coverPath = Paths.get(upload.getCoverFilePath());
+                if (Files.exists(coverPath)) {
+                    Files.delete(coverPath);
+                    logger.info("已删除封面文件: {}", upload.getCoverFilePath());
+                }
+            }
+            
+            // 删除歌词文件
+            if (upload.getLyricsFilePath() != null && !upload.getLyricsFilePath().isEmpty()) {
+                Path lyricsPath = Paths.get(upload.getLyricsFilePath());
+                if (Files.exists(lyricsPath)) {
+                    Files.delete(lyricsPath);
+                    logger.info("已删除歌词文件: {}", upload.getLyricsFilePath());
+                }
+            }
+        } catch (Exception e) {
+            logger.error("删除文件失败: " + e.getMessage(), e);
         }
     }
     
@@ -373,6 +461,27 @@ public class AdminUploadAuditHandler extends HttpServlet {
             logger.error("获取管理员ID失败: " + e.getMessage(), e);
         }
         return -1;
+    }
+    
+    /**
+     * 根据用户ID获取用户邮箱
+     */
+    private String getUserEmailById(int userId) {
+        String sql = "SELECT email FROM users WHERE id = ?";
+        
+        try (Connection conn = Main.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setInt(1, userId);
+            try (java.sql.ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString("email");
+                }
+            }
+        } catch (java.sql.SQLException e) {
+            logger.error("获取用户邮箱失败: " + e.getMessage(), e);
+        }
+        return null;
     }
     
     private void sendError(HttpServletResponse response, int status, String message) throws IOException {

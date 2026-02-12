@@ -139,47 +139,19 @@ public class UserUploadDatabaseManager {
     public boolean approveUpload(int uploadId, int adminId) {
         String sql = """
             UPDATE user_uploads 
-            SET status = 'approved', reviewed_at = ?, reviewed_by_admin_id = ?
+            SET status = 'approved'
             WHERE id = ?
             """;
         
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             
-            pstmt.setTimestamp(1, Timestamp.valueOf(LocalDateTime.now()));
-            pstmt.setInt(2, adminId);
-            pstmt.setInt(3, uploadId);
+            pstmt.setInt(1, uploadId);
             
             return pstmt.executeUpdate() > 0;
             
         } catch (SQLException e) {
             System.err.println("审核通过失败: " + e.getMessage());
-            return false;
-        }
-    }
-    
-    /**
-     * 审核拒绝上传
-     */
-    public boolean rejectUpload(int uploadId, int adminId, String reason) {
-        String sql = """
-            UPDATE user_uploads 
-            SET status = 'rejected', reject_reason = ?, reviewed_at = ?, reviewed_by_admin_id = ?
-            WHERE id = ?
-            """;
-        
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            
-            pstmt.setString(1, reason);
-            pstmt.setTimestamp(2, Timestamp.valueOf(LocalDateTime.now()));
-            pstmt.setInt(3, adminId);
-            pstmt.setInt(4, uploadId);
-            
-            return pstmt.executeUpdate() > 0;
-            
-        } catch (SQLException e) {
-            System.err.println("审核拒绝失败: " + e.getMessage());
             return false;
         }
     }
@@ -244,15 +216,7 @@ public class UserUploadDatabaseManager {
         upload.setCoverFilePath(rs.getString("cover_file_path"));
         upload.setLyricsFilePath(rs.getString("lyrics_file_path"));
         upload.setStatus(rs.getString("status"));
-        upload.setRejectReason(rs.getString("reject_reason"));
         upload.setCreatedAt(rs.getTimestamp("created_at").toLocalDateTime());
-        
-        Timestamp reviewedAt = rs.getTimestamp("reviewed_at");
-        if (reviewedAt != null) {
-            upload.setReviewedAt(reviewedAt.toLocalDateTime());
-        }
-        
-        upload.setReviewedByAdminId(rs.getInt("reviewed_by_admin_id"));
         
         return upload;
     }

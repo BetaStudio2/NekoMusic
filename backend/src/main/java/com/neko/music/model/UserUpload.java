@@ -15,10 +15,7 @@ public class UserUpload {
     private String coverFilePath;
     private String lyricsFilePath;
     private String status; // pending, approved, rejected
-    private String rejectReason;
     private LocalDateTime createdAt;
-    private LocalDateTime reviewedAt;
-    private int reviewedByAdminId;
     
     public UserUpload() {
     }
@@ -132,35 +129,11 @@ public class UserUpload {
         this.status = status;
     }
     
-    public String getRejectReason() {
-        return rejectReason;
-    }
-    
-    public void setRejectReason(String rejectReason) {
-        this.rejectReason = rejectReason;
-    }
-    
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
     
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
-    }
-    
-    public LocalDateTime getReviewedAt() {
-        return reviewedAt;
-    }
-    
-    public void setReviewedAt(LocalDateTime reviewedAt) {
-        this.reviewedAt = reviewedAt;
-    }
-    
-    public int getReviewedByAdminId() {
-        return reviewedByAdminId;
-    }
-    
-    public void setReviewedByAdminId(int reviewedByAdminId) {
-        this.reviewedByAdminId = reviewedByAdminId;
     }
 }

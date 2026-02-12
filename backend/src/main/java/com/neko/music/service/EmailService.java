@@ -39,6 +39,66 @@ public class EmailService {
     }
 
     /**
+     * 加载审核邮件模板
+     */
+    private String loadReviewTemplate() {
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream("Review.html")) {
+            if (is == null) {
+                logger.error("无法加载审核邮件模板 Review.html");
+                return getDefaultReviewTemplate();
+            }
+            return new String(is.readAllBytes(), "UTF-8");
+        } catch (IOException e) {
+            logger.error("加载审核邮件模板失败", e);
+            return getDefaultReviewTemplate();
+        }
+    }
+
+    /**
+     * 加载审核通过邮件模板
+     */
+    private String loadReviewApprovedTemplate() {
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream("ReviewApproved.html")) {
+            if (is == null) {
+                logger.error("无法加载审核通过邮件模板 ReviewApproved.html");
+                return getDefaultReviewApprovedTemplate();
+            }
+            return new String(is.readAllBytes(), "UTF-8");
+        } catch (IOException e) {
+            logger.error("加载审核通过邮件模板失败", e);
+            return getDefaultReviewApprovedTemplate();
+        }
+    }
+
+    /**
+     * 默认审核邮件模板
+     */
+    private String getDefaultReviewTemplate() {
+        return "<!DOCTYPE html>" +
+               "<html><head><meta charset='UTF-8'><title>审核结果</title></head>" +
+               "<body>" +
+               "<h2>您好，</h2>" +
+               "<p>您的音乐《{{musicName}}》审核未通过。</p>" +
+               "<p>拒绝原因：{{rejectReason}}</p>" +
+               "<p>审核时间：{{auditDate}}</p>" +
+               "</body></html>";
+    }
+
+    /**
+     * 默认审核通过邮件模板
+     */
+    private String getDefaultReviewApprovedTemplate() {
+        return "<!DOCTYPE html>" +
+               "<html><head><meta charset='UTF-8'><title>审核结果</title></head>" +
+               "<body>" +
+               "<h2>您好，</h2>" +
+               "<p>恭喜！您的音乐《{{musicName}}》已通过审核。</p>" +
+               "<p>您的音乐已添加到 NekoMusic 音乐库中。</p>" +
+               "<p>审核时间：{{auditDate}}</p>" +
+               "</body></html>";
+    }
+
+    /**
      * 默认邮件模板
      */
     private String getDefaultEmailTemplate() {
@@ -59,6 +119,56 @@ public class EmailService {
         String subject = "NekoMusic - 验证码";
         String content = emailTemplate.replace("{{verificationCode}}", verificationCode);
 
+        return sendEmail(toEmail, subject, content);
+    }
+
+    /**
+     * 发送审核拒绝邮件
+     */
+    public boolean sendReviewRejectedEmail(String toEmail, String musicName, String artistName, String rejectReason) {
+        String reviewTemplate = loadReviewTemplate();
+        
+        // 格式化日期
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        String auditDate = now.format(formatter);
+        
+        // 替换模板变量
+        String content = reviewTemplate
+            .replace("{{musicName}}", musicName)
+            .replace("{{artistName}}", artistName)
+            .replace("{{rejectReason}}", rejectReason)
+            .replace("{{auditDate}}", auditDate);
+        
+        // 如果有拒绝原因则显示，否则隐藏
+        if (rejectReason == null || rejectReason.isEmpty()) {
+            content = content.replace("style=\"{{showReason}}\"", "style=\"display:none\"");
+        } else {
+            content = content.replace("style=\"{{showReason}}\"", "");
+        }
+
+        String subject = "NekoMusic - 审核结果通知";
+        return sendEmail(toEmail, subject, content);
+    }
+
+    /**
+     * 发送审核通过邮件
+     */
+    public boolean sendReviewApprovedEmail(String toEmail, String musicName, String artistName) {
+        String reviewTemplate = loadReviewApprovedTemplate();
+        
+        // 格式化日期
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        String auditDate = now.format(formatter);
+        
+        // 替换模板变量
+        String content = reviewTemplate
+            .replace("{{musicName}}", musicName)
+            .replace("{{artistName}}", artistName)
+            .replace("{{auditDate}}", auditDate);
+
+        String subject = "NekoMusic - 审核结果通知";
         return sendEmail(toEmail, subject, content);
     }
 

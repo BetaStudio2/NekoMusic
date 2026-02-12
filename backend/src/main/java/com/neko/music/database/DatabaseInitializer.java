@@ -96,12 +96,8 @@ public class DatabaseInitializer {
                     cover_file_path VARCHAR(512),
                     lyrics_file_path VARCHAR(512),
                     status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
-                    reject_reason TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    reviewed_at TIMESTAMP NULL,
-                    reviewed_by_admin_id INT NULL,
                     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                    FOREIGN KEY (reviewed_by_admin_id) REFERENCES admins(id) ON DELETE SET NULL,
                     INDEX idx_user_id (user_id),
                     INDEX idx_status (status),
                     INDEX idx_created_at (created_at)
