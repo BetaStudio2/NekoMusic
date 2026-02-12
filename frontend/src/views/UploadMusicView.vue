@@ -772,7 +772,7 @@ const handleSubmit = async () => {
     })
 
     xhr.addEventListener('load', () => {
-      if (xhr.status === 200) {
+      if (xhr.status >= 200 && xhr.status < 300) {
         const response = JSON.parse(xhr.responseText)
         if (response.success) {
           toast.success('音乐上传成功')
@@ -783,7 +783,17 @@ const handleSubmit = async () => {
           toast.error(response.message || '上传失败')
         }
       } else {
-        toast.error('上传失败，请稍后重试')
+        // 尝试解析错误消息
+        let errorMsg = '上传失败，请稍后重试'
+        try {
+          const response = JSON.parse(xhr.responseText)
+          if (response.message) {
+            errorMsg = response.message
+          }
+        } catch (e) {
+          // 无法解析响应，使用默认错误消息
+        }
+        toast.error(errorMsg)
       }
       uploading.value = false
     })
