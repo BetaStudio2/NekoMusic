@@ -1,133 +1,121 @@
 <template>
   <div class="upload-view">
     <div class="upload-container">
-      <div class="upload-header">
-        <h1 class="upload-title">上传音乐</h1>
-        <p class="upload-subtitle">分享您的音乐到 Neko云音乐平台</p>
+      <!-- 左侧封面 -->
+      <div class="cover-side">
+        <div class="cover-upload" :class="{ 'has-cover': coverFile }" @click="selectCoverFile">
+          <input
+            ref="coverFileInput"
+            type="file"
+            accept="image/*"
+            @change="handleCoverFileChange"
+            style="display: none"
+          />
+          <div v-if="!coverFile" class="cover-placeholder">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+            <p>上传封面</p>
+            <span>建议 800x800</span>
+          </div>
+          <div v-else class="cover-preview">
+            <img :src="coverPreview" alt="封面" />
+            <div class="cover-overlay">
+              <button type="button" @click.stop="removeCoverFile" class="change-btn">更换</button>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <form @submit.prevent="handleSubmit" class="upload-form">
-        <!-- 歌曲文件上传 -->
-        <div class="form-group">
-          <label class="form-label">音乐文件 <span class="required">*</span></label>
-          <div class="file-upload-area" :class="{ 'has-file': musicFile }" @click="selectMusicFile">
-            <input
-              ref="musicFileInput"
-              type="file"
-              accept="audio/*"
-              @change="handleMusicFileChange"
-              style="display: none"
-            />
-            <div v-if="!musicFile" class="upload-placeholder">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 18V5l12-2v13"></path>
-                <circle cx="6" cy="18" r="3"></circle>
-                <circle cx="18" cy="16" r="3"></circle>
-              </svg>
-              <p>点击选择音乐文件</p>
-              <span class="file-hint">支持 MP3、FLAC、WAV 等格式</span>
-            </div>
-            <div v-else class="file-info">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 18V5l12-2v13"></path>
-                <circle cx="6" cy="18" r="3"></circle>
-                <circle cx="18" cy="16" r="3"></circle>
-              </svg>
-              <span class="file-name">{{ musicFile.name }}</span>
-              <button type="button" @click.stop="removeMusicFile" class="remove-file-btn">×</button>
-            </div>
-          </div>
-        </div>
+      <!-- 右侧表单 -->
+      <div class="form-side">
+        <h2 class="page-title">上传音乐</h2>
 
-        <!-- 封面图片上传 -->
-        <div class="form-group">
-          <label class="form-label">封面图片</label>
-          <div class="file-upload-area cover-upload" :class="{ 'has-file': coverFile }" @click="selectCoverFile">
-            <input
-              ref="coverFileInput"
-              type="file"
-              accept="image/*"
-              @change="handleCoverFileChange"
-              style="display: none"
-            />
-            <div v-if="!coverFile" class="upload-placeholder">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                <polyline points="21 15 16 10 5 21"></polyline>
-              </svg>
-              <p>点击选择封面图片</p>
-              <span class="file-hint">支持 JPG、PNG 格式</span>
-            </div>
-            <div v-else class="file-preview">
-              <img :src="coverPreview" alt="封面预览" class="cover-preview-img" />
-              <button type="button" @click.stop="removeCoverFile" class="remove-file-btn">×</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- 歌曲信息表单 -->
-        <div class="form-row">
+        <form @submit.prevent="handleSubmit" class="upload-form">
+          <!-- 音乐文件 -->
           <div class="form-group">
-            <label class="form-label">歌曲标题 <span class="required">*</span></label>
+            <div class="file-upload" :class="{ 'has-file': musicFile }" @click="selectMusicFile">
+              <input
+                ref="musicFileInput"
+                type="file"
+                accept="audio/*"
+                @change="handleMusicFileChange"
+                style="display: none"
+              />
+              <div v-if="!musicFile" class="file-placeholder">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <span>选择音频文件</span>
+              </div>
+              <div v-else class="file-info">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 18V5l12-2v13"></path>
+                  <circle cx="6" cy="18" r="3"></circle>
+                  <circle cx="18" cy="16" r="3"></circle>
+                </svg>
+                <span>{{ musicFile.name }}</span>
+                <button type="button" @click.stop="removeMusicFile" class="remove-btn"></button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 歌曲标题 -->
+          <div class="form-group">
+            <label class="label">歌曲标题 <span class="required">*</span></label>
             <input
               v-model="formData.title"
               type="text"
-              class="form-input"
+              class="input"
               placeholder="输入歌曲标题"
               required
             />
           </div>
+
+          <!-- 歌手 -->
           <div class="form-group">
-            <label class="form-label">歌手/艺术家 <span class="required">*</span></label>
+            <label class="label">歌手 <span class="required">*</span></label>
             <input
               v-model="formData.artist"
               type="text"
-              class="form-input"
-              placeholder="输入歌手或艺术家名称"
+              class="input"
+              placeholder="输入歌手名称"
               required
             />
           </div>
-        </div>
 
-        <div class="form-group">
-          <label class="form-label">专辑</label>
-          <input
-            v-model="formData.album"
-            type="text"
-            class="form-input"
-            placeholder="输入专辑名称（可选）"
-          />
-        </div>
+          <!-- 专辑 -->
+          <div class="form-group">
+            <label class="label">专辑</label>
+            <input
+              v-model="formData.album"
+              type="text"
+              class="input"
+              placeholder="输入专辑名称"
+            />
+          </div>
 
-        <div class="form-group">
-          <label class="form-label">歌曲描述</label>
-          <textarea
-            v-model="formData.description"
-            class="form-textarea"
-            placeholder="输入歌曲描述（可选）"
-            rows="3"
-          ></textarea>
-        </div>
+          <!-- 描述 -->
+          <div class="form-group">
+            <label class="label">描述</label>
+            <textarea
+              v-model="formData.description"
+              class="textarea"
+              placeholder="输入歌曲描述"
+              rows="4"
+            ></textarea>
+          </div>
 
-        <!-- 提交按钮 -->
-        <button type="submit" class="submit-btn" :disabled="uploading">
-          <svg v-if="!uploading" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="17 8 12 3 7 8"></polyline>
-            <line x1="12" y1="3" x2="12" y2="15"></line>
-          </svg>
-          <span v-if="uploading">上传中...</span>
-          <span v-else>上传音乐</span>
-        </button>
-      </form>
-
-      <!-- 上传进度 -->
-      <div v-if="uploadProgress > 0 && uploading" class="progress-container">
-        <div class="progress-bar">
-          <div class="progress-fill" :style="{ width: uploadProgress + '%' }"></div>
-        </div>
-        <span class="progress-text">{{ uploadProgress }}%</span>
+          <!-- 提交按钮 -->
+          <button type="submit" class="submit-btn" :disabled="uploading">
+            <span v-if="!uploading">发布音乐</span>
+            <span v-else>上传中 {{ uploadProgress }}%</span>
+          </button>
+        </form>
       </div>
     </div>
   </div>
@@ -142,16 +130,13 @@ import { useToast } from 'vue-toastification'
 const toast = useToast()
 const router = useRouter()
 
-// 文件引用
 const musicFileInput = ref(null)
 const coverFileInput = ref(null)
 
-// 文件数据
 const musicFile = ref(null)
 const coverFile = ref(null)
 const coverPreview = ref(null)
 
-// 表单数据
 const formData = ref({
   title: '',
   artist: '',
@@ -159,26 +144,21 @@ const formData = ref({
   description: ''
 })
 
-// 上传状态
 const uploading = ref(false)
 const uploadProgress = ref(0)
 
-// 选择音乐文件
 const selectMusicFile = () => {
   musicFileInput.value.click()
 }
 
-// 选择封面文件
 const selectCoverFile = () => {
   coverFileInput.value.click()
 }
 
-// 处理音乐文件选择
 const handleMusicFileChange = (event) => {
   const file = event.target.files[0]
   if (file) {
     musicFile.value = file
-    // 自动填充歌曲标题（使用文件名去除扩展名）
     const fileName = file.name.replace(/\.[^/.]+$/, '')
     if (!formData.value.title) {
       formData.value.title = fileName
@@ -186,7 +166,6 @@ const handleMusicFileChange = (event) => {
   }
 }
 
-// 处理封面文件选择
 const handleCoverFileChange = (event) => {
   const file = event.target.files[0]
   if (file) {
@@ -195,20 +174,17 @@ const handleCoverFileChange = (event) => {
   }
 }
 
-// 移除音乐文件
 const removeMusicFile = () => {
   musicFile.value = null
   musicFileInput.value.value = ''
 }
 
-// 移除封面文件
 const removeCoverFile = () => {
   coverFile.value = null
   coverPreview.value = null
   coverFileInput.value.value = ''
 }
 
-// 提交表单
 const handleSubmit = async () => {
   if (!musicFile.value) {
     toast.error('请选择音乐文件')
@@ -216,7 +192,7 @@ const handleSubmit = async () => {
   }
 
   if (!formData.value.title || !formData.value.artist) {
-    toast.error('请填写歌曲标题和歌手信息')
+    toast.error('请填写歌曲标题和歌手')
     return
   }
 
@@ -224,28 +200,19 @@ const handleSubmit = async () => {
   uploadProgress.value = 0
 
   try {
-    // 创建 FormData 对象
     const form = new FormData()
     form.append('file', musicFile.value)
     form.append('title', formData.value.title)
     form.append('artist', formData.value.artist)
-    if (formData.value.album) {
-      form.append('album', formData.value.album)
-    }
-    if (formData.value.description) {
-      form.append('description', formData.value.description)
-    }
-    if (coverFile.value) {
-      form.append('cover', coverFile.value)
-    }
+    if (formData.value.album) form.append('album', formData.value.album)
+    if (formData.value.description) form.append('description', formData.value.description)
+    if (coverFile.value) form.append('cover', coverFile.value)
 
-    // 使用 XMLHttpRequest 以支持上传进度
     const xhr = new XMLHttpRequest()
     
     xhr.upload.addEventListener('progress', (event) => {
       if (event.lengthComputable) {
-        const progress = Math.round((event.loaded / event.total) * 100)
-        uploadProgress.value = progress
+        uploadProgress.value = Math.round((event.loaded / event.total) * 100)
       }
     })
 
@@ -253,21 +220,19 @@ const handleSubmit = async () => {
       if (xhr.status === 200) {
         const response = JSON.parse(xhr.responseText)
         if (response.success) {
-          toast.success('音乐上传成功！')
-          setTimeout(() => {
-            router.push('/')
-          }, 1500)
+          toast.success('上传成功')
+          setTimeout(() => router.push('/'), 1500)
         } else {
           toast.error(response.message || '上传失败')
         }
       } else {
-        toast.error('上传失败，请稍后重试')
+        toast.error('上传失败')
       }
       uploading.value = false
     })
 
     xhr.addEventListener('error', () => {
-      toast.error('网络错误，请检查连接后重试')
+      toast.error('网络错误')
       uploading.value = false
     })
 
@@ -275,8 +240,7 @@ const handleSubmit = async () => {
     xhr.send(form)
 
   } catch (error) {
-    console.error('上传错误:', error)
-    toast.error('上传失败，请稍后重试')
+    toast.error('上传失败')
     uploading.value = false
   }
 }
@@ -286,46 +250,137 @@ const handleSubmit = async () => {
 .upload-view {
   min-height: calc(100vh - 80px);
   padding: 40px 20px;
-  //background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 .upload-container {
-  max-width: 600px;
+  max-width: 1000px;
   margin: 0 auto;
-  background: rgba(255, 255, 255, 0.95);
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 50px;
+  align-items: start;
+}
+
+/* 左侧封面 */
+.cover-side {
+  position: sticky;
+  top: 20px;
+}
+
+.cover-upload {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 20px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.3);
+  border: 2px dashed rgba(102, 126, 234, 0.3);
+}
+
+.cover-upload:hover {
+  border-color: #667eea;
+  transform: scale(1.02);
+}
+
+.cover-upload.has-cover {
+  border-style: solid;
+  border-color: rgba(102, 126, 234, 0.5);
+}
+
+.cover-placeholder {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #667eea;
+  text-align: center;
+  padding: 20px;
+}
+
+.cover-placeholder svg {
+  opacity: 0.8;
+}
+
+.cover-placeholder p {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.cover-placeholder span {
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+.cover-preview {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.cover-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cover-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.cover-preview:hover .cover-overlay {
+  opacity: 1;
+}
+
+.change-btn {
+  padding: 10px 24px;
+  background: white;
+  color: #333;
+  border: none;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.change-btn:hover {
+  transform: scale(1.05);
+}
+
+/* 右侧表单 */
+.form-side {
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(10px);
   border-radius: 20px;
   padding: 40px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
-.upload-header {
-  text-align: center;
-  margin-bottom: 40px;
-}
-
-.upload-title {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #667eea;
-  margin: 0 0 10px 0;
-}
-
-.upload-subtitle {
-  font-size: 1rem;
-  color: #666;
-  margin: 0;
+.page-title {
+  color: #333;
+  font-size: 28px;
+  font-weight: 600;
+  margin: 0 0 30px 0;
 }
 
 .upload-form {
   display: flex;
   flex-direction: column;
-  gap: 25px;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  gap: 24px;
 }
 
 .form-group {
@@ -334,84 +389,56 @@ const handleSubmit = async () => {
   gap: 8px;
 }
 
-.form-label {
-  font-size: 0.95rem;
-  font-weight: 600;
+.label {
   color: #333;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .required {
-  color: #ff6b6b;
+  color: #ef4444;
   margin-left: 2px;
 }
 
-.form-input,
-.form-textarea {
-  padding: 12px 16px;
-  border: 2px solid #e0e0e0;
-  border-radius: 10px;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  font-family: inherit;
-}
-
-.form-input:focus,
-.form-textarea:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.form-textarea {
-  resize: vertical;
-  min-height: 80px;
-}
-
-.file-upload-area {
-  border: 2px dashed #e0e0e0;
-  border-radius: 15px;
+.file-upload {
+  border: 2px dashed rgba(102, 126, 234, 0.3);
+  border-radius: 16px;
   padding: 30px;
   text-align: center;
   cursor: pointer;
   transition: all 0.3s ease;
-  min-height: 150px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.file-upload:hover {
+  border-color: #667eea;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.file-upload.has-file {
+  border-style: solid;
+  border-color: #667eea;
+  padding: 20px;
+  text-align: left;
+}
+
+.file-placeholder {
+  color: #667eea;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 10px;
 }
 
-.file-upload-area:hover {
-  border-color: #667eea;
-  background: rgba(102, 126, 234, 0.05);
-}
-
-.file-upload-area.has-file {
-  border-style: solid;
-  border-color: #667eea;
-  background: rgba(102, 126, 234, 0.05);
-}
-
-.upload-placeholder svg {
-  color: #aaa;
-  margin-bottom: 15px;
-}
-
-.upload-placeholder p {
-  font-size: 1rem;
-  color: #333;
-  margin: 0 0 5px 0;
-}
-
-.file-hint {
-  font-size: 0.85rem;
-  color: #999;
+.file-placeholder span {
+  font-size: 15px;
+  font-weight: 500;
 }
 
 .file-info {
   display: flex;
   align-items: center;
-  gap: 10px;
-  width: 100%;
+  gap: 12px;
 }
 
 .file-info svg {
@@ -419,69 +446,82 @@ const handleSubmit = async () => {
   flex-shrink: 0;
 }
 
-.file-name {
+.file-info span {
   flex: 1;
-  font-size: 0.95rem;
+  font-size: 15px;
   color: #333;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.remove-file-btn {
-  width: 30px;
-  height: 30px;
+.remove-btn {
+  width: 24px;
+  height: 24px;
   border: none;
-  background: #ff6b6b;
+  background: #ef4444;
   color: white;
   border-radius: 50%;
-  font-size: 1.2rem;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s ease;
+  position: relative;
   flex-shrink: 0;
 }
 
-.remove-file-btn:hover {
-  background: #ee5a5a;
-  transform: scale(1.1);
+.remove-btn::before,
+.remove-btn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 2px;
+  background: white;
+  transform: translate(-50%, -50%) rotate(45deg);
 }
 
-.cover-upload {
-  padding: 20px;
+.remove-btn::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 
-.file-preview {
-  position: relative;
-  width: 100%;
-  display: flex;
-  justify-content: center;
+.input,
+.textarea {
+  padding: 14px 18px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 14px;
+  font-size: 15px;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(5px);
+  transition: all 0.3s ease;
 }
 
-.cover-preview-img {
-  max-width: 200px;
-  max-height: 200px;
-  object-fit: cover;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+.input::placeholder,
+.textarea::placeholder {
+  color: #999;
+}
+
+.input:focus,
+.textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 100px;
+  font-family: inherit;
 }
 
 .submit-btn {
-  padding: 14px 32px;
+  padding: 16px 48px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
-  border-radius: 12px;
-  font-size: 1.05rem;
+  border-radius: 14px;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
   margin-top: 10px;
 }
 
@@ -495,45 +535,30 @@ const handleSubmit = async () => {
   cursor: not-allowed;
 }
 
-.progress-container {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  margin-top: 20px;
-}
-
-.progress-bar {
-  flex: 1;
-  height: 8px;
-  background: #e0e0e0;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #667eea, #764ba2);
-  transition: width 0.3s ease;
-}
-
-.progress-text {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #667eea;
-  min-width: 45px;
-}
-
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .upload-container {
-    padding: 25px;
-  }
-
-  .form-row {
     grid-template-columns: 1fr;
+    gap: 30px;
   }
 
-  .upload-title {
-    font-size: 1.5rem;
+  .cover-side {
+    position: static;
+    display: flex;
+    justify-content: center;
+  }
+
+  .cover-upload {
+    max-width: 300px;
+  }
+}
+
+@media (max-width: 600px) {
+  .form-side {
+    padding: 30px 20px;
+  }
+
+  .page-title {
+    font-size: 24px;
   }
 }
 </style>
