@@ -38,7 +38,14 @@
         <!-- 歌词文件 -->
         <div class="lyrics-upload-section">
           <label class="side-label">歌词文件</label>
-          <div class="file-upload lyrics-upload" :class="{ 'has-file': lyricsFile }" @click="selectLyricsFile">
+          <div 
+            class="file-upload lyrics-upload" 
+            :class="{ 'has-file': lyricsFile, 'drag-over': isLyricsDragging }"
+            @click="selectLyricsFile"
+            @dragover.prevent="isLyricsDragging = true"
+            @dragleave.prevent="isLyricsDragging = false"
+            @drop.prevent="handleLyricsFileDrop"
+          >
             <input
               ref="lyricsFileInput"
               type="file"
@@ -216,6 +223,7 @@ const uploadProgress = ref(0)
 
 const isDragging = ref(false)
 const isCoverDragging = ref(false)
+const isLyricsDragging = ref(false)
 
 const selectMusicFile = () => {
   musicFileInput.value.click()
@@ -703,6 +711,21 @@ const handleCoverDrop = (event) => {
   if (file && file.type.startsWith('image/')) {
     coverFile.value = file
     coverPreview.value = URL.createObjectURL(file)
+  }
+}
+
+const handleLyricsFileDrop = (event) => {
+  event.preventDefault()
+  
+  const files = event.dataTransfer.files
+  if (files.length > 0) {
+    const file = files[0]
+    const fileName = file.name.toLowerCase()
+    if (fileName.endsWith('.lrc')) {
+      lyricsFile.value = file
+    } else {
+      toast.error('请拖入.lrc格式的歌词文件')
+    }
   }
 }
 
