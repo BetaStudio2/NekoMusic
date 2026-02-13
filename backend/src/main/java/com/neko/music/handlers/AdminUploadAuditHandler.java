@@ -28,7 +28,7 @@ public class AdminUploadAuditHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(AdminUploadAuditHandler.class);
     private static final ObjectMapper objectMapper;
     private static final String MUSIC_DIR = "Music";
-    private static final String MUSIC_AUDIOS_DIR = "Music/audios";
+    private static final String MUSIC_AUDIO_DIR = "Music/music";
     private static final String MUSIC_COVERS_DIR = "Music/covers";
     private static final String MUSIC_LYRICS_DIR = "Music/lyrics";
     private static final String UPLOAD_DIR = "user_upload";
@@ -187,11 +187,11 @@ public class AdminUploadAuditHandler extends HttpServlet {
             }
             
             // 创建Music目录及三个子目录
-            File audiosDir = new File(MUSIC_AUDIOS_DIR);
+            File audioDir = new File(MUSIC_AUDIO_DIR);
             File coversDir = new File(MUSIC_COVERS_DIR);
             File lyricsDir = new File(MUSIC_LYRICS_DIR);
-            if (!audiosDir.exists()) {
-                audiosDir.mkdirs();
+            if (!audioDir.exists()) {
+                audioDir.mkdirs();
             }
             if (!coversDir.exists()) {
                 coversDir.mkdirs();
@@ -248,10 +248,10 @@ public class AdminUploadAuditHandler extends HttpServlet {
             String newLyricsFileName = musicId + ".lrc";
 
             // 迁移文件到Music子目录
-            newMusicPath = Paths.get(MUSIC_AUDIOS_DIR, newMusicFileName).toString();
+            newMusicPath = Paths.get(MUSIC_AUDIO_DIR, newMusicFileName).toString();
             newLyricsPath = Paths.get(MUSIC_LYRICS_DIR, newLyricsFileName).toString();
 
-            // 迁移音乐文件到 Music/audios
+            // 迁移音乐文件到 Music/music
             Files.move(Paths.get(upload.getMusicFilePath()), Paths.get(newMusicPath), StandardCopyOption.REPLACE_EXISTING);
             logger.info("迁移音乐文件: {} -> {}", upload.getMusicFilePath(), newMusicPath);
 
