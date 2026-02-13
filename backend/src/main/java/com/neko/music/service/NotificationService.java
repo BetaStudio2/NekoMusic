@@ -24,7 +24,12 @@ public class NotificationService {
     
     public NotificationService(ConfigManager configManager) {
         this.configManager = configManager;
-        this.webhookUrl = configManager.getMsgUrl();
+        String url = configManager.getMsgUrl();
+        // 自动添加 http:// 前缀（如果缺少）
+        if (url != null && !url.isEmpty() && !url.startsWith("http://") && !url.startsWith("https://")) {
+            url = "http://" + url;
+        }
+        this.webhookUrl = url;
         this.authToken = configManager.getMsgToken();
         
         logger.info("NotificationService 初始化完成, Webhook URL: {}", webhookUrl);
@@ -82,6 +87,19 @@ public class NotificationService {
      * @return 是否发送成功
      */
     public boolean sendMusicApprovedNotification(String musicTitle, String artist, int uploadUserId) {
+        String message = String.format("音乐审核提醒\n标题: %s\n艺术家: %s\n上传用户ID: %d", 
+            musicTitle, artist, uploadUserId);
+        return sendNotification(message);
+    }
+    
+    /**
+     * 发送音乐上传完成通知
+     * @param musicTitle 音乐标题
+     * @param artist 艺术家
+     * @param uploadUserId 上传用户ID
+     * @return 是否发送成功
+     */
+    public boolean sendMusicUploadNotification(String musicTitle, String artist, int uploadUserId) {
         String message = String.format("音乐审核提醒\n标题: %s\n艺术家: %s\n上传用户ID: %d", 
             musicTitle, artist, uploadUserId);
         return sendNotification(message);

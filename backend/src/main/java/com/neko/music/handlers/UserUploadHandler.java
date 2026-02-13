@@ -150,6 +150,24 @@ public class UserUploadHandler extends HttpServlet {
             int uploadId = uploadDatabaseManager.createUserUpload(upload);
             
             if (uploadId > 0) {
+                // 发送通知
+                try {
+                    boolean notificationSent = Main.getNotificationService().sendMusicUploadNotification(
+                        title,
+                        artist,
+                        userId
+                    );
+                    
+                    if (notificationSent) {
+                        logger.info("上传通知已发送");
+                    } else {
+                        logger.warn("上传通知发送失败");
+                    }
+                } catch (Exception e) {
+                    logger.error("发送上传通知失败: " + e.getMessage(), e);
+                    // 通知发送失败不影响上传操作
+                }
+                
                 // 返回成功响应
                 Map<String, Object> result = new HashMap<>();
                 result.put("success", true);
