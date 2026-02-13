@@ -35,6 +35,10 @@ public class ConfigManager {
     private String jwtSecret = "defaultSecretKeyForNekoMusic";
     private int jwtExpiration = 86400; // 24小时（秒）
     
+    // Msg配置
+    private String msgUrl = "";
+    private String msgToken = "";
+    
     private ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
 
     public void loadConfig() {
@@ -113,6 +117,13 @@ public class ConfigManager {
                 if (jwtNode != null) {
                     if (jwtNode.has("secret")) jwtSecret = jwtNode.get("secret").asText();
                     if (jwtNode.has("expiration")) jwtExpiration = jwtNode.get("expiration").asInt();
+                }
+                
+                // 读取Msg配置
+                JsonNode msgNode = configNode.get("Msg");
+                if (msgNode != null) {
+                    if (msgNode.has("url")) msgUrl = msgNode.get("url").asText();
+                    if (msgNode.has("token")) msgToken = msgNode.get("token").asText();
                 }
             }
             
@@ -232,5 +243,13 @@ public class ConfigManager {
     
     public int getJwtExpiration() {
         return jwtExpiration;
+    }
+    
+    public String getMsgUrl() {
+        return msgUrl;
+    }
+    
+    public String getMsgToken() {
+        return msgToken;
     }
 }

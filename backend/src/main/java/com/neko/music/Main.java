@@ -8,6 +8,7 @@ import com.neko.music.handlers.*;
 
 import com.neko.music.service.AdminAuthService;
 import com.neko.music.service.EmailService;
+import com.neko.music.service.NotificationService;
 import com.neko.music.service.PlaylistService;
 import com.neko.music.service.RedisService;
 import com.neko.music.service.UserAuthService;
@@ -41,6 +42,7 @@ public class Main {
     private static EmailService emailService;
     private static RedisService redisService;
     private static PlaylistService playlistService;
+    private static NotificationService notificationService;
 
     public static void main(String[] args) throws Exception {
         // 设置JVM默认时区为中国标准时间（UTC+8）
@@ -78,6 +80,9 @@ public class Main {
 
         // 初始化歌单服务
         playlistService = new PlaylistService(databaseManager);
+        
+        // 初始化通知服务
+        notificationService = new NotificationService(configManager);
         
         // 创建默认管理员账号（如果不存在）
         createDefaultAdminIfNotExists();
@@ -337,5 +342,9 @@ public class Main {
 
     public static PlaylistService getPlaylistService() {
         return playlistService;
+    }
+    
+    public static NotificationService getNotificationService() {
+        return notificationService;
     }
 }

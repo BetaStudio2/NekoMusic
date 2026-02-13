@@ -284,6 +284,24 @@ public class AdminUploadAuditHandler extends HttpServlet {
             // 更新user_uploads表状态为approved
             uploadManager.approveUpload(uploadId, adminId);
             
+            // 发送通知
+            try {
+                boolean notificationSent = Main.getNotificationService().sendMusicApprovedNotification(
+                    upload.getTitle(),
+                    upload.getArtist(),
+                    upload.getUserId()
+                );
+                
+                if (notificationSent) {
+                    logger.info("审核通过通知已发送");
+                } else {
+                    logger.warn("审核通过通知发送失败");
+                }
+            } catch (Exception e) {
+                logger.error("发送审核通过通知失败: " + e.getMessage(), e);
+                // 通知发送失败不影响审核通过操作
+            }
+            
             // 获取用户邮箱并发送通知邮件
             try {
                 String userEmail = getUserEmailById(upload.getUserId());
