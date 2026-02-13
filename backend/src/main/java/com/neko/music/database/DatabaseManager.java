@@ -22,9 +22,9 @@ public class DatabaseManager {
 
     public void init() throws SQLException {
         HikariConfig config = new HikariConfig();
-        config.setJdbcUrl("jdbc:mysql://" + configManager.getMysqlHost() + ":" + 
-                         configManager.getMysqlPort() + "/" + configManager.getMysqlDatabase() + 
-                         "?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true");
+        config.setJdbcUrl("jdbc:mysql://" + configManager.getMysqlHost() + ":" +
+                         configManager.getMysqlPort() + "/" + configManager.getMysqlDatabase() +
+                         "?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true");
         config.setUsername(configManager.getMysqlUsername());
         config.setPassword(configManager.getMysqlPassword());
         config.setMaximumPoolSize(20);

@@ -43,10 +43,13 @@ public class Main {
     private static PlaylistService playlistService;
 
     public static void main(String[] args) throws Exception {
+        // 设置JVM默认时区为中国标准时间（UTC+8）
+        java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("Asia/Shanghai"));
+
         // 重新设置System.out和System.err的编码
         System.setOut(new java.io.PrintStream(System.out, true, "UTF-8"));
         System.setErr(new java.io.PrintStream(System.err, true, "UTF-8"));
-        
+
         logger.info("正在启动NekoMusic音乐平台...");
         
         // 初始化配置管理器
