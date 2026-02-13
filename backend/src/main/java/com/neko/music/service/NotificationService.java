@@ -29,6 +29,10 @@ public class NotificationService {
         if (url != null && !url.isEmpty() && !url.startsWith("http://") && !url.startsWith("https://")) {
             url = "http://" + url;
         }
+        // 添加 /send 路径
+        if (url != null && !url.isEmpty() && !url.endsWith("/send")) {
+            url = url + "/send";
+        }
         this.webhookUrl = url;
         this.authToken = configManager.getMsgToken();
         
