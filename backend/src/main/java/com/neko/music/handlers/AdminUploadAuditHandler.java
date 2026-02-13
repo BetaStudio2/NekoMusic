@@ -27,7 +27,10 @@ import java.util.Map;
 public class AdminUploadAuditHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(AdminUploadAuditHandler.class);
     private static final ObjectMapper objectMapper;
-    private static final String MUSIC_DIR = "music";
+    private static final String MUSIC_DIR = "Music";
+    private static final String MUSIC_AUDIOS_DIR = "Music/audios";
+    private static final String MUSIC_COVERS_DIR = "Music/covers";
+    private static final String MUSIC_LYRICS_DIR = "Music/lyrics";
     private static final String UPLOAD_DIR = "user_upload";
     
     static {
@@ -183,72 +186,101 @@ public class AdminUploadAuditHandler extends HttpServlet {
                 return;
             }
             
-            // 创建music目录
-            File musicDir = new File(MUSIC_DIR);
-            if (!musicDir.exists()) {
-                musicDir.mkdirs();
+            // 创建Music目录及三个子目录
+            File audiosDir = new File(MUSIC_AUDIOS_DIR);
+            File coversDir = new File(MUSIC_COVERS_DIR);
+            File lyricsDir = new File(MUSIC_LYRICS_DIR);
+            if (!audiosDir.exists()) {
+                audiosDir.mkdirs();
             }
-            
-            // 生成新的文件名（使用时间戳+上传ID）
-            String timestamp = String.valueOf(System.currentTimeMillis());
-            String newMusicFileName = uploadId + "_" + timestamp + getFileExtension(upload.getMusicFilePath());
-            String newCoverFileName = uploadId + "_" + timestamp + ".jpg";
-            String newLyricsFileName = uploadId + "_" + timestamp + ".lrc";
-            
-            // 迁移文件到music目录
-            String newMusicPath = Paths.get(MUSIC_DIR, newMusicFileName).toString();
-            String newCoverPath = null;
-            String newLyricsPath = Paths.get(MUSIC_DIR, newLyricsFileName).toString();
-            
-            // 迁移音乐文件
-            Files.move(Paths.get(upload.getMusicFilePath()), Paths.get(newMusicPath), StandardCopyOption.REPLACE_EXISTING);
-            logger.info("迁移音乐文件: {} -> {}", upload.getMusicFilePath(), newMusicPath);
-            
-            // 迁移封面文件（如果有）
-            if (upload.getCoverFilePath() != null && !upload.getCoverFilePath().isEmpty()) {
-                newCoverPath = Paths.get(MUSIC_DIR, newCoverFileName).toString();
-                Files.move(Paths.get(upload.getCoverFilePath()), Paths.get(newCoverPath), StandardCopyOption.REPLACE_EXISTING);
-                logger.info("迁移封面文件: {} -> {}", upload.getCoverFilePath(), newCoverPath);
+            if (!coversDir.exists()) {
+                coversDir.mkdirs();
             }
-            
-            // 迁移歌词文件
-            if (upload.getLyricsFilePath() != null && !upload.getLyricsFilePath().isEmpty()) {
-                Files.move(Paths.get(upload.getLyricsFilePath()), Paths.get(newLyricsPath), StandardCopyOption.REPLACE_EXISTING);
-                logger.info("迁移歌词文件: {} -> {}", upload.getLyricsFilePath(), newLyricsPath);
+            if (!lyricsDir.exists()) {
+                lyricsDir.mkdirs();
             }
-            
-            // 插入到music表
+
+            // 先插入到music表获取音乐ID
             String insertMusicSql = """
                 INSERT INTO music (title, artist, album, duration, file_path, cover_path, file_format, language, tags, upload_user_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
-            
+
+            int musicId = 0;
+            String newMusicPath = null;
+            String newCoverPath = null;
+            String newLyricsPath = null;
+
             try (Connection conn = Main.getDatabaseManager().getConnection();
                  PreparedStatement pstmt = conn.prepareStatement(insertMusicSql, java.sql.Statement.RETURN_GENERATED_KEYS)) {
-                
+
                 pstmt.setString(1, upload.getTitle());
                 pstmt.setString(2, upload.getArtist());
                 pstmt.setString(3, upload.getAlbum());
                 pstmt.setInt(4, upload.getDuration());
-                pstmt.setString(5, newMusicPath);
-                pstmt.setString(6, newCoverPath);
+                pstmt.setString(5, ""); // 先为空，后面更新
+                pstmt.setString(6, ""); // 先为空，后面更新
                 pstmt.setString(7, getFileExtensionWithoutDot(upload.getMusicFilePath()));
                 pstmt.setString(8, upload.getLanguage());
                 pstmt.setString(9, upload.getTags());
                 pstmt.setInt(10, upload.getUserId());
-                
+
                 int affectedRows = pstmt.executeUpdate();
-                
+
                 if (affectedRows > 0) {
                     try (java.sql.ResultSet rs = pstmt.getGeneratedKeys()) {
                         if (rs.next()) {
-                            int musicId = rs.getInt(1);
+                            musicId = rs.getInt(1);
                             logger.info("音乐已插入到music表，ID: {}", musicId);
                         }
                     }
                 }
             }
-            
+
+            if (musicId == 0) {
+                sendError(response, 500, "插入音乐记录失败");
+                return;
+            }
+
+            // 使用音乐ID生成新的文件名
+            String newMusicFileName = musicId + getFileExtension(upload.getMusicFilePath());
+            String newCoverFileName = musicId + ".jpg";
+            String newLyricsFileName = musicId + ".lrc";
+
+            // 迁移文件到Music子目录
+            newMusicPath = Paths.get(MUSIC_AUDIOS_DIR, newMusicFileName).toString();
+            newLyricsPath = Paths.get(MUSIC_LYRICS_DIR, newLyricsFileName).toString();
+
+            // 迁移音乐文件到 Music/audios
+            Files.move(Paths.get(upload.getMusicFilePath()), Paths.get(newMusicPath), StandardCopyOption.REPLACE_EXISTING);
+            logger.info("迁移音乐文件: {} -> {}", upload.getMusicFilePath(), newMusicPath);
+
+            // 迁移封面文件到 Music/covers（如果有）
+            if (upload.getCoverFilePath() != null && !upload.getCoverFilePath().isEmpty()) {
+                newCoverPath = Paths.get(MUSIC_COVERS_DIR, newCoverFileName).toString();
+                Files.move(Paths.get(upload.getCoverFilePath()), Paths.get(newCoverPath), StandardCopyOption.REPLACE_EXISTING);
+                logger.info("迁移封面文件: {} -> {}", upload.getCoverFilePath(), newCoverPath);
+            }
+
+            // 迁移歌词文件到 Music/lyrics
+            if (upload.getLyricsFilePath() != null && !upload.getLyricsFilePath().isEmpty()) {
+                Files.move(Paths.get(upload.getLyricsFilePath()), Paths.get(newLyricsPath), StandardCopyOption.REPLACE_EXISTING);
+                logger.info("迁移歌词文件: {} -> {}", upload.getLyricsFilePath(), newLyricsPath);
+            }
+
+            // 更新数据库中的文件路径
+            String updatePathSql = "UPDATE music SET file_path = ?, cover_path = ? WHERE id = ?";
+
+            try (Connection conn = Main.getDatabaseManager().getConnection();
+                 PreparedStatement pstmt = conn.prepareStatement(updatePathSql)) {
+
+                pstmt.setString(1, newMusicPath);
+                pstmt.setString(2, newCoverPath != null ? newCoverPath : "");
+                pstmt.setInt(3, musicId);
+                pstmt.executeUpdate();
+                logger.info("已更新音乐ID {} 的文件路径", musicId);
+            }
+
             // 更新user_uploads表状态为approved
             uploadManager.approveUpload(uploadId, adminId);
             

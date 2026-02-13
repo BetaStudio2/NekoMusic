@@ -35,7 +35,7 @@ public class FileUploadHandler extends HttpServlet {
     private ObjectMapper objectMapper = new ObjectMapper();
     
     // 定义上传目录（相对于JAR运行目录）
-    private static final String MUSIC_DIR = "Music/music";
+    private static final String MUSIC_DIR = "Music/audios";
     private static final String COVER_DIR = "Music/covers";
     private static final String LYRICS_DIR = "Music/lyrics";
 
