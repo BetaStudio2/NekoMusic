@@ -168,14 +168,18 @@ public class MusicLyricsHandler extends HttpServlet {
                     content.append(line).append("\n");
                 }
             }
-            
+
             // 移除最后的换行符
             if (content.length() > 0) {
                 content.deleteCharAt(content.length() - 1);
             }
-            
+
+            // 将所有 [mm:ss:xx] 格式转换为 [mm:ss.xx] 标准格式
+            String lyricsContent = content.toString();
+            lyricsContent = lyricsContent.replaceAll("\\[(\\d{2}):(\\d{2}):(\\d{2,3})\\]", "[$1:$2.$3]");
+
             logger.info("成功读取歌词文件: {}", lyricsFile.getAbsolutePath());
-            return content.toString();
+            return lyricsContent;
         } catch (Exception e) {
             logger.error("读取歌词文件时出错: {}", e.getMessage(), e);
             return null;
