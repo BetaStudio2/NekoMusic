@@ -114,7 +114,7 @@ public class MusicManagementHandler extends HttpServlet {
         }
         
         int id;
-        
+
         try {
             id = Integer.parseInt(idStr);
         } catch (NumberFormatException e) {
@@ -124,13 +124,32 @@ public class MusicManagementHandler extends HttpServlet {
             response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
             return;
         }
-        
+
+        // 先查询音乐文件路径
+        String musicFilePath = null;
+        String coverFilePath = null;
+
+        try (Connection conn = Main.getDatabaseManager().getConnection()) {
+            String sql = "SELECT file_path, cover_path FROM music WHERE id = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setInt(1, id);
+                ResultSet rs = stmt.executeQuery();
+                if (rs.next()) {
+                    musicFilePath = rs.getString("file_path");
+                    coverFilePath = rs.getString("cover_path");
+                }
+            }
+        } catch (Exception e) {
+            logger.error("查询音乐文件路径时出错", e);
+        }
+
+        // 删除数据库记录
         int rowsDeleted;
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             String sql = "DELETE FROM music WHERE id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setInt(1, id);
-                
+
                 rowsDeleted = stmt.executeUpdate();
             }
         } catch (Exception e) {
@@ -141,7 +160,7 @@ public class MusicManagementHandler extends HttpServlet {
             response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
             return;
         }
-        
+
         if (rowsDeleted == 0) {
             response.setStatus(HttpStatus.NOT_FOUND_404);
             response.setContentType("application/json;charset=utf-8");
@@ -149,7 +168,36 @@ public class MusicManagementHandler extends HttpServlet {
             response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
             return;
         }
-        
+
+        // 删除音乐文件
+        if (musicFilePath != null && !musicFilePath.isEmpty()) {
+            try {
+                java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get(musicFilePath));
+                logger.info("已删除音乐文件: {}", musicFilePath);
+            } catch (Exception e) {
+                logger.error("删除音乐文件失败: {}", musicFilePath, e);
+            }
+        }
+
+        // 删除封面文件
+        if (coverFilePath != null && !coverFilePath.isEmpty()) {
+            try {
+                java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get(coverFilePath));
+                logger.info("已删除封面文件: {}", coverFilePath);
+            } catch (Exception e) {
+                logger.error("删除封面文件失败: {}", coverFilePath, e);
+            }
+        }
+
+        // 删除歌词文件（根据音乐ID查找）
+        String lyricsFilePath = "Music/lyrics/" + id + ".lrc";
+        try {
+            java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get(lyricsFilePath));
+            logger.info("已删除歌词文件: {}", lyricsFilePath);
+        } catch (Exception e) {
+            logger.error("删除歌词文件失败: {}", lyricsFilePath, e);
+        }
+
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
         SuccessResponse successResponse = new SuccessResponse(true, "删除音乐成功");
