@@ -82,7 +82,7 @@ public class NotificationService {
             return false;
         }
     }
-    
+
     /**
      * 发送音乐审核通过通知
      * @param musicTitle 音乐标题
@@ -90,12 +90,12 @@ public class NotificationService {
      * @param uploadUserId 上传用户ID
      * @return 是否发送成功
      */
-    public boolean sendMusicApprovedNotification(String musicTitle, String artist, int uploadUserId) {
-        String message = String.format("音乐审核提醒\n标题: %s\n艺术家: %s\n上传用户ID: %d", 
-            musicTitle, artist, uploadUserId);
-        return sendNotification(message);
-    }
-    
+//    public boolean sendMusicApprovedNotification(String musicTitle, String artist, int uploadUserId) {
+//        String message = String.format("音乐审已通过！\n标题: %s\n艺术家: %s\n上传用户ID: %d",
+//            musicTitle, artist, uploadUserId);
+//        return sendNotification(message);
+//    }
+
     /**
      * 发送音乐上传完成通知
      * @param musicTitle 音乐标题
