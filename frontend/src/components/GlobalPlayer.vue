@@ -143,10 +143,12 @@
       <div class="lyrics-container" @click.stop>
         <div class="lyrics-content">
           <div class="lyric-line" :class="{ 'active': isCurrentLyric(0), 'active-enter': isCurrentLyric(0) && currentAnimationIndex === 0 }">
-            {{ getLyricLine(0) }}
+            <div class="lyric-text">{{ getLyricLine(0) }}</div>
+            <div class="lyric-translation" v-if="getLyricTranslation(0)">{{ getLyricTranslation(0) }}</div>
           </div>
           <div class="lyric-line" :class="{ 'active': isCurrentLyric(1), 'active-enter': isCurrentLyric(1) && currentAnimationIndex === 1 }">
-            {{ getLyricLine(1) }}
+            <div class="lyric-text">{{ getLyricLine(1) }}</div>
+            <div class="lyric-translation" v-if="getLyricTranslation(1)">{{ getLyricTranslation(1) }}</div>
           </div>
         </div>
       </div>
@@ -525,39 +527,51 @@ const parseLrcLyrics = (lrcText) => {
   
   const lines = lrcText.split('\n')
   const parsed = []
+  let currentLyric = null
   
-  for (const line of lines) {
-    // 匹配 [mm:ss.xx] 或 [mm:ss.xxx] 格式的时间标签
-    const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/g
-    let match
-    const matches = []
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
     
-    // 收集所有时间标签
-    while ((match = timeRegex.exec(line)) !== null) {
-      matches.push({
-        minutes: parseInt(match[1]),
-        seconds: parseInt(match[2]),
-        milliseconds: parseInt(match[3]),
-        index: match.index
-      })
+    // 跳过空行
+    if (!line) {
+      continue
     }
     
-    // 提取歌词文本（去除时间标签）
-    const text = line.replace(/\[(\d{2}):(\d{2})\.(\d{2,3})\]/g, '').trim()
+    // 匹配时间戳歌词行 [mm:ss.xx] 或 [mm:ss.xxx]
+    const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/
+    const timeMatch = line.match(timeRegex)
     
-    // 为每个时间标签创建一个歌词项
-    for (const timeMatch of matches) {
+    if (timeMatch) {
+      // 这是歌词行，提取时间和文本
+      const minutes = parseInt(timeMatch[1])
+      const seconds = parseInt(timeMatch[2])
+      const milliseconds = parseInt(timeMatch[3])
+      
       // 根据毫秒部分的位数正确计算秒数
       let millisecondsDivisor
-      if (timeMatch.milliseconds.toString().length === 2) {
+      if (milliseconds.toString().length === 2) {
         millisecondsDivisor = 100 // 两位毫秒，如 .25
       } else {
         millisecondsDivisor = 1000 // 三位毫秒，如 .250
       }
-      const timeInSeconds = timeMatch.minutes * 60 + timeMatch.seconds + (timeMatch.milliseconds / millisecondsDivisor)
+      const timeInSeconds = minutes * 60 + seconds + (milliseconds / millisecondsDivisor)
+      const text = line.replace(timeRegex, '').trim()
+      
+      // 查找下一行是否有翻译
+      let translation = ''
+      if (i + 1 < lines.length) {
+        const nextLine = lines[i + 1].trim()
+        // 检查是否是JSON格式的翻译行
+        const jsonMatch = nextLine.match(/^\{["\'](.+)["\']\}$/)
+        if (jsonMatch) {
+          translation = jsonMatch[1]
+        }
+      }
+      
       parsed.push({
         time: timeInSeconds,
-        text: text
+        text: text,
+        translation: translation
       })
     }
   }
@@ -600,6 +614,31 @@ const getLyricLine = (offset) => {
   }
   
   return '...'
+}
+
+// 获取指定索引的歌词翻译
+const getLyricTranslation = (offset) => {
+  if (!currentMusic.value || parsedLyrics.value.length === 0) {
+    return ''
+  }
+  
+  // 查找当前时间点对应的歌词索引
+  let currentLyricIndex = -1
+  for (let i = parsedLyrics.value.length - 1; i >= 0; i--) {
+    const lyric = parsedLyrics.value[i]
+    if (currentTime.value >= lyric.time) {
+      currentLyricIndex = i
+      break
+    }
+  }
+  
+  // 根据偏移量返回对应的歌词翻译
+  const targetIndex = currentLyricIndex + offset
+  if (targetIndex >= 0 && targetIndex < parsedLyrics.value.length) {
+    return parsedLyrics.value[targetIndex].translation || ''
+  }
+  
+  return ''
 }
 
 // 判断指定偏移量的歌词行是否是当前歌词

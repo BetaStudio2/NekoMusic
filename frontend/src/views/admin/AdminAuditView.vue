@@ -95,7 +95,8 @@
                       :key="index"
                       class="lyric-line"
                     >
-                      {{ line.text }}
+                      <div class="lyric-text">{{ line.text }}</div>
+                      <div class="lyric-translation" v-if="line.translation">{{ line.translation }}</div>
                     </div>
                   </div>
                   <div v-else class="lyrics-loading">
@@ -499,29 +500,49 @@ const parseLrcLyrics = (lrcText) => {
   const lines = lrcText.split('\n')
   const parsed = []
   
-  for (const line of lines) {
-    // 匹配 [mm:ss.xx] 或 [mm:ss.xxx] 格式的时间标签
-    const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/g
-    let match
-    const text = line.replace(timeRegex, '').trim()
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
     
-    while ((match = timeRegex.exec(line)) !== null) {
-      const minutes = parseInt(match[1])
-      const seconds = parseInt(match[2])
-      const milliseconds = parseInt(match[3])
+    // 跳过空行
+    if (!line) {
+      continue
+    }
+    
+    // 匹配时间戳歌词行 [mm:ss.xx] 或 [mm:ss.xxx]
+    const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/
+    const timeMatch = line.match(timeRegex)
+    
+    if (timeMatch) {
+      // 这是歌词行，提取时间和文本
+      const minutes = parseInt(timeMatch[1])
+      const seconds = parseInt(timeMatch[2])
+      const milliseconds = parseInt(timeMatch[3])
       
-      // 根据毫秒长度调整（LRC格式可能使用2位或3位毫秒）
+      // 根据毫秒部分的位数正确计算秒数
       let millisecondsDivisor
       if (milliseconds.toString().length === 2) {
         millisecondsDivisor = 100 // 两位毫秒，如 .25
       } else {
         millisecondsDivisor = 1000 // 三位毫秒，如 .250
       }
-      
       const timeInSeconds = minutes * 60 + seconds + (milliseconds / millisecondsDivisor)
+      const text = line.replace(timeRegex, '').trim()
+      
+      // 查找下一行是否有翻译
+      let translation = ''
+      if (i + 1 < lines.length) {
+        const nextLine = lines[i + 1].trim()
+        // 检查是否是JSON格式的翻译行
+        const jsonMatch = nextLine.match(/^\{["\'](.+)["\']\}$/)
+        if (jsonMatch) {
+          translation = jsonMatch[1]
+        }
+      }
+      
       parsed.push({
         time: timeInSeconds,
-        text: text
+        text: text,
+        translation: translation
       })
     }
   }
