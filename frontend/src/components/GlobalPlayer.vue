@@ -2002,8 +2002,8 @@ onUnmounted(() => {
 /* 歌词显示区域 */
 .lyrics-container {
   flex: 1;
-  min-width: 150px;
-  max-width: 350px;
+  min-width: 180px;
+  max-width: 450px;
   height: 100%;
   overflow: hidden;
   display: flex;
@@ -2020,31 +2020,62 @@ onUnmounted(() => {
   flex-direction: column;
   justify-content: center;
   align-items: flex-start;
-  gap: 6px;
+  gap: 2px;
   overflow: hidden;
   position: relative;
 }
 
 .lyric-line {
   color: #888;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   width: 100%;
   text-align: left;
-  line-height: 1.5;
+  line-height: 1.3;
   opacity: 0.5;
   position: relative;
-  transition: opacity 0.4s ease;
+  transition: opacity 0.3s ease;
+  flex-shrink: 0;
+}
+
+.lyric-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.lyric-translation {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+  font-size: 0.72rem;
+  color: #aaa;
+  margin-top: 0;
 }
 
 .lyric-line.active {
   color: #6a5acd;
-  font-weight: 700;
-  font-size: 1rem;
+  font-weight: 600;
   opacity: 1;
-  text-shadow: 0 0 10px rgba(106, 90, 205, 0.5);
+}
+
+.lyric-line.active .lyric-text {
+  color: #6a5acd;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.lyric-line.active .lyric-translation {
+  color: #8888cc;
+  opacity: 0.9;
 }
 
 /* 滚动进入动画 */
