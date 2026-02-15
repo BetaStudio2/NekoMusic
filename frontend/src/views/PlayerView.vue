@@ -855,15 +855,27 @@ onUnmounted(() => {
   padding: 8px 10px;
   text-align: center;
   transition: all 0.3s ease;
-  white-space: nowrap;
+  white-space: normal;
+  word-wrap: break-word;
+  word-break: break-word;
   z-index: 1;
-  width: auto;
+  width: 100%;
   max-width: 90%;
-  overflow: hidden;
-  text-overflow: ellipsis;
   flex-shrink: 0;
   display: block;
   line-height: 1.5;
+}
+
+.lyric-text {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.lyric-translation {
+  display: block;
+  font-size: 0.75em;
+  opacity: 0.8;
+  color: rgba(136, 136, 136, 0.9);
 }
 
 .lyric-line.active {
@@ -872,8 +884,17 @@ onUnmounted(() => {
   font-size: 1.4rem;
   text-shadow: 0 0 10px rgba(106, 90, 205, 0.8), 0 0 20px rgba(106, 90, 205, 0.6);
   z-index: 10;
-  transform: scale(1.3); /* 只放大，无其他变换 */
+  transform: scale(1.1); /* 减小放大比例，避免过长歌词溢出 */
   transition: all 0.3s ease;
+}
+
+.lyric-line.active .lyric-text {
+  color: #ffffff;
+}
+
+.lyric-line.active .lyric-translation {
+  color: rgba(255, 255, 255, 0.9);
+  opacity: 1;
 }
 
 .lyric-line.before {
