@@ -207,18 +207,25 @@ function createTray() {
     updateContextMenu();
   });
   tray.on("click", () => {
-    if (win) {
-      if (win.isVisible()) {
-        if (win.isFocused()) {
-          win.hide();
+    if (process.platform === "linux") {
+      tray.popUpContextMenu();
+    } else {
+      if (win) {
+        if (win.isVisible()) {
+          if (win.isFocused()) {
+            win.hide();
+          } else {
+            win.focus();
+          }
         } else {
+          win.show();
           win.focus();
         }
-      } else {
-        win.show();
-        win.focus();
       }
     }
+  });
+  tray.on("right-click", () => {
+    tray.popUpContextMenu();
   });
   setInterval(updateContextMenu, 5e3);
 }
