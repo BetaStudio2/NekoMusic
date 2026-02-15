@@ -72,6 +72,32 @@
               <button type="button" @click.stop="removeLyricsFile" class="remove-btn"></button>
             </div>
           </div>
+
+          <!-- 双语歌词格式说明 -->
+          <div class="lyrics-format-guide">
+            <h4>双语歌词格式说明</h4>
+            <p>系统支持双语歌词，格式如下：</p>
+            <div class="lyrics-example">
+              <div class="example-title">示例：</div>
+              <pre class="example-code">[00:00.389] ざこざこざこざこ くだらない存在 あわれだね
+{"杂鱼杂鱼杂鱼杂鱼 无聊的存在 真可怜呢"}
+
+[00:07.546] ざこざこざこざこ ざこのざこ攻撃 効かないよ
+{"杂鱼杂鱼杂鱼杂鱼 杂鱼的杂鱼攻击 根本没用喔"}
+
+[00:14.225] ざぁこ
+{"杂~鱼~"}</pre>
+            </div>
+            <div class="lyrics-tips">
+              <p><strong>格式规则：</strong></p>
+              <ul>
+                <li>第一行：时间戳 + 原文歌词</li>
+                <li>第二行：JSON格式的翻译 <code>{"翻译内容"}</code></li>
+                <li>如果没有翻译，可以只保留原文行</li>
+                <li>时间戳格式：<code>[分:秒.毫秒]</code></li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1160,6 +1186,91 @@ const handleSubmit = async () => {
 
 .lyrics-upload {
   padding: 20px;
+}
+
+/* 双语歌词格式说明 */
+.lyrics-format-guide {
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(106, 90, 205, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(106, 90, 205, 0.15);
+}
+
+.lyrics-format-guide h4 {
+  color: #6a5acd;
+  margin: 0 0 8px 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.lyrics-format-guide p {
+  color: #666;
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.lyrics-example {
+  margin: 12px 0;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 8px;
+  border: 1px solid rgba(106, 90, 205, 0.1);
+}
+
+.example-title {
+  color: #6a5acd;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.example-code {
+  margin: 0;
+  padding: 10px;
+  background: #f8f7ff;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #555;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.lyrics-tips {
+  margin-top: 12px;
+  padding: 10px;
+  background: rgba(106, 90, 205, 0.08);
+  border-radius: 8px;
+}
+
+.lyrics-tips p {
+  color: #555;
+  margin: 0 0 8px 0;
+  font-size: 13px;
+}
+
+.lyrics-tips ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #666;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.lyrics-tips li {
+  margin-bottom: 4px;
+}
+
+.lyrics-tips code {
+  background: rgba(106, 90, 205, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: #6a5acd;
 }
 
 /* 右侧表单 */
