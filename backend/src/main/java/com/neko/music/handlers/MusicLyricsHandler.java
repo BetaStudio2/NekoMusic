@@ -221,31 +221,23 @@ public class MusicLyricsHandler extends HttpServlet {
                 return;
             }
             
-            java.sql.Connection conn = Main.getDatabaseManager().getConnection();
+            // 生成Redis键名：play_log:musicId:ipAddress
+            String redisKey = "play_log:" + musicId + ":" + ipAddress;
             
-            // 检查同一IP在一分钟内是否已经播放过该歌曲
-            String checkSql = """
-                SELECT COUNT(*) FROM play_log
-                WHERE music_id = ? AND ip_address = ? AND played_at > DATE_SUB(NOW(), INTERVAL 1 MINUTE)
-                """;
+            // 检查Redis中是否已存在该键（一分钟内已播放过）
+            boolean exists = Main.getRedisService().exists(redisKey);
             
-            try (java.sql.PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
-                checkStmt.setInt(1, musicId);
-                checkStmt.setString(2, ipAddress);
-                
-                try (java.sql.ResultSet rs = checkStmt.executeQuery()) {
-                    if (rs.next() && rs.getInt(1) > 0) {
-                        logger.debug("同一IP {} 在一分钟内已播放过音乐ID {}，跳过播放次数统计", ipAddress, musicId);
-                        return; // 一分钟内已播放过，不计入播放次数
-                    }
-                }
+            if (exists) {
+                logger.debug("同一IP {} 在一分钟内已播放过音乐ID {}，跳过播放次数统计", ipAddress, musicId);
+                return; // 一分钟内已播放过，不计入播放次数
             }
             
             // 增加播放次数
-            try (java.sql.PreparedStatement updateStmt = conn.prepareStatement(
+            try (java.sql.Connection conn = Main.getDatabaseManager().getConnection();
+                 java.sql.PreparedStatement stmt = conn.prepareStatement(
                  "UPDATE music SET play_count = play_count + 1 WHERE id = ?")) {
-                updateStmt.setInt(1, musicId);
-                int rowsAffected = updateStmt.executeUpdate();
+                stmt.setInt(1, musicId);
+                int rowsAffected = stmt.executeUpdate();
                 if (rowsAffected > 0) {
                     logger.info("已增加音乐ID {} 的播放次数 (IP: {})", musicId, ipAddress);
                 } else {
@@ -253,13 +245,8 @@ public class MusicLyricsHandler extends HttpServlet {
                 }
             }
             
-            // 记录播放日志
-            String insertLogSql = "INSERT INTO play_log (music_id, ip_address) VALUES (?, ?)";
-            try (java.sql.PreparedStatement insertStmt = conn.prepareStatement(insertLogSql)) {
-                insertStmt.setInt(1, musicId);
-                insertStmt.setString(2, ipAddress);
-                insertStmt.executeUpdate();
-            }
+            // 在Redis中记录播放日志，设置60秒过期时间
+            Main.getRedisService().setWithExpiry(redisKey, "1", 60);
             
         } catch (Exception e) {
             logger.error("增加播放次数时出错: {}", e.getMessage(), e);

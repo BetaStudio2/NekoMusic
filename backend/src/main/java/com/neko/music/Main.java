@@ -84,9 +84,6 @@ public class Main {
         // 初始化通知服务
         notificationService = new NotificationService(configManager);
         
-        // 启动定期清理过期播放日志的任务
-        startPlayLogCleanupTask();
-        
         // 创建默认管理员账号（如果不存在）
         createDefaultAdminIfNotExists();
         
@@ -305,36 +302,6 @@ public class Main {
         } else {
             logger.info("管理员表中已有数据，跳过创建默认管理员账号");
         }
-    }
-    
-    /**
-     * 启动定期清理过期播放日志的任务
-     */
-    private static void startPlayLogCleanupTask() {
-        // 创建一个定时任务，每小时清理一次超过24小时的播放日志
-        java.util.concurrent.ScheduledExecutorService scheduler = 
-            java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
-                Thread thread = new Thread(r, "play-log-cleanup");
-                thread.setDaemon(true);
-                return thread;
-            });
-        
-        scheduler.scheduleAtFixedRate(() -> {
-            try {
-                String deleteSql = "DELETE FROM play_log WHERE played_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)";
-                try (java.sql.Connection conn = databaseManager.getConnection();
-                     java.sql.PreparedStatement stmt = conn.prepareStatement(deleteSql)) {
-                    int deletedRows = stmt.executeUpdate();
-                    if (deletedRows > 0) {
-                        logger.info("已清理 {} 条过期的播放日志", deletedRows);
-                    }
-                }
-            } catch (Exception e) {
-                logger.error("清理过期播放日志失败: {}", e.getMessage(), e);
-            }
-        }, 1, 1, java.util.concurrent.TimeUnit.HOURS); // 1小时后开始，每1小时执行一次
-        
-        logger.info("播放日志清理任务已启动（每小时清理一次超过24小时的记录）");
     }
     
     private static void addCorsFilter(ServletContextHandler context) {
