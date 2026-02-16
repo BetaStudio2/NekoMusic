@@ -158,6 +158,10 @@ public class Main {
         ServletHolder userUploadPreviewHolder = new ServletHolder(new UserUploadPreviewHandler());
         context.addServlet(userUploadPreviewHolder, "/api/user/upload/preview");
         
+        // 注册获取用户上传审核通过的音乐API处理器
+        ServletHolder getUserUploadedMusicHolder = new ServletHolder(new GetUserUploadedMusicHandler());
+        context.addServlet(getUserUploadedMusicHolder, "/api/user/uploaded-music");
+        
         // 注册音乐封面API处理器
         ServletHolder musicCoverHolder = new ServletHolder(new MusicCoverHandler());
         context.addServlet(musicCoverHolder, "/api/music/cover/*");

@@ -76,6 +76,8 @@ public class GetUserUploadedMusicHandler extends HttpServlet {
             response.add("musicList", musicArray);
             response.addProperty("total", musicList.size());
 
+            String jsonResponse = gson.toJson(response);
+            logger.info("响应数据: {}", jsonResponse);
             sendSuccessResponse(resp, response);
         } catch (Exception e) {
             logger.error("处理获取用户上传审核通过的音乐请求时发生错误: {}", e.getMessage(), e);
@@ -91,9 +93,7 @@ public class GetUserUploadedMusicHandler extends HttpServlet {
         String sql = """
             SELECT m.* 
             FROM music m
-            INNER JOIN user_uploads u ON m.upload_user_id = u.user_id
-            WHERE u.user_id = ? 
-            AND u.status = 'approved'
+            WHERE m.upload_user_id = ?
             ORDER BY m.created_at DESC
             """;
 
@@ -134,8 +134,10 @@ public class GetUserUploadedMusicHandler extends HttpServlet {
      */
     private void sendSuccessResponse(HttpServletResponse resp, JsonObject response) throws IOException {
         resp.setStatus(HttpServletResponse.SC_OK);
+        String jsonResponse = gson.toJson(response);
+        logger.info("发送成功响应: {}", jsonResponse);
         try (PrintWriter out = resp.getWriter()) {
-            out.print(gson.toJson(response));
+            out.print(jsonResponse);
             out.flush();
         }
     }
