@@ -287,7 +287,7 @@ router.beforeEach((to, from, next) => {
       to.path !== '/download' && 
       !to.path.startsWith('/detail/') && 
       !to.path.startsWith('/playlist/') &&
-      !to.path.startsWith('/admin/')) {
+      !to.path.startsWith('/admin')) {
     next('/download')
     return
   }
