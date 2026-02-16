@@ -53,22 +53,18 @@
             <div class="audit-card-body">
               <div class="audit-details-grid">
                 <div class="audit-detail-item">
-                  <span class="detail-icon">💿</span>
                   <span class="detail-label">专辑:</span>
                   <span class="detail-value">{{ upload.album || '未知专辑' }}</span>
                 </div>
                 <div class="audit-detail-item">
-                  <span class="detail-icon">🌐</span>
                   <span class="detail-label">语言:</span>
                   <span class="detail-value">{{ upload.language }}</span>
                 </div>
                 <div class="audit-detail-item">
-                  <span class="detail-icon">⏱️</span>
                   <span class="detail-label">时长:</span>
                   <span class="detail-value">{{ formatDuration(upload.duration) }}</span>
                 </div>
                 <div class="audit-detail-item">
-                  <span class="detail-icon">🏷️</span>
                   <span class="detail-label">标签:</span>
                   <span class="detail-value">{{ upload.tags || '无' }}</span>
                 </div>
@@ -135,8 +131,8 @@
                 <button class="action-btn preview-btn" @click="playPreview(upload.id, upload.musicFilePath)" :disabled="currentPlayingId === upload.id || loadingAudios[upload.id]">
                   {{ loadingAudios[upload.id] ? '加载中...' : (currentPlayingId === upload.id ? '播放中...' : '试听') }}
                 </button>
-                <button class="action-btn approve-btn" @click="approveUpload(upload.id)">✅ 通过</button>
-                <button class="action-btn reject-btn" @click="showRejectModal(upload.id)">❌ 拒绝</button>
+                <button class="action-btn approve-btn" @click="approveUpload(upload.id)">通过</button>
+                <button class="action-btn reject-btn" @click="showRejectModal(upload.id)">拒绝</button>
               </div>
             </div>
           </div>
@@ -892,10 +888,6 @@ onMounted(() => {
   padding: 10px 15px;
   background: rgba(255, 255, 255, 0.2);
   border-radius: 10px;
-}
-
-.detail-icon {
-  font-size: 1.2rem;
 }
 
 .detail-label {
