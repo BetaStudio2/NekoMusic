@@ -125,6 +125,15 @@ public class AdminPermissionUtil {
     }
     
     /**
+     * 检查管理员是否为管理员
+     * @param admin 管理员对象
+     * @return 是否为管理员
+     */
+    public static boolean isAdmin(Admin admin) {
+        return admin != null && Role.ADMIN.getValue().equals(admin.getRole());
+    }
+    
+    /**
      * 检查管理员是否为审核员
      * @param admin 管理员对象
      * @return 是否为审核员

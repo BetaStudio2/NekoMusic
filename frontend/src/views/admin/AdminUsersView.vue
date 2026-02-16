@@ -45,7 +45,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="user in filteredUsers" :key="user.id" v-if="shouldShowUser(user)">
+                  <tr v-for="user in filteredUsers" :key="user.id">
                     <td>{{ user.id }}</td>
                     <td>{{ user.username }}</td>
                     <td>{{ user.email }}</td>
@@ -181,9 +181,9 @@ const canEditUser = (user) => {
     return user.id === adminInfo.value.id && user.accountType === 'admin'
   }
   
-  // 管理员可以编辑普通用户，但不能编辑其他管理员
+  // 管理员可以编辑普通用户，但不能编辑其他管理员（只能编辑自己）
   if (role === 'admin') {
-    return user.accountType === 'user'
+    return user.accountType === 'user' || (user.accountType === 'admin' && user.id === adminInfo.value.id)
   }
   
   // 超级管理员可以编辑所有用户
@@ -297,6 +297,9 @@ const allUsers = computed(() => {
 const filteredUsers = computed(() => {
   let result = allUsers.value
   
+  // 先应用权限过滤
+  result = result.filter(user => shouldShowUser(user))
+  
   // 按账户类型过滤
   if (accountType.value) {
     result = result.filter(user => user.accountType === accountType.value)
@@ -319,23 +322,26 @@ const filteredUsers = computed(() => {
 
 // 计算总页数
 const totalPages = computed(() => {
-  let count = allUsers.value.length
+  let result = allUsers.value
+  
+  // 先应用权限过滤
+  result = result.filter(user => shouldShowUser(user))
   
   // 应用账户类型过滤
   if (accountType.value) {
-    count = allUsers.value.filter(user => user.accountType === accountType.value).length
+    result = result.filter(user => user.accountType === accountType.value)
   }
   
   // 应用搜索过滤
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
-    count = allUsers.value.filter(user => 
+    result = result.filter(user => 
       user.accountType === (accountType.value || user.accountType) &&
       (user.username.toLowerCase().includes(query) || user.email.toLowerCase().includes(query))
-    ).length
+    )
   }
   
-  return Math.max(1, Math.ceil(count / usersPerPage))
+  return Math.max(1, Math.ceil(result.length / usersPerPage))
 })
 
 // 格式化日期

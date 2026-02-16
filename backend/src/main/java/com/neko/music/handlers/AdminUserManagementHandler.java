@@ -49,11 +49,10 @@ public class AdminUserManagementHandler extends HttpServlet {
                 return;
             }
             
-            List<AdminUser> adminUsers;
+            List<AdminUser> adminUsers = new ArrayList<>();
             
             // 审核员只能看到自己的信息
             if (com.neko.music.util.AdminPermissionUtil.isAuditor(currentAdmin)) {
-                adminUsers = new ArrayList<>();
                 AdminUser self = new AdminUser();
                 self.setId(currentAdmin.getId());
                 self.setUsername(currentAdmin.getUsername());
@@ -62,13 +61,14 @@ public class AdminUserManagementHandler extends HttpServlet {
                 self.setRegisterTime(new java.sql.Timestamp(currentAdmin.getCreatedAt()).toString());
                 adminUsers.add(self);
                 logger.info("审核员 {} 查看自己的管理员信息", currentAdmin.getUsername());
-            } else {
-                // 超管和管理员可以看到所有管理员
-                if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.ADMIN_VIEW)) {
-                    logger.warn("权限不足，无管理员查看权限");
-                    return;
-                }
+            } else if (com.neko.music.util.AdminPermissionUtil.isAdmin(currentAdmin)) {
+                // 管理员可以看到所有管理员
                 adminUsers = getAllAdminUsers();
+                logger.info("管理员 {} 查看管理员列表", currentAdmin.getUsername());
+            } else if (com.neko.music.util.AdminPermissionUtil.isSuperAdmin(currentAdmin)) {
+                // 超管可以看到所有管理员
+                adminUsers = getAllAdminUsers();
+                logger.info("超级管理员 {} 查看管理员列表", currentAdmin.getUsername());
             }
 
             response.setStatus(HttpStatus.OK_200);
@@ -99,12 +99,6 @@ public class AdminUserManagementHandler extends HttpServlet {
             response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
             return;
         }
-        
-        // 检查是否有管理员管理权限（只有超管有此权限）
-        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.ADMIN_EDIT)) {
-            logger.warn("权限不足，无管理员管理权限");
-            return;
-        }
 
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || !pathInfo.endsWith("/edit")) {
@@ -128,6 +122,29 @@ public class AdminUserManagementHandler extends HttpServlet {
             ErrorResponse errorResponse = new ErrorResponse("无效的管理员ID");
             response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
             return;
+        }
+        
+        // 获取当前管理员信息
+        com.neko.music.model.Admin currentAdmin = com.neko.music.util.PermissionHelper.getAdminFromRequest(request);
+        if (currentAdmin == null) {
+            response.setStatus(HttpStatus.UNAUTHORIZED_401);
+            response.setContentType("application/json;charset=utf-8");
+            ErrorResponse errorResponse = new ErrorResponse("未授权访问");
+            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            return;
+        }
+        
+        // 检查权限：超管可以编辑任何管理员，管理员只能编辑自己
+        if (!com.neko.music.util.AdminPermissionUtil.isSuperAdmin(currentAdmin)) {
+            // 如果不是超管，只能编辑自己的账号
+            if (currentAdmin.getId() != adminId) {
+                logger.warn("权限不足，管理员只能编辑自己的账号");
+                response.setStatus(HttpStatus.FORBIDDEN_403);
+                response.setContentType("application/json;charset=utf-8");
+                ErrorResponse errorResponse = new ErrorResponse("权限不足，管理员只能编辑自己的账号");
+                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                return;
+            }
         }
 
         // 读取请求体
