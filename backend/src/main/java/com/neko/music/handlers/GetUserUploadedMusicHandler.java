@@ -113,6 +113,8 @@ public class GetUserUploadedMusicHandler extends HttpServlet {
                 music.addProperty("language", rs.getString("language"));
                 music.addProperty("tags", rs.getString("tags"));
                 music.addProperty("fileFormat", rs.getString("file_format"));
+                music.addProperty("filePath", rs.getString("file_path"));
+                music.addProperty("coverPath", rs.getString("cover_path"));
                 
                 Timestamp createdAt = rs.getTimestamp("created_at");
                 if (createdAt != null) {
