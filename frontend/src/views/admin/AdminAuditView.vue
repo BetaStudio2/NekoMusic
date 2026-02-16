@@ -27,6 +27,19 @@
         <div v-else class="audit-list">
           <div v-for="upload in pendingUploads" :key="upload.id" class="audit-card">
             <div class="audit-card-header">
+              <div class="audit-cover-section">
+                <img 
+                  v-if="upload.coverFilePath && coverUrls[upload.id]" 
+                  :src="coverUrls[upload.id]" 
+                  class="audit-cover-image"
+                  @error="handleCoverError"
+                  alt="专辑封面"
+                />
+                <div v-else class="audit-cover-placeholder">
+                  <span v-if="loadingCovers[upload.id]">加载中...</span>
+                  <span v-else>🎵</span>
+                </div>
+              </div>
               <div class="audit-title-section">
                 <h3 class="audit-music-title">{{ upload.title }}</h3>
                 <p class="audit-music-artist">{{ upload.artist }}</p>
@@ -61,20 +74,20 @@
                 </div>
               </div>
               
-              <div class="audit-files-section">
-                <div class="file-item">
-                  <span class="file-icon">🎵</span>
-                  <span class="file-name">{{ getFileName(upload.musicFilePath) }}</span>
-                </div>
-                <div v-if="upload.coverFilePath" class="file-item">
-                  <span class="file-icon">🖼️</span>
-                  <span class="file-name">{{ getFileName(upload.coverFilePath) }}</span>
-                </div>
-                <div class="file-item">
-                  <span class="file-icon">📝</span>
-                  <span class="file-name">{{ getFileName(upload.lyricsFilePath) }}</span>
-                </div>
-              </div>
+<!--              <div class="audit-files-section">-->
+<!--                <div class="file-item">-->
+<!--                  <span class="file-icon">🎵</span>-->
+<!--                  <span class="file-name">{{ getFileName(upload.musicFilePath) }}</span>-->
+<!--                </div>-->
+<!--                <div v-if="upload.coverFilePath" class="file-item">-->
+<!--                  <span class="file-icon">🖼️</span>-->
+<!--                  <span class="file-name">{{ getFileName(upload.coverFilePath) }}</span>-->
+<!--                </div>-->
+<!--                <div class="file-item">-->
+<!--                  <span class="file-icon">📝</span>-->
+<!--                  <span class="file-name">{{ getFileName(upload.lyricsFilePath) }}</span>-->
+<!--                </div>-->
+<!--              </div>-->
               
               <!-- 歌词预览区域 -->
               <div class="lyrics-preview-section">
@@ -85,7 +98,7 @@
                     @click="toggleLyricsPreview(upload.id)"
                     :title="showLyricsPreviewId === upload.id ? '隐藏歌词' : '显示歌词'"
                   >
-                    {{ showLyricsPreviewId === upload.id ? '📖 隐藏' : '📖 显示' }}
+                    {{ showLyricsPreviewId === upload.id ? '隐藏' : '显示' }}
                   </button>
                 </div>
                 <div v-if="showLyricsPreviewId === upload.id" class="lyrics-preview-content">
@@ -179,6 +192,8 @@ const showRejectConfirm = ref(false)
 const rejectUploadId = ref(null)
 const rejectReason = ref('')
 const rejectModalRef = ref(null)
+const coverUrls = ref({})
+const loadingCovers = ref({})
 
 // 获取管理员信息
 const getAdminInfo = () => {
@@ -209,6 +224,13 @@ const fetchPendingUploads = async () => {
     
     if (result.success) {
       pendingUploads.value = result.data || []
+      
+      // 加载所有封面图片
+      pendingUploads.value.forEach(upload => {
+        if (upload.coverFilePath) {
+          loadCoverImage(upload.id, upload.coverFilePath)
+        }
+      })
     } else {
       toast.error(result.message || '获取待审核列表失败')
     }
@@ -247,6 +269,13 @@ const approveUpload = async (uploadId) => {
       }
       delete uploadLyrics.value[uploadId]
       delete loadingLyrics.value[uploadId]
+      
+      // 清理封面图片URL
+      if (coverUrls.value[uploadId]) {
+        URL.revokeObjectURL(coverUrls.value[uploadId])
+        delete coverUrls.value[uploadId]
+      }
+      delete loadingCovers.value[uploadId]
     } else {
       toast.error(result.message || '审核通过失败')
     }
@@ -304,6 +333,13 @@ const confirmReject = async () => {
       }
       delete uploadLyrics.value[rejectUploadId.value]
       delete loadingLyrics.value[rejectUploadId.value]
+      
+      // 清理封面图片URL
+      if (coverUrls.value[rejectUploadId.value]) {
+        URL.revokeObjectURL(coverUrls.value[rejectUploadId.value])
+        delete coverUrls.value[rejectUploadId.value]
+      }
+      delete loadingCovers.value[rejectUploadId.value]
     } else {
       toast.error(result.message || '审核拒绝失败')
     }
@@ -402,6 +438,60 @@ const handleAudioError = (error) => {
 // 获取音乐预览URL
 const getMusicPreviewUrl = (filePath) => {
   return `${API_CONFIG.BASE_URL}/api/user/upload/preview?path=${encodeURIComponent(filePath)}`
+}
+
+// 获取封面预览URL
+const getCoverPreviewUrl = (coverFilePath) => {
+  if (!coverFilePath) return ''
+  return `${API_CONFIG.BASE_URL}/api/user/upload/preview?path=${encodeURIComponent(coverFilePath)}`
+}
+
+// 加载封面图片
+const loadCoverImage = async (uploadId, coverFilePath) => {
+  if (!coverFilePath || coverUrls.value[uploadId] || loadingCovers.value[uploadId]) {
+    return
+  }
+
+  loadingCovers.value[uploadId] = true
+
+  try {
+    const token = localStorage.getItem('adminToken')
+    if (!token) {
+      console.error('未找到管理员token')
+      return
+    }
+
+    const response = await fetch(getCoverPreviewUrl(coverFilePath), {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const blob = await response.blob()
+    coverUrls.value[uploadId] = URL.createObjectURL(blob)
+
+  } catch (error) {
+    console.error('加载封面失败:', error)
+  } finally {
+    loadingCovers.value[uploadId] = false
+  }
+}
+
+// 处理封面加载错误
+const handleCoverError = (event) => {
+  event.target.style.display = 'none'
+  const placeholder = event.target.nextElementSibling
+  if (placeholder) {
+    placeholder.style.display = 'flex'
+    const span = placeholder.querySelector('span')
+    if (span) {
+      span.textContent = '🎵'
+    }
+  }
 }
 
 // 获取文件名
@@ -684,14 +774,52 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.1);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
-  justify-content: space-between;
+  gap: 15px;
   align-items: flex-start;
+}
+
+.audit-cover-section {
+  flex-shrink: 0;
+  width: 80px;
+  height: 80px;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.audit-cover-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.audit-cover-image:hover {
+  transform: scale(1.05);
+}
+
+.audit-cover-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(106, 90, 205, 0.3), rgba(138, 43, 226, 0.3));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+}
+
+.audit-title-section {
+  flex: 1;
+  min-width: 0;
 }
 
 .audit-title-section h3 {
   margin: 0 0 5px 0;
   color: #6a5acd;
   font-size: 1.3rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .audit-title-section p {
@@ -1067,11 +1195,20 @@ onMounted(() => {
   }
   
   .audit-card-header {
-    flex-direction: column;
-    gap: 10px;
+    flex-wrap: wrap;
+  }
+  
+  .audit-cover-section {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .audit-title-section {
+    width: calc(100% - 75px);
   }
   
   .audit-meta-section {
+    width: 100%;
     align-items: flex-start;
     text-align: left;
   }
