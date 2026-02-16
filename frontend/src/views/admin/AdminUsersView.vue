@@ -288,11 +288,7 @@ const canDeleteUser = (user) => {
   }
   
   // 超级管理员拥有所有权限，可以删除任何用户
-  if (role === 'super_admin') {
-    return true
-  }
-  
-  return false
+  return role === 'super_admin';
 }
 
 // 检查是否显示该用户（审核员只能看到自己的账号）
