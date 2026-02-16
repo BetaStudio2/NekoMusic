@@ -48,6 +48,12 @@ public class AdminStatsHandler extends HttpServlet {
             sendErrorResponse(response, 401, "需要管理员权限");
             return;
         }
+        
+        // 检查是否有统计查看权限
+        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.STATS_VIEW)) {
+            logger.warn("权限不足，无统计查看权限");
+            return;
+        }
 
         try {
             Map<String, Object> stats = getPlatformStats();

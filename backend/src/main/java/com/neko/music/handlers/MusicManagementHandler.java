@@ -37,6 +37,12 @@ public class MusicManagementHandler extends HttpServlet {
             return;
         }
         
+        // 检查是否有音乐查看权限
+        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.MUSIC_VIEW)) {
+            logger.warn("权限不足，无音乐查看权限");
+            return;
+        }
+        
         String pathInfo = request.getPathInfo();
         
         if (pathInfo == null || "/list".equals(pathInfo)) {
@@ -59,6 +65,12 @@ public class MusicManagementHandler extends HttpServlet {
             return;
         }
         
+        // 检查是否有音乐添加权限
+        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.MUSIC_ADD)) {
+            logger.warn("权限不足，无音乐添加权限");
+            return;
+        }
+        
         // 对于POST请求，总是执行添加操作
         addMusic(request, response);
     }
@@ -71,6 +83,12 @@ public class MusicManagementHandler extends HttpServlet {
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("未授权访问");
             response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            return;
+        }
+        
+        // 检查是否有音乐编辑权限
+        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.MUSIC_EDIT)) {
+            logger.warn("权限不足，无音乐编辑权限");
             return;
         }
         
@@ -87,6 +105,12 @@ public class MusicManagementHandler extends HttpServlet {
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("未授权访问");
             response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            return;
+        }
+        
+        // 检查是否有音乐删除权限
+        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.MUSIC_DELETE)) {
+            logger.warn("权限不足，无音乐删除权限");
             return;
         }
         

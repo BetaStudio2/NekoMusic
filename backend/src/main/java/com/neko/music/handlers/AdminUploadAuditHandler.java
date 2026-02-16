@@ -49,6 +49,12 @@ public class AdminUploadAuditHandler extends HttpServlet {
             return;
         }
         
+        // 检查是否有审核查看权限
+        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.AUDIT_VIEW)) {
+            logger.warn("权限不足，无审核查看权限");
+            return;
+        }
+        
         String pathInfo = request.getPathInfo();
         
         if (pathInfo == null || pathInfo.equals("/") || pathInfo.equals("/pending")) {
@@ -70,10 +76,20 @@ public class AdminUploadAuditHandler extends HttpServlet {
         
         if (pathInfo != null && pathInfo.startsWith("/approve/")) {
             // 审核通过
+            // 检查是否有审核通过权限
+            if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.AUDIT_APPROVE)) {
+                logger.warn("权限不足，无审核通过权限");
+                return;
+            }
             int uploadId = Integer.parseInt(pathInfo.substring(9));
             handleApproveUpload(uploadId, request, response);
         } else if (pathInfo != null && pathInfo.startsWith("/reject/")) {
             // 审核拒绝
+            // 检查是否有审核拒绝权限
+            if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.AUDIT_REJECT)) {
+                logger.warn("权限不足，无审核拒绝权限");
+                return;
+            }
             int uploadId = Integer.parseInt(pathInfo.substring(8));
             handleRejectUpload(uploadId, request, response);
         } else {

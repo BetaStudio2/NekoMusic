@@ -34,13 +34,9 @@ public class AdminUserManagementHandler extends HttpServlet {
             return;
         }
         
-        // 检查是否为超级管理员或管理员（审核员不能查看管理员列表）
-        com.neko.music.model.Admin admin = com.neko.music.util.PermissionHelper.getAdminFromRequest(request);
-        if (admin == null || com.neko.music.util.AdminPermissionUtil.isAuditor(admin)) {
-            response.setStatus(HttpStatus.FORBIDDEN_403);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("权限不足，只有管理员可以查看管理员列表");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+        // 检查是否有管理员查看权限（超管和管理员有此权限，审核员没有）
+        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.ADMIN_VIEW)) {
+            logger.warn("权限不足，无管理员查看权限");
             return;
         }
 
@@ -80,13 +76,9 @@ public class AdminUserManagementHandler extends HttpServlet {
             return;
         }
         
-        // 检查是否为超级管理员（只有超级管理员可以修改管理员密码）
-        if (!isSuperAdminAuthorized(request)) {
-            logger.warn("权限不足，非超级管理员");
-            response.setStatus(HttpStatus.FORBIDDEN_403);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("权限不足，只有超级管理员可以修改管理员信息");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+        // 检查是否有管理员管理权限（只有超管有此权限）
+        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.ADMIN_EDIT)) {
+            logger.warn("权限不足，无管理员管理权限");
             return;
         }
 
@@ -160,12 +152,9 @@ public class AdminUserManagementHandler extends HttpServlet {
             return;
         }
         
-        // 检查是否为超级管理员（只有超级管理员可以删除管理员）
-        if (!isSuperAdminAuthorized(request)) {
-            response.setStatus(HttpStatus.FORBIDDEN_403);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("权限不足，只有超级管理员可以删除管理员");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+        // 检查是否有管理员管理权限（只有超管有此权限）
+        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.ADMIN_DELETE)) {
+            logger.warn("权限不足，无管理员管理权限");
             return;
         }
 
@@ -219,12 +208,6 @@ public class AdminUserManagementHandler extends HttpServlet {
         return Main.getAdminAuthService().validateAdminToken(token);
     }
     
-    // 检查是否为超级管理员（用于管理员管理操作）
-    private boolean isSuperAdminAuthorized(HttpServletRequest request) {
-        com.neko.music.model.Admin admin = com.neko.music.util.PermissionHelper.getAdminFromRequest(request);
-        return admin != null && com.neko.music.util.AdminPermissionUtil.isSuperAdmin(admin);
-    }
-
     // 获取所有管理员用户
     private List<AdminUser> getAllAdminUsers() {
         List<AdminUser> adminUsers = new ArrayList<>();
