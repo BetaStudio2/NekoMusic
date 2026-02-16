@@ -1,6 +1,6 @@
 # Neko云音乐 API 文档
 
-#### 更新时间 2026年2月13日
+#### 更新时间 2026年2月16日
 ## 概述
 
 Neko云音乐提供完整的 RESTful API，支持音乐搜索、播放、用户认证、收藏等功能。所有 API 都基于 HTTP/HTTPS 协议，使用 JSON 格式进行数据交换。
@@ -536,6 +536,85 @@ Content-Type: application/json
 ```json
 {
   "error": "新密码不能与原密码相同"
+}
+```
+
+### 10. 获取用户上传审核通过的音乐
+
+**端点:** `GET /api/user/uploaded-music`
+
+**请求头:**
+```
+Authorization: <token>
+```
+
+**响应示例（成功）:**
+```json
+{
+  "success": true,
+  "message": "获取用户上传审核通过的音乐列表成功",
+  "userId": 123,
+  "musicList": [
+    {
+      "id": 1,
+      "title": "歌曲标题",
+      "artist": "艺术家",
+      "album": "专辑",
+      "duration": 180,
+      "language": "中文",
+      "tags": "流行,华语",
+      "fileFormat": "mp3",
+      "createdAt": "2026-02-16T10:00:00"
+    }
+  ],
+  "total": 1
+}
+```
+
+**响应示例（未登录）:**
+```json
+{
+  "success": false,
+  "message": "用户未登录或token无效"
+}
+```
+
+**说明:**
+- 此 API 需要登录才能访问
+- 只返回当前用户上传的、审核通过的音乐列表
+- 音乐按创建时间倒序排列（最新的在前面）
+- 只包含审核状态为 `approved` 的音乐
+- 每首音乐包含：
+  - id, title, artist, album, duration
+  - language, tags, fileFormat
+  - createdAt: 创建时间
+
+**使用场景:**
+- 个人中心展示用户上传的作品
+- 用户查看自己的音乐库
+- 统计用户上传的音乐数量
+
+**前端集成示例:**
+```javascript
+async function getUserUploadedMusic() {
+  const token = localStorage.getItem('userToken');
+  
+  const response = await fetch('https://music.cnmsb.xin/api/user/uploaded-music', {
+    method: 'GET',
+    headers: {
+      'Authorization': token
+    }
+  });
+  
+  const data = await response.json();
+  if (data.success) {
+    console.log(`获取到 ${data.total} 首审核通过的音乐:`, data.musicList);
+    // data.musicList 是一个数组，包含用户上传的审核通过的音乐
+    // 每首音乐包含完整的歌曲信息
+  } else {
+    console.error('获取用户上传音乐失败:', data.message);
+  }
+  return data;
 }
 ```
 
