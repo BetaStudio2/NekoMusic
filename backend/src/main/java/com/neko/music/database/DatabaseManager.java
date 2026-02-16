@@ -271,6 +271,24 @@ public class DatabaseManager {
                 logger.debug("playlist_music 表可能已存在: {}", e.getMessage());
             }
 
+            // 创建播放日志表（用于防刷）
+            String createPlayLogTable = """
+                CREATE TABLE IF NOT EXISTS play_log (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    music_id INT NOT NULL,
+                    ip_address VARCHAR(45) NOT NULL,
+                    played_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_music_ip_time (music_id, ip_address, played_at),
+                    INDEX idx_played_at (played_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """;
+            try (PreparedStatement stmt = conn.prepareStatement(createPlayLogTable)) {
+                stmt.execute();
+                logger.info("play_log 表创建完成");
+            } catch (SQLException e) {
+                logger.debug("play_log 表可能已存在: {}", e.getMessage());
+            }
+
             logger.info("数据库表初始化完成");
         } catch (SQLException e) {
             logger.error("数据库表初始化失败", e);

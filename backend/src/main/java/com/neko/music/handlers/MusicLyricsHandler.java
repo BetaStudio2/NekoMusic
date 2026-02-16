@@ -59,8 +59,8 @@ public class MusicLyricsHandler extends HttpServlet {
             return;
         }
         
-        // 增加播放次数
-        incrementPlayCount(musicId);
+        // 增加播放次数（带防刷逻辑）
+        incrementPlayCount(musicId, request);
         
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
@@ -209,22 +209,90 @@ public class MusicLyricsHandler extends HttpServlet {
     }
 
     /**
-     * 增加音乐的播放次数
+     * 增加音乐的播放次数（带防刷逻辑）
      */
-    private void incrementPlayCount(int musicId) {
-        try (java.sql.Connection conn = Main.getDatabaseManager().getConnection();
-             java.sql.PreparedStatement stmt = conn.prepareStatement(
-                 "UPDATE music SET play_count = play_count + 1 WHERE id = ?")) {
-            stmt.setInt(1, musicId);
-            int rowsAffected = stmt.executeUpdate();
-            if (rowsAffected > 0) {
-                logger.info("已增加音乐ID {} 的播放次数", musicId);
-            } else {
-                logger.warn("未找到音乐ID {}，无法更新播放次数", musicId);
+    private void incrementPlayCount(int musicId, HttpServletRequest request) {
+        try {
+            // 获取客户端IP地址
+            String ipAddress = getClientIpAddress(request);
+            
+            if (ipAddress == null || ipAddress.isEmpty()) {
+                logger.warn("无法获取客户端IP地址，跳过播放次数统计");
+                return;
             }
+            
+            java.sql.Connection conn = Main.getDatabaseManager().getConnection();
+            
+            // 检查同一IP在一分钟内是否已经播放过该歌曲
+            String checkSql = """
+                SELECT COUNT(*) FROM play_log
+                WHERE music_id = ? AND ip_address = ? AND played_at > DATE_SUB(NOW(), INTERVAL 1 MINUTE)
+                """;
+            
+            try (java.sql.PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
+                checkStmt.setInt(1, musicId);
+                checkStmt.setString(2, ipAddress);
+                
+                try (java.sql.ResultSet rs = checkStmt.executeQuery()) {
+                    if (rs.next() && rs.getInt(1) > 0) {
+                        logger.debug("同一IP {} 在一分钟内已播放过音乐ID {}，跳过播放次数统计", ipAddress, musicId);
+                        return; // 一分钟内已播放过，不计入播放次数
+                    }
+                }
+            }
+            
+            // 增加播放次数
+            try (java.sql.PreparedStatement updateStmt = conn.prepareStatement(
+                 "UPDATE music SET play_count = play_count + 1 WHERE id = ?")) {
+                updateStmt.setInt(1, musicId);
+                int rowsAffected = updateStmt.executeUpdate();
+                if (rowsAffected > 0) {
+                    logger.info("已增加音乐ID {} 的播放次数 (IP: {})", musicId, ipAddress);
+                } else {
+                    logger.warn("未找到音乐ID {}，无法更新播放次数", musicId);
+                }
+            }
+            
+            // 记录播放日志
+            String insertLogSql = "INSERT INTO play_log (music_id, ip_address) VALUES (?, ?)";
+            try (java.sql.PreparedStatement insertStmt = conn.prepareStatement(insertLogSql)) {
+                insertStmt.setInt(1, musicId);
+                insertStmt.setString(2, ipAddress);
+                insertStmt.executeUpdate();
+            }
+            
         } catch (Exception e) {
             logger.error("增加播放次数时出错: {}", e.getMessage(), e);
         }
+    }
+    
+    /**
+     * 获取客户端IP地址
+     */
+    private String getClientIpAddress(HttpServletRequest request) {
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("Proxy-Client-IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("WL-Proxy-Client-IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("HTTP_CLIENT_IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("HTTP_X_FORWARDED_FOR");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getRemoteAddr();
+        }
+        
+        // 处理多个IP的情况（X-Forwarded-For可能包含多个IP）
+        if (ip != null && ip.contains(",")) {
+            ip = ip.split(",")[0].trim();
+        }
+        
+        return ip;
     }
     
     /**
