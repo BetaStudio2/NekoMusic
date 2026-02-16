@@ -39,6 +39,7 @@
                     <th>ID</th>
                     <th>用户名</th>
                     <th>邮箱</th>
+                    <th>角色</th>
                     <th>注册时间</th>
                     <th>操作</th>
                   </tr>
@@ -48,6 +49,7 @@
                     <td>{{ user.id }}</td>
                     <td>{{ user.username }}</td>
                     <td>{{ user.email }}</td>
+                    <td>{{ getRoleText(user.role) }}</td>
                     <td>{{ formatDate(user.registerTime) }}</td>
                     <td>
                       <button 
@@ -198,9 +200,9 @@ const canDeleteUser = (user) => {
     return user.accountType === 'user'
   }
   
-  // 超级管理员可以删除所有用户，但不能删除自己
+  // 超级管理员拥有所有权限，可以删除任何用户
   if (role === 'super_admin') {
-    return user.id !== adminInfo.value.id
+    return true
   }
   
   return false
@@ -309,6 +311,16 @@ const totalPages = computed(() => {
 const formatDate = (date) => {
   if (!date) return '无'
   return new Date(date).toLocaleDateString('zh-CN')
+}
+
+// 获取角色文本
+const getRoleText = (role) => {
+  const roleMap = {
+    'super_admin': '超级管理员',
+    'admin': '管理员',
+    'auditor': '审核员'
+  }
+  return roleMap[role] || role
 }
 
 // 编辑用户

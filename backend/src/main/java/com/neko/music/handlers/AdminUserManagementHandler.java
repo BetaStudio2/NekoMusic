@@ -33,6 +33,16 @@ public class AdminUserManagementHandler extends HttpServlet {
             response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
             return;
         }
+        
+        // 检查是否为超级管理员或管理员（审核员不能查看管理员列表）
+        com.neko.music.model.Admin admin = com.neko.music.util.PermissionHelper.getAdminFromRequest(request);
+        if (admin == null || com.neko.music.util.AdminPermissionUtil.isAuditor(admin)) {
+            response.setStatus(HttpStatus.FORBIDDEN_403);
+            response.setContentType("application/json;charset=utf-8");
+            ErrorResponse errorResponse = new ErrorResponse("权限不足，只有管理员可以查看管理员列表");
+            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            return;
+        }
 
         String pathInfo = request.getPathInfo();
         
