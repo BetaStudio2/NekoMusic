@@ -41,12 +41,6 @@ const adminGuard = (to, from, next) => {
         const parsedInfo = JSON.parse(adminInfo)
         const role = parsedInfo.role || 'admin'
         
-        // 审核员不能访问用户管理页面
-        if (role === 'auditor' && to.path.startsWith('/admin/users')) {
-          next('/admin') // 重定向到管理首页
-          return
-        }
-        
         // 审核员不能访问音乐管理页面
         if (role === 'auditor' && to.path.startsWith('/admin/music')) {
           next('/admin') // 重定向到管理首页

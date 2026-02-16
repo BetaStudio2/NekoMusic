@@ -45,7 +45,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="user in filteredUsers" :key="user.id">
+                  <tr v-for="user in filteredUsers" :key="user.id" v-if="shouldShowUser(user)">
                     <td>{{ user.id }}</td>
                     <td>{{ user.username }}</td>
                     <td>{{ user.email }}</td>
@@ -176,8 +176,10 @@ const canEditUser = (user) => {
   if (!adminInfo.value) return false
   const role = adminInfo.value.role || 'admin'
   
-  // 审核员不能编辑用户
-  if (role === 'auditor') return false
+  // 审核员只能编辑自己的账号
+  if (role === 'auditor') {
+    return user.id === adminInfo.value.id && user.accountType === 'admin'
+  }
   
   // 管理员可以编辑普通用户，但不能编辑其他管理员
   if (role === 'admin') {
@@ -192,7 +194,7 @@ const canDeleteUser = (user) => {
   if (!adminInfo.value) return false
   const role = adminInfo.value.role || 'admin'
   
-  // 审核员不能删除用户
+  // 审核员不能删除用户（包括自己）
   if (role === 'auditor') return false
   
   // 管理员可以删除普通用户，但不能删除其他管理员
@@ -208,12 +210,41 @@ const canDeleteUser = (user) => {
   return false
 }
 
+// 检查是否显示该用户（审核员只能看到自己的账号）
+const shouldShowUser = (user) => {
+  if (!adminInfo.value) return false
+  const role = adminInfo.value.role || 'admin'
+  
+  // 审核员只能看到自己的账号
+  if (role === 'auditor') {
+    return user.id === adminInfo.value.id && user.accountType === 'admin'
+  }
+  
+  // 超管和管理员可以看到所有用户
+  return true
+}
+
 // 用户数据
 const adminUsers = ref([])
 const regularUsers = ref([])
 
 // 获取管理员用户列表
 const fetchAdminUsers = async () => {
+  const role = adminInfo.value?.role || 'admin'
+  
+  // 审核员只显示自己的账号
+  if (role === 'auditor') {
+    adminUsers.value = [{
+      id: adminInfo.value.id,
+      username: adminInfo.value.username,
+      email: adminInfo.value.email,
+      role: adminInfo.value.role,
+      registerTime: new Date().toISOString()
+    }]
+    return
+  }
+  
+  // 超管和管理员从后端获取完整列表
   try {
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/admin/users`, {
       headers: {

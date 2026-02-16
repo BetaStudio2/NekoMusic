@@ -34,18 +34,42 @@ public class AdminUserManagementHandler extends HttpServlet {
             return;
         }
         
-        // 检查是否有管理员查看权限（超管和管理员有此权限，审核员没有）
-        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.ADMIN_VIEW)) {
-            logger.warn("权限不足，无管理员查看权限");
-            return;
-        }
-
         String pathInfo = request.getPathInfo();
         
-        // 如果 pathInfo 为 null 或空，说明是访问 /api/admin/users，返回所有管理员
+        // 如果 pathInfo 为 null 或空，说明是访问 /api/admin/users
         if (pathInfo == null || pathInfo.equals("/") || pathInfo.equals("")) {
-            // 获取所有管理员
-            List<AdminUser> adminUsers = getAllAdminUsers();
+            // 获取当前管理员信息
+            com.neko.music.model.Admin currentAdmin = com.neko.music.util.PermissionHelper.getAdminFromRequest(request);
+            
+            if (currentAdmin == null) {
+                response.setStatus(HttpStatus.UNAUTHORIZED_401);
+                response.setContentType("application/json;charset=utf-8");
+                ErrorResponse errorResponse = new ErrorResponse("未授权访问");
+                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                return;
+            }
+            
+            List<AdminUser> adminUsers;
+            
+            // 审核员只能看到自己的信息
+            if (com.neko.music.util.AdminPermissionUtil.isAuditor(currentAdmin)) {
+                adminUsers = new ArrayList<>();
+                AdminUser self = new AdminUser();
+                self.setId(currentAdmin.getId());
+                self.setUsername(currentAdmin.getUsername());
+                self.setEmail(currentAdmin.getEmail());
+                self.setRole(currentAdmin.getRole());
+                self.setRegisterTime(new java.sql.Timestamp(currentAdmin.getCreatedAt()).toString());
+                adminUsers.add(self);
+                logger.info("审核员 {} 查看自己的管理员信息", currentAdmin.getUsername());
+            } else {
+                // 超管和管理员可以看到所有管理员
+                if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.ADMIN_VIEW)) {
+                    logger.warn("权限不足，无管理员查看权限");
+                    return;
+                }
+                adminUsers = getAllAdminUsers();
+            }
 
             response.setStatus(HttpStatus.OK_200);
             response.setContentType("application/json;charset=utf-8");

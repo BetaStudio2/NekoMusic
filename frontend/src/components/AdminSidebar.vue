@@ -83,13 +83,14 @@ const hasPermission = (permission) => {
     }
   }
   
-  // 审核员权限
+  // 审核员权限（只能查看自己的账号，不能删除）
   if (role === 'auditor') {
     switch (permission) {
       case 'audit_view':
       case 'audit_approve':
       case 'audit_reject':
       case 'stats_view':
+      case 'user_view':
         return true
       default:
         return false
