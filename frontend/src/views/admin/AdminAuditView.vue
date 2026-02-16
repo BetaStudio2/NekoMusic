@@ -123,7 +123,7 @@
             <div class="audit-card-footer">
               <div class="player-section" v-if="currentPlayingId === upload.id">
                 <audio 
-                  ref="audioPlayer" 
+                  :ref="el => setAudioPlayerRef(upload.id, el)" 
                   :src="currentAudioUrl" 
                   controls
                   @ended="handleAudioEnded"
@@ -132,8 +132,8 @@
               </div>
               
               <div class="audit-actions">
-                <button class="action-btn preview-btn" @click="playPreview(upload.id, upload.musicFilePath)" :disabled="currentPlayingId === upload.id || isLoadingAudio">
-                  {{ isLoadingAudio ? '加载中...' : (currentPlayingId === upload.id ? '播放中...' : '🎧 试听') }}
+                <button class="action-btn preview-btn" @click="playPreview(upload.id, upload.musicFilePath)" :disabled="currentPlayingId === upload.id || loadingAudios[upload.id]">
+                  {{ loadingAudios[upload.id] ? '加载中...' : (currentPlayingId === upload.id ? '播放中...' : '试听') }}
                 </button>
                 <button class="action-btn approve-btn" @click="approveUpload(upload.id)">✅ 通过</button>
                 <button class="action-btn reject-btn" @click="showRejectModal(upload.id)">❌ 拒绝</button>
@@ -183,8 +183,8 @@ const pendingUploads = ref([])
 const isLoading = ref(true)
 const currentPlayingId = ref(null)
 const currentAudioUrl = ref(null)
-const audioPlayer = ref(null)
-const isLoadingAudio = ref(false)
+const audioPlayers = ref({})
+const loadingAudios = ref({})
 const showLyricsPreviewId = ref(null)
 const uploadLyrics = ref({})
 const loadingLyrics = ref({})
@@ -194,6 +194,15 @@ const rejectReason = ref('')
 const rejectModalRef = ref(null)
 const coverUrls = ref({})
 const loadingCovers = ref({})
+
+// 设置audio player的动态ref
+const setAudioPlayerRef = (uploadId, el) => {
+  if (el) {
+    audioPlayers.value[uploadId] = el
+  } else {
+    delete audioPlayers.value[uploadId]
+  }
+}
 
 // 获取管理员信息
 const getAdminInfo = () => {
@@ -269,6 +278,7 @@ const approveUpload = async (uploadId) => {
       }
       delete uploadLyrics.value[uploadId]
       delete loadingLyrics.value[uploadId]
+      delete loadingAudios.value[uploadId]
       
       // 清理封面图片URL
       if (coverUrls.value[uploadId]) {
@@ -333,6 +343,7 @@ const confirmReject = async () => {
       }
       delete uploadLyrics.value[rejectUploadId.value]
       delete loadingLyrics.value[rejectUploadId.value]
+      delete loadingAudios.value[rejectUploadId.value]
       
       // 清理封面图片URL
       if (coverUrls.value[rejectUploadId.value]) {
@@ -359,14 +370,14 @@ const playPreview = async (uploadId, musicFilePath) => {
   stopPreview()
   
   currentPlayingId.value = uploadId
-  isLoadingAudio.value = true
+  loadingAudios.value[uploadId] = true
   
   try {
     const token = localStorage.getItem('adminToken')
     if (!token) {
       toast.error('请先登录管理员账号')
       currentPlayingId.value = null
-      isLoadingAudio.value = false
+      loadingAudios.value[uploadId] = false
       return
     }
     
@@ -385,31 +396,43 @@ const playPreview = async (uploadId, musicFilePath) => {
     const blob = await response.blob()
     currentAudioUrl.value = URL.createObjectURL(blob)
     
+    // 等待DOM更新后再播放
+    await new Promise(resolve => setTimeout(resolve, 150))
+    
     // 播放音频
-    setTimeout(() => {
-      if (audioPlayer.value) {
-        audioPlayer.value.play().catch(error => {
-          console.error('播放失败:', error)
-          toast.error('播放失败，请检查网络或文件状态')
-          currentPlayingId.value = null
-        })
-      }
-      isLoadingAudio.value = false
-    }, 100)
+    const player = audioPlayers.value[uploadId]
+    if (player) {
+      player.play().catch(error => {
+        console.error('播放失败:', error)
+        toast.error('播放失败，请检查网络或文件状态')
+        currentPlayingId.value = null
+        loadingAudios.value[uploadId] = false
+      })
+    } else {
+      console.error('无法找到audio player')
+      toast.error('播放器初始化失败')
+      currentPlayingId.value = null
+      loadingAudios.value[uploadId] = false
+    }
+    
+    loadingAudios.value[uploadId] = false
     
   } catch (error) {
     console.error('加载音频失败:', error)
     toast.error('加载音频失败: ' + error.message)
     currentPlayingId.value = null
-    isLoadingAudio.value = false
+    loadingAudios.value[uploadId] = false
   }
 }
 
 // 停止播放
 const stopPreview = () => {
-  if (audioPlayer.value) {
-    audioPlayer.value.pause()
-    audioPlayer.value.currentTime = 0
+  const playingId = currentPlayingId.value
+  
+  if (playingId && audioPlayers.value[playingId]) {
+    const player = audioPlayers.value[playingId]
+    player.pause()
+    player.currentTime = 0
   }
   
   // 释放Blob URL
@@ -418,21 +441,31 @@ const stopPreview = () => {
     currentAudioUrl.value = null
   }
   
+  // 清理加载状态
   currentPlayingId.value = null
+  if (playingId) {
+    loadingAudios.value[playingId] = false
+  }
 }
 
 // 音频播放结束处理
 const handleAudioEnded = () => {
+  const playingId = currentPlayingId.value
   currentPlayingId.value = null
-  isLoadingAudio.value = false
+  if (playingId) {
+    loadingAudios.value[playingId] = false
+  }
 }
 
 // 音频播放错误处理
 const handleAudioError = (error) => {
   console.error('音频加载错误:', error)
   toast.error('音频加载失败，请检查文件是否存在')
+  const playingId = currentPlayingId.value
   currentPlayingId.value = null
-  isLoadingAudio.value = false
+  if (playingId) {
+    loadingAudios.value[playingId] = false
+  }
 }
 
 // 获取音乐预览URL
