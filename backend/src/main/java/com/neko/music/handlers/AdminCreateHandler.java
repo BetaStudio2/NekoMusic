@@ -25,12 +25,12 @@ public class AdminCreateHandler extends HttpServlet {
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        response.setContentType("application/json;charset=UTF-8");
+        
         // 检查管理员权限
         if (!isAdminAuthorized(request)) {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("未授权访问");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            sendErrorResponse(response, "未授权访问");
             return;
         }
         
@@ -38,9 +38,7 @@ public class AdminCreateHandler extends HttpServlet {
         Admin currentAdmin = com.neko.music.util.PermissionHelper.getAdminFromRequest(request);
         if (currentAdmin == null) {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("未授权访问");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            sendErrorResponse(response, "未授权访问");
             return;
         }
         
@@ -48,9 +46,7 @@ public class AdminCreateHandler extends HttpServlet {
         if (!com.neko.music.util.AdminPermissionUtil.isSuperAdmin(currentAdmin)) {
             logger.warn("权限不足，只有超级管理员可以创建管理员账号");
             response.setStatus(HttpStatus.FORBIDDEN_403);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("权限不足，只有超级管理员可以创建管理员账号");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            sendErrorResponse(response, "权限不足，只有超级管理员可以创建管理员账号");
             return;
         }
         
@@ -66,43 +62,33 @@ public class AdminCreateHandler extends HttpServlet {
             createRequest = objectMapper.readValue(requestBody.toString(), CreateAdminRequest.class);
         } catch (Exception e) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("无效的请求格式");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            sendErrorResponse(response, "无效的请求格式");
             return;
         }
         
         // 验证请求参数
         if (createRequest.getUsername() == null || createRequest.getUsername().trim().isEmpty()) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("用户名不能为空");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            sendErrorResponse(response, "用户名不能为空");
             return;
         }
         
         if (createRequest.getPassword() == null || createRequest.getPassword().length() < 6) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("密码长度不能少于6位");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            sendErrorResponse(response, "密码长度不能少于6位");
             return;
         }
         
         if (createRequest.getRole() == null) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("角色不能为空");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            sendErrorResponse(response, "角色不能为空");
             return;
         }
         
         // 检查用户名是否已存在
         if (Main.getAdminAuthService().adminExists(createRequest.getUsername())) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("用户名已存在");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            sendErrorResponse(response, "用户名已存在");
             return;
         }
         
@@ -130,15 +116,25 @@ public class AdminCreateHandler extends HttpServlet {
             
             logger.info("成功创建管理员账号: {}, 角色: {}", createRequest.getUsername(), createRequest.getRole());
             response.setStatus(HttpStatus.OK_200);
-            response.setContentType("application/json;charset=utf-8");
-            SuccessResponse successResponse = new SuccessResponse(true, "管理员账号创建成功");
-            response.getWriter().println(objectMapper.writeValueAsString(successResponse));
+            sendSuccessResponse(response, "管理员账号创建成功");
         } else {
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("创建管理员账号失败");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            sendErrorResponse(response, "创建管理员账号失败");
         }
+    }
+    
+    private void sendSuccessResponse(HttpServletResponse response, String message) throws IOException {
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", true);
+        result.put("message", message);
+        response.getWriter().println(objectMapper.writeValueAsString(result));
+    }
+    
+    private void sendErrorResponse(HttpServletResponse response, String message) throws IOException {
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", false);
+        result.put("message", message);
+        response.getWriter().println(objectMapper.writeValueAsString(result));
     }
     
     private boolean isAdminAuthorized(HttpServletRequest request) {
@@ -166,33 +162,5 @@ public class AdminCreateHandler extends HttpServlet {
         public void setPassword(String password) { this.password = password; }
         public String getRole() { return role; }
         public void setRole(String role) { this.role = role; }
-    }
-    
-    // 内部类：成功响应
-    private static class SuccessResponse {
-        private boolean success;
-        private String message;
-        
-        public SuccessResponse(boolean success, String message) {
-            this.success = success;
-            this.message = message;
-        }
-        
-        public boolean isSuccess() { return success; }
-        public void setSuccess(boolean success) { this.success = success; }
-        public String getMessage() { return message; }
-        public void setMessage(String message) { this.message = message; }
-    }
-    
-    // 内部类：错误响应
-    private static class ErrorResponse {
-        private String error;
-        
-        public ErrorResponse(String error) {
-            this.error = error;
-        }
-        
-        public String getError() { return error; }
-        public void setError(String error) { this.error = error; }
     }
 }
