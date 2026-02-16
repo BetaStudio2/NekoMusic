@@ -19,8 +19,8 @@
             <div class="filter-section">
               <select v-model="accountType" class="filter-select">
                 <option value="">所有账户</option>
-                <option value="admin">管理员账户</option>
-                <option value="user">用户账户</option>
+                <option value="admin">管理员</option>
+                <option value="user">用户</option>
               </select>
               <input 
                 type="text" 
@@ -109,11 +109,12 @@
             <button class="close-btn" @click="closeCreateModal">&times;</button>
           </div>
           <div class="modal-content">
-            <div class="form-group">
-              <label>账号类型</label>
-              <select v-model="createFormData.accountType" class="form-select">
+            <div v-if="createFormData.accountType === 'admin'" class="form-group">
+              <label>角色</label>
+              <select v-model="createFormData.role" class="form-select">
+<!--                <option value="super_admin">超级管理员</option>-->
                 <option value="admin">管理员</option>
-                <option value="user">普通用户</option>
+                <option value="auditor">审核员</option>
               </select>
             </div>
             <div class="form-group">
@@ -131,14 +132,6 @@
             <div class="form-group">
               <label>确认密码</label>
               <input type="password" v-model="createFormData.confirmPassword" placeholder="请确认密码" />
-            </div>
-            <div v-if="createFormData.accountType === 'admin'" class="form-group">
-              <label>角色</label>
-              <select v-model="createFormData.role" class="form-select">
-                <option value="super_admin">超级管理员</option>
-                <option value="admin">管理员</option>
-                <option value="auditor">审核员</option>
-              </select>
             </div>
           </div>
           <div class="modal-actions">
