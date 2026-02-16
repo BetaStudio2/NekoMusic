@@ -32,6 +32,12 @@ public class UserManagementHandler extends HttpServlet {
             response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
             return;
         }
+        
+        // 检查是否有用户查看权限
+        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.USER_VIEW)) {
+            logger.warn("权限不足，无用户查看权限");
+            return;
+        }
 
         String pathInfo = request.getPathInfo();
         
@@ -62,6 +68,12 @@ public class UserManagementHandler extends HttpServlet {
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("未授权访问");
             response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            return;
+        }
+        
+        // 检查是否有用户编辑权限
+        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.USER_EDIT)) {
+            logger.warn("权限不足，无用户编辑权限");
             return;
         }
 
@@ -131,6 +143,12 @@ public class UserManagementHandler extends HttpServlet {
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("未授权访问");
             response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            return;
+        }
+        
+        // 检查是否有用户删除权限
+        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.USER_DELETE)) {
+            logger.warn("权限不足，无用户删除权限");
             return;
         }
 

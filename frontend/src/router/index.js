@@ -35,7 +35,25 @@ function isAdminLoggedIn() {
 const adminGuard = (to, from, next) => {
   if (to.path.startsWith('/admin') && to.path !== '/admin/login') {
     if (isAdminLoggedIn()) {
-      next(); // 如果已登录，允许访问
+      // 检查用户权限
+      const adminInfo = localStorage.getItem('adminInfo')
+      if (adminInfo) {
+        const parsedInfo = JSON.parse(adminInfo)
+        const role = parsedInfo.role || 'admin'
+        
+        // 审核员不能访问用户管理页面
+        if (role === 'auditor' && to.path.startsWith('/admin/users')) {
+          next('/admin') // 重定向到管理首页
+          return
+        }
+        
+        // 审核员不能访问音乐管理页面
+        if (role === 'auditor' && to.path.startsWith('/admin/music')) {
+          next('/admin') // 重定向到管理首页
+          return
+        }
+      }
+      next(); // 如果已登录且有权限，允许访问
     } else {
       next('/admin/login'); // 如果未登录，重定向到登录页面
     }
