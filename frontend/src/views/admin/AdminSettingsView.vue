@@ -385,4 +385,11 @@ input:checked + .slider:before {
   transform: translateY(-2px);
   box-shadow: 0 6px 15px rgba(106, 90, 205, 0.5);
 }
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .admin-subpage {
+    padding: 20px 20px 150px 20px;
+  }
+}
 </style>

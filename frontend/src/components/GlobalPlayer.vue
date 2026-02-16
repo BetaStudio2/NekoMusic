@@ -2362,6 +2362,7 @@ audio {
   }
 
   .player-content {
+    display: flex;
     flex-direction: column;
     gap: 8px;
     height: auto;

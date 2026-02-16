@@ -1,9 +1,14 @@
 <template>
   <div class="admin-layout">
-    <AdminSidebar />
+    <AdminSidebar ref="sidebarRef" />
     
     <div class="admin-main-content">
       <div class="admin-header">
+        <button class="menu-toggle-btn" @click="toggleSidebar">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+          </svg>
+        </button>
         <div class="admin-user-info">
           <span>欢迎，{{ adminInfo.username || '管理员' }}!</span>
           <button @click="logout" class="logout-button">退出登录</button>
@@ -301,6 +306,14 @@ import { useToast } from 'vue-toastification'
 const toast = useToast()
 
 const router = useRouter()
+const sidebarRef = ref(null)
+
+// 切换侧边栏
+const toggleSidebar = () => {
+  if (sidebarRef.value) {
+    sidebarRef.value.toggleSidebar()
+  }
+}
 
 // 添加文件处理函数
 const handleMusicFileChange = async (event) => {
@@ -1639,12 +1652,35 @@ const logout = () => {
   border: 1px solid rgba(255, 255, 255, 0.18);
   margin-bottom: 20px;
   flex-shrink: 0; /* 防止头部被压缩 */
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.menu-toggle-btn {
+  display: none;
+  background: none;
+  border: none;
+  color: #887bb0;
+  cursor: pointer;
+  padding: 5px;
+  transition: color 0.3s ease;
+}
+
+.menu-toggle-btn:hover {
+  color: #6a5acd;
+}
+
+.menu-toggle-btn svg {
+  width: 28px;
+  height: 28px;
 }
 
 .admin-user-info {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex: 1;
 }
 
 .logout-button {
@@ -2196,11 +2232,23 @@ const logout = () => {
 @media (max-width: 768px) {
   .admin-main-content {
     margin-left: 0;
-    padding: 10px;
+    padding: 10px 10px 130px 10px;
   }
   
   .admin-layout {
     flex-direction: column;
+  }
+  
+  .menu-toggle-btn {
+    display: block;
+  }
+  
+  .admin-header {
+    padding: 15px;
+  }
+  
+  .admin-user-info span {
+    font-size: 0.9rem;
   }
   
   .edit-modal {

@@ -1,7 +1,12 @@
 <template>
-  <div class="admin-sidebar">
+  <div class="admin-sidebar" :class="{ 'open': isOpen }">
     <div class="sidebar-header">
       <h3>管理中心</h3>
+      <button class="close-sidebar-btn" @click="toggleSidebar">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+        </svg>
+      </button>
     </div>
     <nav class="sidebar-nav">
       <ul>
@@ -40,6 +45,23 @@ import { computed, onMounted, ref } from 'vue'
 
 const route = useRoute()
 const adminInfo = ref(null)
+const isOpen = ref(false)
+
+// 切换侧边栏
+const toggleSidebar = () => {
+  isOpen.value = !isOpen.value
+}
+
+// 关闭侧边栏
+const closeSidebar = () => {
+  isOpen.value = false
+}
+
+// 暴露方法给父组件
+defineExpose({
+  toggleSidebar,
+  closeSidebar
+})
 
 // 检查当前路由是否与指定路径完全匹配
 const isActiveRoute = (path) => {
@@ -104,32 +126,51 @@ const hasPermission = (permission) => {
 <style scoped>
 .admin-sidebar {
   width: 250px;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.3);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-right: 1px solid rgba(255, 255, 255, 0.18);
-  height: 100vh;
   display: flex;
   flex-direction: column;
   position: fixed;
-  top: 0;
   left: 0;
-  bottom: 0;
-  z-index: 1; /* 设置一个较低的z-index值，让footer在最顶层 */
-  padding: 20px 0;
+  top: 0;
+  height: 100vh;
+  z-index: 1000;
 }
 
 .sidebar-header {
-  padding: 0 20px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  margin-bottom: 20px;
+  padding: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .sidebar-header h3 {
-  color: #6a5acd;
   margin: 0;
+  color: #6a5acd;
   font-size: 1.3rem;
-  text-align: center;
+  flex: 1;
+}
+
+.close-sidebar-btn {
+  display: none;
+  background: none;
+  border: none;
+  color: #887bb0;
+  cursor: pointer;
+  padding: 5px;
+  transition: color 0.3s ease;
+}
+
+.close-sidebar-btn:hover {
+  color: #6a5acd;
+}
+
+.close-sidebar-btn svg {
+  width: 24px;
+  height: 24px;
 }
 
 .sidebar-nav {
@@ -185,10 +226,15 @@ const hasPermission = (permission) => {
   .admin-sidebar {
     transform: translateX(-100%);
     transition: transform 0.3s ease;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.2);
   }
   
   .admin-sidebar.open {
     transform: translateX(0);
+  }
+  
+  .close-sidebar-btn {
+    display: block;
   }
 }
 </style>
