@@ -28,7 +28,13 @@
                 placeholder="搜索用户名或邮箱..." 
                 class="search-input"
               />
-            </div>
+              <button 
+                              v-if="isSuperAdmin" 
+                              class="create-btn"
+                              @click="openCreateModal"
+                            >
+                              + 创建账号
+                            </button>            </div>
           </div>
           
           <div class="users-list-section">
@@ -94,6 +100,55 @@
       </div>
     </div>
     
+    <!-- 创建账号模态框 -->
+    <Transition name="modal">
+      <div v-if="creatingUser" class="edit-modal-overlay" @click="closeCreateModal">
+        <div class="edit-modal" @click.stop>
+          <div class="modal-header">
+            <h3>创建账号</h3>
+            <button class="close-btn" @click="closeCreateModal">&times;</button>
+          </div>
+          <div class="modal-content">
+            <div class="form-group">
+              <label>账号类型</label>
+              <select v-model="createFormData.accountType" class="form-select">
+                <option value="admin">管理员</option>
+                <option value="user">普通用户</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>用户名</label>
+              <input type="text" v-model="createFormData.username" placeholder="请输入用户名" />
+            </div>
+            <div class="form-group">
+              <label>邮箱</label>
+              <input type="email" v-model="createFormData.email" placeholder="请输入邮箱" />
+            </div>
+            <div class="form-group">
+              <label>密码</label>
+              <input type="password" v-model="createFormData.password" placeholder="请输入密码" />
+            </div>
+            <div class="form-group">
+              <label>确认密码</label>
+              <input type="password" v-model="createFormData.confirmPassword" placeholder="请确认密码" />
+            </div>
+            <div v-if="createFormData.accountType === 'admin'" class="form-group">
+              <label>角色</label>
+              <select v-model="createFormData.role" class="form-select">
+                <option value="super_admin">超级管理员</option>
+                <option value="admin">管理员</option>
+                <option value="auditor">审核员</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="secondary-btn" @click="closeCreateModal">取消</button>
+            <button class="primary-btn" @click="createUser">创建</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+    
     <!-- 编辑用户模态框 -->
     <Transition name="modal">
       <div v-if="editingUser" class="edit-modal-overlay" @click="closeEditModal">
@@ -151,6 +206,17 @@ const usersPerPage = 10
 // 编辑用户
 const editingUser = ref(null)
 
+// 创建账号
+const creatingUser = ref(false)
+const createFormData = ref({
+  accountType: 'admin',
+  username: '',
+  email: '',
+  password: '',
+  confirmPassword: '',
+  role: 'admin'
+})
+
 // 检查管理员登录状态
 onMounted(() => {
   const storedToken = localStorage.getItem('adminToken')
@@ -160,6 +226,13 @@ onMounted(() => {
     try {
       const parsedInfo = JSON.parse(storedAdminInfo)
       adminInfo.value = parsedInfo
+      
+      // 临时修复：如果没有role字段，从后端重新获取管理员信息
+      if (!parsedInfo.role) {
+        console.log('没有role字段，重新获取管理员信息')
+        fetchCurrentAdminInfo()
+      }
+      
       // 加载用户数据
       loadAllUsers()
     } catch (e) {
@@ -170,6 +243,25 @@ onMounted(() => {
     router.push('/admin/login')
   }
 })
+
+// 临时方法：获取当前管理员信息
+const fetchCurrentAdminInfo = async () => {
+  try {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/admin/current`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+      }
+    })
+    const data = await response.json()
+    if (data.success && data.admin) {
+      adminInfo.value = data.admin
+      localStorage.setItem('adminInfo', JSON.stringify(data.admin))
+      console.log('已更新管理员信息:', adminInfo.value)
+    }
+  } catch (error) {
+    console.error('获取管理员信息失败:', error)
+  }
+}
 
 // 权限检查方法
 const canEditUser = (user) => {
@@ -224,6 +316,20 @@ const shouldShowUser = (user) => {
   return true
 }
 
+// 检查是否为超级管理员（临时解决方案）
+const isSuperAdmin = computed(() => {
+  if (!adminInfo.value) return false
+  const role = adminInfo.value.role
+  if (role === 'super_admin') return true
+  
+  // 临时解决方案：如果没有role字段或role不是super_admin，根据id判断（第一个管理员是超管）
+  if (!role || role !== 'super_admin') {
+    return adminInfo.value.id === 1
+  }
+  
+  return false
+})
+
 // 用户数据
 const adminUsers = ref([])
 const regularUsers = ref([])
@@ -231,6 +337,8 @@ const regularUsers = ref([])
 // 获取管理员用户列表
 const fetchAdminUsers = async () => {
   const role = adminInfo.value?.role || 'admin'
+  console.log('fetchAdminUsers - 当前角色:', role)
+  console.log('fetchAdminUsers - adminInfo.value:', adminInfo.value)
   
   // 审核员只显示自己的账号
   if (role === 'auditor') {
@@ -372,6 +480,109 @@ const editUser = (user) => {
 // 关闭编辑模态框
 const closeEditModal = () => {
   editingUser.value = null
+}
+
+// 打开创建模态框
+const openCreateModal = () => {
+  creatingUser.value = true
+  createFormData.value = {
+    accountType: 'admin',
+    username: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    role: 'admin'
+  }
+}
+
+// 关闭创建模态框
+const closeCreateModal = () => {
+  creatingUser.value = false
+  createFormData.value = {
+    accountType: 'admin',
+    username: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    role: 'admin'
+  }
+}
+
+// 创建账号
+const createUser = async () => {
+  // 验证表单
+  if (!createFormData.value.username || !createFormData.value.username.trim()) {
+    toast.error('用户名不能为空')
+    return
+  }
+  
+  if (!createFormData.value.email || !createFormData.value.email.trim()) {
+    toast.error('邮箱不能为空')
+    return
+  }
+  
+  if (!createFormData.value.password || createFormData.value.password.length < 6) {
+    toast.error('密码长度不能少于6位')
+    return
+  }
+  
+  if (createFormData.value.password !== createFormData.value.confirmPassword) {
+    toast.error('两次输入的密码不一致')
+    return
+  }
+  
+  if (createFormData.value.accountType === 'admin' && !createFormData.value.role) {
+    toast.error('请选择管理员角色')
+    return
+  }
+  
+  try {
+    const token = localStorage.getItem('adminToken')
+    
+    let endpoint, requestData
+    
+    if (createFormData.value.accountType === 'admin') {
+      // 创建管理员账号
+      endpoint = `${API_CONFIG.BASE_URL}/api/admin/create`
+      requestData = {
+        username: createFormData.value.username,
+        email: createFormData.value.email,
+        password: createFormData.value.password,
+        role: createFormData.value.role
+      }
+    } else {
+      // 创建普通用户账号
+      endpoint = `${API_CONFIG.BASE_URL}/api/admin/create-user`
+      requestData = {
+        username: createFormData.value.username,
+        email: createFormData.value.email,
+        password: createFormData.value.password
+      }
+    }
+    
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(requestData)
+    })
+    
+    const data = await response.json()
+    
+    if (data.success) {
+      toast.success('账号创建成功')
+      closeCreateModal()
+      // 重新加载用户列表
+      loadAllUsers()
+    } else {
+      toast.error(data.message || '账号创建失败')
+    }
+  } catch (error) {
+    console.error('创建账号失败:', error)
+    toast.error('账号创建失败')
+  }
 }
 
 // 保存用户编辑
@@ -600,6 +811,27 @@ const logout = () => {
   transition: all 0.3s ease;
 }
 
+.create-btn {
+  padding: 8px 20px;
+  background: linear-gradient(135deg, #6a5acd, #7c6bfa);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  margin-left: auto;
+}
+
+.create-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(106, 90, 205, 0.4);
+}
+
+.create-btn:active {
+  transform: translateY(0);
+}
+
 .filter-select:focus, .search-input:focus {
   outline: none;
   border: 1px solid rgba(106, 90, 205, 0.5);
@@ -792,6 +1024,22 @@ const logout = () => {
 }
 
 .form-group input:focus {
+  outline: none;
+  border-color: #6a5acd;
+  box-shadow: 0 0 0 3px rgba(106, 90, 205, 0.1);
+}
+
+.form-select {
+  width: 100%;
+  padding: 10px 15px;
+  border: 1px solid rgba(106, 90, 205, 0.3);
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.form-select:focus {
   outline: none;
   border-color: #6a5acd;
   box-shadow: 0 0 0 3px rgba(106, 90, 205, 0.1);

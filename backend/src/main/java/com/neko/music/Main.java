@@ -20,6 +20,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.DispatcherType;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.EnumSet;
 
 public class Main {
@@ -87,6 +92,9 @@ public class Main {
         // 创建默认管理员账号（如果不存在）
         createDefaultAdminIfNotExists();
         
+        // 确保至少有一个超级管理员
+        ensureSuperAdminExists();
+        
         // 创建Jetty服务器，使用配置的端口
         server = new Server(configManager.getPort());
         
@@ -110,6 +118,10 @@ public class Main {
         ServletHolder adminLoginHolder = new ServletHolder(new AdminLoginHandler());
         context.addServlet(adminLoginHolder, "/api/admin/login");
         
+        // 注册管理员当前信息API处理器
+        ServletHolder adminCurrentHolder = new ServletHolder(new AdminCurrentHandler());
+        context.addServlet(adminCurrentHolder, "/api/admin/current");
+        
         // 注册管理员统计API处理器
         ServletHolder adminStatsHolder = new ServletHolder(new AdminStatsHandler());
         context.addServlet(adminStatsHolder, "/api/admin/stats");
@@ -117,6 +129,10 @@ public class Main {
         // 注册管理员用户管理API处理器
         ServletHolder adminUserManagementHolder = new ServletHolder(new AdminUserManagementHandler());
         context.addServlet(adminUserManagementHolder, "/api/admin/users/*");
+        
+        // 注册管理员创建API处理器
+        ServletHolder adminCreateHolder = new ServletHolder(new AdminCreateHandler());
+        context.addServlet(adminCreateHolder, "/api/admin/create");
         
         // 注册图表数据API处理器
         ServletHolder chartDataHolder = new ServletHolder(new ChartDataHandler());
@@ -296,11 +312,37 @@ public class Main {
             boolean created = adminAuthService.createAdmin(defaultUsername, defaultPassword, "admin@nekomusic.com");
             if (created) {
                 logger.info("默认管理员账号已创建: {}/{}", defaultUsername, defaultPassword);
+                // 将默认管理员设置为超级管理员
+                try (Connection conn = databaseManager.getConnection();
+                     PreparedStatement stmt = conn.prepareStatement("UPDATE admins SET role = 'super_admin' WHERE username = ?")) {
+                    stmt.setString(1, defaultUsername);
+                    stmt.executeUpdate();
+                    logger.info("已将默认管理员设置为超级管理员");
+                } catch (Exception e) {
+                    logger.error("设置默认管理员角色失败", e);
+                }
             } else {
                 logger.error("创建默认管理员账号失败");
             }
         } else {
             logger.info("管理员表中已有数据，跳过创建默认管理员账号");
+        }
+    }
+    
+    private static void ensureSuperAdminExists() {
+        try (Connection conn = databaseManager.getConnection();
+             Statement stmt = conn.createStatement()) {
+            
+            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM admins WHERE role = 'super_admin'");
+            if (rs.next() && rs.getInt(1) == 0) {
+                // 没有超级管理员，将第一个管理员设置为super_admin
+                int updated = stmt.executeUpdate("UPDATE admins SET role = 'super_admin' WHERE id = (SELECT MIN(id) FROM admins)");
+                if (updated > 0) {
+                    logger.info("已将第一个管理员设置为超级管理员");
+                }
+            }
+        } catch (Exception e) {
+            logger.error("确保超级管理员存在时出错", e);
         }
     }
     

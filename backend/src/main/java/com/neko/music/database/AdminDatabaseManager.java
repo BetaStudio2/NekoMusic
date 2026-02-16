@@ -103,28 +103,34 @@ public class AdminDatabaseManager {
     }
 
     public boolean createAdmin(Admin admin) {
-        String sql = """
-            INSERT INTO admins (username, password_hash, email, active, created_at)
-            VALUES (?, ?, ?, ?, ?)
-        """;
-        
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            // 检查是否是第一个管理员，如果是则设置为super_admin
+            boolean isFirstAdmin = getAllAdmins().isEmpty();
+            if (isFirstAdmin && admin.getRole() == null) {
+                admin.setRole("super_admin");
+            }
             
-            stmt.setString(1, admin.getUsername());
-            stmt.setString(2, admin.getPasswordHash());
-            stmt.setString(3, admin.getEmail());
-            stmt.setBoolean(4, admin.isActive());
-            stmt.setLong(5, admin.getCreatedAt());
+            String sql = """
+                INSERT INTO admins (username, password_hash, email, active, created_at, role)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """;
             
-            int rowsAffected = stmt.executeUpdate();
-            return rowsAffected > 0;
-        } catch (SQLException e) {
-            logger.error("创建管理员失败", e);
-            return false;
+            try (Connection conn = databaseManager.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(sql)) {
+                
+                stmt.setString(1, admin.getUsername());
+                stmt.setString(2, admin.getPasswordHash());
+                stmt.setString(3, admin.getEmail());
+                stmt.setBoolean(4, admin.isActive());
+                stmt.setLong(5, admin.getCreatedAt());
+                stmt.setString(6, admin.getRole() != null ? admin.getRole() : "admin");
+                
+                int rowsAffected = stmt.executeUpdate();
+                return rowsAffected > 0;
+            } catch (SQLException e) {
+                logger.error("创建管理员失败", e);
+                return false;
+            }
         }
-    }
-
     public Optional<Admin> findAdminByUsername(String username) {
         String sql = "SELECT * FROM admins WHERE username = ?";
         
@@ -407,10 +413,15 @@ public class AdminDatabaseManager {
                 if (!hasRole) {
                     stmt.execute("ALTER TABLE admins ADD COLUMN role ENUM('super_admin', 'admin', 'auditor') DEFAULT 'admin'");
                     logger.info("已添加role列到admins表");
-                    
-                    // 将现有的第一个管理员设置为super_admin（如果有）
-                    stmt.execute("UPDATE admins SET role = 'super_admin' WHERE id = (SELECT MIN(id) FROM admins)");
-                    logger.info("已将第一个管理员设置为super_admin");
+                }
+                
+                // 检查是否有超级管理员，如果没有，将第一个管理员设置为super_admin
+                ResultSet superAdminCheck = stmt.executeQuery("SELECT COUNT(*) FROM admins WHERE role = 'super_admin'");
+                if (superAdminCheck.next() && superAdminCheck.getInt(1) == 0) {
+                    int updated = stmt.executeUpdate("UPDATE admins SET role = 'super_admin' WHERE id = (SELECT MIN(id) FROM admins)");
+                    if (updated > 0) {
+                        logger.info("已将第一个管理员设置为super_admin");
+                    }
                 }
             }
         } catch (SQLException e) {
