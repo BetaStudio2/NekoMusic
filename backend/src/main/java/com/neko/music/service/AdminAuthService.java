@@ -164,4 +164,47 @@ public class AdminAuthService {
     public boolean logout(String token) {
         return adminDatabaseManager.invalidateAdminSession(token);
     }
+    
+    /**
+     * 根据令牌获取管理员信息
+     * @param token 会话令牌
+     * @return 管理员对象，如果令牌无效则返回null
+     */
+    public Admin getAdminByToken(String token) {
+        if (token == null || token.trim().isEmpty()) {
+            return null;
+        }
+        
+        // 验证会话是否有效
+        if (!adminDatabaseManager.validateAdminSession(token)) {
+            return null;
+        }
+        
+        // 从数据库中获取管理员信息
+        String sql = "SELECT a.* FROM admins a INNER JOIN admin_sessions s ON a.id = s.admin_id WHERE s.session_token = ? AND s.is_active = TRUE AND s.expires_at > NOW()";
+        
+        try (java.sql.Connection conn = adminDatabaseManager.getDatabaseManager().getConnection();
+             java.sql.PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setString(1, token);
+            try (java.sql.ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    Admin admin = new Admin();
+                    admin.setId(rs.getInt("id"));
+                    admin.setUsername(rs.getString("username"));
+                    admin.setPasswordHash(rs.getString("password_hash"));
+                    admin.setEmail(rs.getString("email"));
+                    admin.setActive(rs.getBoolean("active"));
+                    admin.setRole(rs.getString("role"));
+                    admin.setCreatedAt(rs.getLong("created_at"));
+                    admin.setLastLoginAt(rs.getLong("last_login_at"));
+                    return admin;
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        
+        return null;
+    }
 }

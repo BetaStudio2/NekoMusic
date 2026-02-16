@@ -77,6 +77,7 @@ public class AdminLoginHandler extends HttpServlet {
                     "id", admin.getId(),
                     "username", admin.getUsername(),
                     "email", admin.getEmail(),
+                    "role", admin.getRole(),
                     "createdAt", admin.getCreatedAt(),
                     "lastLoginAt", admin.getLastLoginAt()
                 ));

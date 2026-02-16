@@ -69,6 +69,16 @@ public class AdminUserManagementHandler extends HttpServlet {
             response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
             return;
         }
+        
+        // 检查是否为超级管理员（只有超级管理员可以修改管理员密码）
+        if (!isSuperAdminAuthorized(request)) {
+            logger.warn("权限不足，非超级管理员");
+            response.setStatus(HttpStatus.FORBIDDEN_403);
+            response.setContentType("application/json;charset=utf-8");
+            ErrorResponse errorResponse = new ErrorResponse("权限不足，只有超级管理员可以修改管理员信息");
+            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            return;
+        }
 
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || !pathInfo.endsWith("/edit")) {
@@ -139,6 +149,15 @@ public class AdminUserManagementHandler extends HttpServlet {
             response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
             return;
         }
+        
+        // 检查是否为超级管理员（只有超级管理员可以删除管理员）
+        if (!isSuperAdminAuthorized(request)) {
+            response.setStatus(HttpStatus.FORBIDDEN_403);
+            response.setContentType("application/json;charset=utf-8");
+            ErrorResponse errorResponse = new ErrorResponse("权限不足，只有超级管理员可以删除管理员");
+            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            return;
+        }
 
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
@@ -189,6 +208,12 @@ public class AdminUserManagementHandler extends HttpServlet {
         String token = authHeader.substring(7);
         return Main.getAdminAuthService().validateAdminToken(token);
     }
+    
+    // 检查是否为超级管理员（用于管理员管理操作）
+    private boolean isSuperAdminAuthorized(HttpServletRequest request) {
+        com.neko.music.model.Admin admin = com.neko.music.util.PermissionHelper.getAdminFromRequest(request);
+        return admin != null && com.neko.music.util.AdminPermissionUtil.isSuperAdmin(admin);
+    }
 
     // 获取所有管理员用户
     private List<AdminUser> getAllAdminUsers() {
@@ -203,7 +228,7 @@ public class AdminUserManagementHandler extends HttpServlet {
                 }
             }
             
-            String sql = "SELECT id, username, email, created_at FROM admins ORDER BY created_at DESC";
+            String sql = "SELECT id, username, email, role, created_at FROM admins ORDER BY created_at DESC";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 ResultSet rs = stmt.executeQuery();
                 
@@ -212,6 +237,7 @@ public class AdminUserManagementHandler extends HttpServlet {
                     adminUser.setId(rs.getInt("id"));
                     adminUser.setUsername(rs.getString("username"));
                     adminUser.setEmail(rs.getString("email"));
+                    adminUser.setRole(rs.getString("role"));
                     
                     // created_at 是 BIGINT 类型
                     long createdAt = rs.getLong("created_at");
@@ -274,6 +300,7 @@ public class AdminUserManagementHandler extends HttpServlet {
         private int id;
         private String username;
         private String email;
+        private String role;
         private String registerTime;
 
         public int getId() { return id; }
@@ -282,6 +309,8 @@ public class AdminUserManagementHandler extends HttpServlet {
         public void setUsername(String username) { this.username = username; }
         public String getEmail() { return email; }
         public void setEmail(String email) { this.email = email; }
+        public String getRole() { return role; }
+        public void setRole(String role) { this.role = role; }
         public String getRegisterTime() { return registerTime; }
         public void setRegisterTime(String registerTime) { this.registerTime = registerTime; }
     }

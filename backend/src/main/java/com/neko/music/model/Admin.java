@@ -6,6 +6,7 @@ public class Admin {
     private String passwordHash; // 存储Argon2哈希
     private String email;
     private boolean active;
+    private String role; // super_admin, admin, auditor
     private long createdAt;
     private long lastLoginAt;
 
@@ -58,6 +59,14 @@ public class Admin {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
     }
 
     public long getCreatedAt() {

@@ -21,6 +21,10 @@ public class AdminDatabaseManager {
         this.argon2 = Argon2Factory.create();
         initializeTable();
     }
+    
+    public DatabaseManager getDatabaseManager() {
+        return databaseManager;
+    }
 
     private void initializeTable() {
         // 创建管理员表
@@ -31,6 +35,7 @@ public class AdminDatabaseManager {
                 password_hash VARCHAR(255) NOT NULL,
                 email VARCHAR(255),
                 active BOOLEAN DEFAULT TRUE,
+                role ENUM('super_admin', 'admin', 'auditor') DEFAULT 'admin',
                 created_at BIGINT NOT NULL,
                 last_login_at BIGINT
             )
@@ -88,6 +93,9 @@ public class AdminDatabaseManager {
             // 检查并更新music表结构（添加missing列）
             updateMusicTableStructure(conn);
             
+            // 检查并更新admins表结构，添加role字段
+            updateAdminsTableStructure(conn);
+            
             logger.info("管理员相关表初始化完成");
         } catch (SQLException e) {
             logger.error("表初始化失败", e);
@@ -132,6 +140,7 @@ public class AdminDatabaseManager {
                     admin.setPasswordHash(rs.getString("password_hash"));
                     admin.setEmail(rs.getString("email"));
                     admin.setActive(rs.getBoolean("active"));
+                    admin.setRole(rs.getString("role"));
                     admin.setCreatedAt(rs.getLong("created_at"));
                     admin.setLastLoginAt(rs.getLong("last_login_at"));
                     return Optional.of(admin);
@@ -208,6 +217,7 @@ public class AdminDatabaseManager {
                 admin.setPasswordHash(rs.getString("password_hash"));
                 admin.setEmail(rs.getString("email"));
                 admin.setActive(rs.getBoolean("active"));
+                admin.setRole(rs.getString("role"));
                 admin.setCreatedAt(rs.getLong("created_at"));
                 admin.setLastLoginAt(rs.getLong("last_login_at"));
                 admins.add(admin);
@@ -377,6 +387,34 @@ public class AdminDatabaseManager {
             }
         } catch (SQLException e) {
             logger.error("更新music表结构失败", e);
+        }
+    }
+    
+    /**
+     * 检查并更新admins表结构，确保包含role字段
+     * @param conn 数据库连接
+     */
+    private void updateAdminsTableStructure(Connection conn) {
+        try {
+            // 检查role列是否存在
+            boolean hasRole = false;
+            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "admins", "role")) {
+                hasRole = rs.next();
+            }
+            
+            // 添加缺少的列
+            try (Statement stmt = conn.createStatement()) {
+                if (!hasRole) {
+                    stmt.execute("ALTER TABLE admins ADD COLUMN role ENUM('super_admin', 'admin', 'auditor') DEFAULT 'admin'");
+                    logger.info("已添加role列到admins表");
+                    
+                    // 将现有的第一个管理员设置为super_admin（如果有）
+                    stmt.execute("UPDATE admins SET role = 'super_admin' WHERE id = (SELECT MIN(id) FROM admins)");
+                    logger.info("已将第一个管理员设置为super_admin");
+                }
+            }
+        } catch (SQLException e) {
+            logger.error("更新admins表结构失败", e);
         }
     }
 }

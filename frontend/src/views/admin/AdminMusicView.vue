@@ -227,8 +227,20 @@
                     <td>{{ formatDuration(music.duration) }}</td>
                     <td>{{ formatDate(music.createdAt) }}</td>
                     <td>
-                      <button class="action-btn edit-btn" @click="editMusic(music)">编辑</button>
-                      <button class="action-btn delete-btn" @click="deleteMusic(music.id)">删除</button>
+                      <button 
+                        class="action-btn edit-btn" 
+                        @click="editMusic(music)"
+                        v-if="canEditMusic"
+                      >
+                        编辑
+                      </button>
+                      <button 
+                        class="action-btn delete-btn" 
+                        @click="deleteMusic(music.id)"
+                        v-if="canDeleteMusic"
+                      >
+                        删除
+                      </button>
                     </td>
                   </tr>
                 </tbody>
@@ -280,7 +292,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AdminSidebar from '@/components/AdminSidebar.vue'
 import API_CONFIG from '@/config/apiConfig.js'
@@ -1117,6 +1129,33 @@ onMounted(() => {
   // 获取音乐列表
   fetchMusicList()
 })
+
+// 权限检查计算属性
+const canEditMusic = ref(false)
+const canDeleteMusic = ref(false)
+const canAddMusic = ref(false)
+
+// 根据管理员角色更新权限
+watch(adminInfo, (newAdminInfo) => {
+  const role = newAdminInfo.role || 'admin'
+  
+  if (role === 'super_admin') {
+    // 超级管理员拥有所有权限
+    canEditMusic.value = true
+    canDeleteMusic.value = true
+    canAddMusic.value = true
+  } else if (role === 'admin') {
+    // 管理员拥有音乐管理的所有权限
+    canEditMusic.value = true
+    canDeleteMusic.value = true
+    canAddMusic.value = true
+  } else if (role === 'auditor') {
+    // 审核员没有音乐管理权限
+    canEditMusic.value = false
+    canDeleteMusic.value = false
+    canAddMusic.value = false
+  }
+}, { immediate: true })
 
 // 音乐数据
 const musicList = ref([])

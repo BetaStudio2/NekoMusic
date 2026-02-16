@@ -11,19 +11,19 @@
             <span class="nav-text">统计概览</span>
           </router-link>
         </li>
-        <li>
+        <li v-if="hasPermission('music_view')">
           <router-link to="/admin/music" class="nav-link" :class="{ 'active': isActiveRoute('/admin/music') }">
             <span class="nav-icon">🎵</span>
             <span class="nav-text">音乐管理</span>
           </router-link>
         </li>
-        <li>
+        <li v-if="hasPermission('audit_view')">
           <router-link to="/admin/audit" class="nav-link" :class="{ 'active': isActiveRoute('/admin/audit') }">
             <span class="nav-icon">✅</span>
             <span class="nav-text">审核管理</span>
           </router-link>
         </li>
-        <li>
+        <li v-if="hasPermission('user_view')">
           <router-link to="/admin/users" class="nav-link" :class="{ 'active': isActiveRoute('/admin/users') }">
             <span class="nav-icon">👥</span>
             <span class="nav-text">用户管理</span>
@@ -36,13 +36,67 @@
 
 <script setup>
 import { useRoute } from 'vue-router'
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 const route = useRoute()
+const adminInfo = ref(null)
 
 // 检查当前路由是否与指定路径完全匹配
 const isActiveRoute = (path) => {
   return route.path === path
+}
+
+// 获取管理员信息
+onMounted(() => {
+  const storedAdminInfo = localStorage.getItem('adminInfo')
+  if (storedAdminInfo) {
+    adminInfo.value = JSON.parse(storedAdminInfo)
+  }
+})
+
+// 权限检查
+const hasPermission = (permission) => {
+  if (!adminInfo.value) return false
+  
+  const role = adminInfo.value.role || 'admin'
+  
+  // 超级管理员拥有所有权限
+  if (role === 'super_admin') return true
+  
+  // 管理员权限
+  if (role === 'admin') {
+    switch (permission) {
+      case 'music_view':
+      case 'music_add':
+      case 'music_edit':
+      case 'music_delete':
+      case 'audit_view':
+      case 'audit_approve':
+      case 'audit_reject':
+      case 'user_view':
+      case 'user_edit':
+      case 'user_delete':
+      case 'stats_view':
+        return true
+      default:
+        return false
+    }
+  }
+  
+  // 审核员权限
+  if (role === 'auditor') {
+    switch (permission) {
+      case 'audit_view':
+      case 'audit_approve':
+      case 'audit_reject':
+      case 'stats_view':
+        return true
+      default:
+        return false
+    }
+  }
+  
+  return false
 }
 </script>
 

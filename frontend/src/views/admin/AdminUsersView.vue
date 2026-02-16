@@ -50,8 +50,20 @@
                     <td>{{ user.email }}</td>
                     <td>{{ formatDate(user.registerTime) }}</td>
                     <td>
-                      <button class="action-btn edit-btn" @click="editUser(user)">编辑</button>
-                      <button class="action-btn delete-btn" @click="deleteUser(user.id)">删除</button>
+                      <button 
+                        class="action-btn edit-btn" 
+                        @click="editUser(user)"
+                        v-if="canEditUser(user)"
+                      >
+                        编辑
+                      </button>
+                      <button 
+                        class="action-btn delete-btn" 
+                        @click="deleteUser(user.id)"
+                        v-if="canDeleteUser(user)"
+                      >
+                        删除
+                      </button>
                     </td>
                   </tr>
                 </tbody>
@@ -156,6 +168,43 @@ onMounted(() => {
     router.push('/admin/login')
   }
 })
+
+// 权限检查方法
+const canEditUser = (user) => {
+  if (!adminInfo.value) return false
+  const role = adminInfo.value.role || 'admin'
+  
+  // 审核员不能编辑用户
+  if (role === 'auditor') return false
+  
+  // 管理员可以编辑普通用户，但不能编辑其他管理员
+  if (role === 'admin') {
+    return user.accountType === 'user'
+  }
+  
+  // 超级管理员可以编辑所有用户
+  return true
+}
+
+const canDeleteUser = (user) => {
+  if (!adminInfo.value) return false
+  const role = adminInfo.value.role || 'admin'
+  
+  // 审核员不能删除用户
+  if (role === 'auditor') return false
+  
+  // 管理员可以删除普通用户，但不能删除其他管理员
+  if (role === 'admin') {
+    return user.accountType === 'user'
+  }
+  
+  // 超级管理员可以删除所有用户，但不能删除自己
+  if (role === 'super_admin') {
+    return user.id !== adminInfo.value.id
+  }
+  
+  return false
+}
 
 // 用户数据
 const adminUsers = ref([])
