@@ -229,7 +229,7 @@ public class MusicSearchHandler extends HttpServlet {
      * 计算音乐的匹配分数
      * 分数越高，匹配度越高
      * 评分规则：
-     * - 标题精确匹配（不区分大小写）：100分
+     * - 标题精确匹配（不区分大小写，支持繁简体）：100分
      * - 标题以查询开头：80分
      * - 标题包含查询：60分
      * - 歌手精确匹配：50分
@@ -246,54 +246,114 @@ public class MusicSearchHandler extends HttpServlet {
         }
         
         String queryLower = query.toLowerCase();
+        String querySimplified = com.neko.music.util.ChineseConverter.toSimplified(query);
         int score = 0;
-        
+
+        logger.info("计算分数: title={}, artist={}, album={}, query={}", 
+            music.getTitle(), music.getArtist(), music.getAlbum(), query);
+        logger.info("queryLower={}, querySimplified={}", queryLower, querySimplified);
+
         // 检查标题
         String title = music.getTitle();
         if (title != null && !title.isEmpty()) {
             String titleLower = title.toLowerCase();
+            String titleSimplified = com.neko.music.util.ChineseConverter.toSimplified(title).toLowerCase();
+
+            logger.info("标题检查: titleLower={}, titleSimplified={}", titleLower, titleSimplified);
+
+            // 先检查原始文本匹配
             if (titleLower.equals(queryLower)) {
                 score += 100; // 标题精确匹配
+                logger.info("匹配: 标题精确匹配 +100");
             } else if (titleLower.startsWith(queryLower)) {
                 score += 80; // 标题以查询开头
+                logger.info("匹配: 标题以查询开头 +80");
             } else if (titleLower.contains(queryLower)) {
                 score += 60; // 标题包含查询
+                logger.info("匹配: 标题包含查询 +60");
+            }
+            // 如果原始文本没有匹配，检查繁简体转换后的匹配
+            else if (titleSimplified.equals(queryLower) || titleLower.equals(querySimplified.toLowerCase())) {
+                score += 95; // 繁简体精确匹配
+                logger.info("匹配: 繁简体标题精确匹配 +95");
+            } else if (titleSimplified.startsWith(queryLower) || titleLower.startsWith(querySimplified.toLowerCase())) {
+                score += 75; // 繁简体前缀匹配
+                logger.info("匹配: 繁简体标题前缀匹配 +75");
+            } else if (titleSimplified.contains(queryLower) || titleLower.contains(querySimplified.toLowerCase())) {
+                score += 55; // 繁简体包含匹配
+                logger.info("匹配: 繁简体标题包含匹配 +55");
             }
         }
-        
+
         // 检查歌手
         String artist = music.getArtist();
         if (artist != null && !artist.isEmpty()) {
             String artistLower = artist.toLowerCase();
+            String artistSimplified = com.neko.music.util.ChineseConverter.toSimplified(artist).toLowerCase();
+
+            logger.info("歌手检查: artistLower={}, artistSimplified={}", artistLower, artistSimplified);
+
             if (artistLower.equals(queryLower)) {
                 score += 50; // 歌手精确匹配
+                logger.info("匹配: 歌手精确匹配 +50");
             } else if (artistLower.startsWith(queryLower)) {
                 score += 40; // 歌手以查询开头
+                logger.info("匹配: 歌手以查询开头 +40");
             } else if (artistLower.contains(queryLower)) {
                 score += 30; // 歌手包含查询
+                logger.info("匹配: 歌手包含查询 +30");
+            } else if (artistSimplified.equals(queryLower) || artistLower.equals(querySimplified.toLowerCase())) {
+                score += 45; // 歌手繁简体精确匹配
+                logger.info("匹配: 繁简体歌手精确匹配 +45");
+            } else if (artistSimplified.startsWith(queryLower) || artistLower.startsWith(querySimplified.toLowerCase())) {
+                score += 35; // 歌手繁简体前缀匹配
+                logger.info("匹配: 繁简体歌手前缀匹配 +35");
+            } else if (artistSimplified.contains(queryLower) || artistLower.contains(querySimplified.toLowerCase())) {
+                score += 25; // 歌手繁简体包含匹配
+                logger.info("匹配: 繁简体歌手包含匹配 +25");
             }
         }
-        
+
         // 检查专辑
         String album = music.getAlbum();
         if (album != null && !album.isEmpty()) {
             String albumLower = album.toLowerCase();
+            String albumSimplified = com.neko.music.util.ChineseConverter.toSimplified(album).toLowerCase();
+
+            logger.info("专辑检查: albumLower={}, albumSimplified={}", albumLower, albumSimplified);
+
             if (albumLower.equals(queryLower)) {
                 score += 20; // 专辑精确匹配
+                logger.info("匹配: 专辑精确匹配 +20");
             } else if (albumLower.startsWith(queryLower)) {
                 score += 15; // 专辑以查询开头
+                logger.info("匹配: 专辑以查询开头 +15");
             } else if (albumLower.contains(queryLower)) {
                 score += 10; // 专辑包含查询
+                logger.info("匹配: 专辑包含查询 +10");
+            } else if (albumSimplified.equals(queryLower) || albumLower.equals(querySimplified.toLowerCase())) {
+                score += 18; // 专辑繁简体精确匹配
+                logger.info("匹配: 繁简体专辑精确匹配 +18");
+            } else if (albumSimplified.startsWith(queryLower) || albumLower.startsWith(querySimplified.toLowerCase())) {
+                score += 13; // 专辑繁简体前缀匹配
+                logger.info("匹配: 繁简体专辑前缀匹配 +13");
+            } else if (albumSimplified.contains(queryLower) || albumLower.contains(querySimplified.toLowerCase())) {
+                score += 8; // 专辑繁简体包含匹配
+                logger.info("匹配: 繁简体专辑包含匹配 +8");
             }
         }
-        
+
         // 如果以上都没有匹配，检查拼音匹配
         if (score == 0) {
+            logger.info("尝试拼音匹配");
             if (matchMixedInput(music, query)) {
                 score += 90; // 拼音匹配
+                logger.info("匹配: 拼音匹配 +90");
             }
         }
-        
+
+        logger.info("最终分数: score={}", score);
+
         return score;
     }
     
