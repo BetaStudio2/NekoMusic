@@ -16,7 +16,7 @@ import AdminAuditView from '@/views/admin/AdminAuditView.vue'
 import AdminUsersView from '@/views/admin/AdminUsersView.vue'
 import AdminSettingsView from '@/views/admin/AdminSettingsView.vue'
 import DownloadView from '@/views/DownloadView.vue'
-import DevDocsView from '@/views/DevDocsView.vue'
+
 import ErrorView from '@/views/ErrorView.vue'
 import UploadMusicView from '@/views/UploadMusicView.vue'
 
@@ -81,8 +81,8 @@ const router = createRouter({
     },
     {
       path: '/dev-docs',
-          name: 'dev-docs',
-      component: DevDocsView,
+      name: 'dev-docs',
+      redirect: 'https://github.com/NyaNyagulugulu/NekoMusicDocs',
       meta: {
         title: '开发者文档 - Neko云音乐 | API接口文档',
         description: 'Neko云音乐开发者文档，提供完整的API接口文档和使用说明。包括用户认证、音乐搜索、收藏等功能。',
