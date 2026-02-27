@@ -232,20 +232,12 @@ function createTray() {
     ];
     const contextMenu = Menu.buildFromTemplate(menuTemplate);
     console.log("托盘菜单已构建，包含", menuTemplate.length, "个菜单项");
-    if (process.platform === "linux") {
-      console.log("Linux平台：不设置自动菜单，使用手动弹出方式");
-    } else {
-      tray.setContextMenu(contextMenu);
-      console.log("托盘菜单已设置到托盘对象");
-    }
+    tray.setContextMenu(contextMenu);
+    console.log("托盘菜单已设置到托盘对象");
     tray.setToolTip("Neko云音乐");
     console.log("托盘工具提示已设置");
     if (music) {
       tray.setToolTip(`正在播放: ${music.title} - ${music.artist}`);
-    }
-    if (process.platform === "linux") {
-      tray.linuxContextMenu = contextMenu;
-      console.log("Linux平台：菜单已保存用于手动弹出");
     }
   };
   updateContextMenu();
@@ -287,28 +279,6 @@ function createTray() {
       } else {
         win.show();
         win.focus();
-      }
-    }
-  });
-  tray.on("right-click", (event) => {
-    console.log("托盘图标右键被点击，平台:", process.platform);
-    if (process.platform === "linux") {
-      if (tray.linuxContextMenu) {
-        console.log("Linux平台：手动弹出菜单");
-        tray.linuxContextMenu.popup({ window: win });
-      } else {
-        console.error("Linux平台：找不到菜单引用");
-      }
-    } else {
-      tray.popUpContextMenu();
-    }
-  });
-  tray.on("mouse-down", (event) => {
-    console.log("托盘图标鼠标按下事件:", event, "buttons:", event.buttons);
-    if (process.platform === "linux" && event.buttons === 2) {
-      console.log("Linux平台：右键按下，准备弹出菜单");
-      if (tray.linuxContextMenu) {
-        tray.linuxContextMenu.popup({ window: win });
       }
     }
   });
