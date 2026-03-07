@@ -120,14 +120,36 @@ const playAll = () => {
 }
 
 // 下载音乐
-const downloadMusic = (music) => {
-  const downloadUrl = `${apiConfig.BASE_URL}/api/music/file/${music.id}`
-  const link = document.createElement('a')
-  link.href = downloadUrl
-  link.download = `${music.title}.mp3`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
+const downloadMusic = async (music) => {
+  try {
+    const downloadUrl = `${apiConfig.BASE_URL}/api/music/file/${music.id}`
+
+    // 使用fetch获取文件数据
+    const response = await fetch(downloadUrl)
+    if (!response.ok) {
+      throw new Error('下载失败')
+    }
+
+    // 将响应转换为blob
+    const blob = await response.blob()
+
+    // 创建blob URL
+    const blobUrl = URL.createObjectURL(blob)
+
+    // 创建下载链接
+    const link = document.createElement('a')
+    link.href = blobUrl
+    link.download = `${music.title}-${music.artist}.mp3`
+    document.body.appendChild(link)
+    link.click()
+
+    // 清理
+    document.body.removeChild(link)
+    URL.revokeObjectURL(blobUrl)
+  } catch (error) {
+    console.error('下载失败:', error)
+    alert('下载失败，请重试')
+  }
 }
 
 // 格式化播放次数
