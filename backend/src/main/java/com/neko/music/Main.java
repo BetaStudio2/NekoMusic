@@ -182,6 +182,10 @@ public class Main {
         ServletHolder musicRankingHolder = new ServletHolder(new MusicRankingHandler());
         context.addServlet(musicRankingHolder, "/api/music/ranking");
 
+        // 注册最新上传音乐API处理器（无需管理员权限）
+        ServletHolder latestMusicHolder = new ServletHolder(new LatestMusicHandler());
+        context.addServlet(latestMusicHolder, "/api/music/latest");
+
         // 注册用户登录API处理器
         ServletHolder userLoginHolder = new ServletHolder(new UserLoginHandler());
         context.addServlet(userLoginHolder, "/api/user/login");
@@ -282,6 +286,8 @@ public class Main {
         logger.info("  GET /api/music/cover/{id} - 获取音乐封面");
         logger.info("  GET /api/music/lyrics/{id} - 获取歌词");
         logger.info("  POST /api/music/lyrics/{id} - 更新歌词 (需要管理员登录)");
+        logger.info("  GET /api/music/ranking - 获取播放次数排行榜");
+        logger.info("  GET /api/music/latest - 获取最新上传的音乐");
         logger.info("  POST /api/music/add - 添加音乐 (需要管理员登录)");
         logger.info("  PUT /api/music/edit - 编辑音乐 (需要管理员登录)");
         logger.info("  DELETE /api/music/delete/{id} - 删除音乐 (需要管理员登录)");
