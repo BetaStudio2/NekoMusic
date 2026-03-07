@@ -63,6 +63,30 @@
             </div>
           </div>
 
+          <!-- 最新音乐整体卡片 -->
+          <div
+            class="playlist-item latest-music-card"
+            @click="goToLatest"
+          >
+            <div class="playlist-cover latest-music-cover">
+              <div class="latest-music-mosaic">
+                <img
+                  v-for="(item, index) in displayLatestList.slice(0, 4)"
+                  :key="index"
+                  :src="item.coverUrl"
+                  :alt="item.title"
+                  class="mosaic-img"
+                  @error="handleImageError"
+                />
+              </div>
+              <div class="playlist-count latest-music-count">{{ latestList.length }}首</div>
+            </div>
+            <div class="playlist-info">
+              <h3 class="playlist-name">最新音乐</h3>
+              <p class="playlist-description">刚刚上传的最新歌曲</p>
+            </div>
+          </div>
+
           <!-- 歌单卡片 -->
           <div
             v-for="playlist in playlistList"
@@ -102,6 +126,7 @@ const toast = useToast()
 const router = useRouter()
 
 const rankingList = ref([])
+const latestList = ref([])
 const loading = ref(false)
 const playlistList = ref([])
 const playlistsLoading = ref(false)
@@ -109,6 +134,11 @@ const playlistsLoading = ref(false)
 // 显示列表，只显示前20首
 const displayList = computed(() => {
   return rankingList.value.slice(0, 20)
+})
+
+// 显示最新音乐列表，只显示前20首
+const displayLatestList = computed(() => {
+  return latestList.value.slice(0, 20)
 })
 
 // 获取排行榜数据
@@ -132,6 +162,32 @@ const fetchRanking = async () => {
   } catch (error) {
     console.error('排行榜请求失败:', error)
     toast.error('加载排行榜失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 获取最新音乐数据
+const fetchLatest = async () => {
+  loading.value = true
+  try {
+    const timestamp = Date.now()
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/latest?limit=300&t=${timestamp}`)
+    const data = await response.json()
+
+    if (data.success && data.data) {
+      // 为每首音乐设置正确的封面URL
+      latestList.value = data.data.map(item => ({
+        ...item,
+        coverUrl: `${API_CONFIG.BASE_URL}/api/music/cover/${item.id}`
+      }))
+      console.log('最新音乐加载成功:', data.data.length, '首')
+    } else {
+      console.error('获取最新音乐失败:', data.message)
+    }
+  } catch (error) {
+    console.error('最新音乐请求失败:', error)
+    toast.error('加载最新音乐失败')
   } finally {
     loading.value = false
   }
@@ -184,6 +240,11 @@ const goToRanking = () => {
   router.push('/ranking')
 }
 
+// 跳转到最新音乐页面
+const goToLatest = () => {
+  router.push('/latest')
+}
+
 // 播放音乐
 const playMusic = (music) => {
   // 这里需要调用全局播放器的播放方法
@@ -217,6 +278,7 @@ const getRankClass = (index) => {
 
 onMounted(() => {
   fetchRanking()
+  fetchLatest()
   fetchPlaylists()
 })
 </script>
@@ -632,6 +694,31 @@ onMounted(() => {
 
 .hot-music-count {
   background: rgba(255, 107, 107, 0.9);
+  color: white;
+  font-weight: 600;
+}
+
+/* 最新音乐卡片样式 */
+.latest-music-card {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+}
+
+.latest-music-cover {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  padding: 4px;
+}
+
+.latest-music-mosaic {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+}
+
+.latest-music-count {
+  background: rgba(102, 126, 234, 0.9);
   color: white;
   font-weight: 600;
 }

@@ -9,6 +9,7 @@ import UserPlaylistsView from '@/views/UserPlaylistsView.vue'
 import CreatePlaylistView from '@/views/CreatePlaylistView.vue'
 import PlaylistDetailView from '@/views/PlaylistDetailView.vue'
 import RankingView from '@/views/RankingView.vue'
+import LatestView from '@/views/LatestView.vue'
 import AdminLoginView from '@/views/admin/AdminLoginView.vue'
 import AdminView from '@/views/admin/AdminView.vue'
 import AdminMusicView from '@/views/admin/AdminMusicView.vue'
@@ -169,6 +170,16 @@ const router = createRouter({
         title: '热门音乐排行榜 - Neko云音乐 | 免费音乐排行',
         description: '查看基于播放次数排序的热门音乐排行榜，发现最受欢迎的免费音乐。完全免费，无需付费。',
         keywords: '热门音乐,音乐排行榜,免费音乐排行,热门排行'
+      }
+    },
+    {
+      path: '/latest',
+      name: 'latest',
+      component: LatestView,
+      meta: {
+        title: '最新音乐 - Neko云音乐 | 免费新歌',
+        description: '查看刚刚上传的最新音乐，发现最新的免费音乐资源。完全免费，无需付费。',
+        keywords: '最新音乐,新歌上线,免费新歌,音乐上新'
       }
     },
     {
