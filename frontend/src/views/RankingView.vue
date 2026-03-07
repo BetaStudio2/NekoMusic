@@ -112,15 +112,39 @@ const playAll = () => {
 }
 
 // 下载音乐
-const downloadMusic = (music) => {
-  const downloadUrl = `${API_CONFIG.BASE_URL}/api/music/file/${music.id}`
-  const link = document.createElement('a')
-  link.href = downloadUrl
-  link.download = `${music.title}-${music.artist}.mp3`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  toast.success(`开始下载: ${music.title}`)
+const downloadMusic = async (music) => {
+  try {
+    toast.info(`正在准备下载: ${music.title}`)
+    const downloadUrl = `${API_CONFIG.BASE_URL}/api/music/file/${music.id}`
+
+    // 使用fetch获取文件数据
+    const response = await fetch(downloadUrl)
+    if (!response.ok) {
+      throw new Error('下载失败')
+    }
+
+    // 将响应转换为blob
+    const blob = await response.blob()
+
+    // 创建blob URL
+    const blobUrl = URL.createObjectURL(blob)
+
+    // 创建下载链接
+    const link = document.createElement('a')
+    link.href = blobUrl
+    link.download = `${music.title}-${music.artist}.mp3`
+    document.body.appendChild(link)
+    link.click()
+
+    // 清理
+    document.body.removeChild(link)
+    URL.revokeObjectURL(blobUrl)
+
+    toast.success(`开始下载: ${music.title}`)
+  } catch (error) {
+    console.error('下载失败:', error)
+    toast.error('下载失败，请重试')
+  }
 }
 
 // 处理图片加载错误
