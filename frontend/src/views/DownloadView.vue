@@ -185,7 +185,7 @@ const windowsDownloadUrl = computed(() => {
 })
 
 const linuxDownloadUrl = computed(() => {
-  const url = versionInfo.value.pc?.Linux
+  const url = versionInfo.value.pc?.linux
   return replaceVersion(url)
 })
 
