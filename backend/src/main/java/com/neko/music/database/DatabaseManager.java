@@ -33,6 +33,9 @@ public class DatabaseManager {
         config.setIdleTimeout(600000);
         config.setMaxLifetime(1800000);
         
+        // 设置连接初始化SQL，确保每次连接都使用UTC+8时区
+        config.setConnectionInitSql("SET time_zone = '+08:00'");
+        
         this.dataSource = new HikariDataSource(config);
         
         // 初始化数据库表
