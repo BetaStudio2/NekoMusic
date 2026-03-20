@@ -69,8 +69,13 @@ public class UserUploadHandler extends HttpServlet {
             }
             
             // 查重检查：检查是否已存在相同的音乐
-            if (isDuplicateMusic(title, artist, album)) {
-                sendError(response, 409, "已有重复音乐，请检查后重新上传");
+            String duplicateType = isDuplicateMusic(title, artist, album);
+            if (duplicateType != null) {
+                if ("pending".equals(duplicateType)) {
+                    sendError(response, 409, "已有用户上传。请勿重复提交");
+                } else {
+                    sendError(response, 409, "已有重复音乐，请检查后重新上传");
+                }
                 return;
             }
             
@@ -239,28 +244,49 @@ public class UserUploadHandler extends HttpServlet {
         }
     }
     
-    // 查重检查：检查是否已存在相同的音乐
-    private boolean isDuplicateMusic(String title, String artist, String album) {
-        try (Connection conn = Main.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement("SELECT artist, album FROM music WHERE title = ?")) {
+    // 查重检查：检查是否已存在相同的音乐（包括已审核通过的和等待审核的）
+    // 返回值：null 表示不重复，"music" 表示 music 表重复，"pending" 表示等待审核列表重复
+    private String isDuplicateMusic(String title, String artist, String album) {
+        try (Connection conn = Main.getDatabaseManager().getConnection()) {
+            // 1. 检查 user_uploads 表（等待审核的音乐）- 优先检查，防止重复提交
+            String uploadSql = "SELECT artist, album FROM user_uploads WHERE title = ? AND status = 'pending'";
+            try (PreparedStatement stmt = conn.prepareStatement(uploadSql)) {
+                stmt.setString(1, title);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) {
+                        String existingArtist = rs.getString("artist");
+                        String existingAlbum = rs.getString("album");
+                        
+                        // 如果标题相同，检查艺术家或专辑是否相同
+                        if (artist.equals(existingArtist) || 
+                            (album != null && !album.isEmpty() && album.equals(existingAlbum))) {
+                            return "pending"; // 发现重复（等待审核中）
+                        }
+                    }
+                }
+            }
             
-            stmt.setString(1, title);
-            try (ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    String existingArtist = rs.getString("artist");
-                    String existingAlbum = rs.getString("album");
-                    
-                    // 如果标题相同，检查艺术家或专辑是否相同
-                    if (artist.equals(existingArtist) || 
-                        (album != null && !album.isEmpty() && album.equals(existingAlbum))) {
-                        return true; // 发现重复
+            // 2. 检查 music 表（已审核通过的音乐）
+            String musicSql = "SELECT artist, album FROM music WHERE title = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(musicSql)) {
+                stmt.setString(1, title);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) {
+                        String existingArtist = rs.getString("artist");
+                        String existingAlbum = rs.getString("album");
+                        
+                        // 如果标题相同，检查艺术家或专辑是否相同
+                        if (artist.equals(existingArtist) || 
+                            (album != null && !album.isEmpty() && album.equals(existingAlbum))) {
+                            return "music"; // 发现重复（已审核通过）
+                        }
                     }
                 }
             }
         } catch (SQLException e) {
             logger.error("查重检查失败: " + e.getMessage(), e);
         }
-        return false;
+        return null;
     }
     
     private void sendError(HttpServletResponse response, int status, String message) throws IOException {
