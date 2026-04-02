@@ -1,4 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Neko云音乐</string>
     <string name="widget_description">Neko云音乐桌面播放器</string>
+    
+    <!-- 设置页面 -->
+    <string name="settings">设置</string>
+    <string name="general">通用</string>
+    <string name="cache_enabled">是否缓存</string>
+    <string name="cache_enabled_subtitle">开启后可缓存音乐以便离线播放</string>
+    <string name="cache_management">缓存管理</string>
+    <string name="cached_songs" formatted="false">已缓存 %1$d 首歌曲 (%2$s)</string>
+    <string name="focus_lock">焦点锁定</string>
+    <string name="focus_lock_subtitle">开启后不会被其他应用打断播放，可同时播放</string>
+    <string name="fuck_china_os">灵动岛</string>
+    <string name="fuck_china_os_subtitle">在顶部状态栏中央显示播放控制。操你妈国产系统</string>
+    <string name="language">语言</string>
+    <string name="language_subtitle">选择应用显示语言</string>
+    <string name="language_follow_system">跟随系统</string>
+    <string name="language_zh">简体中文</string>
+    <string name="language_en">English</string>
+    
+    <!-- 版本信息 -->
+    <string name="version">版本</string>
+    <string name="update_available">发现新版本</string>
+    <string name="update_version">新版本：%s</string>
+    <string name="update_code">版本号：%d</string>
+    <string name="update_now">立即更新</string>
+    <string name="update_later">稍后</string>
+    <string name="downloading_update">正在下载更新</string>
+    <string name="update_success">下载完成</string>
+    <string name="update_installing">正在安装更新…</string>
+    <string name="update_failed">更新失败</string>
+    
+    <!-- 我的页面 -->
+    <string name="mine">我的</string>
+    <string name="not_logged_in">未登录</string>
+    <string name="upload">上传</string>
+    <string name="my_music">我的音乐</string>
+    <string name="my_favorites">我的收藏</string>
+    <string name="recent_play">最近播放</string>
+    <string name="settings_title">设置</string>
+    <string name="about_us">关于我们</string>
+    <string name="logout">退出登录</string>
+    <string name="login">登录</string>
+    <string name="please_login_first">请先登录</string>
+    <string name="login_after_view">登录后可以查看和管理您的收藏</string>
+    <string name="no_favorites">暂无收藏</string>
+    <string name="no_search_results">未找到相关歌曲</string>
+    <string name="my_playlists">我的歌单</string>
+    <string name="my_uploads">我的上传</string>
+    <string name="no_uploaded_music">还没有上传的音乐</string>
+    <string name="uploaded_music_pending">上传的音乐审核通过后会显示在这里</string>
+    <string name="latest_songs">最新上传的歌曲</string>
+    <string name="get_favorites_failed">获取收藏列表失败</string>
+    <string name="login_failed">登录失败: %s</string>
+    <string name="login_now">立即登录</string>
+    <string name="favorite_success">收藏成功</string>
+    <string name="unfavorite_success">取消收藏成功</string>
+    <string name="avatar_upload_success">头像上传成功</string>
+    <string name="add_favorite">收藏</string>
+    <string name="remove_favorite">取消收藏</string>
+    
+    <!-- 页脚 -->
+    <string name="footer_icp">蜀ICP备2025177767号-1 如有侵权请联系support@cnmsb.xin</string>
+    <string name="footer_copyright">© 2025-2026 Fantasy Network「梦幻网络」 保留所有权利.</string>
+    <string name="api_docs">API文档</string>
+    <string name="github_repo">GitHub仓库</string>
+    
+    <!-- 播放器 -->
+    <string name="play">播放</string>
+    <string name="pause">暂停</string>
+    <string name="previous">上一首</string>
+    <string name="next">下一首</string>
+    <string name="favorite">收藏</string>
+    <string name="unfavorite">取消收藏</string>
+    
+    <!-- 其他 -->
+    <string name="back">返回</string>
+    <string name="confirm">确定</string>
+    <string name="cancel">取消</string>
+    <string name="loading">加载中…</string>
+    <string name="error">错误</string>
 </resources>
