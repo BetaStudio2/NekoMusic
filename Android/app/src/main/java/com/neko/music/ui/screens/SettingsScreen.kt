@@ -297,6 +297,21 @@ fun SettingsScreen(
                             onClick = { onNavigateToCache() }
                         )
                     }
+                    
+                    SettingSwitchItem(
+                        icon = Icons.Default.Info,
+                        title = "焦点锁定",
+                        subtitle = "开启后不会被其他应用打断播放，可同时播放",
+                        checked = isFocusLockEnabled,
+                        onCheckedChange = { enabled ->
+                            isFocusLockEnabled = enabled
+                            focusLockPrefs.edit().putBoolean("focus_lock_enabled", enabled).apply()
+                            
+                            // 通知MusicPlayerManager重新应用音频属性
+                            val playerManager = com.neko.music.service.MusicPlayerManager.getInstance(context)
+                            playerManager.updateAudioAttributes(enabled)
+                        }
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))

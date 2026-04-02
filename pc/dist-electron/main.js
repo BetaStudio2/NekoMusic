@@ -1,8 +1,8 @@
-import { app as o, ipcMain as u, shell as N, BrowserWindow as E, nativeImage as $, Tray as F, Menu as D } from "electron";
+import { app as o, ipcMain as u, shell as F, BrowserWindow as j, nativeImage as $, Tray as N, Menu as D } from "electron";
 import d from "path";
 import h from "fs";
-import { fileURLToPath as C } from "url";
-const T = d.dirname(C(import.meta.url));
+import { fileURLToPath as W } from "url";
+const T = d.dirname(W(import.meta.url));
 process.platform === "linux" && (console.log("Linux平台检测到，检查托盘支持..."), console.log("提示：如果托盘图标不显示或右键无反应，请安装系统库："), console.log("  sudo apt-get install libayatana-appindicator3-1"), console.log("  或者设置环境变量：export XDG_CURRENT_DESKTOP=Unity"));
 let e, m;
 o.isQuitting = !1;
@@ -24,46 +24,53 @@ o.commandLine.appendSwitch("disable-ipc-flooding-protection");
 o.commandLine.appendSwitch("disable-features", "Translate");
 o.commandLine.appendSwitch("disable-features", "SpeechSynthesis");
 o.commandLine.appendSwitch("disable-features", "Autofill");
-const W = o.requestSingleInstanceLock();
-W ? o.on("second-instance", () => {
+const C = o.requestSingleInstanceLock();
+C ? o.on("second-instance", () => {
   e && (e.isMinimized() && e.restore(), e.focus());
 }) : (console.log("已经有实例在运行，退出新实例"), o.quit(), process.exit(0));
 function M() {
   console.log("createWindow: 开始创建窗口");
-  const p = process.env.NODE_ENV === "development", c = p ? d.join(T, "../public/icon.png") : d.join(o.getAppPath(), "public/icon.png"), i = d.join(T, "./preload.cjs");
-  if (console.log("createWindow: 图标路径 =", c), console.log("createWindow: preload 路径 =", i), e = new E({
+  const p = process.env.NODE_ENV === "development", a = p ? d.join(T, "../public/icon.png") : d.join(o.getAppPath(), "public/icon.png"), i = d.join(T, "./preload.cjs");
+  if (console.log("createWindow: 图标路径 =", a), console.log("createWindow: preload 路径 =", i), e = new j({
     width: 1280,
     height: 720,
     minWidth: 1280,
     minHeight: 720,
     frame: !1,
     autoHideMenuBar: !0,
-    icon: c,
+    icon: a,
     title: "Neko云音乐",
     webPreferences: {
       preload: i,
       nodeIntegration: !1,
       contextIsolation: !0,
-      devTools: !0,
-      sandbox: !1
+      devTools: !1,
+      sandbox: !1,
       // 关闭沙箱以允许 localStorage 访问
+      nativeWindowOpen: !0
+      // 允许使用原生 window.open
     },
     backgroundColor: "#667eea"
   }), e.on("maximize", () => {
     e.webContents.send("window-maximized");
   }), e.on("unmaximize", () => {
     e.webContents.send("window-unmaximized");
-  }), e.webContents.on("before-input-event", (s, t) => {
-    t.control && t.shift && (t.key === "I" || t.key === "i") && s.preventDefault(), t.control && (t.key === "F12" || t.key === "f12") && s.preventDefault(), (t.alt && t.key === "F12" || t.alt && t.key === "f12") && s.preventDefault(), (t.key === "F11" || t.key === "f11") && s.preventDefault();
+  }), e.webContents.on("before-input-event", (n, t) => {
+    t.control && t.shift && (t.key === "I" || t.key === "i") && n.preventDefault(), t.control && (t.key === "F12" || t.key === "f12") && n.preventDefault(), (t.alt && t.key === "F12" || t.alt && t.key === "f12") && n.preventDefault(), (t.key === "F11" || t.key === "f11") && n.preventDefault();
+  }), e.webContents.setWindowOpenHandler(({ url: n }) => {
+    const { shell: t } = require("electron");
+    return t.openExternal(n).catch((r) => {
+      console.error("Failed to open external URL:", r);
+    }), { action: "deny" };
   }), p || !o.isPackaged)
     console.log("createWindow: 加载开发服务器 http://localhost:5173"), e.loadURL("http://localhost:5173");
   else {
     console.log("createWindow: 加载生产文件");
-    const s = o.getAppPath(), t = d.join(s, "dist/index.html");
+    const n = o.getAppPath(), t = d.join(n, "dist/index.html");
     console.log("生产文件路径:", t), e.loadFile(t);
   }
-  e.webContents.openDevTools(), e.on("close", (s) => {
-    o.isQuitting || (s.preventDefault(), e.hide());
+  e.webContents.openDevTools(), e.on("close", (n) => {
+    o.isQuitting || (n.preventDefault(), e.hide());
   }), e.on("closed", () => {
     e = null;
   });
@@ -77,14 +84,14 @@ let g = {
   lyricsEnabled: !1,
   desktopLyricsEnabled: !1
 };
-function I() {
+function U() {
   console.log("createTray: 开始创建托盘");
-  const p = (n) => {
-    const a = process.resourcesPath ? d.join(process.resourcesPath, n) : null, r = d.join(o.getAppPath(), "public", n), f = d.join(T, "../public", n);
-    return a && h.existsSync(a) ? (console.log(`使用resources路径: ${a}`), a) : h.existsSync(r) ? (console.log(`使用app路径: ${r}`), r) : h.existsSync(f) ? (console.log(`使用相对路径: ${f}`), f) : (console.log(`使用默认app路径: ${r}`), r);
-  }, c = p("icon.png"), i = $.createFromPath(c);
-  console.log("托盘图标路径:", c), console.log("托盘图标是否为空:", i.isEmpty()), m && (m.destroy(), m = null), m = new F(i), m.setToolTip("Neko云音乐"), (() => {
-    const n = {};
+  const p = (s) => {
+    const c = process.resourcesPath ? d.join(process.resourcesPath, s) : null, l = d.join(o.getAppPath(), "public", s), f = d.join(T, "../public", s);
+    return c && h.existsSync(c) ? (console.log(`使用resources路径: ${c}`), c) : h.existsSync(l) ? (console.log(`使用app路径: ${l}`), l) : h.existsSync(f) ? (console.log(`使用相对路径: ${f}`), f) : (console.log(`使用默认app路径: ${l}`), l);
+  }, a = p("icon.png"), i = $.createFromPath(a);
+  console.log("托盘图标路径:", a), console.log("托盘图标是否为空:", i.isEmpty()), m && (m.destroy(), m = null), m = new N(i), m.setToolTip("Neko云音乐"), (() => {
+    const s = {};
     return [
       "tray-previous",
       "tray-play",
@@ -98,21 +105,21 @@ function I() {
       "tray-minimize",
       "tray-lyrics",
       "tray-exit"
-    ].forEach((r) => {
+    ].forEach((l) => {
       try {
-        const f = p(`${r}.png`), y = $.createFromPath(f);
-        y.resize({ width: 18, height: 18 }), n[r] = y;
+        const f = p(`${l}.png`), y = $.createFromPath(f);
+        y.resize({ width: 18, height: 18 }), s[l] = y;
       } catch (f) {
-        console.warn(`Failed to load icon: ${r}`, f);
+        console.warn(`Failed to load icon: ${l}`, f);
       }
-    }), n;
+    }), s;
   })();
   const t = async () => {
     if (e)
       try {
-        const n = await e.webContents.executeJavaScript('localStorage.getItem("currentMusic")');
-        n ? g.currentMusic = JSON.parse(n) : g.currentMusic = null;
-        const a = await e.webContents.executeJavaScript(`
+        const s = await e.webContents.executeJavaScript('localStorage.getItem("currentMusic")');
+        s ? g.currentMusic = JSON.parse(s) : g.currentMusic = null;
+        const c = await e.webContents.executeJavaScript(`
         (function() {
           const audio = document.querySelector('audio');
           return {
@@ -122,22 +129,22 @@ function I() {
           };
         })()
       `);
-        a && (g.isPlaying = a.isPlaying);
-      } catch (n) {
-        console.error("同步播放状态失败:", n);
+        c && (g.isPlaying = c.isPlaying);
+      } catch (s) {
+        console.error("同步播放状态失败:", s);
       }
-  }, l = async () => {
+  }, r = async () => {
     await t();
-    const n = g.currentMusic;
-    let a = "暂无播放";
-    if (n) {
-      const y = n.title || "未知歌曲", w = n.artist || "未知艺术家";
-      a = `${y.length > 15 ? y.substring(0, 15) + "..." : y} - ${w}`;
+    const s = g.currentMusic;
+    let c = "暂无播放";
+    if (s) {
+      const y = s.title || "未知歌曲", w = s.artist || "未知艺术家";
+      c = `${y.length > 15 ? y.substring(0, 15) + "..." : y} - ${w}`;
     }
-    const r = [
+    const l = [
       // 顶部：当前播放信息
       {
-        label: a,
+        label: c,
         enabled: !1
       },
       { type: "separator" },
@@ -163,15 +170,15 @@ function I() {
           o.isQuitting = !0, o.quit();
         }
       }
-    ], f = D.buildFromTemplate(r);
-    console.log("托盘菜单已构建，包含", r.length, "个菜单项"), m.setContextMenu(f), console.log("托盘菜单已设置到托盘对象"), m.setToolTip("Neko云音乐"), console.log("托盘工具提示已设置"), n && m.setToolTip(`正在播放: ${n.title} - ${n.artist}`);
+    ], f = D.buildFromTemplate(l);
+    console.log("托盘菜单已构建，包含", l.length, "个菜单项"), m.setContextMenu(f), console.log("托盘菜单已设置到托盘对象"), m.setToolTip("Neko云音乐"), console.log("托盘工具提示已设置"), s && m.setToolTip(`正在播放: ${s.title} - ${s.artist}`);
   };
-  l(), u.on("player-state-changed", (n, a) => {
-    a && (g = { ...g, ...a }, l());
-  }), u.on("music-play", (n, a) => {
-    g.currentMusic = a, g.isPlaying = !0, l();
-  }), u.on("play-state-changed", (n, a) => {
-    g.isPlaying = a, l();
+  r(), u.on("player-state-changed", (s, c) => {
+    c && (g = { ...g, ...c }, r());
+  }), u.on("music-play", (s, c) => {
+    g.currentMusic = c, g.isPlaying = !0, r();
+  }), u.on("play-state-changed", (s, c) => {
+    g.isPlaying = c, r();
   }), m.on("click", () => {
     console.log("托盘图标被点击"), e && (e.isVisible() ? e.isFocused() ? e.hide() : e.focus() : (e.show(), e.focus()));
   }), m.on("double-click", () => {
@@ -187,71 +194,79 @@ u.on("window-maximize", () => {
 u.on("window-close", () => {
   e && e.hide();
 });
-u.handle("get-path", async (p, c) => o.getPath(c));
-u.handle("save-file", async (p, c) => {
-  const { fileName: i, fileType: s, suggestedPath: t } = c;
-  let l;
-  return t && t.includes("NekoMusic") ? (l = o.getPath("downloads"), t && (l = d.join(l, t))) : (l = o.getPath("userData"), t && (l = d.join(l, t))), h.existsSync(l) || h.mkdirSync(l, { recursive: !0 }), d.join(l, i);
-});
-u.handle("write-file", async (p, c, i) => {
+u.handle("get-path", async (p, a) => o.getPath(a));
+u.handle("open-external", async (p, a) => {
+  const { shell: i } = await import("electron");
   try {
-    const s = Buffer.from(i);
-    return h.writeFileSync(c, s), { success: !0, path: c };
-  } catch (s) {
-    return console.error("写入文件失败:", s), { success: !1, error: s.message };
+    return await i.openExternal(a), { success: !0 };
+  } catch (n) {
+    return console.error("Failed to open external URL:", n), { success: !1, error: n.message };
   }
 });
-u.handle("open-file", async (p, c) => {
+u.handle("save-file", async (p, a) => {
+  const { fileName: i, fileType: n, suggestedPath: t } = a;
+  let r;
+  return t && t.includes("NekoMusic") ? (r = o.getPath("downloads"), t && (r = d.join(r, t))) : (r = o.getPath("userData"), t && (r = d.join(r, t))), h.existsSync(r) || h.mkdirSync(r, { recursive: !0 }), d.join(r, i);
+});
+u.handle("write-file", async (p, a, i) => {
   try {
-    return await N.openPath(c), { success: !0 };
+    const n = Buffer.from(i);
+    return h.writeFileSync(a, n), { success: !0, path: a };
+  } catch (n) {
+    return console.error("写入文件失败:", n), { success: !1, error: n.message };
+  }
+});
+u.handle("open-file", async (p, a) => {
+  try {
+    return await F.openPath(a), { success: !0 };
   } catch (i) {
     return console.error("打开文件失败:", i), { success: !1, error: i.message };
   }
 });
-u.handle("http-request", async (p, c, i = {}) => {
+u.handle("http-request", async (p, a, i = {}) => {
   try {
-    const s = await fetch(c, {
+    const n = await fetch(a, {
       ...i,
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         ...i.headers || {}
       }
-    }), t = await s.text();
+    }), t = await n.text();
     return {
       success: !0,
-      status: s.status,
+      status: n.status,
       data: t,
-      headers: Object.fromEntries(s.headers.entries())
+      headers: Object.fromEntries(n.headers.entries())
     };
-  } catch (s) {
-    return console.error("HTTP请求失败:", s), { success: !1, error: s.message };
+  } catch (n) {
+    return console.error("HTTP请求失败:", n), { success: !1, error: n.message };
   }
 });
-u.handle("download-music-with-lyrics", async (p, c) => {
-  console.log("下载音乐和歌词 - 接收到的数据:", c);
+u.handle("download-music-with-lyrics", async (p, a) => {
+  console.log("下载音乐和歌词 - 接收到的数据:", a);
   try {
-    const { id: i, title: s, artist: t, fileFormat: l, baseUrl: n } = c;
-    if (!i || !s || !t || !n)
-      return console.error("缺少必要参数:", { id: i, title: s, artist: t, baseUrl: n }), { success: !1, error: "缺少必要参数" };
-    const a = o.getPath("downloads"), r = d.join(a, "NekoMusic");
-    console.log("下载目录:", r), h.existsSync(r) || (h.mkdirSync(r, { recursive: !0 }), console.log("创建下载目录成功"));
-    const f = s.replace(/[<>:"/\\|?*]/g, "_"), w = `${t.replace(/[<>:"/\\|?*]/g, "_")} - ${f}`;
+    const { id: i, title: n, artist: t, fileFormat: r, baseUrl: s } = a;
+    if (!i || !n || !t || !s)
+      return console.error("缺少必要参数:", { id: i, title: n, artist: t, baseUrl: s }), { success: !1, error: "缺少必要参数" };
+    const c = o.getPath("downloads"), l = d.join(c, "NekoMusic");
+    console.log("下载目录:", l), h.existsSync(l) || (h.mkdirSync(l, { recursive: !0 }), console.log("创建下载目录成功"));
+    const f = n.replace(/[<>:"/\\|?*]/g, "_"), w = `${t.replace(/[<>:"/\\|?*]/g, "_")} - ${f}`;
     console.log("文件名:", w);
-    const x = `${n}/api/music/file/${i}`;
-    console.log("音乐URL:", x);
-    const P = await fetch(x);
+    const v = `${s}/api/music/file/${i}`;
+    console.log("音乐URL:", v);
+    const P = await fetch(v);
     if (console.log("音乐响应状态:", P.status), !P.ok)
       throw new Error(`下载音乐文件失败: ${P.status}`);
-    const z = await P.arrayBuffer(), j = l || "mp3", S = d.join(r, `${w}.${j}`);
+    const z = await P.arrayBuffer(), E = r || "mp3", S = d.join(l, `${w}.${E}`);
     h.writeFileSync(S, Buffer.from(z)), console.log("音乐文件保存成功:", S);
     let b = null;
     try {
-      const k = `${n}/api/music/lyrics/${i}`;
+      const k = `${s}/api/music/lyrics/${i}`;
       console.log("歌词URL:", k);
       const L = await fetch(k);
       if (console.log("歌词响应状态:", L.status), L.ok) {
-        const v = await L.json();
-        console.log("歌词数据:", v), v.success && v.data ? (b = d.join(r, `${w}.lrc`), h.writeFileSync(b, v.data, "utf-8"), console.log("歌词文件保存成功:", b)) : console.log("没有歌词数据");
+        const x = await L.json();
+        console.log("歌词数据:", x), x.success && x.data ? (b = d.join(l, `${w}.lrc`), h.writeFileSync(b, x.data, "utf-8"), console.log("歌词文件保存成功:", b)) : console.log("没有歌词数据");
       } else
         console.log("歌词不可用");
     } catch (k) {
@@ -275,7 +290,7 @@ o.on("ready", () => {
     console.log("窗口已存在，显示窗口"), e.show(), e.focus();
     return;
   }
-  console.log("创建新窗口，NODE_ENV:", process.env.NODE_ENV), M(), I();
+  console.log("创建新窗口，NODE_ENV:", process.env.NODE_ENV), M(), U();
 });
 o.on("will-quit", () => {
 });

@@ -119,6 +119,7 @@ Thumbs.db
 Android/app/release
 
 ### PC
+pc/dist/*
 pc/dist
 pc/node_modules
 pc/package-lock.json
