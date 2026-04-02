@@ -1,79 +1,95 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
+<head>
     <meta charset="UTF-8">
     <link rel="icon" href="/favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Neko云音乐 - 完全免费的在线音乐播放平台，提供海量免费音乐资源、高品质音频播放、个性化收藏等功能。无需付费，永久免费，支持在线搜索、播放、收藏您喜爱的音乐。">
-    <meta name="keywords" content="Neko云音乐,免费音乐,在线音乐,音乐播放,音乐搜索,音乐收藏,免费听歌,高品质音乐,无广告音乐,永久免费">
+
+    <meta name="description" content="Neko云音乐 (Neko Music) - 完全免费的开源在线音乐播放平台。提供海量免费音乐资源、高品质音频播放、个性化收藏等功能。无需付费，永久免费，支持全平台搜索与播放。">
+    <meta name="keywords" content="Neko云音乐,Neko Music,免费音乐,在线音乐,音乐播放器,音乐搜索,免费听歌,高品质音乐,无广告音乐,开源音乐,NekoMusicForAndroid">
     <meta name="author" content="NekoMusic">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#6a5acd">
+
     <meta name="google-site-verification" content="your-google-verification-code">
-    
-    <!-- Open Graph / Facebook -->
+
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://music.cnmsb.xin/">
-    <meta property="og:title" content="Neko云音乐 - 完全免费的在线音乐播放平台">
-    <meta property="og:description" content="完全免费的在线音乐播放平台，提供海量免费音乐资源、高品质音频播放、个性化收藏等功能。无需付费，永久免费。">
+    <meta property="og:title" content="Neko云音乐 - 纯粹、免费、开源的在线音乐天堂">
+    <meta property="og:description" content="完全免费的在线音乐播放平台，支持高品质音频与个性化收藏。让 Neko 陪你度过每一个旋律时刻。">
     <meta property="og:image" content="https://music.cnmsb.xin/og-image.jpg">
     <meta property="og:locale" content="zh_CN">
-    
-    <!-- Twitter -->
+
     <meta property="twitter:card" content="summary_large_image">
     <meta property="twitter:url" content="https://music.cnmsb.xin/">
     <meta property="twitter:title" content="Neko云音乐 - 完全免费的在线音乐播放平台">
-    <meta property="twitter:description" content="完全免费的在线音乐播放平台，提供海量免费音乐资源、高品质音频播放、个性化收藏等功能。无需付费，永久免费。">
+    <meta property="twitter:description" content="无广告、高性能的 Web 音乐平台，海量资源永久免费。">
     <meta property="twitter:image" content="https://music.cnmsb.xin/og-image.jpg">
-    
-    <!-- Canonical URL -->
+
     <link rel="canonical" href="https://music.cnmsb.xin/">
-    
-    <title>Neko云音乐 - 完全免费的在线音乐播放平台 | 海量免费音乐资源</title>
-    
-    <!-- Preconnect for performance -->
     <link rel="preconnect" href="https://music.cnmsb.xin">
-    
-    <!-- Structured Data -->
+    <link rel="dns-prefetch" href="https://music.cnmsb.xin">
+
+    <title>Neko云音乐 - 完全免费的在线音乐播放平台 | Neko Music 海量免费音乐资源</title>
+
     <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "MusicPlatform",
-      "name": "Neko云音乐",
-      "url": "https://music.cnmsb.xin/",
-      "description": "完全免费的在线音乐播放平台，提供海量免费音乐资源、高品质音频播放、个性化收藏等功能。无需付费，永久免费。",
-      "logo": "https://music.cnmsb.xin/favicon.ico",
-      "sameAs": [
-        "https://github.com/NyaNyagulugulu/NekoMuscis"
-      ],
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "CNY",
-        "description": "完全免费，无需付费"
-      },
-      "potentialAction": {
-        "@type": "SearchAction",
-        "target": "https://music.cnmsb.xin/search/{search_term_string}",
-        "query-input": "required name=search_term_string"
-      },
-      "aggregateRating": {
-        "@type": "AggregateRating",
-        "ratingValue": "4.8",
-        "reviewCount": "1000"
-      }
-    }
+        {
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": "Neko云音乐",
+            "alternateName": "Neko Music",
+            "url": "https://music.cnmsb.xin/",
+            "description": "完全免费的在线音乐播放平台，提供海量免费音乐资源、高品质音频播放、个性化收藏等功能。无需付费，永久免费。",
+            "applicationCategory": "MultimediaApplication",
+            "operatingSystem": "Web, Android, Windows, Linux",
+            "logo": "https://music.cnmsb.xin/favicon.png",
+            "sameAs": [
+                "https://github.com/FantasyNetworkCN/NekoMusicForAndroid"
+            ],
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "CNY",
+                "description": "完全免费，无需付费"
+            },
+            "potentialAction": {
+                "@type": "SearchAction",
+                "target": "https://music.cnmsb.xin/search/{search_term_string}",
+                "query-input": "required name=search_term_string"
+            }
+        }
     </script>
-    
-    <!-- Additional SEO -->
+
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Neko云音乐">
     <meta name="application-name" content="Neko云音乐">
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.js"></script>
-  </body>
+    <meta name="format-detection" content="telephone=no">
+</head>
+<body>
+<div id="app">
+    <header>
+        <h1>Neko云音乐 (Neko Music) - 纯粹、免费、开源的在线音乐播放器</h1>
+        <p>提供高品质音乐在线搜索、播放与同步收藏服务。支持 PC 端、移动端与 Web 端多端体验。</p>
+    </header>
+    <main>
+        <p>正在为您加载 Neko云音乐 的极致视听体验，请稍候...</p>
+        <section>
+            <h2>为什么选择 Neko云音乐？</h2>
+            <ul>
+                <li><strong>完全免费</strong>：所有音乐资源均可在线播放，无需任何订阅费用。</li>
+                <li><strong>开源透明</strong>：项目托管于 GitHub，代码公开，安全可靠。</li>
+                <li><strong>极致体验</strong>：无广告干扰，支持高品质音频流。</li>
+                <li><strong>多端联动</strong>：支持 NekoMusicForAndroid 及 PC 版本同步使用。</li>
+            </ul>
+            <p>温馨提示：Neko云音乐为独立开发的开源项目，非网易云音乐官方或第三方插件。</p>
+        </section>
+    </main>
+    <footer>
+        <p>© 2026 NekoMusic Project. 基于开源协议发布。</p>
+    </footer>
+</div>
+<script type="module" src="/src/main.js"></script>
+</body>
 </html>
