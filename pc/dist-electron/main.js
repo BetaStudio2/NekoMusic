@@ -99,6 +99,7 @@ function createWindow() {
     console.log("生产文件路径:", prodPath);
     win.loadFile(prodPath);
   }
+  win.webContents.openDevTools();
   win.on("close", (event) => {
     if (!app.isQuitting) {
       event.preventDefault();
