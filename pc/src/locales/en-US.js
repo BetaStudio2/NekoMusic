@@ -265,8 +265,6 @@ export default {
     playSettings: 'Play Settings',
     musicCache: 'Music Cache',
     musicCacheDesc: 'Automatically cache played music to local download directory',
-    audioFocusLock: 'Audio Focus Lock',
-    audioFocusLockDesc: 'When enabled, playback won\'t be interrupted by other apps and allows multiple audio sources to play simultaneously',
     cachePath: 'Cache Path',
     about: 'About',
     appVersion: 'Version',

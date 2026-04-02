@@ -82,6 +82,10 @@ fun SettingsScreen(
     val floatPrefs = remember { context.getSharedPreferences("float_window", Context.MODE_PRIVATE) }
     var isFuckChinaOSEnabled by remember { mutableStateOf(floatPrefs.getBoolean("fuck_china_os_enabled", false)) }
     
+    // 焦点锁定设置
+    val focusLockPrefs = remember { context.getSharedPreferences("player_prefs", Context.MODE_PRIVATE) }
+    var isFocusLockEnabled by remember { mutableStateOf(focusLockPrefs.getBoolean("focus_lock_enabled", false)) }
+    
     // 悬浮窗权限检查
     var hasOverlayPermission by remember {
         mutableStateOf(

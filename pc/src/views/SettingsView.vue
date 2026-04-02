@@ -52,16 +52,6 @@
           <span class="cache-path-label">{{ t('settings.cachePath') }}：</span>
           <span class="cache-path-value">{{ cachePath }}</span>
         </div>
-        <div class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">{{ t('settings.audioFocusLock') }}</span>
-            <span class="setting-desc">{{ t('settings.audioFocusLockDesc') }}</span>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" v-model="audioFocusLock" @change="handleAudioFocusLockToggle" />
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
       </div>
       
       <div class="settings-section">
@@ -271,9 +261,6 @@ const { t, locale } = useI18n()
 // 音乐缓存设置
 const musicCacheEnabled = ref(localStorage.getItem('musicCacheEnabled') !== 'false')
 
-// 音频焦点锁定设置
-const audioFocusLock = ref(localStorage.getItem('audioFocusLock') === 'true')
-
 // 语言设置
 const currentLanguage = ref(locale.value)
 
@@ -321,15 +308,7 @@ const handleCacheToggle = () => {
   window.dispatchEvent(new CustomEvent('cache-setting-changed', {
     detail: { enabled: musicCacheEnabled.value }
   }))
-  showToast(musicCacheEnabled.value ? t('common.cacheEnabled') : t('common.cacheDisabled'), 'success')
-}
-
-const handleAudioFocusLockToggle = () => {
-  localStorage.setItem('audioFocusLock', audioFocusLock.value.toString())
-  window.dispatchEvent(new CustomEvent('audio-focus-lock-changed', {
-    detail: { enabled: audioFocusLock.value }
-  }))
-  showToast(audioFocusLock.value ? '焦点锁定已开启' : '焦点锁定已关闭', 'success')
+  showToast(musicCacheEnabled.value ? '音乐缓存已开启' : '音乐缓存已关闭', 'success')
 }
 
 // 检测系统类型

@@ -265,8 +265,6 @@ export default {
     playSettings: '播放设置',
     musicCache: '音乐缓存',
     musicCacheDesc: '自动缓存听过的音乐到本地下载目录',
-    audioFocusLock: '焦点锁定',
-    audioFocusLockDesc: '开启后不会被其他应用打断播放，且允许同时播放多个音频源',
     cachePath: '缓存路径',
     about: '关于',
     appVersion: '版本号',
