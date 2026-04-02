@@ -288,11 +288,22 @@ const isPlaying = ref(false)
 const isMuted = ref(false)
 const playMode = ref('list') // list, single, shuffle
 const musicCacheEnabled = ref(localStorage.getItem('musicCacheEnabled') !== 'false') // 音乐缓存开关，默认开启
+const audioFocusLock = ref(localStorage.getItem('audioFocusLock') === 'true') // 音频焦点锁定，默认关闭
 
 // 监听缓存设置变化
 window.addEventListener('cache-setting-changed', (event) => {
   musicCacheEnabled.value = event.detail.enabled
   console.log('缓存设置已更新:', musicCacheEnabled.value)
+})
+
+// 监听焦点锁定设置变化
+window.addEventListener('audio-focus-lock-changed', (event) => {
+  audioFocusLock.value = event.detail.enabled
+  console.log('焦点锁定设置已更新:', audioFocusLock.value)
+  // 如果音频正在播放，立即应用焦点锁定设置
+  if (audioElement.value) {
+    applyAudioFocusLock()
+  }
 })
 const currentTime = ref(0)
 const duration = ref(0)
@@ -1286,6 +1297,43 @@ const cacheMusicAfterLoad = async (musicId) => {
   }
 }
 
+// 应用音频焦点锁定设置
+const applyAudioFocusLock = () => {
+  if (!audioElement.value) return
+
+  try {
+    if (audioFocusLock.value) {
+      // 开启焦点锁定：设置音频属性以防止被打断
+      // 设置playsinline防止自动全屏
+      audioElement.value.setAttribute('playsinline', '')
+      audioElement.value.setAttribute('webkit-playsinline', '')
+
+      // 尝试请求音频焦点并保持
+      if (audioElement.value.setMediaKeys) {
+        audioElement.value.setMediaKeys(null).catch(err => {
+          console.log('设置媒体密钥失败（非致命）:', err)
+        })
+      }
+
+      // 防止自动暂停
+      audioElement.value.loop = false
+
+      // 设置较低的暂停阈值
+      audioElement.value.preload = 'auto'
+
+      console.log('✓ 音频焦点锁定已启用')
+    } else {
+      // 关闭焦点锁定：恢复默认行为
+      audioElement.value.removeAttribute('playsinline')
+      audioElement.value.removeAttribute('webkit-playsinline')
+
+      console.log('✓ 音频焦点锁定已关闭')
+    }
+  } catch (error) {
+    console.error('应用音频焦点锁定失败:', error)
+  }
+}
+
 const loadMusic = async (music) => {
   if (!music) return
 
@@ -1351,6 +1399,9 @@ const loadMusic = async (music) => {
         }, 1000)
       }
     }
+
+    // 应用音频焦点锁定设置
+    applyAudioFocusLock()
   }
 
   // 通知主进程 (已移除)
