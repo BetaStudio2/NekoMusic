@@ -103,14 +103,41 @@
                   </button>
                 </div>
                 <div v-if="showLyricsPreviewId === upload.id" class="lyrics-preview-content">
-                  <div v-if="uploadLyrics[upload.id]" class="lyrics-text">
-                    <div 
-                      v-for="(line, index) in uploadLyrics[upload.id]" 
-                      :key="index"
-                      class="lyric-line"
-                    >
-                      <div class="lyric-text">{{ line.text }}</div>
-                      <div class="lyric-translation" v-if="line.translation">{{ line.translation }}</div>
+                  <div v-if="uploadLyrics[upload.id]" class="lyrics-dual-view">
+                    <!-- 左侧：解析后的歌词 -->
+                    <div class="lyrics-panel lyrics-parsed">
+                      <div class="lyrics-panel-header">
+                        <span class="panel-title">解析后歌词</span>
+                      </div>
+                      <div 
+                        class="lyrics-scroll-area"
+                        :ref="el => setLyricsScrollRef(upload.id, 'left', el)"
+                        @scroll="handleLyricsScroll(upload.id, 'left', $event)"
+                      >
+                        <div class="lyrics-text">
+                          <div 
+                            v-for="(line, index) in uploadLyrics[upload.id]" 
+                            :key="index"
+                            class="lyric-line"
+                          >
+                            <div class="lyric-text">{{ line.text }}</div>
+                            <div class="lyric-translation" v-if="line.translation">{{ line.translation }}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <!-- 右侧：纯文本歌词 -->
+                    <div class="lyrics-panel lyrics-raw">
+                      <div class="lyrics-panel-header">
+                        <span class="panel-title">纯文本歌词</span>
+                      </div>
+                      <div 
+                        class="lyrics-scroll-area"
+                        :ref="el => setLyricsScrollRef(upload.id, 'right', el)"
+                        @scroll="handleLyricsScroll(upload.id, 'right', $event)"
+                      >
+                        <div class="lyrics-raw-text">{{ uploadRawLyrics[upload.id] || '无歌词' }}</div>
+                      </div>
                     </div>
                   </div>
                   <div v-else class="lyrics-loading">
@@ -196,7 +223,9 @@ const audioPlayers = ref({})
 const loadingAudios = ref({})
 const showLyricsPreviewId = ref(null)
 const uploadLyrics = ref({})
+const uploadRawLyrics = ref({})
 const loadingLyrics = ref({})
+const lyricsScrollRefs = ref({})
 const showRejectConfirm = ref(false)
 const rejectUploadId = ref(null)
 const rejectReason = ref('')
@@ -612,6 +641,9 @@ const loadLyricsForUpload = async (uploadId) => {
     
     const lyricsText = await response.text()
     
+    // 保存原始歌词
+    uploadRawLyrics.value[uploadId] = lyricsText
+    
     // 解析歌词
     uploadLyrics.value[uploadId] = parseLrcLyrics(lyricsText)
     
@@ -682,6 +714,39 @@ const parseLrcLyrics = (lrcText) => {
   // 按时间排序
   parsed.sort((a, b) => a.time - b.time)
   return parsed
+}
+
+// 设置歌词滚动区域的ref
+const setLyricsScrollRef = (uploadId, side, el) => {
+  if (!lyricsScrollRefs.value[uploadId]) {
+    lyricsScrollRefs.value[uploadId] = {}
+  }
+  lyricsScrollRefs.value[uploadId][side] = el
+}
+
+// 处理歌词滚动同步
+const handleLyricsScroll = (uploadId, sourceSide, event) => {
+  const targetSide = sourceSide === 'left' ? 'right' : 'left'
+  
+  if (!lyricsScrollRefs.value[uploadId] || 
+      !lyricsScrollRefs.value[uploadId][sourceSide] || 
+      !lyricsScrollRefs.value[uploadId][targetSide]) {
+    return
+  }
+  
+  const sourceElement = lyricsScrollRefs.value[uploadId][sourceSide]
+  const targetElement = lyricsScrollRefs.value[uploadId][targetSide]
+  
+  // 计算滚动比例
+  const sourceScrollTop = sourceElement.scrollTop
+  const sourceScrollHeight = sourceElement.scrollHeight - sourceElement.clientHeight
+  const targetScrollHeight = targetElement.scrollHeight - targetElement.clientHeight
+  
+  if (sourceScrollHeight > 0 && targetScrollHeight > 0) {
+    const scrollRatio = sourceScrollTop / sourceScrollHeight
+    const targetScrollTop = scrollRatio * targetScrollHeight
+    targetElement.scrollTop = targetScrollTop
+  }
 }
 
 // 退出登录
@@ -1001,9 +1066,62 @@ onMounted(() => {
 }
 
 .lyrics-preview-content {
-  padding: 15px;
-  max-height: 200px;
+  padding: 0;
+  max-height: 300px;
+  overflow: hidden;
+}
+
+.lyrics-dual-view {
+  display: flex;
+  height: 300px;
+  gap: 1px;
+  background: rgba(106, 90, 205, 0.2);
+}
+
+.lyrics-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.95);
+  overflow: hidden;
+}
+
+.lyrics-panel-header {
+  padding: 10px 15px;
+  background: rgba(106, 90, 205, 0.1);
+  border-bottom: 1px solid rgba(106, 90, 205, 0.2);
+  flex-shrink: 0;
+}
+
+.panel-title {
+  color: #6a5acd;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.lyrics-scroll-area {
+  flex: 1;
   overflow-y: auto;
+  padding: 15px;
+  scroll-behavior: smooth;
+}
+
+.lyrics-scroll-area::-webkit-scrollbar {
+  width: 6px;
+}
+
+.lyrics-scroll-area::-webkit-scrollbar-track {
+  background: rgba(106, 90, 205, 0.1);
+  border-radius: 3px;
+}
+
+.lyrics-scroll-area::-webkit-scrollbar-thumb {
+  background: rgba(106, 90, 205, 0.3);
+  border-radius: 3px;
+}
+
+.lyrics-scroll-area::-webkit-scrollbar-thumb:hover {
+  background: rgba(106, 90, 205, 0.5);
 }
 
 .lyrics-text {
@@ -1023,6 +1141,26 @@ onMounted(() => {
 .lyric-line:hover {
   background: rgba(106, 90, 205, 0.1);
   color: #6a5acd;
+}
+
+.lyric-text {
+  color: #6a5acd;
+  font-weight: 500;
+}
+
+.lyric-translation {
+  color: #887bb0;
+  font-size: 0.8rem;
+  margin-top: 2px;
+  font-style: italic;
+}
+
+.lyrics-raw-text {
+  color: #887bb0;
+  font-size: 0.85rem;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .lyrics-loading {
