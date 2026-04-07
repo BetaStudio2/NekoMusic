@@ -1,165 +1,98 @@
-import { app, ipcMain, shell, BrowserWindow, nativeImage, Tray, Menu } from "electron";
-import path from "path";
-import fs from "fs";
-import { fileURLToPath } from "url";
-const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
-if (process.platform === "linux") {
-  console.log("Linux平台检测到，检查托盘支持...");
-  console.log("提示：如果托盘图标不显示或右键无反应，请安装系统库：");
-  console.log("  sudo apt-get install libayatana-appindicator3-1");
-  console.log("  或者设置环境变量：export XDG_CURRENT_DESKTOP=Unity");
-}
-let win;
-let tray;
-app.isQuitting = false;
-app.commandLine.appendSwitch("enable-gpu-rasterization");
-app.commandLine.appendSwitch("enable-zero-copy");
-app.commandLine.appendSwitch("ignore-gpu-blocklist");
-app.commandLine.appendSwitch("enable-native-gpu-memory-buffers");
-app.commandLine.appendSwitch("enable-gpu-memory-buffer-compositor-resources");
-app.commandLine.appendSwitch("disable-dev-shm-usage");
-app.commandLine.appendSwitch("disable-background-networking");
-app.commandLine.appendSwitch("disable-background-timer-throttling");
-app.commandLine.appendSwitch("disable-renderer-backgrounding");
-app.commandLine.appendSwitch("disable-breakpad");
-app.commandLine.appendSwitch("disable-component-extensions-with-background-pages");
-app.commandLine.appendSwitch("disable-domain-reliability");
-app.commandLine.appendSwitch("disable-sync");
-app.commandLine.appendSwitch("disable-backgrounding-occluded-windows");
-app.commandLine.appendSwitch("disable-ipc-flooding-protection");
-app.commandLine.appendSwitch("disable-features", "Translate");
-app.commandLine.appendSwitch("disable-features", "SpeechSynthesis");
-app.commandLine.appendSwitch("disable-features", "Autofill");
-const gotTheLock = app.requestSingleInstanceLock();
-if (!gotTheLock) {
-  console.log("已经有实例在运行，退出新实例");
-  app.quit();
-  process.exit(0);
-} else {
-  app.on("second-instance", () => {
-    if (win) {
-      if (win.isMinimized()) win.restore();
-      win.focus();
-    }
-  });
-}
-function createWindow() {
+import { app as o, ipcMain as u, shell as F, BrowserWindow as j, nativeImage as $, Tray as N, Menu as D } from "electron";
+import d from "path";
+import h from "fs";
+import { fileURLToPath as W } from "url";
+const T = d.dirname(W(import.meta.url));
+process.platform === "linux" && (console.log("Linux平台检测到，检查托盘支持..."), console.log("提示：如果托盘图标不显示或右键无反应，请安装系统库："), console.log("  sudo apt-get install libayatana-appindicator3-1"), console.log("  或者设置环境变量：export XDG_CURRENT_DESKTOP=Unity"));
+let e, m;
+o.isQuitting = !1;
+o.commandLine.appendSwitch("enable-gpu-rasterization");
+o.commandLine.appendSwitch("enable-zero-copy");
+o.commandLine.appendSwitch("ignore-gpu-blocklist");
+o.commandLine.appendSwitch("enable-native-gpu-memory-buffers");
+o.commandLine.appendSwitch("enable-gpu-memory-buffer-compositor-resources");
+o.commandLine.appendSwitch("disable-dev-shm-usage");
+o.commandLine.appendSwitch("disable-background-networking");
+o.commandLine.appendSwitch("disable-background-timer-throttling");
+o.commandLine.appendSwitch("disable-renderer-backgrounding");
+o.commandLine.appendSwitch("disable-breakpad");
+o.commandLine.appendSwitch("disable-component-extensions-with-background-pages");
+o.commandLine.appendSwitch("disable-domain-reliability");
+o.commandLine.appendSwitch("disable-sync");
+o.commandLine.appendSwitch("disable-backgrounding-occluded-windows");
+o.commandLine.appendSwitch("disable-ipc-flooding-protection");
+o.commandLine.appendSwitch("disable-features", "Translate");
+o.commandLine.appendSwitch("disable-features", "SpeechSynthesis");
+o.commandLine.appendSwitch("disable-features", "Autofill");
+const C = o.requestSingleInstanceLock();
+C ? o.on("second-instance", () => {
+  e && (e.isMinimized() && e.restore(), e.focus());
+}) : (console.log("已经有实例在运行，退出新实例"), o.quit(), process.exit(0));
+function M() {
   console.log("createWindow: 开始创建窗口");
-  const isDev = process.env.NODE_ENV === "development";
-  const iconPath = isDev ? path.join(__dirname$1, "../public/icon.png") : path.join(app.getAppPath(), "public/icon.png");
-  const preloadPath = path.join(__dirname$1, "./preload.cjs");
-  console.log("createWindow: 图标路径 =", iconPath);
-  console.log("createWindow: preload 路径 =", preloadPath);
-  win = new BrowserWindow({
+  const p = process.env.NODE_ENV === "development", a = p ? d.join(T, "../public/icon.png") : d.join(o.getAppPath(), "public/icon.png"), i = d.join(T, "./preload.cjs");
+  if (console.log("createWindow: 图标路径 =", a), console.log("createWindow: preload 路径 =", i), e = new j({
     width: 1280,
     height: 720,
     minWidth: 1280,
     minHeight: 720,
-    frame: false,
-    autoHideMenuBar: true,
-    icon: iconPath,
+    frame: !1,
+    autoHideMenuBar: !0,
+    icon: a,
     title: "Neko云音乐",
     webPreferences: {
-      preload: preloadPath,
-      nodeIntegration: false,
-      contextIsolation: true,
-      devTools: false,
-      sandbox: false,
+      preload: i,
+      nodeIntegration: !1,
+      contextIsolation: !0,
+      devTools: !1,
+      sandbox: !1,
       // 关闭沙箱以允许 localStorage 访问
-      nativeWindowOpen: true
+      nativeWindowOpen: !0
       // 允许使用原生 window.open
     },
     backgroundColor: "#667eea"
-  });
-  win.on("maximize", () => {
-    win.webContents.send("window-maximized");
-  });
-  win.on("unmaximize", () => {
-    win.webContents.send("window-unmaximized");
-  });
-  win.webContents.on("before-input-event", (event, input) => {
-    if (input.control && input.shift && (input.key === "I" || input.key === "i")) {
-      event.preventDefault();
-    }
-    if (input.control && (input.key === "F12" || input.key === "f12")) {
-      event.preventDefault();
-    }
-    if (input.alt && input.key === "F12" || input.alt && input.key === "f12") {
-      event.preventDefault();
-    }
-    if (input.key === "F11" || input.key === "f11") {
-      event.preventDefault();
-    }
-  });
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    const { shell: shell2 } = require("electron");
-    shell2.openExternal(url).catch((err) => {
-      console.error("Failed to open external URL:", err);
-    });
-    return { action: "deny" };
-  });
-  if (isDev || !app.isPackaged) {
-    console.log("createWindow: 加载开发服务器 http://localhost:5173");
-    win.loadURL("http://localhost:5173");
-  } else {
+  }), e.on("maximize", () => {
+    e.webContents.send("window-maximized");
+  }), e.on("unmaximize", () => {
+    e.webContents.send("window-unmaximized");
+  }), e.webContents.on("before-input-event", (n, t) => {
+    t.control && t.shift && (t.key === "I" || t.key === "i") && n.preventDefault(), t.control && (t.key === "F12" || t.key === "f12") && n.preventDefault(), (t.alt && t.key === "F12" || t.alt && t.key === "f12") && n.preventDefault(), (t.key === "F11" || t.key === "f11") && n.preventDefault();
+  }), e.webContents.setWindowOpenHandler(({ url: n }) => {
+    const { shell: t } = require("electron");
+    return t.openExternal(n).catch((r) => {
+      console.error("Failed to open external URL:", r);
+    }), { action: "deny" };
+  }), p || !o.isPackaged)
+    console.log("createWindow: 加载开发服务器 http://localhost:5173"), e.loadURL("http://localhost:5173");
+  else {
     console.log("createWindow: 加载生产文件");
-    const appPath = app.getAppPath();
-    const prodPath = path.join(appPath, "dist/index.html");
-    console.log("生产文件路径:", prodPath);
-    win.loadFile(prodPath);
+    const n = o.getAppPath(), t = d.join(n, "dist/index.html");
+    console.log("生产文件路径:", t), e.loadFile(t);
   }
-  win.webContents.openDevTools();
-  win.on("close", (event) => {
-    if (!app.isQuitting) {
-      event.preventDefault();
-      win.hide();
-    }
-  });
-  win.on("closed", () => {
-    win = null;
+  e.webContents.openDevTools(), e.on("close", (n) => {
+    o.isQuitting || (n.preventDefault(), e.hide());
+  }), e.on("closed", () => {
+    e = null;
   });
 }
-let playerState = {
+let g = {
   currentMusic: null,
-  isPlaying: false,
+  isPlaying: !1,
   playMode: "list",
   // list, single, shuffle
   volume: 80,
-  lyricsEnabled: false,
-  desktopLyricsEnabled: false
+  lyricsEnabled: !1,
+  desktopLyricsEnabled: !1
 };
-function createTray() {
+function U() {
   console.log("createTray: 开始创建托盘");
-  const getIconPath = (filename) => {
-    const resourcesPath = process.resourcesPath ? path.join(process.resourcesPath, filename) : null;
-    const appPath = path.join(app.getAppPath(), "public", filename);
-    const relativePath = path.join(__dirname$1, "../public", filename);
-    if (resourcesPath && fs.existsSync(resourcesPath)) {
-      console.log(`使用resources路径: ${resourcesPath}`);
-      return resourcesPath;
-    } else if (fs.existsSync(appPath)) {
-      console.log(`使用app路径: ${appPath}`);
-      return appPath;
-    } else if (fs.existsSync(relativePath)) {
-      console.log(`使用相对路径: ${relativePath}`);
-      return relativePath;
-    }
-    console.log(`使用默认app路径: ${appPath}`);
-    return appPath;
-  };
-  const iconPath = getIconPath("icon.png");
-  const trayIcon = nativeImage.createFromPath(iconPath);
-  console.log("托盘图标路径:", iconPath);
-  console.log("托盘图标是否为空:", trayIcon.isEmpty());
-  if (tray) {
-    tray.destroy();
-    tray = null;
-  }
-  tray = new Tray(trayIcon);
-  tray.setToolTip("Neko云音乐");
-  const loadIcons = () => {
-    const icons2 = {};
-    const iconList = [
+  const p = (s) => {
+    const c = process.resourcesPath ? d.join(process.resourcesPath, s) : null, l = d.join(o.getAppPath(), "public", s), f = d.join(T, "../public", s);
+    return c && h.existsSync(c) ? (console.log(`使用resources路径: ${c}`), c) : h.existsSync(l) ? (console.log(`使用app路径: ${l}`), l) : h.existsSync(f) ? (console.log(`使用相对路径: ${f}`), f) : (console.log(`使用默认app路径: ${l}`), l);
+  }, a = p("icon.png"), i = $.createFromPath(a);
+  console.log("托盘图标路径:", a), console.log("托盘图标是否为空:", i.isEmpty()), m && (m.destroy(), m = null), m = new N(i), m.setToolTip("Neko云音乐"), (() => {
+    const s = {};
+    return [
       "tray-previous",
       "tray-play",
       "tray-pause",
@@ -172,30 +105,21 @@ function createTray() {
       "tray-minimize",
       "tray-lyrics",
       "tray-exit"
-    ];
-    iconList.forEach((name) => {
+    ].forEach((l) => {
       try {
-        const iconPath2 = getIconPath(`${name}.png`);
-        const icon = nativeImage.createFromPath(iconPath2);
-        icon.resize({ width: 18, height: 18 });
-        icons2[name] = icon;
-      } catch (e) {
-        console.warn(`Failed to load icon: ${name}`, e);
+        const f = p(`${l}.png`), y = $.createFromPath(f);
+        y.resize({ width: 18, height: 18 }), s[l] = y;
+      } catch (f) {
+        console.warn(`Failed to load icon: ${l}`, f);
       }
-    });
-    return icons2;
-  };
-  loadIcons();
-  const syncPlayerState = async () => {
-    if (!win) return;
-    try {
-      const musicJson = await win.webContents.executeJavaScript('localStorage.getItem("currentMusic")');
-      if (musicJson) {
-        playerState.currentMusic = JSON.parse(musicJson);
-      } else {
-        playerState.currentMusic = null;
-      }
-      const state = await win.webContents.executeJavaScript(`
+    }), s;
+  })();
+  const t = async () => {
+    if (e)
+      try {
+        const s = await e.webContents.executeJavaScript('localStorage.getItem("currentMusic")');
+        s ? g.currentMusic = JSON.parse(s) : g.currentMusic = null;
+        const c = await e.webContents.executeJavaScript(`
         (function() {
           const audio = document.querySelector('audio');
           return {
@@ -205,47 +129,37 @@ function createTray() {
           };
         })()
       `);
-      if (state) {
-        playerState.isPlaying = state.isPlaying;
+        c && (g.isPlaying = c.isPlaying);
+      } catch (s) {
+        console.error("同步播放状态失败:", s);
       }
-    } catch (e) {
-      console.error("同步播放状态失败:", e);
+  }, r = async () => {
+    await t();
+    const s = g.currentMusic;
+    let c = "暂无播放";
+    if (s) {
+      const y = s.title || "未知歌曲", w = s.artist || "未知艺术家";
+      c = `${y.length > 15 ? y.substring(0, 15) + "..." : y} - ${w}`;
     }
-  };
-  const updateContextMenu = async () => {
-    await syncPlayerState();
-    const music = playerState.currentMusic;
-    let playingLabel = "暂无播放";
-    if (music) {
-      const title = music.title || "未知歌曲";
-      const artist = music.artist || "未知艺术家";
-      const displayTitle = title.length > 15 ? title.substring(0, 15) + "..." : title;
-      playingLabel = `${displayTitle} - ${artist}`;
-    }
-    const menuTemplate = [
+    const l = [
       // 顶部：当前播放信息
       {
-        label: playingLabel,
-        enabled: false
+        label: c,
+        enabled: !1
       },
       { type: "separator" },
       // 显示窗口
       {
         label: "显示窗口",
         click: () => {
-          if (win) {
-            win.show();
-            win.focus();
-          }
+          e && (e.show(), e.focus());
         }
       },
       // 隐藏窗口
       {
         label: "隐藏窗口",
         click: () => {
-          if (win) {
-            win.hide();
-          }
+          e && e.hide();
         }
       },
       { type: "separator" },
@@ -253,242 +167,136 @@ function createTray() {
       {
         label: "退出",
         click: () => {
-          app.isQuitting = true;
-          app.quit();
+          o.isQuitting = !0, o.quit();
         }
       }
-    ];
-    const contextMenu = Menu.buildFromTemplate(menuTemplate);
-    console.log("托盘菜单已构建，包含", menuTemplate.length, "个菜单项");
-    tray.setContextMenu(contextMenu);
-    console.log("托盘菜单已设置到托盘对象");
-    tray.setToolTip("Neko云音乐");
-    console.log("托盘工具提示已设置");
-    if (music) {
-      tray.setToolTip(`正在播放: ${music.title} - ${music.artist}`);
-    }
+    ], f = D.buildFromTemplate(l);
+    console.log("托盘菜单已构建，包含", l.length, "个菜单项"), m.setContextMenu(f), console.log("托盘菜单已设置到托盘对象"), m.setToolTip("Neko云音乐"), console.log("托盘工具提示已设置"), s && m.setToolTip(`正在播放: ${s.title} - ${s.artist}`);
   };
-  updateContextMenu();
-  ipcMain.on("player-state-changed", (event, state) => {
-    if (state) {
-      playerState = { ...playerState, ...state };
-      updateContextMenu();
-    }
-  });
-  ipcMain.on("music-play", (event, music) => {
-    playerState.currentMusic = music;
-    playerState.isPlaying = true;
-    updateContextMenu();
-  });
-  ipcMain.on("play-state-changed", (event, isPlaying) => {
-    playerState.isPlaying = isPlaying;
-    updateContextMenu();
-  });
-  tray.on("click", () => {
-    console.log("托盘图标被点击");
-    if (win) {
-      if (win.isVisible()) {
-        if (win.isFocused()) {
-          win.hide();
-        } else {
-          win.focus();
-        }
-      } else {
-        win.show();
-        win.focus();
-      }
-    }
-  });
-  tray.on("double-click", () => {
-    console.log("托盘图标被双击");
-    if (win) {
-      if (win.isVisible()) {
-        win.focus();
-      } else {
-        win.show();
-        win.focus();
-      }
-    }
+  r(), u.on("player-state-changed", (s, c) => {
+    c && (g = { ...g, ...c }, r());
+  }), u.on("music-play", (s, c) => {
+    g.currentMusic = c, g.isPlaying = !0, r();
+  }), u.on("play-state-changed", (s, c) => {
+    g.isPlaying = c, r();
+  }), m.on("click", () => {
+    console.log("托盘图标被点击"), e && (e.isVisible() ? e.isFocused() ? e.hide() : e.focus() : (e.show(), e.focus()));
+  }), m.on("double-click", () => {
+    console.log("托盘图标被双击"), e && (e.isVisible() || e.show(), e.focus());
   });
 }
-ipcMain.on("window-minimize", () => {
-  if (win) win.minimize();
+u.on("window-minimize", () => {
+  e && e.minimize();
 });
-ipcMain.on("window-maximize", () => {
-  if (win) {
-    if (win.isMaximized()) {
-      win.unmaximize();
-    } else {
-      win.maximize();
-    }
-  }
+u.on("window-maximize", () => {
+  e && (e.isMaximized() ? e.unmaximize() : e.maximize());
 });
-ipcMain.on("window-close", () => {
-  if (win) win.hide();
+u.on("window-close", () => {
+  e && e.hide();
 });
-ipcMain.handle("get-path", async (event, name) => {
-  return app.getPath(name);
-});
-ipcMain.handle("open-external", async (event, url) => {
-  const { shell: shell2 } = await import("electron");
+u.handle("get-path", async (p, a) => o.getPath(a));
+u.handle("open-external", async (p, a) => {
+  const { shell: i } = await import("electron");
   try {
-    await shell2.openExternal(url);
-    return { success: true };
-  } catch (error) {
-    console.error("Failed to open external URL:", error);
-    return { success: false, error: error.message };
+    return await i.openExternal(a), { success: !0 };
+  } catch (n) {
+    return console.error("Failed to open external URL:", n), { success: !1, error: n.message };
   }
 });
-ipcMain.handle("save-file", async (event, options) => {
-  const { fileName, fileType, suggestedPath } = options;
-  let basePath;
-  if (suggestedPath && suggestedPath.includes("NekoMusic")) {
-    basePath = app.getPath("downloads");
-    if (suggestedPath) {
-      basePath = path.join(basePath, suggestedPath);
-    }
-  } else {
-    basePath = app.getPath("userData");
-    if (suggestedPath) {
-      basePath = path.join(basePath, suggestedPath);
-    }
-  }
-  if (!fs.existsSync(basePath)) {
-    fs.mkdirSync(basePath, { recursive: true });
-  }
-  const filePath = path.join(basePath, fileName);
-  return filePath;
+u.handle("save-file", async (p, a) => {
+  const { fileName: i, fileType: n, suggestedPath: t } = a;
+  let r;
+  return t && t.includes("NekoMusic") ? (r = o.getPath("downloads"), t && (r = d.join(r, t))) : (r = o.getPath("userData"), t && (r = d.join(r, t))), h.existsSync(r) || h.mkdirSync(r, { recursive: !0 }), d.join(r, i);
 });
-ipcMain.handle("write-file", async (event, filePath, data) => {
+u.handle("write-file", async (p, a, i) => {
   try {
-    const buffer = Buffer.from(data);
-    fs.writeFileSync(filePath, buffer);
-    return { success: true, path: filePath };
-  } catch (error) {
-    console.error("写入文件失败:", error);
-    return { success: false, error: error.message };
+    const n = Buffer.from(i);
+    return h.writeFileSync(a, n), { success: !0, path: a };
+  } catch (n) {
+    return console.error("写入文件失败:", n), { success: !1, error: n.message };
   }
 });
-ipcMain.handle("open-file", async (event, filePath) => {
+u.handle("open-file", async (p, a) => {
   try {
-    await shell.openPath(filePath);
-    return { success: true };
-  } catch (error) {
-    console.error("打开文件失败:", error);
-    return { success: false, error: error.message };
+    return await F.openPath(a), { success: !0 };
+  } catch (i) {
+    return console.error("打开文件失败:", i), { success: !1, error: i.message };
   }
 });
-ipcMain.handle("http-request", async (event, url, options = {}) => {
+u.handle("http-request", async (p, a, i = {}) => {
   try {
-    const response = await fetch(url, {
-      ...options,
+    const n = await fetch(a, {
+      ...i,
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        ...options.headers || {}
+        ...i.headers || {}
       }
-    });
-    const data = await response.text();
+    }), t = await n.text();
     return {
-      success: true,
-      status: response.status,
-      data,
-      headers: Object.fromEntries(response.headers.entries())
+      success: !0,
+      status: n.status,
+      data: t,
+      headers: Object.fromEntries(n.headers.entries())
     };
-  } catch (error) {
-    console.error("HTTP请求失败:", error);
-    return { success: false, error: error.message };
+  } catch (n) {
+    return console.error("HTTP请求失败:", n), { success: !1, error: n.message };
   }
 });
-ipcMain.handle("download-music-with-lyrics", async (event, musicData) => {
-  console.log("下载音乐和歌词 - 接收到的数据:", musicData);
+u.handle("download-music-with-lyrics", async (p, a) => {
+  console.log("下载音乐和歌词 - 接收到的数据:", a);
   try {
-    const { id, title, artist, fileFormat, baseUrl } = musicData;
-    if (!id || !title || !artist || !baseUrl) {
-      console.error("缺少必要参数:", { id, title, artist, baseUrl });
-      return { success: false, error: "缺少必要参数" };
-    }
-    const downloadsPath = app.getPath("downloads");
-    const nekoMusicPath = path.join(downloadsPath, "NekoMusic");
-    console.log("下载目录:", nekoMusicPath);
-    if (!fs.existsSync(nekoMusicPath)) {
-      fs.mkdirSync(nekoMusicPath, { recursive: true });
-      console.log("创建下载目录成功");
-    }
-    const sanitizedTitle = title.replace(/[<>:"/\\|?*]/g, "_");
-    const sanitizedArtist = artist.replace(/[<>:"/\\|?*]/g, "_");
-    const fileName = `${sanitizedArtist} - ${sanitizedTitle}`;
-    console.log("文件名:", fileName);
-    const musicUrl = `${baseUrl}/api/music/file/${id}`;
-    console.log("音乐URL:", musicUrl);
-    const musicResponse = await fetch(musicUrl);
-    console.log("音乐响应状态:", musicResponse.status);
-    if (!musicResponse.ok) {
-      throw new Error(`下载音乐文件失败: ${musicResponse.status}`);
-    }
-    const musicBuffer = await musicResponse.arrayBuffer();
-    const musicExt = fileFormat || "mp3";
-    const musicFilePath = path.join(nekoMusicPath, `${fileName}.${musicExt}`);
-    fs.writeFileSync(musicFilePath, Buffer.from(musicBuffer));
-    console.log("音乐文件保存成功:", musicFilePath);
-    let lyricsFilePath = null;
+    const { id: i, title: n, artist: t, fileFormat: r, baseUrl: s } = a;
+    if (!i || !n || !t || !s)
+      return console.error("缺少必要参数:", { id: i, title: n, artist: t, baseUrl: s }), { success: !1, error: "缺少必要参数" };
+    const c = o.getPath("downloads"), l = d.join(c, "NekoMusic");
+    console.log("下载目录:", l), h.existsSync(l) || (h.mkdirSync(l, { recursive: !0 }), console.log("创建下载目录成功"));
+    const f = n.replace(/[<>:"/\\|?*]/g, "_"), w = `${t.replace(/[<>:"/\\|?*]/g, "_")} - ${f}`;
+    console.log("文件名:", w);
+    const v = `${s}/api/music/file/${i}`;
+    console.log("音乐URL:", v);
+    const P = await fetch(v);
+    if (console.log("音乐响应状态:", P.status), !P.ok)
+      throw new Error(`下载音乐文件失败: ${P.status}`);
+    const z = await P.arrayBuffer(), E = r || "mp3", S = d.join(l, `${w}.${E}`);
+    h.writeFileSync(S, Buffer.from(z)), console.log("音乐文件保存成功:", S);
+    let b = null;
     try {
-      const lyricsUrl = `${baseUrl}/api/music/lyrics/${id}`;
-      console.log("歌词URL:", lyricsUrl);
-      const lyricsResponse = await fetch(lyricsUrl);
-      console.log("歌词响应状态:", lyricsResponse.status);
-      if (lyricsResponse.ok) {
-        const lyricsData = await lyricsResponse.json();
-        console.log("歌词数据:", lyricsData);
-        if (lyricsData.success && lyricsData.data) {
-          lyricsFilePath = path.join(nekoMusicPath, `${fileName}.lrc`);
-          fs.writeFileSync(lyricsFilePath, lyricsData.data, "utf-8");
-          console.log("歌词文件保存成功:", lyricsFilePath);
-        } else {
-          console.log("没有歌词数据");
-        }
-      } else {
+      const k = `${s}/api/music/lyrics/${i}`;
+      console.log("歌词URL:", k);
+      const L = await fetch(k);
+      if (console.log("歌词响应状态:", L.status), L.ok) {
+        const x = await L.json();
+        console.log("歌词数据:", x), x.success && x.data ? (b = d.join(l, `${w}.lrc`), h.writeFileSync(b, x.data, "utf-8"), console.log("歌词文件保存成功:", b)) : console.log("没有歌词数据");
+      } else
         console.log("歌词不可用");
-      }
-    } catch (error) {
-      console.warn("下载歌词失败:", error);
+    } catch (k) {
+      console.warn("下载歌词失败:", k);
     }
-    console.log("下载完成:", { musicPath: musicFilePath, lyricsPath: lyricsFilePath });
-    return {
-      success: true,
-      musicPath: musicFilePath,
-      lyricsPath: lyricsFilePath
+    return console.log("下载完成:", { musicPath: S, lyricsPath: b }), {
+      success: !0,
+      musicPath: S,
+      lyricsPath: b
     };
-  } catch (error) {
-    console.error("下载音乐和歌词失败:", error);
-    return { success: false, error: error.message };
+  } catch (i) {
+    return console.error("下载音乐和歌词失败:", i), { success: !1, error: i.message };
   }
 });
-app.on("ready", () => {
-  if (app.isQuitting) {
+o.on("ready", () => {
+  if (o.isQuitting) {
     console.log("应用已退出，跳过窗口创建");
     return;
   }
-  if (win) {
-    console.log("窗口已存在，显示窗口");
-    win.show();
-    win.focus();
+  if (e) {
+    console.log("窗口已存在，显示窗口"), e.show(), e.focus();
     return;
   }
-  console.log("创建新窗口，NODE_ENV:", process.env.NODE_ENV);
-  createWindow();
-  createTray();
+  console.log("创建新窗口，NODE_ENV:", process.env.NODE_ENV), M(), U();
 });
-app.on("will-quit", () => {
+o.on("will-quit", () => {
 });
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+o.on("window-all-closed", () => {
+  process.platform !== "darwin" && o.quit();
 });
-app.on("activate", () => {
-  if (win === null) {
-    createWindow();
-  } else {
-    win.show();
-  }
+o.on("activate", () => {
+  e === null ? M() : e.show();
 });
