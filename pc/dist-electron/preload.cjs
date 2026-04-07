@@ -27,9 +27,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 获取系统路径
   getPath: (name) => ipcRenderer.invoke('get-path', name),
-
-  // 获取语言设置
-  getLanguage: () => ipcRenderer.invoke('get-language'),
   
   // 在外部浏览器中打开链接
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
