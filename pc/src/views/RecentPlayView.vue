@@ -3,20 +3,20 @@
     <!-- 顶部封面区域 -->
     <div class="playlist-header" v-if="recentList.length > 0">
       <div class="cover-wrapper">
-        <img :src="getCoverUrl(recentList[0].id)" :alt="t('common.album')" class="playlist-cover" @error="handleCoverError" />
+        <img :src="getCoverUrl(recentList[0].id)" :alt="t('key.album')" class="playlist-cover" @error="handleCoverError" />
       </div>
       <div class="playlist-info">
-        <div class="playlist-type">{{ t('common.playlists') }}</div>
-        <h1 class="playlist-title">{{ t('recentPlay.recentPlay') }}</h1>
+        <div class="playlist-type">{{ t('key.playlists') }}</div>
+        <h1 class="playlist-title">{{ t('key.recentPlay') }}</h1>
         <div class="playlist-meta">
-          <span class="music-count">{{ t('common.songs') }} {{ recentList.length }}</span>
+          <span class="music-count">{{ t('key.songs') }} {{ recentList.length }}</span>
         </div>
         <div class="action-buttons">
           <button class="btn-play" @click="playAll">
             <svg viewBox="0 0 24 24" width="20" height="20">
               <path fill="currentColor" d="M8 5v14l11-7z"/>
             </svg>
-            {{ t('player.playAll') }}
+            {{ t('key.playAll') }}
           </button>
         </div>
       </div>
@@ -29,14 +29,14 @@
           <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
         </svg>
       </div>
-      <p>{{ t('recentPlay.noRecentPlay') }}</p>
-      <button class="btn-explore" @click="$router.push('/')">{{ t('home.discoverMusic') }}</button>
+      <p>{{ t('key.noRecentPlay') }}</p>
+      <button class="btn-explore" @click="$router.push('/')">{{ t('key.discoverMusic') }}</button>
     </div>
 
     <div v-else class="music-list-container">
       <!-- 列表头部标签 -->
       <div class="list-tabs">
-        <div class="tab active">{{ t('common.songs') }} {{ recentList.length }}</div>
+        <div class="tab active">{{ t('key.songs') }} {{ recentList.length }}</div>
         <div class="search-wrapper">
           <svg class="search-icon" viewBox="0 0 20 20">
             <path fill="currentColor" d="M8 3a5 5 0 100 10A5 5 0 008 3zM0 8a8 8 0 1114.32 4.906l5.387 5.387a1 1 0 01-1.414 1.414l-5.387-5.387A8 8 0 010 8z"/>
@@ -44,7 +44,7 @@
           <input 
             v-model="searchQuery" 
             type="text" 
-            :placeholder="t('common.searchPlaceholder')" 
+            :placeholder="t('key.searchPlaceholder')" 
             class="search-input"
             @input="handleSearch"
           />
@@ -59,10 +59,10 @@
       <!-- 歌曲列表 -->
       <div class="list-header-row">
         <span class="col-index">#</span>
-        <span class="col-info">{{ t('common.title') }}</span>
-        <span class="col-album">{{ t('common.album') }}</span>
-        <span class="col-duration">{{ t('common.duration') }}</span>
-        <span class="col-actions">{{ t('common.actions') }}</span>
+        <span class="col-info">{{ t('key.title') }}</span>
+        <span class="col-album">{{ t('key.album') }}</span>
+        <span class="col-duration">{{ t('key.duration') }}</span>
+        <span class="col-actions">{{ t('key.actions') }}</span>
       </div>
       <div 
         v-for="(music, index) in filteredList" 
