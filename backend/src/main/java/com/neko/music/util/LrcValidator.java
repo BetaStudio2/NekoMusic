@@ -98,52 +98,55 @@ public class LrcValidator {
                 }
 
                 // 验证时间戳的具体格式
-                String timestamp = line.substring(timestampPositions.get(0),
-                        timestampPositions.get(0) + matcher.group().length());
+                // 重新匹配以获取完整的时间戳
+                Matcher timestampMatcher = TIME_STAMP_PATTERN.matcher(line);
+                if (timestampMatcher.find()) {
+                    String timestamp = timestampMatcher.group();
 
-                // 验证时间戳中的数字是否有效
-                String timestampContent = timestamp.substring(1, timestamp.length() - 1); // 去掉 []
-                String[] parts = timestampContent.split(":");
-                if (parts.length != 2) {
-                    return ValidationResult.fail(
-                            String.format("第%d行时间戳格式错误，格式应为[mm:ss.xx]或[mm:ss.xxx]", i + 1)
-                    );
-                }
-
-                try {
-                    String[] timeParts = parts[1].split("\\.");
-                    if (timeParts.length != 2) {
+                    // 验证时间戳中的数字是否有效
+                    String timestampContent = timestamp.substring(1, timestamp.length() - 1); // 去掉 []
+                    String[] parts = timestampContent.split(":");
+                    if (parts.length != 2) {
                         return ValidationResult.fail(
                                 String.format("第%d行时间戳格式错误，格式应为[mm:ss.xx]或[mm:ss.xxx]", i + 1)
                         );
                     }
 
-                    int minutes = Integer.parseInt(parts[0]);
-                    int seconds = Integer.parseInt(timeParts[0]);
-                    int milliseconds = Integer.parseInt(timeParts[1]);
+                    try {
+                        String[] timeParts = parts[1].split("\\.");
+                        if (timeParts.length != 2) {
+                            return ValidationResult.fail(
+                                    String.format("第%d行时间戳格式错误，格式应为[mm:ss.xx]或[mm:ss.xxx]", i + 1)
+                            );
+                        }
 
-                    // 验证数值范围
-                    if (minutes < 0 || minutes > 59) {
+                        int minutes = Integer.parseInt(parts[0]);
+                        int seconds = Integer.parseInt(timeParts[0]);
+                        int milliseconds = Integer.parseInt(timeParts[1]);
+
+                        // 验证数值范围
+                        if (minutes < 0 || minutes > 59) {
+                            return ValidationResult.fail(
+                                    String.format("第%d行时间戳的分钟数无效（0-59）", i + 1)
+                            );
+                        }
+                        if (seconds < 0 || seconds > 59) {
+                            return ValidationResult.fail(
+                                    String.format("第%d行时间戳的秒数无效（0-59）", i + 1)
+                            );
+                        }
+                        // 毫秒数根据位数判断范围
+                        int maxMilliseconds = timeParts[1].length() == 2 ? 99 : 999;
+                        if (milliseconds < 0 || milliseconds > maxMilliseconds) {
+                            return ValidationResult.fail(
+                                    String.format("第%d行时间戳的毫秒数无效（0-%d）", i + 1, maxMilliseconds)
+                            );
+                        }
+                    } catch (NumberFormatException e) {
                         return ValidationResult.fail(
-                                String.format("第%d行时间戳的分钟数无效（0-59）", i + 1)
+                                String.format("第%d行时间戳包含非数字字符", i + 1)
                         );
                     }
-                    if (seconds < 0 || seconds > 59) {
-                        return ValidationResult.fail(
-                                String.format("第%d行时间戳的秒数无效（0-59）", i + 1)
-                        );
-                    }
-                    // 毫秒数根据位数判断范围
-                    int maxMilliseconds = timeParts[1].length() == 2 ? 99 : 999;
-                    if (milliseconds < 0 || milliseconds > maxMilliseconds) {
-                        return ValidationResult.fail(
-                                String.format("第%d行时间戳的毫秒数无效（0-%d）", i + 1, maxMilliseconds)
-                        );
-                    }
-                } catch (NumberFormatException e) {
-                    return ValidationResult.fail(
-                            String.format("第%d行时间戳包含非数字字符", i + 1)
-                    );
                 }
 
                 // 如果下一行是翻译，验证翻译格式
