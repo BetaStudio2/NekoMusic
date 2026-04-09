@@ -35,7 +35,7 @@ public class LrcValidator {
     public static ValidationResult validate(InputStream inputStream, long fileSize) {
         // 1. 校验文件大小
         if (fileSize > MAX_FILE_SIZE) {
-            return ValidationResult.fail("歌词文件大小不能超过200KB");
+            return ValidationResult.fail("歌词文件大小不能超过200KiB");
         }
 
         // 2. 读取文件内容
