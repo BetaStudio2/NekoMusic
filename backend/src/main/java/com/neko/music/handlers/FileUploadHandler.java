@@ -177,46 +177,34 @@ public class FileUploadHandler extends HttpServlet {
                 return;
             }
             
-            // 检查文件类型
-            String musicContentType = musicFilePart.getContentType();
+            // 检查文件类型 - 完全基于文件内容检测格式
             String musicFileName = getFileName(musicFilePart);
             String fileExtension = getFileExtension(musicFileName).toLowerCase();
 
-            // 验证支持的音频格式：MP3、FLAC、WAV
-            boolean isValidFormat = false;
-            String fileFormat = "mp3"; // 默认格式
-
-            if (("audio/mpeg".equals(musicContentType) || fileExtension.equals("mp3")) && !fileExtension.equals("flac") && !fileExtension.equals("wav")) {
-                isValidFormat = true;
-                fileFormat = "mp3";
-            } else if (("audio/flac".equals(musicContentType) || fileExtension.equals("flac"))) {
-                isValidFormat = true;
-                fileFormat = "flac";
-            } else if (("audio/wav".equals(musicContentType) || "audio/x-wav".equals(musicContentType) || fileExtension.equals("wav"))) {
-                isValidFormat = true;
-                fileFormat = "wav";
-            }
-
-            if (!isValidFormat) {
-                response.setStatus(HttpStatus.BAD_REQUEST_400);
-                response.setContentType("application/json;charset=utf-8");
-                ErrorResponse errorResponse = new ErrorResponse("只支持MP3、FLAC或WAV格式的音乐文件");
-                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
-                return;
-            }
-            
-            // 使用魔数验证音频文件的真实格式
+            // 使用魔数验证音频文件的真实格式，不信任文件扩展名
+            String fileFormat;
             try (InputStream musicInputStream = musicFilePart.getInputStream()) {
-                AudioFileValidator.AudioFormat expectedFormat;
-                switch (fileFormat) {
-                    case "mp3":
-                        expectedFormat = AudioFileValidator.AudioFormat.MP3;
+                AudioFileValidator.FormatDetectionResult detectionResult = AudioFileValidator.detectAndValidate(
+                        musicInputStream, fileExtension);
+                
+                if (!detectionResult.isValid()) {
+                    response.setStatus(HttpStatus.BAD_REQUEST_400);
+                    response.setContentType("application/json;charset=utf-8");
+                    ErrorResponse errorResponse = new ErrorResponse("音频文件格式错误: " + detectionResult.getErrorMessage());
+                    response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                    return;
+                }
+                
+                // 根据检测到的实际格式设置文件格式
+                switch (detectionResult.getFormat()) {
+                    case MP3:
+                        fileFormat = "mp3";
                         break;
-                    case "flac":
-                        expectedFormat = AudioFileValidator.AudioFormat.FLAC;
+                    case FLAC:
+                        fileFormat = "flac";
                         break;
-                    case "wav":
-                        expectedFormat = AudioFileValidator.AudioFormat.WAV;
+                    case WAV:
+                        fileFormat = "wav";
                         break;
                     default:
                         response.setStatus(HttpStatus.BAD_REQUEST_400);
@@ -225,17 +213,8 @@ public class FileUploadHandler extends HttpServlet {
                         response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
                         return;
                 }
-
-                AudioFileValidator.ValidationResult validationResult = AudioFileValidator.validate(
-                        musicInputStream, expectedFormat);
-                if (!validationResult.isValid()) {
-                    response.setStatus(HttpStatus.BAD_REQUEST_400);
-                    response.setContentType("application/json;charset=utf-8");
-                    ErrorResponse errorResponse = new ErrorResponse(
-                            "音频文件格式验证失败（可能是改了扩展名的文件）: " + validationResult.getErrorMessage());
-                    response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
-                    return;
-                }
+                
+                logger.info("检测到文件格式: {} (实际格式: {})", fileFormat, detectionResult.getFormatDescription());
             } catch (Exception e) {
                 logger.error("验证音频文件格式时出错", e);
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
@@ -474,46 +453,34 @@ public class FileUploadHandler extends HttpServlet {
             
             // 检查是否上传了新的音乐文件
             if (musicFilePart != null) {
-                // 检查文件类型
-                String musicContentType = musicFilePart.getContentType();
+                // 检查文件类型 - 完全基于文件内容检测格式
                 String musicFileName = getFileName(musicFilePart);
                 String fileExtension = getFileExtension(musicFileName).toLowerCase();
 
-                // 验证支持的音频格式：MP3、FLAC、WAV
-                boolean isValidFormat = false;
-                String fileFormat = "mp3"; // 默认格式
-
-                if (("audio/mpeg".equals(musicContentType) || fileExtension.equals("mp3")) && !fileExtension.equals("flac") && !fileExtension.equals("wav")) {
-                    isValidFormat = true;
-                    fileFormat = "mp3";
-                } else if (("audio/flac".equals(musicContentType) || fileExtension.equals("flac"))) {
-                    isValidFormat = true;
-                    fileFormat = "flac";
-                } else if (("audio/wav".equals(musicContentType) || "audio/x-wav".equals(musicContentType) || fileExtension.equals("wav"))) {
-                    isValidFormat = true;
-                    fileFormat = "wav";
-                }
-
-                if (!isValidFormat) {
-                    response.setStatus(HttpStatus.BAD_REQUEST_400);
-                    response.setContentType("application/json;charset=utf-8");
-                    ErrorResponse errorResponse = new ErrorResponse("只支持MP3、FLAC或WAV格式的音乐文件");
-                    response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
-                    return;
-                }
-
-                // 使用魔数验证音频文件的真实格式
+                // 使用魔数验证音频文件的真实格式，不信任文件扩展名
+                String fileFormat;
                 try (InputStream musicInputStream = musicFilePart.getInputStream()) {
-                    AudioFileValidator.AudioFormat expectedFormat;
-                    switch (fileFormat) {
-                        case "mp3":
-                            expectedFormat = AudioFileValidator.AudioFormat.MP3;
+                    AudioFileValidator.FormatDetectionResult detectionResult = AudioFileValidator.detectAndValidate(
+                            musicInputStream, fileExtension);
+                    
+                    if (!detectionResult.isValid()) {
+                        response.setStatus(HttpStatus.BAD_REQUEST_400);
+                        response.setContentType("application/json;charset=utf-8");
+                        ErrorResponse errorResponse = new ErrorResponse("音频文件格式错误: " + detectionResult.getErrorMessage());
+                        response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                        return;
+                    }
+                    
+                    // 根据检测到的实际格式设置文件格式
+                    switch (detectionResult.getFormat()) {
+                        case MP3:
+                            fileFormat = "mp3";
                             break;
-                        case "flac":
-                            expectedFormat = AudioFileValidator.AudioFormat.FLAC;
+                        case FLAC:
+                            fileFormat = "flac";
                             break;
-                        case "wav":
-                            expectedFormat = AudioFileValidator.AudioFormat.WAV;
+                        case WAV:
+                            fileFormat = "wav";
                             break;
                         default:
                             response.setStatus(HttpStatus.BAD_REQUEST_400);
@@ -522,17 +489,8 @@ public class FileUploadHandler extends HttpServlet {
                             response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
                             return;
                     }
-
-                    AudioFileValidator.ValidationResult validationResult = AudioFileValidator.validate(
-                            musicInputStream, expectedFormat);
-                    if (!validationResult.isValid()) {
-                        response.setStatus(HttpStatus.BAD_REQUEST_400);
-                        response.setContentType("application/json;charset=utf-8");
-                        ErrorResponse errorResponse = new ErrorResponse(
-                                "音频文件格式验证失败（可能是改了扩展名的文件）: " + validationResult.getErrorMessage());
-                        response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
-                        return;
-                    }
+                    
+                    logger.info("检测到文件格式: {} (实际格式: {})", fileFormat, detectionResult.getFormatDescription());
                 } catch (Exception e) {
                     logger.error("验证音频文件格式时出错", e);
                     response.setStatus(HttpStatus.BAD_REQUEST_400);

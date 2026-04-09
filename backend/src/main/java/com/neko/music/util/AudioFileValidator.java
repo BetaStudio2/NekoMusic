@@ -156,7 +156,7 @@ public class AudioFileValidator {
         try {
             // 标记输入流位置，以便后续重置
             if (inputStream.markSupported()) {
-                inputStream.mark(12);
+                inputStream.mark(4096);
             }
 
             byte[] header = new byte[12];
@@ -190,6 +190,7 @@ public class AudioFileValidator {
                      (header[0] == 0x49 && header[1] == 0x44 && header[2] == 0x33)) {
                 detectedFormat = AudioFormat.MP3;
             }
+            // 检查 MP3 (无 ID3 标签)
             else if (header[0] == (byte) 0xFF) {
                 byte secondByte = header[1];
                 if ((secondByte & 0xE0) == 0xE0) {
@@ -200,6 +201,10 @@ public class AudioFileValidator {
                     }
                 }
             }
+            // 如果前面的检测都失败了，尝试在更多字节中搜索 MP3 帧
+            else if (detectedFormat == null) {
+                detectedFormat = detectMP3InStream(inputStream, bytesRead, header);
+            }
 
             if (inputStream.markSupported()) {
                 inputStream.reset();
@@ -208,6 +213,208 @@ public class AudioFileValidator {
             return detectedFormat;
         } catch (IOException e) {
             return null;
+        }
+    }
+
+    /**
+     * 在流中搜索 MP3 帧
+     */
+    private static AudioFormat detectMP3InStream(InputStream inputStream, int bytesRead, byte[] initialHeader) throws IOException {
+        byte[] searchBuffer = new byte[4096];
+        System.arraycopy(initialHeader, 0, searchBuffer, 0, bytesRead);
+        
+        if (bytesRead < searchBuffer.length) {
+            int additionalRead = inputStream.read(searchBuffer, bytesRead, searchBuffer.length - bytesRead);
+            if (additionalRead > 0) {
+                bytesRead += additionalRead;
+            }
+        }
+        
+        // 在缓冲区中搜索 MP3 同步字节
+        for (int i = 0; i < bytesRead - 1; i++) {
+            if (searchBuffer[i] == (byte) 0xFF) {
+                byte secondByte = searchBuffer[i + 1];
+                if ((secondByte & 0xE0) == 0xE0) {
+                    int mpegVersion = (secondByte >> 3) & 0x03;
+                    int layer = (secondByte >> 1) & 0x03;
+                    if (mpegVersion != 0x01 && layer != 0x00) {
+                        return AudioFormat.MP3;
+                    }
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * 检测文件的实际格式并验证是否为支持的格式
+     * 返回详细的结果，包括检测到的格式和验证信息
+     *
+     * @param inputStream 文件输入流
+     * @param fileExtension 文件扩展名（用于验证）
+     * @return 格式检测结果
+     */
+    public static FormatDetectionResult detectAndValidate(InputStream inputStream, String fileExtension) {
+        try {
+            if (inputStream.markSupported()) {
+                inputStream.mark(4096);
+            }
+
+            byte[] header = new byte[12];
+            int bytesRead = inputStream.read(header);
+            
+            if (bytesRead < 4) {
+                if (inputStream.markSupported()) {
+                    inputStream.reset();
+                }
+                return FormatDetectionResult.fail("文件太小，无法确定格式");
+            }
+
+            // 检测实际格式
+            AudioFormat detectedFormat = null;
+            String formatDescription = null;
+
+            // 检查 FLAC
+            if (header.length >= 4 &&
+                header[0] == 0x66 && header[1] == 0x4C && 
+                header[2] == 0x61 && header[3] == 0x43) {
+                detectedFormat = AudioFormat.FLAC;
+                formatDescription = "FLAC";
+            }
+            // 检查 WAV
+            else if (header.length >= 12 &&
+                     header[0] == 0x52 && header[1] == 0x49 && 
+                     header[2] == 0x46 && header[3] == 0x46 &&
+                     header[8] == 0x57 && header[9] == 0x41 && 
+                     header[10] == 0x56 && header[11] == 0x45) {
+                detectedFormat = AudioFormat.WAV;
+                formatDescription = "WAV";
+            }
+            // 检查 MP3 (ID3v2)
+            else if (header.length >= 3 && 
+                     (header[0] == 0x49 && header[1] == 0x44 && header[2] == 0x33)) {
+                detectedFormat = AudioFormat.MP3;
+                formatDescription = "MP3 (ID3v2)";
+            }
+            // 检查 MP3 (无 ID3)
+            else if (header[0] == (byte) 0xFF) {
+                byte secondByte = header[1];
+                if ((secondByte & 0xE0) == 0xE0) {
+                    int mpegVersion = (secondByte >> 3) & 0x03;
+                    int layer = (secondByte >> 1) & 0x03;
+                    if (mpegVersion != 0x01 && layer != 0x00) {
+                        detectedFormat = AudioFormat.MP3;
+                        formatDescription = "MP3 (原始)";
+                    }
+                }
+            }
+
+            // 如果前面的检测都失败了，尝试在更多字节中搜索 MP3 帧
+            if (detectedFormat == null) {
+                detectedFormat = detectMP3InStream(inputStream, bytesRead, header);
+                if (detectedFormat != null) {
+                    formatDescription = "MP3 (深度扫描)";
+                }
+            }
+
+            if (inputStream.markSupported()) {
+                inputStream.reset();
+            }
+
+            // 检查不支持的格式
+            if (detectedFormat == null) {
+                // 检查常见的视频格式
+                if (bytesRead >= 4) {
+                    // MP4/M4A (ftyp)
+                    if (header[4] == 0x66 && header[5] == 0x74 && 
+                        header[6] == 0x79 && header[7] == 0x70) {
+                        return FormatDetectionResult.fail("检测到 MP4/M4A 格式，这不是音频文件");
+                    }
+                    // OGG
+                    if (header[0] == 0x4F && header[1] == 0x67 && 
+                        header[2] == 0x67 && header[3] == 0x53) {
+                        return FormatDetectionResult.fail("检测到 OGG 格式，目前不支持");
+                    }
+                    // AVI
+                    if (header[0] == 0x52 && header[1] == 0x49 && 
+                        header[2] == 0x46 && header[3] == 0x46 &&
+                        header[8] == 0x41 && header[9] == 0x56 && 
+                        header[10] == 0x49) {
+                        return FormatDetectionResult.fail("检测到 AVI 视频格式，这不是音频文件");
+                    }
+                }
+                return FormatDetectionResult.fail("无法识别文件格式，不是有效的音频文件");
+            }
+
+            // 验证文件扩展名是否与实际格式匹配
+            if (fileExtension != null && !fileExtension.isEmpty()) {
+                String ext = fileExtension.toLowerCase();
+                boolean extensionMatches = false;
+                
+                switch (detectedFormat) {
+                    case MP3:
+                        extensionMatches = ext.equals(".mp3");
+                        break;
+                    case FLAC:
+                        extensionMatches = ext.equals(".flac");
+                        break;
+                    case WAV:
+                        extensionMatches = ext.equals(".wav");
+                        break;
+                }
+                
+                if (!extensionMatches) {
+                    return FormatDetectionResult.fail(
+                            String.format("文件扩展名 '%s' 与实际格式 '%s' 不匹配", 
+                                    fileExtension, formatDescription));
+                }
+            }
+
+            return FormatDetectionResult.success(detectedFormat, formatDescription);
+        } catch (IOException e) {
+            return FormatDetectionResult.fail("读取文件失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 格式检测结果类
+     */
+    public static class FormatDetectionResult {
+        private final boolean valid;
+        private final AudioFormat format;
+        private final String formatDescription;
+        private final String errorMessage;
+
+        private FormatDetectionResult(boolean valid, AudioFormat format, String formatDescription, String errorMessage) {
+            this.valid = valid;
+            this.format = format;
+            this.formatDescription = formatDescription;
+            this.errorMessage = errorMessage;
+        }
+
+        public static FormatDetectionResult success(AudioFormat format, String formatDescription) {
+            return new FormatDetectionResult(true, format, formatDescription, null);
+        }
+
+        public static FormatDetectionResult fail(String errorMessage) {
+            return new FormatDetectionResult(false, null, null, errorMessage);
+        }
+
+        public boolean isValid() {
+            return valid;
+        }
+
+        public AudioFormat getFormat() {
+            return format;
+        }
+
+        public String getFormatDescription() {
+            return formatDescription;
+        }
+
+        public String getErrorMessage() {
+            return errorMessage;
         }
     }
 
