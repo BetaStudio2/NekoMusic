@@ -2,6 +2,7 @@ package com.neko.music.handlers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
+import com.neko.music.util.LrcValidator;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -143,6 +144,26 @@ public class FileUploadHandler extends HttpServlet {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("只支持LRC格式的歌词文件");
+                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                return;
+            }
+            
+            // 校验歌词文件格式
+            try (InputStream lyricsInputStream = lyricsFilePart.getInputStream()) {
+                LrcValidator.ValidationResult validationResult = LrcValidator.validate(
+                        lyricsInputStream, lyricsFilePart.getSize());
+                if (!validationResult.isValid()) {
+                    response.setStatus(HttpStatus.BAD_REQUEST_400);
+                    response.setContentType("application/json;charset=utf-8");
+                    ErrorResponse errorResponse = new ErrorResponse("歌词文件格式错误: " + validationResult.getErrorMessage());
+                    response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                    return;
+                }
+            } catch (Exception e) {
+                logger.error("校验歌词文件时出错", e);
+                response.setStatus(HttpStatus.BAD_REQUEST_400);
+                response.setContentType("application/json;charset=utf-8");
+                ErrorResponse errorResponse = new ErrorResponse("校验歌词文件时出错: " + e.getMessage());
                 response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
                 return;
             }
@@ -367,6 +388,26 @@ public class FileUploadHandler extends HttpServlet {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("只支持LRC格式的歌词文件");
+                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                return;
+            }
+            
+            // 校验歌词文件格式
+            try (InputStream lyricsInputStream = lyricsFilePart.getInputStream()) {
+                LrcValidator.ValidationResult validationResult = LrcValidator.validate(
+                        lyricsInputStream, lyricsFilePart.getSize());
+                if (!validationResult.isValid()) {
+                    response.setStatus(HttpStatus.BAD_REQUEST_400);
+                    response.setContentType("application/json;charset=utf-8");
+                    ErrorResponse errorResponse = new ErrorResponse("歌词文件格式错误: " + validationResult.getErrorMessage());
+                    response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                    return;
+                }
+            } catch (Exception e) {
+                logger.error("校验歌词文件时出错", e);
+                response.setStatus(HttpStatus.BAD_REQUEST_400);
+                response.setContentType("application/json;charset=utf-8");
+                ErrorResponse errorResponse = new ErrorResponse("校验歌词文件时出错: " + e.getMessage());
                 response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
                 return;
             }

@@ -2,6 +2,7 @@ package com.neko.music.handlers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
+import com.neko.music.util.LrcValidator;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -124,7 +125,36 @@ public class UserUploadHandler extends HttpServlet {
             // 保存歌词文件（可选）
             String lyricsFilePath = null;
             if (lyricsFilePart != null && lyricsFilePart.getSize() > 0) {
+                // 检查歌词文件类型
                 String lyricsFileName = "lyrics_" + timestamp + getFileExtension(lyricsFilePart.getSubmittedFileName());
+                if (!lyricsFileName.toLowerCase().endsWith(".lrc")) {
+                    sendError(response, 400, "只支持LRC格式的歌词文件");
+                    // 删除已上传的音乐和封面文件
+                    deleteFileIfExists(musicFilePath);
+                    deleteFileIfExists(coverFilePath);
+                    return;
+                }
+
+                // 校验歌词文件格式
+                try (InputStream lyricsInputStream = lyricsFilePart.getInputStream()) {
+                    LrcValidator.ValidationResult validationResult = LrcValidator.validate(
+                            lyricsInputStream, lyricsFilePart.getSize());
+                    if (!validationResult.isValid()) {
+                        sendError(response, 400, "歌词文件格式错误: " + validationResult.getErrorMessage());
+                        // 删除已上传的音乐和封面文件
+                        deleteFileIfExists(musicFilePath);
+                        deleteFileIfExists(coverFilePath);
+                        return;
+                    }
+                } catch (Exception e) {
+                    logger.error("校验歌词文件时出错", e);
+                    sendError(response, 400, "校验歌词文件时出错: " + e.getMessage());
+                    // 删除已上传的音乐和封面文件
+                    deleteFileIfExists(musicFilePath);
+                    deleteFileIfExists(coverFilePath);
+                    return;
+                }
+
                 lyricsFilePath = Paths.get(uploadBaseDir, lyricsFileName).toString();
                 saveFile(lyricsFilePart, lyricsFilePath);
             } else {
