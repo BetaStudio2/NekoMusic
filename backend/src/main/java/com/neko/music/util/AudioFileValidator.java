@@ -36,7 +36,7 @@ public class AudioFileValidator {
 
             switch (expectedFormat) {
                 case MP3:
-                    return validateMP3(header, inputStream);
+                    return validateMP3(header, inputStream, bytesRead);
                 case FLAC:
                     return validateFLAC(header);
                 case WAV:
@@ -55,7 +55,7 @@ public class AudioFileValidator {
      * 1. ID3v2 标签：以 "ID3" 开头
      * 2. 无 ID3 标签：以 MPEG 同步字节开头 (0xFF 0xFB 或 0xFF 0xFA)
      */
-    private static ValidationResult validateMP3(byte[] header, InputStream inputStream) throws IOException {
+    private static ValidationResult validateMP3(byte[] header, InputStream inputStream, int bytesRead) throws IOException {
         // 检查是否有 ID3v2 标签
         if (header.length >= 3 && header[0] == 0x49 && header[1] == 0x44 && header[2] == 0x33) {
             // ID3v2 标签，进一步验证 ID3 版本
