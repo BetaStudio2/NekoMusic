@@ -2,6 +2,7 @@ package com.neko.music.handlers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
+import com.neko.music.util.AudioFileValidator;
 import com.neko.music.util.LrcValidator;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
@@ -96,6 +97,48 @@ public class UserUploadHandler extends HttpServlet {
             
             if (musicFilePart == null || musicFilePart.getSize() == 0) {
                 sendError(response, 400, "请上传音乐文件");
+                return;
+            }
+            
+            // 验证音乐文件格式
+            String musicFileExtension = getFileExtension(musicFilePart.getSubmittedFileName()).toLowerCase();
+            if (!musicFileExtension.equals(".mp3") && !musicFileExtension.equals(".flac") && !musicFileExtension.equals(".wav")) {
+                sendError(response, 400, "只支持MP3、FLAC或WAV格式的音乐文件");
+                return;
+            }
+            
+            // 使用魔数验证音频文件的真实格式
+            AudioFileValidator.AudioFormat expectedFormat;
+            String fileFormat;
+            switch (musicFileExtension) {
+                case ".mp3":
+                    expectedFormat = AudioFileValidator.AudioFormat.MP3;
+                    fileFormat = "mp3";
+                    break;
+                case ".flac":
+                    expectedFormat = AudioFileValidator.AudioFormat.FLAC;
+                    fileFormat = "flac";
+                    break;
+                case ".wav":
+                    expectedFormat = AudioFileValidator.AudioFormat.WAV;
+                    fileFormat = "wav";
+                    break;
+                default:
+                    sendError(response, 400, "不支持的音频格式");
+                    return;
+            }
+            
+            try (InputStream musicInputStream = musicFilePart.getInputStream()) {
+                AudioFileValidator.ValidationResult validationResult = AudioFileValidator.validate(
+                        musicInputStream, expectedFormat);
+                if (!validationResult.isValid()) {
+                    sendError(response, 400, 
+                            "音频文件格式验证失败（可能是改了扩展名的文件）: " + validationResult.getErrorMessage());
+                    return;
+                }
+            } catch (Exception e) {
+                logger.error("验证音频文件格式时出错", e);
+                sendError(response, 400, "验证音频文件格式时出错: " + e.getMessage());
                 return;
             }
             
