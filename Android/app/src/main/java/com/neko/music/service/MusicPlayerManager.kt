@@ -1,6 +1,7 @@
 package com.neko.music.service
 
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.PowerManager
@@ -82,6 +83,9 @@ class MusicPlayerManager private constructor(context: Context) {
     // 标记 MediaSession 是否已初始化
     private var isMediaSessionInitialized = false
 
+    // 桌面歌词启用状态
+    private var isDesktopLyricEnabled = false
+
     fun ensureMediaSessionInitialized(serviceContext: Context) {
         if (isMediaSessionInitialized) {
             return
@@ -117,6 +121,12 @@ class MusicPlayerManager private constructor(context: Context) {
 
     fun getMediaSessionToken(): android.support.v4.media.session.MediaSessionCompat.Token? {
         return mediaSession?.sessionToken
+    }
+
+    fun updateDesktopLyricState(enabled: Boolean) {
+        isDesktopLyricEnabled = enabled
+        // 更新MediaSession以显示正确的歌词按钮状态
+        updatePlaybackState()
     }
 
     private val _isPlaying = MutableStateFlow(false)
@@ -390,12 +400,45 @@ class MusicPlayerManager private constructor(context: Context) {
                     }
                 }
                 PlayMode.SINGLE_LOOP -> {
-                    // 单曲循环：重新播放当前歌曲
-                    android.util.Log.d("MusicPlayerManager", "SINGLE_LOOP mode, replaying current")
-                    val currentUrl = _currentMusicUrl.value
-                    if (currentUrl != null) {
-                        player.seekTo(0)
-                        player.play()
+                    // 单曲循环：用户手动点击下一首时，可以切换到下一首歌曲
+                    // 只有在播放结束时才自动循环当前歌曲
+                    android.util.Log.d("MusicPlayerManager", "SINGLE_LOOP mode, getting next music")
+                    val nextMusic = playlistManager.getNextMusic(currentId)
+                    android.util.Log.d("MusicPlayerManager", "nextMusic: $nextMusic")
+                    if (nextMusic != null) {
+                        val fullCoverUrl = if (!nextMusic.coverFilePath.isNullOrEmpty()) {
+                            if (nextMusic.coverFilePath.startsWith("http")) {
+                                android.util.Log.d("MusicPlayerManager", "使用完整URL作为封面: ${nextMusic.coverFilePath}")
+                                nextMusic.coverFilePath
+                            } else {
+                                android.util.Log.d("MusicPlayerManager", "拼接URL作为封面: https://music.cnmsb.xin${nextMusic.coverFilePath}")
+                                "https://music.cnmsb.xin${nextMusic.coverFilePath}"
+                            }
+                        } else {
+                            android.util.Log.d("MusicPlayerManager", "使用默认API作为封面: https://music.cnmsb.xin/api/music/cover/${nextMusic.id}")
+                            "https://music.cnmsb.xin/api/music/cover/${nextMusic.id}"
+                        }
+                        android.util.Log.d("MusicPlayerManager", "最终封面URL: $fullCoverUrl")
+                        // 使用 MusicApi 获取正确的播放 URL（包括缓存逻辑）
+                        val musicApi = com.neko.music.data.api.MusicApi(context)
+                        val musicUrl = musicApi.getMusicFileUrl(nextMusic)
+                        playMusic(musicUrl, nextMusic.id, nextMusic.title, nextMusic.artist, nextMusic.coverFilePath ?: "", fullCoverUrl)
+                    } else {
+                        // 没有下一首，回到第一首
+                        android.util.Log.d("MusicPlayerManager", "No next music found, getting first music")
+                        val firstMusic = playlistManager.getFirstMusic()
+                        android.util.Log.d("MusicPlayerManager", "firstMusic: $firstMusic")
+                        if (firstMusic != null) {
+                            val fullCoverUrl = if (!firstMusic.coverFilePath.isNullOrEmpty()) {
+                                "https://music.cnmsb.xin${firstMusic.coverFilePath}"
+                            } else {
+                                "https://music.cnmsb.xin/api/music/cover/${firstMusic.id}"
+                            }
+                            // 使用 MusicApi 获取正确的播放 URL（包括缓存逻辑）
+                            val musicApi = com.neko.music.data.api.MusicApi(context)
+                            val musicUrl = musicApi.getMusicFileUrl(firstMusic)
+                            playMusic(musicUrl, firstMusic.id, firstMusic.title, firstMusic.artist, firstMusic.coverFilePath ?: "", fullCoverUrl)
+                        }
                     }
                 }
                 PlayMode.SHUFFLE -> {
@@ -618,6 +661,36 @@ class MusicPlayerManager private constructor(context: Context) {
                         "ACTION_TOGGLE_FAVORITE" -> {
                             toggleFavorite()
                         }
+                        "ACTION_TOGGLE_LYRIC" -> {
+                            // 切换桌面歌词状态
+                            val context = appContext
+                            if (context != null) {
+                                val lyricPrefs = context.getSharedPreferences("desktop_lyric", Context.MODE_PRIVATE)
+                                val newState = !isDesktopLyricEnabled
+
+                                // 如果要开启但没有悬浮窗权限，先请求权限
+                                if (newState && !android.provider.Settings.canDrawOverlays(context)) {
+                                    Log.d("MusicPlayerManager", "桌面歌词需要悬浮窗权限")
+                                    return
+                                }
+
+                                // 切换状态
+                                lyricPrefs.edit().putBoolean("desktop_lyric_enabled", newState).apply()
+                                isDesktopLyricEnabled = newState
+
+                                // 控制桌面歌词服务
+                                val lyricServiceIntent = Intent(context, com.neko.music.desktoplyric.DesktopLyricService::class.java)
+                                if (newState) {
+                                    lyricServiceIntent.action = com.neko.music.desktoplyric.DesktopLyricService.ACTION_SHOW
+                                    context.startService(lyricServiceIntent)
+                                } else {
+                                    lyricServiceIntent.action = com.neko.music.desktoplyric.DesktopLyricService.ACTION_HIDE
+                                    context.startService(lyricServiceIntent)
+                                }
+
+                                Log.d("MusicPlayerManager", "桌面歌词已${if (newState) "开启" else "关闭"}")
+                            }
+                        }
                     }
                 }
             })
@@ -665,6 +738,13 @@ class MusicPlayerManager private constructor(context: Context) {
                     "ACTION_TOGGLE_FAVORITE",
                     if (_isFavorite.value) "取消收藏" else "收藏",
                     if (_isFavorite.value) com.neko.music.R.drawable.ic_favorite_filled else com.neko.music.R.drawable.ic_favorite_border
+                ).build()
+            )
+            .addCustomAction(
+                PlaybackStateCompat.CustomAction.Builder(
+                    "ACTION_TOGGLE_LYRIC",
+                    "词",
+                    if (isDesktopLyricEnabled) com.neko.music.R.drawable.ic_widget_lyric else com.neko.music.R.drawable.ic_widget_lyric_disabled
                 ).build()
             )
             .setState(

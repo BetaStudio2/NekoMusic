@@ -1,6 +1,6 @@
 package com.neko.music
 
-import android.R.attr.visible
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -18,20 +18,24 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.alpha
+import android.widget.LinearLayout
+
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.lifecycleScope
 import androidx.compose.runtime.setValue
-import coil.ImageLoader
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.animation.AnimatedVisibility
@@ -86,6 +90,16 @@ class MainActivity : ComponentActivity() {
     private val KEY_FIRST_LAUNCH = "first_launch"
     private val REQUEST_CODE_INSTALL_PERMISSION = 1001
 
+    // 启动页状态
+    private var showSplash by mutableStateOf(false)
+    
+    // VR模式状态
+    private var isVRMode by mutableStateOf(false)
+    private var glSurfaceView: android.opengl.GLSurfaceView? = null
+    private var vrGLRenderer: VRGLRenderer? = null
+    private var vrInitializationCompleted = false  // VR初始化是否完成
+    private val vrHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
     // 安装权限请求结果回调
     private val installPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -103,6 +117,37 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        // 检测是否为VR设备
+        val isVRDevice = com.neko.music.util.DeviceDetector.isVRDevice()
+        Log.d("MainActivity", "Device type: ${if (isVRDevice) "VR Headset" else "Normal Phone"}")
+        
+        // 根据设备类型设置屏幕方向
+        requestedOrientation = if (isVRDevice) {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        } else {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+
+        // VR设备检测
+        if (isVRDevice) {
+            Log.d("MainActivity", "VR device detected, checking VR mode preference")
+            
+            // 检查用户是否启用了VR模式
+            val vrModePrefs = getSharedPreferences("vr_settings", Context.MODE_PRIVATE)
+            val useVRMode = vrModePrefs.getBoolean("use_vr_mode", true) // 默认启用VR模式
+            
+            if (useVRMode) {
+                Log.d("MainActivity", "VR mode enabled, attempting VR initialization")
+                // 直接在MainActivity中启动VR模式（不使用预检查）
+                isVRMode = true
+                setupVRMode()
+                return
+            } else {
+                Log.d("MainActivity", "VR mode disabled, using normal mode")
+                // VR模式被禁用，使用普通模式
+            }
+        }
+
         // 应用语言设置
         applyLanguage()
 
@@ -113,9 +158,7 @@ class MainActivity : ComponentActivity() {
         if (isFirstLaunch) {
             // 首次启动，显示开屏
             prefs.edit().putBoolean(KEY_FIRST_LAUNCH, false).apply()
-            startActivity(Intent(this, SplashActivity::class.java))
-            finish()
-            return
+            showSplash = true
         }
 
         // 请求安装权限
@@ -124,18 +167,422 @@ class MainActivity : ComponentActivity() {
         // 启动音乐播放服务（前台服务，保持后台运行）
         MusicPlayerService.startService(this)
 
+        // 检查所有开关状态并启动相应的服务
+        checkAndStartServices()
+
         setContent {
             Neko云音乐Theme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = Color.Transparent
                 ) {
-                    MainScreen()
+                    if (showSplash) {
+                        SplashScreen(onAnimationComplete = {
+                            showSplash = false
+                        })
+                    } else {
+                        MainScreen()
+                    }
                 }
             }
         }
     }
     
+    /**
+     * 检查所有开关状态并启动相应的服务
+     */
+    private fun checkAndStartServices() {
+        // 检查桌面歌词开关
+        val desktopLyricPrefs = getSharedPreferences("desktop_lyric", Context.MODE_PRIVATE)
+        val isDesktopLyricEnabled = desktopLyricPrefs.getBoolean("desktop_lyric_enabled", false)
+        
+        if (isDesktopLyricEnabled) {
+            // 检查悬浮窗权限
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (Settings.canDrawOverlays(this)) {
+                    val intent = Intent(this, com.neko.music.desktoplyric.DesktopLyricService::class.java)
+                    intent.action = com.neko.music.desktoplyric.DesktopLyricService.ACTION_SHOW
+                    startService(intent)
+                    Log.d("MainActivity", "桌面歌词已开启，启动桌面歌词服务")
+                } else {
+                    Log.d("MainActivity", "桌面歌词已开启但没有悬浮窗权限")
+                }
+            }
+        }
+        
+        // 检查灵动岛开关
+        val floatPrefs = getSharedPreferences("float_window", Context.MODE_PRIVATE)
+        val isFuckChinaOSEnabled = floatPrefs.getBoolean("fuck_china_os_enabled", false)
+        
+        if (isFuckChinaOSEnabled) {
+            // 检查悬浮窗权限
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (Settings.canDrawOverlays(this)) {
+                    val intent = Intent(this, com.neko.music.floatwindow.FuckChinaOSFloatService::class.java)
+                    intent.action = com.neko.music.floatwindow.FuckChinaOSFloatService.ACTION_SHOW
+                    startService(intent)
+                    Log.d("MainActivity", "灵动岛已开启，启动灵动岛服务")
+                } else {
+                    Log.d("MainActivity", "灵动岛已开启但没有悬浮窗权限")
+                }
+            }
+        }
+    }
+
+    /**
+     * 设置VR模式
+     */
+    private fun setupVRMode() {
+        Log.d("MainActivity", "Setting up VR mode")
+        
+        // 配置VR显示参数
+        setupVRDisplay()
+
+        // 创建布局
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(android.graphics.Color.BLACK)
+            
+            // 添加信息文本
+            val infoTextView = android.widget.TextView(this@MainActivity).apply {
+                text = "Neko云音乐 - VR模式"
+                textSize = 32f
+                setTextColor(android.graphics.Color.WHITE)
+                gravity = android.view.Gravity.CENTER
+                setPadding(40, 80, 40, 80)
+            }
+            addView(infoTextView)
+            
+            // 创建GLSurfaceView用于渲染
+            glSurfaceView = VRGLSurfaceView(this@MainActivity)
+            addView(glSurfaceView)
+        }
+        
+        vrGLRenderer = VRGLRenderer()
+        
+        // 设置GLSurfaceView的渲染器
+        glSurfaceView?.setRenderer(vrGLRenderer)
+        
+        setContentView(layout)
+        
+        // 延迟初始化VR HUD，确保Activity完全创建
+        vrHandler.postDelayed({
+            initializeVRHUD()
+        }, 100L)
+    }
+
+    /**
+     * 配置VR显示
+     */
+    private fun setupVRDisplay() {
+        try {
+            // 保持屏幕常亮
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            
+            // 设置为VR模式
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT) {
+                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED)
+            }
+            
+            // 隐藏状态栏和导航栏
+            window.decorView.systemUiVisibility = (
+                android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                or android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                )
+            
+            Log.d("MainActivity", "VR display setup complete")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to setup VR display", e)
+        }
+    }
+
+    /**
+     * 初始化VR HUD
+     */
+    private fun initializeVRHUD() {
+        Log.d("MainActivity", "Starting VR HUD initialization")
+        
+        Thread {
+            try {
+                // 初始化OpenXR HUD
+                val displayMetrics = resources.displayMetrics
+                val success = com.neko.music.util.VRHUDRenderer.initialize(this@MainActivity, displayMetrics.widthPixels, displayMetrics.heightPixels)
+
+                if (!success) {
+                    Log.e("MainActivity", "Failed to initialize VR HUD renderer")
+                    // 初始化失败，重置VR模式状态并回退到正常模式
+                    vrHandler.post {
+                        vrInitializationCompleted = true
+                        fallbackToNormalMode("VR HUD initialization failed")
+                    }
+                    return@Thread
+                }
+
+                // 检查是否真正支持空间HUD（而不是简化模式）
+                if (!com.neko.music.util.VRHUDRenderer.isSpatialHUDSupported()) {
+                    Log.w("MainActivity", "VR HUD initialized but spatial HUD not supported, falling back to normal mode")
+                    // 虽然初始化成功，但只支持简化模式，回退到正常模式
+                    vrHandler.post {
+                        vrInitializationCompleted = true
+                        fallbackToNormalMode("Spatial HUD not supported")
+                    }
+                    return@Thread
+                }
+
+                Log.d("MainActivity", "VR HUD renderer initialized successfully")
+
+                // 设置默认HUD位置（用户前方2米）
+                com.neko.music.util.VRHUDRenderer.setInFront(2.0f, 0.0f)
+                
+                // 启用HUD可见性
+                com.neko.music.util.VRHUDRenderer.setVisible(true)
+                
+                Log.d("MainActivity", "VR mode setup complete")
+                
+                // 标记VR初始化完成
+                vrHandler.post {
+                    vrInitializationCompleted = true
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error during VR HUD initialization", e)
+                // 发生异常，回退到正常模式
+                vrHandler.post {
+                    vrInitializationCompleted = true
+                    fallbackToNormalMode("VR HUD initialization exception: ${e.message}")
+                }
+            }
+        }.start()
+    }
+
+    /**
+     * 回退到正常模式
+     */
+    private fun fallbackToNormalMode(reason: String) {
+        Log.d("MainActivity", "Falling back to normal mode: $reason")
+        
+        // 立即重置状态，防止多次调用
+        val wasVRMode = isVRMode
+        isVRMode = false
+        vrInitializationCompleted = false
+        
+        // 如果不是VR模式，直接初始化正常模式
+        if (!wasVRMode) {
+            reinitializeNormalMode()
+            return
+        }
+        
+        // 在后台线程清理VR资源，避免主线程阻塞
+        Thread {
+            try {
+                Log.d("MainActivity", "Cleaning up VR resources in background thread")
+                
+                // 安全地暂停GLSurfaceView
+                val glViewToPause = glSurfaceView
+                try {
+                    glViewToPause?.onPause()
+                } catch (e: Exception) {
+                    Log.w("MainActivity", "Error pausing GLSurfaceView during fallback", e)
+                }
+                
+                // 清理VR渲染器
+                val rendererToCleanup = vrGLRenderer
+                try {
+                    rendererToCleanup?.cleanup()
+                } catch (e: Exception) {
+                    Log.w("MainActivity", "Error cleaning up VRGLRenderer during fallback", e)
+                }
+                
+                // 清理VRHUDRenderer
+                try {
+                    com.neko.music.util.VRHUDRenderer.cleanup()
+                } catch (e: Exception) {
+                    Log.w("MainActivity", "Error cleaning up VRHUDRenderer during fallback", e)
+                }
+                
+                Log.d("MainActivity", "VR resource cleanup completed")
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error during VR cleanup", e)
+            } finally {
+                // 在主线程重置引用并重新初始化正常模式
+                vrHandler.post {
+                    glSurfaceView = null
+                    vrGLRenderer = null
+                    reinitializeNormalMode()
+                }
+            }
+        }.start()
+    }
+
+    /**
+     * 重新初始化正常模式
+     */
+    private fun reinitializeNormalMode() {
+        Log.d("MainActivity", "Reinitializing normal mode")
+        
+        // 直接在主线程执行所有初始化
+        try {
+            // 应用语言设置
+            applyLanguage()
+
+            // 检查是否是首次启动
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val isFirstLaunch = prefs.getBoolean(KEY_FIRST_LAUNCH, true)
+
+            val shouldShowSplash = if (isFirstLaunch) {
+                // 首次启动，显示开屏
+                prefs.edit().putBoolean(KEY_FIRST_LAUNCH, false).apply()
+                true
+            } else {
+                false
+            }
+            
+            showSplash = shouldShowSplash
+            
+            // 请求安装权限
+            requestInstallPermission()
+
+            // 启动音乐播放服务（前台服务，保持后台运行）
+            MusicPlayerService.startService(this@MainActivity)
+
+            // 检查所有开关状态并启动相应的服务
+            checkAndStartServices()
+
+            // 设置Compose UI
+            setContent {
+                Neko云音乐Theme {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = Color.Transparent
+                    ) {
+                        if (showSplash) {
+                            SplashScreen(onAnimationComplete = {
+                                showSplash = false
+                            })
+                        } else {
+                            MainScreen()
+                        }
+                    }
+                }
+            }
+            
+            Log.d("MainActivity", "Normal mode reinitialized successfully")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error in reinitializeNormalMode", e)
+            finish()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        
+        // VR模式下恢复GLSurfaceView（只有在VR初始化完成后）
+        if (isVRMode && vrInitializationCompleted && glSurfaceView != null && vrGLRenderer != null) {
+            try {
+                glSurfaceView?.onResume()
+                
+                // 重新设置VR显示模式
+                window.decorView.systemUiVisibility = (
+                    android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                    or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    or android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    )
+                
+                // 恢复时重新启用HUD
+                vrHandler.postDelayed({
+                    try {
+                        com.neko.music.util.VRHUDRenderer.setVisible(true)
+                    } catch (e: Exception) {
+                        Log.e("MainActivity", "Error setting HUD visible in onResume", e)
+                    }
+                }, 500)
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error in VR mode onResume", e)
+            }
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        
+        // VR模式下暂停GLSurfaceView
+        if (isVRMode) {
+            glSurfaceView?.onPause()
+            com.neko.music.util.VRHUDRenderer.setVisible(false)
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        
+        // VR模式下清理资源
+        if (isVRMode) {
+            vrHandler.removeCallbacksAndMessages(null)
+            
+            try {
+                vrGLRenderer?.cleanup()
+                com.neko.music.util.VRHUDRenderer.cleanup()
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error during VR cleanup", e)
+            }
+        }
+    }
+
+    /**
+     * 自定义GLSurfaceView，支持VR渲染
+     */
+    private inner class VRGLSurfaceView(context: Activity) : android.opengl.GLSurfaceView(context) {
+        init {
+            // 配置为不透明背景
+            setEGLConfigChooser(8, 8, 8, 8, 16, 0)
+            // 启用深度测试
+            setPreserveEGLContextOnPause(true)
+        }
+        
+        override fun onAttachedToWindow() {
+            super.onAttachedToWindow()
+            // 在attach到窗口后设置渲染模式
+            try {
+                setRenderMode(android.opengl.GLSurfaceView.RENDERMODE_CONTINUOUSLY)
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Failed to set render mode", e)
+            }
+        }
+    }
+
+    /**
+     * GL渲染器
+     */
+    private inner class VRGLRenderer : android.opengl.GLSurfaceView.Renderer {
+        override fun onSurfaceCreated(gl: javax.microedition.khronos.opengles.GL10, config: javax.microedition.khronos.egl.EGLConfig) {
+            Log.d("MainActivity", "GL surface created")
+            // 设置清除颜色为黑色
+            gl.glClearColor(0.0f, 0.0f, 0.0f, 1.0f)
+        }
+
+        override fun onSurfaceChanged(gl: javax.microedition.khronos.opengles.GL10, width: Int, height: Int) {
+            Log.d("MainActivity", "GL surface changed: ${width}x${height}")
+            // 设置视口
+            gl.glViewport(0, 0, width, height)
+        }
+
+        override fun onDrawFrame(gl: javax.microedition.khronos.opengles.GL10) {
+            // 清除屏幕
+            gl.glClear(javax.microedition.khronos.opengles.GL10.GL_COLOR_BUFFER_BIT or javax.microedition.khronos.opengles.GL10.GL_DEPTH_BUFFER_BIT)
+            
+            // 每帧渲染VR HUD
+            com.neko.music.util.VRHUDRenderer.renderFrame()
+        }
+
+        fun cleanup() {
+            // 清理资源
+        }
+    }
+
     /**
      * 应用语言设置
      */
@@ -368,6 +815,12 @@ fun MainScreen() {
                 HomeScreen(
                     onSearchClick = {
                         Log.d("MainActivity", "导航到搜索页面")
+                        // 清除保存的搜索状态，让用户看到一个干净的搜索界面
+                        val searchStatePrefs = context.getSharedPreferences("search_state", android.content.Context.MODE_PRIVATE)
+                        searchStatePrefs.edit()
+                            .remove("last_search_query")
+                            .remove("last_search_type")
+                            .apply()
                         navController.navigate("search")
                     },
                     onNavigateToFavorite = {
@@ -482,6 +935,11 @@ fun MainScreen() {
                 RankingScreen(
                     onBackClick = {
                         navController.popBackStack()
+                    },
+                    onNavigateToPlayer = { music ->
+                        val encodedTitle = java.net.URLEncoder.encode(music.title, "UTF-8")
+                        val encodedArtist = java.net.URLEncoder.encode(music.artist, "UTF-8")
+                        navController.navigate("player/${music.id}/$encodedTitle/$encodedArtist")
                     }
                 )
             }
@@ -489,6 +947,11 @@ fun MainScreen() {
                 LatestScreen(
                     onBackClick = {
                         navController.popBackStack()
+                    },
+                    onNavigateToPlayer = { music ->
+                        val encodedTitle = java.net.URLEncoder.encode(music.title, "UTF-8")
+                        val encodedArtist = java.net.URLEncoder.encode(music.artist, "UTF-8")
+                        navController.navigate("player/${music.id}/$encodedTitle/$encodedArtist")
                     }
                 )
             }
@@ -503,7 +966,8 @@ fun MainScreen() {
                         val encodedArtist = java.net.URLEncoder.encode(music.artist, "UTF-8")
                         navController.navigate("player/${music.id}/$encodedTitle/$encodedArtist")
                     },
-                    token = tokenManager.getToken()
+                    token = tokenManager.getToken(),
+                    userId = tokenManager.getUserId()
                 )
             }
             composable(
@@ -1176,4 +1640,125 @@ fun MainScreen() {
             }
         }
     }
+
+// ==================== 启动页相关组件 ====================
+
+@Composable
+fun SplashScreen(onAnimationComplete: () -> Unit) {
+    val scale = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
+    val alpha = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        scale.animateTo(
+            targetValue = 1f,
+            animationSpec = androidx.compose.animation.core.tween(durationMillis = 300, delayMillis = 30)
+        )
+        alpha.animateTo(
+            targetValue = 1f,
+            animationSpec = androidx.compose.animation.core.tween(durationMillis = 300, delayMillis = 30)
+        )
+        kotlinx.coroutines.delay(1500)
+        onAnimationComplete()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                    colors = listOf(
+                        com.neko.music.ui.theme.DeepBlue,
+                        com.neko.music.ui.theme.RoseRed
+                    )
+                )
+            ),
+        contentAlignment = androidx.compose.ui.Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+        ) {
+            LogoIcon(
+                scale = scale.value,
+                alpha = alpha.value
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            AppTitle(
+                alpha = alpha.value
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            AppSubtitle(
+                alpha = alpha.value
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            LoadingDot(
+                alpha = alpha.value
+            )
+        }
+    }
+}
+
+@Composable
+fun LogoIcon(scale: Float, alpha: Float) {
+    Box(
+        modifier = Modifier
+            .size(120.dp)
+            .scale(scale)
+            .alpha(alpha)
+            .background(
+                color = Color.White,
+                shape = androidx.compose.foundation.shape.CircleShape
+            ),
+        contentAlignment = androidx.compose.ui.Alignment.Center
+    ) {
+        Text(
+            text = "♪",
+            fontSize = 64.sp,
+            modifier = Modifier.alpha(alpha)
+        )
+    }
+}
+
+@Composable
+fun AppTitle(alpha: Float) {
+    Text(
+        text = "Neko云音乐",
+        fontSize = 32.sp,
+        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+        color = Color.White,
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        modifier = Modifier.alpha(alpha)
+    )
+}
+
+@Composable
+fun AppSubtitle(alpha: Float) {
+    Text(
+        text = androidx.compose.ui.res.stringResource(id = R.string.splash_slogan),
+        fontSize = 16.sp,
+        fontWeight = androidx.compose.ui.text.font.FontWeight.Normal,
+        color = Color.White.copy(alpha = 0.8f),
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        modifier = Modifier.alpha(alpha)
+    )
+}
+
+@Composable
+fun LoadingDot(alpha: Float) {
+    Box(
+        modifier = Modifier
+            .size(4.dp)
+            .background(
+                color = Color.White,
+                shape = androidx.compose.foundation.shape.CircleShape
+            )
+            .alpha(alpha)
+    )
+}
 

@@ -10,6 +10,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.Icons
@@ -39,10 +42,11 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.material.ExperimentalMaterialApi::class)
 @Composable
 fun LatestScreen(
-    onBackClick: () -> Unit = {}
+    onBackClick: () -> Unit = {},
+    onNavigateToPlayer: (Music) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -183,64 +187,82 @@ fun LatestScreen(
                     LatestEmptyState()
                 }
                 else -> {
-                    LazyColumn(
-                        state = listState,
+                    val pullRefreshState = rememberPullRefreshState(refreshing, onRefresh = { refreshData() })
+                    
+                    Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(
-                                brush = Brush.verticalGradient(
-                                    colors = if (isDarkMode) {
-                                        listOf(
-                                            DeepBlue.copy(alpha = 0.3f),
-                                            DeepBlue.copy(alpha = 0.2f),
-                                            DeepBlue.copy(alpha = 0.1f)
-                                        )
-                                    } else {
-                                        listOf(
-                                            SakuraPink.copy(alpha = 0.12f),
-                                            SkyBlue.copy(alpha = 0.08f),
-                                            Lilac.copy(alpha = 0.05f)
-                                        )
-                                    }
-                                )
-                            ),
-                        contentPadding = PaddingValues(
-                            start = 16.dp,
-                            end = 16.dp,
-                            top = 12.dp,
-                            bottom = 160.dp
-                        ),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                            .pullRefresh(pullRefreshState)
                     ) {
-                        itemsIndexed(
-                            items = musicList,
-                            key = { _, music -> music.id }
-                        ) { index, music ->
-                            LatestItem(
-                                music = music,
-                                index = index,
-                                onClick = {
-                                    Log.d("LatestScreen", "点击歌曲: ${music.title}")
-                                    scope.launch {
-                                        try {
-                                            // 播放当前点击的歌曲
-                                            val url = musicApi.getMusicFileUrl(music)
-                                            val fullCoverUrl = "https://music.cnmsb.xin/api/music/cover/${music.id}"
-                                            playerManager.playMusic(
-                                                url,
-                                                music.id,
-                                                music.title,
-                                                music.artist,
-                                                music.coverFilePath ?: "",
-                                                fullCoverUrl
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    brush = Brush.verticalGradient(
+                                        colors = if (isDarkMode) {
+                                            listOf(
+                                                DeepBlue.copy(alpha = 0.3f),
+                                                DeepBlue.copy(alpha = 0.2f),
+                                                DeepBlue.copy(alpha = 0.1f)
                                             )
-                                        } catch (e: Exception) {
-                                            Log.e("LatestScreen", "播放失败", e)
+                                        } else {
+                                            listOf(
+                                                SakuraPink.copy(alpha = 0.12f),
+                                                SkyBlue.copy(alpha = 0.08f),
+                                                Lilac.copy(alpha = 0.05f)
+                                            )
+                                        }
+                                    )
+                                ),
+                            contentPadding = PaddingValues(
+                                start = 16.dp,
+                                end = 16.dp,
+                                top = 12.dp,
+                                bottom = 160.dp
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            itemsIndexed(
+                                items = musicList,
+                                key = { _, music -> music.id }
+                            ) { index, music ->
+                                LatestItem(
+                                    music = music,
+                                    index = index,
+                                    onClick = {
+                                        Log.d("LatestScreen", "点击歌曲: ${music.title}")
+                                        scope.launch {
+                                            try {
+                                                // 播放当前点击的歌曲
+                                                val url = musicApi.getMusicFileUrl(music)
+                                                val fullCoverUrl = "https://music.cnmsb.xin/api/music/cover/${music.id}"
+                                                playerManager.playMusic(
+                                                    url,
+                                                    music.id,
+                                                    music.title,
+                                                    music.artist,
+                                                    music.coverFilePath ?: "",
+                                                    fullCoverUrl
+                                                )
+                                                // 跳转到播放页面，传递音乐信息
+                                                onNavigateToPlayer(music)
+                                            } catch (e: Exception) {
+                                                Log.e("LatestScreen", "播放失败", e)
+                                            }
                                         }
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
+                        
+                        PullRefreshIndicator(
+                            refreshing = refreshing,
+                            state = pullRefreshState,
+                            modifier = Modifier.align(Alignment.TopCenter),
+                            backgroundColor = if (isDarkMode) Color(0xFF2A2A3E) else Color.White,
+                            contentColor = if (isDarkMode) Color.White else RoseRed
+                        )
                     }
                 }
             }
@@ -414,7 +436,7 @@ fun LatestItem(
         if (music.createdAt != null) {
             try {
                 val timestamp = music.createdAt.toLong()
-                formatUploadTime(timestamp)
+                formatUploadTime(context, timestamp)
             } catch (e: Exception) {
                 ""
             }
@@ -515,15 +537,15 @@ fun LatestItem(
     }
 }
 
-fun formatUploadTime(timestamp: Long): String {
+fun formatUploadTime(context: android.content.Context, timestamp: Long): String {
     val now = System.currentTimeMillis()
     val diff = now - timestamp
     
     return when {
-        diff < 60 * 1000 -> "刚刚"
-        diff < 60 * 60 * 1000 -> "${diff / (60 * 1000)}分钟前"
-        diff < 24 * 60 * 60 * 1000 -> "${diff / (60 * 60 * 1000)}小时前"
-        diff < 30 * 24 * 60 * 60 * 1000 -> "${diff / (24 * 60 * 60 * 1000)}天前"
+        diff < 60 * 1000 -> context.getString(R.string.just_now)
+        diff < 60 * 60 * 1000 -> context.getString(R.string.minutes_ago_format, diff / (60 * 1000))
+        diff < 24 * 60 * 60 * 1000 -> context.getString(R.string.hours_ago_format, diff / (60 * 60 * 1000))
+        diff < 30 * 24 * 60 * 60 * 1000 -> context.getString(R.string.days_ago_format, diff / (24 * 60 * 60 * 1000))
         else -> {
             val sdf = SimpleDateFormat("MM-dd", Locale.getDefault())
             sdf.format(Date(timestamp))

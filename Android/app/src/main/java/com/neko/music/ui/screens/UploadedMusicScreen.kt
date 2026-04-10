@@ -19,6 +19,8 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,7 +59,8 @@ private const val baseUrl = "https://music.cnmsb.xin"
 fun UploadedMusicScreen(
     onBackClick: () -> Unit = {},
     onMusicClick: (UploadedMusic) -> Unit = {},
-    token: String? = null
+    token: String? = null,
+    userId: Int = -1
 ) {
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -66,9 +69,35 @@ fun UploadedMusicScreen(
     var showError by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
     var showUploadDialog by remember { mutableStateOf(false) }
+    
+    // 下拉刷新状态
+    var isRefreshing by remember { mutableStateOf(false) }
 
     // 预加载字符串资源
     val pleaseLoginFirst = stringResource(id = R.string.please_login_first)
+
+    // 刷新数据的函数
+    val refreshData = suspend {
+        if (token != null) {
+            isRefreshing = true
+            try {
+                val userApi = com.neko.music.data.api.UserApi(token)
+                val response = userApi.getUploadedMusic()
+                if (response.success) {
+                    musicList = response.musicList
+                    showError = false
+                } else {
+                    showError = true
+                    errorMessage = response.message
+                }
+            } catch (e: Exception) {
+                showError = true
+                errorMessage = context.getString(R.string.get_data_failed, e.message ?: "Unknown error")
+            } finally {
+                isRefreshing = false
+            }
+        }
+    }
 
     LaunchedEffect(token) {
         if (token != null) {
@@ -86,7 +115,7 @@ fun UploadedMusicScreen(
                     }
                 } catch (e: Exception) {
                     showError = true
-                    errorMessage = "获取数据失败: ${e.message}"
+                    errorMessage = context.getString(R.string.get_data_failed, e.message ?: "Unknown error")
                 } finally {
                     isLoading = false
                 }
@@ -152,6 +181,23 @@ fun UploadedMusicScreen(
                         onRetry = {
                             showError = false
                             isLoading = true
+                            scope.launch {
+                                try {
+                                    val userApi = com.neko.music.data.api.UserApi(token)
+                                    val response = userApi.getUploadedMusic()
+                                    if (response.success) {
+                                        musicList = response.musicList
+                                    } else {
+                                        showError = true
+                                        errorMessage = response.message
+                                    }
+                                } catch (e: Exception) {
+                                    showError = true
+                                    errorMessage = context.getString(R.string.get_data_failed, e.message ?: "Unknown error")
+                                } finally {
+                                    isLoading = false
+                                }
+                            }
                         }
                     )
                 }
@@ -159,10 +205,20 @@ fun UploadedMusicScreen(
                     EmptyView()
                 }
                 else -> {
-                    MusicList(
-                        musicList = musicList,
-                        onMusicClick = onMusicClick
-                    )
+                    // 下拉刷新状态
+                    val pullRefreshState = rememberPullToRefreshState()
+
+                    PullToRefreshBox(
+                        isRefreshing = isRefreshing,
+                        onRefresh = { scope.launch { refreshData() } },
+                        state = pullRefreshState,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        MusicList(
+                            musicList = musicList,
+                            onMusicClick = onMusicClick
+                        )
+                    }
                 }
             }
         }
@@ -188,13 +244,14 @@ fun UploadedMusicScreen(
                         }
                     } catch (e: Exception) {
                         showError = true
-                        errorMessage = "获取数据失败: ${e.message}"
+                        errorMessage = context.getString(R.string.get_data_failed, e.message ?: "Unknown error")
                     } finally {
                         isLoading = false
                     }
                 }
             },
-            token = token
+            token = token,
+            userId = userId
         )
     }
 }
@@ -440,7 +497,8 @@ private fun formatDuration(seconds: Int): String {
 fun UploadMusicDialog(
     onDismiss: () -> Unit,
     onUploadSuccess: () -> Unit,
-    token: String?
+    token: String?,
+    userId: Int = -1
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -475,6 +533,7 @@ fun UploadMusicDialog(
     var language by remember { mutableStateOf(pleaseSelectLanguage) }
     var tags by remember { mutableStateOf("") }
     var duration by remember { mutableStateOf("") }
+    var durationSeconds by remember { mutableStateOf(0) }  // 添加时长秒数
     
     // 文件
     var audioFile by remember { mutableStateOf<android.net.Uri?>(null) }
@@ -489,6 +548,8 @@ fun UploadMusicDialog(
     var isParsing by remember { mutableStateOf(false) }
     
     var languageExpanded by remember { mutableStateOf(false) }
+    var showFullLyricsDialog by remember { mutableStateOf(false) }
+    var fullLyricsContent by remember { mutableStateOf("") }
     
     // 文件选择器
     val audioFileLauncher = rememberLauncherForActivityResult(
@@ -521,6 +582,7 @@ fun UploadMusicDialog(
                     artist = metadata.artist
                     album = metadata.album
                     duration = metadata.duration
+                    durationSeconds = metadata.durationSeconds  // 设置时长秒数
                     // 如果音频文件有内嵌封面，则自动显示
                     if (metadata.cover != null) {
                         coverBitmap = metadata.cover
@@ -569,6 +631,7 @@ fun UploadMusicDialog(
                     // 验证通过，设置歌词文件和预览内容
                     lyricsFile = uri
                     lyricsPreview = preview
+                    fullLyricsContent = content  // 保存完整歌词内容
                 } catch (e: Exception) {
                     android.widget.Toast.makeText(
                         context,
@@ -596,7 +659,7 @@ fun UploadMusicDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (isUploading) "上传中 ${uploadProgress.toInt()}%" 
+                        text = if (isUploading) stringResource(id = R.string.uploading_progress, uploadProgress.toInt())
                             else stringResource(id = R.string.upload_music_dialog_title),
                         fontWeight = FontWeight.Bold
                     )
@@ -691,7 +754,8 @@ fun UploadMusicDialog(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(80.dp),
+                            .height(80.dp)
+                            .clickable { showFullLyricsDialog = true },
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant
                         ),
@@ -708,7 +772,7 @@ fun UploadMusicDialog(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = lyricsPreview.ifEmpty { "加载中..." },
+                                text = lyricsPreview.ifEmpty { stringResource(id = R.string.loading_data) },
                                 fontSize = 10.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 3,
@@ -899,31 +963,33 @@ fun UploadMusicDialog(
                             // 模拟进度更新 - 准备上传阶段
                             uploadProgress = 30f
                             
-                            // 将语言名称转换为语言代码
-                            val languageCode = languageOptions.find { it.first == language }?.second ?: ""
-                            
                             // 模拟进度更新 - 上传中阶段
-                            launch {
-                                while (isUploading && uploadProgress < 90f) {
+                            val uploadJob = launch {
+                                while (isUploading && uploadProgress < 95f) {
                                     kotlinx.coroutines.delay(100)
-                                    uploadProgress = (uploadProgress + 5f).coerceAtMost(90f)
+                                    uploadProgress = (uploadProgress + 5f).coerceAtMost(95f)
                                 }
                             }
                             
                             if (audioBytes != null) {
                                 val userApi = com.neko.music.data.api.UserApi(token)
+                                
                                 val response = userApi.uploadMusic(
                                     audioFile = audioBytes,
                                     audioFileName = audioFileName,
                                     title = title,
                                     artist = artist,
                                     album = album,
-                                    language = languageCode,
+                                    language = language,  // 直接使用用户选择的中文名称
                                     tags = tags,
+                                    duration = durationSeconds,  // 直接使用解析出的秒数
+                                    uploadUserId = userId,  // 使用真实的用户 ID
                                     lyricsFile = lyricsBytes,
                                     coverImage = coverBytes
                                 )
                                 
+                                // API调用完成后，等待模拟进度完成到95%，然后设置为100%
+                                uploadJob.join()
                                 uploadProgress = 100f
                                 
                                 if (response.success) {
@@ -979,6 +1045,49 @@ fun UploadMusicDialog(
             }
         }
     )
+    
+    // 完整歌词对话框
+    if (showFullLyricsDialog) {
+        AlertDialog(
+            onDismissRequest = { showFullLyricsDialog = false },
+            title = {
+                Text(
+                    text = stringResource(id = R.string.full_lyrics),
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text(
+                            text = fullLyricsContent,
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showFullLyricsDialog = false },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = RoseRed
+                    )
+                ) {
+                    Text(stringResource(id = android.R.string.ok))
+                }
+            }
+        )
+    }
 }
 
 private fun getFileName(context: android.content.Context, uri: android.net.Uri): String? {
@@ -1010,6 +1119,7 @@ private data class AudioMetadata(
     val artist: String = "",
     val album: String = "",
     val duration: String = "",
+    val durationSeconds: Int = 0,  // 添加秒数字段
     val language: String = "",
     val cover: android.graphics.Bitmap? = null
 )
@@ -1031,6 +1141,7 @@ private suspend fun parseAudioMetadata(
         // 提取时长
         val durationMs = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
         val duration = formatDurationFromMs(durationMs)
+        val durationSeconds = (durationMs / 1000).toInt()  // 计算秒数
         
         // 提取封面图片
         val cover = retriever.embeddedPicture?.let { 
@@ -1042,6 +1153,7 @@ private suspend fun parseAudioMetadata(
             artist = artist,
             album = album,
             duration = duration,
+            durationSeconds = durationSeconds,  // 添加秒数
             language = "",
             cover = cover
         )

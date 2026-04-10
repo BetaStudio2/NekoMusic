@@ -14,6 +14,7 @@
     <string name="focus_lock_subtitle">开启后不会被其他应用打断播放，可同时播放</string>
     <string name="fuck_china_os">灵动岛</string>
     <string name="fuck_china_os_subtitle">在顶部状态栏中央显示播放控制。操你妈国产系统</string>
+    <string name="desktop_lyric_subtitle">在屏幕上方显示当前播放歌词</string>
     <string name="language">语言</string>
     <string name="language_subtitle">选择应用显示语言</string>
     <string name="language_follow_system">跟随系统</string>
@@ -83,6 +84,7 @@
     <string name="error">错误</string>
 
     <!-- 登录相关 -->
+    <string name="success">成功</string>
     <string name="app_title">Neko 云音乐</string>
     <string name="welcome_back">欢迎回来</string>
     <string name="create_new_account">创建新账号</string>
@@ -102,6 +104,7 @@
     <string name="please_enter_email_first">请先输入邮箱</string>
 
     <!-- 账号信息 -->
+    <string name="update_failed_msg">❌ 更新失败</string>
     <string name="account_info">账号信息</string>
     <string name="avatar">头像</string>
     <string name="user_avatar">用户头像</string>
@@ -145,7 +148,7 @@
     <string name="playback_speed_x">倍速: %dx</string>
     <string name="sleep_timer">定时关闭</string>
     <string name="sleep_timer_cancelled">定时关闭已取消</string>
-    <string name="sleep_timer_hours_minutes">%d小时%d分钟后关闭</string>
+    <string name="sleep_timer_hours_minutes" formatted="false">%d小时%d分钟后关闭</string>
     <string name="sleep_timer_hours">%d小时后关闭</string>
     <string name="sleep_timer_minutes">%d分钟后关闭</string>
     <string name="add_to_playlist">添加到歌单</string>
@@ -178,29 +181,18 @@
     <string name="no_description_nya">暂时没有描述Nya！</string>
     <string name="songs_count">%d 首音乐</string>
     <string name="author_prefix">作者：%s</string>
-
-    <!-- 最新音乐 -->
-    <string name="latest_music">最新音乐</string>
-    <string name="loading_latest_music">正在加载最新音乐...</string>
-    <string name="load_failed">加载失败</string>
-    <string name="network_error">网络连接似乎出现了问题</string>
-    <string name="retry">重试</string>
-    <string name="no_latest_music">暂无最新音乐</string>
-    <string name="just_now">刚刚</string>
-    <string name="minutes_ago">%d分钟前</string>
-    <string name="hours_ago">%d小时前</string>
-    <string name="days_ago">%d天前</string>
-    <string name="play_all_failed">播放全部失败</string>
-    <string name="play_failed">播放失败</string>
-
-    <!-- 上传音乐 -->
-    <string name="loading_data">加载中...</string>
-    <string name="get_data_failed">获取数据失败: %s</string>
-    <string name="album_cover">专辑封面</string>
-    <string name="music_note">音乐</string>
-    <string name="empty">空</string>
-
-    <!-- 歌单详情 -->
+    <string name="no_search_playlist_found">未找到歌单</string>
+        <string name="no_search_artist_found">未找到歌手</string>
+    
+        <!-- 上传音乐 -->
+        <string name="loading_data">加载中...</string>
+        <string name="get_data_failed">获取数据失败: %s</string>
+        <string name="album_cover">专辑封面</string>
+        <string name="music_note">音乐</string>
+        <string name="empty">空</string>
+        <string name="uploading_progress">上传中 %d%%</string>
+    
+        <!-- 歌单详情 -->
     <string name="playlist_cover">歌单封面</string>
     <string name="no_description_click_to_edit">暂无描述，点击此处修改Nya！</string>
     <string name="creator">创建者</string>
@@ -245,6 +237,7 @@
     <string name="recommended_playlists_exception">推荐歌单异常: %s</string>
     <string name="installing_update">正在安装更新...</string>
     <string name="update_dialog">发现新版本</string>
+    <string name="new_version_found">发现新版本</string>
     <string name="new_version">新版本：%s</string>
     <string name="version_code">版本号：%d</string>
 
@@ -255,6 +248,9 @@
     <string name="notification_permission_title">需要通知权限</string>
     <string name="notification_permission_message">为了在定时关闭时提醒您，\n需要通知权限</string>
     <string name="authorize">授权</string>
+
+    <!-- 悬浮窗权限 -->
+    <string name="desktop_lyric_permission_message">为了显示桌面歌词，\n需要悬浮窗权限</string>
 
     <!-- 播放器 -->
     <string name="now_playing">正在播放</string>
@@ -380,4 +376,137 @@
     <string name="hot_music_desc">播放次数最高的歌曲</string>
     <string name="songs_count_short">%d首</string>
     <string name="play_count">%d次</string>
+
+    <!-- 启动页 -->
+    <string name="lyrics_file_read_failed">读取歌词文件失败</string>
+    <string name="splash_slogan">听见你的世界</string>
+    
+    <!-- 认证错误 -->
+    <string name="auth_expired">登录状态失效，请重新登录</string>
+    
+    <!-- 下载 -->
+    <string name="downloading_progress" formatted="false">正在下载: %s - %s</string>
+    <string name="download_started">下载已开始</string>
+    <string name="download_manager_unavailable">下载管理器不可用</string>
+    <string name="download_started_with_lyrics">下载已开始，包含歌词</string>
+    
+    <!-- 热门音乐 -->
+    <string name="total_hot_music">共 %d 首热门音乐</string>
+    
+    <!-- 分享 -->
+    <string name="share_to_qq">分享到QQ</string>
+    <string name="playlist_link">歌单链接</string>
+    
+    <!-- 定时关闭 -->
+    <string name="sleep_timer_seconds">%d秒后关闭</string>
+    
+    <!-- 音乐链接 -->
+    <string name="music_link">音乐链接</string>
+    
+    <!-- 通知频道 -->
+    <string name="music_playback">音乐播放</string>
+    <string name="music_playback_notification">音乐播放通知</string>
+
+    <!-- 最新音乐 -->
+    <string name="latest_music">最新音乐</string>
+    <string name="latest_music_title">最新音乐</string>
+    <string name="click_latest_music_info">点击最新音乐，共%d首</string>
+    <string name="songs_count_format">%d首</string>
+    <string name="loading_latest_music">正在加载最新音乐...</string>
+    <string name="load_failed">加载失败</string>
+    <string name="network_error">网络连接似乎出现了问题</string>
+    <string name="retry">重试</string>
+    <string name="no_latest_music">暂无最新音乐</string>
+    <string name="minutes_ago">%d分钟前</string>
+    <string name="hours_ago">%d小时前</string>
+    <string name="days_ago">%d天前</string>
+
+    <!-- 歌单详情 -->
+
+    <!-- 播放器 -->
+    <string name="playback_speed_format">播放速度: %.1fx</string>
+    <string name="added_to_playlist_format">已添加到%s</string>
+    <string name="add_to_playlist_failed">添加失败: %s</string>
+    <string name="create_playlist_failed">创建失败: %s</string>
+    <string name="play_failed">播放失败: %s</string>
+    <string name="play_all_failed">播放全部失败</string>
+    <string name="download_failed_format">下载失败: %s</string>
+    <string name="loading_failed_format">加载失败: %s</string>
+    <string name="refresh_failed_format">刷新失败: %s</string>
+    <string name="delete_failed_format">删除失败: %s</string>
+    <string name="operation_failed_generic">操作失败</string>
+
+    <!-- 时间格式 -->
+    <string name="just_now">刚刚</string>
+    <string name="minutes_ago_format">%d分钟前</string>
+    <string name="hours_ago_format">%d小时前</string>
+    <string name="days_ago_format">%d天前</string>
+    <string name="minutes_unit">分钟</string>
+
+    <!-- 分享 -->
+    <string name="share_music_text">[%s-%s] Neko云音乐 https://music.cnmsb.xin/detail/%d</string>
+    <string name="share_playlist_text">我在Neko云音乐发现了宝藏歌单 %s - https://music.cnmsb.xin/playlist/%d，里面超好听！大家快来听喵~</string>
+    <string name="share_playlist">分享歌单</string>
+    <string name="removed_from_playlist_success">已从歌单中移除</string>
+    <string name="email">邮箱</string>
+    <string name="password">密码</string>
+    <string name="username">用户名</string>
+    <string name="confirm_password">确认密码</string>
+    <string name="verification_code">验证码</string>
+    <string name="register">注册</string>
+    <string name="drag_scale_avatar">拖动和缩放图片以选择头像区域</string>
+    <string name="complete">完成</string>
+    <string name="more">更多</string>
+    <string name="downloading_update_progress">正在下载更新</string>
+    <string name="downloading_update_failed">下载失败，请稍后重试</string>
+    <string name="downloading_update_failed_msg">下载失败：%s</string>
+    <string name="version_code_display">版本号：%d</string>
+    <string name="later">稍后</string>
+    <string name="download_complete">下载完成</string>
+    <string name="upload_music">上传音乐</string>
+    <string name="uploading">上传中...</string>
+    <string name="upload_success">上传成功</string>
+    <string name="upload_failed">上传失败: %s</string>
+    <string name="select_audio_file">选择音频文件</string>
+    <string name="select_lyrics_file">选择歌词文件</string>
+    <string name="select_cover_image">选择封面图片</string>
+    <string name="audio_file_selected">已选择: %s</string>
+    <string name="lyrics_file_selected">已选择歌词</string>
+    <string name="cover_image_selected">已选择封面</string>
+    <string name="cover_image_auto_extracted">封面已自动提取</string>
+    <string name="music_title">标题</string>
+    <string name="music_artist">艺术家</string>
+    <string name="music_album">专辑</string>
+    <string name="music_language">语言</string>
+    <string name="music_tags">标签（用逗号分隔）</string>
+    <string name="music_duration">时长</string>
+    <string name="required_field">* 必填</string>
+    <string name="optional_field">（可选）</string>
+    <string name="please_fill_required_fields">请填写必填字段</string>
+    <string name="please_select_audio_file">请选择音频文件</string>
+    <string name="file_read_failed">读取文件失败</string>
+    <string name="upload_music_dialog_title">上传音乐</string>
+    <string name="preview">预览</string>
+    <string name="full_lyrics">完整歌词</string>
+    <string name="parsing_metadata">正在解析音乐信息...</string>
+    <string name="please_select_language">请选择</string>
+    <string name="language_chinese">中文</string>
+    <string name="language_cantonese">粤语</string>
+    <string name="language_shanghainese">上海话</string>
+    <string name="language_english">英语</string>
+    <string name="language_japanese">日语</string>
+    <string name="language_korean">韩语</string>
+    <string name="language_french">法语</string>
+    <string name="language_german">德语</string>
+    <string name="language_russian">俄语</string>
+    <string name="language_instrumental">纯音乐</string>
+    <string name="duration_auto_parsing">自动解析中...</string>
+    <string name="unsupported_audio_format">不支持的音频格式，仅支持 WAV、FLAC、MP3 格式</string>
+    <string name="unsupported_lyrics_format">歌词文件仅支持 LRC 格式</string>
+    <string name="invalid_lyrics_timestamp">LRC 文件必须包含时间戳（格式：[mm:ss.xx]）</string>
+    <string name="desktop_lyric">桌面歌词</string>
+    
+    <!-- VR歌词无障碍服务 -->
+    <string name="vr_lyric_accessibility_service_description">VR歌词HUD - 在VR环境中全局显示播放歌词</string>
+    <string name="vr_lyric_accessibility_service_summary">为VR设备优化的歌词显示服务，可在所有应用中显示歌词</string>
 </resources>

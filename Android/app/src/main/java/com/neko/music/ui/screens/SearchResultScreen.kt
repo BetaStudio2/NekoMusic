@@ -85,8 +85,9 @@ fun SearchResultScreen(
     
     val context = LocalContext.current
     val historyManager = remember { SearchHistoryManager(context) }
-    var searchQuery by remember { mutableStateOf(initialQuery) }
-    var searchType by remember { mutableStateOf("music") } // music 或 playlist
+    val searchStatePrefs = remember { context.getSharedPreferences("search_state", android.content.Context.MODE_PRIVATE) }
+    var searchQuery by remember { mutableStateOf(initialQuery.ifEmpty { searchStatePrefs.getString("last_search_query", "") ?: "" } ) }
+    var searchType by remember { mutableStateOf(searchStatePrefs.getString("last_search_type", "music") ?: "music") } // music 或 playlist
     var searchResults by remember { mutableStateOf<List<Music>>(emptyList()) }
     var playlistResults by remember { mutableStateOf<List<com.neko.music.data.api.PlaylistInfo>>(emptyList()) }
     var artistResults by remember { mutableStateOf<List<com.neko.music.data.model.Artist>>(emptyList()) }
@@ -96,6 +97,48 @@ fun SearchResultScreen(
     
     val musicApi = remember { MusicApi(context) }
     val scope = rememberCoroutineScope()
+    
+    // 保存搜索状态
+    androidx.compose.runtime.LaunchedEffect(searchQuery, searchType) {
+        searchStatePrefs.edit()
+            .putString("last_search_query", searchQuery)
+            .putString("last_search_type", searchType)
+            .apply()
+    }
+    
+    // 如果有保存的搜索内容且不是初始查询，自动加载搜索结果
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val savedQuery = searchStatePrefs.getString("last_search_query", "") ?: ""
+        val savedType = searchStatePrefs.getString("last_search_type", "music") ?: "music"
+        
+        // 只有当初始查询为空且存在保存的查询时才自动加载
+        if (initialQuery.isEmpty() && savedQuery.isNotEmpty()) {
+            searchQuery = savedQuery
+            searchType = savedType
+            isLoading = true
+            errorMessage = null
+            
+            if (searchType == "music") {
+                performSearch(musicApi, savedQuery, scope) { results, error ->
+                    searchResults = results
+                    isLoading = false
+                    errorMessage = error
+                }
+            } else if (searchType == "playlist") {
+                performPlaylistSearch(savedQuery, context, scope) { results, error ->
+                    playlistResults = results
+                    isLoading = false
+                    errorMessage = error
+                }
+            } else if (searchType == "artist") {
+                performArtistSearch(savedQuery, context, scope) { results, error ->
+                    artistResults = results
+                    isLoading = false
+                    errorMessage = error
+                }
+            }
+        }
+    }
     
     // 实时搜索 - 输入后立即请求
     androidx.compose.runtime.LaunchedEffect(searchQuery, searchType) {
@@ -112,7 +155,7 @@ fun SearchResultScreen(
                 }
             } else if (searchType == "playlist") {
                 // 歌单搜索
-                performPlaylistSearch(searchQuery, scope) { results, error ->
+                performPlaylistSearch(searchQuery, context, scope) { results, error ->
                     playlistResults = results
                     searchResults = emptyList()
                     artistResults = emptyList()
@@ -121,7 +164,7 @@ fun SearchResultScreen(
                 }
             } else {
                 // 歌手搜索
-                performArtistSearch(searchQuery, scope) { results, error ->
+                performArtistSearch(searchQuery, context, scope) { results, error ->
                     artistResults = results
                     searchResults = emptyList()
                     playlistResults = emptyList()
@@ -269,7 +312,12 @@ fun SearchResultScreen(
                     if (searchType == "music") {
                         MusicList(
                             musics = searchResults,
-                            onMusicClick = onMusicClick
+                            onMusicClick = { music ->
+                                // 保存单曲名称到历史记录
+                                historyManager.addSearchHistory(music.title, searchQuery)
+                                // 调用原有的点击事件
+                                onMusicClick(music)
+                            }
                         )
                     } else if (searchType == "playlist") {
                         PlaylistList(
@@ -725,6 +773,7 @@ onFailure = { error ->
 
 suspend fun performPlaylistSearch(
     query: String,
+    context: android.content.Context,
     scope: kotlinx.coroutines.CoroutineScope,
     onResult: (List<com.neko.music.data.api.PlaylistInfo>, String?) -> Unit
 ) {
@@ -783,10 +832,10 @@ suspend fun performPlaylistSearch(
                     Log.d("SearchScreen", "搜索到 ${playlists.size} 个歌单")
                     onResult(playlists, null)
                 } else {
-                    onResult(emptyList(), "未找到歌单")
+                    onResult(emptyList(), context.getString(R.string.no_search_playlist_found))
                 }
             } else {
-                onResult(emptyList(), "搜索失败")
+                onResult(emptyList(), context.getString(R.string.search_failed))
             }
         } catch (e: Exception) {
             Log.e("SearchScreen", "歌单搜索请求失败 - ${e.message}", e)
@@ -797,6 +846,7 @@ suspend fun performPlaylistSearch(
 
 suspend fun performArtistSearch(
     query: String,
+    context: android.content.Context,
     scope: kotlinx.coroutines.CoroutineScope,
     onResult: (List<com.neko.music.data.model.Artist>, String?) -> Unit
 ) {
@@ -869,10 +919,10 @@ suspend fun performArtistSearch(
                     Log.d("SearchScreen", "搜索到 ${artists.size} 个歌手: $name")
                     onResult(artists, null)
                 } else {
-                    onResult(emptyList(), "未找到歌手")
+                    onResult(emptyList(), context.getString(R.string.no_search_artist_found))
                 }
             } else {
-                onResult(emptyList(), "搜索失败")
+                onResult(emptyList(), context.getString(R.string.search_failed))
             }
         } catch (e: Exception) {
             Log.e("SearchScreen", "歌手搜索请求失败 - ${e.message}", e)

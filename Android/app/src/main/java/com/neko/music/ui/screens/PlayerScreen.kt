@@ -1,17 +1,30 @@
 package com.neko.music.ui.screens
 
 import android.content.Context
-import android.util.Log
-import androidx.compose.foundation.Image
+import android.content.Intent
 import android.os.Build
+import android.provider.Settings
+import android.util.Log
 import android.widget.Toast
-import androidx.compose.material3.ExperimentalMaterial3Api
-import com.google.accompanist.permissions.rememberPermissionState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,41 +36,36 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width as composeWidth
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.isSystemInDarkTheme
-import com.neko.music.service.MusicPlayerManager
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -65,45 +73,42 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
-import com.neko.music.service.PlayMode
-import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import com.neko.music.R
 import com.neko.music.data.api.MusicApi
 import com.neko.music.data.api.PlaylistApi
 import com.neko.music.data.api.PlaylistInfo
 import com.neko.music.data.api.PlaylistListResponse
 import com.neko.music.data.model.Music
+import com.neko.music.service.MusicPlayerManager
+import com.neko.music.service.PlayMode
 import com.neko.music.ui.theme.RoseRed
 import com.neko.music.ui.theme.SakuraPink
-import androidx.compose.animation.core.Spring
-import androidx.compose.ui.res.stringResource
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 // 格式化时间显示（毫秒转 mm:ss）
 fun formatTime(milliseconds: Long): String {
@@ -125,75 +130,61 @@ fun parseLrcLyrics(lrcText: String): List<LrcLine> {
     val lines = lrcText.lines()
     android.util.Log.d("parseLrcLyrics", "歌词行数: ${lines.size}")
     val result = mutableListOf<LrcLine>()
-    
+
     var i = 0
+    val timeRegex = Regex("\\[(\\d{2}):(\\d{2})\\.(\\d{2})\\]")
+
     while (i < lines.size) {
         val line = lines[i].trim()
-        
+
         // 跳过空行
         if (line.isEmpty()) {
             i++
             continue
         }
-        
-        // 匹配时间标签 [00:00.000] 或 [00:00.60] 或 [0:05.123]
-        val timePattern = Regex("""\[(\d{1,2}):(\d{1,2})\.(\d{2,3})\]""")
-        val match = timePattern.find(line)
-        
+
+        // 解析时间戳 [mm:ss.xx]
+        val match = timeRegex.find(line)
+
         if (match != null) {
             val minutes = match.groupValues[1].toInt()
             val seconds = match.groupValues[2].toInt()
-            val milliseconds = match.groupValues[3].toInt()
-            
-            // 根据毫秒位数计算时间
-            val time = minutes * 60 + seconds + 
-                if (milliseconds.toString().length == 2) {
-                    milliseconds / 100f
-                } else {
-                    milliseconds / 1000f
-                }
-            
-            // 提取歌词文本（移除时间标签）
-            val text = line.replace(timePattern, "").trim()
-            
-            // 查找下一行是否有翻译
-            var translation = ""
+            val centiseconds = match.groupValues[3].toInt()
+            val time = minutes * 60 + seconds + centiseconds / 100f
+
+            // 提取歌词文本
+            val text = line.substring(match.range.last + 1).trim()
+
+            // 检查是否有翻译（下一行可能包含翻译）
+            var translation: String? = null
+            var hasTranslation = false
             if (i + 1 < lines.size) {
                 val nextLine = lines[i + 1].trim()
-                android.util.Log.d("parseLrcLyrics", "检查翻译行: $nextLine")
-                // 检查是否是JSON格式的翻译行
-                // 修复：正确匹配JSON格式的翻译
-                if (nextLine.startsWith("{") && nextLine.endsWith("}")) {
-                    // 移除开头和结尾的花括号
-                    var jsonContent = nextLine.substring(1, nextLine.length - 1)
-                    android.util.Log.d("parseLrcLyrics", "移除花括号后: $jsonContent")
-                    
-                    // 移除首尾的引号（包括转义的引号）
-                    // 处理转义的引号 {"content"} -> \"content\" -> content
-                    if (jsonContent.startsWith("\"") && jsonContent.endsWith("\"")) {
-                        jsonContent = jsonContent.substring(1, jsonContent.length - 1)
-                    } else if (jsonContent.startsWith("'") && jsonContent.endsWith("'")) {
-                        jsonContent = jsonContent.substring(1, jsonContent.length - 1)
-                    }
-                    
-                    android.util.Log.d("parseLrcLyrics", "移除外层引号后: $jsonContent")
-                    
-                    // 移除可能的转义引号
-                    translation = jsonContent.replace("\\\"", "")
-                    android.util.Log.d("parseLrcLyrics", "移除转义引号后: $translation")
-                    i++ // 跳过翻译行
+                // 翻译行通常以 { } 包裹，且不包含时间戳
+                if (nextLine.startsWith("{") && nextLine.endsWith("}") && !timeRegex.containsMatchIn(nextLine)) {
+                    hasTranslation = true
+                    // 提取花括号内的内容
+                    var content = nextLine.substring(1, nextLine.length - 1)
+                    // 去掉转义字符和引号
+                    content = content.replace("\\", "").replace("\"", "").replace("'", "")
+                    translation = content.trim()
                 }
             }
-            
+
             if (text.isNotEmpty()) {
-                result.add(LrcLine(time, text, translation))
-                android.util.Log.d("parseLrcLyrics", "添加歌词行: 时间=$time, 原文=$text, 翻译=$translation")
+                result.add(LrcLine(time, text, translation ?: ""))
+                android.util.Log.d("parseLrcLyrics", "添加歌词行: 时间=$time, 原文=$text, 翻译=${translation ?: ""}")
+            }
+
+            // 如果有翻译行，跳过它
+            if (hasTranslation) {
+                i++
             }
         }
-        
+
         i++
     }
-    
+
     android.util.Log.d("parseLrcLyrics", "解析完成，共 ${result.size} 行歌词")
     return result
 }
@@ -241,6 +232,38 @@ fun PlayerScreen(
         rememberPermissionState(android.Manifest.permission.POST_NOTIFICATIONS)
     } else {
         null
+    }
+
+    // 桌面歌词设置
+    val desktopLyricPrefs = remember { context.getSharedPreferences("desktop_lyric", Context.MODE_PRIVATE) }
+    var isDesktopLyricEnabled by remember { mutableStateOf(desktopLyricPrefs.getBoolean("desktop_lyric_enabled", false)) }
+    var showOverlayPermissionDialog by remember { mutableStateOf(false) }
+
+    // 悬浮窗权限检查
+    var hasOverlayPermission by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                android.provider.Settings.canDrawOverlays(context)
+            } else {
+                true
+            }
+        )
+    }
+
+    // VR设备检查
+    val isVRDevice by remember { 
+        mutableStateOf(com.neko.music.util.DeviceDetector.isVRDevice()) 
+    }
+    
+    // 3D空间HUD检查
+    var is3DSpatialHUDAvailable by remember {
+        mutableStateOf(
+            if (isVRDevice) {
+                com.neko.music.desktoplyric.VRHUDLyricManager.getInstance(context).is3DSpatialHUDAvailable()
+            } else {
+                false
+            }
+        )
     }
 
     // 登录提示
@@ -344,6 +367,107 @@ fun PlayerScreen(
         }
     }
 
+    // 监听桌面歌词状态变化
+    LaunchedEffect(Unit) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == "desktop_lyric_enabled") {
+                isDesktopLyricEnabled = desktopLyricPrefs.getBoolean("desktop_lyric_enabled", false)
+            }
+        }
+        desktopLyricPrefs.registerOnSharedPreferenceChangeListener(listener)
+        
+        try {
+            kotlinx.coroutines.delay(Long.MAX_VALUE)
+        } finally {
+            desktopLyricPrefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
+
+    // 监听悬浮窗权限状态变化
+    LaunchedEffect(Unit) {
+        hasOverlayPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            android.provider.Settings.canDrawOverlays(context)
+        } else {
+            true
+        }
+    }
+
+    // 记录用户是否尝试开启桌面歌词但被权限阻止
+    var pendingDesktopLyricEnable by remember { mutableStateOf(false) }
+
+    // 监听应用生命周期，在恢复时重新检查权限并自动启动桌面歌词
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                // 重新检查权限状态
+                val newPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    android.provider.Settings.canDrawOverlays(context)
+                } else {
+                    true
+                }
+                
+                hasOverlayPermission = newPermission
+                
+                // 如果用户之前尝试开启桌面歌词但被权限阻止，现在有了权限，自动开启
+                if (pendingDesktopLyricEnable && newPermission && !isDesktopLyricEnabled) {
+                    isDesktopLyricEnabled = true
+                    desktopLyricPrefs.edit().putBoolean("desktop_lyric_enabled", true).apply()
+                    val serviceIntent = Intent(context, com.neko.music.desktoplyric.DesktopLyricService::class.java)
+                    serviceIntent.action = com.neko.music.desktoplyric.DesktopLyricService.ACTION_SHOW
+                    context.startService(serviceIntent)
+                    pendingDesktopLyricEnable = false
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        
+        try {
+            kotlinx.coroutines.delay(Long.MAX_VALUE)
+        } finally {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // 桌面歌词切换逻辑
+    val toggleDesktopLyric = {
+        if (isDesktopLyricEnabled) {
+            // 关闭桌面歌词
+            isDesktopLyricEnabled = false
+            desktopLyricPrefs.edit().putBoolean("desktop_lyric_enabled", false).apply()
+            val serviceIntent = Intent(context, com.neko.music.desktoplyric.DesktopLyricService::class.java)
+            serviceIntent.action = com.neko.music.desktoplyric.DesktopLyricService.ACTION_HIDE
+            context.startService(serviceIntent)
+        } else {
+            // 开启桌面歌词，先检查权限
+            if (isVRDevice) {
+                // VR设备使用3D空间HUD
+                if (!is3DSpatialHUDAvailable) {
+                    android.util.Log.w("PlayerScreen", "3D Spatial HUD not available on VR device")
+                } else {
+                    isDesktopLyricEnabled = true
+                    desktopLyricPrefs.edit().putBoolean("desktop_lyric_enabled", true).apply()
+                    val serviceIntent = Intent(context, com.neko.music.desktoplyric.DesktopLyricService::class.java)
+                    serviceIntent.action = com.neko.music.desktoplyric.DesktopLyricService.ACTION_SHOW
+                    context.startService(serviceIntent)
+                }
+            } else {
+                // 普通设备需要检查悬浮窗权限
+                if (!hasOverlayPermission) {
+                    showOverlayPermissionDialog = true
+                    pendingDesktopLyricEnable = true
+                } else {
+                    isDesktopLyricEnabled = true
+                    desktopLyricPrefs.edit().putBoolean("desktop_lyric_enabled", true).apply()
+                    val serviceIntent = Intent(context, com.neko.music.desktoplyric.DesktopLyricService::class.java)
+                    serviceIntent.action = com.neko.music.desktoplyric.DesktopLyricService.ACTION_SHOW
+                    context.startService(serviceIntent)
+                }
+            }
+        }
+        Unit
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -437,6 +561,23 @@ fun PlayerScreen(
                     Box(
                         modifier = Modifier.fillMaxSize()
                     ) {
+                        // 监听歌词列表滚动并同步到LyricScrollManager
+                        androidx.compose.runtime.LaunchedEffect(Unit) {
+                            com.neko.music.util.LyricScrollManager.setPlayerPageScrollState(lyricsListState)
+                        }
+                        
+                        // 监听外部滚动状态变化并同步回播放页面
+                        val externalScrollIndex by com.neko.music.util.LyricScrollManager.currentLyricIndex.collectAsState()
+                        androidx.compose.runtime.LaunchedEffect(externalScrollIndex) {
+                            if (externalScrollIndex >= 0 && externalScrollIndex < lyrics.size) {
+                                try {
+                                    lyricsListState.animateScrollToItem(externalScrollIndex, 0)
+                                } catch (e: Exception) {
+                                    android.util.Log.e("PlayerScreen", "Failed to sync scroll from external", e)
+                                }
+                            }
+                        }
+                        
                         LyricsView(
                             lyrics = lyrics,
                             currentProgressSeconds = currentProgressSeconds,
@@ -463,7 +604,9 @@ fun PlayerScreen(
                     }
                 },
                 showLyrics = showLyrics,
-                isLoggedIn = isLoggedIn
+                isLoggedIn = isLoggedIn,
+                isDesktopLyricEnabled = isDesktopLyricEnabled,
+                onDesktopLyricClick = toggleDesktopLyric
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -474,10 +617,11 @@ fun PlayerScreen(
                 currentTime = currentTime,
                 totalTime = totalTime,
                 isLoading = isLoading,
-                onProgressChange = {
+                onProgressChange = { value ->
                     if (duration > 0) {
-                        playerManager.seekTo((it * duration).toLong())
+                        playerManager.seekTo((value * duration).toLong())
                     }
+                    Unit
                 }
             )
 
@@ -522,8 +666,8 @@ fun PlayerScreen(
                     showShareDialog = false
                     try {
                         val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        val shareText = "【${currentMusic.title}-${currentMusic.artist}】 Neko云音乐 https://music.cnmsb.xin/detail/${currentMusic.id}"
-                        val clip = android.content.ClipData.newPlainText("音乐链接", shareText)
+                        val shareText = context.getString(R.string.share_music_text, currentMusic.artist, currentMusic.title, currentMusic.id)
+                        val clip = android.content.ClipData.newPlainText(context.getString(R.string.music_link), shareText)
                         clipboardManager.setPrimaryClip(clip)
                         Toast.makeText(context, linkCopied, Toast.LENGTH_SHORT).show()
                     } catch (e: Exception) {
@@ -543,7 +687,7 @@ fun PlayerScreen(
                             },
                             onFailure = { error ->
                                 val errorMsg = error.message ?: "Unknown error"
-                                Toast.makeText(context, "下载失败: $errorMsg", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, context.getString(R.string.download_failed_format, errorMsg), Toast.LENGTH_SHORT).show()
                             }
                         )
                     } catch (e: Exception) {
@@ -556,7 +700,7 @@ fun PlayerScreen(
                 scope.launch {
                     showShareDialog = false
                     try {
-                        val shareText = "我在Neko云音乐发现宝藏音乐！${currentMusic.artist}唱的《${currentMusic.title}》https://music.cnmsb.xin/detail/${currentMusic.id} 大家快来听喵~"
+                        val shareText = context.getString(R.string.share_music_text, currentMusic.artist, currentMusic.title, currentMusic.id)
                         val encodedText = java.net.URLEncoder.encode(shareText, "UTF-8")
 
                         // 先尝试使用Twitter应用
@@ -583,7 +727,7 @@ fun PlayerScreen(
             },
             onSpeedChange = { speed ->
                 playerManager.setPlaybackSpeed(speed)
-                Toast.makeText(context, String.format("播放速度: %.1fx", speed), Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.playback_speed_format, speed), Toast.LENGTH_SHORT).show()
             },
             currentSpeed = playbackSpeed,
             onSleepTimerChange = { minutes ->
@@ -597,11 +741,11 @@ fun PlayerScreen(
                         val hours = minutes / 60
                         val mins = minutes % 60
                         if (hours > 0 && mins > 0) {
-                            String.format("%d小时%d分钟后关闭", hours, mins)
+                            context.getString(R.string.sleep_timer_hours_minutes, hours, mins)
                         } else if (hours > 0) {
-                            String.format("%d小时后关闭", hours)
+                            context.getString(R.string.sleep_timer_hours, hours)
                         } else {
-                            String.format("%d分钟后关闭", minutes)
+                            context.getString(R.string.sleep_timer_minutes, minutes)
                         }
                     }
                     Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
@@ -626,7 +770,7 @@ fun PlayerScreen(
                             Log.d("PlayerScreen", "API响应: success=${response.success}, message=${response.message}")
 
                             if (response.success) {
-                                Toast.makeText(context, "已添加到${playlist.name}", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, context.getString(R.string.added_to_playlist_format, playlist.name), Toast.LENGTH_SHORT).show()
                                 showShareDialog = false
                             } else {
                                 Toast.makeText(context, response.message, Toast.LENGTH_SHORT).show()
@@ -638,7 +782,7 @@ fun PlayerScreen(
                     } catch (e: Exception) {
                         Log.e("PlayerScreen", "添加到歌单失败", e)
                         val errorMsg = e.message ?: "Unknown error"
-                        Toast.makeText(context, "添加失败: $errorMsg", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.add_to_playlist_failed, errorMsg), Toast.LENGTH_SHORT).show()
                     }
                 }
             },
@@ -705,7 +849,7 @@ fun PlayerScreen(
                     } catch (e: Exception) {
                         Log.e("PlayerScreen", "创建歌单失败", e)
                         val errorMsg = e.message ?: "Unknown error"
-                        Toast.makeText(context, "创建失败: $errorMsg", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.create_playlist_failed, errorMsg), Toast.LENGTH_SHORT).show()
                     }
                 }
             },
@@ -798,6 +942,109 @@ fun PlayerScreen(
                                     .clickable {
                                         notificationPermissionState?.launchPermissionRequest()
                                         showNotificationPermissionDialog = false
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = stringResource(id = R.string.authorize),
+                                    fontSize = 15.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 悬浮窗权限请求对话框
+    if (showOverlayPermissionDialog) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showOverlayPermissionDialog = false },
+            properties = androidx.compose.ui.window.DialogProperties(
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true,
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        if (isSystemInDarkTheme()) {
+                            Color.Black.copy(alpha = 0.7f)
+                        } else {
+                            Color.Black.copy(alpha = 0.4f)
+                        }
+                    )
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null,
+                        onClick = { showOverlayPermissionDialog = false }
+                    )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
+                        .padding(24.dp)
+                        .width(300.dp)
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = stringResource(id = R.string.desktop_lyric),
+                            fontSize = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Text(
+                            text = stringResource(id = R.string.desktop_lyric_permission_message),
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .background(Color(0xFFF5F5F5), RoundedCornerShape(12.dp))
+                                    .clickable { showOverlayPermissionDialog = false },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = stringResource(id = R.string.cancel),
+                                    fontSize = 15.sp,
+                                    color = Color.Gray,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .background(RoseRed, RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        val intent = Intent(
+                                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                            android.net.Uri.parse("package:${context.packageName}")
+                                        )
+                                        context.startActivity(intent)
+                                        showOverlayPermissionDialog = false
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
@@ -915,14 +1162,39 @@ fun CoverImage(
                     modifier = Modifier.align(Alignment.Center),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = music.title,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        textAlign = TextAlign.Center,
-                        maxLines = 2
-                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        val scrollState = rememberScrollState()
+                        val shouldScroll by remember { derivedStateOf { music.title.length > 15 } }
+                        
+                        LaunchedEffect(shouldScroll, music.title) {
+                            if (shouldScroll) {
+                                while (true) {
+                                    delay(3000)
+                                    scrollState.animateScrollTo(scrollState.maxValue, animationSpec = tween(5000))
+                                    delay(3000)
+                                    scrollState.animateScrollTo(0, animationSpec = tween(5000))
+                                }
+                            }
+                        }
+                        
+                        Text(
+                            text = music.title,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            overflow = TextOverflow.Clip,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(scrollState, enabled = false)
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(8.dp))
 
@@ -1003,7 +1275,9 @@ fun LyricSongInfoBar(
             isFavorite: Boolean,
             onFavoriteClick: () -> Unit,
             showLyrics: Boolean,
-            isLoggedIn: Boolean = true
+            isLoggedIn: Boolean = true,
+            isDesktopLyricEnabled: Boolean = false,
+            onDesktopLyricClick: () -> Unit = {}
         ) {
             Box(
                 modifier = Modifier
@@ -1046,14 +1320,39 @@ fun LyricSongInfoBar(
                         modifier = Modifier.align(Alignment.Center),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            text = music.title,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1
-                        )
+                        // 歌名 - 自动滚动
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                        ) {
+                            val scrollState = rememberScrollState()
+                            val shouldScroll by remember { derivedStateOf { music.title.length > 15 } }
+                            
+                            LaunchedEffect(shouldScroll, music.title) {
+                                if (shouldScroll) {
+                                    while (true) {
+                                        delay(3000)
+                                        scrollState.animateScrollTo(scrollState.maxValue, animationSpec = tween(5000))
+                                        delay(3000)
+                                        scrollState.animateScrollTo(0, animationSpec = tween(5000))
+                                    }
+                                }
+                            }
+                            
+                            Text(
+                                text = music.title,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Clip,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(scrollState, enabled = false)
+                            )
+                        }
 
                         Spacer(modifier = Modifier.height(2.dp))
 
@@ -1066,19 +1365,44 @@ fun LyricSongInfoBar(
                     }
                 }
 
-                // 收藏按钮 - 始终在右侧固定位置
-                IconButton(
-                    onClick = onFavoriteClick,
+                // 右侧按钮组
+                Row(
                     modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .size(36.dp)
+                        .align(Alignment.CenterEnd),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        contentDescription = if (isFavorite) stringResource(id = R.string.favorite) else stringResource(id = R.string.unfavorite),
-                        tint = if (isFavorite) RoseRed else Color.Gray,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    // 收藏按钮
+                    IconButton(
+                        onClick = onFavoriteClick,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = if (isFavorite) stringResource(id = R.string.favorite) else stringResource(id = R.string.unfavorite),
+                            tint = if (isFavorite) RoseRed else Color.Gray,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    // 桌面歌词按钮
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(
+                                if (isDesktopLyricEnabled) RoseRed.copy(alpha = 0.15f) else Color.Transparent
+                            )
+                            .clickable(onClick = onDesktopLyricClick),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "词",
+                            fontSize = 14.sp,
+                            fontWeight = if (isDesktopLyricEnabled) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isDesktopLyricEnabled) RoseRed else Color.Gray
+                        )
+                    }
                 }
             }
         }
