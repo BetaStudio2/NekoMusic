@@ -402,8 +402,13 @@ public class MusicUploader {
                     return new String[]{"false", "服务器返回失败: " + responseBody};
                 }
             } else {
+                String responseBody = response.body();
                 String errorMsg = "HTTP状态码: " + response.statusCode();
                 System.out.println("  上传失败，" + errorMsg);
+                if (responseBody != null && !responseBody.isEmpty()) {
+                    System.out.println("  服务器返回: " + responseBody);
+                    return new String[]{"false", errorMsg + " - " + responseBody};
+                }
                 return new String[]{"false", errorMsg};
             }
 
