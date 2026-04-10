@@ -349,18 +349,23 @@ public class AudioFileValidator {
 
             // 验证文件扩展名是否与实际格式匹配
             if (fileExtension != null && !fileExtension.isEmpty()) {
+                // 去掉扩展名开头的点号（如果有），统一为不带点号的格式
                 String ext = fileExtension.toLowerCase();
+                if (ext.startsWith(".")) {
+                    ext = ext.substring(1);
+                }
+                
                 boolean extensionMatches = false;
                 
                 switch (detectedFormat) {
                     case MP3:
-                        extensionMatches = ext.equals(".mp3");
+                        extensionMatches = ext.equals("mp3");
                         break;
                     case FLAC:
-                        extensionMatches = ext.equals(".flac");
+                        extensionMatches = ext.equals("flac");
                         break;
                     case WAV:
-                        extensionMatches = ext.equals(".wav");
+                        extensionMatches = ext.equals("wav");
                         break;
                 }
                 
