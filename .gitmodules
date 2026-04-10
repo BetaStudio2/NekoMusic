@@ -1,0 +1,6 @@
+[submodule "pc"]
+	path = pc
+	url = git@github.com:FantasyNetworkCN/NekoMusicForPc.git
+[submodule "Android"]
+	path = Android
+	url = git@github.com:FantasyNetworkCN/NekoMusicForAndroid.git
