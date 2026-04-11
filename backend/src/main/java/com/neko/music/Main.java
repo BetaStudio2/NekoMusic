@@ -12,6 +12,7 @@ import com.neko.music.service.NotificationService;
 import com.neko.music.service.PlaylistService;
 import com.neko.music.service.RedisService;
 import com.neko.music.service.UserAuthService;
+import com.neko.music.service.IPRateLimitService;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
@@ -48,6 +49,7 @@ public class Main {
     private static RedisService redisService;
     private static PlaylistService playlistService;
     private static NotificationService notificationService;
+    private static IPRateLimitService ipRateLimitService;
 
     public static void main(String[] args) throws Exception {
         // 设置JVM默认时区为中国标准时间（UTC+8）
@@ -79,7 +81,10 @@ public class Main {
         
         // 初始化Redis服务
         redisService = new RedisService(configManager);
-        
+
+        // 初始化IP频率限制服务
+        ipRateLimitService = new IPRateLimitService(configManager, redisService);
+
         // 初始化用户认证服务
         userAuthService = new UserAuthService(databaseManager, configManager, emailService, redisService);
 
@@ -102,7 +107,11 @@ public class Main {
         ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
         context.setContextPath("/");
         server.setHandler(context);
-        
+
+        // 注册服务到 ServletContext，供 Filter 使用
+        context.setAttribute("configManager", configManager);
+        context.setAttribute("ipRateLimitService", ipRateLimitService);
+
         // 添加CORS过滤器
         addCorsFilter(context);
         
@@ -392,10 +401,14 @@ public class Main {
         return redisService;
     }
 
+    public static IPRateLimitService getIPRateLimitService() {
+        return ipRateLimitService;
+    }
+
     public static PlaylistService getPlaylistService() {
         return playlistService;
     }
-    
+
     public static NotificationService getNotificationService() {
         return notificationService;
     }

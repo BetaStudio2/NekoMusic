@@ -38,7 +38,14 @@ public class ConfigManager {
     // Msg配置
     private String msgUrl = "";
     private String msgToken = "";
-    
+
+    // IP频率限制配置
+    private boolean rateLimitEnabled = true;
+    private int rateLimitTimeWindow = 60; // 时间窗口（秒）
+    private int rateLimitMaxRequests = 10; // 最大请求数
+    private int rateLimitBlockDuration = 3600; // 封锁时间（秒）
+    private boolean rateLimitSilentTimeout = true; // 是否静默超时
+
     private ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
 
     public void loadConfig() {
@@ -124,6 +131,16 @@ public class ConfigManager {
                 if (msgNode != null) {
                     if (msgNode.has("url")) msgUrl = msgNode.get("url").asText();
                     if (msgNode.has("token")) msgToken = msgNode.get("token").asText();
+                }
+
+                // 读取IP频率限制配置
+                JsonNode rateLimitNode = configNode.get("rate_limit");
+                if (rateLimitNode != null) {
+                    if (rateLimitNode.has("enabled")) rateLimitEnabled = rateLimitNode.get("enabled").asBoolean();
+                    if (rateLimitNode.has("time_window")) rateLimitTimeWindow = rateLimitNode.get("time_window").asInt();
+                    if (rateLimitNode.has("max_requests")) rateLimitMaxRequests = rateLimitNode.get("max_requests").asInt();
+                    if (rateLimitNode.has("block_duration")) rateLimitBlockDuration = rateLimitNode.get("block_duration").asInt();
+                    if (rateLimitNode.has("silent_timeout")) rateLimitSilentTimeout = rateLimitNode.get("silent_timeout").asBoolean();
                 }
             }
             
@@ -251,5 +268,25 @@ public class ConfigManager {
     
     public String getMsgToken() {
         return msgToken;
+    }
+
+    public boolean isRateLimitEnabled() {
+        return rateLimitEnabled;
+    }
+
+    public int getRateLimitTimeWindow() {
+        return rateLimitTimeWindow;
+    }
+
+    public int getRateLimitMaxRequests() {
+        return rateLimitMaxRequests;
+    }
+
+    public int getRateLimitBlockDuration() {
+        return rateLimitBlockDuration;
+    }
+
+    public boolean isRateLimitSilentTimeout() {
+        return rateLimitSilentTimeout;
     }
 }
