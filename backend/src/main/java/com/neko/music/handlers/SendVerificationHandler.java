@@ -73,6 +73,13 @@ public class SendVerificationHandler extends HttpServlet {
                 return;
             }
 
+            // 检查邮箱是否在白名单中
+            if (!userAuthService.isWhitelistedEmail(email)) {
+                logger.warn("邮箱不在白名单中: {}", email);
+                sendResponse(response, false, "该邮箱域名不在允许的注册列表中", null);
+                return;
+            }
+
             // 发送验证码
             boolean success = userAuthService.sendVerificationCode(email, username);
 

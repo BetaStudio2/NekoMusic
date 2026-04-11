@@ -107,13 +107,7 @@ public class UserAuthService {
      */
     public boolean sendVerificationCode(String email, String username) {
         logger.info("发送验证码至: {}", email);
-        
-        // 检查邮箱是否在白名单中
-        if (!isWhitelistedEmail(email)) {
-            logger.warn("邮箱不在白名单中: {}", email);
-            return false;
-        }
-        
+
         // 生成验证码
         String verificationCode = emailService.generateVerificationCode();
         
@@ -135,7 +129,7 @@ public class UserAuthService {
     /**
      * 检查邮箱是否在白名单中
      */
-    private boolean isWhitelistedEmail(String email) {
+    public boolean isWhitelistedEmail(String email) {
         String emailWhitelist = configManager.getEmailWhitelist();
         
         // 如果白名单为空，则允许所有邮箱
