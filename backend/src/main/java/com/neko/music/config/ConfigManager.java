@@ -25,7 +25,7 @@ public class ConfigManager {
     private String smtpPassword = "";
     private boolean smtpSsl = false;
     private boolean smtpTls = true;
-    private String emailBlacklist = "tempmail.com,guerrillamail.com";
+    private String emailWhitelist = ""; // 默认为空，表示不限制
     
     // Redis配置
     private String redisHost = "localhost";
@@ -90,18 +90,18 @@ public class ConfigManager {
                     if (smtpNode.has("tls")) smtpTls = smtpNode.get("tls").asBoolean();
                 }
                 
-                // 读取邮箱黑名单配置
-                if (configNode.has("blacklist_email")) {
-                    JsonNode blacklistNode = configNode.get("blacklist_email");
-                    if (blacklistNode.isArray()) {
-                        StringBuilder blacklistBuilder = new StringBuilder();
-                        for (JsonNode node : blacklistNode) {
-                            if (blacklistBuilder.length() > 0) {
-                                blacklistBuilder.append(",");
+                // 读取邮箱白名单配置
+                if (configNode.has("whitelist_email")) {
+                    JsonNode whitelistNode = configNode.get("whitelist_email");
+                    if (whitelistNode.isArray()) {
+                        StringBuilder whitelistBuilder = new StringBuilder();
+                        for (JsonNode node : whitelistNode) {
+                            if (whitelistBuilder.length() > 0) {
+                                whitelistBuilder.append(",");
                             }
-                            blacklistBuilder.append(node.asText().trim());
+                            whitelistBuilder.append(node.asText().trim());
                         }
-                        emailBlacklist = blacklistBuilder.toString();
+                        emailWhitelist = whitelistBuilder.toString();
                     }
                 }
                 
@@ -225,8 +225,8 @@ public class ConfigManager {
         return smtpTls;
     }
     
-    public String getEmailBlacklist() {
-        return emailBlacklist;
+    public String getEmailWhitelist() {
+        return emailWhitelist;
     }
     
     public String getRedisHost() {

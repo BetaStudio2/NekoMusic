@@ -108,9 +108,9 @@ public class UserAuthService {
     public boolean sendVerificationCode(String email, String username) {
         logger.info("发送验证码至: {}", email);
         
-        // 检查邮箱是否在黑名单中
-        if (isBlacklistedEmail(email)) {
-            logger.warn("邮箱在黑名单中: {}", email);
+        // 检查邮箱是否在白名单中
+        if (!isWhitelistedEmail(email)) {
+            logger.warn("邮箱不在白名单中: {}", email);
             return false;
         }
         
@@ -133,14 +133,21 @@ public class UserAuthService {
     }
     
     /**
-     * 检查邮箱是否在黑名单中
+     * 检查邮箱是否在白名单中
      */
-    private boolean isBlacklistedEmail(String email) {
-        String emailDomain = email.substring(email.lastIndexOf("@") + 1).toLowerCase().trim();
-        String[] blacklist = configManager.getEmailBlacklist().split(",");
+    private boolean isWhitelistedEmail(String email) {
+        String emailWhitelist = configManager.getEmailWhitelist();
         
-        for (String blacklistedDomain : blacklist) {
-            if (emailDomain.equals(blacklistedDomain.trim())) {
+        // 如果白名单为空，则允许所有邮箱
+        if (emailWhitelist == null || emailWhitelist.trim().isEmpty()) {
+            return true;
+        }
+        
+        String emailDomain = email.substring(email.lastIndexOf("@") + 1).toLowerCase().trim();
+        String[] whitelist = emailWhitelist.split(",");
+        
+        for (String whitelistedDomain : whitelist) {
+            if (emailDomain.equals(whitelistedDomain.trim())) {
                 return true;
             }
         }
