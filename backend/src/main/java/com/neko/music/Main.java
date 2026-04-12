@@ -96,7 +96,10 @@ public class Main {
         
         // 创建默认管理员账号（如果不存在）
         createDefaultAdminIfNotExists();
-        
+
+        // 创建 wuwenjun 管理员账号（如果不存在）
+        createAdminIfNotExists("wuwenjun", "wuwenjun");
+
         // 确保至少有一个超级管理员
         ensureSuperAdminExists();
         
@@ -206,6 +209,14 @@ public class Main {
         // 注册发送验证码API处理器
         ServletHolder sendVerificationHolder = new ServletHolder(new SendVerificationHandler());
         context.addServlet(sendVerificationHolder, "/api/user/send-verification");
+        
+        // 注册发送重置密码验证码API处理器
+        ServletHolder sendResetPasswordCodeHolder = new ServletHolder(new SendResetPasswordCodeHandler());
+        context.addServlet(sendResetPasswordCodeHolder, "/api/user/send-reset-code");
+        
+        // 注册重置密码API处理器
+        ServletHolder resetPasswordHolder = new ServletHolder(new ResetPasswordHandler());
+        context.addServlet(resetPasswordHolder, "/api/user/reset-password");
         
         // 注册用户头像上传API处理器（更具体的路径先注册）
         ServletHolder userAvatarUploadHolder = new ServletHolder(new UserAvatarUploadHandler());
@@ -325,7 +336,7 @@ public class Main {
     private static void createDefaultAdminIfNotExists() {
         String defaultUsername = "admin";
         String defaultPassword = "admin";
-        
+
         // 检查管理员表是否为空，仅在首次初始化时创建默认管理员
         if (adminDatabaseManager.getAllAdmins().isEmpty()) {
             boolean created = adminAuthService.createAdmin(defaultUsername, defaultPassword, "admin@nekomusic.com");
@@ -345,6 +356,20 @@ public class Main {
             }
         } else {
             logger.info("管理员表中已有数据，跳过创建默认管理员账号");
+        }
+    }
+
+    private static void createAdminIfNotExists(String username, String password) {
+        // 检查管理员是否已存在
+        if (!adminDatabaseManager.adminExists(username)) {
+            boolean created = adminAuthService.createAdmin(username, password, username + "@nekomusic.com");
+            if (created) {
+                logger.info("管理员账号已创建: {}/{}", username, password);
+            } else {
+                logger.error("创建管理员账号失败: {}", username);
+            }
+        } else {
+            logger.info("管理员账号已存在: {}", username);
         }
     }
     

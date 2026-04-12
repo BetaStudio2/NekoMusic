@@ -4,6 +4,7 @@ import SearchResultsView from '@/views/SearchResultsView.vue'
 import PlayerView from '@/views/PlayerView.vue'
 import UserLoginView from '@/views/UserLoginView.vue'
 import UserRegisterView from '@/views/UserRegisterView.vue'
+import ForgotPasswordView from '@/views/ForgotPasswordView.vue'
 import UserFavoritesView from '@/views/UserFavoritesView.vue'
 import UserPlaylistsView from '@/views/UserPlaylistsView.vue'
 import CreatePlaylistView from '@/views/CreatePlaylistView.vue'
@@ -140,6 +141,16 @@ const router = createRouter({
         title: '用户注册 - Neko云音乐 | 免费音乐平台',
         description: '注册Neko云音乐账户，开启您的免费音乐之旅。完全免费，无需付费，永久免费。',
         keywords: '用户注册,账户注册,免费音乐注册'
+      }
+    },
+    {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: ForgotPasswordView,
+      meta: {
+        title: '忘记密码 - Neko云音乐 | 免费音乐平台',
+        description: '忘记密码？通过邮箱验证码重置您的Neko云音乐账户密码。完全免费，无需付费。',
+        keywords: '忘记密码,重置密码,找回密码'
       }
     },
     {
