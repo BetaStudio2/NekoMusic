@@ -97,9 +97,6 @@ public class Main {
         // 创建默认管理员账号（如果不存在）
         createDefaultAdminIfNotExists();
 
-        // 创建 wuwenjun 管理员账号（如果不存在）
-        createAdminIfNotExists("wuwenjun", "wuwenjun");
-
         // 确保至少有一个超级管理员
         ensureSuperAdminExists();
         
