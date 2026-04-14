@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
+import AboutView from '@/views/AboutView.vue'
 import SearchResultsView from '@/views/SearchResultsView.vue'
 import PlayerView from '@/views/PlayerView.vue'
 import UserLoginView from '@/views/UserLoginView.vue'
@@ -69,6 +70,16 @@ const router = createRouter({
         title: '首页 - Neko云音乐 | 完全免费的音乐平台',
         description: 'Neko云音乐 - 完全免费的在线音乐播放平台，提供海量免费音乐资源，无需付费，永久免费。发现海量音乐资源，享受高品质音乐体验。',
         keywords: 'Neko云音乐,免费音乐,在线音乐,音乐播放,免费听歌,永久免费,无广告音乐'
+      }
+    },
+    {
+      path: '/about',
+      name: 'about',
+      component: AboutView,
+      meta: {
+        title: '关于我们 - Neko云音乐 | 免费音乐平台',
+        description: '了解Neko云音乐项目，一个完全免费的在线音乐播放平台。无需付费，永久免费，享受高品质音乐体验。',
+        keywords: '关于我们,Neko云音乐介绍,免费音乐平台,音乐项目'
       }
     },
     {
