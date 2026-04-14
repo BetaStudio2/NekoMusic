@@ -31,6 +31,7 @@
       
       <div class="login-footer">
         <p>还没有账户？<a href="#" @click.prevent="goToRegister">立即注册</a></p>
+        <p><a href="#" @click.prevent="goToForgotPassword">忘记密码？</a></p>
       </div>
     </div>
   </div>
@@ -96,6 +97,11 @@ const handleLogin = async () => {
 // 跳转到注册页面
 const goToRegister = () => {
   router.push('/register')
+}
+
+// 跳转到忘记密码页面
+const goToForgotPassword = () => {
+  router.push('/forgot-password')
 }
 </script>
 
@@ -234,6 +240,10 @@ const goToRegister = () => {
   text-align: center;
   margin-top: 20px;
   color: #6a5acd;
+}
+
+.login-footer p {
+  margin: 8px 0;
 }
 
 .login-footer a {

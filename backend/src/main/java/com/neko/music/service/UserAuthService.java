@@ -196,6 +196,53 @@ public class UserAuthService {
     }
 
     /**
+     * 根据邮箱检查用户是否存在（公开方法，用于密码重置）
+     */
+    public boolean userExistsByEmail(String email) {
+        String sql = "SELECT COUNT(*) FROM users WHERE email = ?";
+
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, email);
+
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt(1) > 0;
+            }
+        } catch (SQLException e) {
+            logger.error("检查用户邮箱失败: {}", e.getMessage(), e);
+        }
+
+        return false;
+    }
+
+    /**
+     * 重置用户密码
+     */
+    public boolean resetPassword(String email, String newPassword) {
+        logger.info("重置用户密码: {}", email);
+
+        String sql = "UPDATE users SET password = ? WHERE email = ?";
+
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            String hashedPassword = hashPassword(newPassword);
+            stmt.setString(1, hashedPassword);
+            stmt.setString(2, email);
+
+            int affectedRows = stmt.executeUpdate();
+            logger.info("密码重置结果: {}, 邮箱: {}", affectedRows > 0, email);
+            return affectedRows > 0;
+        } catch (SQLException e) {
+            logger.error("重置密码失败: {}", e.getMessage(), e);
+        }
+
+        return false;
+    }
+
+    /**
      * 密码哈希
      */
     private String hashPassword(String password) {

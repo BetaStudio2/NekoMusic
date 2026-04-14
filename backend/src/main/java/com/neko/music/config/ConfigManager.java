@@ -30,6 +30,7 @@ public class ConfigManager {
     // Redis配置
     private String redisHost = "localhost";
     private int redisPort = 6379;
+    private String redisPassword = "";
     
     // JWT配置
     private String jwtSecret = "defaultSecretKeyForNekoMusic";
@@ -117,6 +118,7 @@ public class ConfigManager {
                 if (redisNode != null) {
                     if (redisNode.has("host")) redisHost = redisNode.get("host").asText();
                     if (redisNode.has("port")) redisPort = redisNode.get("port").asInt();
+                    if (redisNode.has("password")) redisPassword = redisNode.get("password").asText();
                 }
                 
                 // 读取JWT配置
@@ -252,6 +254,10 @@ public class ConfigManager {
     
     public int getRedisPort() {
         return redisPort;
+    }
+
+    public String getRedisPassword() {
+        return redisPassword;
     }
     
     public String getJwtSecret() {

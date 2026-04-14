@@ -17,16 +17,24 @@ public class RedisService {
 
     public RedisService(ConfigManager configManager) {
         this.configManager = configManager;
-        
+
         // 从配置中获取Redis连接信息，如果没有配置则使用默认值
         String redisHost = configManager.getRedisHost();
         int redisPort = configManager.getRedisPort();
-        String redisUrl = "redis://" + redisHost + ":" + redisPort;
-        
+        String redisPassword = configManager.getRedisPassword();
+
+        // 构建Redis URL，支持密码认证
+        String redisUrl;
+        if (redisPassword != null && !redisPassword.isEmpty()) {
+            redisUrl = "redis://:" + redisPassword + "@" + redisHost + ":" + redisPort;
+        } else {
+            redisUrl = "redis://" + redisHost + ":" + redisPort;
+        }
+
         this.redisClient = RedisClient.create(redisUrl);
         this.connection = redisClient.connect();
         this.syncCommands = connection.sync();
-        
+
         logger.info("已连接到Redis: {}:{}", redisHost, redisPort);
     }
     
