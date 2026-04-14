@@ -54,9 +54,6 @@
             本项目遵循 MIT 开源协议，欢迎贡献代码、提出建议和反馈问题。
           </p>
           <div class="links">
-            <a href="https://github.com/NyaNyagulugulu/NekoMusic" target="_blank" rel="noopener">
-              GitHub 仓库
-            </a>
             <a href="https://github.com/NyaNyagulugulu/NekoMusicDocs" target="_blank" rel="noopener">
               开发者文档
             </a>
@@ -68,7 +65,6 @@
           <p>如果您有任何问题或建议，欢迎通过以下方式联系我们：</p>
           <ul class="contact-list">
             <li>📧 Email: <a href="mailto:support@cnmsb.xin">support@cnmsb.xin</a></li>
-            <li>🐱 GitHub: <a href="https://github.com/NyaNyagulugulu" target="_blank" rel="noopener">@NyaNyagulugulu</a></li>
           </ul>
         </section>
 
@@ -111,9 +107,26 @@ onMounted(() => {
 
 .about-header h1 {
   font-size: 3rem;
-  color: #2c3e50;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #f5576c 75%, #4facfe 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   margin-bottom: 15px;
   font-weight: 700;
+  animation: gradient-shift 3s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 .subtitle {
@@ -122,10 +135,7 @@ onMounted(() => {
 }
 
 .about-content {
-  background: white;
-  border-radius: 16px;
   padding: 40px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 
 .about-section {
