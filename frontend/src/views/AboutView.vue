@@ -8,7 +8,7 @@
 
       <div class="about-content">
         <section class="about-section">
-          <h2>🎵 项目介绍</h2>
+          <h2>项目介绍</h2>
           <p>
             Neko云音乐是一个完全免费的在线音乐播放平台，致力于为用户提供高品质的音乐体验。
             我们相信音乐应该自由分享，让每个人都能轻松享受音乐的乐趣。
@@ -19,37 +19,19 @@
         </section>
 
         <section class="about-section">
-          <h2>✨ 主要特性</h2>
+          <h2>主要特性</h2>
           <ul class="feature-list">
-            <li>🎧 高品质音频播放</li>
-            <li>🔍 强大的音乐搜索功能</li>
-            <li>❤️ 个人收藏和歌单管理</li>
-            <li>📱 支持移动端和PC端</li>
-            <li>💰 完全免费，无需付费</li>
-            <li>🎨 简洁美观的用户界面</li>
+            <li>高品质音频播放</li>
+            <li>强大的音乐搜索功能</li>
+            <li>个人收藏和歌单管理</li>
+            <li>支持移动端和PC端</li>
+            <li>完全免费，无需付费</li>
+            <li>简洁美观的用户界面</li>
           </ul>
         </section>
 
         <section class="about-section">
-          <h2>🚀 技术栈</h2>
-          <div class="tech-stack">
-            <div class="tech-item">
-              <h3>前端</h3>
-              <p>Vue.js 3 + Vite</p>
-            </div>
-            <div class="tech-item">
-              <h3>后端</h3>
-              <p>Java + Jetty</p>
-            </div>
-            <div class="tech-item">
-              <h3>数据库</h3>
-              <p>MySQL + Redis</p>
-            </div>
-          </div>
-        </section>
-
-        <section class="about-section">
-          <h2>📝 开源协议</h2>
+          <h2>开源协议</h2>
           <p>
             本项目遵循 MIT 开源协议，欢迎贡献代码、提出建议和反馈问题。
           </p>
@@ -61,15 +43,15 @@
         </section>
 
         <section class="about-section">
-          <h2>🤝 联系我们</h2>
+          <h2>联系我们</h2>
           <p>如果您有任何问题或建议，欢迎通过以下方式联系我们：</p>
           <ul class="contact-list">
-            <li>📧 Email: <a href="mailto:support@cnmsb.xin">support@cnmsb.xin</a></li>
+            <li>Email: <a href="mailto:support@cnmsb.xin">support@cnmsb.xin</a></li>
           </ul>
         </section>
 
         <section class="about-section">
-          <h2>🙏 致谢</h2>
+          <h2>致谢</h2>
           <p>
             感谢所有使用 Neko云音乐的用户，感谢所有为项目做出贡献的开发者。
             您的支持是我们不断前进的动力！
