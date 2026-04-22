@@ -91,8 +91,10 @@ public class UserRegisterHandler extends HttpServlet {
             // 验证用户名是否包含违禁词
             if (SensitiveWordUtil.contains(username)) {
                 sendResponse(response, false, "用户名包含违禁词", null);
+                logger.warn("用户名包含违禁词");
                 return;
             }
+            else logger.info("用户名不包含违禁词");
 
             // 验证密码长度
             if (password.length() < 6 || password.length() > 30) {
@@ -100,30 +102,27 @@ public class UserRegisterHandler extends HttpServlet {
                 return;
             }
 
-                        String verificationCode = null;
-                        if (requestData.has("verificationCode")) {
-                            verificationCode = requestData.get("verificationCode").asText();
-                        }
-            
-                        // 如果有提供验证码，则验证
-                        if (verificationCode != null && !verificationCode.trim().isEmpty()) {
-                            boolean isValidCode = userAuthService.verifyCode(email.trim(), verificationCode.trim());
-                            if (!isValidCode) {
-                                sendResponse(response, false, "验证码错误或已过期", null);
-                                return;
-                            }
-                        }
-            
-                        // 注册用户
-                        boolean success = userAuthService.registerUser(username.trim(), password, email.trim());
-            
-                        if (success) {
-                            logger.info("用户注册成功: {}", username);
-                            sendResponse(response, true, "注册成功", Map.of("username", username));
-                        } else {
-                            logger.warn("用户注册失败: {}", username);
-                            sendResponse(response, false, "注册失败，用户名或邮箱可能已存在", null);
-                        }
+            String verificationCode = null;
+            if (requestData.has("verificationCode")) {
+                verificationCode = requestData.get("verificationCode").asText();
+            }
+            // 如果有提供验证码，则验证
+            if (verificationCode != null && !verificationCode.trim().isEmpty()) {
+                boolean isValidCode = userAuthService.verifyCode(email.trim(), verificationCode.trim());
+                if (!isValidCode) {
+                    sendResponse(response, false, "验证码错误或已过期", null);
+                    return;
+                }
+            }
+            // 注册用户
+            boolean success = userAuthService.registerUser(username.trim(), password, email.trim());
+            if (success) {
+                logger.info("用户注册成功: {}", username);
+                sendResponse(response, true, "注册成功", Map.of("username", username));
+            } else {
+                logger.warn("用户注册失败: {}", username);
+                sendResponse(response, false, "注册失败，用户名或邮箱可能已存在", null);
+            }
         } catch (Exception e) {
             logger.error("处理用户注册请求时发生错误: {}", e.getMessage(), e);
             sendResponse(response, false, "服务器内部错误", null);
