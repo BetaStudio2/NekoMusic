@@ -84,8 +84,9 @@ public class UserUploadHandler extends HttpServlet {
                 sendError(response, 400, "专辑名包含违禁词");
                 return;
             }
-            if (SensitiveWordUtil.contains(language)) {
-                sendError(response, 400, "语言包含违禁词");
+            // 验证语言字段白名单
+            if (!java.util.Set.of("中文", "粤语", "上海语", "英文", "日语", "韩语", "法语", "德语", "俄语", "纯音乐").contains(language)) {
+                sendError(response, 400, "语言字段不合法，仅支持：中文、粤语、上海语、英文、日语、韩语、法语、德语、俄语、纯音乐");
                 return;
             }
             if (tags != null && !tags.isEmpty() && SensitiveWordUtil.contains(tags)) {
