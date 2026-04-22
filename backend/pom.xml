@@ -16,6 +16,7 @@
 
     <dependencies>
         <!-- Jetty 用于HTTP服务器 -->
+        <!-- TODO:Jetty相关更新至12.逐步弃用11-->
         <dependency>
             <groupId>org.eclipse.jetty</groupId>
             <artifactId>jetty-server</artifactId>
