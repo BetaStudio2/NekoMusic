@@ -6,6 +6,7 @@ import com.neko.music.Main;
 import com.neko.music.model.Playlist;
 import com.neko.music.service.PlaylistService;
 import com.neko.music.service.UserAuthService;
+import com.neko.music.util.SensitiveWordUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -102,6 +103,16 @@ public class UpdatePlaylistHandler extends HttpServlet {
 
             if (description != null && description.length() > 500) {
                 sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "歌单描述过长");
+                return;
+            }
+
+            // 验证违禁词
+            if (SensitiveWordUtil.contains(name)) {
+                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "歌单名称包含违禁词");
+                return;
+            }
+            if (description != null && !description.trim().isEmpty() && SensitiveWordUtil.contains(description)) {
+                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "歌单描述包含违禁词");
                 return;
             }
 

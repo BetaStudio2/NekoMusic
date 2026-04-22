@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
 import com.neko.music.model.User;
 import com.neko.music.service.UserAuthService;
+import com.neko.music.util.SensitiveWordUtil;
 import jakarta.servlet.annotation.WebServlet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -84,6 +85,12 @@ public class UserRegisterHandler extends HttpServlet {
             // 验证用户名长度
             if (username.length() < 3 || username.length() > 20) {
                 sendResponse(response, false, "用户名长度必须在3-20个字符之间", null);
+                return;
+            }
+
+            // 验证用户名是否包含违禁词
+            if (SensitiveWordUtil.contains(username)) {
+                sendResponse(response, false, "用户名包含违禁词", null);
                 return;
             }
 

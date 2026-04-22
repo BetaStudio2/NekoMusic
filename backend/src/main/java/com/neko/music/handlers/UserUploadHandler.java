@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import com.neko.music.util.AudioFileValidator;
 import com.neko.music.util.LrcValidator;
+import com.neko.music.util.SensitiveWordUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -67,6 +68,28 @@ public class UserUploadHandler extends HttpServlet {
             // 验证必填字段
             if (title == null || title.isEmpty() || artist == null || artist.isEmpty() || language == null || language.isEmpty()) {
                 sendError(response, 400, "标题、歌手和语言为必填项");
+                return;
+            }
+
+            // 验证违禁词
+            if (SensitiveWordUtil.contains(title)) {
+                sendError(response, 400, "标题包含违禁词");
+                return;
+            }
+            if (SensitiveWordUtil.contains(artist)) {
+                sendError(response, 400, "歌手名包含违禁词");
+                return;
+            }
+            if (album != null && !album.isEmpty() && SensitiveWordUtil.contains(album)) {
+                sendError(response, 400, "专辑名包含违禁词");
+                return;
+            }
+            if (SensitiveWordUtil.contains(language)) {
+                sendError(response, 400, "语言包含违禁词");
+                return;
+            }
+            if (tags != null && !tags.isEmpty() && SensitiveWordUtil.contains(tags)) {
+                sendError(response, 400, "标签包含违禁词");
                 return;
             }
             
