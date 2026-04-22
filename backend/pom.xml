@@ -59,13 +59,6 @@
             <version>2.15.2</version>
         </dependency>
 
-        <!-- Jakarta Servlet API -->
-        <dependency>
-            <groupId>jakarta.servlet</groupId>
-            <artifactId>jakarta.servlet-api</artifactId>
-            <version>5.0.0</version>
-        </dependency>
-
         <!-- MySQL连接器 -->
         <dependency>
             <groupId>com.mysql</groupId>
@@ -236,6 +229,12 @@
                                         <exclude>README.md</exclude>
                                         <exclude>module-info.class</exclude>
                                         <exclude>META-INF/versions/*/module-info.class</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
+                                    <artifact>org.eclipse.jetty:*</artifact>
+                                    <excludes>
+                                        <exclude>jakarta/servlet/**</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
