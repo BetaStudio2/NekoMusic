@@ -76,10 +76,12 @@ public class UserUploadHandler extends HttpServlet {
                 sendError(response, 400, "标题包含违禁词");
                 return;
             }
+            else logger.info("标题不包含违禁词");
             if (SensitiveWordUtil.contains(artist)) {
                 sendError(response, 400, "歌手名包含违禁词");
                 return;
             }
+            else logger.info("歌手名不包含违禁词");
             if (album != null && !album.isEmpty() && SensitiveWordUtil.contains(album)) {
                 sendError(response, 400, "专辑名包含违禁词");
                 return;
@@ -93,6 +95,7 @@ public class UserUploadHandler extends HttpServlet {
                 sendError(response, 400, "标签包含违禁词");
                 return;
             }
+            else logger.info("所有内容未包含违禁词");
             
             // 查重检查：检查是否已存在相同的音乐
             String duplicateType = isDuplicateMusic(title, artist, album);
