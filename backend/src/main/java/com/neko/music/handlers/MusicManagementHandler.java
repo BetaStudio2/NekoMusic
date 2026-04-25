@@ -343,18 +343,11 @@ public class MusicManagementHandler extends HttpServlet {
 
     private void addMusic(HttpServletRequest request, HttpServletResponse response) throws IOException {
         // 读取请求体
-        StringBuilder requestBody = new StringBuilder();
-        try (InputStream inputStream = request.getInputStream()) {
-            byte[] buffer = new byte[1024];
-            int bytesRead;
-            while ((bytesRead = inputStream.read(buffer)) != -1) {
-                requestBody.append(new String(buffer, 0, bytesRead));
-            }
-        }
+        String requestBody = new String(request.getInputStream().readAllBytes(), "UTF-8");
 
         try {
             // 解析JSON请求体
-            AddMusicRequest addRequest = Main.getObjectMapper().readValue(requestBody.toString(), AddMusicRequest.class);
+            AddMusicRequest addRequest = Main.getObjectMapper().readValue(requestBody, AddMusicRequest.class);
             
             if (addRequest.getTitle() == null || addRequest.getTitle().trim().isEmpty() ||
                 addRequest.getArtist() == null || addRequest.getArtist().trim().isEmpty() ||
@@ -444,18 +437,11 @@ public class MusicManagementHandler extends HttpServlet {
 
     private void editMusic(HttpServletRequest request, HttpServletResponse response) throws IOException {
         // 读取请求体
-        StringBuilder requestBody = new StringBuilder();
-        try (InputStream inputStream = request.getInputStream()) {
-            byte[] buffer = new byte[1024];
-            int bytesRead;
-            while ((bytesRead = inputStream.read(buffer)) != -1) {
-                requestBody.append(new String(buffer, 0, bytesRead));
-            }
-        }
+        String requestBody = new String(request.getInputStream().readAllBytes(), "UTF-8");
 
         try {
             // 解析JSON请求体
-            EditMusicRequest editRequest = Main.getObjectMapper().readValue(requestBody.toString(), EditMusicRequest.class);
+            EditMusicRequest editRequest = Main.getObjectMapper().readValue(requestBody, EditMusicRequest.class);
             
             // 验证必填字段
             if (editRequest.getId() == null || editRequest.getTitle() == null || editRequest.getTitle().trim().isEmpty() ||

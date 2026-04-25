@@ -590,15 +590,7 @@ public class FileUploadHandler extends HttpServlet {
     }
     
     private String getPartValue(HttpServletRequest request, Part part) throws IOException {
-        StringBuilder value = new StringBuilder();
-        try (InputStream inputStream = part.getInputStream()) {
-            byte[] buffer = new byte[1024];
-            int bytesRead;
-            while ((bytesRead = inputStream.read(buffer)) != -1) {
-                value.append(new String(buffer, 0, bytesRead, request.getCharacterEncoding()));
-            }
-        }
-        return value.toString();
+        return new String(part.getInputStream().readAllBytes(), "UTF-8");
     }
     
     private String getFileName(Part part) {
