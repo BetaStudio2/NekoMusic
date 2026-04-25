@@ -14,9 +14,9 @@ import com.neko.music.service.RedisService;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.service.IPRateLimitService;
 import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
-import org.eclipse.jetty.servlets.CrossOriginFilter;
+import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.ee10.servlet.ServletHolder;
+import com.neko.music.filter.CorsFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -388,11 +388,7 @@ public class Main {
     }
     
     private static void addCorsFilter(ServletContextHandler context) {
-        org.eclipse.jetty.servlet.FilterHolder cors = context.addFilter(CrossOriginFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
-        cors.setInitParameter(CrossOriginFilter.ALLOWED_ORIGINS_PARAM, "*");
-        cors.setInitParameter(CrossOriginFilter.ACCESS_CONTROL_ALLOW_ORIGIN_HEADER, "*");
-        cors.setInitParameter(CrossOriginFilter.ALLOWED_METHODS_PARAM, "GET,POST,PUT,DELETE,HEAD,OPTIONS");
-        cors.setInitParameter(CrossOriginFilter.ALLOWED_HEADERS_PARAM, "X-Requested-With,Content-Type,Accept,Origin,Authorization");
+        context.addFilter(CorsFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
     }
     
     public static DatabaseManager getDatabaseManager() {

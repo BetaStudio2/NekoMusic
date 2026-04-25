@@ -18,19 +18,20 @@
         <dependency>
             <groupId>org.eclipse.jetty</groupId>
             <artifactId>jetty-server</artifactId>
-            <version>12.1.6</version>
+            <version>12.1.8</version>
         </dependency>
         <dependency>
-            <groupId>org.eclipse.jetty</groupId>
-            <artifactId>jetty-servlet</artifactId>
-            <version>11.0.24</version>
+            <groupId>org.eclipse.jetty.ee10</groupId>
+            <artifactId>jetty-ee10-servlet</artifactId>
+            <version>12.1.8</version>
         </dependency>
 
-        <!-- Jetty Servlets 用于CORS支持 -->
+        <!-- Jakarta Servlet API -->
         <dependency>
-            <groupId>org.eclipse.jetty</groupId>
-            <artifactId>jetty-servlets</artifactId>
-            <version>11.0.24</version>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <version>6.0.0</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- Jackson 用于JSON处理 -->
@@ -190,8 +191,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
                 <configuration>
-                    <source>21</source>
-                    <target>21</target>
+                    <release>21</release>
                 </configuration>
             </plugin>
             <plugin>
@@ -231,6 +231,12 @@
                                 </filter>
                                 <filter>
                                     <artifact>org.eclipse.jetty:*</artifact>
+                                    <excludes>
+                                        <exclude>jakarta/servlet/**</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
+                                    <artifact>org.eclipse.jetty.ee10:*</artifact>
                                     <excludes>
                                         <exclude>jakarta/servlet/**</exclude>
                                     </excludes>
