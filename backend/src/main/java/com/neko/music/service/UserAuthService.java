@@ -22,6 +22,7 @@ public class UserAuthService {
     private static final SecureRandom secureRandom = new SecureRandom();
     
     private static final String VERIFICATION_CODE_PREFIX = "verification_code:";
+    private static final String TOKEN_CACHE_PREFIX = "user_token:";
     private static final int VERIFICATION_CODE_EXPIRY = 300; // 5分钟过期
     private static final int TOKEN_EXPIRY_DAYS = 30; // Token有效期30天
 
@@ -278,6 +279,9 @@ public class UserAuthService {
             
             int affectedRows = stmt.executeUpdate();
             if (affectedRows > 0) {
+                // 写入Redis缓存
+                redisService.setWithExpiry(TOKEN_CACHE_PREFIX + token,
+                    String.valueOf(userId), TOKEN_EXPIRY_DAYS * 86400);
                 logger.info("Token创建成功，用户ID: {}", userId);
                 return token;
             }
@@ -289,26 +293,40 @@ public class UserAuthService {
     }
     
     /**
-     * 验证token并返回用户ID
+     * 验证token并返回用户ID - 优先查Redis缓存
      */
     public Optional<Integer> validateToken(String token) {
+        // 先查Redis缓存
+        try {
+            String cached = redisService.get(TOKEN_CACHE_PREFIX + token);
+            if (cached != null && !cached.isEmpty()) {
+                return Optional.of(Integer.parseInt(cached));
+            }
+        } catch (Exception e) {
+            logger.debug("Redis token缓存查询失败，回退到数据库: {}", e.getMessage());
+        }
+
+        // 缓存miss，查数据库
         String sql = "SELECT user_id FROM user_tokens WHERE token = ? AND expires_at > NOW()";
-        
+
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+
             stmt.setString(1, token);
-            ResultSet rs = stmt.executeQuery();
-            
-            if (rs.next()) {
-                int userId = rs.getInt("user_id");
-                logger.info("Token验证成功，用户ID: {}", userId);
-                return Optional.of(userId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    int userId = rs.getInt("user_id");
+                    // 写入Redis缓存，TTL与token有效期一致
+                    redisService.setWithExpiry(TOKEN_CACHE_PREFIX + token,
+                        String.valueOf(userId), TOKEN_EXPIRY_DAYS * 86400);
+                    logger.debug("Token验证成功(已缓存)，用户ID: {}", userId);
+                    return Optional.of(userId);
+                }
             }
         } catch (SQLException e) {
             logger.error("验证token失败: {}", e.getMessage(), e);
         }
-        
+
         return Optional.empty();
     }
     
@@ -316,6 +334,9 @@ public class UserAuthService {
      * 注销token
      */
     public boolean revokeToken(String token) {
+        // 先删Redis缓存
+        redisService.del(TOKEN_CACHE_PREFIX + token);
+
         String sql = "DELETE FROM user_tokens WHERE token = ?";
         
         try (Connection conn = databaseManager.getConnection();
