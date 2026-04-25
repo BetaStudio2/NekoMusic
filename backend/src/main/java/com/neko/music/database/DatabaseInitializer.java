@@ -149,21 +149,23 @@ public class DatabaseInitializer {
                 logger.warn("回填拼音索引失败: {}", e.getMessage());
             }
 
-            // 回填词首字母列：为 title_word_initials 为 NULL 的记录计算词首字母
+            // 强制重算所有首字母列（getPinyinInitials和getWordInitials逻辑已变更，需全量更新）
             try {
-                String selectNull = "SELECT id, title, artist FROM music WHERE title_word_initials IS NULL";
-                String updateWordInitials = "UPDATE music SET title_word_initials=?, artist_word_initials=? WHERE id=?";
-                try (var selectStmt = conn.prepareStatement(selectNull);
+                String selectAll = "SELECT id, title, artist FROM music";
+                String updateInitials = "UPDATE music SET title_pinyin_initials=?, title_word_initials=?, artist_pinyin_initials=?, artist_word_initials=? WHERE id=?";
+                try (var selectStmt = conn.prepareStatement(selectAll);
                      var rs = selectStmt.executeQuery();
-                     var updateStmt = conn.prepareStatement(updateWordInitials)) {
+                     var updateStmt = conn.prepareStatement(updateInitials)) {
                     int count = 0;
                     while (rs.next()) {
                         int id = rs.getInt("id");
                         String title = rs.getString("title");
                         String artist = rs.getString("artist");
-                        updateStmt.setString(1, com.neko.music.util.PinyinUtil.getWordInitials(title));
-                        updateStmt.setString(2, com.neko.music.util.PinyinUtil.getWordInitials(artist));
-                        updateStmt.setInt(3, id);
+                        updateStmt.setString(1, com.neko.music.util.PinyinUtil.getPinyinInitials(title));
+                        updateStmt.setString(2, com.neko.music.util.PinyinUtil.getWordInitials(title));
+                        updateStmt.setString(3, com.neko.music.util.PinyinUtil.getPinyinInitials(artist));
+                        updateStmt.setString(4, com.neko.music.util.PinyinUtil.getWordInitials(artist));
+                        updateStmt.setInt(5, id);
                         updateStmt.addBatch();
                         count++;
                         if (count % 100 == 0) {
@@ -174,13 +176,13 @@ public class DatabaseInitializer {
                         updateStmt.executeBatch();
                     }
                     if (count > 0) {
-                        logger.info("已回填 {} 条音乐记录的词首字母索引", count);
+                        logger.info("已重算 {} 条音乐记录的首字母索引（中文/英文分离）", count);
                     }
                 }
             } catch (Exception e) {
-                logger.warn("回填词首字母索引失败: {}", e.getMessage());
+                logger.warn("重算首字母索引失败: {}", e.getMessage());
             }
-            
+
             // 回填歌单拼音列
             try {
                 String selectNull = "SELECT id, name FROM playlists WHERE name_pinyin IS NULL";
@@ -211,6 +213,37 @@ public class DatabaseInitializer {
                 }
             } catch (Exception e) {
                 logger.warn("回填歌单拼音索引失败: {}", e.getMessage());
+            }
+
+            // 强制重算歌单首字母列（逻辑变更）
+            try {
+                String selectAll = "SELECT id, name FROM playlists";
+                String updateInitials = "UPDATE playlists SET name_pinyin_initials=?, name_word_initials=? WHERE id=?";
+                try (var selectStmt = conn.prepareStatement(selectAll);
+                     var rs = selectStmt.executeQuery();
+                     var updateStmt = conn.prepareStatement(updateInitials)) {
+                    int count = 0;
+                    while (rs.next()) {
+                        int id = rs.getInt("id");
+                        String name = rs.getString("name");
+                        updateStmt.setString(1, com.neko.music.util.PinyinUtil.getPinyinInitials(name));
+                        updateStmt.setString(2, com.neko.music.util.PinyinUtil.getWordInitials(name));
+                        updateStmt.setInt(3, id);
+                        updateStmt.addBatch();
+                        count++;
+                        if (count % 100 == 0) {
+                            updateStmt.executeBatch();
+                        }
+                    }
+                    if (count % 100 != 0) {
+                        updateStmt.executeBatch();
+                    }
+                    if (count > 0) {
+                        logger.info("已重算 {} 条歌单记录的首字母索引（中文/英文分离）", count);
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("重算歌单首字母索引失败: {}", e.getMessage());
             }
 
             logger.info("数据库表初始化完成");

@@ -27,9 +27,11 @@ public class PinyinUtil {
     }
     
     /**
-     * 获取字符串的拼音首字母
+     * 获取字符串的拼音首字母（仅中文）
+     * 只提取中文字符的拼音首字母，跳过英文和其他字符
+     * 例如："你好世界" → "nhsj", "原始的金黄 Primordial" → "ysdjh", "just party" → ""
      * @param str 输入字符串
-     * @return 拼音首字母字符串
+     * @return 中文拼音首字母字符串
      */
     public static String getPinyinInitials(String str) {
         if (str == null || str.isEmpty()) {
@@ -41,9 +43,8 @@ public class PinyinUtil {
             String[] pinyinArray = getPinyinArray(c);
             if (pinyinArray != null && pinyinArray.length > 0) {
                 initials.append(pinyinArray[0].charAt(0));
-            } else {
-                initials.append(Character.toLowerCase(c));
             }
+            // 非中文字符直接跳过，不混入英文
         }
         return initials.toString();
     }
@@ -129,11 +130,12 @@ public class PinyinUtil {
     }
     
     /**
-     * 获取字符串的词首字母（用于英文单词首字母搜索）
-     * 英文单词取首字母，中文逐字取拼音首字母
-     * 例如："just h party" → "jhp", "你好世界" → "nhsj", "Love 你" → "ln", "AI你好" → "anh"
+     * 获取字符串的英文词首字母（仅英文）
+     * 按空格分词后只提取英文单词的首字母，跳过中文
+     * 例如："just h party" → "jhp", "Primordial Resplendence" → "pr",
+     *       "原始的金黄 Primordial" → "pr", "你好世界" → ""
      * @param str 输入字符串
-     * @return 词首字母字符串
+     * @return 英文词首字母字符串
      */
     public static String getWordInitials(String str) {
         if (str == null || str.isEmpty()) {
@@ -150,8 +152,7 @@ public class PinyinUtil {
             for (char c : word.toCharArray()) {
                 String[] pinyinArray = getPinyinArray(c);
                 if (pinyinArray != null && pinyinArray.length > 0) {
-                    // 中文字符 → 取拼音首字母
-                    initials.append(pinyinArray[0].charAt(0));
+                    // 中文字符 → 跳过，由 getPinyinInitials() 负责
                     prevWasEnglish = false;
                 } else if (Character.isLetter(c)) {
                     // 英文字母 → 仅在连续英文的首字母时取
