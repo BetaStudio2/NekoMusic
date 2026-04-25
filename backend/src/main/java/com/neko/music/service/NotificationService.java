@@ -17,11 +17,12 @@ import java.nio.charset.StandardCharsets;
 public class NotificationService {
     private static final Logger logger = LoggerFactory.getLogger(NotificationService.class);
     private static final ObjectMapper objectMapper = new ObjectMapper();
-    
+
     private final ConfigManager configManager;
     private final String webhookUrl;
     private final String authToken;
-    
+    private final CloseableHttpClient httpClient;
+
     public NotificationService(ConfigManager configManager) {
         this.configManager = configManager;
         String url = configManager.getMsgUrl();
@@ -35,7 +36,9 @@ public class NotificationService {
         }
         this.webhookUrl = url;
         this.authToken = configManager.getMsgToken();
-        
+        // 创建复用的 HttpClient
+        this.httpClient = HttpClients.createDefault();
+
         logger.info("NotificationService 初始化完成, Webhook URL: {}", webhookUrl);
     }
     
@@ -55,17 +58,17 @@ public class NotificationService {
             return false;
         }
         
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
+        try {
             // 构建 JSON 请求体
-            String jsonBody = String.format("{\"message\": %s}", 
+            String jsonBody = String.format("{\"message\": %s}",
                 objectMapper.writeValueAsString(message));
-            
+
             // 创建 POST 请求
             HttpPost httpPost = new HttpPost(webhookUrl);
             httpPost.setHeader("Content-Type", "application/json");
             httpPost.setHeader("Authorization", "Bearer " + authToken);
             httpPost.setEntity(new StringEntity(jsonBody, ContentType.APPLICATION_JSON));
-            
+
             // 发送请求
             try (CloseableHttpResponse response = httpClient.execute(httpPost)) {
                 int statusCode = response.getCode();

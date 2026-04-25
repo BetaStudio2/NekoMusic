@@ -4,10 +4,13 @@ import com.neko.music.database.AdminDatabaseManager;
 import com.neko.music.model.Admin;
 import de.mkammerer.argon2.Argon2Factory;
 import de.mkammerer.argon2.Argon2;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Optional;
 
 public class AdminAuthService {
+    private static final Logger logger = LoggerFactory.getLogger(AdminAuthService.class);
     private final AdminDatabaseManager adminDatabaseManager;
     private final Argon2 argon2;
 
@@ -174,18 +177,13 @@ public class AdminAuthService {
         if (token == null || token.trim().isEmpty()) {
             return null;
         }
-        
-        // 验证会话是否有效
-        if (!adminDatabaseManager.validateAdminSession(token)) {
-            return null;
-        }
-        
-        // 从数据库中获取管理员信息
+
+        // 合并为单次查询：JOIN验证会话有效性并获取管理员信息
         String sql = "SELECT a.* FROM admins a INNER JOIN admin_sessions s ON a.id = s.admin_id WHERE s.session_token = ? AND s.is_active = TRUE AND s.expires_at > NOW()";
-        
+
         try (java.sql.Connection conn = adminDatabaseManager.getDatabaseManager().getConnection();
              java.sql.PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+
             stmt.setString(1, token);
             try (java.sql.ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
@@ -202,9 +200,9 @@ public class AdminAuthService {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("根据token获取管理员信息失败", e);
         }
-        
+
         return null;
     }
 }

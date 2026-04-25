@@ -18,14 +18,13 @@ import java.util.List;
 
 public class MusicSearchHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicSearchHandler.class);
-    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
         String requestBody = new String(request.getInputStream().readAllBytes(), "UTF-8");
 
         try {
-            SearchRequest searchRequest = objectMapper.readValue(requestBody, SearchRequest.class);
+            SearchRequest searchRequest = Main.getObjectMapper().readValue(requestBody, SearchRequest.class);
             List<Music> results = searchMusic(searchRequest.getQuery());
 
             Object responseResults = results.isEmpty() ? null : results;
@@ -35,13 +34,13 @@ public class MusicSearchHandler extends HttpServlet {
 
             response.setStatus(HttpStatus.OK_200);
             response.setContentType("application/json;charset=utf-8");
-            response.getWriter().println(objectMapper.writeValueAsString(searchResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(searchResponse));
 
         } catch (Exception e) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("请求格式错误: " + e.getMessage());
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
         }
     }
 
@@ -246,8 +245,10 @@ public class MusicSearchHandler extends HttpServlet {
         }
 
         // 拼音匹配 - 使用预计算列，不再运行时调用PinyinUtil
-        if (score == 0) {
-            score += matchPinyinScore(music, queryLower);
+        // 取文本匹配和拼音匹配中的较高分
+        int pinyinScore = matchPinyinScore(music, queryLower);
+        if (pinyinScore > score) {
+            score = pinyinScore;
         }
 
         return score;

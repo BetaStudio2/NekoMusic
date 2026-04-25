@@ -248,6 +248,47 @@ public class DatabaseManager {
                 logger.debug("artist_word_initials 索引可能已存在，跳过");
             }
 
+            // 为歌单表添加拼音索引列（如果不存在）
+            try {
+                String alterNamePinyin = """
+                    ALTER TABLE playlists
+                    ADD COLUMN IF NOT EXISTS name_pinyin VARCHAR(500) DEFAULT NULL
+                    AFTER description
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(alterNamePinyin)) {
+                    stmt.execute();
+                }
+                logger.info("已为 playlists 表添加 name_pinyin 字段");
+            } catch (SQLException e) {
+                logger.debug("name_pinyin 字段可能已存在，跳过添加");
+            }
+            try {
+                String alterNamePinyinInitials = """
+                    ALTER TABLE playlists
+                    ADD COLUMN IF NOT EXISTS name_pinyin_initials VARCHAR(200) DEFAULT NULL
+                    AFTER name_pinyin
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(alterNamePinyinInitials)) {
+                    stmt.execute();
+                }
+                logger.info("已为 playlists 表添加 name_pinyin_initials 字段");
+            } catch (SQLException e) {
+                logger.debug("name_pinyin_initials 字段可能已存在，跳过添加");
+            }
+            try {
+                String alterNameWordInitials = """
+                    ALTER TABLE playlists
+                    ADD COLUMN IF NOT EXISTS name_word_initials VARCHAR(200) DEFAULT NULL
+                    AFTER name_pinyin_initials
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(alterNameWordInitials)) {
+                    stmt.execute();
+                }
+                logger.info("已为 playlists 表添加 name_word_initials 字段");
+            } catch (SQLException e) {
+                logger.debug("name_word_initials 字段可能已存在，跳过添加");
+            }
+
             // 为已存在的 music 表添加 play_count 字段（如果不存在）
             try {
                 String alterPlayCountTable = """
@@ -360,6 +401,9 @@ public class DatabaseManager {
                     user_id INT NOT NULL,
                     name VARCHAR(255) NOT NULL,
                     description VARCHAR(500),
+                    name_pinyin VARCHAR(500) DEFAULT NULL,
+                    name_pinyin_initials VARCHAR(200) DEFAULT NULL,
+                    name_word_initials VARCHAR(200) DEFAULT NULL,
                     music_count INT DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

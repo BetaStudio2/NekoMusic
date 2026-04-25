@@ -1,6 +1,8 @@
 package com.neko.music.database;
 
 import com.neko.music.model.UserUpload;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.*;
 import java.time.LocalDateTime;
@@ -8,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class UserUploadDatabaseManager {
+    private static final Logger logger = LoggerFactory.getLogger(UserUploadDatabaseManager.class);
     private DatabaseManager databaseManager;
     
     public UserUploadDatabaseManager(DatabaseManager databaseManager) {
@@ -50,7 +53,7 @@ public class UserUploadDatabaseManager {
             return -1;
             
         } catch (SQLException e) {
-            System.err.println("创建用户上传记录失败: " + e.getMessage());
+            logger.error("创建用户上传记录失败", e);
             return -1;
         }
     }
@@ -73,7 +76,7 @@ public class UserUploadDatabaseManager {
             return null;
             
         } catch (SQLException e) {
-            System.err.println("获取用户上传记录失败: " + e.getMessage());
+            logger.error("获取用户上传记录失败", e);
             return null;
         }
     }
@@ -96,7 +99,7 @@ public class UserUploadDatabaseManager {
             }
             
         } catch (SQLException e) {
-            System.err.println("获取用户上传记录失败: " + e.getMessage());
+            logger.error("获取用户上传记录失败", e);
         }
         
         return uploads;
@@ -120,7 +123,7 @@ public class UserUploadDatabaseManager {
             }
             
         } catch (SQLException e) {
-            System.err.println("获取上传记录失败: " + e.getMessage());
+            logger.error("获取上传记录失败", e);
         }
         
         return uploads;
@@ -151,7 +154,7 @@ public class UserUploadDatabaseManager {
             return pstmt.executeUpdate() > 0;
             
         } catch (SQLException e) {
-            System.err.println("审核通过失败: " + e.getMessage());
+            logger.error("审核通过失败", e);
             return false;
         }
     }
@@ -175,7 +178,7 @@ public class UserUploadDatabaseManager {
             return pstmt.executeUpdate() > 0;
             
         } catch (SQLException e) {
-            System.err.println("删除用户上传记录失败: " + e.getMessage());
+            logger.error("删除用户上传记录失败", e);
             return false;
         }
     }
@@ -195,7 +198,7 @@ public class UserUploadDatabaseManager {
                 java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get(upload.getLyricsFilePath()));
             }
         } catch (Exception e) {
-            System.err.println("删除文件失败: " + e.getMessage());
+            logger.error("删除文件失败", e);
         }
     }
     

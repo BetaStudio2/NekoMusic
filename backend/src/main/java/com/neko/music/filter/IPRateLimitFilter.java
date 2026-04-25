@@ -54,45 +54,30 @@ public class IPRateLimitFilter implements Filter {
         // 检查 IP 是否被封锁
         if (ipRateLimitService.isIPBlocked(clientIP)) {
             logger.warn("封锁的 IP 尝试访问: {}", clientIP);
-
-            if (configManager.isRateLimitSilentTimeout()) {
-                // 静默超时：什么都不返回，让对方自己 timeout
-                logger.debug("对封锁的 IP {} 执行静默超时", clientIP);
-                try {
-                    // 保持连接打开但不发送任何响应，让对方自己 timeout
-                    Thread.sleep(30000); // 等待 30 秒
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-                return;
-            } else {
-                // 返回错误信息
-                response.setContentType("application/json;charset=UTF-8");
+            // 立即返回429，不阻塞线程
+            response.setContentType("application/json;charset=UTF-8");
+            ((jakarta.servlet.http.HttpServletResponse) response).setStatus(429);
+            try {
                 response.getWriter().write("{\"success\":false,\"message\":\"请求过于频繁，请稍后再试\",\"data\":null}");
-                return;
+            } catch (Exception e) {
+                logger.debug("写入限流响应失败: {}", e.getMessage());
             }
+            return;
         }
 
         // 记录请求并检查是否超过频率限制
         boolean allowed = ipRateLimitService.recordRequest(clientIP);
         if (!allowed) {
             logger.warn("IP {} 超过频率限制，请求被拦截", clientIP);
-
-            if (configManager.isRateLimitSilentTimeout()) {
-                // 静默超时
-                logger.debug("对超频 IP {} 执行静默超时", clientIP);
-                try {
-                    Thread.sleep(30000); // 等待 30 秒
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-                return;
-            } else {
-                // 返回错误信息
-                response.setContentType("application/json;charset=UTF-8");
+            // 立即返回429，不阻塞线程
+            response.setContentType("application/json;charset=UTF-8");
+            ((jakarta.servlet.http.HttpServletResponse) response).setStatus(429);
+            try {
                 response.getWriter().write("{\"success\":false,\"message\":\"请求过于频繁，请稍后再试\",\"data\":null}");
-                return;
+            } catch (Exception e) {
+                logger.debug("写入限流响应失败: {}", e.getMessage());
             }
+            return;
         }
 
         // 允许请求继续

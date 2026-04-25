@@ -361,7 +361,7 @@ public class MusicManagementHandler extends HttpServlet {
             
             int id;
             try (Connection conn = Main.getDatabaseManager().getConnection()) {
-                String sql = "INSERT INTO music (title, artist, album, duration, file_path, cover_path, language, tags, upload_user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                String sql = "INSERT INTO music (title, artist, album, duration, file_path, cover_path, language, tags, upload_user_id, title_pinyin, title_pinyin_initials, title_word_initials, artist_pinyin, artist_pinyin_initials, artist_word_initials, album_pinyin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
                 try (PreparedStatement stmt = conn.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
                     stmt.setString(1, addRequest.getTitle());
                     stmt.setString(2, addRequest.getArtist());
@@ -373,6 +373,14 @@ public class MusicManagementHandler extends HttpServlet {
                     stmt.setString(8, addRequest.getTags() != null ? addRequest.getTags() : "");
                     // 使用NULL而不是0以避免外键约束问题
                     stmt.setObject(9, null);
+                    // 预计算拼音列
+                    stmt.setString(10, com.neko.music.util.PinyinUtil.getPinyin(addRequest.getTitle()));
+                    stmt.setString(11, com.neko.music.util.PinyinUtil.getPinyinInitials(addRequest.getTitle()));
+                    stmt.setString(12, com.neko.music.util.PinyinUtil.getWordInitials(addRequest.getTitle()));
+                    stmt.setString(13, com.neko.music.util.PinyinUtil.getPinyin(addRequest.getArtist()));
+                    stmt.setString(14, com.neko.music.util.PinyinUtil.getPinyinInitials(addRequest.getArtist()));
+                    stmt.setString(15, com.neko.music.util.PinyinUtil.getWordInitials(addRequest.getArtist()));
+                    stmt.setString(16, addRequest.getAlbum() != null ? com.neko.music.util.PinyinUtil.getPinyin(addRequest.getAlbum()) : "");
                     
                     int affectedRows = stmt.executeUpdate();
                     
@@ -465,7 +473,7 @@ public class MusicManagementHandler extends HttpServlet {
             
             int rowsUpdated;
             try (Connection conn = Main.getDatabaseManager().getConnection()) {
-                String sql = "UPDATE music SET title = ?, artist = ?, album = ?, duration = ?, file_path = ?, cover_path = ?, language = ?, tags = ?, upload_user_id = ?, updated_at = NOW() WHERE id = ?";
+                String sql = "UPDATE music SET title = ?, artist = ?, album = ?, duration = ?, file_path = ?, cover_path = ?, language = ?, tags = ?, upload_user_id = ?, title_pinyin = ?, title_pinyin_initials = ?, title_word_initials = ?, artist_pinyin = ?, artist_pinyin_initials = ?, artist_word_initials = ?, album_pinyin = ?, updated_at = NOW() WHERE id = ?";
                 try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                     stmt.setString(1, editRequest.getTitle());
                     stmt.setString(2, editRequest.getArtist());
@@ -477,7 +485,15 @@ public class MusicManagementHandler extends HttpServlet {
                     stmt.setString(8, editRequest.getTags() != null ? editRequest.getTags() : "");
                     // 使用NULL而不是0以避免外键约束问题
                     stmt.setObject(9, null);
-                    stmt.setInt(10, editRequest.getId());
+                    // 预计算拼音列
+                    stmt.setString(10, com.neko.music.util.PinyinUtil.getPinyin(editRequest.getTitle()));
+                    stmt.setString(11, com.neko.music.util.PinyinUtil.getPinyinInitials(editRequest.getTitle()));
+                    stmt.setString(12, com.neko.music.util.PinyinUtil.getWordInitials(editRequest.getTitle()));
+                    stmt.setString(13, com.neko.music.util.PinyinUtil.getPinyin(editRequest.getArtist()));
+                    stmt.setString(14, com.neko.music.util.PinyinUtil.getPinyinInitials(editRequest.getArtist()));
+                    stmt.setString(15, com.neko.music.util.PinyinUtil.getWordInitials(editRequest.getArtist()));
+                    stmt.setString(16, editRequest.getAlbum() != null ? com.neko.music.util.PinyinUtil.getPinyin(editRequest.getAlbum()) : "");
+                    stmt.setInt(17, editRequest.getId());
                     
                     rowsUpdated = stmt.executeUpdate();
                 }

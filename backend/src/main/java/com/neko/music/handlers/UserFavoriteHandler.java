@@ -140,22 +140,8 @@ public class UserFavoriteHandler extends HttpServlet {
     }
     
     private Integer validateToken(String token) {
-        String sql = "SELECT user_id FROM user_tokens WHERE token = ? AND expires_at > NOW()";
-        
-        try (Connection conn = Main.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setString(1, token);
-            ResultSet rs = stmt.executeQuery();
-            
-            if (rs.next()) {
-                return rs.getInt("user_id");
-            }
-        } catch (SQLException e) {
-            logger.error("验证token失败: {}", e.getMessage(), e);
-        }
-        
-        return null;
+        // 使用 UserAuthService 走 Redis 缓存，避免每次查DB
+        return Main.getUserAuthService().validateToken(token).orElse(null);
     }
     
     private List<JsonObject> getUserFavorites(int userId) throws SQLException {
@@ -188,30 +174,15 @@ public class UserFavoriteHandler extends HttpServlet {
     }
     
     private boolean addFavorite(int userId, int musicId) throws SQLException {
-        // 检查是否已经收藏
-        String checkSql = "SELECT COUNT(*) FROM user_favorites WHERE user_id = ? AND music_id = ?";
-        
-        try (Connection conn = Main.getDatabaseManager().getConnection();
-             PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
-            
-            checkStmt.setInt(1, userId);
-            checkStmt.setInt(2, musicId);
-            ResultSet rs = checkStmt.executeQuery();
-            
-            if (rs.next() && rs.getInt(1) > 0) {
-                return false; // 已经收藏
-            }
-        }
-        
-        // 添加收藏
-        String sql = "INSERT INTO user_favorites (user_id, music_id, created_at) VALUES (?, ?, NOW())";
-        
+        // 使用 INSERT IGNORE 避免竞态条件：如果已存在则静默跳过
+        String sql = "INSERT IGNORE INTO user_favorites (user_id, music_id, created_at) VALUES (?, ?, NOW())";
+
         try (Connection conn = Main.getDatabaseManager().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+
             stmt.setInt(1, userId);
             stmt.setInt(2, musicId);
-            
+
             return stmt.executeUpdate() > 0;
         }
     }

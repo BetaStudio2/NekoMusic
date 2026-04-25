@@ -9,17 +9,22 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.SecureRandom;
 import java.util.Properties;
-import java.util.Random;
 
 public class EmailService {
     private static final Logger logger = LoggerFactory.getLogger(EmailService.class);
+    private static final SecureRandom secureRandom = new SecureRandom();
     private final ConfigManager configManager;
     private final String emailTemplate;
+    private final String reviewTemplate;
+    private final String reviewApprovedTemplate;
 
     public EmailService(ConfigManager configManager) {
         this.configManager = configManager;
         this.emailTemplate = loadEmailTemplate();
+        this.reviewTemplate = loadReviewTemplate();
+        this.reviewApprovedTemplate = loadReviewApprovedTemplate();
     }
 
     /**
@@ -126,7 +131,7 @@ public class EmailService {
      * 发送审核拒绝邮件
      */
     public boolean sendReviewRejectedEmail(String toEmail, String musicName, String artistName, String rejectReason) {
-        String reviewTemplate = loadReviewTemplate();
+        // 使用缓存的模板
         
         // 格式化日期
         java.time.LocalDateTime now = java.time.LocalDateTime.now();
@@ -155,7 +160,7 @@ public class EmailService {
      * 发送审核通过邮件
      */
     public boolean sendReviewApprovedEmail(String toEmail, String musicName, String artistName) {
-        String reviewTemplate = loadReviewApprovedTemplate();
+        // 使用缓存的模板
         
         // 格式化日期
         java.time.LocalDateTime now = java.time.LocalDateTime.now();
@@ -218,10 +223,9 @@ public class EmailService {
      * 生成随机验证码
      */
     public String generateVerificationCode() {
-        Random random = new Random();
         StringBuilder code = new StringBuilder();
         for (int i = 0; i < 6; i++) {
-            code.append(random.nextInt(10));
+            code.append(secureRandom.nextInt(10));
         }
         return code.toString();
     }

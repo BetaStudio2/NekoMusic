@@ -24,7 +24,7 @@ public class PlaylistService {
     public Optional<Playlist> createPlaylist(int userId, String name, String description) {
         logger.info("创建歌单: userId={}, name={}", userId, name);
 
-        String sql = "INSERT INTO playlists (user_id, name, description, music_count) VALUES (?, ?, ?, 0)";
+        String sql = "INSERT INTO playlists (user_id, name, description, name_pinyin, name_pinyin_initials, name_word_initials, music_count) VALUES (?, ?, ?, ?, ?, ?, 0)";
 
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -32,6 +32,9 @@ public class PlaylistService {
             stmt.setInt(1, userId);
             stmt.setString(2, name);
             stmt.setString(3, description);
+            stmt.setString(4, com.neko.music.util.PinyinUtil.getPinyin(name));
+            stmt.setString(5, com.neko.music.util.PinyinUtil.getPinyinInitials(name));
+            stmt.setString(6, com.neko.music.util.PinyinUtil.getWordInitials(name));
 
             int affectedRows = stmt.executeUpdate();
 
@@ -166,14 +169,17 @@ public class PlaylistService {
     public boolean updatePlaylist(int playlistId, String name, String description) {
         logger.info("更新歌单: id={}, name={}", playlistId, name);
 
-        String sql = "UPDATE playlists SET name = ?, description = ? WHERE id = ?";
+        String sql = "UPDATE playlists SET name = ?, description = ?, name_pinyin = ?, name_pinyin_initials = ?, name_word_initials = ? WHERE id = ?";
 
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, name);
             stmt.setString(2, description);
-            stmt.setInt(3, playlistId);
+            stmt.setString(3, com.neko.music.util.PinyinUtil.getPinyin(name));
+            stmt.setString(4, com.neko.music.util.PinyinUtil.getPinyinInitials(name));
+            stmt.setString(5, com.neko.music.util.PinyinUtil.getWordInitials(name));
+            stmt.setInt(6, playlistId);
 
             int affectedRows = stmt.executeUpdate();
             boolean success = affectedRows > 0;
@@ -217,7 +223,6 @@ public class PlaylistService {
         }
 
         // 从最大的position开始倒序更新，避免重复键冲突
-        String getMaxPositionSql = "SELECT MAX(position) as max_position FROM playlist_music WHERE playlist_id = ?";
         String insertSql = "INSERT INTO playlist_music (playlist_id, music_id, position) VALUES (?, ?, 1)";
 
         try (Connection conn = databaseManager.getConnection()) {
@@ -225,25 +230,11 @@ public class PlaylistService {
             conn.setAutoCommit(false);
 
             try {
-                // 获取当前最大的 position
-                int maxPosition = 0;
-                try (PreparedStatement stmt = conn.prepareStatement(getMaxPositionSql)) {
+                // 所有现有位置+1，单条SQL完成
+                String shiftSql = "UPDATE playlist_music SET position = position + 1 WHERE playlist_id = ?";
+                try (PreparedStatement stmt = conn.prepareStatement(shiftSql)) {
                     stmt.setInt(1, playlistId);
-                    ResultSet rs = stmt.executeQuery();
-                    if (rs.next()) {
-                        maxPosition = rs.getInt("max_position");
-                    }
-                }
-
-                // 从最大的 position 开始倒序更新，每个 position + 1
-                // 这样可以避免重复键冲突
-                for (int i = maxPosition; i >= 1; i--) {
-                    String updateSql = "UPDATE playlist_music SET position = position + 1 WHERE playlist_id = ? AND position = ?";
-                    try (PreparedStatement stmt = conn.prepareStatement(updateSql)) {
-                        stmt.setInt(1, playlistId);
-                        stmt.setInt(2, i);
-                        stmt.executeUpdate();
-                    }
+                    stmt.executeUpdate();
                 }
 
                 // 插入新音乐到 position = 1
@@ -487,36 +478,42 @@ public class PlaylistService {
             boolean isPinyin = com.neko.music.util.PinyinUtil.isLikelyPinyin(query);
             
             if (isPinyin) {
-                // 如果是拼音，查询所有歌单（在应用层面进行拼音匹配）
-                String sql = "SELECT p.*, " +
-                    "(SELECT m.id FROM playlist_music pm JOIN music m ON pm.music_id = m.id " +
-                    " WHERE pm.playlist_id = p.id ORDER BY pm.position ASC LIMIT 1) as first_music_id, " +
-                    "(SELECT m.cover_path FROM playlist_music pm JOIN music m ON pm.music_id = m.id " +
-                    " WHERE pm.playlist_id = p.id ORDER BY pm.position ASC LIMIT 1) as first_music_cover " +
-                    "FROM playlists p " +
-                    "ORDER BY p.created_at DESC";
-                
+                // 拼音搜索：利用预计算拼音列在SQL层筛选，避免全表加载
+                StringBuilder sqlBuilder = new StringBuilder();
+                sqlBuilder.append("SELECT p.*, ");
+                sqlBuilder.append("(SELECT m.id FROM playlist_music pm JOIN music m ON pm.music_id = m.id ");
+                sqlBuilder.append(" WHERE pm.playlist_id = p.id ORDER BY pm.position ASC LIMIT 1) as first_music_id, ");
+                sqlBuilder.append("(SELECT m.cover_path FROM playlist_music pm JOIN music m ON pm.music_id = m.id ");
+                sqlBuilder.append(" WHERE pm.playlist_id = p.id ORDER BY pm.position ASC LIMIT 1) as first_music_cover ");
+                sqlBuilder.append("FROM playlists p ");
+                sqlBuilder.append("WHERE (p.name LIKE ? OR p.name_pinyin LIKE ? OR p.name_pinyin_initials LIKE ? OR p.name_word_initials LIKE ?) ");
+                sqlBuilder.append("ORDER BY p.created_at DESC LIMIT ?");
+
                 try (Connection conn = databaseManager.getConnection();
-                     PreparedStatement stmt = conn.prepareStatement(sql)) {
-                    
+                     PreparedStatement stmt = conn.prepareStatement(sqlBuilder.toString())) {
+
+                    String likeQuery = "%" + query.toLowerCase() + "%";
+                    stmt.setString(1, likeQuery);
+                    stmt.setString(2, likeQuery);
+                    stmt.setString(3, likeQuery);
+                    stmt.setString(4, likeQuery);
+                    stmt.setInt(5, limit);
+
                     ResultSet rs = stmt.executeQuery();
-                    List<com.google.gson.JsonObject> allPlaylists = new ArrayList<>();
-                    
+
                     while (rs.next()) {
                         com.google.gson.JsonObject playlist = new com.google.gson.JsonObject();
                         playlist.addProperty("id", rs.getInt("id"));
                         playlist.addProperty("userId", rs.getInt("user_id"));
                         playlist.addProperty("name", rs.getString("name"));
-                        
-                        // 处理可能为 null 的 description
+
                         String desc = rs.getString("description");
                         playlist.addProperty("description", desc != null ? desc : "");
-                        
+
                         playlist.addProperty("musicCount", rs.getInt("music_count"));
                         playlist.addProperty("createdAt", rs.getString("created_at"));
                         playlist.addProperty("updatedAt", rs.getString("updated_at"));
-                        
-                        // 第一首音乐的封面 URL
+
                         int firstMusicId = rs.getInt("first_music_id");
                         if (firstMusicId > 0) {
                             playlist.addProperty("firstMusicId", firstMusicId);
@@ -524,18 +521,8 @@ public class PlaylistService {
                         } else {
                             playlist.addProperty("firstMusicCover", "/api/user/avatar/default");
                         }
-                        
-                        allPlaylists.add(playlist);
-                    }
-                    
-                    // 在内存中进行混合匹配（拼音+中文）
-                    for (com.google.gson.JsonObject playlist : allPlaylists) {
-                        if (matchPlaylistMixedInput(playlist, query)) {
-                            results.add(playlist);
-                            if (results.size() >= limit) {
-                                break;
-                            }
-                        }
+
+                        results.add(playlist);
                     }
                 }
             } else {
@@ -606,136 +593,4 @@ public class PlaylistService {
         return results;
     }
     
-    /**
-     * 检查歌单是否匹配混合输入（拼音+中文）
-     */
-    private boolean matchPlaylistMixedInput(com.google.gson.JsonObject playlist, String query) {
-        // 检查歌单名称
-        if (playlist.has("name") && !playlist.get("name").isJsonNull()) {
-            String name = playlist.get("name").getAsString();
-            if (matchFieldMixedInput(name, query)) {
-                return true;
-            }
-        }
-        // 检查描述
-        if (playlist.has("description") && !playlist.get("description").isJsonNull()) {
-            String description = playlist.get("description").getAsString();
-            if (matchFieldMixedInput(description, query)) {
-                return true;
-            }
-        }
-        return false;
-    }
-    
-    /**
-     * 检查单个字段是否匹配混合输入
-     * 支持以下匹配方式：
-     * 1. 纯拼音：hddjp 匹配 豪大大鸡排
-     * 2. 完整拼音：haodadajipai 匹配 豪大大鸡排
-     * 3. 混合输入：hao大大鸡排 匹配 豪大大鸡排
-     * 4. 中文匹配：豪大大鸡排 匹配 豪大大鸡排
-     */
-    private boolean matchFieldMixedInput(String field, String query) {
-        if (field == null || field.isEmpty()) {
-            return false;
-        }
-        
-        String queryLower = query.toLowerCase();
-        
-        // 首先检查是否是混合输入（同时包含拼音和中文）
-        String pinyinPart = extractPinyinPart(query);
-        String chinesePart = extractChinesePart(query);
-        boolean isMixedInput = !pinyinPart.isEmpty() && !chinesePart.isEmpty();
-        
-        if (isMixedInput) {
-            // 处理混合输入（如 hao大大鸡排）
-            String fieldPinyin = com.neko.music.util.PinyinUtil.getPinyin(field);
-            String fieldInitials = com.neko.music.util.PinyinUtil.getPinyinInitials(field);
-            
-            String pinyinPartLower = pinyinPart.toLowerCase();
-            
-            // 检查拼音部分是否匹配（宽松匹配：可以是前缀、包含等）
-            boolean pinyinMatch = fieldPinyin.contains(pinyinPartLower) || 
-                                  fieldInitials.contains(pinyinPartLower) ||
-                                  fieldPinyin.startsWith(pinyinPartLower) ||
-                                  fieldInitials.startsWith(pinyinPartLower);
-            
-            // 检查中文部分是否匹配（宽松匹配：可以是子串）
-            boolean chineseMatch = field.contains(chinesePart);
-            
-            // 严格匹配：拼音和中文都要匹配
-            if (pinyinMatch && chineseMatch) {
-                return true;
-            }
-            
-            // 宽松匹配：只要拼音匹配或中文匹配即可
-            // 例如：hao大大鸡排 可能只想匹配拼音 hao 开头的，或者包含 大大鸡排 的
-            if (pinyinMatch || chineseMatch) {
-                return true;
-            }
-        }
-        
-        // 1. 直接匹配（中文或英文）
-        if (field.toLowerCase().contains(queryLower)) {
-            return true;
-        }
-        
-        // 2. 获取字段的拼音变体
-        java.util.Set<String> variants = com.neko.music.util.PinyinUtil.getPinyinVariants(field);
-        
-        // 3. 检查查询字符串是否匹配任何拼音变体
-        for (String variant : variants) {
-            if (variant.contains(queryLower)) {
-                return true;
-            }
-        }
-        
-        // 4. 检查拼音首字母匹配（如 hddjp）
-        String fieldInitials = com.neko.music.util.PinyinUtil.getPinyinInitials(field);
-        if (fieldInitials.contains(queryLower)) {
-            return true;
-        }
-        
-        // 5. 检查完整拼音匹配
-        String fieldPinyin = com.neko.music.util.PinyinUtil.getPinyin(field);
-        if (fieldPinyin.contains(queryLower)) {
-            return true;
-        }
-        
-        return false;
-    }
-    
-    /**
-     * 从混合字符串中提取拼音部分
-     */
-    private String extractPinyinPart(String str) {
-        StringBuilder pinyinPart = new StringBuilder();
-        for (char c : str.toCharArray()) {
-            if (Character.isLetter(c)) {
-                pinyinPart.append(c);
-            }
-        }
-        return pinyinPart.toString();
-    }
-    
-    /**
-     * 从混合字符串中提取中文部分
-     */
-    private String extractChinesePart(String str) {
-        StringBuilder chinesePart = new StringBuilder();
-        for (char c : str.toCharArray()) {
-            if (isChinese(c)) {
-                chinesePart.append(c);
-            }
-        }
-        return chinesePart.toString();
-    }
-    
-    /**
-     * 判断字符是否是中文字符
-     */
-    private boolean isChinese(char c) {
-        return (c >= 0x4E00 && c <= 0x9FA5) || 
-               (c >= 0x3400 && c <= 0x4DBF);
-    }
 }

@@ -181,6 +181,38 @@ public class DatabaseInitializer {
                 logger.warn("回填词首字母索引失败: {}", e.getMessage());
             }
             
+            // 回填歌单拼音列
+            try {
+                String selectNull = "SELECT id, name FROM playlists WHERE name_pinyin IS NULL";
+                String updatePinyin = "UPDATE playlists SET name_pinyin=?, name_pinyin_initials=?, name_word_initials=? WHERE id=?";
+                try (var selectStmt = conn.prepareStatement(selectNull);
+                     var rs = selectStmt.executeQuery();
+                     var updateStmt = conn.prepareStatement(updatePinyin)) {
+                    int count = 0;
+                    while (rs.next()) {
+                        int id = rs.getInt("id");
+                        String name = rs.getString("name");
+                        updateStmt.setString(1, com.neko.music.util.PinyinUtil.getPinyin(name));
+                        updateStmt.setString(2, com.neko.music.util.PinyinUtil.getPinyinInitials(name));
+                        updateStmt.setString(3, com.neko.music.util.PinyinUtil.getWordInitials(name));
+                        updateStmt.setInt(4, id);
+                        updateStmt.addBatch();
+                        count++;
+                        if (count % 100 == 0) {
+                            updateStmt.executeBatch();
+                        }
+                    }
+                    if (count % 100 != 0) {
+                        updateStmt.executeBatch();
+                    }
+                    if (count > 0) {
+                        logger.info("已回填 {} 条歌单记录的拼音索引", count);
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("回填歌单拼音索引失败: {}", e.getMessage());
+            }
+
             logger.info("数据库表初始化完成");
             
         } catch (Exception e) {
