@@ -315,63 +315,62 @@ public class PlaylistService {
     public boolean removeMusicFromPlaylist(int playlistId, int musicId) {
         logger.info("从歌单中移除音乐: playlistId={}, musicId={}", playlistId, musicId);
 
-        // 先获取要删除的音乐的position
-        int removedPosition = -1;
-        String getPositionSql = "SELECT position FROM playlist_music WHERE playlist_id = ? AND music_id = ?";
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(getPositionSql)) {
+        try (Connection conn = databaseManager.getConnection()) {
+            conn.setAutoCommit(false);
 
-            stmt.setInt(1, playlistId);
-            stmt.setInt(2, musicId);
-            ResultSet rs = stmt.executeQuery();
+            try {
+                // 1. 获取要删除的音乐的position
+                int removedPosition = -1;
+                String getPositionSql = "SELECT position FROM playlist_music WHERE playlist_id = ? AND music_id = ?";
+                try (PreparedStatement stmt = conn.prepareStatement(getPositionSql)) {
+                    stmt.setInt(1, playlistId);
+                    stmt.setInt(2, musicId);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        if (rs.next()) {
+                            removedPosition = rs.getInt("position");
+                        } else {
+                            logger.warn("音乐不存在于歌单中: playlistId={}, musicId={}", playlistId, musicId);
+                            conn.rollback();
+                            return false;
+                        }
+                    }
+                }
 
-            if (rs.next()) {
-                removedPosition = rs.getInt("position");
-            } else {
-                logger.warn("音乐不存在于歌单中: playlistId={}, musicId={}", playlistId, musicId);
+                // 2. 删除音乐
+                String deleteSql = "DELETE FROM playlist_music WHERE playlist_id = ? AND music_id = ?";
+                try (PreparedStatement stmt = conn.prepareStatement(deleteSql)) {
+                    stmt.setInt(1, playlistId);
+                    stmt.setInt(2, musicId);
+                    int affectedRows = stmt.executeUpdate();
+                    if (affectedRows == 0) {
+                        logger.warn("音乐从歌单中移除失败: playlistId={}, musicId={}", playlistId, musicId);
+                        conn.rollback();
+                        return false;
+                    }
+                }
+
+                // 3. 重新排序position
+                String updateSql = "UPDATE playlist_music SET position = position - 1 WHERE playlist_id = ? AND position > ?";
+                try (PreparedStatement stmt = conn.prepareStatement(updateSql)) {
+                    stmt.setInt(1, playlistId);
+                    stmt.setInt(2, removedPosition);
+                    stmt.executeUpdate();
+                }
+
+                conn.commit();
+                logger.info("音乐从歌单中移除成功: playlistId={}, musicId={}", playlistId, musicId);
+
+                // 更新歌单的音乐数量（不在事务内，非关键操作）
+                updateMusicCount(playlistId);
+                return true;
+
+            } catch (SQLException e) {
+                conn.rollback();
+                logger.error("从歌单中移除音乐失败: {}", e.getMessage(), e);
                 return false;
             }
         } catch (SQLException e) {
-            logger.error("获取音乐position失败: {}", e.getMessage(), e);
-            return false;
-        }
-
-        // 删除音乐
-        String deleteSql = "DELETE FROM playlist_music WHERE playlist_id = ? AND music_id = ?";
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(deleteSql)) {
-
-            stmt.setInt(1, playlistId);
-            stmt.setInt(2, musicId);
-
-            int affectedRows = stmt.executeUpdate();
-            boolean success = affectedRows > 0;
-
-            if (success) {
-                logger.info("音乐从歌单中移除成功: playlistId={}, musicId={}", playlistId, musicId);
-
-                // 重新排序position：将所有position > removedPosition的记录减1
-                String updateSql = "UPDATE playlist_music SET position = position - 1 WHERE playlist_id = ? AND position > ?";
-                try (Connection updateConn = databaseManager.getConnection();
-                     PreparedStatement updateStmt = updateConn.prepareStatement(updateSql)) {
-
-                    updateStmt.setInt(1, playlistId);
-                    updateStmt.setInt(2, removedPosition);
-                    updateStmt.executeUpdate();
-                    logger.info("已重新排序歌单中剩余音乐的position: playlistId={}", playlistId);
-                } catch (SQLException e) {
-                    logger.error("重新排序position失败: {}", e.getMessage(), e);
-                }
-
-                // 更新歌单的音乐数量
-                updateMusicCount(playlistId);
-            } else {
-                logger.warn("音乐从歌单中移除失败: playlistId={}, musicId={}", playlistId, musicId);
-            }
-
-            return success;
-        } catch (SQLException e) {
-            logger.error("从歌单中移除音乐失败: {}", e.getMessage(), e);
+            logger.error("获取数据库连接失败: {}", e.getMessage(), e);
         }
 
         return false;
