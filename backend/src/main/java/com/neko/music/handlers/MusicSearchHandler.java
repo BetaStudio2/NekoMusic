@@ -256,6 +256,7 @@ public class MusicSearchHandler extends HttpServlet {
 
     /**
      * 使用预计算拼音列匹配，避免运行时拼音转换
+     * 评分优先级：精确匹配 > 前缀匹配 > 子串匹配
      */
     private int matchPinyinScore(Music music, String queryLower) {
         int score = 0;
@@ -264,12 +265,22 @@ public class MusicSearchHandler extends HttpServlet {
         String titlePinyin = music.getTitlePinyin();
         String titleInitials = music.getTitlePinyinInitials();
         String titleWordInitials = music.getTitleWordInitials();
-        if (titlePinyin != null && titlePinyin.contains(queryLower)) {
-            score += 90;
-        } else if (titleInitials != null && titleInitials.contains(queryLower)) {
+
+        // 词首字母精确匹配最高优先级（如 "jhp" 匹配 "jhp"）
+        if (titleWordInitials != null) {
+            if (titleWordInitials.equals(queryLower)) {
+                score += 95;
+            } else if (titleWordInitials.startsWith(queryLower)) {
+                score += 90;
+            } else if (titleWordInitials.contains(queryLower)) {
+                score += 80;
+            }
+        }
+        if (score == 0 && titlePinyin != null && titlePinyin.contains(queryLower)) {
             score += 85;
-        } else if (titleWordInitials != null && titleWordInitials.contains(queryLower)) {
-            score += 88;
+        }
+        if (score == 0 && titleInitials != null && titleInitials.contains(queryLower)) {
+            score += 75;
         }
 
         // 歌手拼音匹配
@@ -277,12 +288,21 @@ public class MusicSearchHandler extends HttpServlet {
             String artistPinyin = music.getArtistPinyin();
             String artistInitials = music.getArtistPinyinInitials();
             String artistWordInitials = music.getArtistWordInitials();
-            if (artistPinyin != null && artistPinyin.contains(queryLower)) {
-                score += 90;
-            } else if (artistInitials != null && artistInitials.contains(queryLower)) {
+
+            if (artistWordInitials != null) {
+                if (artistWordInitials.equals(queryLower)) {
+                    score += 95;
+                } else if (artistWordInitials.startsWith(queryLower)) {
+                    score += 90;
+                } else if (artistWordInitials.contains(queryLower)) {
+                    score += 80;
+                }
+            }
+            if (score == 0 && artistPinyin != null && artistPinyin.contains(queryLower)) {
                 score += 85;
-            } else if (artistWordInitials != null && artistWordInitials.contains(queryLower)) {
-                score += 88;
+            }
+            if (score == 0 && artistInitials != null && artistInitials.contains(queryLower)) {
+                score += 75;
             }
         }
 
