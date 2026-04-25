@@ -64,17 +64,17 @@ public class MusicSearchHandler extends HttpServlet {
 
             if (containsPinyin) {
                 // 拼音搜索：利用预计算的拼音列在SQL层筛选
-                // 匹配：标题/歌手/专辑的原文LIKE + 拼音列LIKE + 拼音首字母列LIKE
+                // 匹配：标题/歌手/专辑的原文LIKE + 拼音列LIKE + 拼音首字母列LIKE + 词首字母列LIKE
                 sql = "SELECT id, title, artist, album, duration, file_path, cover_path, upload_user_id, created_at, " +
-                      "title_pinyin, title_pinyin_initials, artist_pinyin, artist_pinyin_initials, album_pinyin " +
+                      "title_pinyin, title_pinyin_initials, title_word_initials, artist_pinyin, artist_pinyin_initials, artist_word_initials, album_pinyin " +
                       "FROM music " +
                       "WHERE (title LIKE ? OR artist LIKE ? OR album LIKE ? " +
-                      "OR title_pinyin LIKE ? OR title_pinyin_initials LIKE ? " +
-                      "OR artist_pinyin LIKE ? OR artist_pinyin_initials LIKE ? " +
+                      "OR title_pinyin LIKE ? OR title_pinyin_initials LIKE ? OR title_word_initials LIKE ? " +
+                      "OR artist_pinyin LIKE ? OR artist_pinyin_initials LIKE ? OR artist_word_initials LIKE ? " +
                       "OR album_pinyin LIKE ?) " +
                       "ORDER BY created_at DESC LIMIT ?";
                 String likeQuery = "%" + queryLower + "%";
-                for (int i = 0; i < 8; i++) {
+                for (int i = 0; i < 10; i++) {
                     params.add(likeQuery);
                 }
                 params.add(String.valueOf(limit * 3)); // 多取一些用于后续排序
@@ -83,7 +83,7 @@ public class MusicSearchHandler extends HttpServlet {
                 List<String> variants = com.neko.music.util.ChineseConverter.getFullSearchVariants(query);
                 StringBuilder sqlBuilder = new StringBuilder();
                 sqlBuilder.append("SELECT id, title, artist, album, duration, file_path, cover_path, upload_user_id, created_at, ");
-                sqlBuilder.append("title_pinyin, title_pinyin_initials, artist_pinyin, artist_pinyin_initials, album_pinyin ");
+                sqlBuilder.append("title_pinyin, title_pinyin_initials, title_word_initials, artist_pinyin, artist_pinyin_initials, artist_word_initials, album_pinyin ");
                 sqlBuilder.append("FROM music WHERE (");
 
                 List<String> conditions = new ArrayList<>();
@@ -92,7 +92,7 @@ public class MusicSearchHandler extends HttpServlet {
                     conditions.add("(title LIKE ? OR artist LIKE ? OR album LIKE ?)");
                 }
                 // 拼音列匹配（应对用户输入拼音搜中文的场景）
-                conditions.add("(title_pinyin LIKE ? OR title_pinyin_initials LIKE ? OR artist_pinyin LIKE ? OR artist_pinyin_initials LIKE ? OR album_pinyin LIKE ?)");
+                conditions.add("(title_pinyin LIKE ? OR title_pinyin_initials LIKE ? OR title_word_initials LIKE ? OR artist_pinyin LIKE ? OR artist_pinyin_initials LIKE ? OR artist_word_initials LIKE ? OR album_pinyin LIKE ?)");
 
                 sqlBuilder.append(String.join(" OR ", conditions));
                 sqlBuilder.append(") ORDER BY created_at DESC LIMIT ?");
@@ -106,7 +106,7 @@ public class MusicSearchHandler extends HttpServlet {
                     params.add(likeVariant);
                 }
                 String likeQuery = "%" + queryLower + "%";
-                for (int i = 0; i < 5; i++) {
+                for (int i = 0; i < 7; i++) {
                     params.add(likeQuery);
                 }
                 params.add(String.valueOf(limit * 3));
@@ -140,8 +140,10 @@ public class MusicSearchHandler extends HttpServlet {
                         // 读取预计算的拼音列
                         music.setTitlePinyin(rs.getString("title_pinyin"));
                         music.setTitlePinyinInitials(rs.getString("title_pinyin_initials"));
+                        music.setTitleWordInitials(rs.getString("title_word_initials"));
                         music.setArtistPinyin(rs.getString("artist_pinyin"));
                         music.setArtistPinyinInitials(rs.getString("artist_pinyin_initials"));
+                        music.setArtistWordInitials(rs.getString("artist_word_initials"));
                         music.setAlbumPinyin(rs.getString("album_pinyin"));
 
                         int score = calculateMatchScore(music, query);
@@ -260,20 +262,26 @@ public class MusicSearchHandler extends HttpServlet {
         // 标题拼音匹配
         String titlePinyin = music.getTitlePinyin();
         String titleInitials = music.getTitlePinyinInitials();
+        String titleWordInitials = music.getTitleWordInitials();
         if (titlePinyin != null && titlePinyin.contains(queryLower)) {
             score += 90;
         } else if (titleInitials != null && titleInitials.contains(queryLower)) {
             score += 85;
+        } else if (titleWordInitials != null && titleWordInitials.contains(queryLower)) {
+            score += 88;
         }
 
         // 歌手拼音匹配
         if (score == 0) {
             String artistPinyin = music.getArtistPinyin();
             String artistInitials = music.getArtistPinyinInitials();
+            String artistWordInitials = music.getArtistWordInitials();
             if (artistPinyin != null && artistPinyin.contains(queryLower)) {
                 score += 90;
             } else if (artistInitials != null && artistInitials.contains(queryLower)) {
                 score += 85;
+            } else if (artistWordInitials != null && artistWordInitials.contains(queryLower)) {
+                score += 88;
             }
         }
 
@@ -319,8 +327,10 @@ public class MusicSearchHandler extends HttpServlet {
         // 预计算拼音列
         private String titlePinyin;
         private String titlePinyinInitials;
+        private String titleWordInitials;
         private String artistPinyin;
         private String artistPinyinInitials;
+        private String artistWordInitials;
         private String albumPinyin;
 
         public int getId() { return id; }
@@ -345,10 +355,14 @@ public class MusicSearchHandler extends HttpServlet {
         public void setTitlePinyin(String titlePinyin) { this.titlePinyin = titlePinyin; }
         public String getTitlePinyinInitials() { return titlePinyinInitials; }
         public void setTitlePinyinInitials(String titlePinyinInitials) { this.titlePinyinInitials = titlePinyinInitials; }
+        public String getTitleWordInitials() { return titleWordInitials; }
+        public void setTitleWordInitials(String titleWordInitials) { this.titleWordInitials = titleWordInitials; }
         public String getArtistPinyin() { return artistPinyin; }
         public void setArtistPinyin(String artistPinyin) { this.artistPinyin = artistPinyin; }
         public String getArtistPinyinInitials() { return artistPinyinInitials; }
         public void setArtistPinyinInitials(String artistPinyinInitials) { this.artistPinyinInitials = artistPinyinInitials; }
+        public String getArtistWordInitials() { return artistWordInitials; }
+        public void setArtistWordInitials(String artistWordInitials) { this.artistWordInitials = artistWordInitials; }
         public String getAlbumPinyin() { return albumPinyin; }
         public void setAlbumPinyin(String albumPinyin) { this.albumPinyin = albumPinyin; }
     }

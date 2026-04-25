@@ -129,6 +129,46 @@ public class PinyinUtil {
     }
     
     /**
+     * 获取字符串的词首字母（用于英文单词首字母搜索）
+     * 英文单词取首字母，中文逐字取拼音首字母
+     * 例如："just h party" → "jhp", "你好世界" → "nhsj", "Love 你" → "ln", "AI你好" → "anh"
+     * @param str 输入字符串
+     * @return 词首字母字符串
+     */
+    public static String getWordInitials(String str) {
+        if (str == null || str.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder initials = new StringBuilder();
+        String[] words = str.split("\\s+");
+
+        for (String word : words) {
+            if (word.isEmpty()) continue;
+
+            boolean prevWasEnglish = false;
+            for (char c : word.toCharArray()) {
+                String[] pinyinArray = getPinyinArray(c);
+                if (pinyinArray != null && pinyinArray.length > 0) {
+                    // 中文字符 → 取拼音首字母
+                    initials.append(pinyinArray[0].charAt(0));
+                    prevWasEnglish = false;
+                } else if (Character.isLetter(c)) {
+                    // 英文字母 → 仅在连续英文的首字母时取
+                    if (!prevWasEnglish) {
+                        initials.append(Character.toLowerCase(c));
+                    }
+                    prevWasEnglish = true;
+                } else {
+                    prevWasEnglish = false;
+                }
+            }
+        }
+
+        return initials.toString();
+    }
+
+    /**
      * 判断查询字符串是否可能是拼音
      * @param query 查询字符串
      * @return 如果可能包含拼音返回true

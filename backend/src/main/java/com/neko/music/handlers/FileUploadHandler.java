@@ -656,7 +656,7 @@ public class FileUploadHandler extends HttpServlet {
                 }
             }
 
-            String sql = "INSERT INTO music (title, artist, album, language, tags, duration, file_path, cover_path, file_format, upload_user_id, title_pinyin, title_pinyin_initials, artist_pinyin, artist_pinyin_initials, album_pinyin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            String sql = "INSERT INTO music (title, artist, album, language, tags, duration, file_path, cover_path, file_format, upload_user_id, title_pinyin, title_pinyin_initials, title_word_initials, artist_pinyin, artist_pinyin_initials, artist_word_initials, album_pinyin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             try (PreparedStatement stmt = conn.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
                 stmt.setString(1, title);
                 stmt.setString(2, artist);
@@ -671,9 +671,11 @@ public class FileUploadHandler extends HttpServlet {
                 // 预计算拼音列
                 stmt.setString(11, com.neko.music.util.PinyinUtil.getPinyin(title));
                 stmt.setString(12, com.neko.music.util.PinyinUtil.getPinyinInitials(title));
-                stmt.setString(13, com.neko.music.util.PinyinUtil.getPinyin(artist));
-                stmt.setString(14, com.neko.music.util.PinyinUtil.getPinyinInitials(artist));
-                stmt.setString(15, album != null ? com.neko.music.util.PinyinUtil.getPinyin(album) : "");
+                stmt.setString(13, com.neko.music.util.PinyinUtil.getWordInitials(title));
+                stmt.setString(14, com.neko.music.util.PinyinUtil.getPinyin(artist));
+                stmt.setString(15, com.neko.music.util.PinyinUtil.getPinyinInitials(artist));
+                stmt.setString(16, com.neko.music.util.PinyinUtil.getWordInitials(artist));
+                stmt.setString(17, album != null ? com.neko.music.util.PinyinUtil.getPinyin(album) : "");
 
                 int affectedRows = stmt.executeUpdate();
 
@@ -760,7 +762,7 @@ public class FileUploadHandler extends HttpServlet {
                 }
             }
 
-            String sql = "UPDATE music SET title = ?, artist = ?, album = ?, language = ?, tags = ?, duration = ?, file_path = ?, cover_path = ?, upload_user_id = ?, updated_at = NOW() WHERE id = ?";
+            String sql = "UPDATE music SET title = ?, artist = ?, album = ?, language = ?, tags = ?, duration = ?, file_path = ?, cover_path = ?, upload_user_id = ?, title_pinyin = ?, title_pinyin_initials = ?, title_word_initials = ?, artist_pinyin = ?, artist_pinyin_initials = ?, artist_word_initials = ?, album_pinyin = ?, updated_at = NOW() WHERE id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setString(1, title);
                 stmt.setString(2, artist);
@@ -771,7 +773,15 @@ public class FileUploadHandler extends HttpServlet {
                 stmt.setString(7, musicFilePath);
                 stmt.setString(8, coverFilePath);
                 stmt.setObject(9, validUploadUserId); // 使用验证后的用户ID或null
-                stmt.setInt(10, id);
+                // 预计算拼音列
+                stmt.setString(10, com.neko.music.util.PinyinUtil.getPinyin(title));
+                stmt.setString(11, com.neko.music.util.PinyinUtil.getPinyinInitials(title));
+                stmt.setString(12, com.neko.music.util.PinyinUtil.getWordInitials(title));
+                stmt.setString(13, com.neko.music.util.PinyinUtil.getPinyin(artist));
+                stmt.setString(14, com.neko.music.util.PinyinUtil.getPinyinInitials(artist));
+                stmt.setString(15, com.neko.music.util.PinyinUtil.getWordInitials(artist));
+                stmt.setString(16, album != null ? com.neko.music.util.PinyinUtil.getPinyin(album) : "");
+                stmt.setInt(17, id);
 
                 int rowsUpdated = stmt.executeUpdate();
                 if (rowsUpdated == 0) {

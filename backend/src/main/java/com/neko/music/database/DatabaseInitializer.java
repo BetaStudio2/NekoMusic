@@ -114,7 +114,7 @@ public class DatabaseInitializer {
             // 回填拼音索引列：为 title_pinyin 等字段为 NULL 的记录计算拼音
             try {
                 String selectNull = "SELECT id, title, artist, album FROM music WHERE title_pinyin IS NULL";
-                String updatePinyin = "UPDATE music SET title_pinyin=?, title_pinyin_initials=?, artist_pinyin=?, artist_pinyin_initials=?, album_pinyin=? WHERE id=?";
+                String updatePinyin = "UPDATE music SET title_pinyin=?, title_pinyin_initials=?, artist_pinyin=?, artist_pinyin_initials=?, album_pinyin=?, title_word_initials=?, artist_word_initials=? WHERE id=?";
                 try (var selectStmt = conn.prepareStatement(selectNull);
                      var rs = selectStmt.executeQuery();
                      var updateStmt = conn.prepareStatement(updatePinyin)) {
@@ -129,7 +129,9 @@ public class DatabaseInitializer {
                         updateStmt.setString(3, com.neko.music.util.PinyinUtil.getPinyin(artist));
                         updateStmt.setString(4, com.neko.music.util.PinyinUtil.getPinyinInitials(artist));
                         updateStmt.setString(5, album != null ? com.neko.music.util.PinyinUtil.getPinyin(album) : "");
-                        updateStmt.setInt(6, id);
+                        updateStmt.setString(6, com.neko.music.util.PinyinUtil.getWordInitials(title));
+                        updateStmt.setString(7, com.neko.music.util.PinyinUtil.getWordInitials(artist));
+                        updateStmt.setInt(8, id);
                         updateStmt.addBatch();
                         count++;
                         if (count % 100 == 0) {
@@ -145,6 +147,38 @@ public class DatabaseInitializer {
                 }
             } catch (Exception e) {
                 logger.warn("回填拼音索引失败: {}", e.getMessage());
+            }
+
+            // 回填词首字母列：为 title_word_initials 为 NULL 的记录计算词首字母
+            try {
+                String selectNull = "SELECT id, title, artist FROM music WHERE title_word_initials IS NULL";
+                String updateWordInitials = "UPDATE music SET title_word_initials=?, artist_word_initials=? WHERE id=?";
+                try (var selectStmt = conn.prepareStatement(selectNull);
+                     var rs = selectStmt.executeQuery();
+                     var updateStmt = conn.prepareStatement(updateWordInitials)) {
+                    int count = 0;
+                    while (rs.next()) {
+                        int id = rs.getInt("id");
+                        String title = rs.getString("title");
+                        String artist = rs.getString("artist");
+                        updateStmt.setString(1, com.neko.music.util.PinyinUtil.getWordInitials(title));
+                        updateStmt.setString(2, com.neko.music.util.PinyinUtil.getWordInitials(artist));
+                        updateStmt.setInt(3, id);
+                        updateStmt.addBatch();
+                        count++;
+                        if (count % 100 == 0) {
+                            updateStmt.executeBatch();
+                        }
+                    }
+                    if (count % 100 != 0) {
+                        updateStmt.executeBatch();
+                    }
+                    if (count > 0) {
+                        logger.info("已回填 {} 条音乐记录的词首字母索引", count);
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("回填词首字母索引失败: {}", e.getMessage());
             }
             
             logger.info("数据库表初始化完成");
