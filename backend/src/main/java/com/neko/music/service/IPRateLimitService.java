@@ -6,7 +6,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * IP频率限制服务
- * 用于管理和检查 IP 段请求频率，防止暴力攻击
+ * 使用Redis Lua脚本实现原子计数+检查+封锁，一次往返完成
  * 按 /16 网段进行限制
  */
 public class IPRateLimitService {
@@ -15,30 +15,39 @@ public class IPRateLimitService {
     private final ConfigManager configManager;
     private final RedisService redisService;
 
-    // Redis key 前缀
     private static final String IP_REQUEST_COUNT_PREFIX = "ip_req_count:";
     private static final String IP_BLOCKED_PREFIX = "ip_blocked:";
+
+    // Lua脚本：原子地检查封锁状态、递增计数、检查限制、必要时封锁
+    // KEYS[1]=请求计数key, KEYS[2]=封锁key
+    // ARGV[1]=时间窗口秒数, ARGV[2]=最大请求数, ARGV[3]=封锁时长秒数
+    // 返回: 0=允许, 1=已被封锁, 2=超过限制已封锁
+    private static final String RATE_LIMIT_SCRIPT =
+        "local blocked = redis.call('GET', KEYS[2]) " +
+        "if blocked then return 1 end " +
+        "local count = redis.call('INCR', KEYS[1]) " +
+        "if count == 1 then redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1])) end " +
+        "if tonumber(count) > tonumber(ARGV[2]) then " +
+        "  redis.call('SETEX', KEYS[2], tonumber(ARGV[3]), '1') " +
+        "  redis.call('DEL', KEYS[1]) " +
+        "  return 2 " +
+        "end " +
+        "return 0";
 
     public IPRateLimitService(ConfigManager configManager, RedisService redisService) {
         this.configManager = configManager;
         this.redisService = redisService;
     }
 
-    /**
-     * 将 IP 转换为 /16 网段
-     * 例如：192.168.1.100 -> 192.168.0.0
-     */
     private String convertToIPSegment(String ip) {
         try {
             String[] parts = ip.split("\\.");
             if (parts.length == 4) {
-                // 取前两个八位组，后两个设为 0
                 return parts[0] + "." + parts[1] + ".0.0";
             }
         } catch (Exception e) {
             logger.warn("转换 IP 段失败: {}", ip, e);
         }
-        // 如果转换失败，返回原始 IP
         return ip;
     }
 
@@ -49,16 +58,13 @@ public class IPRateLimitService {
         if (!configManager.isRateLimitEnabled()) {
             return false;
         }
-
         String ipSegment = convertToIPSegment(ip);
-        String key = IP_BLOCKED_PREFIX + ipSegment;
-        String blocked = redisService.get(key);
-        return blocked != null && !blocked.isEmpty();
+        return redisService.exists(IP_BLOCKED_PREFIX + ipSegment);
     }
 
     /**
-     * 记录 IP 请求并检查是否超过频率限制
-     * @return true 表示允许请求，false 表示超过限制（IP 段将被封锁）
+     * 记录 IP 请求并检查是否超过频率限制（原子操作）
+     * @return true 表示允许请求，false 表示超过限制或被封锁
      */
     public boolean recordRequest(String ip) {
         if (!configManager.isRateLimitEnabled()) {
@@ -66,42 +72,37 @@ public class IPRateLimitService {
         }
 
         String ipSegment = convertToIPSegment(ip);
-
-        // 检查是否已经被封锁
-        if (isIPBlocked(ip)) {
-            logger.debug("IP 段已被封锁: {} (原始 IP: {})", ipSegment, ip);
-            return false;
-        }
-
-        // 记录请求
         String countKey = IP_REQUEST_COUNT_PREFIX + ipSegment;
-        String countStr = redisService.get(countKey);
+        String blockedKey = IP_BLOCKED_PREFIX + ipSegment;
 
-        int count = 0;
-        if (countStr != null && !countStr.isEmpty()) {
-            try {
-                count = Integer.parseInt(countStr);
-            } catch (NumberFormatException e) {
-                logger.warn("解析 IP 段请求计数失败: {}", countStr);
-                count = 0;
+        try {
+            Object result = redisService.eval(
+                RATE_LIMIT_SCRIPT,
+                new String[]{countKey, blockedKey},
+                new String[]{
+                    String.valueOf(configManager.getRateLimitTimeWindow()),
+                    String.valueOf(configManager.getRateLimitMaxRequests()),
+                    String.valueOf(configManager.getRateLimitBlockDuration())
+                }
+            );
+
+            if (result instanceof Number) {
+                long code = ((Number) result).longValue();
+                if (code == 0) {
+                    return true; // 允许
+                } else if (code == 1) {
+                    logger.debug("IP 段已被封锁: {}", ipSegment);
+                    return false;
+                } else {
+                    logger.warn("IP 段超过频率限制，已被封锁: {} (原始 IP: {})", ipSegment, ip);
+                    return false;
+                }
             }
+            return true; // Lua执行异常时放行
+        } catch (Exception e) {
+            logger.error("Rate limit检查失败，放行请求: {}", e.getMessage());
+            return true;
         }
-
-        count++;
-
-        // 检查是否超过限制
-        int maxRequests = configManager.getRateLimitMaxRequests();
-        if (count > maxRequests) {
-            // 封锁 IP 段
-            blockIP(ip);
-            logger.warn("IP 段超过频率限制，已被封锁: {} (原始 IP: {}, 请求次数: {})", ipSegment, ip, count);
-            return false;
-        }
-
-        // 更新计数，设置过期时间为时间窗口
-        redisService.setWithExpiry(countKey, String.valueOf(count), configManager.getRateLimitTimeWindow());
-
-        return true;
     }
 
     /**
@@ -111,19 +112,16 @@ public class IPRateLimitService {
         String ipSegment = convertToIPSegment(ip);
         String key = IP_BLOCKED_PREFIX + ipSegment;
         redisService.setWithExpiry(key, "1", configManager.getRateLimitBlockDuration());
-
-        // 清除请求计数
         String countKey = IP_REQUEST_COUNT_PREFIX + ipSegment;
         redisService.del(countKey);
     }
 
     /**
-     * 解除 IP 封锁（管理员功能）
+     * 解除 IP 封锁
      */
     public void unblockIP(String ip) {
         String ipSegment = convertToIPSegment(ip);
-        String key = IP_BLOCKED_PREFIX + ipSegment;
-        redisService.del(key);
+        redisService.del(IP_BLOCKED_PREFIX + ipSegment);
         logger.info("IP 段封锁已解除: {} (原始 IP: {})", ipSegment, ip);
     }
 
@@ -132,8 +130,7 @@ public class IPRateLimitService {
      */
     public int getRequestCount(String ip) {
         String ipSegment = convertToIPSegment(ip);
-        String countKey = IP_REQUEST_COUNT_PREFIX + ipSegment;
-        String countStr = redisService.get(countKey);
+        String countStr = redisService.get(IP_REQUEST_COUNT_PREFIX + ipSegment);
         if (countStr != null && !countStr.isEmpty()) {
             try {
                 return Integer.parseInt(countStr);
@@ -149,14 +146,7 @@ public class IPRateLimitService {
      */
     public long getBlockTimeRemaining(String ip) {
         String ipSegment = convertToIPSegment(ip);
-        String key = IP_BLOCKED_PREFIX + ipSegment;
-        String blocked = redisService.get(key);
-        if (blocked != null && !blocked.isEmpty()) {
-            // Redis 的 TTL 命令返回剩余生存时间（秒）
-            // 这里简化处理，实际可能需要调用 Redis 的 TTL 命令
-            // 由于 RedisService 可能没有 TTL 方法，我们返回一个估算值
-            return configManager.getRateLimitBlockDuration();
-        }
-        return 0;
+        long ttl = redisService.ttl(IP_BLOCKED_PREFIX + ipSegment);
+        return ttl > 0 ? ttl : 0;
     }
 }
