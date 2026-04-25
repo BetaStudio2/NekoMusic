@@ -26,12 +26,11 @@
             <version>12.1.8</version>
         </dependency>
 
-        <!-- Jakarta Servlet API -->
+        <!-- Jakarta Servlet API (compile scope for shaded JAR) -->
         <dependency>
             <groupId>jakarta.servlet</groupId>
             <artifactId>jakarta.servlet-api</artifactId>
             <version>6.0.0</version>
-            <scope>provided</scope>
         </dependency>
 
         <!-- Jackson 用于JSON处理 -->
@@ -227,18 +226,6 @@
                                         <exclude>README.md</exclude>
                                         <exclude>module-info.class</exclude>
                                         <exclude>META-INF/versions/*/module-info.class</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>org.eclipse.jetty:*</artifact>
-                                    <excludes>
-                                        <exclude>jakarta/servlet/**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>org.eclipse.jetty.ee10:*</artifact>
-                                    <excludes>
-                                        <exclude>jakarta/servlet/**</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
