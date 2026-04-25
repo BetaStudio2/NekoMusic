@@ -90,7 +90,7 @@
               </div>
               <div class="platform-info">
                 <span class="platform-name">Windows</span>
-                <span class="platform-desc">.exe 安装包</span>
+                <span class="platform-desc">.exe</span>
               </div>
               <svg class="download-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path d="M7 10L12 15L17 10" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -105,7 +105,7 @@
               </div>
               <div class="platform-info">
                 <span class="platform-name">Linux</span>
-                <span class="platform-desc">.deb 包</span>
+                <span class="platform-desc">.deb</span>
               </div>
               <svg class="download-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path d="M7 10L12 15L17 10" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -122,7 +122,7 @@
               </div>
               <div class="platform-info">
                 <span class="platform-name">macOS</span>
-                <span class="platform-desc">.dmg 镜像</span>
+                <span class="platform-desc">.dmg</span>
               </div>
               <svg class="download-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path d="M7 10L12 15L17 10" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -131,17 +131,17 @@
             </a>
           </div>
           
-          <div class="pc-features">
-            <div class="features-title">功能特性</div>
-            <div class="feature-item" v-for="(feature, index) in versionInfo.pc?.features || []" :key="index">
-              <div class="feature-icon-wrapper">
-                <svg class="check-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M20 6L9 17L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </div>
-              <span>{{ feature }}</span>
-            </div>
-          </div>
+<!--          <div class="pc-features">-->
+<!--            <div class="features-title">功能特性</div>-->
+<!--            <div class="feature-item" v-for="(feature, index) in versionInfo.pc?.features || []" :key="index">-->
+<!--              <div class="feature-icon-wrapper">-->
+<!--                <svg class="check-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">-->
+<!--                  <path d="M20 6L9 17L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>-->
+<!--                </svg>-->
+<!--              </div>-->
+<!--              <span>{{ feature }}</span>-->
+<!--            </div>-->
+<!--          </div>-->
         </div>
       </div>
     </div>
