@@ -93,8 +93,109 @@ public class DatabaseManager {
                 }
                 logger.info("已为 music 表添加 file_format 字段");
             } catch (SQLException e) {
-                // 字段可能已存在，忽略错误
                 logger.debug("file_format 字段可能已存在，跳过添加");
+            }
+
+            // 为已存在的 music 表添加拼音索引列（如果不存在）
+            try {
+                String alterPinyin = """
+                    ALTER TABLE music
+                    ADD COLUMN IF NOT EXISTS title_pinyin VARCHAR(500) DEFAULT NULL
+                    AFTER tags
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(alterPinyin)) {
+                    stmt.execute();
+                }
+                logger.info("已为 music 表添加 title_pinyin 字段");
+            } catch (SQLException e) {
+                logger.debug("title_pinyin 字段可能已存在，跳过添加");
+            }
+            try {
+                String alterPinyinInitials = """
+                    ALTER TABLE music
+                    ADD COLUMN IF NOT EXISTS title_pinyin_initials VARCHAR(200) DEFAULT NULL
+                    AFTER title_pinyin
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(alterPinyinInitials)) {
+                    stmt.execute();
+                }
+                logger.info("已为 music 表添加 title_pinyin_initials 字段");
+            } catch (SQLException e) {
+                logger.debug("title_pinyin_initials 字段可能已存在，跳过添加");
+            }
+            try {
+                String alterArtistPinyin = """
+                    ALTER TABLE music
+                    ADD COLUMN IF NOT EXISTS artist_pinyin VARCHAR(500) DEFAULT NULL
+                    AFTER title_pinyin_initials
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(alterArtistPinyin)) {
+                    stmt.execute();
+                }
+                logger.info("已为 music 表添加 artist_pinyin 字段");
+            } catch (SQLException e) {
+                logger.debug("artist_pinyin 字段可能已存在，跳过添加");
+            }
+            try {
+                String alterArtistPinyinInitials = """
+                    ALTER TABLE music
+                    ADD COLUMN IF NOT EXISTS artist_pinyin_initials VARCHAR(200) DEFAULT NULL
+                    AFTER artist_pinyin
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(alterArtistPinyinInitials)) {
+                    stmt.execute();
+                }
+                logger.info("已为 music 表添加 artist_pinyin_initials 字段");
+            } catch (SQLException e) {
+                logger.debug("artist_pinyin_initials 字段可能已存在，跳过添加");
+            }
+            try {
+                String alterAlbumPinyin = """
+                    ALTER TABLE music
+                    ADD COLUMN IF NOT EXISTS album_pinyin VARCHAR(500) DEFAULT NULL
+                    AFTER artist_pinyin_initials
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(alterAlbumPinyin)) {
+                    stmt.execute();
+                }
+                logger.info("已为 music 表添加 album_pinyin 字段");
+            } catch (SQLException e) {
+                logger.debug("album_pinyin 字段可能已存在，跳过添加");
+            }
+
+            // 为拼音列添加索引
+            try {
+                String createPinyinIndex = """
+                    ALTER TABLE music ADD INDEX idx_title_pinyin (title_pinyin(100))
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(createPinyinIndex)) {
+                    stmt.execute();
+                }
+                logger.info("已为 title_pinyin 添加索引");
+            } catch (SQLException e) {
+                logger.debug("title_pinyin 索引可能已存在，跳过");
+            }
+            try {
+                String createPinyinInitialsIndex = """
+                    ALTER TABLE music ADD INDEX idx_title_pinyin_initials (title_pinyin_initials(50))
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(createPinyinInitialsIndex)) {
+                    stmt.execute();
+                }
+                logger.info("已为 title_pinyin_initials 添加索引");
+            } catch (SQLException e) {
+                logger.debug("title_pinyin_initials 索引可能已存在，跳过");
+            }
+            try {
+                String createArtistPinyinIndex = """
+                    ALTER TABLE music ADD INDEX idx_artist_pinyin (artist_pinyin(100))
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(createArtistPinyinIndex)) {
+                    stmt.execute();
+                }
+                logger.info("已为 artist_pinyin 添加索引");
+            } catch (SQLException e) {
+                logger.debug("artist_pinyin 索引可能已存在，跳过");
             }
 
             // 为已存在的 music 表添加 play_count 字段（如果不存在）

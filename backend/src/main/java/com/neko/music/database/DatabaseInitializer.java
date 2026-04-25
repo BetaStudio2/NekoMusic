@@ -111,6 +111,42 @@ public class DatabaseInitializer {
                 logger.warn("创建 user_uploads 表失败（可能是表已存在）: {}", e.getMessage());
             }
             
+            // 回填拼音索引列：为 title_pinyin 等字段为 NULL 的记录计算拼音
+            try {
+                String selectNull = "SELECT id, title, artist, album FROM music WHERE title_pinyin IS NULL";
+                String updatePinyin = "UPDATE music SET title_pinyin=?, title_pinyin_initials=?, artist_pinyin=?, artist_pinyin_initials=?, album_pinyin=? WHERE id=?";
+                try (var selectStmt = conn.prepareStatement(selectNull);
+                     var rs = selectStmt.executeQuery();
+                     var updateStmt = conn.prepareStatement(updatePinyin)) {
+                    int count = 0;
+                    while (rs.next()) {
+                        int id = rs.getInt("id");
+                        String title = rs.getString("title");
+                        String artist = rs.getString("artist");
+                        String album = rs.getString("album");
+                        updateStmt.setString(1, com.neko.music.util.PinyinUtil.getPinyin(title));
+                        updateStmt.setString(2, com.neko.music.util.PinyinUtil.getPinyinInitials(title));
+                        updateStmt.setString(3, com.neko.music.util.PinyinUtil.getPinyin(artist));
+                        updateStmt.setString(4, com.neko.music.util.PinyinUtil.getPinyinInitials(artist));
+                        updateStmt.setString(5, album != null ? com.neko.music.util.PinyinUtil.getPinyin(album) : "");
+                        updateStmt.setInt(6, id);
+                        updateStmt.addBatch();
+                        count++;
+                        if (count % 100 == 0) {
+                            updateStmt.executeBatch();
+                        }
+                    }
+                    if (count % 100 != 0) {
+                        updateStmt.executeBatch();
+                    }
+                    if (count > 0) {
+                        logger.info("已回填 {} 条音乐记录的拼音索引", count);
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("回填拼音索引失败: {}", e.getMessage());
+            }
+            
             logger.info("数据库表初始化完成");
             
         } catch (Exception e) {
