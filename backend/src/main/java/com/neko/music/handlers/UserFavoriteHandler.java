@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
 import com.neko.music.service.UserAuthService;
@@ -20,7 +19,6 @@ import java.util.List;
 
 public class UserFavoriteHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserFavoriteHandler.class);
-    private final Gson gson = new Gson();
     
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -43,7 +41,7 @@ public class UserFavoriteHandler extends HttpServlet {
             List<JsonObject> favorites = getUserFavorites(userId);
             JsonObject response = new JsonObject();
             response.addProperty("success", true);
-            response.add("favorites", gson.toJsonTree(favorites));
+            response.add("favorites", Main.getGson().toJsonTree(favorites));
             
             sendSuccessResponse(resp, response);
         } catch (Exception e) {
@@ -78,7 +76,7 @@ public class UserFavoriteHandler extends HttpServlet {
             }
         }
         
-        JsonObject requestBody = gson.fromJson(sb.toString(), JsonObject.class);
+        JsonObject requestBody = Main.getGson().fromJson(sb.toString(), JsonObject.class);
         int musicId = requestBody.get("musicId").getAsInt();
         
         try {

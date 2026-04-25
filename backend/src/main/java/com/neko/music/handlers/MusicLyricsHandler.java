@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -19,7 +18,6 @@ import java.nio.file.Paths;
 
 public class MusicLyricsHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicLyricsHandler.class);
-    private ObjectMapper objectMapper = new ObjectMapper();
     private static final String LYRICS_DIR = "Music/lyrics";
 
     @Override
@@ -30,7 +28,7 @@ public class MusicLyricsHandler extends HttpServlet {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("音乐ID不能为空");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -44,7 +42,7 @@ public class MusicLyricsHandler extends HttpServlet {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("无效的音乐ID");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -55,7 +53,7 @@ public class MusicLyricsHandler extends HttpServlet {
             response.setStatus(HttpStatus.NOT_FOUND_404);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("歌词文件不存在");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -65,7 +63,7 @@ public class MusicLyricsHandler extends HttpServlet {
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
         LyricsResponse lyricsResponse = new LyricsResponse(true, "获取歌词成功", lyrics);
-        response.getWriter().println(objectMapper.writeValueAsString(lyricsResponse));
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(lyricsResponse));
     }
     
     @Override
@@ -75,7 +73,7 @@ public class MusicLyricsHandler extends HttpServlet {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("需要管理员权限");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -85,7 +83,7 @@ public class MusicLyricsHandler extends HttpServlet {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("音乐ID不能为空");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -99,7 +97,7 @@ public class MusicLyricsHandler extends HttpServlet {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("无效的音乐ID");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -112,12 +110,12 @@ public class MusicLyricsHandler extends HttpServlet {
         
         LyricsRequest lyricsRequest;
         try {
-            lyricsRequest = objectMapper.readValue(requestBody.toString(), LyricsRequest.class);
+            lyricsRequest = Main.getObjectMapper().readValue(requestBody.toString(), LyricsRequest.class);
         } catch (Exception e) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("无效的请求格式");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -125,7 +123,7 @@ public class MusicLyricsHandler extends HttpServlet {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("歌词内容不能为空");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -136,14 +134,14 @@ public class MusicLyricsHandler extends HttpServlet {
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("更新歌词失败");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
         SuccessResponse successResponse = new SuccessResponse(true, "更新歌词成功");
-        response.getWriter().println(objectMapper.writeValueAsString(successResponse));
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(successResponse));
     }
     
     /**

@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import com.neko.music.util.AudioFileValidator;
 import com.neko.music.util.LrcValidator;
@@ -34,8 +33,7 @@ import java.util.Collection;
 
 public class FileUploadHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(FileUploadHandler.class);
-    private ObjectMapper objectMapper = new ObjectMapper();
-    
+
     // 定义上传目录（相对于JAR运行目录）
     private static final String MUSIC_DIR = "Music/music";
     private static final String COVER_DIR = "Music/covers";
@@ -48,7 +46,7 @@ public class FileUploadHandler extends HttpServlet {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("未授权访问");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -117,7 +115,7 @@ public class FileUploadHandler extends HttpServlet {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("音乐标题、艺术家和语言不能为空");
-                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                 return;
             }
             
@@ -126,7 +124,7 @@ public class FileUploadHandler extends HttpServlet {
                 response.setStatus(HttpStatus.OK_200);
                 response.setContentType("application/json;charset=utf-8");
                 MusicResponse errorResponse = new MusicResponse(false, "已有重复音乐", null);
-                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                 return;
             }
             
@@ -135,7 +133,7 @@ public class FileUploadHandler extends HttpServlet {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("歌词文件不能为空");
-                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                 return;
             }
             
@@ -145,7 +143,7 @@ public class FileUploadHandler extends HttpServlet {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("只支持LRC格式的歌词文件");
-                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                 return;
             }
             
@@ -157,7 +155,7 @@ public class FileUploadHandler extends HttpServlet {
                     response.setStatus(HttpStatus.BAD_REQUEST_400);
                     response.setContentType("application/json;charset=utf-8");
                     ErrorResponse errorResponse = new ErrorResponse("歌词文件格式错误: " + validationResult.getErrorMessage());
-                    response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                    response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                     return;
                 }
             } catch (Exception e) {
@@ -165,7 +163,7 @@ public class FileUploadHandler extends HttpServlet {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("校验歌词文件时出错: " + e.getMessage());
-                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                 return;
             }
             
@@ -173,7 +171,7 @@ public class FileUploadHandler extends HttpServlet {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("音乐文件不能为空");
-                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                 return;
             }
             
@@ -191,7 +189,7 @@ public class FileUploadHandler extends HttpServlet {
                     response.setStatus(HttpStatus.BAD_REQUEST_400);
                     response.setContentType("application/json;charset=utf-8");
                     ErrorResponse errorResponse = new ErrorResponse("音频文件格式错误: " + detectionResult.getErrorMessage());
-                    response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                    response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                     return;
                 }
                 
@@ -210,7 +208,7 @@ public class FileUploadHandler extends HttpServlet {
                         response.setStatus(HttpStatus.BAD_REQUEST_400);
                         response.setContentType("application/json;charset=utf-8");
                         ErrorResponse errorResponse = new ErrorResponse("不支持的音频格式");
-                        response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                        response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                         return;
                 }
                 
@@ -220,7 +218,7 @@ public class FileUploadHandler extends HttpServlet {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("验证音频文件格式时出错: " + e.getMessage());
-                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                 return;
             }
             
@@ -240,7 +238,7 @@ public class FileUploadHandler extends HttpServlet {
                     response.setStatus(HttpStatus.BAD_REQUEST_400);
                     response.setContentType("application/json;charset=utf-8");
                     ErrorResponse errorResponse = new ErrorResponse("只支持图片格式的封面文件");
-                    response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                    response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                     return;
                 }
                 
@@ -300,14 +298,14 @@ public class FileUploadHandler extends HttpServlet {
             response.setStatus(HttpStatus.OK_200);
             response.setContentType("application/json;charset=utf-8");
             MusicResponse musicResponse = new MusicResponse(true, "上传音乐成功", music);
-            response.getWriter().println(objectMapper.writeValueAsString(musicResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(musicResponse));
             
         } catch (Exception e) {
             logger.error("上传音乐时出错", e);
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("上传音乐失败: " + e.getMessage());
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
         }
     }
     
@@ -318,7 +316,7 @@ public class FileUploadHandler extends HttpServlet {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("未授权访问");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -396,7 +394,7 @@ public class FileUploadHandler extends HttpServlet {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("音乐ID、标题和艺术家不能为空");
-                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                 return;
             }
             
@@ -405,7 +403,7 @@ public class FileUploadHandler extends HttpServlet {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("歌词文件不能为空");
-                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                 return;
             }
             
@@ -415,7 +413,7 @@ public class FileUploadHandler extends HttpServlet {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("只支持LRC格式的歌词文件");
-                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                 return;
             }
             
@@ -427,7 +425,7 @@ public class FileUploadHandler extends HttpServlet {
                     response.setStatus(HttpStatus.BAD_REQUEST_400);
                     response.setContentType("application/json;charset=utf-8");
                     ErrorResponse errorResponse = new ErrorResponse("歌词文件格式错误: " + validationResult.getErrorMessage());
-                    response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                    response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                     return;
                 }
             } catch (Exception e) {
@@ -435,7 +433,7 @@ public class FileUploadHandler extends HttpServlet {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("校验歌词文件时出错: " + e.getMessage());
-                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                 return;
             }
             
@@ -445,7 +443,7 @@ public class FileUploadHandler extends HttpServlet {
                 response.setStatus(HttpStatus.NOT_FOUND_404);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("音乐不存在");
-                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                 return;
             }
             
@@ -474,7 +472,7 @@ public class FileUploadHandler extends HttpServlet {
                         response.setStatus(HttpStatus.BAD_REQUEST_400);
                         response.setContentType("application/json;charset=utf-8");
                         ErrorResponse errorResponse = new ErrorResponse("音频文件格式错误: " + detectionResult.getErrorMessage());
-                        response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                        response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                         return;
                     }
                     
@@ -493,7 +491,7 @@ public class FileUploadHandler extends HttpServlet {
                             response.setStatus(HttpStatus.BAD_REQUEST_400);
                             response.setContentType("application/json;charset=utf-8");
                             ErrorResponse errorResponse = new ErrorResponse("不支持的音频格式");
-                            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                             return;
                     }
                     
@@ -503,7 +501,7 @@ public class FileUploadHandler extends HttpServlet {
                     response.setStatus(HttpStatus.BAD_REQUEST_400);
                     response.setContentType("application/json;charset=utf-8");
                     ErrorResponse errorResponse = new ErrorResponse("验证音频文件格式时出错: " + e.getMessage());
-                    response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                    response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                     return;
                 }
 
@@ -540,7 +538,7 @@ public class FileUploadHandler extends HttpServlet {
                     response.setStatus(HttpStatus.BAD_REQUEST_400);
                     response.setContentType("application/json;charset=utf-8");
                     ErrorResponse errorResponse = new ErrorResponse("只支持图片格式的封面文件");
-                    response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                    response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                     return;
                 }
                 
@@ -568,14 +566,14 @@ public class FileUploadHandler extends HttpServlet {
             response.setStatus(HttpStatus.OK_200);
             response.setContentType("application/json;charset=utf-8");
             MusicResponse musicResponse = new MusicResponse(true, "更新音乐成功", updatedMusic);
-            response.getWriter().println(objectMapper.writeValueAsString(musicResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(musicResponse));
             
         } catch (Exception e) {
             logger.error("更新音乐时出错", e);
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("更新音乐失败: " + e.getMessage());
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
         }
     }
     

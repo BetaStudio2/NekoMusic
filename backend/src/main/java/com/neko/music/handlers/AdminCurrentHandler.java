@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import com.neko.music.model.Admin;
 import org.eclipse.jetty.http.HttpStatus;
@@ -19,7 +18,6 @@ import java.util.Optional;
 
 public class AdminCurrentHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(AdminCurrentHandler.class);
-    private ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -28,7 +26,7 @@ public class AdminCurrentHandler extends HttpServlet {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("未授权访问");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -38,7 +36,7 @@ public class AdminCurrentHandler extends HttpServlet {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("未授权访问");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -54,7 +52,7 @@ public class AdminCurrentHandler extends HttpServlet {
             "createdAt", currentAdmin.getCreatedAt(),
             "lastLoginAt", currentAdmin.getLastLoginAt()
         ));
-        response.getWriter().println(objectMapper.writeValueAsString(result));
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(result));
     }
     
     private boolean isAdminAuthorized(HttpServletRequest request) {

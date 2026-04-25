@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import com.neko.music.util.AudioFileValidator;
 import com.neko.music.util.LrcValidator;
@@ -29,9 +28,7 @@ import java.util.Map;
 
 public class UserUploadHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserUploadHandler.class);
-    
-    private static final ObjectMapper objectMapper = new ObjectMapper();
-    
+
     private static final String UPLOAD_DIR = "user_upload";
     
     @Override
@@ -390,12 +387,12 @@ public class UserUploadHandler extends HttpServlet {
         Map<String, Object> error = new HashMap<>();
         error.put("success", false);
         error.put("message", message);
-        response.getWriter().write(objectMapper.writeValueAsString(error));
+        response.getWriter().write(Main.getObjectMapper().writeValueAsString(error));
     }
     
     private void sendJsonResponse(HttpServletResponse response, Map<String, Object> data) throws IOException {
         response.setStatus(200);
         response.setContentType("application/json;charset=UTF-8");
-        response.getWriter().write(objectMapper.writeValueAsString(data));
+        response.getWriter().write(Main.getObjectMapper().writeValueAsString(data));
     }
 }

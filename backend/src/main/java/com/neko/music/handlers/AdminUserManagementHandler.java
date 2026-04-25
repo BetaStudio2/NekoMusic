@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import com.neko.music.model.Admin;
 import org.eclipse.jetty.http.HttpStatus;
@@ -21,7 +20,6 @@ import java.util.List;
 
 public class AdminUserManagementHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(AdminUserManagementHandler.class);
-    private ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -30,7 +28,7 @@ public class AdminUserManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("未授权访问");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -45,7 +43,7 @@ public class AdminUserManagementHandler extends HttpServlet {
                 response.setStatus(HttpStatus.UNAUTHORIZED_401);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("未授权访问");
-                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                 return;
             }
             
@@ -74,7 +72,7 @@ public class AdminUserManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.OK_200);
             response.setContentType("application/json;charset=utf-8");
             AdminUsersResponse adminUsersResponse = new AdminUsersResponse(true, "获取管理员列表成功", adminUsers);
-            response.getWriter().println(objectMapper.writeValueAsString(adminUsersResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(adminUsersResponse));
             return;
         }
 
@@ -82,7 +80,7 @@ public class AdminUserManagementHandler extends HttpServlet {
         response.setStatus(HttpStatus.NOT_FOUND_404);
         response.setContentType("application/json;charset=utf-8");
         ErrorResponse errorResponse = new ErrorResponse("未找到请求的资源");
-        response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
     }
 
     @Override
@@ -96,7 +94,7 @@ public class AdminUserManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("未授权访问");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
 
@@ -106,7 +104,7 @@ public class AdminUserManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("无效的请求路径");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
 
@@ -120,7 +118,7 @@ public class AdminUserManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("无效的管理员ID");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -130,7 +128,7 @@ public class AdminUserManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("未授权访问");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -142,7 +140,7 @@ public class AdminUserManagementHandler extends HttpServlet {
                 response.setStatus(HttpStatus.FORBIDDEN_403);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("权限不足，管理员只能编辑自己的账号");
-                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                 return;
             }
         }
@@ -156,12 +154,12 @@ public class AdminUserManagementHandler extends HttpServlet {
 
         AdminEditRequest editRequest;
         try {
-            editRequest = objectMapper.readValue(requestBody.toString(), AdminEditRequest.class);
+            editRequest = Main.getObjectMapper().readValue(requestBody.toString(), AdminEditRequest.class);
         } catch (Exception e) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("无效的请求格式");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
 
@@ -172,14 +170,14 @@ public class AdminUserManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("修改管理员信息失败");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
 
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
         SuccessResponse successResponse = new SuccessResponse(true, "修改管理员信息成功");
-        response.getWriter().println(objectMapper.writeValueAsString(successResponse));
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(successResponse));
     }
 
     @Override
@@ -189,7 +187,7 @@ public class AdminUserManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("未授权访问");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -204,7 +202,7 @@ public class AdminUserManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("管理员ID不能为空");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
 
@@ -217,7 +215,7 @@ public class AdminUserManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("无效的管理员ID");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
 
@@ -228,14 +226,14 @@ public class AdminUserManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("删除管理员失败");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
 
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
         SuccessResponse successResponse = new SuccessResponse(true, "删除管理员成功");
-        response.getWriter().println(objectMapper.writeValueAsString(successResponse));
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(successResponse));
     }
 
     // 检查管理员权限

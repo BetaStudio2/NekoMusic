@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -17,7 +16,6 @@ import java.sql.ResultSet;
 
 public class MusicInfoHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicInfoHandler.class);
-    private ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -27,7 +25,7 @@ public class MusicInfoHandler extends HttpServlet {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("音乐ID不能为空");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -41,7 +39,7 @@ public class MusicInfoHandler extends HttpServlet {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("无效的音乐ID");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -52,14 +50,14 @@ public class MusicInfoHandler extends HttpServlet {
             response.setStatus(HttpStatus.NOT_FOUND_404);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("音乐不存在");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
         MusicResponse musicResponse = new MusicResponse(true, "获取音乐详情成功", music);
-        response.getWriter().println(objectMapper.writeValueAsString(musicResponse));
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(musicResponse));
     }
     
     /**

@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import de.mkammerer.argon2.Argon2;
 import de.mkammerer.argon2.Argon2Factory;
@@ -19,7 +18,6 @@ import java.sql.ResultSet;
 
 public class UserPasswordChangeHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserPasswordChangeHandler.class);
-    private ObjectMapper objectMapper = new ObjectMapper();
     private final Argon2 argon2 = Argon2Factory.create();
 
     @Override
@@ -50,7 +48,7 @@ public class UserPasswordChangeHandler extends HttpServlet {
         
         try {
             // 解析JSON请求体
-            PasswordChangeRequest changeRequest = objectMapper.readValue(requestBody.toString(), PasswordChangeRequest.class);
+            PasswordChangeRequest changeRequest = Main.getObjectMapper().readValue(requestBody.toString(), PasswordChangeRequest.class);
             
             // 验证请求参数
             if (changeRequest.getOldPassword() == null || changeRequest.getOldPassword().trim().isEmpty()) {
@@ -164,7 +162,7 @@ public class UserPasswordChangeHandler extends HttpServlet {
         response.setContentType("application/json;charset=utf-8");
         
         SuccessResponse successResponse = new SuccessResponse(true, message);
-        response.getWriter().println(objectMapper.writeValueAsString(successResponse));
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(successResponse));
     }
     
     /**
@@ -175,7 +173,7 @@ public class UserPasswordChangeHandler extends HttpServlet {
         response.setContentType("application/json;charset=utf-8");
         
         ErrorResponse errorResponse = new ErrorResponse(message);
-        response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
     }
     
     // 内部类：密码修改请求

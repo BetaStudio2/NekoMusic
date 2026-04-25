@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import com.neko.music.model.Admin;
 import org.eclipse.jetty.http.HttpStatus;
@@ -21,7 +20,6 @@ import java.util.Map;
 
 public class AdminCreateHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(AdminCreateHandler.class);
-    private ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -59,7 +57,7 @@ public class AdminCreateHandler extends HttpServlet {
         
         CreateAdminRequest createRequest;
         try {
-            createRequest = objectMapper.readValue(requestBody.toString(), CreateAdminRequest.class);
+            createRequest = Main.getObjectMapper().readValue(requestBody.toString(), CreateAdminRequest.class);
         } catch (Exception e) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             sendErrorResponse(response, "无效的请求格式");
@@ -127,14 +125,14 @@ public class AdminCreateHandler extends HttpServlet {
         Map<String, Object> result = new HashMap<>();
         result.put("success", true);
         result.put("message", message);
-        response.getWriter().println(objectMapper.writeValueAsString(result));
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(result));
     }
     
     private void sendErrorResponse(HttpServletResponse response, String message) throws IOException {
         Map<String, Object> result = new HashMap<>();
         result.put("success", false);
         result.put("message", message);
-        response.getWriter().println(objectMapper.writeValueAsString(result));
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(result));
     }
     
     private boolean isAdminAuthorized(HttpServletRequest request) {

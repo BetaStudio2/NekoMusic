@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonArray;
 import com.neko.music.Main;
@@ -20,7 +19,6 @@ import java.util.List;
 
 public class UserFavoritePlaylistHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserFavoritePlaylistHandler.class);
-    private final Gson gson = new Gson();
     
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -47,7 +45,7 @@ public class UserFavoritePlaylistHandler extends HttpServlet {
                 
                 JsonObject response = new JsonObject();
                 response.addProperty("success", true);
-                response.add("music", gson.toJsonTree(musicList));
+                response.add("music", Main.getGson().toJsonTree(musicList));
                 
                 sendSuccessResponse(resp, response);
             } catch (NumberFormatException e) {
@@ -63,7 +61,7 @@ public class UserFavoritePlaylistHandler extends HttpServlet {
                 
                 JsonObject response = new JsonObject();
                 response.addProperty("success", true);
-                response.add("playlists", gson.toJsonTree(playlists));
+                response.add("playlists", Main.getGson().toJsonTree(playlists));
                 
                 sendSuccessResponse(resp, response);
             } catch (SQLException e) {
@@ -97,7 +95,7 @@ public class UserFavoritePlaylistHandler extends HttpServlet {
             }
         }
         
-        JsonObject requestBody = gson.fromJson(sb.toString(), JsonObject.class);
+        JsonObject requestBody = Main.getGson().fromJson(sb.toString(), JsonObject.class);
         int playlistId = requestBody.get("playlistId").getAsInt();
         
         try {

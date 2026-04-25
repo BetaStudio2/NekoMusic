@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -19,7 +18,6 @@ import java.util.List;
 
 public class LatestMusicHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(LatestMusicHandler.class);
-    private ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -42,7 +40,7 @@ public class LatestMusicHandler extends HttpServlet {
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
         LatestMusicResponse latestMusicResponse = new LatestMusicResponse(true, "获取最新音乐成功", latestMusic);
-        response.getWriter().println(objectMapper.writeValueAsString(latestMusicResponse));
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(latestMusicResponse));
     }
 
     /**

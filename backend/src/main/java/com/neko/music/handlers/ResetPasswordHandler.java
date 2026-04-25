@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
 import com.neko.music.service.UserAuthService;
@@ -24,7 +23,6 @@ import java.util.Map;
 @WebServlet("/user/reset-password")
 public class ResetPasswordHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(ResetPasswordHandler.class);
-    private static final ObjectMapper objectMapper = new ObjectMapper();
     private UserAuthService userAuthService;
 
     @Override
@@ -51,7 +49,7 @@ public class ResetPasswordHandler extends HttpServlet {
         }
 
         try {
-            JsonNode requestData = objectMapper.readTree(requestBody.toString());
+            JsonNode requestData = Main.getObjectMapper().readTree(requestBody.toString());
 
             String email = null;
             String code = null;
@@ -140,7 +138,7 @@ public class ResetPasswordHandler extends HttpServlet {
         responseMap.put("data", data);
 
         try (PrintWriter out = response.getWriter()) {
-            out.print(objectMapper.writeValueAsString(responseMap));
+            out.print(Main.getObjectMapper().writeValueAsString(responseMap));
             out.flush();
         }
     }

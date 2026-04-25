@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
@@ -22,7 +21,6 @@ import java.util.List;
 @WebServlet("/api/user/uploaded-music")
 public class GetUserUploadedMusicHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(GetUserUploadedMusicHandler.class);
-    private final Gson gson = new Gson();
     private UserAuthService userAuthService;
 
     @Override
@@ -76,7 +74,7 @@ public class GetUserUploadedMusicHandler extends HttpServlet {
             response.add("musicList", musicArray);
             response.addProperty("total", musicList.size());
 
-            String jsonResponse = gson.toJson(response);
+            String jsonResponse = Main.getGson().toJson(response);
             logger.info("响应数据: {}", jsonResponse);
             sendSuccessResponse(resp, response);
         } catch (Exception e) {
@@ -136,7 +134,7 @@ public class GetUserUploadedMusicHandler extends HttpServlet {
      */
     private void sendSuccessResponse(HttpServletResponse resp, JsonObject response) throws IOException {
         resp.setStatus(HttpServletResponse.SC_OK);
-        String jsonResponse = gson.toJson(response);
+        String jsonResponse = Main.getGson().toJson(response);
         logger.info("发送成功响应: {}", jsonResponse);
         try (PrintWriter out = resp.getWriter()) {
             out.print(jsonResponse);
@@ -154,7 +152,7 @@ public class GetUserUploadedMusicHandler extends HttpServlet {
         response.addProperty("message", message);
 
         try (PrintWriter out = resp.getWriter()) {
-            out.print(gson.toJson(response));
+            out.print(Main.getGson().toJson(response));
             out.flush();
         }
     }

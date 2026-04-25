@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
@@ -24,7 +23,6 @@ import java.util.List;
 @WebServlet("/api/artists/search")
 public class SearchArtistsHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(SearchArtistsHandler.class);
-    private final Gson gson = new Gson();
     private DatabaseManager databaseManager;
 
     @Override
@@ -49,7 +47,7 @@ public class SearchArtistsHandler extends HttpServlet {
                 requestBody.append(line);
             }
 
-            JsonObject requestData = gson.fromJson(requestBody.toString(), JsonObject.class);
+            JsonObject requestData = Main.getGson().fromJson(requestBody.toString(), JsonObject.class);
 
             if (requestData == null || !requestData.has("query")) {
                 sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "缺少搜索关键词");
@@ -352,7 +350,7 @@ public class SearchArtistsHandler extends HttpServlet {
     private void sendSuccessResponse(HttpServletResponse resp, JsonObject response) throws IOException {
         resp.setStatus(HttpServletResponse.SC_OK);
         try (PrintWriter out = resp.getWriter()) {
-            out.print(gson.toJson(response));
+            out.print(Main.getGson().toJson(response));
             out.flush();
         }
     }
@@ -367,7 +365,7 @@ public class SearchArtistsHandler extends HttpServlet {
         response.addProperty("message", message);
 
         try (PrintWriter out = resp.getWriter()) {
-            out.print(gson.toJson(response));
+            out.print(Main.getGson().toJson(response));
             out.flush();
         }
     }

@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -23,7 +22,6 @@ import java.util.List;
 
 public class MusicManagementHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicManagementHandler.class);
-    private ObjectMapper objectMapper = new ObjectMapper();
     private static final String LYRICS_DIR = "Music/lyrics";
 
     @Override
@@ -33,7 +31,7 @@ public class MusicManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("未授权访问");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -61,7 +59,7 @@ public class MusicManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("未授权访问");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -82,7 +80,7 @@ public class MusicManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("未授权访问");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -104,7 +102,7 @@ public class MusicManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("未授权访问");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -120,7 +118,7 @@ public class MusicManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("音乐ID不能为空");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -133,7 +131,7 @@ public class MusicManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("无效的DELETE请求路径: " + pathInfo + "，应为 /api/music/delete/{id}");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -145,7 +143,7 @@ public class MusicManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("无效的音乐ID: " + idStr);
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
 
@@ -181,7 +179,7 @@ public class MusicManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("删除音乐失败: " + e.getMessage());
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
 
@@ -189,7 +187,7 @@ public class MusicManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.NOT_FOUND_404);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("音乐不存在或删除失败");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
 
@@ -225,7 +223,7 @@ public class MusicManagementHandler extends HttpServlet {
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
         SuccessResponse successResponse = new SuccessResponse(true, "删除音乐成功");
-        response.getWriter().println(objectMapper.writeValueAsString(successResponse));
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(successResponse));
     }
     
     // 检查管理员权限
@@ -271,14 +269,14 @@ public class MusicManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("获取音乐列表失败: " + e.getMessage());
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
         MusicListResponse musicListResponse = new MusicListResponse(true, "获取音乐列表成功", musicList);
-        response.getWriter().println(objectMapper.writeValueAsString(musicListResponse));
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(musicListResponse));
     }
 
     private void getMusicById(String pathInfo, HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -291,7 +289,7 @@ public class MusicManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("无效的音乐ID");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -325,7 +323,7 @@ public class MusicManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("获取音乐详情失败: " + e.getMessage());
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -333,14 +331,14 @@ public class MusicManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.NOT_FOUND_404);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("音乐不存在");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
         MusicResponse musicResponse = new MusicResponse(true, "获取音乐详情成功", music);
-        response.getWriter().println(objectMapper.writeValueAsString(musicResponse));
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(musicResponse));
     }
 
     private void addMusic(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -356,7 +354,7 @@ public class MusicManagementHandler extends HttpServlet {
 
         try {
             // 解析JSON请求体
-            AddMusicRequest addRequest = objectMapper.readValue(requestBody.toString(), AddMusicRequest.class);
+            AddMusicRequest addRequest = Main.getObjectMapper().readValue(requestBody.toString(), AddMusicRequest.class);
             
             if (addRequest.getTitle() == null || addRequest.getTitle().trim().isEmpty() ||
                 addRequest.getArtist() == null || addRequest.getArtist().trim().isEmpty() ||
@@ -364,7 +362,7 @@ public class MusicManagementHandler extends HttpServlet {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("音乐标题、艺术家和语言不能为空");
-                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                 return;
             }
             
@@ -389,7 +387,7 @@ public class MusicManagementHandler extends HttpServlet {
                         response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
                         response.setContentType("application/json;charset=utf-8");
                         ErrorResponse errorResponse = new ErrorResponse("添加音乐失败");
-                        response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                        response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                         return;
                     }
                     
@@ -433,14 +431,14 @@ public class MusicManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.OK_200);
             response.setContentType("application/json;charset=utf-8");
             MusicResponse musicResponse = new MusicResponse(true, "添加音乐成功", newMusic);
-            response.getWriter().println(objectMapper.writeValueAsString(musicResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(musicResponse));
             
         } catch (Exception e) {
             // JSON解析错误或其他异常
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("请求格式错误: " + e.getMessage());
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
         }
     }
 
@@ -457,7 +455,7 @@ public class MusicManagementHandler extends HttpServlet {
 
         try {
             // 解析JSON请求体
-            EditMusicRequest editRequest = objectMapper.readValue(requestBody.toString(), EditMusicRequest.class);
+            EditMusicRequest editRequest = Main.getObjectMapper().readValue(requestBody.toString(), EditMusicRequest.class);
             
             // 验证必填字段
             if (editRequest.getId() == null || editRequest.getTitle() == null || editRequest.getTitle().trim().isEmpty() ||
@@ -466,7 +464,7 @@ public class MusicManagementHandler extends HttpServlet {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("音乐ID、标题、艺术家和语言不能为空");
-                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                 return;
             }
             
@@ -475,7 +473,7 @@ public class MusicManagementHandler extends HttpServlet {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("歌词内容不能为空");
-                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                 return;
             }
             
@@ -508,7 +506,7 @@ public class MusicManagementHandler extends HttpServlet {
                 response.setStatus(HttpStatus.NOT_FOUND_404);
                 response.setContentType("application/json;charset=utf-8");
                 ErrorResponse errorResponse = new ErrorResponse("音乐不存在或更新失败");
-                response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                 return;
             }
             
@@ -541,14 +539,14 @@ public class MusicManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.OK_200);
             response.setContentType("application/json;charset=utf-8");
             MusicResponse musicResponse = new MusicResponse(true, "编辑音乐成功", updatedMusic);
-            response.getWriter().println(objectMapper.writeValueAsString(musicResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(musicResponse));
             
         } catch (Exception e) {
             // JSON解析错误或其他异常
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("请求格式错误: " + e.getMessage());
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
         }
     }
 
@@ -559,7 +557,7 @@ public class MusicManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("音乐ID不能为空");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -572,7 +570,7 @@ public class MusicManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("无效的音乐ID");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -589,7 +587,7 @@ public class MusicManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("删除音乐失败: " + e.getMessage());
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
@@ -597,14 +595,14 @@ public class MusicManagementHandler extends HttpServlet {
             response.setStatus(HttpStatus.NOT_FOUND_404);
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("音乐不存在或删除失败");
-            response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
         SuccessResponse successResponse = new SuccessResponse(true, "删除音乐成功");
-        response.getWriter().println(objectMapper.writeValueAsString(successResponse));
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(successResponse));
     }
 
     // 内部类用于表示音乐对象

@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
 import com.neko.music.model.User;
@@ -23,7 +22,6 @@ import java.util.Optional;
 @WebServlet("/api/user/login")
 public class UserLoginHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserLoginHandler.class);
-    private static final ObjectMapper objectMapper = new ObjectMapper();
     private UserAuthService userAuthService;
 
     @Override
@@ -50,7 +48,7 @@ public class UserLoginHandler extends HttpServlet {
         }
 
         try {
-            JsonNode requestData = objectMapper.readTree(requestBody.toString());
+            JsonNode requestData = Main.getObjectMapper().readTree(requestBody.toString());
 
             String email = null;
             String password = null;
@@ -129,7 +127,7 @@ public class UserLoginHandler extends HttpServlet {
         responseMap.put("data", data);
 
         try (PrintWriter out = response.getWriter()) {
-            out.print(objectMapper.writeValueAsString(responseMap));
+            out.print(Main.getObjectMapper().writeValueAsString(responseMap));
             out.flush();
         }
     }

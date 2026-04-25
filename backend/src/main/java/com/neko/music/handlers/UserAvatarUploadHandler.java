@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -24,7 +23,6 @@ import java.util.UUID;
 
 public class UserAvatarUploadHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserAvatarUploadHandler.class);
-    private ObjectMapper objectMapper = new ObjectMapper();
     
     // 定义头像上传目录（相对于JAR运行目录）
     private static final String AVATAR_DIR = "avatars";
@@ -243,7 +241,7 @@ public class UserAvatarUploadHandler extends HttpServlet {
         response.setContentType("application/json;charset=utf-8");
         
         SuccessResponse successResponse = new SuccessResponse(true, message, avatarPath);
-        response.getWriter().println(objectMapper.writeValueAsString(successResponse));
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(successResponse));
     }
     
     /**
@@ -254,7 +252,7 @@ public class UserAvatarUploadHandler extends HttpServlet {
         response.setContentType("application/json;charset=utf-8");
         
         ErrorResponse errorResponse = new ErrorResponse(message);
-        response.getWriter().println(objectMapper.writeValueAsString(errorResponse));
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
     }
     
     // 内部类：成功响应

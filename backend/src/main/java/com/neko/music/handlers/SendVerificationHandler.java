@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
 import com.neko.music.service.UserAuthService;
@@ -21,7 +20,6 @@ import java.util.Map;
 @WebServlet("/api/user/send-verification")
 public class SendVerificationHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(SendVerificationHandler.class);
-    private static final ObjectMapper objectMapper = new ObjectMapper();
     private UserAuthService userAuthService;
 
     @Override
@@ -48,7 +46,7 @@ public class SendVerificationHandler extends HttpServlet {
         }
 
         try {
-            JsonNode requestData = objectMapper.readTree(requestBody.toString());
+            JsonNode requestData = Main.getObjectMapper().readTree(requestBody.toString());
 
             String email = null;
             String username = "用户"; // 默认用户名，实际应用中可能需要从请求中获取
@@ -116,7 +114,7 @@ public class SendVerificationHandler extends HttpServlet {
         responseMap.put("data", data);
 
         try (PrintWriter out = response.getWriter()) {
-            out.print(objectMapper.writeValueAsString(responseMap));
+            out.print(Main.getObjectMapper().writeValueAsString(responseMap));
             out.flush();
         }
     }

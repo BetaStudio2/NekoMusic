@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import com.neko.music.model.UserUpload;
 import jakarta.servlet.ServletException;
@@ -26,22 +25,12 @@ import java.util.Map;
 
 public class AdminUploadAuditHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(AdminUploadAuditHandler.class);
-    private static final ObjectMapper objectMapper;
     private static final String MUSIC_DIR = "Music";
     private static final String MUSIC_AUDIO_DIR = "Music/music";
     private static final String MUSIC_COVERS_DIR = "Music/covers";
     private static final String MUSIC_LYRICS_DIR = "Music/lyrics";
     private static final String UPLOAD_DIR = "user_upload";
-    
-    static {
-        objectMapper = new ObjectMapper();
-        // 启用 Java 8 日期时间类型支持
-        objectMapper.findAndRegisterModules();
-        // 配置日期时间格式
-        objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        objectMapper.setDateFormat(new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss"));
-    }
-    
+
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         // 验证管理员权限
@@ -455,7 +444,7 @@ public class AdminUploadAuditHandler extends HttpServlet {
                 body.append(line);
             }
             
-            Map<String, String> requestData = objectMapper.readValue(body.toString(), Map.class);
+            Map<String, String> requestData = Main.getObjectMapper().readValue(body.toString(), Map.class);
             String reason = requestData.getOrDefault("reason", "管理员拒绝审核");
             
             // 获取上传记录
@@ -622,12 +611,12 @@ public class AdminUploadAuditHandler extends HttpServlet {
         Map<String, Object> error = new HashMap<>();
         error.put("success", false);
         error.put("message", message);
-        response.getWriter().write(objectMapper.writeValueAsString(error));
+        response.getWriter().write(Main.getObjectMapper().writeValueAsString(error));
     }
     
     private void sendJsonResponse(HttpServletResponse response, Map<String, Object> data) throws IOException {
         response.setStatus(200);
         response.setContentType("application/json;charset=UTF-8");
-        response.getWriter().write(objectMapper.writeValueAsString(data));
+        response.getWriter().write(Main.getObjectMapper().writeValueAsString(data));
     }
 }

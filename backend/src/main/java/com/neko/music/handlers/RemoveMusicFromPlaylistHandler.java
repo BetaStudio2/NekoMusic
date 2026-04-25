@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
 import com.neko.music.service.PlaylistService;
@@ -20,7 +19,6 @@ import java.io.PrintWriter;
 @WebServlet("/api/user/playlist/music/remove")
 public class RemoveMusicFromPlaylistHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(RemoveMusicFromPlaylistHandler.class);
-    private final Gson gson = new Gson();
     private PlaylistService playlistService;
     private UserAuthService userAuthService;
 
@@ -64,7 +62,7 @@ public class RemoveMusicFromPlaylistHandler extends HttpServlet {
         }
 
         try {
-            JsonObject requestData = gson.fromJson(requestBody.toString(), JsonObject.class);
+            JsonObject requestData = Main.getGson().fromJson(requestBody.toString(), JsonObject.class);
 
             Integer playlistId = null;
             Integer musicId = null;
@@ -124,7 +122,7 @@ public class RemoveMusicFromPlaylistHandler extends HttpServlet {
     private void sendSuccessResponse(HttpServletResponse resp, JsonObject response) throws IOException {
         resp.setStatus(HttpServletResponse.SC_OK);
         try (PrintWriter out = resp.getWriter()) {
-            out.print(gson.toJson(response));
+            out.print(Main.getGson().toJson(response));
             out.flush();
         }
     }
@@ -139,7 +137,7 @@ public class RemoveMusicFromPlaylistHandler extends HttpServlet {
         response.addProperty("message", message);
 
         try (PrintWriter out = resp.getWriter()) {
-            out.print(gson.toJson(response));
+            out.print(Main.getGson().toJson(response));
             out.flush();
         }
     }

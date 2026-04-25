@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import com.neko.music.model.Admin;
 import org.slf4j.Logger;
@@ -23,7 +22,6 @@ import java.util.Optional;
 
 public class ChartDataHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(ChartDataHandler.class);
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -66,7 +64,7 @@ public class ChartDataHandler extends HttpServlet {
             
             response.setStatus(HttpServletResponse.SC_OK);
             PrintWriter out = response.getWriter();
-            out.print(objectMapper.writeValueAsString(successResponse));
+            out.print(Main.getObjectMapper().writeValueAsString(successResponse));
             out.flush();
         } catch (Exception e) {
             logger.error("获取图表数据错误", e);
@@ -131,7 +129,7 @@ public class ChartDataHandler extends HttpServlet {
 
         response.setStatus(statusCode);
         PrintWriter out = response.getWriter();
-        out.print(objectMapper.writeValueAsString(errorResponse));
+        out.print(Main.getObjectMapper().writeValueAsString(errorResponse));
         out.flush();
     }
 }

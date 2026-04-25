@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
 import com.neko.music.model.Admin;
 import org.slf4j.Logger;
@@ -19,7 +18,6 @@ import java.util.Optional;
 
 public class AdminLoginHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(AdminLoginHandler.class);
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -45,7 +43,7 @@ public class AdminLoginHandler extends HttpServlet {
             }
 
             // 解析JSON请求体
-            Map<String, String> requestData = objectMapper.readValue(requestBody.toString(), Map.class);
+            Map<String, String> requestData = Main.getObjectMapper().readValue(requestBody.toString(), Map.class);
             String username = requestData.get("username");
             String password = requestData.get("password");
 
@@ -84,7 +82,7 @@ public class AdminLoginHandler extends HttpServlet {
                 
                 response.setStatus(HttpServletResponse.SC_OK);
                 PrintWriter out = response.getWriter();
-                out.print(objectMapper.writeValueAsString(successResponse));
+                out.print(Main.getObjectMapper().writeValueAsString(successResponse));
                 out.flush();
             } else {
                 sendErrorResponse(response, 401, "用户名或密码错误");
@@ -102,7 +100,7 @@ public class AdminLoginHandler extends HttpServlet {
 
         response.setStatus(statusCode);
         PrintWriter out = response.getWriter();
-        out.print(new ObjectMapper().writeValueAsString(errorResponse));
+        out.print(Main.getObjectMapper().writeValueAsString(errorResponse));
         out.flush();
     }
 }

@@ -1,5 +1,7 @@
 package com.neko.music;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.Gson;
 import com.neko.music.config.ConfigManager;
 import com.neko.music.database.AdminDatabaseManager;
 import com.neko.music.database.DatabaseManager;
@@ -38,7 +40,10 @@ public class Main {
     }
     
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
-    
+
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final Gson gson = new Gson();
+
     private static Server server;
     private static DatabaseManager databaseManager;
     private static ConfigManager configManager;
@@ -429,5 +434,13 @@ public class Main {
 
     public static NotificationService getNotificationService() {
         return notificationService;
+    }
+
+    public static ObjectMapper getObjectMapper() {
+        return objectMapper;
+    }
+
+    public static Gson getGson() {
+        return gson;
     }
 }

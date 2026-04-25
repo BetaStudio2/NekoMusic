@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
 import com.neko.music.model.Playlist;
@@ -24,7 +23,6 @@ import java.util.Optional;
 @WebServlet("/api/playlist/*")
 public class GetPlaylistDetailHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(GetPlaylistDetailHandler.class);
-    private final Gson gson = new Gson();
     private PlaylistService playlistService;
 
     @Override
@@ -102,7 +100,7 @@ public class GetPlaylistDetailHandler extends HttpServlet {
     private void sendSuccessResponse(HttpServletResponse resp, JsonObject response) throws IOException {
         resp.setStatus(HttpServletResponse.SC_OK);
         try (PrintWriter out = resp.getWriter()) {
-            out.print(gson.toJson(response));
+            out.print(Main.getGson().toJson(response));
             out.flush();
         }
     }
@@ -117,7 +115,7 @@ public class GetPlaylistDetailHandler extends HttpServlet {
         response.addProperty("message", message);
 
         try (PrintWriter out = resp.getWriter()) {
-            out.print(gson.toJson(response));
+            out.print(Main.getGson().toJson(response));
             out.flush();
         }
     }
