@@ -247,10 +247,8 @@ public class FileUploadHandler extends HttpServlet {
                 coverFileName = fileName;
             }
             
-            // 读取音频时长（如果前端没有提供）
-            if (duration == 0) {
-                duration = readAudioDuration(musicFilePart, fileExtension);
-            }
+            // 读取音频时长（如果前端没有提供）- 先跳过，在文件保存后再读取
+            // duration会在文件保存后更新
 
             // 生成音乐ID并保存音乐信息到数据库
             int musicId = insertMusicToDatabase(title, artist, album, language, tags, duration, uploadUserId, fileFormat);
@@ -270,6 +268,15 @@ public class FileUploadHandler extends HttpServlet {
             try (InputStream inputStream = musicFilePart.getInputStream()) {
                 Files.copy(inputStream, musicFile);
                 logger.info("音乐文件已保存到: " + musicFilePath);
+            }
+
+            // 文件保存后，如果前端未提供时长，从已保存文件读取（避免临时文件双写）
+            if (duration == 0) {
+                duration = readAudioDurationFromPath(musicFilePath);
+                if (duration > 0) {
+                    // 更新数据库中的时长
+                    updateDurationInDatabase(musicId, duration);
+                }
             }
             
             // 保存封面文件（如果存在）
@@ -615,24 +622,32 @@ public class FileUploadHandler extends HttpServlet {
         return "jpg"; // 默认扩展名
     }
     
-    // 读取音频时长
-    private int readAudioDuration(Part musicFilePart, String fileExtension) {
-        try (InputStream inputStream = musicFilePart.getInputStream()) {
-            // 创建临时文件来读取音频信息（使用正确的扩展名）
-            File tempFile = File.createTempFile("temp_audio", "." + fileExtension);
-            Files.copy(inputStream, tempFile.toPath());
-
-            // 使用JAudiotagger库读取音频时长（支持MP3、FLAC、WAV等格式）
-            AudioFile audioFile = AudioFileIO.read(tempFile);
-            int duration = audioFile.getAudioHeader().getTrackLength();
-
-            // 删除临时文件
-            tempFile.delete();
-
-            return duration;
+    // 读取音频时长 - 从已保存的文件读取，避免额外临时文件
+    private int readAudioDurationFromPath(String filePath) {
+        try {
+            File audioFile = new File(filePath);
+            AudioFile af = AudioFileIO.read(audioFile);
+            return af.getAudioHeader().getTrackLength();
         } catch (CannotReadException | IOException | TagException | ReadOnlyFileException | InvalidAudioFrameException e) {
             logger.error("读取音频时长失败", e);
-            return 0; // 返回默认时长
+            return 0;
+        }
+    }
+
+    // 读取音频时长 - 旧方法保留用于doPut中文件已存在的场景
+    private int readAudioDuration(Part musicFilePart, String fileExtension) {
+        try (InputStream inputStream = musicFilePart.getInputStream()) {
+            File tempFile = File.createTempFile("temp_audio", "." + fileExtension);
+            try {
+                Files.copy(inputStream, tempFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                AudioFile audioFile = AudioFileIO.read(tempFile);
+                return audioFile.getAudioHeader().getTrackLength();
+            } finally {
+                tempFile.delete();
+            }
+        } catch (CannotReadException | IOException | TagException | ReadOnlyFileException | InvalidAudioFrameException e) {
+            logger.error("读取音频时长失败", e);
+            return 0;
         }
     }
     
@@ -788,6 +803,18 @@ public class FileUploadHandler extends HttpServlet {
                 if (rowsUpdated == 0) {
                     throw new SQLException("更新文件格式失败");
                 }
+            }
+        }
+    }
+
+    // 更新时长到数据库
+    private void updateDurationInDatabase(int id, int duration) throws SQLException {
+        try (Connection conn = Main.getDatabaseManager().getConnection()) {
+            String sql = "UPDATE music SET duration = ? WHERE id = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setInt(1, duration);
+                stmt.setInt(2, id);
+                stmt.executeUpdate();
             }
         }
     }

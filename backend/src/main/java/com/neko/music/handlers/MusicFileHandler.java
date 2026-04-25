@@ -107,11 +107,11 @@ public class MusicFileHandler extends HttpServlet {
             // 处理范围请求
             handleRangeRequest(musicPath, response, rangeHeader, fileSize, contentType);
         } else {
-            // 发送完整文件
+            // 发送完整文件 - 使用大buffer减少系统调用
             try (InputStream inputStream = Files.newInputStream(musicPath);
                  OutputStream outputStream = response.getOutputStream()) {
 
-                byte[] buffer = new byte[8192]; // 8KB buffer
+                byte[] buffer = new byte[65536]; // 64KB buffer
                 int bytesRead;
 
                 while ((bytesRead = inputStream.read(buffer)) != -1) {
@@ -164,7 +164,7 @@ public class MusicFileHandler extends HttpServlet {
             // 跳转到起始位置
             randomAccessFile.seek(start);
 
-            byte[] buffer = new byte[8192]; // 8KB buffer
+            byte[] buffer = new byte[65536]; // 64KB buffer
             long bytesToRead = contentLength;
 
             while (bytesToRead > 0) {
