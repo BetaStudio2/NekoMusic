@@ -432,6 +432,10 @@ const goBack = () => {
 
 onMounted(() => {
   fetchPlaylistDetail()
+  // 移动设备尝试唤起APP（不阻断页面加载）
+  if (isMobile.value && playlistId.value) {
+    window.location.href = `nekomusic://playlist/${playlistId.value}`
+  }
 })
 </script>
 

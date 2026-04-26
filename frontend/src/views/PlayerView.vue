@@ -586,6 +586,11 @@ onMounted(async () => {
     startTimer();
   }
 
+  // 移动设备尝试唤起APP（不阻断页面加载）
+  if (checkMobile() && musicId) {
+    window.location.href = `nekomusic://player/${musicId}`
+  }
+
   // 获取收藏列表
   await fetchFavorites();
 })
