@@ -2428,9 +2428,10 @@ audio {
     display: none; /* 在小屏幕上隐藏歌词 */
   }
 
-  /* 隐藏上一曲和下一曲按钮 */
+  /* 隐藏上一曲、下一曲和播放模式按钮 */
   .prev-btn,
-  .next-btn {
+  .next-btn,
+  .mode-btn {
     display: none !important;
   }
 
