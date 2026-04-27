@@ -114,6 +114,7 @@ ehthumbs.db
 Thumbs.db
 .DS_Store
 .ktlin
+.qoder
 
 ### 安卓
 Android/app/release
