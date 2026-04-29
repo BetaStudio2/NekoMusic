@@ -19,8 +19,8 @@ public class LrcValidator {
     // 最大文件大小：200KB
     private static final long MAX_FILE_SIZE = 200 * 1024;
 
-    // 时间戳正则表达式：[mm:ss.xx] 到 [mm:ss.xxxxx] (2-5位毫秒)
-    private static final Pattern TIME_STAMP_PATTERN = Pattern.compile("\\[(\\d{2}):(\\d{2})\\.(\\d{2,5})\\]");
+    // 时间戳正则表达式：[mm:ss.x] 到 [mm:ss.xxxxx] (1-5位毫秒)
+    private static final Pattern TIME_STAMP_PATTERN = Pattern.compile("\\[(\\d{2}):(\\d{2})\\.(\\d{1,5})\\]");
 
     // 翻译行正则表达式：{"翻译内容"}
     private static final Pattern TRANSLATION_PATTERN = Pattern.compile("^\\{\"\'(.+)[\"\']\\}$");
@@ -108,7 +108,7 @@ public class LrcValidator {
                     String[] parts = timestampContent.split(":");
                     if (parts.length != 2) {
                         return ValidationResult.fail(
-                                String.format("第%d行时间戳格式错误，格式应为[mm:ss.xx]到[mm:ss.xxxxx]（毫秒2-5位）", i + 1)
+                                String.format("第%d行时间戳格式错误，格式应为[mm:ss.xx]到[mm:ss.xxxxx]（毫秒1-5位）", i + 1)
                         );
                     }
 
@@ -116,7 +116,7 @@ public class LrcValidator {
                         String[] timeParts = parts[1].split("\\.");
                         if (timeParts.length != 2) {
                             return ValidationResult.fail(
-                                    String.format("第%d行时间戳格式错误，格式应为[mm:ss.xx]到[mm:ss.xxxxx]（毫秒2-5位）", i + 1)
+                                    String.format("第%d行时间戳格式错误，格式应为[mm:ss.xx]到[mm:ss.xxxxx]（毫秒1-5位）", i + 1)
                             );
                         }
 
@@ -139,6 +139,9 @@ public class LrcValidator {
                         int digitCount = timeParts[1].length();
                         int maxMilliseconds;
                         switch (digitCount) {
+                            case 1:
+                                maxMilliseconds = 9;
+                                break;
                             case 2:
                                 maxMilliseconds = 99;
                                 break;
@@ -188,7 +191,7 @@ public class LrcValidator {
                 Pattern invalidTimestampPattern1 = Pattern.compile("\\[\\d{1,2}:\\d{2}:\\d{2}\\.?\\d*\\]");
                 if (invalidTimestampPattern1.matcher(line).find()) {
                     return ValidationResult.fail(
-                            String.format("第%d行包含非法的时间戳格式，格式应为[mm:ss.xx]到[mm:ss.xxxxx]（毫秒2-5位），不支持[hh:mm:ss]格式", i + 1)
+                            String.format("第%d行包含非法的时间戳格式，格式应为[mm:ss.xx]到[mm:ss.xxxxx]（毫秒1-5位），不支持[hh:mm:ss]格式", i + 1)
                     );
                 }
 
@@ -196,14 +199,14 @@ public class LrcValidator {
                 Pattern invalidTimestampPattern2 = Pattern.compile("\\[\\d{1,2}:\\d{2}\\]");
                 if (invalidTimestampPattern2.matcher(line).find()) {
                     return ValidationResult.fail(
-                            String.format("第%d行时间戳缺少毫秒部分，格式应为[mm:ss.xx]到[mm:ss.xxxxx]（毫秒2-5位）", i + 1)
+                            String.format("第%d行时间戳缺少毫秒部分，格式应为[mm:ss.xx]到[mm:ss.xxxxx]（毫秒1-5位）", i + 1)
                     );
                 }
 
                 // 检查是否包含类似时间戳的格式，但不完全合法
                 if (line.contains("[") && line.contains("]")) {
                     return ValidationResult.fail(
-                            String.format("第%d行包含方括号但不是合法的时间戳格式，格式应为[mm:ss.xx]到[mm:ss.xxxxx]（毫秒2-5位）", i + 1)
+                            String.format("第%d行包含方括号但不是合法的时间戳格式，格式应为[mm:ss.xx]到[mm:ss.xxxxx]（毫秒1-5位）", i + 1)
                     );
                 }
             }
