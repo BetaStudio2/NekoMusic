@@ -121,8 +121,8 @@
                 </svg>
               </div>
               <div class="platform-info">
-                <span class="platform-name">macOS</span>
-                <span class="platform-desc">.dmg</span>
+                <span class="platform-name">乐子Os</span>
+                <span class="platform-desc">.pkg</span>
               </div>
               <svg class="download-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path d="M7 10L12 15L17 10" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
