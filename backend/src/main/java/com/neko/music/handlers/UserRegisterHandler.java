@@ -2,7 +2,6 @@ package com.neko.music.handlers;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
-import com.neko.music.model.User;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.util.SensitiveWordUtil;
 import jakarta.servlet.annotation.WebServlet;
@@ -18,11 +17,16 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Arrays;
+import java.util.List;
 
 @WebServlet("/api/user/register")
 public class UserRegisterHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserRegisterHandler.class);
     private UserAuthService userAuthService;
+
+    // 欣悦可以在这里配置你的白名单域名喵！
+    private static final List<String> ALLOWED_DOMAINS = Arrays.asList("gmail.com", "outlook.com", "qq.com", "163.com");
 
     @Override
     public void init() throws ServletException {
@@ -36,9 +40,6 @@ public class UserRegisterHandler extends HttpServlet {
         response.setHeader("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, OPTIONS");
         response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
-        logger.info("收到用户注册请求");
-
-        // 读取请求体
         StringBuilder requestBody = new StringBuilder();
         try (BufferedReader reader = request.getReader()) {
             String line;
@@ -49,97 +50,90 @@ public class UserRegisterHandler extends HttpServlet {
 
         try {
             JsonNode requestData = Main.getObjectMapper().readTree(requestBody.toString());
-
-            String username = null;
-            String password = null;
-            String email = null;
-
-            if (requestData != null) {
-                if (requestData.has("username")) {
-                    username = requestData.get("username").asText();
-                }
-                if (requestData.has("password")) {
-                    password = requestData.get("password").asText();
-                }
-                if (requestData.has("email")) {
-                    email = requestData.get("email").asText();
-                }
-            }
-
-            // 验证请求参数
-            if (username == null || password == null || email == null || 
-                username.trim().isEmpty() || password.trim().isEmpty() || email.trim().isEmpty()) {
-                
-                sendResponse(response, false, "用户名、密码和邮箱不能为空", null);
+            if (requestData == null) {
+                sendResponse(response, false, "请求数据不能为空喵", null);
                 return;
             }
 
-            // 验证邮箱格式
+            String username = requestData.has("username") ? requestData.get("username").asText().trim() : null;
+            String password = requestData.has("password") ? requestData.get("password").asText() : null;
+            String email = requestData.has("email") ? requestData.get("email").asText().trim() : null;
+            String verificationCode = requestData.has("verificationCode") ? requestData.get("verificationCode").asText().trim() : null;
+
+            // 1. 基础非空校验
+            if (isEmpty(username) || isEmpty(password) || isEmpty(email)) {
+                sendResponse(response, false, "用户名、密码和邮箱不能为空喵", null);
+                return;
+            }
+
+            // 2. 【核心修复】强制校验验证码是否存在
+            if (isEmpty(verificationCode)) {
+                logger.warn("检测到恶意注册尝试：未提供验证码。IP: {}", request.getRemoteAddr());
+                sendResponse(response, false, "必须提供验证码喵！", null);
+                return;
+            }
+
+            // 3. 邮箱格式及白名单校验
             if (!isValidEmail(email)) {
-                sendResponse(response, false, "邮箱格式不正确", null);
+                sendResponse(response, false, "邮箱格式不正确喵", null);
+                return;
+            }
+            if (!isWhiteListed(email)) {
+                logger.warn("非白名单邮箱注册尝试: {}", email);
+                sendResponse(response, false, "该邮箱域名不在允许范围内喵", null);
                 return;
             }
 
-            // 验证用户名长度
+            // 4. 用户名与密码长度/合规校验
             if (username.length() < 3 || username.length() > 20) {
-                sendResponse(response, false, "用户名长度必须在3-20个字符之间", null);
+                sendResponse(response, false, "用户名长度需在3-20之间喵", null);
                 return;
             }
-
-            // 验证用户名是否包含违禁词
             if (SensitiveWordUtil.contains(username)) {
-                sendResponse(response, false, "用户名包含违禁词", null);
-                logger.warn("用户名包含违禁词");
+                sendResponse(response, false, "用户名包含违禁词喵", null);
                 return;
             }
-            else logger.info("用户名不包含违禁词");
-
-            // 验证密码长度
             if (password.length() < 6 || password.length() > 30) {
-                sendResponse(response, false, "密码长度必须在6-30个字符之间", null);
+                sendResponse(response, false, "密码长度需在6-30之间喵", null);
                 return;
             }
 
-            String verificationCode = null;
-            if (requestData.has("verificationCode")) {
-                verificationCode = requestData.get("verificationCode").asText();
+            // 5. 验证码有效性校验
+            boolean isValidCode = userAuthService.verifyCode(email, verificationCode);
+            if (!isValidCode) {
+                sendResponse(response, false, "验证码错误或已过期喵", null);
+                return;
             }
-            // 如果有提供验证码，则验证
-            if (verificationCode != null && !verificationCode.trim().isEmpty()) {
-                boolean isValidCode = userAuthService.verifyCode(email.trim(), verificationCode.trim());
-                if (!isValidCode) {
-                    sendResponse(response, false, "验证码错误或已过期", null);
-                    return;
-                }
-            }
-            // 注册用户
-            boolean success = userAuthService.registerUser(username.trim(), password, email.trim());
+
+            // 6. 执行注册
+            boolean success = userAuthService.registerUser(username, password, email);
             if (success) {
                 logger.info("用户注册成功: {}", username);
-                sendResponse(response, true, "注册成功", Map.of("username", username));
+                sendResponse(response, true, "注册成功喵！", Map.of("username", username));
             } else {
-                logger.warn("用户注册失败: {}", username);
-                sendResponse(response, false, "注册失败，用户名或邮箱可能已存在", null);
+                sendResponse(response, false, "注册失败，用户名或邮箱可能已存在喵", null);
             }
+
         } catch (Exception e) {
-            logger.error("处理用户注册请求时发生错误: {}", e.getMessage(), e);
-            sendResponse(response, false, "服务器内部错误", null);
+            logger.error("注册处理异常: {}", e.getMessage(), e);
+            sendResponse(response, false, "服务器内部错误喵", null);
         }
     }
 
-    /**
-     * 验证邮箱格式
-     */
+    private boolean isEmpty(String str) {
+        return str == null || str.trim().isEmpty();
+    }
+
     private boolean isValidEmail(String email) {
         return email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
     }
 
-    /**
-     * 发送JSON响应
-     */
+    private boolean isWhiteListed(String email) {
+        String domain = email.substring(email.lastIndexOf("@") + 1).toLowerCase();
+        return ALLOWED_DOMAINS.contains(domain);
+    }
+
     private void sendResponse(HttpServletResponse response, boolean success, String message, Object data) throws IOException {
-        response.setContentType("application/json;charset=UTF-8");
-        
         Map<String, Object> responseMap = new HashMap<>();
         responseMap.put("success", success);
         responseMap.put("message", message);
