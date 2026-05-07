@@ -5,9 +5,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * IP频率限制服务
- * 使用Redis Lua脚本实现原子计数+检查+封锁，一次往返完成
- * 按 /16 网段进行限制
+ * IP 频率限制服务
+ * 使用 Redis Lua 脚本实现原子计数+检查+封锁，一次往返完成。
+ * 计数与封锁键按 IPv4 的 /24 网段聚合（a.b.c.* → a.b.c.0），兼顾 NAT 用户与误伤范围。
  */
 public class IPRateLimitService {
     private static final Logger logger = LoggerFactory.getLogger(IPRateLimitService.class);
@@ -39,11 +39,12 @@ public class IPRateLimitService {
         this.redisService = redisService;
     }
 
+    /** 将 IPv4 规范为 /24 代表地址，用作 Redis 键；非点分四段则原样返回。 */
     private String convertToIPSegment(String ip) {
         try {
             String[] parts = ip.split("\\.");
             if (parts.length == 4) {
-                return parts[0] + "." + parts[1] + ".0.0";
+                return parts[0] + "." + parts[1] + "." + parts[2] + ".0";
             }
         } catch (Exception e) {
             logger.warn("转换 IP 段失败: {}", ip, e);

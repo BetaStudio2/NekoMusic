@@ -3,7 +3,6 @@ package com.neko.music.filter;
 import com.neko.music.config.ConfigManager;
 import com.neko.music.service.IPRateLimitService;
 import jakarta.servlet.*;
-import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,10 +10,9 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 
 /**
- * IP频率限制过滤器
- * 用于防止暴力攻击和滥用
+ * IP 频率限制过滤器（需在 {@link com.neko.music.Main} 中通过 {@code ServletContextHandler#addFilter} 注册；
+ * 嵌入式 Jetty 不会处理 {@code @WebFilter}）。
  */
-@WebFilter(urlPatterns = "/*", filterName = "IPRateLimitFilter")
 public class IPRateLimitFilter implements Filter {
     private static final Logger logger = LoggerFactory.getLogger(IPRateLimitFilter.class);
 

@@ -19,6 +19,7 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
 import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import com.neko.music.filter.CorsFilter;
+import com.neko.music.filter.IPRateLimitFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -117,7 +118,8 @@ public class Main {
         context.setAttribute("configManager", configManager);
         context.setAttribute("ipRateLimitService", ipRateLimitService);
 
-        // 添加CORS过滤器
+        // IP 限流需在嵌入式 Jetty 中显式注册（@WebFilter 不会生效）
+        context.addFilter(IPRateLimitFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
         addCorsFilter(context);
         
         // 注册搜索音乐API处理器
