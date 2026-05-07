@@ -12,6 +12,24 @@ import java.util.Optional;
 
 public class PlaylistService {
     private static final Logger logger = LoggerFactory.getLogger(PlaylistService.class);
+
+    /**
+     * 歌单搜索：先 LIMIT 候选歌单，再通过一次聚合 JOIN 取首曲，避免对每个歌单执行相关子查询。
+     */
+    private static final String SQL_PLAYLIST_SEARCH_FIRST_TRACK_JOIN = """
+        LEFT JOIN (
+            SELECT pm.playlist_id, pm.music_id AS first_music_id, m.cover_path AS first_music_cover
+            FROM playlist_music pm
+            INNER JOIN music m ON m.id = pm.music_id
+            INNER JOIN (
+                SELECT playlist_id, MIN(position) AS min_pos
+                FROM playlist_music
+                GROUP BY playlist_id
+            ) pm_min ON pm_min.playlist_id = pm.playlist_id AND pm_min.min_pos = pm.position
+        ) ft ON ft.playlist_id = pl.id
+        ORDER BY pl.created_at DESC
+        """;
+
     private final DatabaseManager databaseManager;
 
     public PlaylistService(DatabaseManager databaseManager) {
@@ -472,25 +490,23 @@ public class PlaylistService {
 
         List<com.google.gson.JsonObject> results = new ArrayList<>();
         int limit = 50;
-        
+
         try {
-            // 判断查询是否是拼音
             boolean isPinyin = com.neko.music.util.PinyinUtil.isLikelyPinyin(query);
-            
+
             if (isPinyin) {
-                // 拼音搜索：利用预计算拼音列在SQL层筛选，避免全表加载
-                StringBuilder sqlBuilder = new StringBuilder();
-                sqlBuilder.append("SELECT p.*, ");
-                sqlBuilder.append("(SELECT m.id FROM playlist_music pm JOIN music m ON pm.music_id = m.id ");
-                sqlBuilder.append(" WHERE pm.playlist_id = p.id ORDER BY pm.position ASC LIMIT 1) as first_music_id, ");
-                sqlBuilder.append("(SELECT m.cover_path FROM playlist_music pm JOIN music m ON pm.music_id = m.id ");
-                sqlBuilder.append(" WHERE pm.playlist_id = p.id ORDER BY pm.position ASC LIMIT 1) as first_music_cover ");
-                sqlBuilder.append("FROM playlists p ");
-                sqlBuilder.append("WHERE (p.name LIKE ? OR p.name_pinyin LIKE ? OR p.name_pinyin_initials LIKE ? OR p.name_word_initials LIKE ?) ");
-                sqlBuilder.append("ORDER BY p.created_at DESC LIMIT ?");
+                String sql = """
+                    SELECT pl.*, ft.first_music_id, ft.first_music_cover
+                    FROM (
+                        SELECT * FROM playlists p
+                        WHERE (p.name LIKE ? OR p.name_pinyin LIKE ? OR p.name_pinyin_initials LIKE ? OR p.name_word_initials LIKE ?)
+                        ORDER BY p.created_at DESC
+                        LIMIT ?
+                    ) pl
+                    """ + SQL_PLAYLIST_SEARCH_FIRST_TRACK_JOIN;
 
                 try (Connection conn = databaseManager.getConnection();
-                     PreparedStatement stmt = conn.prepareStatement(sqlBuilder.toString())) {
+                     PreparedStatement stmt = conn.prepareStatement(sql)) {
 
                     String likeQuery = "%" + query.toLowerCase() + "%";
                     stmt.setString(1, likeQuery);
@@ -499,92 +515,53 @@ public class PlaylistService {
                     stmt.setString(4, likeQuery);
                     stmt.setInt(5, limit);
 
-                    ResultSet rs = stmt.executeQuery();
-
-                    while (rs.next()) {
-                        com.google.gson.JsonObject playlist = new com.google.gson.JsonObject();
-                        playlist.addProperty("id", rs.getInt("id"));
-                        playlist.addProperty("userId", rs.getInt("user_id"));
-                        playlist.addProperty("name", rs.getString("name"));
-
-                        String desc = rs.getString("description");
-                        playlist.addProperty("description", desc != null ? desc : "");
-
-                        playlist.addProperty("musicCount", rs.getInt("music_count"));
-                        playlist.addProperty("createdAt", rs.getString("created_at"));
-                        playlist.addProperty("updatedAt", rs.getString("updated_at"));
-
-                        int firstMusicId = rs.getInt("first_music_id");
-                        if (firstMusicId > 0) {
-                            playlist.addProperty("firstMusicId", firstMusicId);
-                            playlist.addProperty("firstMusicCover", rs.getString("first_music_cover"));
-                        } else {
-                            playlist.addProperty("firstMusicCover", "/api/user/avatar/default");
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        while (rs.next()) {
+                            results.add(mapSearchPlaylistRow(rs));
                         }
-
-                        results.add(playlist);
                     }
                 }
             } else {
-                // 如果不是拼音，使用正常的繁简体搜索
                 List<String> variants = com.neko.music.util.ChineseConverter.getFullSearchVariants(query);
-                
-                // 构建 SQL 查询，支持繁简体搜索
+
                 StringBuilder sqlBuilder = new StringBuilder();
-                sqlBuilder.append("SELECT p.*, ");
-                sqlBuilder.append("(SELECT m.id FROM playlist_music pm JOIN music m ON pm.music_id = m.id ");
-                sqlBuilder.append(" WHERE pm.playlist_id = p.id ORDER BY pm.position ASC LIMIT 1) as first_music_id, ");
-                sqlBuilder.append("(SELECT m.cover_path FROM playlist_music pm JOIN music m ON pm.music_id = m.id ");
-                sqlBuilder.append(" WHERE pm.playlist_id = p.id ORDER BY pm.position ASC LIMIT 1) as first_music_cover ");
-                sqlBuilder.append("FROM playlists p ");
-                sqlBuilder.append("WHERE (");
-                
+                sqlBuilder.append("""
+                    SELECT pl.*, ft.first_music_id, ft.first_music_cover
+                    FROM (
+                        SELECT * FROM playlists p
+                        WHERE (""");
                 List<String> conditions = new ArrayList<>();
                 for (int i = 0; i < variants.size(); i++) {
                     conditions.add("(p.name LIKE ? OR p.description LIKE ?)");
                 }
                 sqlBuilder.append(String.join(" OR ", conditions));
-                sqlBuilder.append(") ");
-                sqlBuilder.append("ORDER BY p.created_at DESC ");
-                sqlBuilder.append("LIMIT ?");
-                
+                sqlBuilder.append("""
+                        )
+                        ORDER BY p.created_at DESC
+                        LIMIT ?
+                    ) pl
+                    """);
+                sqlBuilder.append(SQL_PLAYLIST_SEARCH_FIRST_TRACK_JOIN);
+
                 try (Connection conn = databaseManager.getConnection();
                      PreparedStatement stmt = conn.prepareStatement(sqlBuilder.toString())) {
-                    
-                    // 设置参数
+
                     int paramIndex = 1;
                     for (String variant : variants) {
-                        stmt.setString(paramIndex++, "%" + variant + "%");
-                        stmt.setString(paramIndex++, "%" + variant + "%");
+                        String like = "%" + variant + "%";
+                        stmt.setString(paramIndex++, like);
+                        stmt.setString(paramIndex++, like);
                     }
                     stmt.setInt(paramIndex, limit);
-                    
-                    ResultSet rs = stmt.executeQuery();
-                    
-                    while (rs.next()) {
-                        com.google.gson.JsonObject playlist = new com.google.gson.JsonObject();
-                        playlist.addProperty("id", rs.getInt("id"));
-                        playlist.addProperty("userId", rs.getInt("user_id"));
-                        playlist.addProperty("name", rs.getString("name"));
-                        playlist.addProperty("description", rs.getString("description"));
-                        playlist.addProperty("musicCount", rs.getInt("music_count"));
-                        playlist.addProperty("createdAt", rs.getString("created_at"));
-                        playlist.addProperty("updatedAt", rs.getString("updated_at"));
-                        
-                        // 第一首音乐的封面 URL
-                        int firstMusicId = rs.getInt("first_music_id");
-                        if (firstMusicId > 0) {
-                            playlist.addProperty("firstMusicId", firstMusicId);
-                            playlist.addProperty("firstMusicCover", rs.getString("first_music_cover"));
-                        } else {
-                            playlist.addProperty("firstMusicCover", "/api/user/avatar/default");
+
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        while (rs.next()) {
+                            results.add(mapSearchPlaylistRow(rs));
                         }
-                        
-                        results.add(playlist);
                     }
                 }
             }
-            
+
             logger.info("搜索到 {} 个歌单: query={}", results.size(), query);
         } catch (SQLException e) {
             logger.error("搜索歌单失败: {}", e.getMessage(), e);
@@ -592,5 +569,26 @@ public class PlaylistService {
 
         return results;
     }
-    
+
+    private static com.google.gson.JsonObject mapSearchPlaylistRow(ResultSet rs) throws SQLException {
+        com.google.gson.JsonObject playlist = new com.google.gson.JsonObject();
+        playlist.addProperty("id", rs.getInt("id"));
+        playlist.addProperty("userId", rs.getInt("user_id"));
+        playlist.addProperty("name", rs.getString("name"));
+        String desc = rs.getString("description");
+        playlist.addProperty("description", desc != null ? desc : "");
+        playlist.addProperty("musicCount", rs.getInt("music_count"));
+        playlist.addProperty("createdAt", rs.getString("created_at"));
+        playlist.addProperty("updatedAt", rs.getString("updated_at"));
+
+        int firstMusicId = rs.getInt("first_music_id");
+        if (!rs.wasNull() && firstMusicId > 0) {
+            playlist.addProperty("firstMusicId", firstMusicId);
+            playlist.addProperty("firstMusicCover", rs.getString("first_music_cover"));
+        } else {
+            playlist.addProperty("firstMusicCover", "/api/user/avatar/default");
+        }
+        return playlist;
+    }
+
 }

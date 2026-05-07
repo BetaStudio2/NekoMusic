@@ -54,6 +54,7 @@ public class MusicSearchHandler extends HttpServlet {
 
         List<Music> results = new ArrayList<>();
         int limit = 50;
+        int fetchLimit = limit * 3;
         String queryLower = query.toLowerCase().trim();
         boolean containsPinyin = com.neko.music.util.PinyinUtil.isLikelyPinyin(query);
 
@@ -76,7 +77,6 @@ public class MusicSearchHandler extends HttpServlet {
                 for (int i = 0; i < 10; i++) {
                     params.add(likeQuery);
                 }
-                params.add(String.valueOf(limit * 3)); // 多取一些用于后续排序
             } else {
                 // 中文搜索：利用繁简体变体 + 预计算拼音列
                 List<String> variants = com.neko.music.util.ChineseConverter.getFullSearchVariants(query);
@@ -108,18 +108,13 @@ public class MusicSearchHandler extends HttpServlet {
                 for (int i = 0; i < 7; i++) {
                     params.add(likeQuery);
                 }
-                params.add(String.valueOf(limit * 3));
             }
 
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 for (int i = 0; i < params.size(); i++) {
-                    // 最后一个参数是LIMIT数值
-                    if (i == params.size() - 1) {
-                        stmt.setInt(i + 1, Integer.parseInt(params.get(i)));
-                    } else {
-                        stmt.setString(i + 1, params.get(i));
-                    }
+                    stmt.setString(i + 1, params.get(i));
                 }
+                stmt.setInt(params.size() + 1, fetchLimit);
 
                 // SQL已经筛选了候选集，只需在内存中做精细打分排序
                 List<ScoredMusic> scoredResults = new ArrayList<>();

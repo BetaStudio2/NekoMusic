@@ -24,7 +24,8 @@ public class DatabaseManager {
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl("jdbc:mysql://" + configManager.getMysqlHost() + ":" +
                          configManager.getMysqlPort() + "/" + configManager.getMysqlDatabase() +
-                         "?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true");
+                         "?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true" +
+                         "&cachePrepStmts=true&prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048&useServerPrepStmts=true");
         config.setUsername(configManager.getMysqlUsername());
         config.setPassword(configManager.getMysqlPassword());
         config.setMaximumPoolSize(20);
@@ -248,6 +249,34 @@ public class DatabaseManager {
                 logger.debug("artist_word_initials 索引可能已存在，跳过");
             }
 
+            try {
+                String idxCreated = "ALTER TABLE music ADD INDEX idx_music_created_at (created_at)";
+                try (PreparedStatement stmt = conn.prepareStatement(idxCreated)) {
+                    stmt.execute();
+                }
+                logger.info("已为 music.created_at 添加索引");
+            } catch (SQLException e) {
+                logger.debug("idx_music_created_at 可能已存在，跳过");
+            }
+            try {
+                String idxPlay = "ALTER TABLE music ADD INDEX idx_music_play_count (play_count)";
+                try (PreparedStatement stmt = conn.prepareStatement(idxPlay)) {
+                    stmt.execute();
+                }
+                logger.info("已为 music.play_count 添加索引");
+            } catch (SQLException e) {
+                logger.debug("idx_music_play_count 可能已存在，跳过");
+            }
+            try {
+                String idxArtist = "ALTER TABLE music ADD INDEX idx_music_artist (artist(191))";
+                try (PreparedStatement stmt = conn.prepareStatement(idxArtist)) {
+                    stmt.execute();
+                }
+                logger.info("已为 music.artist 添加索引");
+            } catch (SQLException e) {
+                logger.debug("idx_music_artist 可能已存在，跳过");
+            }
+
             // 为歌单表添加拼音索引列（如果不存在）
             try {
                 String alterNamePinyin = """
@@ -287,6 +316,43 @@ public class DatabaseManager {
                 logger.info("已为 playlists 表添加 name_word_initials 字段");
             } catch (SQLException e) {
                 logger.debug("name_word_initials 字段可能已存在，跳过添加");
+            }
+
+            try {
+                String idxPlCreated = "ALTER TABLE playlists ADD INDEX idx_playlists_created_at (created_at)";
+                try (PreparedStatement stmt = conn.prepareStatement(idxPlCreated)) {
+                    stmt.execute();
+                }
+                logger.info("已为 playlists.created_at 添加索引");
+            } catch (SQLException e) {
+                logger.debug("idx_playlists_created_at 可能已存在，跳过");
+            }
+            try {
+                String idxNp = "ALTER TABLE playlists ADD INDEX idx_playlists_name_pinyin (name_pinyin(100))";
+                try (PreparedStatement stmt = conn.prepareStatement(idxNp)) {
+                    stmt.execute();
+                }
+                logger.info("已为 playlists.name_pinyin 添加索引");
+            } catch (SQLException e) {
+                logger.debug("idx_playlists_name_pinyin 可能已存在，跳过");
+            }
+            try {
+                String idxNpi = "ALTER TABLE playlists ADD INDEX idx_playlists_name_pinyin_initials (name_pinyin_initials(50))";
+                try (PreparedStatement stmt = conn.prepareStatement(idxNpi)) {
+                    stmt.execute();
+                }
+                logger.info("已为 playlists.name_pinyin_initials 添加索引");
+            } catch (SQLException e) {
+                logger.debug("idx_playlists_name_pinyin_initials 可能已存在，跳过");
+            }
+            try {
+                String idxNwi = "ALTER TABLE playlists ADD INDEX idx_playlists_name_word_initials (name_word_initials(50))";
+                try (PreparedStatement stmt = conn.prepareStatement(idxNwi)) {
+                    stmt.execute();
+                }
+                logger.info("已为 playlists.name_word_initials 添加索引");
+            } catch (SQLException e) {
+                logger.debug("idx_playlists_name_word_initials 可能已存在，跳过");
             }
 
             // 为已存在的 music 表添加 play_count 字段（如果不存在）
@@ -408,7 +474,8 @@ public class DatabaseManager {
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                    INDEX idx_user_id (user_id)
+                    INDEX idx_user_id (user_id),
+                    INDEX idx_playlists_created_at (created_at)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                 """;
             try (PreparedStatement stmt = conn.prepareStatement(createPlaylistTable)) {
@@ -429,7 +496,7 @@ public class DatabaseManager {
                     UNIQUE KEY unique_playlist_music_position (playlist_id, position),
                     FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
                     FOREIGN KEY (music_id) REFERENCES music(id) ON DELETE CASCADE,
-                    INDEX idx_playlist_id (playlist_id),
+                    INDEX idx_playlist_position (playlist_id, position),
                     INDEX idx_music_id (music_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                 """;
@@ -438,6 +505,16 @@ public class DatabaseManager {
                 logger.info("playlist_music 表创建完成");
             } catch (SQLException e) {
                 logger.debug("playlist_music 表可能已存在: {}", e.getMessage());
+            }
+
+            try {
+                String addPmIdx = "ALTER TABLE playlist_music ADD INDEX idx_playlist_position (playlist_id, position)";
+                try (PreparedStatement stmt = conn.prepareStatement(addPmIdx)) {
+                    stmt.execute();
+                }
+                logger.info("已为 playlist_music 添加复合索引 idx_playlist_position");
+            } catch (SQLException e) {
+                logger.debug("idx_playlist_position 可能已存在，跳过");
             }
 
             // 删除 playlists 表的 cover_path 字段（如果存在）
