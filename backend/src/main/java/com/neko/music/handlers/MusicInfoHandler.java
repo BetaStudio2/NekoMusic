@@ -138,14 +138,12 @@ public class MusicInfoHandler extends HttpServlet {
         public String getUpdatedAt() { return updatedAt; }
         public void setUpdatedAt(String updatedAt) { this.updatedAt = updatedAt; }
         
-        // 获取封面 URL：磁盘存在封面则走封面接口，否则默认图
+        /** 统一走封面接口（无封面时由 {@link MusicCoverHandler} 返回默认图），避免详情接口扫盘。 */
         public String getCoverUrl() {
             if (id <= 0) {
                 return "/api/defaultIcon";
             }
-            return MusicAssetLocator.findCoverFile(id).isPresent()
-                    ? MusicAssetLocator.coverApiUrl(id)
-                    : "/api/defaultIcon";
+            return MusicAssetLocator.coverApiUrl(id);
         }
     }
     

@@ -72,12 +72,14 @@ public final class MusicAssetLocator {
         return "/api/music/cover/" + musicId;
     }
 
-    public static void deleteAudioVariants(int musicId) throws IOException {
-        deleteIdNamedFiles(audioDir(), musicId);
+    /** 尽力删除 {@code Music/music/{musicId}.*}；单文件失败只打 WARN，不抛异常。 */
+    public static void deleteAudioVariants(int musicId) {
+        deleteIdNamedFiles(audioDir(), musicId, "audio");
     }
 
-    public static void deleteCoverVariants(int musicId) throws IOException {
-        deleteIdNamedFiles(coverDir(), musicId);
+    /** 尽力删除 {@code Music/covers/{musicId}.*}；单文件失败只打 WARN，不抛异常。 */
+    public static void deleteCoverVariants(int musicId) {
+        deleteIdNamedFiles(coverDir(), musicId, "cover");
     }
 
     /** 防止路径逃逸：仅当 {@code file} 规范化后位于 {@code expectedDir} 下时返回 true。 */
@@ -133,7 +135,7 @@ public final class MusicAssetLocator {
         return candidates.stream().min(Comparator.comparing(p -> p.getFileName().toString()));
     }
 
-    private static void deleteIdNamedFiles(Path dir, int musicId) throws IOException {
+    private static void deleteIdNamedFiles(Path dir, int musicId, String kind) {
         if (!Files.isDirectory(dir)) {
             return;
         }
@@ -144,8 +146,14 @@ public final class MusicAssetLocator {
                     .filter(p -> isSingleSegmentExtension(p.getFileName().toString(), prefix))
                     .collect(Collectors.toList());
             for (Path p : toDelete) {
-                Files.deleteIfExists(p);
+                try {
+                    Files.deleteIfExists(p);
+                } catch (IOException e) {
+                    log.warn("删除{}文件失败 musicId={} path={}: {}", kind, musicId, p, e.toString());
+                }
             }
+        } catch (IOException e) {
+            log.warn("列出{}目录失败 musicId={}: {}", kind, musicId, e.toString());
         }
     }
 }

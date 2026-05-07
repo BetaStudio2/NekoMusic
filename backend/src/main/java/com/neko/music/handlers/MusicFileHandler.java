@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
+import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.MusicAssetLocator;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -92,31 +93,33 @@ public class MusicFileHandler extends HttpServlet {
         }
     }
     
-    /**
-     * 发送音乐文件
-     */
     private void sendMusicFile(Path musicPath, HttpServletRequest request, HttpServletResponse response) throws IOException {
-        // 根据文件扩展名设置正确的 MIME 类型
         String fileName = musicPath.getFileName().toString().toLowerCase();
         String contentType = getContentTypeByExtension(fileName);
-        response.setContentType(contentType);
-        response.setStatus(HttpStatus.OK_200);
-
-        // 设置Content-Length头
         long fileSize = Files.size(musicPath);
-        response.setContentLengthLong(fileSize);
-
-        // 支持范围请求（用于音频播放器的跳转功能）
+        String etag = HttpResourceCache.strongEtagForFile(musicPath);
         String rangeHeader = request.getHeader("Range");
+
+        if (rangeHeader == null || !rangeHeader.startsWith("bytes=")) {
+            if (HttpResourceCache.sendNotModifiedIfFresh(request, response, etag)) {
+                return;
+            }
+        }
+
+        response.setContentType(contentType);
+
         if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
-            // 处理范围请求
+            HttpResourceCache.applyFileCachingHeaders(musicPath, response);
             handleRangeRequest(musicPath, response, rangeHeader, fileSize, contentType);
         } else {
-            // 发送完整文件 - 使用大buffer减少系统调用
+            response.setStatus(HttpStatus.OK_200);
+            HttpResourceCache.applyFileCachingHeaders(musicPath, response);
+            response.setContentLengthLong(fileSize);
+
             try (InputStream inputStream = Files.newInputStream(musicPath);
                  OutputStream outputStream = response.getOutputStream()) {
 
-                byte[] buffer = new byte[65536]; // 64KB buffer
+                byte[] buffer = new byte[65536];
                 int bytesRead;
 
                 while ((bytesRead = inputStream.read(buffer)) != -1) {
@@ -128,9 +131,6 @@ public class MusicFileHandler extends HttpServlet {
         }
     }
 
-    /**
-     * 根据文件扩展名获取 MIME 类型
-     */
     private String getContentTypeByExtension(String fileName) {
         if (fileName.endsWith(".mp3")) {
             return "audio/mpeg";
@@ -139,21 +139,17 @@ public class MusicFileHandler extends HttpServlet {
         } else if (fileName.endsWith(".wav")) {
             return "audio/wav";
         }
-        // 默认返回 MP3 类型
         return "audio/mpeg";
     }
     
-    /**
-     * 处理范围请求（支持音频播放器的拖拽功能）
-     */
-    private void handleRangeRequest(Path musicPath, HttpServletResponse response, String rangeHeader, long fileSize, String contentType) throws IOException {
+    private void handleRangeRequest(Path musicPath, HttpServletResponse response,
+                                    String rangeHeader, long fileSize, String contentType) throws IOException {
         String rangeValue = rangeHeader.replace("bytes=", "");
 
         String[] ranges = rangeValue.split("-");
         long start = Long.parseLong(ranges[0]);
         long end = ranges.length > 1 && !ranges[1].isEmpty() ? Long.parseLong(ranges[1]) : fileSize - 1;
 
-        // 确保end不超过文件大小
         end = Math.min(end, fileSize - 1);
 
         long contentLength = end - start + 1;
@@ -166,10 +162,9 @@ public class MusicFileHandler extends HttpServlet {
         try (RandomAccessFile randomAccessFile = new RandomAccessFile(musicPath.toFile(), "r");
              OutputStream outputStream = response.getOutputStream()) {
 
-            // 跳转到起始位置
             randomAccessFile.seek(start);
 
-            byte[] buffer = new byte[65536]; // 64KB buffer
+            byte[] buffer = new byte[65536];
             long bytesToRead = contentLength;
 
             while (bytesToRead > 0) {

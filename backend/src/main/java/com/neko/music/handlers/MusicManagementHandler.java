@@ -174,12 +174,8 @@ public class MusicManagementHandler extends HttpServlet {
             return;
         }
 
-        try {
-            MusicAssetLocator.deleteAudioVariants(id);
-            MusicAssetLocator.deleteCoverVariants(id);
-        } catch (Exception e) {
-            logger.error("删除音乐或封面磁盘文件失败: id={}", id, e);
-        }
+        MusicAssetLocator.deleteAudioVariants(id);
+        MusicAssetLocator.deleteCoverVariants(id);
 
         // 删除歌词文件（根据音乐ID查找）
         String lyricsFilePath = "Music/lyrics/" + id + ".lrc";
@@ -187,7 +183,7 @@ public class MusicManagementHandler extends HttpServlet {
             java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get(lyricsFilePath));
             logger.info("已删除歌词文件: {}", lyricsFilePath);
         } catch (Exception e) {
-            logger.error("删除歌词文件失败: {}", lyricsFilePath, e);
+            logger.warn("删除歌词文件失败（可能残留孤儿文件） musicId={} path={}: {}", id, lyricsFilePath, e.toString());
         }
 
         response.setStatus(HttpStatus.OK_200);
@@ -518,61 +514,6 @@ public class MusicManagementHandler extends HttpServlet {
         }
     }
 
-    private void deleteMusic(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        String pathInfo = request.getPathInfo();
-        
-        if (pathInfo == null) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("音乐ID不能为空");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-            return;
-        }
-        
-        String idStr = pathInfo.replace("/", "");
-        int id;
-        
-        try {
-            id = Integer.parseInt(idStr);
-        } catch (NumberFormatException e) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("无效的音乐ID");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-            return;
-        }
-        
-        int rowsDeleted;
-        try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "DELETE FROM music WHERE id = ?";
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setInt(1, id);
-                
-                rowsDeleted = stmt.executeUpdate();
-            }
-        } catch (Exception e) {
-            logger.error("删除音乐时出错", e);
-            response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("删除音乐失败: " + e.getMessage());
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-            return;
-        }
-        
-        if (rowsDeleted == 0) {
-            response.setStatus(HttpStatus.NOT_FOUND_404);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("音乐不存在或删除失败");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-            return;
-        }
-        
-        response.setStatus(HttpStatus.OK_200);
-        response.setContentType("application/json;charset=utf-8");
-        SuccessResponse successResponse = new SuccessResponse(true, "删除音乐成功");
-        response.getWriter().println(Main.getObjectMapper().writeValueAsString(successResponse));
-    }
-
     // 内部类用于表示音乐对象
     public static class Music {
         private int id;
@@ -618,9 +559,7 @@ public class MusicManagementHandler extends HttpServlet {
             if (id <= 0) {
                 return "/api/defaultIcon";
             }
-            return MusicAssetLocator.findCoverFile(id).isPresent()
-                    ? MusicAssetLocator.coverApiUrl(id)
-                    : "/api/defaultIcon";
+            return MusicAssetLocator.coverApiUrl(id);
         }
     }
     

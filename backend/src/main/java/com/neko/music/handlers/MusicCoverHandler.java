@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
+import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.MusicAssetLocator;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -26,8 +27,7 @@ public class MusicCoverHandler extends HttpServlet {
         String pathInfo = request.getPathInfo();
         
         if (pathInfo == null || pathInfo.equals("/")) {
-            // 如果路径为空，返回默认图标
-            sendDefaultIcon(response);
+            sendDefaultIcon(request, response);
             return;
         }
         
@@ -45,7 +45,7 @@ public class MusicCoverHandler extends HttpServlet {
         }
 
         if (!musicRowExists(musicId)) {
-            sendDefaultIcon(response);
+            sendDefaultIcon(request, response);
             return;
         }
 
@@ -53,12 +53,12 @@ public class MusicCoverHandler extends HttpServlet {
         if (coverOpt.isPresent()) {
             Path coverFile = coverOpt.get();
             if (MusicAssetLocator.isUnderDirectory(coverFile, MusicAssetLocator.coverDir()) && Files.exists(coverFile)) {
-                sendImageFile(coverFile, response);
+                sendImageFile(request, coverFile, response);
                 return;
             }
         }
 
-        sendDefaultIcon(response);
+        sendDefaultIcon(request, response);
     }
 
     private boolean musicRowExists(int musicId) {
@@ -74,18 +74,21 @@ public class MusicCoverHandler extends HttpServlet {
         }
     }
     
-    /**
-     * 发送图片文件
-     */
-    private void sendImageFile(Path imagePath, HttpServletResponse response) throws IOException {
+    private void sendImageFile(HttpServletRequest request, Path imagePath, HttpServletResponse response) throws IOException {
+        String etag = HttpResourceCache.strongEtagForFile(imagePath);
+        if (HttpResourceCache.sendNotModifiedIfFresh(request, response, etag)) {
+            return;
+        }
+
         String mimeType = getMimeType(imagePath.toString());
         response.setContentType(mimeType);
         response.setStatus(HttpStatus.OK_200);
+        HttpResourceCache.applyFileCachingHeaders(imagePath, response);
         
         try (InputStream inputStream = Files.newInputStream(imagePath);
              OutputStream outputStream = response.getOutputStream()) {
             
-            byte[] buffer = new byte[8192]; // 8KB buffer
+            byte[] buffer = new byte[8192];
             int bytesRead;
             
             while ((bytesRead = inputStream.read(buffer)) != -1) {
@@ -96,21 +99,22 @@ public class MusicCoverHandler extends HttpServlet {
         }
     }
     
-    /**
-     * 发送默认图标
-     */
-    private void sendDefaultIcon(HttpServletResponse response) throws IOException {
+    private void sendDefaultIcon(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        if (HttpResourceCache.sendNotModifiedDefaultIcon(request, response)) {
+            return;
+        }
+
         try {
-            // 尝试从类路径加载默认图标
             InputStream defaultIconStream = getClass().getClassLoader().getResourceAsStream("DefaultIcon.png");
             if (defaultIconStream != null) {
                 response.setContentType("image/png");
                 response.setStatus(HttpStatus.OK_200);
+                HttpResourceCache.applyDefaultIconCachingHeaders(response);
                 
                 try (InputStream inputStream = defaultIconStream;
                      OutputStream outputStream = response.getOutputStream()) {
                     
-                    byte[] buffer = new byte[8192]; // 8KB buffer
+                    byte[] buffer = new byte[8192];
                     int bytesRead;
                     
                     while ((bytesRead = inputStream.read(buffer)) != -1) {
@@ -120,7 +124,6 @@ public class MusicCoverHandler extends HttpServlet {
                     outputStream.flush();
                 }
             } else {
-                // 如果类路径也找不到，返回404
                 response.setStatus(HttpStatus.NOT_FOUND_404);
                 response.setContentType("text/plain;charset=utf-8");
                 response.getWriter().println("Default icon not found");
@@ -133,9 +136,6 @@ public class MusicCoverHandler extends HttpServlet {
         }
     }
     
-    /**
-     * 根据文件扩展名获取MIME类型
-     */
     private String getMimeType(String filePath) {
         String extension = getFileExtension(filePath).toLowerCase();
         
@@ -152,13 +152,10 @@ public class MusicCoverHandler extends HttpServlet {
             case "webp":
                 return "image/webp";
             default:
-                return "image/jpeg"; // 默认使用jpeg
+                return "image/jpeg";
         }
     }
     
-    /**
-     * 获取文件扩展名
-     */
     private String getFileExtension(String fileName) {
         int lastDotIndex = fileName.lastIndexOf('.');
         if (lastDotIndex > 0) {

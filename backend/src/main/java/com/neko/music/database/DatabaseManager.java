@@ -10,6 +10,8 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class DatabaseManager {
     private static final Logger logger = LoggerFactory.getLogger(DatabaseManager.class);
@@ -80,44 +82,30 @@ public class DatabaseManager {
                 stmt.execute();
             }
 
-            // 移除旧版 music 表的 file_path / cover_path（资源改为磁盘 Music/music、Music/covers 下 {id}.*）
+            // 移除旧版 music 表的 file_path / cover_path（一次 ALTER 合并 DROP，减少锁表次数）
             try {
-                String checkFilePath = """
-                    SELECT COUNT(*) FROM information_schema.columns
-                    WHERE table_schema = DATABASE()
-                    AND table_name = 'music'
-                    AND column_name = 'file_path'
+                List<String> dropParts = new ArrayList<>();
+                String listLegacyCols = """
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_schema = DATABASE() AND table_name = 'music'
+                    AND column_name IN ('file_path','cover_path')
                     """;
-                try (PreparedStatement stmt = conn.prepareStatement(checkFilePath);
+                try (PreparedStatement stmt = conn.prepareStatement(listLegacyCols);
                      ResultSet rs = stmt.executeQuery()) {
-                    if (rs.next() && rs.getInt(1) > 0) {
-                        try (PreparedStatement drop = conn.prepareStatement("ALTER TABLE music DROP COLUMN file_path")) {
-                            drop.execute();
-                            logger.info("已删除 music 表的 file_path 字段");
-                        }
+                    while (rs.next()) {
+                        String col = rs.getString(1);
+                        dropParts.add("DROP COLUMN " + col);
+                    }
+                }
+                if (!dropParts.isEmpty()) {
+                    String alter = "ALTER TABLE music " + String.join(", ", dropParts);
+                    try (PreparedStatement stmt = conn.prepareStatement(alter)) {
+                        stmt.execute();
+                        logger.info("已删除 music 表废弃列: {}", dropParts);
                     }
                 }
             } catch (SQLException e) {
-                logger.debug("删除 music.file_path 失败（可能不存在）: {}", e.getMessage());
-            }
-            try {
-                String checkCoverPath = """
-                    SELECT COUNT(*) FROM information_schema.columns
-                    WHERE table_schema = DATABASE()
-                    AND table_name = 'music'
-                    AND column_name = 'cover_path'
-                    """;
-                try (PreparedStatement stmt = conn.prepareStatement(checkCoverPath);
-                     ResultSet rs = stmt.executeQuery()) {
-                    if (rs.next() && rs.getInt(1) > 0) {
-                        try (PreparedStatement drop = conn.prepareStatement("ALTER TABLE music DROP COLUMN cover_path")) {
-                            drop.execute();
-                            logger.info("已删除 music 表的 cover_path 字段");
-                        }
-                    }
-                }
-            } catch (SQLException e) {
-                logger.debug("删除 music.cover_path 失败（可能不存在）: {}", e.getMessage());
+                logger.debug("删除 music 废弃列失败: {}", e.getMessage());
             }
 
             // 为已存在的 music 表添加 file_format 字段（如果不存在）
@@ -576,12 +564,6 @@ public class DatabaseManager {
                 }
             } catch (SQLException e) {
                 logger.debug("删除 cover_path 字段失败（可能不存在）: {}", e.getMessage());
-            }
-            try (PreparedStatement stmt = conn.prepareStatement(createPlaylistMusicTable)) {
-                stmt.execute();
-                logger.info("playlist_music 表创建完成");
-            } catch (SQLException e) {
-                logger.debug("playlist_music 表可能已存在: {}", e.getMessage());
             }
 
             logger.info("数据库表初始化完成");
