@@ -143,11 +143,21 @@ public class IPRateLimitService {
     }
 
     /**
-     * 获取 IP 剩余封锁时间（秒）
+     * 获取当前 IP 段封锁剩余时间（秒），供 429 等响应展示。
+     * Redis TTL 正常时返回精确剩余；TTL 为 -1 但键仍存在时退回配置的封锁总时长。
      */
     public long getBlockTimeRemaining(String ip) {
-        String ipSegment = convertToIPSegment(ip);
-        long ttl = redisService.ttl(IP_BLOCKED_PREFIX + ipSegment);
-        return ttl > 0 ? ttl : 0;
+        if (!configManager.isRateLimitEnabled()) {
+            return 0;
+        }
+        String key = IP_BLOCKED_PREFIX + convertToIPSegment(ip);
+        long ttl = redisService.ttl(key);
+        if (ttl > 0) {
+            return ttl;
+        }
+        if (ttl == -1 && redisService.exists(key)) {
+            return configManager.getRateLimitBlockDuration();
+        }
+        return 0;
     }
 }

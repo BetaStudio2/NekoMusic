@@ -1,9 +1,11 @@
 package com.neko.music.filter;
 
+import com.neko.music.Main;
 import com.neko.music.config.ConfigManager;
 import com.neko.music.service.IPRateLimitService;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,17 +51,12 @@ public class IPRateLimitFilter implements Filter {
         HttpServletRequest httpRequest = (HttpServletRequest) request;
         String clientIP = getClientIP(httpRequest);
 
+        HttpServletResponse httpResponse = (HttpServletResponse) response;
+
         // 检查 IP 是否被封锁
         if (ipRateLimitService.isIPBlocked(clientIP)) {
             logger.warn("封锁的 IP 尝试访问: {}", clientIP);
-            // 立即返回429，不阻塞线程
-            response.setContentType("application/json;charset=UTF-8");
-            ((jakarta.servlet.http.HttpServletResponse) response).setStatus(429);
-            try {
-                response.getWriter().write("{\"success\":false,\"message\":\"请求过于频繁，请稍后再试\",\"data\":null}");
-            } catch (Exception e) {
-                logger.debug("写入限流响应失败: {}", e.getMessage());
-            }
+            writeRateLimitedResponse(httpResponse, clientIP);
             return;
         }
 
@@ -67,14 +64,7 @@ public class IPRateLimitFilter implements Filter {
         boolean allowed = ipRateLimitService.recordRequest(clientIP);
         if (!allowed) {
             logger.warn("IP {} 超过频率限制，请求被拦截", clientIP);
-            // 立即返回429，不阻塞线程
-            response.setContentType("application/json;charset=UTF-8");
-            ((jakarta.servlet.http.HttpServletResponse) response).setStatus(429);
-            try {
-                response.getWriter().write("{\"success\":false,\"message\":\"请求过于频繁，请稍后再试\",\"data\":null}");
-            } catch (Exception e) {
-                logger.debug("写入限流响应失败: {}", e.getMessage());
-            }
+            writeRateLimitedResponse(httpResponse, clientIP);
             return;
         }
 
@@ -106,6 +96,53 @@ public class IPRateLimitFilter implements Filter {
         }
 
         return ip;
+    }
+
+    /**
+     * 返回 429：{@code message} 内说明剩余封锁时长；{@code Retry-After} 为剩余秒数（HTTP 惯例）。
+     */
+    private void writeRateLimitedResponse(HttpServletResponse httpResponse, String clientIP) throws IOException {
+        long remainingSec = ipRateLimitService.getBlockTimeRemaining(clientIP);
+        if (remainingSec <= 0) {
+            remainingSec = Math.max(1, configManager.getRateLimitBlockDuration());
+        }
+        httpResponse.setStatus(429);
+        httpResponse.setHeader("Retry-After", String.valueOf(remainingSec));
+        httpResponse.setContentType("application/json;charset=UTF-8");
+
+        var body = Main.getObjectMapper().createObjectNode();
+        body.put("success", false);
+        body.put("message", formatRateLimitMessage(remainingSec));
+        body.putNull("data");
+
+        try {
+            Main.getObjectMapper().writeValue(httpResponse.getWriter(), body);
+        } catch (Exception e) {
+            logger.debug("写入限流响应失败: {}", e.getMessage());
+        }
+    }
+
+    /** 将剩余秒数写进一句中文提示，便于直接展示给用户。 */
+    private static String formatRateLimitMessage(long sec) {
+        if (sec < 1) {
+            sec = 1;
+        }
+        if (sec >= 86400) {
+            long d = sec / 86400;
+            long h = (sec % 86400) / 3600;
+            return String.format("请求过于频繁，请 %d 天 %d 小时后可重试", d, h);
+        }
+        if (sec >= 3600) {
+            long h = sec / 3600;
+            long m = (sec % 3600) / 60;
+            return String.format("请求过于频繁，请 %d 小时 %d 分钟后可重试", h, m);
+        }
+        if (sec >= 60) {
+            long m = sec / 60;
+            long s = sec % 60;
+            return String.format("请求过于频繁，约 %d 分 %d 秒后可重试", m, s);
+        }
+        return String.format("请求过于频繁，请 %d 秒后可重试", sec);
     }
 
     @Override
