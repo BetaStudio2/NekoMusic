@@ -102,11 +102,13 @@ public class MusicFileHandler extends HttpServlet {
 
         if (rangeHeader == null || !rangeHeader.startsWith("bytes=")) {
             if (HttpResourceCache.sendNotModifiedIfFresh(request, response, etag)) {
+                HttpResourceCache.setAcceptRangesBytes(response);
                 return;
             }
         }
 
         response.setContentType(contentType);
+        HttpResourceCache.setAcceptRangesBytes(response);
 
         if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
             HttpResourceCache.applyFileCachingHeaders(musicPath, response);

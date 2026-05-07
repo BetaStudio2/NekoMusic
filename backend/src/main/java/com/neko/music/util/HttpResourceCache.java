@@ -10,11 +10,15 @@ import java.nio.file.attribute.BasicFileAttributes;
 
 /**
  * 为音频/图片等磁盘资源设置 ETag、Last-Modified、Cache-Control，并处理 If-None-Match → 304。
+ * <p>前置 CDN 常对同一 URL 做 Range 回源分段拉取，因此使用 {@code public} 以便边缘缓存，
+ * 并以 {@code must-revalidate} + ETag 在源文件被替换后触发再校验。</p>
  */
 public final class HttpResourceCache {
 
-    /** 用户侧可缓存，上传替换后通过 ETag 失效 */
-    public static final String CACHE_CONTROL_FILE = "private, max-age=3600, must-revalidate";
+    /**
+     * 允许浏览器与共享缓存（CDN）缓存；上传替换同一 id 后 ETag 变化，再校验可拿到新对象。
+     */
+    public static final String CACHE_CONTROL_FILE = "public, max-age=7200, must-revalidate";
 
     /** 内嵌默认图标，内容不变 */
     public static final String DEFAULT_ICON_ETAG = "\"DefaultIcon-v1\"";
@@ -97,5 +101,10 @@ public final class HttpResourceCache {
     public static void applyDefaultIconCachingHeaders(HttpServletResponse response) {
         response.setHeader("ETag", DEFAULT_ICON_ETAG);
         response.setHeader("Cache-Control", CACHE_CONTROL_DEFAULT_ICON);
+    }
+
+    /** 声明支持字节范围，便于 CDN / 播放器分段请求与回源。 */
+    public static void setAcceptRangesBytes(HttpServletResponse response) {
+        response.setHeader("Accept-Ranges", "bytes");
     }
 }
