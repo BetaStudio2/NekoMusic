@@ -42,9 +42,10 @@ public class RedisService {
 
         // 使用连接池，多连接并发处理请求
         GenericObjectPoolConfig<StatefulRedisConnection<String, String>> poolConfig = new GenericObjectPoolConfig<>();
-        poolConfig.setMaxTotal(16);
-        poolConfig.setMaxIdle(8);
-        poolConfig.setMinIdle(2);
+        int maxT = configManager.getRedisPoolMaxTotal();
+        poolConfig.setMaxTotal(maxT);
+        poolConfig.setMaxIdle(Math.max(2, maxT * 2 / 3));
+        poolConfig.setMinIdle(Math.max(1, Math.min(8, maxT / 4)));
         poolConfig.setMaxWait(Duration.ofSeconds(2));
         poolConfig.setTestWhileIdle(true);
 

@@ -16,6 +16,8 @@ import com.neko.music.service.RedisService;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.service.IPRateLimitService;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
 import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import com.neko.music.filter.CorsFilter;
@@ -106,8 +108,19 @@ public class Main {
         // 确保至少有一个超级管理员
         ensureSuperAdminExists();
         
-        // 创建Jetty服务器，使用配置的端口
-        server = new Server(configManager.getPort());
+        QueuedThreadPool threadPool = new QueuedThreadPool();
+        threadPool.setName("jetty-worker");
+        threadPool.setMinThreads(configManager.getJettyMinThreads());
+        threadPool.setMaxThreads(configManager.getJettyMaxThreads());
+        threadPool.setIdleTimeout((int) Math.min(Integer.MAX_VALUE, configManager.getJettyIdleTimeoutMs()));
+
+        server = new Server(threadPool);
+        ServerConnector connector = new ServerConnector(server);
+        connector.setPort(configManager.getPort());
+        server.addConnector(connector);
+        logger.info("Jetty 线程池: minThreads={}, maxThreads={}, idleTimeoutMs={}, listenPort={}",
+                configManager.getJettyMinThreads(), configManager.getJettyMaxThreads(),
+                configManager.getJettyIdleTimeoutMs(), configManager.getPort());
         
         // 创建上下文处理器
         ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);

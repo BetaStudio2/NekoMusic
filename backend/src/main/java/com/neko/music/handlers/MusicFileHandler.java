@@ -16,9 +16,21 @@ import java.sql.ResultSet;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public class MusicFileHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicFileHandler.class);
+
+    /** 热点曲目路径缓存，减轻反复 SELECT file_path（LRU 约 2048 条） */
+    private static final Map<Integer, String> MUSIC_FILE_PATH_CACHE = Collections.synchronizedMap(
+            new LinkedHashMap<>(512, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<Integer, String> eldest) {
+                    return size() > 2048;
+                }
+            });
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -67,6 +79,11 @@ public class MusicFileHandler extends HttpServlet {
      * 根据音乐ID获取文件路径
      */
     private String getMusicFilePathById(int musicId) {
+        String cached = MUSIC_FILE_PATH_CACHE.get(musicId);
+        if (cached != null) {
+            return cached;
+        }
+
         String filePath = null;
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
@@ -83,7 +100,11 @@ public class MusicFileHandler extends HttpServlet {
         } catch (Exception e) {
             logger.error("查询音乐文件路径时出错，音乐ID: " + musicId, e);
         }
-        
+
+        if (filePath != null && !filePath.isEmpty()) {
+            MUSIC_FILE_PATH_CACHE.put(musicId, filePath);
+        }
+
         return filePath;
     }
     

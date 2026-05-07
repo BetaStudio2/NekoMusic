@@ -47,6 +47,14 @@ public class ConfigManager {
     private int rateLimitBlockDuration = 3600; // 封锁时间（秒）
     private boolean rateLimitSilentTimeout = true; // 是否静默超时
 
+    /** Jetty / Hikari / Redis 连接池，可在 config.yml 的 performance、redis.pool_max_total 中覆盖 */
+    private int jettyMaxThreads = 200;
+    private int jettyMinThreads = 10;
+    private long jettyIdleTimeoutMs = 60_000;
+    private int hikariMaximumPoolSize = 20;
+    private int hikariMinimumIdle = 5;
+    private int redisPoolMaxTotal = 32;
+
     private ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
 
     public void loadConfig() {
@@ -86,6 +94,25 @@ public class ConfigManager {
                 if (configNode.has("port")) {
                     port = configNode.get("port").asInt();
                 }
+
+                JsonNode performanceNode = configNode.get("performance");
+                if (performanceNode != null) {
+                    if (performanceNode.has("jetty_max_threads")) {
+                        jettyMaxThreads = performanceNode.get("jetty_max_threads").asInt();
+                    }
+                    if (performanceNode.has("jetty_min_threads")) {
+                        jettyMinThreads = performanceNode.get("jetty_min_threads").asInt();
+                    }
+                    if (performanceNode.has("jetty_idle_timeout_ms")) {
+                        jettyIdleTimeoutMs = performanceNode.get("jetty_idle_timeout_ms").asLong();
+                    }
+                    if (performanceNode.has("hikari_maximum_pool_size")) {
+                        hikariMaximumPoolSize = performanceNode.get("hikari_maximum_pool_size").asInt();
+                    }
+                    if (performanceNode.has("hikari_minimum_idle")) {
+                        hikariMinimumIdle = performanceNode.get("hikari_minimum_idle").asInt();
+                    }
+                }
                 
                 // 读取SMTP服务器配置
                 JsonNode smtpNode = configNode.get("smtp");
@@ -119,6 +146,9 @@ public class ConfigManager {
                     if (redisNode.has("host")) redisHost = redisNode.get("host").asText();
                     if (redisNode.has("port")) redisPort = redisNode.get("port").asInt();
                     if (redisNode.has("password")) redisPassword = redisNode.get("password").asText();
+                    if (redisNode.has("pool_max_total")) {
+                        redisPoolMaxTotal = redisNode.get("pool_max_total").asInt();
+                    }
                 }
                 
                 // 读取JWT配置
@@ -145,6 +175,8 @@ public class ConfigManager {
                     if (rateLimitNode.has("silent_timeout")) rateLimitSilentTimeout = rateLimitNode.get("silent_timeout").asBoolean();
                 }
             }
+
+            clampPerformanceConfig();
             
             logger.info("配置加载完成:");
             logger.info("  MySQL Host: {}", mysqlHost);
@@ -157,10 +189,22 @@ public class ConfigManager {
             logger.info("  SMTP Username: {}", smtpUsername);
             logger.info("  SMTP SSL: {}", smtpSsl);
             logger.info("  SMTP TLS: {}", smtpTls);
+            logger.info("  Jetty 线程池: min={}, max={}, idleTimeoutMs={}", jettyMinThreads, jettyMaxThreads, jettyIdleTimeoutMs);
+            logger.info("  HikariCP: maximumPoolSize={}, minimumIdle={}", hikariMaximumPoolSize, hikariMinimumIdle);
+            logger.info("  Redis 连接池 maxTotal: {}", redisPoolMaxTotal);
         } catch (Exception e) {
             logger.error("加载配置时出错", e);
-            // 使用默认值
+            clampPerformanceConfig();
         }
+    }
+
+    private void clampPerformanceConfig() {
+        jettyMaxThreads = Math.max(16, Math.min(2000, jettyMaxThreads));
+        jettyMinThreads = Math.max(1, Math.min(jettyMinThreads, jettyMaxThreads - 1));
+        jettyIdleTimeoutMs = Math.max(1000L, Math.min(600_000L, jettyIdleTimeoutMs));
+        hikariMaximumPoolSize = Math.max(2, Math.min(256, hikariMaximumPoolSize));
+        hikariMinimumIdle = Math.max(0, Math.min(hikariMinimumIdle, hikariMaximumPoolSize));
+        redisPoolMaxTotal = Math.max(4, Math.min(256, redisPoolMaxTotal));
     }
     
     /**
@@ -294,5 +338,29 @@ public class ConfigManager {
 
     public boolean isRateLimitSilentTimeout() {
         return rateLimitSilentTimeout;
+    }
+
+    public int getJettyMaxThreads() {
+        return jettyMaxThreads;
+    }
+
+    public int getJettyMinThreads() {
+        return jettyMinThreads;
+    }
+
+    public long getJettyIdleTimeoutMs() {
+        return jettyIdleTimeoutMs;
+    }
+
+    public int getHikariMaximumPoolSize() {
+        return hikariMaximumPoolSize;
+    }
+
+    public int getHikariMinimumIdle() {
+        return hikariMinimumIdle;
+    }
+
+    public int getRedisPoolMaxTotal() {
+        return redisPoolMaxTotal;
     }
 }

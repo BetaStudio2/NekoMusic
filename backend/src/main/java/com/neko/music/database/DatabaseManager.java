@@ -28,8 +28,8 @@ public class DatabaseManager {
                          "&cachePrepStmts=true&prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048&useServerPrepStmts=true");
         config.setUsername(configManager.getMysqlUsername());
         config.setPassword(configManager.getMysqlPassword());
-        config.setMaximumPoolSize(20);
-        config.setMinimumIdle(5);
+        config.setMaximumPoolSize(configManager.getHikariMaximumPoolSize());
+        config.setMinimumIdle(Math.min(configManager.getHikariMinimumIdle(), configManager.getHikariMaximumPoolSize()));
         config.setConnectionTimeout(30000);
         config.setIdleTimeout(600000);
         config.setMaxLifetime(1800000);

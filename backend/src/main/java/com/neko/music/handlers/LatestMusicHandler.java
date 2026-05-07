@@ -74,18 +74,11 @@ public class LatestMusicHandler extends HttpServlet {
                     item.setFileFormat(rs.getString("file_format"));
                     item.setCreatedAt(rs.getTimestamp("created_at").getTime());
 
-                    // 设置封面URL
                     String coverPath = item.getCoverPath();
                     if (coverPath == null || coverPath.isEmpty()) {
                         item.setCoverUrl("/api/defaultIcon");
                     } else {
-                        // 检查封面文件是否存在
-                        java.nio.file.Path path = java.nio.file.Paths.get(coverPath);
-                        if (java.nio.file.Files.exists(path)) {
-                            item.setCoverUrl(coverPath);
-                        } else {
-                            item.setCoverUrl("/api/defaultIcon");
-                        }
+                        item.setCoverUrl("/api/music/cover/" + item.getId());
                     }
 
                     latestMusic.add(item);
