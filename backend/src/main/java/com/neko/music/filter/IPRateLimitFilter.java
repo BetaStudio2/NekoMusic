@@ -140,7 +140,7 @@ public class IPRateLimitFilter implements Filter {
         if (sec >= 60) {
             long m = sec / 60;
             long s = sec % 60;
-            return String.format("请求过于频繁，约 %d 分 %d 秒后可重试", m, s);
+            return String.format("请求过于频繁，请 %d 分 %d 秒后可重试", m, s);
         }
         return String.format("请求过于频繁，请 %d 秒后可重试", sec);
     }
