@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
+import com.neko.music.util.MusicAssetLocator;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,7 +16,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.util.Optional;
 
 public class MusicCoverHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicCoverHandler.class);
@@ -42,46 +43,35 @@ public class MusicCoverHandler extends HttpServlet {
             response.getWriter().println("Invalid music ID");
             return;
         }
-        
-        // 根据音乐ID查找对应的封面路径
-        String coverPath = getCoverPathById(musicId);
-        
-        if (coverPath != null && !coverPath.isEmpty()) {
-            // 检查封面文件是否存在
-            Path coverFile = Paths.get(coverPath);
-            if (Files.exists(coverFile)) {
-                // 文件存在，发送封面文件
+
+        if (!musicRowExists(musicId)) {
+            sendDefaultIcon(response);
+            return;
+        }
+
+        Optional<Path> coverOpt = MusicAssetLocator.findCoverFile(musicId);
+        if (coverOpt.isPresent()) {
+            Path coverFile = coverOpt.get();
+            if (MusicAssetLocator.isUnderDirectory(coverFile, MusicAssetLocator.coverDir()) && Files.exists(coverFile)) {
                 sendImageFile(coverFile, response);
                 return;
             }
         }
-        
-        // 如果封面文件不存在或为空，发送默认图标
+
         sendDefaultIcon(response);
     }
-    
-    /**
-     * 根据音乐ID获取封面路径
-     */
-    private String getCoverPathById(int musicId) {
-        String coverPath = null;
-        
-        try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT cover_path FROM music WHERE id = ?";
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setInt(1, musicId);
-                
-                ResultSet rs = stmt.executeQuery();
-                
-                if (rs.next()) {
-                    coverPath = rs.getString("cover_path");
-                }
+
+    private boolean musicRowExists(int musicId) {
+        try (Connection conn = Main.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement("SELECT 1 FROM music WHERE id = ? LIMIT 1")) {
+            stmt.setInt(1, musicId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next();
             }
         } catch (Exception e) {
-            logger.error("查询音乐封面路径时出错，音乐ID: " + musicId, e);
+            logger.error("校验音乐记录时出错，音乐ID: {}", musicId, e);
+            return false;
         }
-        
-        return coverPath;
     }
     
     /**

@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
+import com.neko.music.util.MusicAssetLocator;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -147,24 +148,6 @@ public class MusicManagementHandler extends HttpServlet {
             return;
         }
 
-        // 先查询音乐文件路径
-        String musicFilePath = null;
-        String coverFilePath = null;
-
-        try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT file_path, cover_path FROM music WHERE id = ?";
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setInt(1, id);
-                ResultSet rs = stmt.executeQuery();
-                if (rs.next()) {
-                    musicFilePath = rs.getString("file_path");
-                    coverFilePath = rs.getString("cover_path");
-                }
-            }
-        } catch (Exception e) {
-            logger.error("查询音乐文件路径时出错", e);
-        }
-
         // 删除数据库记录
         int rowsDeleted;
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
@@ -191,24 +174,11 @@ public class MusicManagementHandler extends HttpServlet {
             return;
         }
 
-        // 删除音乐文件
-        if (musicFilePath != null && !musicFilePath.isEmpty()) {
-            try {
-                java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get(musicFilePath));
-                logger.info("已删除音乐文件: {}", musicFilePath);
-            } catch (Exception e) {
-                logger.error("删除音乐文件失败: {}", musicFilePath, e);
-            }
-        }
-
-        // 删除封面文件
-        if (coverFilePath != null && !coverFilePath.isEmpty()) {
-            try {
-                java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get(coverFilePath));
-                logger.info("已删除封面文件: {}", coverFilePath);
-            } catch (Exception e) {
-                logger.error("删除封面文件失败: {}", coverFilePath, e);
-            }
+        try {
+            MusicAssetLocator.deleteAudioVariants(id);
+            MusicAssetLocator.deleteCoverVariants(id);
+        } catch (Exception e) {
+            logger.error("删除音乐或封面磁盘文件失败: id={}", id, e);
         }
 
         // 删除歌词文件（根据音乐ID查找）
@@ -242,7 +212,7 @@ public class MusicManagementHandler extends HttpServlet {
         List<Music> musicList = new ArrayList<>();
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, title, artist, album, duration, file_path, cover_path, language, tags, upload_user_id, created_at, updated_at FROM music ORDER BY created_at DESC";
+            String sql = "SELECT id, title, artist, album, duration, language, tags, upload_user_id, created_at, updated_at FROM music ORDER BY created_at DESC";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 ResultSet rs = stmt.executeQuery();
                 
@@ -253,8 +223,8 @@ public class MusicManagementHandler extends HttpServlet {
                     music.setArtist(rs.getString("artist"));
                     music.setAlbum(rs.getString("album"));
                     music.setDuration(rs.getInt("duration"));
-                    music.setFilePath(rs.getString("file_path"));
-                    music.setCoverFilePath(rs.getString("cover_path"));
+                    music.setFilePath(MusicAssetLocator.fileApiUrl(music.getId()));
+                    music.setCoverFilePath(MusicAssetLocator.coverApiUrl(music.getId()));
                     music.setLanguage(rs.getString("language"));
                     music.setTags(rs.getString("tags"));
                     music.setUploadUserId(rs.getInt("upload_user_id"));
@@ -296,7 +266,7 @@ public class MusicManagementHandler extends HttpServlet {
         Music music = null;
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, title, artist, album, duration, file_path, cover_path, language, tags, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
+            String sql = "SELECT id, title, artist, album, duration, language, tags, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setInt(1, id);
                 
@@ -309,8 +279,8 @@ public class MusicManagementHandler extends HttpServlet {
                     music.setArtist(rs.getString("artist"));
                     music.setAlbum(rs.getString("album"));
                     music.setDuration(rs.getInt("duration"));
-                    music.setFilePath(rs.getString("file_path"));
-                    music.setCoverFilePath(rs.getString("cover_path"));
+                    music.setFilePath(MusicAssetLocator.fileApiUrl(music.getId()));
+                    music.setCoverFilePath(MusicAssetLocator.coverApiUrl(music.getId()));
                     music.setLanguage(rs.getString("language"));
                     music.setTags(rs.getString("tags"));
                     music.setUploadUserId(rs.getInt("upload_user_id"));
@@ -361,26 +331,24 @@ public class MusicManagementHandler extends HttpServlet {
             
             int id;
             try (Connection conn = Main.getDatabaseManager().getConnection()) {
-                String sql = "INSERT INTO music (title, artist, album, duration, file_path, cover_path, language, tags, upload_user_id, title_pinyin, title_pinyin_initials, title_word_initials, artist_pinyin, artist_pinyin_initials, artist_word_initials, album_pinyin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                String sql = "INSERT INTO music (title, artist, album, duration, language, tags, upload_user_id, title_pinyin, title_pinyin_initials, title_word_initials, artist_pinyin, artist_pinyin_initials, artist_word_initials, album_pinyin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
                 try (PreparedStatement stmt = conn.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
                     stmt.setString(1, addRequest.getTitle());
                     stmt.setString(2, addRequest.getArtist());
                     stmt.setString(3, addRequest.getAlbum() != null ? addRequest.getAlbum() : "未知专辑");
                     stmt.setInt(4, addRequest.getDuration() != null ? addRequest.getDuration() : 0);
-                    stmt.setString(5, addRequest.getFilePath() != null ? addRequest.getFilePath() : "");
-                    stmt.setString(6, addRequest.getCoverFilePath() != null ? addRequest.getCoverFilePath() : "");
-                    stmt.setString(7, addRequest.getLanguage() != null ? addRequest.getLanguage() : "未知语言");
-                    stmt.setString(8, addRequest.getTags() != null ? addRequest.getTags() : "");
+                    stmt.setString(5, addRequest.getLanguage() != null ? addRequest.getLanguage() : "未知语言");
+                    stmt.setString(6, addRequest.getTags() != null ? addRequest.getTags() : "");
                     // 使用NULL而不是0以避免外键约束问题
-                    stmt.setObject(9, null);
+                    stmt.setObject(7, null);
                     // 预计算拼音列
-                    stmt.setString(10, com.neko.music.util.PinyinUtil.getPinyin(addRequest.getTitle()));
-                    stmt.setString(11, com.neko.music.util.PinyinUtil.getPinyinInitials(addRequest.getTitle()));
-                    stmt.setString(12, com.neko.music.util.PinyinUtil.getWordInitials(addRequest.getTitle()));
-                    stmt.setString(13, com.neko.music.util.PinyinUtil.getPinyin(addRequest.getArtist()));
-                    stmt.setString(14, com.neko.music.util.PinyinUtil.getPinyinInitials(addRequest.getArtist()));
-                    stmt.setString(15, com.neko.music.util.PinyinUtil.getWordInitials(addRequest.getArtist()));
-                    stmt.setString(16, addRequest.getAlbum() != null ? com.neko.music.util.PinyinUtil.getPinyin(addRequest.getAlbum()) : "");
+                    stmt.setString(8, com.neko.music.util.PinyinUtil.getPinyin(addRequest.getTitle()));
+                    stmt.setString(9, com.neko.music.util.PinyinUtil.getPinyinInitials(addRequest.getTitle()));
+                    stmt.setString(10, com.neko.music.util.PinyinUtil.getWordInitials(addRequest.getTitle()));
+                    stmt.setString(11, com.neko.music.util.PinyinUtil.getPinyin(addRequest.getArtist()));
+                    stmt.setString(12, com.neko.music.util.PinyinUtil.getPinyinInitials(addRequest.getArtist()));
+                    stmt.setString(13, com.neko.music.util.PinyinUtil.getWordInitials(addRequest.getArtist()));
+                    stmt.setString(14, addRequest.getAlbum() != null ? com.neko.music.util.PinyinUtil.getPinyin(addRequest.getAlbum()) : "");
                     
                     int affectedRows = stmt.executeUpdate();
                     
@@ -405,7 +373,7 @@ public class MusicManagementHandler extends HttpServlet {
             // 获取新添加的音乐信息
             Music newMusic = null;
             try (Connection conn = Main.getDatabaseManager().getConnection()) {
-                String sql = "SELECT id, title, artist, album, duration, file_path, cover_path, language, tags, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
+                String sql = "SELECT id, title, artist, album, duration, language, tags, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
                 try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                     stmt.setInt(1, id);
                     
@@ -418,8 +386,8 @@ public class MusicManagementHandler extends HttpServlet {
                         newMusic.setArtist(rs.getString("artist"));
                         newMusic.setAlbum(rs.getString("album"));
                         newMusic.setDuration(rs.getInt("duration"));
-                        newMusic.setFilePath(rs.getString("file_path"));
-                        newMusic.setCoverFilePath(rs.getString("cover_path"));
+                        newMusic.setFilePath(MusicAssetLocator.fileApiUrl(newMusic.getId()));
+                        newMusic.setCoverFilePath(MusicAssetLocator.coverApiUrl(newMusic.getId()));
                         newMusic.setLanguage(rs.getString("language"));
                         newMusic.setTags(rs.getString("tags"));
                         newMusic.setUploadUserId(rs.getInt("upload_user_id"));
@@ -473,27 +441,25 @@ public class MusicManagementHandler extends HttpServlet {
             
             int rowsUpdated;
             try (Connection conn = Main.getDatabaseManager().getConnection()) {
-                String sql = "UPDATE music SET title = ?, artist = ?, album = ?, duration = ?, file_path = ?, cover_path = ?, language = ?, tags = ?, upload_user_id = ?, title_pinyin = ?, title_pinyin_initials = ?, title_word_initials = ?, artist_pinyin = ?, artist_pinyin_initials = ?, artist_word_initials = ?, album_pinyin = ?, updated_at = NOW() WHERE id = ?";
+                String sql = "UPDATE music SET title = ?, artist = ?, album = ?, duration = ?, language = ?, tags = ?, upload_user_id = ?, title_pinyin = ?, title_pinyin_initials = ?, title_word_initials = ?, artist_pinyin = ?, artist_pinyin_initials = ?, artist_word_initials = ?, album_pinyin = ?, updated_at = NOW() WHERE id = ?";
                 try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                     stmt.setString(1, editRequest.getTitle());
                     stmt.setString(2, editRequest.getArtist());
                     stmt.setString(3, editRequest.getAlbum() != null ? editRequest.getAlbum() : "未知专辑");
                     stmt.setInt(4, editRequest.getDuration() != null ? editRequest.getDuration() : 0);
-                    stmt.setString(5, editRequest.getFilePath() != null ? editRequest.getFilePath() : "");
-                    stmt.setString(6, editRequest.getCoverFilePath() != null ? editRequest.getCoverFilePath() : "");
-                    stmt.setString(7, editRequest.getLanguage() != null ? editRequest.getLanguage() : "未知语言");
-                    stmt.setString(8, editRequest.getTags() != null ? editRequest.getTags() : "");
+                    stmt.setString(5, editRequest.getLanguage() != null ? editRequest.getLanguage() : "未知语言");
+                    stmt.setString(6, editRequest.getTags() != null ? editRequest.getTags() : "");
                     // 使用NULL而不是0以避免外键约束问题
-                    stmt.setObject(9, null);
+                    stmt.setObject(7, null);
                     // 预计算拼音列
-                    stmt.setString(10, com.neko.music.util.PinyinUtil.getPinyin(editRequest.getTitle()));
-                    stmt.setString(11, com.neko.music.util.PinyinUtil.getPinyinInitials(editRequest.getTitle()));
-                    stmt.setString(12, com.neko.music.util.PinyinUtil.getWordInitials(editRequest.getTitle()));
-                    stmt.setString(13, com.neko.music.util.PinyinUtil.getPinyin(editRequest.getArtist()));
-                    stmt.setString(14, com.neko.music.util.PinyinUtil.getPinyinInitials(editRequest.getArtist()));
-                    stmt.setString(15, com.neko.music.util.PinyinUtil.getWordInitials(editRequest.getArtist()));
-                    stmt.setString(16, editRequest.getAlbum() != null ? com.neko.music.util.PinyinUtil.getPinyin(editRequest.getAlbum()) : "");
-                    stmt.setInt(17, editRequest.getId());
+                    stmt.setString(8, com.neko.music.util.PinyinUtil.getPinyin(editRequest.getTitle()));
+                    stmt.setString(9, com.neko.music.util.PinyinUtil.getPinyinInitials(editRequest.getTitle()));
+                    stmt.setString(10, com.neko.music.util.PinyinUtil.getWordInitials(editRequest.getTitle()));
+                    stmt.setString(11, com.neko.music.util.PinyinUtil.getPinyin(editRequest.getArtist()));
+                    stmt.setString(12, com.neko.music.util.PinyinUtil.getPinyinInitials(editRequest.getArtist()));
+                    stmt.setString(13, com.neko.music.util.PinyinUtil.getWordInitials(editRequest.getArtist()));
+                    stmt.setString(14, editRequest.getAlbum() != null ? com.neko.music.util.PinyinUtil.getPinyin(editRequest.getAlbum()) : "");
+                    stmt.setInt(15, editRequest.getId());
                     
                     rowsUpdated = stmt.executeUpdate();
                 }
@@ -515,7 +481,7 @@ public class MusicManagementHandler extends HttpServlet {
             // 获取更新后的音乐信息
             Music updatedMusic = null;
             try (Connection conn = Main.getDatabaseManager().getConnection()) {
-                String sql = "SELECT id, title, artist, album, duration, file_path, cover_path, language, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
+                String sql = "SELECT id, title, artist, album, duration, language, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
                 try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                     stmt.setInt(1, editRequest.getId());
                     
@@ -528,8 +494,8 @@ public class MusicManagementHandler extends HttpServlet {
                         updatedMusic.setArtist(rs.getString("artist"));
                         updatedMusic.setAlbum(rs.getString("album"));
                         updatedMusic.setDuration(rs.getInt("duration"));
-                        updatedMusic.setFilePath(rs.getString("file_path"));
-                        updatedMusic.setCoverFilePath(rs.getString("cover_path"));
+                        updatedMusic.setFilePath(MusicAssetLocator.fileApiUrl(updatedMusic.getId()));
+                        updatedMusic.setCoverFilePath(MusicAssetLocator.coverApiUrl(updatedMusic.getId()));
                         updatedMusic.setLanguage(rs.getString("language"));
                         updatedMusic.setUploadUserId(rs.getInt("upload_user_id"));
                         updatedMusic.setCreatedAt(rs.getTimestamp("created_at").toString());
@@ -648,20 +614,13 @@ public class MusicManagementHandler extends HttpServlet {
         public String getUpdatedAt() { return updatedAt; }
         public void setUpdatedAt(String updatedAt) { this.updatedAt = updatedAt; }
         
-        // 获取封面URL，如果封面文件不存在则返回默认图标路径
         public String getCoverUrl() {
-            if (coverFilePath == null || coverFilePath.isEmpty()) {
+            if (id <= 0) {
                 return "/api/defaultIcon";
             }
-            
-            // 检查封面文件是否存在
-            java.nio.file.Path coverPath = java.nio.file.Paths.get(coverFilePath);
-            if (java.nio.file.Files.exists(coverPath)) {
-                return coverFilePath;
-            } else {
-                // 如果文件不存在，返回默认图标路径
-                return "/api/defaultIcon";
-            }
+            return MusicAssetLocator.findCoverFile(id).isPresent()
+                    ? MusicAssetLocator.coverApiUrl(id)
+                    : "/api/defaultIcon";
         }
     }
     

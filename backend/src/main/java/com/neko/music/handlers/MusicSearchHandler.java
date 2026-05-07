@@ -2,6 +2,7 @@ package com.neko.music.handlers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
+import com.neko.music.util.MusicAssetLocator;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,7 +66,7 @@ public class MusicSearchHandler extends HttpServlet {
             if (containsPinyin) {
                 // 拼音搜索：利用预计算的拼音列在SQL层筛选
                 // 匹配：标题/歌手/专辑的原文LIKE + 拼音列LIKE + 拼音首字母列LIKE + 词首字母列LIKE
-                sql = "SELECT id, title, artist, album, duration, file_path, cover_path, upload_user_id, created_at, " +
+                sql = "SELECT id, title, artist, album, duration, upload_user_id, created_at, " +
                       "title_pinyin, title_pinyin_initials, title_word_initials, artist_pinyin, artist_pinyin_initials, artist_word_initials, album_pinyin " +
                       "FROM music " +
                       "WHERE (title LIKE ? OR artist LIKE ? OR album LIKE ? " +
@@ -81,7 +82,7 @@ public class MusicSearchHandler extends HttpServlet {
                 // 中文搜索：利用繁简体变体 + 预计算拼音列
                 List<String> variants = com.neko.music.util.ChineseConverter.getFullSearchVariants(query);
                 StringBuilder sqlBuilder = new StringBuilder();
-                sqlBuilder.append("SELECT id, title, artist, album, duration, file_path, cover_path, upload_user_id, created_at, ");
+                sqlBuilder.append("SELECT id, title, artist, album, duration, upload_user_id, created_at, ");
                 sqlBuilder.append("title_pinyin, title_pinyin_initials, title_word_initials, artist_pinyin, artist_pinyin_initials, artist_word_initials, album_pinyin ");
                 sqlBuilder.append("FROM music WHERE (");
 
@@ -126,8 +127,9 @@ public class MusicSearchHandler extends HttpServlet {
                         music.setArtist(rs.getString("artist") != null ? rs.getString("artist") : "");
                         music.setAlbum(rs.getString("album") != null ? rs.getString("album") : "");
                         music.setDuration(rs.getInt("duration"));
-                        music.setFilePath(rs.getString("file_path") != null ? rs.getString("file_path") : "");
-                        music.setCoverFilePath(rs.getString("cover_path") != null ? rs.getString("cover_path") : "");
+                        int mid = rs.getInt("id");
+                        music.setFilePath(MusicAssetLocator.fileApiUrl(mid));
+                        music.setCoverFilePath(MusicAssetLocator.coverApiUrl(mid));
                         music.setUploadUserId(rs.getInt("upload_user_id"));
                         music.setCreatedAt(rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toString() : "");
 

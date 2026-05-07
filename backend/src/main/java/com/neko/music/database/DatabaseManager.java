@@ -67,8 +67,6 @@ public class DatabaseManager {
                     artist VARCHAR(255) NOT NULL,
                     album VARCHAR(255),
                     duration INT, -- 时长，单位秒
-                    file_path VARCHAR(500),
-                    cover_path VARCHAR(500),
                     file_format VARCHAR(10) DEFAULT 'mp3', -- 音频文件格式：mp3/flac/wav
                     language VARCHAR(50) NOT NULL DEFAULT '未知语言',
                     tags VARCHAR(500),
@@ -82,12 +80,52 @@ public class DatabaseManager {
                 stmt.execute();
             }
 
+            // 移除旧版 music 表的 file_path / cover_path（资源改为磁盘 Music/music、Music/covers 下 {id}.*）
+            try {
+                String checkFilePath = """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = DATABASE()
+                    AND table_name = 'music'
+                    AND column_name = 'file_path'
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(checkFilePath);
+                     ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next() && rs.getInt(1) > 0) {
+                        try (PreparedStatement drop = conn.prepareStatement("ALTER TABLE music DROP COLUMN file_path")) {
+                            drop.execute();
+                            logger.info("已删除 music 表的 file_path 字段");
+                        }
+                    }
+                }
+            } catch (SQLException e) {
+                logger.debug("删除 music.file_path 失败（可能不存在）: {}", e.getMessage());
+            }
+            try {
+                String checkCoverPath = """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = DATABASE()
+                    AND table_name = 'music'
+                    AND column_name = 'cover_path'
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(checkCoverPath);
+                     ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next() && rs.getInt(1) > 0) {
+                        try (PreparedStatement drop = conn.prepareStatement("ALTER TABLE music DROP COLUMN cover_path")) {
+                            drop.execute();
+                            logger.info("已删除 music 表的 cover_path 字段");
+                        }
+                    }
+                }
+            } catch (SQLException e) {
+                logger.debug("删除 music.cover_path 失败（可能不存在）: {}", e.getMessage());
+            }
+
             // 为已存在的 music 表添加 file_format 字段（如果不存在）
             try {
                 String alterTable = """
                     ALTER TABLE music
                     ADD COLUMN IF NOT EXISTS file_format VARCHAR(10) DEFAULT 'mp3'
-                    AFTER cover_path
+                    AFTER duration
                     """;
                 try (PreparedStatement stmt = conn.prepareStatement(alterTable)) {
                     stmt.execute();

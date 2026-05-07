@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
+import com.neko.music.util.MusicAssetLocator;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,7 +68,7 @@ public class MusicInfoHandler extends HttpServlet {
         Music music = null;
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, title, artist, album, duration, file_path, cover_path, language, tags, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
+            String sql = "SELECT id, title, artist, album, duration, language, tags, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setInt(1, musicId);
                 
@@ -80,8 +81,8 @@ public class MusicInfoHandler extends HttpServlet {
                     music.setArtist(rs.getString("artist"));
                     music.setAlbum(rs.getString("album"));
                     music.setDuration(rs.getInt("duration"));
-                    music.setFilePath(rs.getString("file_path"));
-                    music.setCoverFilePath(rs.getString("cover_path"));
+                    music.setFilePath(MusicAssetLocator.fileApiUrl(music.getId()));
+                    music.setCoverFilePath(MusicAssetLocator.coverApiUrl(music.getId()));
                     music.setLanguage(rs.getString("language"));
                     music.setTags(rs.getString("tags"));
                     music.setUploadUserId(rs.getInt("upload_user_id"));
@@ -137,20 +138,14 @@ public class MusicInfoHandler extends HttpServlet {
         public String getUpdatedAt() { return updatedAt; }
         public void setUpdatedAt(String updatedAt) { this.updatedAt = updatedAt; }
         
-        // 获取封面URL，如果封面文件不存在则返回默认图标路径
+        // 获取封面 URL：磁盘存在封面则走封面接口，否则默认图
         public String getCoverUrl() {
-            if (coverFilePath == null || coverFilePath.isEmpty()) {
+            if (id <= 0) {
                 return "/api/defaultIcon";
             }
-            
-            // 检查封面文件是否存在
-            java.nio.file.Path coverPath = java.nio.file.Paths.get(coverFilePath);
-            if (java.nio.file.Files.exists(coverPath)) {
-                return coverFilePath;
-            } else {
-                // 如果文件不存在，返回默认图标路径
-                return "/api/defaultIcon";
-            }
+            return MusicAssetLocator.findCoverFile(id).isPresent()
+                    ? MusicAssetLocator.coverApiUrl(id)
+                    : "/api/defaultIcon";
         }
     }
     

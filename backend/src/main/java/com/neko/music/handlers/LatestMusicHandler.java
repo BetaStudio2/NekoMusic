@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
+import com.neko.music.util.MusicAssetLocator;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,7 +52,7 @@ public class LatestMusicHandler extends HttpServlet {
 
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             String sql = """
-                SELECT id, title, artist, album, duration, cover_path, language, tags, file_format, created_at
+                SELECT id, title, artist, album, duration, language, tags, file_format, created_at
                 FROM music
                 ORDER BY created_at DESC
                 LIMIT ?
@@ -68,18 +69,13 @@ public class LatestMusicHandler extends HttpServlet {
                     item.setArtist(rs.getString("artist"));
                     item.setAlbum(rs.getString("album"));
                     item.setDuration(rs.getInt("duration"));
-                    item.setCoverPath(rs.getString("cover_path"));
+                    item.setCoverPath(null);
                     item.setLanguage(rs.getString("language"));
                     item.setTags(rs.getString("tags"));
                     item.setFileFormat(rs.getString("file_format"));
                     item.setCreatedAt(rs.getTimestamp("created_at").getTime());
 
-                    String coverPath = item.getCoverPath();
-                    if (coverPath == null || coverPath.isEmpty()) {
-                        item.setCoverUrl("/api/defaultIcon");
-                    } else {
-                        item.setCoverUrl("/api/music/cover/" + item.getId());
-                    }
+                    item.setCoverUrl(MusicAssetLocator.coverApiUrl(item.getId()));
 
                     latestMusic.add(item);
                 }

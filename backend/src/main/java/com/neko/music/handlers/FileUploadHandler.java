@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
+import com.neko.music.util.MusicAssetLocator;
 import com.neko.music.util.AudioFileValidator;
 import com.neko.music.util.LrcValidator;
 import org.eclipse.jetty.http.HttpStatus;
@@ -252,7 +253,7 @@ public class FileUploadHandler extends HttpServlet {
             int musicId = insertMusicToDatabase(title, artist, album, language, tags, duration, uploadUserId, fileFormat);
 
             // 构建文件路径（根据文件格式动态生成扩展名）
-            String musicFilePath = MUSIC_DIR + File.separator + musicId + "." + fileExtension;
+            String musicFilePath = MUSIC_DIR + File.separator + musicId + "." + fileFormat;
             String coverFilePath = null;
             
             if (coverFilePart != null) {
@@ -288,9 +289,6 @@ public class FileUploadHandler extends HttpServlet {
             
             // 保存歌词文件
             saveLyricsFile(musicId, lyricsFilePart);
-            
-            // 更新数据库中的文件路径
-            updateFilePathsInDatabase(musicId, musicFilePath, coverFilePath);
             
             // 获取完整的音乐信息
             Music music = getMusicById(musicId);
@@ -453,9 +451,6 @@ public class FileUploadHandler extends HttpServlet {
             Files.createDirectories(musicPath);
             Files.createDirectories(coverPath);
             
-            String musicFilePath = currentMusic.getFilePath();
-            String coverFilePath = currentMusic.getCoverFilePath(); // 假设数据库中有封面路径字段
-            
             // 检查是否上传了新的音乐文件
             if (musicFilePart != null) {
                 // 检查文件类型 - 完全基于文件内容检测格式
@@ -511,12 +506,14 @@ public class FileUploadHandler extends HttpServlet {
                 }
 
                 // 构建新文件路径（根据文件格式动态生成扩展名）
-                musicFilePath = MUSIC_DIR + File.separator + id + "." + fileFormat;
+                String musicFilePath = MUSIC_DIR + File.separator + id + "." + fileFormat;
+
+                MusicAssetLocator.deleteAudioVariants(id);
 
                 // 保存音乐文件
                 Path musicFile = Paths.get(musicFilePath);
                 try (InputStream inputStream = musicFilePart.getInputStream()) {
-                    Files.copy(inputStream, musicFile);
+                    Files.copy(inputStream, musicFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                     logger.info("音乐文件已保存到: " + musicFilePath);
                 }
 
@@ -544,12 +541,14 @@ public class FileUploadHandler extends HttpServlet {
                 
                 // 获取文件扩展名
                 String extension = getFileExtension(fileName);
-                coverFilePath = COVER_DIR + File.separator + id + "." + extension;
+                String coverFilePath = COVER_DIR + File.separator + id + "." + extension;
+
+                MusicAssetLocator.deleteCoverVariants(id);
                 
                 // 保存封面文件
                 Path coverFile = Paths.get(coverFilePath);
                 try (InputStream inputStream = coverFilePart.getInputStream()) {
-                    Files.copy(inputStream, coverFile);
+                    Files.copy(inputStream, coverFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                     logger.info("封面文件已保存到: " + coverFilePath);
                 }
             }
@@ -558,7 +557,7 @@ public class FileUploadHandler extends HttpServlet {
             saveLyricsFile(id, lyricsFilePart);
             
             // 更新数据库中的音乐信息
-            updateMusicInDatabase(id, title, artist, album, language, tags, duration, musicFilePath, coverFilePath, uploadUserId);
+            updateMusicInDatabase(id, title, artist, album, language, tags, duration, uploadUserId);
             
             // 获取更新后的音乐信息
             Music updatedMusic = getMusicById(id);
@@ -656,7 +655,7 @@ public class FileUploadHandler extends HttpServlet {
                 }
             }
 
-            String sql = "INSERT INTO music (title, artist, album, language, tags, duration, file_path, cover_path, file_format, upload_user_id, title_pinyin, title_pinyin_initials, title_word_initials, artist_pinyin, artist_pinyin_initials, artist_word_initials, album_pinyin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            String sql = "INSERT INTO music (title, artist, album, language, tags, duration, file_format, upload_user_id, title_pinyin, title_pinyin_initials, title_word_initials, artist_pinyin, artist_pinyin_initials, artist_word_initials, album_pinyin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             try (PreparedStatement stmt = conn.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
                 stmt.setString(1, title);
                 stmt.setString(2, artist);
@@ -664,18 +663,16 @@ public class FileUploadHandler extends HttpServlet {
                 stmt.setString(4, language != null ? language : "未知语言");
                 stmt.setString(5, tags != null ? tags : "");
                 stmt.setInt(6, duration);
-                stmt.setString(7, ""); // 文件路径将在后续更新
-                stmt.setString(8, ""); // 封面路径将在后续更新
-                stmt.setString(9, fileFormat); // 文件格式
-                stmt.setObject(10, validUploadUserId); // 使用验证后的用户ID或null
+                stmt.setString(7, fileFormat); // 文件格式
+                stmt.setObject(8, validUploadUserId); // 使用验证后的用户ID或null
                 // 预计算拼音列
-                stmt.setString(11, com.neko.music.util.PinyinUtil.getPinyin(title));
-                stmt.setString(12, com.neko.music.util.PinyinUtil.getPinyinInitials(title));
-                stmt.setString(13, com.neko.music.util.PinyinUtil.getWordInitials(title));
-                stmt.setString(14, com.neko.music.util.PinyinUtil.getPinyin(artist));
-                stmt.setString(15, com.neko.music.util.PinyinUtil.getPinyinInitials(artist));
-                stmt.setString(16, com.neko.music.util.PinyinUtil.getWordInitials(artist));
-                stmt.setString(17, album != null ? com.neko.music.util.PinyinUtil.getPinyin(album) : "");
+                stmt.setString(9, com.neko.music.util.PinyinUtil.getPinyin(title));
+                stmt.setString(10, com.neko.music.util.PinyinUtil.getPinyinInitials(title));
+                stmt.setString(11, com.neko.music.util.PinyinUtil.getWordInitials(title));
+                stmt.setString(12, com.neko.music.util.PinyinUtil.getPinyin(artist));
+                stmt.setString(13, com.neko.music.util.PinyinUtil.getPinyinInitials(artist));
+                stmt.setString(14, com.neko.music.util.PinyinUtil.getWordInitials(artist));
+                stmt.setString(15, album != null ? com.neko.music.util.PinyinUtil.getPinyin(album) : "");
 
                 int affectedRows = stmt.executeUpdate();
 
@@ -733,23 +730,9 @@ public class FileUploadHandler extends HttpServlet {
         return false;
     }
     
-    // 更新数据库中的文件路径
-    private void updateFilePathsInDatabase(int id, String musicFilePath, String coverFilePath) throws SQLException {
-        try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "UPDATE music SET file_path = ?, cover_path = ? WHERE id = ?";
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setString(1, musicFilePath);
-                stmt.setString(2, coverFilePath);
-                stmt.setInt(3, id);
-                
-                stmt.executeUpdate();
-            }
-        }
-    }
-    
     // 更新音乐信息到数据库
     private void updateMusicInDatabase(int id, String title, String artist, String album, String language, String tags, int duration,
-                                      String musicFilePath, String coverFilePath, Integer uploadUserId) throws SQLException {
+                                      Integer uploadUserId) throws SQLException {
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             // 验证提供的uploadUserId是否存在于users表中
             Integer validUploadUserId = null;
@@ -762,7 +745,7 @@ public class FileUploadHandler extends HttpServlet {
                 }
             }
 
-            String sql = "UPDATE music SET title = ?, artist = ?, album = ?, language = ?, tags = ?, duration = ?, file_path = ?, cover_path = ?, upload_user_id = ?, title_pinyin = ?, title_pinyin_initials = ?, title_word_initials = ?, artist_pinyin = ?, artist_pinyin_initials = ?, artist_word_initials = ?, album_pinyin = ?, updated_at = NOW() WHERE id = ?";
+            String sql = "UPDATE music SET title = ?, artist = ?, album = ?, language = ?, tags = ?, duration = ?, upload_user_id = ?, title_pinyin = ?, title_pinyin_initials = ?, title_word_initials = ?, artist_pinyin = ?, artist_pinyin_initials = ?, artist_word_initials = ?, album_pinyin = ?, updated_at = NOW() WHERE id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setString(1, title);
                 stmt.setString(2, artist);
@@ -770,18 +753,16 @@ public class FileUploadHandler extends HttpServlet {
                 stmt.setString(4, language != null ? language : "未知语言");
                 stmt.setString(5, tags != null ? tags : "");
                 stmt.setInt(6, duration);
-                stmt.setString(7, musicFilePath);
-                stmt.setString(8, coverFilePath);
-                stmt.setObject(9, validUploadUserId); // 使用验证后的用户ID或null
+                stmt.setObject(7, validUploadUserId); // 使用验证后的用户ID或null
                 // 预计算拼音列
-                stmt.setString(10, com.neko.music.util.PinyinUtil.getPinyin(title));
-                stmt.setString(11, com.neko.music.util.PinyinUtil.getPinyinInitials(title));
-                stmt.setString(12, com.neko.music.util.PinyinUtil.getWordInitials(title));
-                stmt.setString(13, com.neko.music.util.PinyinUtil.getPinyin(artist));
-                stmt.setString(14, com.neko.music.util.PinyinUtil.getPinyinInitials(artist));
-                stmt.setString(15, com.neko.music.util.PinyinUtil.getWordInitials(artist));
-                stmt.setString(16, album != null ? com.neko.music.util.PinyinUtil.getPinyin(album) : "");
-                stmt.setInt(17, id);
+                stmt.setString(8, com.neko.music.util.PinyinUtil.getPinyin(title));
+                stmt.setString(9, com.neko.music.util.PinyinUtil.getPinyinInitials(title));
+                stmt.setString(10, com.neko.music.util.PinyinUtil.getWordInitials(title));
+                stmt.setString(11, com.neko.music.util.PinyinUtil.getPinyin(artist));
+                stmt.setString(12, com.neko.music.util.PinyinUtil.getPinyinInitials(artist));
+                stmt.setString(13, com.neko.music.util.PinyinUtil.getWordInitials(artist));
+                stmt.setString(14, album != null ? com.neko.music.util.PinyinUtil.getPinyin(album) : "");
+                stmt.setInt(15, id);
 
                 int rowsUpdated = stmt.executeUpdate();
                 if (rowsUpdated == 0) {
@@ -824,7 +805,7 @@ public class FileUploadHandler extends HttpServlet {
         Music music = null;
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, title, artist, album, language, tags, duration, file_path, cover_path, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
+            String sql = "SELECT id, title, artist, album, language, tags, duration, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setInt(1, id);
                 
@@ -839,9 +820,8 @@ public class FileUploadHandler extends HttpServlet {
                     music.setLanguage(rs.getString("language"));
                     music.setTags(rs.getString("tags"));
                     music.setDuration(rs.getInt("duration"));
-                    music.setFilePath(rs.getString("file_path"));
-                    String coverPath = rs.getString("cover_path");
-                    music.setCoverFilePath(coverPath != null && !coverPath.trim().isEmpty() ? coverPath : null);
+                    music.setFilePath(MusicAssetLocator.fileApiUrl(music.getId()));
+                    music.setCoverFilePath(MusicAssetLocator.coverApiUrl(music.getId()));
                     music.setUploadUserId(rs.getInt("upload_user_id"));
                     music.setCreatedAt(rs.getTimestamp("created_at").toString());
                     music.setUpdatedAt(rs.getTimestamp("updated_at").toString());

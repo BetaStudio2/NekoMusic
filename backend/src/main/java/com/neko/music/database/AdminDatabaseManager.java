@@ -49,7 +49,6 @@ public class AdminDatabaseManager {
                 artist VARCHAR(255),
                 album VARCHAR(255),
                 duration INT,
-                file_path VARCHAR(500),
                 upload_user_id INT DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -346,12 +345,6 @@ public class AdminDatabaseManager {
                 hasUpdatedAt = rs.next();
             }
             
-            // 检查cover_path列是否存在
-            boolean hasCoverPath = false;
-            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "music", "cover_path")) {
-                hasCoverPath = rs.next();
-            }
-            
             // 检查language列是否存在
             boolean hasLanguage = false;
             try (ResultSet rs = conn.getMetaData().getColumns(null, null, "music", "language")) {
@@ -374,11 +367,6 @@ public class AdminDatabaseManager {
                 if (!hasUpdatedAt) {
                     stmt.execute("ALTER TABLE music ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
                     logger.info("已添加updated_at列到music表");
-                }
-                
-                if (!hasCoverPath) {
-                    stmt.execute("ALTER TABLE music ADD COLUMN cover_path VARCHAR(500)");
-                    logger.info("已添加cover_path列到music表");
                 }
                 
                 if (!hasLanguage) {

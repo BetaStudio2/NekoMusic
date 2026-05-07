@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
+import com.neko.music.util.MusicAssetLocator;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,7 +52,7 @@ public class MusicRankingHandler extends HttpServlet {
 
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             String sql = """
-                SELECT id, title, artist, album, duration, cover_path, language, tags, play_count
+                SELECT id, title, artist, album, duration, language, tags, play_count
                 FROM music
                 WHERE play_count > 0
                 ORDER BY play_count DESC
@@ -69,18 +70,12 @@ public class MusicRankingHandler extends HttpServlet {
                     item.setArtist(rs.getString("artist"));
                     item.setAlbum(rs.getString("album"));
                     item.setDuration(rs.getInt("duration"));
-                    item.setCoverPath(rs.getString("cover_path"));
+                    item.setCoverPath(null);
                     item.setLanguage(rs.getString("language"));
                     item.setTags(rs.getString("tags"));
                     item.setPlayCount(rs.getInt("play_count"));
 
-                    // 封面走 API，避免列表接口对每条记录 stat 磁盘（高并发友好）
-                    String coverPath = item.getCoverPath();
-                    if (coverPath == null || coverPath.isEmpty()) {
-                        item.setCoverUrl("/api/defaultIcon");
-                    } else {
-                        item.setCoverUrl("/api/music/cover/" + item.getId());
-                    }
+                    item.setCoverUrl(MusicAssetLocator.coverApiUrl(item.getId()));
 
                     ranking.add(item);
                 }

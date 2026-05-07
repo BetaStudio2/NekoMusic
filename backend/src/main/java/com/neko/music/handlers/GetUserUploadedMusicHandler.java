@@ -3,6 +3,7 @@ package com.neko.music.handlers;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
+import com.neko.music.util.MusicAssetLocator;
 import com.neko.music.service.UserAuthService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -89,7 +90,7 @@ public class GetUserUploadedMusicHandler extends HttpServlet {
     private List<JsonObject> getUserApprovedMusic(int userId) {
         List<JsonObject> musicList = new ArrayList<>();
         String sql = """
-            SELECT m.* 
+            SELECT m.id, m.title, m.artist, m.album, m.duration, m.language, m.tags, m.file_format, m.created_at
             FROM music m
             WHERE m.upload_user_id = ?
             ORDER BY m.created_at DESC
@@ -111,8 +112,9 @@ public class GetUserUploadedMusicHandler extends HttpServlet {
                 music.addProperty("language", rs.getString("language"));
                 music.addProperty("tags", rs.getString("tags"));
                 music.addProperty("fileFormat", rs.getString("file_format"));
-                music.addProperty("filePath", rs.getString("file_path"));
-                music.addProperty("coverPath", rs.getString("cover_path"));
+                int mid = rs.getInt("id");
+                music.addProperty("filePath", MusicAssetLocator.fileApiUrl(mid));
+                music.addProperty("coverPath", MusicAssetLocator.coverApiUrl(mid));
                 
                 Timestamp createdAt = rs.getTimestamp("created_at");
                 if (createdAt != null) {

@@ -3,6 +3,7 @@ package com.neko.music.handlers;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonArray;
 import com.neko.music.Main;
+import com.neko.music.util.MusicAssetLocator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -232,7 +233,7 @@ public class UserFavoritePlaylistHandler extends HttpServlet {
         
         // 获取歌单内的音乐
         List<JsonObject> musicList = new ArrayList<>();
-        String sql = "SELECT m.id, m.title, m.artist, m.album, m.duration, m.file_path, pm.position " +
+        String sql = "SELECT m.id, m.title, m.artist, m.album, m.duration, pm.position " +
                      "FROM playlist_music pm " +
                      "JOIN music m ON pm.music_id = m.id " +
                      "WHERE pm.playlist_id = ? " +
@@ -251,7 +252,7 @@ public class UserFavoritePlaylistHandler extends HttpServlet {
                 music.addProperty("artist", rs.getString("artist"));
                 music.addProperty("album", rs.getString("album"));
                 music.addProperty("duration", rs.getInt("duration"));
-                music.addProperty("filename", rs.getString("file_path"));
+                music.addProperty("filename", MusicAssetLocator.fileApiUrl(rs.getInt("id")));
                 music.addProperty("position", rs.getInt("position"));
                 musicList.add(music);
             }

@@ -257,8 +257,8 @@ public class AdminUploadAuditHandler extends HttpServlet {
             
             // 在事务内插入到music表获取音乐ID
             String insertMusicSql = """
-                INSERT INTO music (title, artist, album, duration, file_path, cover_path, file_format, language, tags, upload_user_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO music (title, artist, album, duration, file_format, language, tags, upload_user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
             try (PreparedStatement pstmt = conn.prepareStatement(insertMusicSql, java.sql.Statement.RETURN_GENERATED_KEYS)) {
@@ -267,12 +267,10 @@ public class AdminUploadAuditHandler extends HttpServlet {
                 pstmt.setString(2, upload.getArtist());
                 pstmt.setString(3, upload.getAlbum());
                 pstmt.setInt(4, upload.getDuration());
-                pstmt.setString(5, ""); // 先为空，后面更新
-                pstmt.setString(6, ""); // 先为空，后面更新
-                pstmt.setString(7, getFileExtensionWithoutDot(upload.getMusicFilePath()));
-                pstmt.setString(8, upload.getLanguage());
-                pstmt.setString(9, upload.getTags());
-                pstmt.setInt(10, upload.getUserId());
+                pstmt.setString(5, getFileExtensionWithoutDot(upload.getMusicFilePath()));
+                pstmt.setString(6, upload.getLanguage());
+                pstmt.setString(7, upload.getTags());
+                pstmt.setInt(8, upload.getUserId());
 
                 int affectedRows = pstmt.executeUpdate();
 
@@ -302,7 +300,9 @@ public class AdminUploadAuditHandler extends HttpServlet {
 
             // 使用音乐ID生成最终的文件名
             String newMusicFileName = musicId + getFileExtension(upload.getMusicFilePath());
-            String newCoverFileName = musicId + ".jpg";
+            String newCoverFileName = (upload.getCoverFilePath() != null && !upload.getCoverFilePath().isEmpty())
+                    ? musicId + getFileExtension(upload.getCoverFilePath())
+                    : null;
             String newLyricsFileName = musicId + ".lrc";
 
             // 将临时文件重命名为最终文件名
@@ -311,7 +311,7 @@ public class AdminUploadAuditHandler extends HttpServlet {
             logger.info("重命名音乐文件: {} -> {}", tempMusicPath, newMusicPath);
 
             // 重命名封面文件（如果有）
-            if (upload.getCoverFilePath() != null && !upload.getCoverFilePath().isEmpty()) {
+            if (upload.getCoverFilePath() != null && !upload.getCoverFilePath().isEmpty() && newCoverFileName != null) {
                 newCoverPath = Paths.get(MUSIC_COVERS_DIR, newCoverFileName).toString();
                 Files.move(Paths.get(tempCoverPath), Paths.get(newCoverPath), StandardCopyOption.REPLACE_EXISTING);
                 logger.info("重命名封面文件: {} -> {}", tempCoverPath, newCoverPath);
@@ -322,18 +322,6 @@ public class AdminUploadAuditHandler extends HttpServlet {
                 newLyricsPath = Paths.get(MUSIC_LYRICS_DIR, newLyricsFileName).toString();
                 Files.move(Paths.get(tempLyricsPath), Paths.get(newLyricsPath), StandardCopyOption.REPLACE_EXISTING);
                 logger.info("重命名歌词文件: {} -> {}", tempLyricsPath, newLyricsPath);
-            }
-
-            // 在事务内更新数据库中的文件路径
-            String updatePathSql = "UPDATE music SET file_path = ?, cover_path = ? WHERE id = ?";
-
-            try (PreparedStatement pstmt = conn.prepareStatement(updatePathSql)) {
-
-                pstmt.setString(1, newMusicPath);
-                pstmt.setString(2, newCoverPath != null ? newCoverPath : "");
-                pstmt.setInt(3, musicId);
-                pstmt.executeUpdate();
-                logger.info("已更新音乐ID {} 的文件路径", musicId);
             }
 
             // 在事务内更新user_uploads表状态为approved

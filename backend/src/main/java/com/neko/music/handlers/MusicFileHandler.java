@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
+import com.neko.music.util.MusicAssetLocator;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,22 +16,10 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.Optional;
 
 public class MusicFileHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicFileHandler.class);
-
-    /** 热点曲目路径缓存，减轻反复 SELECT file_path（LRU 约 2048 条） */
-    private static final Map<Integer, String> MUSIC_FILE_PATH_CACHE = Collections.synchronizedMap(
-            new LinkedHashMap<>(512, 0.75f, true) {
-                @Override
-                protected boolean removeEldestEntry(Map.Entry<Integer, String> eldest) {
-                    return size() > 2048;
-                }
-            });
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -55,57 +44,52 @@ public class MusicFileHandler extends HttpServlet {
             response.getWriter().println("无效的音乐ID");
             return;
         }
-        
-        // 根据音乐ID查找对应的文件路径
-        String musicFilePath = getMusicFilePathById(musicId);
-        
-        if (musicFilePath != null && !musicFilePath.isEmpty()) {
-            // 检查音乐文件是否存在
-            Path musicFile = Paths.get(musicFilePath);
-            if (Files.exists(musicFile)) {
-                // 文件存在，发送音乐文件
-                sendMusicFile(musicFile, request, response);
-                return;
-            }
+
+        if (!musicRowExists(musicId)) {
+            response.setStatus(HttpStatus.NOT_FOUND_404);
+            response.setContentType("text/plain;charset=utf-8");
+            response.getWriter().println("音乐文件不存在");
+            return;
         }
-        
-        // 如果音乐文件不存在或为空，返回404
+
+        Optional<Path> audioOpt = MusicAssetLocator.findAudioFile(musicId);
+        if (audioOpt.isEmpty()) {
+            response.setStatus(HttpStatus.NOT_FOUND_404);
+            response.setContentType("text/plain;charset=utf-8");
+            response.getWriter().println("音乐文件不存在");
+            return;
+        }
+
+        Path musicFile = audioOpt.get();
+        if (!MusicAssetLocator.isUnderDirectory(musicFile, MusicAssetLocator.audioDir())) {
+            logger.warn("拒绝提供音乐文件（路径不在允许目录内）: {}", musicFile);
+            response.setStatus(HttpStatus.NOT_FOUND_404);
+            response.setContentType("text/plain;charset=utf-8");
+            response.getWriter().println("音乐文件不存在");
+            return;
+        }
+
+        if (Files.exists(musicFile)) {
+            sendMusicFile(musicFile, request, response);
+            return;
+        }
+
         response.setStatus(HttpStatus.NOT_FOUND_404);
         response.setContentType("text/plain;charset=utf-8");
         response.getWriter().println("音乐文件不存在");
     }
-    
-    /**
-     * 根据音乐ID获取文件路径
-     */
-    private String getMusicFilePathById(int musicId) {
-        String cached = MUSIC_FILE_PATH_CACHE.get(musicId);
-        if (cached != null) {
-            return cached;
-        }
 
-        String filePath = null;
-        
-        try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT file_path FROM music WHERE id = ?";
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setInt(1, musicId);
-                
-                ResultSet rs = stmt.executeQuery();
-                
-                if (rs.next()) {
-                    filePath = rs.getString("file_path");
-                }
+    private boolean musicRowExists(int musicId) {
+        try (Connection conn = Main.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement("SELECT 1 FROM music WHERE id = ? LIMIT 1")) {
+            stmt.setInt(1, musicId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next();
             }
         } catch (Exception e) {
-            logger.error("查询音乐文件路径时出错，音乐ID: " + musicId, e);
+            logger.error("校验音乐记录时出错，音乐ID: {}", musicId, e);
+            return false;
         }
-
-        if (filePath != null && !filePath.isEmpty()) {
-            MUSIC_FILE_PATH_CACHE.put(musicId, filePath);
-        }
-
-        return filePath;
     }
     
     /**
