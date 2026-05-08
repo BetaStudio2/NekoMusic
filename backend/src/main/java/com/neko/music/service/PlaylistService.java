@@ -249,8 +249,8 @@ public class PlaylistService {
             conn.setAutoCommit(false);
 
             try {
-                // 所有现有位置+1，单条SQL完成
-                String shiftSql = "UPDATE playlist_music SET position = position + 1 WHERE playlist_id = ?";
+                // 必须从大到小更新，否则中间会出现重复的 (playlist_id, position) 触发唯一约束
+                String shiftSql = "UPDATE playlist_music SET position = position + 1 WHERE playlist_id = ? ORDER BY position DESC";
                 try (PreparedStatement stmt = conn.prepareStatement(shiftSql)) {
                     stmt.setInt(1, playlistId);
                     stmt.executeUpdate();
@@ -359,8 +359,8 @@ public class PlaylistService {
                     }
                 }
 
-                // 3. 重新排序position
-                String updateSql = "UPDATE playlist_music SET position = position - 1 WHERE playlist_id = ? AND position > ?";
+                // 3. 重新排序 position（从小到大更新，避免减一时短暂撞键）
+                String updateSql = "UPDATE playlist_music SET position = position - 1 WHERE playlist_id = ? AND position > ? ORDER BY position ASC";
                 try (PreparedStatement stmt = conn.prepareStatement(updateSql)) {
                     stmt.setInt(1, playlistId);
                     stmt.setInt(2, removedPosition);
