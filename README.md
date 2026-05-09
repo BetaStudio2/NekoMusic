@@ -107,11 +107,10 @@ Expires: 0
 
 ### 1. 为可缓存的 API 添加版本控制
 
-当音乐文件、封面等资源更新时，可以通过添加查询参数或版本号来绕过 CDN 缓存：
+当音乐文件、封面等资源更新时，可通过 CDN 刷新策略、`Cache-Control` 头或资源路径版本号等方式控制缓存，避免在 URL 上拼接易变的时间戳参数。
 
 ```javascript
-// 示例：添加时间戳参数
-const coverUrl = `/api/music/cover/${musicId}?t=${new Date().getTime()}`;
+const coverUrl = `/api/music/cover/${musicId}`;
 ```
 
 ### 2. 为不可缓存的 API 使用适当的请求策略
