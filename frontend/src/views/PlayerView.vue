@@ -73,10 +73,12 @@
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
+import { tryOpenMusicDetailInApp } from '@/utils/nativeAppOpen.js'
 import { useToast } from 'vue-toastification'
 const toast = useToast()
 
 const route = useRoute()
+
 const currentMusic = ref(null)
 const isPlaying = ref(false)
 const currentTime = ref(0)
@@ -580,15 +582,14 @@ onMounted(async () => {
   window.addEventListener('playerStateChange', handlePlayerStateChange)
 
   const musicId = route.params.id
+  if (checkMobile() && musicId) {
+    tryOpenMusicDetailInApp(musicId)
+  }
+
   if (musicId) {
     await fetchMusicDetail(musicId)
     // 启动定时器以持续更新歌词
     startTimer();
-  }
-
-  // 移动设备尝试唤起APP（不阻断页面加载）
-  if (checkMobile() && musicId) {
-    window.location.href = `nekomusic://player/${musicId}`
   }
 
   // 获取收藏列表

@@ -3,7 +3,7 @@
     <!-- 移动端下载横幅 -->
     <div v-if="isMobile" class="mobile-download-banner">
       <div class="banner-content">
-        <span class="banner-text">📱 下载 App 获得更好的体验</span>
+        <span class="banner-text">下载 App 获得更好的体验</span>
         <a href="/mobile-download" class="banner-link">立即下载</a>
         <button @click="closeBanner" class="banner-close">✕</button>
       </div>
@@ -127,6 +127,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import { useToast } from 'vue-toastification'
+import { tryOpenPlaylistInApp } from '@/utils/nativeAppOpen.js'
 
 const toast = useToast()
 const router = useRouter()
@@ -140,6 +141,7 @@ const searchQuery = ref('')
 const searchResults = ref([])
 
 const playlistId = computed(() => route.params.id)
+
 const currentUser = computed(() => {
   const userStr = localStorage.getItem('user')
   return userStr ? JSON.parse(userStr) : null
@@ -431,11 +433,10 @@ const goBack = () => {
 }
 
 onMounted(() => {
-  fetchPlaylistDetail()
-  // 移动设备尝试唤起APP（不阻断页面加载）
   if (isMobile.value && playlistId.value) {
-    window.location.href = `nekomusic://playlist/${playlistId.value}`
+    tryOpenPlaylistInApp(playlistId.value)
   }
+  fetchPlaylistDetail()
 })
 </script>
 
