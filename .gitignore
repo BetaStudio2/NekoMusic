@@ -118,6 +118,7 @@ Thumbs.db
 
 ### 安卓
 Android/app/release
+Android/keystore.properties
 
 ### PC
 pc/dist/*
