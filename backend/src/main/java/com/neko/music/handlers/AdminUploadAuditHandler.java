@@ -2,6 +2,7 @@ package com.neko.music.handlers;
 
 import com.neko.music.Main;
 import com.neko.music.model.UserUpload;
+import com.neko.music.util.PinyinUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -255,22 +256,37 @@ public class AdminUploadAuditHandler extends HttpServlet {
                 }
             }
             
-            // 在事务内插入到music表获取音乐ID
+            // 在事务内插入到music表获取音乐ID（与 FileUploadHandler 一致，写入拼音检索列）
+            String albumVal = upload.getAlbum() != null && !upload.getAlbum().isEmpty()
+                    ? upload.getAlbum()
+                    : "未知专辑";
+            String title = upload.getTitle();
+            String artist = upload.getArtist();
+
             String insertMusicSql = """
-                INSERT INTO music (title, artist, album, duration, file_format, language, tags, upload_user_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO music (title, artist, album, duration, file_format, language, tags, upload_user_id,
+                    title_pinyin, title_pinyin_initials, title_word_initials,
+                    artist_pinyin, artist_pinyin_initials, artist_word_initials, album_pinyin)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
             try (PreparedStatement pstmt = conn.prepareStatement(insertMusicSql, java.sql.Statement.RETURN_GENERATED_KEYS)) {
 
-                pstmt.setString(1, upload.getTitle());
-                pstmt.setString(2, upload.getArtist());
-                pstmt.setString(3, upload.getAlbum());
+                pstmt.setString(1, title);
+                pstmt.setString(2, artist);
+                pstmt.setString(3, albumVal);
                 pstmt.setInt(4, upload.getDuration());
                 pstmt.setString(5, getFileExtensionWithoutDot(upload.getMusicFilePath()));
                 pstmt.setString(6, upload.getLanguage());
                 pstmt.setString(7, upload.getTags());
                 pstmt.setInt(8, upload.getUserId());
+                pstmt.setString(9, PinyinUtil.getPinyin(title));
+                pstmt.setString(10, PinyinUtil.getPinyinInitials(title));
+                pstmt.setString(11, PinyinUtil.getWordInitials(title));
+                pstmt.setString(12, PinyinUtil.getPinyin(artist));
+                pstmt.setString(13, PinyinUtil.getPinyinInitials(artist));
+                pstmt.setString(14, PinyinUtil.getWordInitials(artist));
+                pstmt.setString(15, PinyinUtil.getPinyin(albumVal));
 
                 int affectedRows = pstmt.executeUpdate();
 
