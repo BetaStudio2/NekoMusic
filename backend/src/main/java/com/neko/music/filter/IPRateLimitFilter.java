@@ -49,6 +49,12 @@ public class IPRateLimitFilter implements Filter {
         }
 
         HttpServletRequest httpRequest = (HttpServletRequest) request;
+
+        if (isMusicUploadApiPath(httpRequest)) {
+            chain.doFilter(request, response);
+            return;
+        }
+
         String clientIP = getClientIP(httpRequest);
 
         HttpServletResponse httpResponse = (HttpServletResponse) response;
@@ -70,6 +76,26 @@ public class IPRateLimitFilter implements Filter {
 
         // 允许请求继续
         chain.doFilter(request, response);
+    }
+
+    /**
+     * 仅音乐上传接口不参与 IP 限流（不检查封锁、不计数），避免大文件上传误触发 429。
+     */
+    private static boolean isMusicUploadApiPath(HttpServletRequest req) {
+        String path = req.getRequestURI();
+        String ctx = req.getContextPath();
+        if (ctx != null && !ctx.isEmpty() && path.startsWith(ctx)) {
+            path = path.substring(ctx.length());
+        }
+        if (path.isEmpty()) {
+            path = "/";
+        } else if (!path.startsWith("/")) {
+            path = "/" + path;
+        }
+        if (path.equals("/api/music/upload")) {
+            return true;
+        }
+        return path.equals("/api/user/upload") || path.startsWith("/api/user/upload/");
     }
 
     /**
