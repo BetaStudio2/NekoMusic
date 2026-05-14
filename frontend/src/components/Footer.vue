@@ -3,7 +3,7 @@
     <div class="footer-content">
       <div class="footer-info">
         <div class="footer-text">
-          <p>备案号：蜀ICP备2025177767号-1</p>
+          <p>备案号：黔ICP备2026007098号</p>
           <p>组织：<span class="fantasy-network">Fantasy Network「梦幻网络」</span></p>
         </div>
       </div>
