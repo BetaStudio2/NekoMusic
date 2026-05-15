@@ -183,7 +183,7 @@
             </div>
             <template v-if="editingUser.accountType === 'user'">
               <div class="form-group">
-                <label>会员到期（东八区 UTC+8）</label>
+                <label>会员到期（上海时间 UTC+8）</label>
                 <input
                   type="datetime-local"
                   v-model="editingUser.vipLocal"
