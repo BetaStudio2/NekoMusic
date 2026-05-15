@@ -55,6 +55,14 @@ public class ConfigManager {
     private int hikariMinimumIdle = 5;
     private int redisPoolMaxTotal = 32;
 
+    /** 竖屏短视频渲染（FFmpeg） */
+    private boolean videoRenderEnabled = true;
+    private String videoRenderFfmpegPath = "ffmpeg";
+    private int videoRenderNonVipMaxDurationSec = 15;
+    private int videoRenderNonVipDailyLimit = 10;
+    private int videoRenderWorkerThreads = 2;
+    private String videoRenderWatermarkText = "NekoMusic";
+
     /** ZPay（易支付兼容）：见 https://z-pay.cn/doc.html */
     private boolean zpayEnabled = false;
     private String zpayPid = "";
@@ -184,6 +192,28 @@ public class ConfigManager {
                     if (rateLimitNode.has("silent_timeout")) rateLimitSilentTimeout = rateLimitNode.get("silent_timeout").asBoolean();
                 }
 
+                JsonNode videoRenderNode = configNode.get("video_render");
+                if (videoRenderNode != null) {
+                    if (videoRenderNode.has("enabled")) {
+                        videoRenderEnabled = videoRenderNode.get("enabled").asBoolean();
+                    }
+                    if (videoRenderNode.has("ffmpeg_path")) {
+                        videoRenderFfmpegPath = videoRenderNode.get("ffmpeg_path").asText(videoRenderFfmpegPath).trim();
+                    }
+                    if (videoRenderNode.has("non_vip_max_duration_sec")) {
+                        videoRenderNonVipMaxDurationSec = videoRenderNode.get("non_vip_max_duration_sec").asInt();
+                    }
+                    if (videoRenderNode.has("non_vip_daily_limit")) {
+                        videoRenderNonVipDailyLimit = videoRenderNode.get("non_vip_daily_limit").asInt();
+                    }
+                    if (videoRenderNode.has("worker_threads")) {
+                        videoRenderWorkerThreads = videoRenderNode.get("worker_threads").asInt();
+                    }
+                    if (videoRenderNode.has("watermark_text")) {
+                        videoRenderWatermarkText = videoRenderNode.get("watermark_text").asText(videoRenderWatermarkText).trim();
+                    }
+                }
+
                 JsonNode zpayNode = configNode.get("zpay");
                 if (zpayNode != null) {
                     if (zpayNode.has("enabled")) zpayEnabled = zpayNode.get("enabled").asBoolean();
@@ -211,6 +241,8 @@ public class ConfigManager {
             logger.info("  Jetty 线程池: min={}, max={}, idleTimeoutMs={}", jettyMinThreads, jettyMaxThreads, jettyIdleTimeoutMs);
             logger.info("  HikariCP: maximumPoolSize={}, minimumIdle={}", hikariMaximumPoolSize, hikariMinimumIdle);
             logger.info("  Redis 连接池 maxTotal: {}", redisPoolMaxTotal);
+            logger.info("  视频渲染: enabled={}, ffmpeg={}, nonVipMaxSec={}, nonVipDailyLimit={}",
+                    videoRenderEnabled, videoRenderFfmpegPath, videoRenderNonVipMaxDurationSec, videoRenderNonVipDailyLimit);
             logger.info("  ZPay 支付: enabled={}, pidConfigured={}, publicBaseUrlConfigured={}",
                     zpayEnabled, !zpayPid.isEmpty(), !zpayPublicBaseUrl.isEmpty());
         } catch (Exception e) {
@@ -226,6 +258,15 @@ public class ConfigManager {
         hikariMaximumPoolSize = Math.max(2, Math.min(256, hikariMaximumPoolSize));
         hikariMinimumIdle = Math.max(0, Math.min(hikariMinimumIdle, hikariMaximumPoolSize));
         redisPoolMaxTotal = Math.max(4, Math.min(256, redisPoolMaxTotal));
+        videoRenderNonVipMaxDurationSec = Math.max(5, Math.min(120, videoRenderNonVipMaxDurationSec));
+        videoRenderNonVipDailyLimit = Math.max(1, Math.min(1000, videoRenderNonVipDailyLimit));
+        videoRenderWorkerThreads = Math.max(1, Math.min(16, videoRenderWorkerThreads));
+        if (videoRenderWatermarkText == null || videoRenderWatermarkText.isBlank()) {
+            videoRenderWatermarkText = "NekoMusic";
+        }
+        if (videoRenderFfmpegPath == null || videoRenderFfmpegPath.isBlank()) {
+            videoRenderFfmpegPath = "ffmpeg";
+        }
     }
     
     /**
@@ -383,6 +424,30 @@ public class ConfigManager {
 
     public int getRedisPoolMaxTotal() {
         return redisPoolMaxTotal;
+    }
+
+    public boolean isVideoRenderEnabled() {
+        return videoRenderEnabled;
+    }
+
+    public String getVideoRenderFfmpegPath() {
+        return videoRenderFfmpegPath;
+    }
+
+    public int getVideoRenderNonVipMaxDurationSec() {
+        return videoRenderNonVipMaxDurationSec;
+    }
+
+    public int getVideoRenderNonVipDailyLimit() {
+        return videoRenderNonVipDailyLimit;
+    }
+
+    public int getVideoRenderWorkerThreads() {
+        return videoRenderWorkerThreads;
+    }
+
+    public String getVideoRenderWatermarkText() {
+        return videoRenderWatermarkText;
     }
 
     public boolean isZpayEnabled() {
