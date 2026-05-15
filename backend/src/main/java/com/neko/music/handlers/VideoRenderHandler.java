@@ -42,6 +42,7 @@ import java.util.regex.Pattern;
 public class VideoRenderHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(VideoRenderHandler.class);
     private static final Pattern JOB_ID_PATTERN = Pattern.compile("^[0-9a-fA-F-]{36}$");
+    private static final Pattern DOWNLOAD_TOKEN_PATTERN = Pattern.compile("^[0-9a-fA-F]{32}$");
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -59,6 +60,11 @@ public class VideoRenderHandler extends HttpServlet {
         String pathInfo = normalizePathInfo(req.getPathInfo());
         if (pathInfo == null || pathInfo.isEmpty()) {
             sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "接口不存在");
+            return;
+        }
+        if (pathInfo.startsWith("/public/") && pathInfo.endsWith("/download")) {
+            String token = pathInfo.substring("/public/".length(), pathInfo.length() - "/download".length());
+            handlePublicDownload(req, resp, token);
             return;
         }
         if (pathInfo.endsWith("/download")) {
@@ -175,6 +181,7 @@ public class VideoRenderHandler extends HttpServlet {
         String jobId = UUID.randomUUID().toString();
         VideoRenderJob job = new VideoRenderJob();
         job.setId(jobId);
+        job.setDownloadToken(newDownloadToken());
         job.setUserId(userId);
         job.setMusicId(musicId);
         job.setStartSec(startSec);
@@ -253,6 +260,10 @@ public class VideoRenderHandler extends HttpServlet {
         }
         if ("done".equals(job.getStatus())) {
             data.addProperty("downloadUrl", "/api/video/render/" + job.getId() + "/download");
+            if (job.getDownloadToken() != null && !job.getDownloadToken().isBlank()) {
+                data.addProperty("publicDownloadUrl",
+                        "/api/video/render/" + job.getId() + "/download?token=" + job.getDownloadToken());
+            }
         }
 
         JsonObject out = new JsonObject();
@@ -266,6 +277,27 @@ public class VideoRenderHandler extends HttpServlet {
             sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "无效的任务 ID");
             return;
         }
+
+        String tokenParam = req.getParameter("token");
+        if (tokenParam != null && !tokenParam.isBlank()) {
+            if (!isValidDownloadToken(tokenParam)) {
+                sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "无效的下载令牌");
+                return;
+            }
+            Optional<VideoRenderJob> tokenJobOpt = Main.getVideoRenderDatabaseManager().findById(jobId);
+            if (tokenJobOpt.isEmpty()) {
+                sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "任务不存在");
+                return;
+            }
+            VideoRenderJob tokenJob = tokenJobOpt.get();
+            if (tokenJob.getDownloadToken() == null || !tokenParam.equals(tokenJob.getDownloadToken())) {
+                sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "下载链接无效或已失效");
+                return;
+            }
+            streamDoneJobVideo(req, resp, tokenJob);
+            return;
+        }
+
         Optional<Integer> userIdOpt = requireUser(req);
         if (userIdOpt.isEmpty()) {
             sendJson(resp, HttpServletResponse.SC_UNAUTHORIZED, false, "请先登录");
@@ -278,7 +310,26 @@ public class VideoRenderHandler extends HttpServlet {
             sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "任务不存在");
             return;
         }
-        VideoRenderJob job = jobOpt.get();
+        streamDoneJobVideo(req, resp, jobOpt.get());
+    }
+
+    /** 兼容旧邮件：/public/{token}/download */
+    private void handlePublicDownload(HttpServletRequest req, HttpServletResponse resp, String downloadToken)
+            throws IOException {
+        if (!isValidDownloadToken(downloadToken)) {
+            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "无效的下载令牌");
+            return;
+        }
+        Optional<VideoRenderJob> jobOpt = Main.getVideoRenderDatabaseManager().findByDownloadToken(downloadToken);
+        if (jobOpt.isEmpty()) {
+            sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "下载链接无效或已失效");
+            return;
+        }
+        streamDoneJobVideo(req, resp, jobOpt.get());
+    }
+
+    private void streamDoneJobVideo(HttpServletRequest req, HttpServletResponse resp, VideoRenderJob job)
+            throws IOException {
         if (!"done".equals(job.getStatus())) {
             sendJson(resp, HttpServletResponse.SC_CONFLICT, false, "视频尚未生成完成");
             return;
@@ -346,6 +397,14 @@ public class VideoRenderHandler extends HttpServlet {
 
     private static boolean isValidJobId(String jobId) {
         return jobId != null && JOB_ID_PATTERN.matcher(jobId).matches();
+    }
+
+    private static boolean isValidDownloadToken(String token) {
+        return token != null && DOWNLOAD_TOKEN_PATTERN.matcher(token).matches();
+    }
+
+    public static String newDownloadToken() {
+        return UUID.randomUUID().toString().replace("-", "");
     }
 
     private static String readBody(HttpServletRequest req) throws IOException {

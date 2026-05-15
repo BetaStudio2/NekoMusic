@@ -377,6 +377,7 @@ public class Main {
         logger.info("  POST /api/video/render/create - 创建横屏短视频 (需要用户登录，异步渲染)");
         logger.info("  GET /api/video/render/{{jobId}} - 查询渲染任务 (需要用户登录)");
         logger.info("  GET /api/video/render/{{jobId}}/download - 下载成片 (需要用户登录)");
+        logger.info("  GET /api/video/render/{{jobId}}/download?token=… - 邮件公开下载 (token 正确则无需登录)");
         logger.info("  PUT /api/admin/vip/pricing - 全量更新 VIP 价目表 (需要管理员)");
         logger.info("  POST /api/user/upload - 用户上传音乐 (需要用户登录)");
         logger.info("  GET /api/admin/audit/pending - 获取待审核列表 (需要管理员登录)");
