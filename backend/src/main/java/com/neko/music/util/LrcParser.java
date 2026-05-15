@@ -16,7 +16,9 @@ import java.util.regex.Pattern;
  * 解析 LRC 歌词为带时间戳的行列表，供视频渲染滚动字幕使用。
  */
 public final class LrcParser {
-    private static final Pattern TIME_STAMP = Pattern.compile("\\[(\\d{2}):(\\d{2})\\.(\\d{1,5})\\]");
+    /** [mm:ss.xx] 与 [mm:ss:xx]（部分 LRC 使用冒号分隔毫秒） */
+    private static final Pattern TIME_STAMP = Pattern.compile("\\[(\\d{2}):(\\d{2})[:.](\\d{1,5})\\]");
+    private static final Pattern OFFSET = Pattern.compile("\\[offset:\\s*([+-]?\\d+)\\]", Pattern.CASE_INSENSITIVE);
     private static final Pattern TRANSLATION = Pattern.compile("^\\{[\"'](.+)[\"']\\}$");
 
     private LrcParser() {
@@ -69,16 +71,25 @@ public final class LrcParser {
 
     static List<Line> parseLines(List<String> rawLines) {
         List<Line> result = new ArrayList<>();
+        double offsetSec = 0;
         for (int i = 0; i < rawLines.size(); i++) {
             String line = rawLines.get(i).trim();
             if (line.isEmpty()) {
+                continue;
+            }
+            Matcher offsetMatcher = OFFSET.matcher(line);
+            if (offsetMatcher.find()) {
+                offsetSec = Integer.parseInt(offsetMatcher.group(1)) / 1000.0;
                 continue;
             }
             Matcher matcher = TIME_STAMP.matcher(line);
             if (!matcher.find()) {
                 continue;
             }
-            double timeSec = parseTimestamp(matcher);
+            double timeSec = parseTimestamp(matcher) + offsetSec;
+            if (timeSec < 0) {
+                timeSec = 0;
+            }
             String text = line.substring(matcher.end()).trim();
             if (text.isEmpty()) {
                 continue;
@@ -94,7 +105,24 @@ public final class LrcParser {
             result.add(new Line(timeSec, text, translation));
         }
         result.sort((a, b) -> Double.compare(a.timeSec, b.timeSec));
-        return Collections.unmodifiableList(result);
+        return Collections.unmodifiableList(deduplicateByTime(result));
+    }
+
+    /** 同一时刻保留首条，避免滚动索引错乱 */
+    private static List<Line> deduplicateByTime(List<Line> sorted) {
+        if (sorted.isEmpty()) {
+            return sorted;
+        }
+        List<Line> out = new ArrayList<>();
+        Line prev = null;
+        for (Line line : sorted) {
+            if (prev != null && Math.abs(line.timeSec - prev.timeSec) < 1e-4) {
+                continue;
+            }
+            out.add(line);
+            prev = line;
+        }
+        return out;
     }
 
     private static double parseTimestamp(Matcher matcher) {
