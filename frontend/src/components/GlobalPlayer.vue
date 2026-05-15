@@ -1507,6 +1507,16 @@ const handlePlaylistUpdated = (e) => {
   }
 }
 
+/** 详情页试听片段时暂停底部播放器，避免双路音频与重复请求 */
+const handlePauseGlobalPlayer = () => {
+  if (audioPlayer.value && !audioPlayer.value.paused) {
+    audioPlayer.value.pause()
+    isPlaying.value = false
+    updateGlobalPlayerState()
+    updateMediaSessionPlaybackState()
+  }
+}
+
 onMounted(() => {
   // 加载播放列表
   loadPlaylist()
@@ -1521,6 +1531,7 @@ onMounted(() => {
   window.addEventListener('playlistUpdated', handlePlaylistUpdated)
   // 监听URL hash变化，处理播放请求
   window.addEventListener('hashchange', handleHashChange)
+  window.addEventListener('pauseGlobalPlayer', handlePauseGlobalPlayer)
   // 初始检查hash
   handleHashChange()
   
@@ -1801,6 +1812,7 @@ onUnmounted(() => {
   window.removeEventListener('forcePlay', handleForcePlay)
   window.removeEventListener('playlistUpdated', handlePlaylistUpdated)
   window.removeEventListener('hashchange', handleHashChange)
+  window.removeEventListener('pauseGlobalPlayer', handlePauseGlobalPlayer)
   
   // 清除媒体会话
   if ('mediaSession' in navigator) {

@@ -155,6 +155,12 @@ public class VideoRenderHandler extends HttpServlet {
             }
             int limit = cfg.getVideoRenderNonVipDailyLimit();
             int maxSec = cfg.getVideoRenderNonVipMaxDurationSec();
+            double maxStart = Math.max(0, trackDuration - maxSec);
+            if (startSec > maxStart + 0.001) {
+                sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false,
+                        "非会员起始时间过晚，所选范围不能超过 " + maxSec + " 秒");
+                return;
+            }
             VideoRenderQuotaService quota = Main.getVideoRenderQuotaService();
             int remaining = quota.reserveDailySlot(userId);
             if (remaining < 0) {

@@ -104,8 +104,38 @@
             />
             <span>添加平台水印</span>
           </label>
+          <div class="clip-range-block">
+            <div class="clip-range-head">
+              <span>成片起始</span>
+              <span class="clip-range-value">{{ formatClipTime(clipStartSec) }} → {{ formatClipTime(clipEndSec) }}</span>
+            </div>
+            <input
+              v-model.number="clipStartSec"
+              type="range"
+              class="clip-range-slider"
+              :min="0"
+              :max="maxClipStartSec"
+              :step="1"
+              :disabled="trackDurationSec <= 0"
+              @input="onClipRangeChange"
+            />
+            <p class="clip-modal-sub clip-range-hint">
+              <template v-if="userIsVip">会员：从所选位置渲染至歌曲结束（约 {{ formatClipTime(clipPreviewDurationSec) }}）</template>
+              <template v-else>免费：所选范围内固定 15 秒成片（每日 10 次）</template>
+            </p>
+            <div class="clip-preview-actions">
+              <button
+                type="button"
+                class="clip-preview-btn"
+                :disabled="trackDurationSec <= 0 || clipPreviewDurationSec <= 0"
+                @click="toggleClipPreview"
+              >
+                {{ clipPreviewPlaying ? '停止试听' : '试听所选片段' }}
+              </button>
+            </div>
+          </div>
           <p v-if="userIsVip" class="clip-modal-sub">会员可选是否添加水印，默认无水印</p>
-          <p v-else class="clip-modal-sub">免费用户须开启水印（15 秒成片，每日 10 次）</p>
+          <p v-else class="clip-modal-sub">免费用户须开启水印</p>
           <p class="clip-modal-sub">提交后在后台渲染，完成后将邮件通知并附下载链接</p>
           <div class="clip-modal-actions">
             <button type="button" class="clip-cancel-btn" @click="closeVideoModal">取消</button>
@@ -120,7 +150,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import { createVideoRenderJob, fetchVideoRenderStatus, downloadVideoRenderFile } from '@/api/videoRender.js'
@@ -150,9 +180,17 @@ const videoRenderReady = ref(false)
 const videoRenderJobId = ref('')
 const videoRenderRemainingToday = ref(null)
 const videoWatermarkChoice = ref(true)
+const clipStartSec = ref(0)
+const clipPreviewPlaying = ref(false)
+
+const NON_VIP_CLIP_SEC = 15
 
 // 用于定时器的引用
 let timeUpdateInterval = null
+let clipPreviewAudio = null
+/** 试听用 blob URL，同页同曲只 fetch 一次，避免多次 Range 请求 */
+const clipPreviewBlobUrlByMusicId = new Map()
+let clipPreviewLoading = false
 
 // 检测是否是移动设备
 const checkMobile = () => {
@@ -450,8 +488,45 @@ const handleVipSync = () => {
   loadUserVipFromStorage()
 }
 
+const trackDurationSec = computed(() => {
+  const d = Number(currentMusic.value?.duration)
+  return Number.isFinite(d) && d > 0 ? Math.floor(d) : 0
+})
+
+const maxClipStartSec = computed(() => {
+  const dur = trackDurationSec.value
+  if (dur <= 0) return 0
+  if (userIsVip.value) {
+    return Math.max(0, dur - 1)
+  }
+  return Math.max(0, dur - NON_VIP_CLIP_SEC)
+})
+
+const clipPreviewDurationSec = computed(() => {
+  const dur = trackDurationSec.value
+  if (dur <= 0) return 0
+  const remain = dur - clipStartSec.value
+  if (remain <= 0) return 0
+  if (userIsVip.value) return remain
+  return Math.min(NON_VIP_CLIP_SEC, remain)
+})
+
+const clipEndSec = computed(() => clipStartSec.value + clipPreviewDurationSec.value)
+
+const formatClipTime = (sec) => {
+  const s = Math.max(0, Math.floor(Number(sec) || 0))
+  const m = Math.floor(s / 60)
+  const r = s % 60
+  return `${m}:${String(r).padStart(2, '0')}`
+}
+
+const clampClipStartSec = (value) => {
+  const v = Math.floor(Number(value) || 0)
+  return Math.min(Math.max(0, v), maxClipStartSec.value)
+}
+
 /** 若当前正在播放本页歌曲，从该时间点起剪；否则从 0 秒 */
-const getClipStartSec = () => {
+const getDefaultClipStartSec = () => {
   try {
     const playing = JSON.parse(localStorage.getItem('currentPlayingMusic') || 'null')
     const state = JSON.parse(localStorage.getItem('globalPlayerState') || 'null')
@@ -464,7 +539,153 @@ const getClipStartSec = () => {
   return 0
 }
 
+const revokeClipPreviewBlobs = () => {
+  for (const url of clipPreviewBlobUrlByMusicId.values()) {
+    URL.revokeObjectURL(url)
+  }
+  clipPreviewBlobUrlByMusicId.clear()
+}
+
+const waitAudioEvent = (audio, eventName, timeoutMs = 15000) => new Promise((resolve, reject) => {
+  const timer = setTimeout(() => {
+    cleanup()
+    reject(new Error(`${eventName} timeout`))
+  }, timeoutMs)
+  const cleanup = () => {
+    clearTimeout(timer)
+    audio.removeEventListener(eventName, onOk)
+    audio.removeEventListener('error', onErr)
+  }
+  const onOk = () => {
+    cleanup()
+    resolve()
+  }
+  const onErr = () => {
+    cleanup()
+    reject(new Error('audio error'))
+  }
+  audio.addEventListener(eventName, onOk, { once: true })
+  audio.addEventListener('error', onErr, { once: true })
+})
+
+const ensurePreviewBlobUrl = async (musicId) => {
+  const cached = clipPreviewBlobUrlByMusicId.get(musicId)
+  if (cached) return cached
+  const res = await fetch(`${API_CONFIG.BASE_URL}/api/music/file/${musicId}`)
+  if (!res.ok) {
+    throw new Error(`fetch ${res.status}`)
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  clipPreviewBlobUrlByMusicId.set(musicId, url)
+  return url
+}
+
+const seekPreviewAudio = (audio, startSec) => new Promise((resolve, reject) => {
+  const target = Math.min(startSec, Math.max(0, (audio.duration || startSec) - 0.05))
+  if (!Number.isFinite(target) || Math.abs(audio.currentTime - target) <= 0.05) {
+    resolve()
+    return
+  }
+  const timer = setTimeout(() => {
+    cleanup()
+    reject(new Error('seek timeout'))
+  }, 10000)
+  const cleanup = () => {
+    clearTimeout(timer)
+    audio.removeEventListener('seeked', onSeeked)
+    audio.removeEventListener('error', onErr)
+  }
+  const onSeeked = () => {
+    cleanup()
+    resolve()
+  }
+  const onErr = () => {
+    cleanup()
+    reject(new Error('seek error'))
+  }
+  audio.addEventListener('seeked', onSeeked, { once: true })
+  audio.addEventListener('error', onErr, { once: true })
+  try {
+    audio.currentTime = target
+  } catch (e) {
+    cleanup()
+    reject(e)
+  }
+})
+
+const preparePreviewAudio = async (musicId, startSec) => {
+  const blobUrl = await ensurePreviewBlobUrl(musicId)
+  const audio = new Audio()
+  audio.preload = 'auto'
+  audio.src = blobUrl
+  if (audio.readyState < 1) {
+    await waitAudioEvent(audio, 'loadedmetadata')
+  }
+  await seekPreviewAudio(audio, startSec)
+  return audio
+}
+
+const stopClipPreview = () => {
+  clipPreviewLoading = false
+  clipPreviewPlaying.value = false
+  if (clipPreviewAudio) {
+    clipPreviewAudio.ontimeupdate = null
+    clipPreviewAudio.onended = null
+    clipPreviewAudio.pause()
+    clipPreviewAudio.removeAttribute('src')
+    clipPreviewAudio.load()
+    clipPreviewAudio = null
+  }
+}
+
+const onClipRangeChange = () => {
+  clipStartSec.value = clampClipStartSec(clipStartSec.value)
+  if (clipPreviewPlaying.value) {
+    stopClipPreview()
+  }
+}
+
+const toggleClipPreview = async () => {
+  if (clipPreviewLoading) return
+  if (clipPreviewPlaying.value) {
+    stopClipPreview()
+    return
+  }
+  if (!currentMusic.value || clipPreviewDurationSec.value <= 0) return
+
+  stopClipPreview()
+  clipPreviewLoading = true
+  const start = clipStartSec.value
+  const end = clipEndSec.value
+  const musicId = currentMusic.value.id
+
+  try {
+    window.dispatchEvent(new Event('pauseGlobalPlayer'))
+    const audio = await preparePreviewAudio(musicId, start)
+    clipPreviewAudio = audio
+
+    audio.ontimeupdate = () => {
+      if (audio.currentTime >= end - 0.05) {
+        stopClipPreview()
+      }
+    }
+    audio.onended = () => stopClipPreview()
+
+    clipPreviewPlaying.value = true
+    await audio.play()
+  } catch (e) {
+    console.error('clip preview failed:', e)
+    stopClipPreview()
+    toast.error('试听失败，请稍后重试')
+  } finally {
+    clipPreviewLoading = false
+  }
+}
+
 const closeVideoModal = () => {
+  stopClipPreview()
+  revokeClipPreviewBlobs()
   videoModalOpen.value = false
 }
 
@@ -475,6 +696,8 @@ const openVideoRenderDialog = () => {
     return
   }
   videoWatermarkChoice.value = !userIsVip.value
+  clipStartSec.value = clampClipStartSec(getDefaultClipStartSec())
+  stopClipPreview()
   videoModalOpen.value = true
 }
 
@@ -508,7 +731,11 @@ const confirmVideoRender = async () => {
   videoRenderReady.value = false
 
   try {
-    const startSec = getClipStartSec()
+    const startSec = clampClipStartSec(clipStartSec.value)
+    if (clipPreviewDurationSec.value <= 0) {
+      toast.error('所选范围无效，请调整起始时间')
+      return
+    }
     const watermarked = userIsVip.value ? videoWatermarkChoice.value : true
     const data = await createVideoRenderJob(currentMusic.value.id, startSec, watermarked)
     videoRenderJobId.value = data.jobId || ''
@@ -771,6 +998,8 @@ onMounted(async () => {
 
 // 组件卸载时移除事件监听和定时器
 onUnmounted(() => {
+  stopClipPreview()
+  revokeClipPreviewBlobs()
   window.removeEventListener('playerStateChange', handlePlayerStateChange)
   window.removeEventListener(USER_VIP_SYNC_EVENT, handleVipSync)
   if (timeUpdateInterval) {
@@ -1116,6 +1345,70 @@ onUnmounted(() => {
 
 .clip-modal-confirm {
   text-align: left;
+}
+
+.clip-range-block {
+  margin-bottom: 14px;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(106, 90, 205, 0.06);
+  border: 1px solid rgba(106, 90, 205, 0.18);
+}
+
+.clip-range-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 0.9rem;
+  color: #5c4b7b;
+  font-weight: 600;
+}
+
+.clip-range-value {
+  font-weight: 500;
+  color: #7c6aad;
+  font-variant-numeric: tabular-nums;
+}
+
+.clip-range-slider {
+  width: 100%;
+  accent-color: #6a5acd;
+  cursor: pointer;
+}
+
+.clip-range-slider:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.clip-range-hint {
+  margin-top: 8px !important;
+  margin-bottom: 0 !important;
+}
+
+.clip-preview-actions {
+  margin-top: 12px;
+}
+
+.clip-preview-btn {
+  padding: 8px 16px;
+  border: 1px solid rgba(106, 90, 205, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  color: #6a5acd;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.clip-preview-btn:hover:not(:disabled) {
+  background: rgba(106, 90, 205, 0.12);
+}
+
+.clip-preview-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .clip-watermark-option {
