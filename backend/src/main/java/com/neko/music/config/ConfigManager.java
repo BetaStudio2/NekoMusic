@@ -67,8 +67,6 @@ public class ConfigManager {
     private int videoRenderNonVipDailyLimit = 10;
     /** 异步渲染线程池大小 */
     private int videoRenderWorkerThreads = 2;
-    /** 非 VIP 水印文字 */
-    private String videoRenderWatermarkText = "NekoMusic";
     /** 渲染完成邮件中的前端站点根 URL */
     private String videoRenderNotifyFrontendBaseUrl = "";
 
@@ -221,9 +219,6 @@ public class ConfigManager {
                     if (videoRenderNode.has("worker_threads")) {
                         videoRenderWorkerThreads = videoRenderNode.get("worker_threads").asInt();
                     }
-                    if (videoRenderNode.has("watermark_text")) {
-                        videoRenderWatermarkText = videoRenderNode.get("watermark_text").asText(videoRenderWatermarkText).trim();
-                    }
                     if (videoRenderNode.has("notify_frontend_base_url")) {
                         videoRenderNotifyFrontendBaseUrl = videoRenderNode.get("notify_frontend_base_url").asText("").trim();
                     }
@@ -277,9 +272,6 @@ public class ConfigManager {
         videoRenderNonVipMaxDurationSec = Math.max(5, Math.min(120, videoRenderNonVipMaxDurationSec));
         videoRenderNonVipDailyLimit = Math.max(1, Math.min(1000, videoRenderNonVipDailyLimit));
         videoRenderWorkerThreads = Math.max(1, Math.min(16, videoRenderWorkerThreads));
-        if (videoRenderWatermarkText == null || videoRenderWatermarkText.isBlank()) {
-            videoRenderWatermarkText = "NekoMusic";
-        }
         if (videoRenderFfmpegPath == null || videoRenderFfmpegPath.isBlank()) {
             videoRenderFfmpegPath = "auto";
         }
@@ -464,10 +456,6 @@ public class ConfigManager {
 
     public int getVideoRenderWorkerThreads() {
         return videoRenderWorkerThreads;
-    }
-
-    public String getVideoRenderWatermarkText() {
-        return videoRenderWatermarkText;
     }
 
     /** 渲染完成邮件中的前端站点根（无尾斜杠），用于拼接 /detail/{musicId}?videoJob=… */

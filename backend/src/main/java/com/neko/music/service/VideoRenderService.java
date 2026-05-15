@@ -6,6 +6,7 @@ import com.neko.music.database.VideoRenderDatabaseManager;
 import com.neko.music.model.VideoRenderJob;
 import com.neko.music.util.BundledFfmpegSupport;
 import com.neko.music.util.BundledRenderFontSupport;
+import com.neko.music.util.BundledWatermarkSupport;
 import com.neko.music.util.LrcParser;
 import com.neko.music.util.MusicAssetLocator;
 import com.neko.music.util.VideoRenderPaths;
@@ -79,6 +80,22 @@ public class VideoRenderService {
                 factory,
                 new ThreadPoolExecutor.AbortPolicy());
         logger.info("视频渲染线程池已启动 threads={}, queueCapacity={}", threads, threads * 4);
+        warmupBundledAssets();
+    }
+
+    /** 启动时释放 JAR 内嵌字体与水印 PNG，避免首次渲染才解压。 */
+    private void warmupBundledAssets() {
+        if (!configManager.isVideoRenderEnabled()) {
+            return;
+        }
+        try {
+            Path fontsDir = BundledRenderFontSupport.ensureFontsDir();
+            Path watermark = BundledWatermarkSupport.ensureWatermarkFile();
+            logger.info("视频渲染内嵌资源已释放 fontsDir={} watermark={}",
+                    fontsDir.toAbsolutePath(), BundledWatermarkSupport.describeForLog(watermark));
+        } catch (IOException e) {
+            logger.warn("视频渲染内嵌资源释放失败（渲染时将重试）: {}", e.getMessage());
+        }
     }
 
     public void submit(VideoRenderJob job, String title, String artist, Path audioFile, Optional<Path> coverFile) {
@@ -164,8 +181,6 @@ public class VideoRenderService {
                 VideoRenderPaths.truncateText(title == null ? "未知歌曲" : title, 48));
         String safeArtist = VideoRenderPaths.escapeAssText(
                 VideoRenderPaths.truncateText(artist == null ? "未知艺术家" : artist, 48));
-        String watermark = VideoRenderPaths.escapeAssText(configManager.getVideoRenderWatermarkText());
-
         StringBuilder ass = new StringBuilder();
         ass.append("[Script Info]\n");
         ass.append("ScriptType: v4.00+\n");
@@ -179,8 +194,7 @@ public class VideoRenderService {
         ass.append("Style: Title,").append(FONT).append(",64,&H00FFFFFF,&H000000FF,&H80C4B5FD,&H00000000,1,0,0,0,100,100,0,0,1,0,0,8,40,40,80,1\n");
         ass.append("Style: Artist,").append(FONT).append(",42,&H00F0F0F0,&H000000FF,&H60000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,8,40,40,140,1\n");
         ass.append("Style: LyricBase,").append(FONT).append(",44,&H00FFFFFF,&H000000FF,&H60000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,40,40,0,1\n");
-        ass.append("Style: LyricTrans,").append(FONT).append(",32,&H00E8E8E8,&H000000FF,&H60000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,40,40,0,1\n");
-        ass.append("Style: Mark,").append(FONT).append(",26,&H00FFFFFF,&H000000FF,&H60000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,3,48,48,48,1\n\n");
+        ass.append("Style: LyricTrans,").append(FONT).append(",32,&H00E8E8E8,&H000000FF,&H60000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,40,40,0,1\n\n");
         ass.append("[Events]\n");
         ass.append("Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n");
         ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Title,,0,0,0,,{\\an8\\pos(")
@@ -191,11 +205,22 @@ public class VideoRenderService {
         ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Artist,,0,0,0,,{\\an8\\pos(")
                 .append(RIGHT_CENTER_X).append(",248)\\1c&H00A78BFA&\\fs18\\blur1}").append("━━━━━━━━━━━━").append('\n');
         appendLyricEvents(ass, lyrics, clipStart, duration);
+        String assBody = ass.toString();
+        Files.writeString(assFile, assBody, StandardCharsets.UTF_8);
         if (job.isWatermarked()) {
-            ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Mark,,0,0,0,,")
-                    .append("{\\an3\\pos(1840,44)\\blur1\\3c&H80C4B5FD&\\bord1}").append(watermark).append('\n');
+            logger.info("ASS 水印检查 jobId={} mode=png-overlay assTextWatermark={}",
+                    job.getId(), hasAssTextWatermark(assBody));
         }
-        Files.writeString(assFile, ass.toString(), StandardCharsets.UTF_8);
+    }
+
+    /** 是否仍写入 ASS 文字水印（Mark 样式 Dialogue）；正常应为 false，水印走 PNG overlay。 */
+    private static boolean hasAssTextWatermark(String assBody) {
+        for (String line : assBody.split("\n")) {
+            if (line.startsWith("Dialogue:") && line.contains(",Mark,,")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void appendLyricEvents(StringBuilder ass, List<LrcParser.Line> lyrics, double clipStart, double duration) {
@@ -378,7 +403,9 @@ public class VideoRenderService {
         cmd.add(audioFile.toAbsolutePath().toString());
 
         boolean hasCover = coverFile.isPresent() && Files.isRegularFile(coverFile.get());
+        int coverInputIdx = -1;
         if (hasCover) {
+            coverInputIdx = 1;
             cmd.add("-loop");
             cmd.add("1");
             cmd.add("-framerate");
@@ -389,8 +416,32 @@ public class VideoRenderService {
             cmd.add(coverFile.get().toAbsolutePath().toString());
         }
 
+        boolean watermarked = job.isWatermarked();
+        int watermarkInputIdx = -1;
+        Path watermarkFile = null;
+        if (watermarked) {
+            watermarkFile = BundledWatermarkSupport.ensureWatermarkFile();
+            watermarkInputIdx = hasCover ? 2 : 1;
+            logger.info("视频水印 PNG 输入 jobId={} inputIndex={} hasCover={} {}",
+                    job.getId(), watermarkInputIdx, hasCover,
+                    BundledWatermarkSupport.describeForLog(watermarkFile));
+            cmd.add("-loop");
+            cmd.add("1");
+            cmd.add("-framerate");
+            cmd.add(String.valueOf(fps));
+            cmd.add("-t");
+            cmd.add(formatSec(duration));
+            cmd.add("-i");
+            cmd.add(watermarkFile.toAbsolutePath().toString());
+        }
+
         String subtitles = VideoRenderPaths.subtitlesFilterArg(assFile, fontsDir);
-        String filter = buildLandscapeFilter(hasCover, durFrames, fps, subtitles);
+        String filter = buildLandscapeFilter(hasCover, coverInputIdx, watermarked, watermarkInputIdx,
+                durFrames, fps, subtitles);
+        if (watermarked) {
+            logger.info("视频水印 FFmpeg overlay jobId={} wmInput=[{}:v] filterTail={}",
+                    job.getId(), watermarkInputIdx, tailWatermarkFilter(filter));
+        }
         cmd.add("-filter_complex");
         cmd.add(filter);
         cmd.add("-map");
@@ -416,7 +467,9 @@ public class VideoRenderService {
         cmd.add("-shortest");
         cmd.add(output.toAbsolutePath().toString());
 
-        logger.info("异步 ffmpeg 开始 jobId={} durationSec={} watermarked={}", job.getId(), duration, job.isWatermarked());
+        logger.info("异步 ffmpeg 开始 jobId={} durationSec={} watermarked={} watermarkMode={}",
+                job.getId(), duration, job.isWatermarked(),
+                watermarked ? "png-overlay" : "none");
 
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.redirectErrorStream(true);
@@ -445,13 +498,15 @@ public class VideoRenderService {
      * 炫酷版横屏 1920×1080：
      * 背景呼吸毛玻璃 + 噪点质感 + 圆角封面光晕 + 霓虹发光波形 + ASS 字幕。
      */
-    private static String buildLandscapeFilter(boolean hasCover, int durFrames, int fps, String subtitles) {
+    private static String buildLandscapeFilter(boolean hasCover, int coverInputIdx, boolean watermarked,
+                                               int watermarkInputIdx, int durFrames, int fps, String subtitles) {
         String sizeWxH = WIDTH + "x" + HEIGHT;
         String sizeColon = WIDTH + ":" + HEIGHT;
         String coverColon = COVER_SIZE + ":" + COVER_SIZE;
+        String coverIn = "[" + coverInputIdx + ":v]";
         StringBuilder fc = new StringBuilder();
         if (hasCover) {
-            fc.append("[1:v]scale=").append(sizeColon)
+            fc.append(coverIn).append("scale=").append(sizeColon)
                     .append(":force_original_aspect_ratio=increase,crop=").append(sizeColon)
                     .append(",setsar=1[bg_src];");
             fc.append("[bg_src]gblur=sigma=50,eq=brightness='0.02+0.015*sin(n/30)':saturation=1.12:contrast=1.06[blur_bg];");
@@ -469,7 +524,7 @@ public class VideoRenderService {
             fc.append("color=c=black@0.15:s=").append(sizeWxH).append(":d=").append(durFrames)
                     .append(":r=").append(fps).append("[vign];");
             fc.append("[glass_tint][vign]overlay=0:0:format=auto[bg];");
-            fc.append("[1:v]scale=").append(coverColon).append(":force_original_aspect_ratio=decrease,")
+            fc.append(coverIn).append("scale=").append(coverColon).append(":force_original_aspect_ratio=decrease,")
                     .append("pad=").append(coverColon).append(":(ow-iw)/2:(oh-ih)/2:color=black@0,")
                     .append("format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='")
                     .append(ROUNDED_ALPHA).append("'[cover_raw];");
@@ -502,7 +557,13 @@ public class VideoRenderService {
         fc.append("[spec][waves_neon]blend=all_mode=addition[vis];");
         fc.append("[composed][vis]overlay=80:860:format=auto[base];");
         fc.append("[base]eq=gamma=1.06:saturation=1.1:brightness=0.012[flash];");
-        fc.append("[flash]").append(subtitles).append("[vout]");
+        if (watermarked) {
+            fc.append("[flash]").append(subtitles).append("[vsub];");
+            fc.append("[").append(watermarkInputIdx).append(":v]scale=220:-1,format=rgba[wm_scaled];");
+            fc.append("[vsub][wm_scaled]overlay=W-w-36:36:format=auto[vout]");
+        } else {
+            fc.append("[flash]").append(subtitles).append("[vout]");
+        }
         return fc.toString();
     }
 
@@ -518,6 +579,14 @@ public class VideoRenderService {
         int m = (s % 3600) / 60;
         int ss = s % 60;
         return String.format(Locale.US, "%d:%02d:%02d.%02d", h, m, ss, cs);
+    }
+
+    private static String tailWatermarkFilter(String filter) {
+        int idx = filter.indexOf("[flash]");
+        if (idx < 0) {
+            return tail(filter, 280);
+        }
+        return filter.substring(idx);
     }
 
     private static String tail(String s, int max) {
