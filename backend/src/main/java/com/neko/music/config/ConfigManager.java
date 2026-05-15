@@ -57,7 +57,8 @@ public class ConfigManager {
 
     /** 竖屏短视频渲染（FFmpeg） */
     private boolean videoRenderEnabled = true;
-    private String videoRenderFfmpegPath = "ffmpeg";
+    private String videoRenderFfmpegPath = "auto";
+    private boolean videoRenderPreferBundledFfmpeg = true;
     private int videoRenderNonVipMaxDurationSec = 15;
     private int videoRenderNonVipDailyLimit = 10;
     private int videoRenderWorkerThreads = 2;
@@ -200,6 +201,9 @@ public class ConfigManager {
                     if (videoRenderNode.has("ffmpeg_path")) {
                         videoRenderFfmpegPath = videoRenderNode.get("ffmpeg_path").asText(videoRenderFfmpegPath).trim();
                     }
+                    if (videoRenderNode.has("prefer_bundled_ffmpeg")) {
+                        videoRenderPreferBundledFfmpeg = videoRenderNode.get("prefer_bundled_ffmpeg").asBoolean();
+                    }
                     if (videoRenderNode.has("non_vip_max_duration_sec")) {
                         videoRenderNonVipMaxDurationSec = videoRenderNode.get("non_vip_max_duration_sec").asInt();
                     }
@@ -241,8 +245,9 @@ public class ConfigManager {
             logger.info("  Jetty 线程池: min={}, max={}, idleTimeoutMs={}", jettyMinThreads, jettyMaxThreads, jettyIdleTimeoutMs);
             logger.info("  HikariCP: maximumPoolSize={}, minimumIdle={}", hikariMaximumPoolSize, hikariMinimumIdle);
             logger.info("  Redis 连接池 maxTotal: {}", redisPoolMaxTotal);
-            logger.info("  视频渲染: enabled={}, ffmpeg={}, nonVipMaxSec={}, nonVipDailyLimit={}",
-                    videoRenderEnabled, videoRenderFfmpegPath, videoRenderNonVipMaxDurationSec, videoRenderNonVipDailyLimit);
+            logger.info("  视频渲染: enabled={}, ffmpegPath={}, preferBundled={}, nonVipMaxSec={}, nonVipDailyLimit={}",
+                    videoRenderEnabled, videoRenderFfmpegPath, videoRenderPreferBundledFfmpeg,
+                    videoRenderNonVipMaxDurationSec, videoRenderNonVipDailyLimit);
             logger.info("  ZPay 支付: enabled={}, pidConfigured={}, publicBaseUrlConfigured={}",
                     zpayEnabled, !zpayPid.isEmpty(), !zpayPublicBaseUrl.isEmpty());
         } catch (Exception e) {
@@ -265,7 +270,7 @@ public class ConfigManager {
             videoRenderWatermarkText = "NekoMusic";
         }
         if (videoRenderFfmpegPath == null || videoRenderFfmpegPath.isBlank()) {
-            videoRenderFfmpegPath = "ffmpeg";
+            videoRenderFfmpegPath = "auto";
         }
     }
     
@@ -432,6 +437,10 @@ public class ConfigManager {
 
     public String getVideoRenderFfmpegPath() {
         return videoRenderFfmpegPath;
+    }
+
+    public boolean isVideoRenderPreferBundledFfmpeg() {
+        return videoRenderPreferBundledFfmpeg;
     }
 
     public int getVideoRenderNonVipMaxDurationSec() {

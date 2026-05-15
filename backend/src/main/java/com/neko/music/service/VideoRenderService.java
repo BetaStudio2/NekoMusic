@@ -3,6 +3,7 @@ package com.neko.music.service;
 import com.neko.music.config.ConfigManager;
 import com.neko.music.database.VideoRenderDatabaseManager;
 import com.neko.music.model.VideoRenderJob;
+import com.neko.music.util.BundledFfmpegSupport;
 import com.neko.music.util.MusicAssetLocator;
 import com.neko.music.util.VideoRenderPaths;
 import org.slf4j.Logger;
@@ -91,7 +92,9 @@ public class VideoRenderService {
 
     private void runFfmpeg(VideoRenderJob job, String title, String artist, Path audioFile,
                            Optional<Path> coverFile, Path output) throws IOException, InterruptedException {
-        String ffmpeg = configManager.getVideoRenderFfmpegPath();
+        String ffmpeg = BundledFfmpegSupport.resolve(
+                configManager.getVideoRenderFfmpegPath(),
+                configManager.isVideoRenderPreferBundledFfmpeg());
         double duration = job.getDurationSec();
         double start = job.getStartSec();
         int fps = 30;
