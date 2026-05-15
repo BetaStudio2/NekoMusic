@@ -45,7 +45,14 @@
       </div>
       <div class="auth-container">
         <div v-if="isLoggedIn" class="user-info">
-          <img :src="userAvatar" alt="用户头像" class="user-avatar" @error="handleAvatarError" />
+          <img
+            :src="userAvatar"
+            alt="用户头像"
+            class="user-avatar"
+            title="个人中心"
+            @click="goToAccount"
+            @error="handleAvatarError"
+          />
           <span class="username">{{ username }}</span>
           <router-link
             to="/account"
@@ -148,6 +155,10 @@ const goToFavorites = () => {
 
 const goToPlaylists = () => {
   router.push('/playlists')
+}
+
+const goToAccount = () => {
+  router.push('/account')
 }
 
 // 处理头像加载错误
@@ -438,6 +449,13 @@ onUnmounted(() => {
   object-fit: cover;
   border: 2px solid rgba(255, 255, 255, 0.5);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.user-avatar:hover {
+  transform: scale(1.06);
+  border-color: rgba(106, 90, 205, 0.45);
 }
 
 .username {
