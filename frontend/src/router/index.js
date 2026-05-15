@@ -17,6 +17,7 @@ import AdminView from '@/views/admin/AdminView.vue'
 import AdminMusicView from '@/views/admin/AdminMusicView.vue'
 import AdminAuditView from '@/views/admin/AdminAuditView.vue'
 import AdminUsersView from '@/views/admin/AdminUsersView.vue'
+import AdminVipPricingView from '@/views/admin/AdminVipPricingView.vue'
 import AdminSettingsView from '@/views/admin/AdminSettingsView.vue'
 import DownloadView from '@/views/DownloadView.vue'
 
@@ -49,6 +50,10 @@ const adminGuard = (to, from, next) => {
         // 审核员不能访问音乐管理页面
         if (role === 'auditor' && to.path.startsWith('/admin/music')) {
           next('/admin') // 重定向到管理首页
+          return
+        }
+        if (role === 'auditor' && to.path.startsWith('/admin/vip-pricing')) {
+          next('/admin')
           return
         }
       }
@@ -309,6 +314,17 @@ const router = createRouter({
         title: '用户管理 - Neko云音乐',
         description: '管理平台免费音乐用户，查看用户信息和统计数据。',
         keywords: '用户管理,用户统计,免费音乐用户'
+      }
+    },
+    {
+      path: '/admin/vip-pricing',
+      name: 'admin-vip-pricing',
+      component: AdminVipPricingView,
+      beforeEnter: adminGuard,
+      meta: {
+        title: 'VIP 价目 - Neko云音乐',
+        description: '管理 VIP 套餐价目表。',
+        keywords: 'VIP,价目,管理'
       }
     },
     {

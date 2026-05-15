@@ -24,6 +24,19 @@
         <p v-if="!user.isVip" class="vip-hint">如需开通或续期会员，请联系平台管理员。</p>
       </div>
 
+      <div v-if="pricingLoading" class="pricing-block">加载价目中…</div>
+      <div v-else-if="pricingError" class="pricing-block pricing-err">{{ pricingError }}</div>
+      <div v-else-if="pricingRows.length" class="pricing-block">
+        <h2 class="pricing-title">套餐参考价</h2>
+        <ul class="pricing-list">
+          <li v-for="row in pricingRows" :key="row.id" class="pricing-item">
+            <span class="dur">{{ formatPlanDuration(row.months, row.days) }}</span>
+            <span class="price">¥{{ formatYuan(row.priceYuan) }}</span>
+          </li>
+        </ul>
+        <p class="pricing-note">以下为平台公示价目；实际开通与优惠以管理员说明为准。</p>
+      </div>
+
       <div class="vip-actions">
         <router-link to="/account" class="btn-secondary">个人中心</router-link>
         <router-link to="/" class="btn-primary">返回首页</router-link>
@@ -36,9 +49,13 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { formatVipExpiresAt, syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
+import { fetchVipPricing } from '@/api/vipPricing.js'
 
 const router = useRouter()
 const vipTick = ref(0)
+const pricingRows = ref([])
+const pricingLoading = ref(true)
+const pricingError = ref('')
 
 const user = computed(() => {
   vipTick.value
@@ -55,6 +72,21 @@ const bump = () => {
   vipTick.value++
 }
 
+function formatPlanDuration(months, days) {
+  const m = Number(months) || 0
+  const d = Number(days) || 0
+  const parts = []
+  if (m > 0) parts.push(`${m} 个月`)
+  if (d > 0) parts.push(`${d} 天`)
+  return parts.length ? parts.join(' + ') : '—'
+}
+
+function formatYuan(n) {
+  const x = Number(n)
+  if (Number.isNaN(x)) return '—'
+  return x.toFixed(2)
+}
+
 onMounted(async () => {
   if (!localStorage.getItem('userToken')) {
     router.replace('/login')
@@ -63,6 +95,14 @@ onMounted(async () => {
   window.addEventListener(USER_VIP_SYNC_EVENT, bump)
   await syncUserVipFromPlaylistsApi()
   bump()
+
+  try {
+    pricingRows.value = await fetchVipPricing()
+  } catch (e) {
+    pricingError.value = e?.message || '价目加载失败'
+  } finally {
+    pricingLoading.value = false
+  }
 })
 
 onUnmounted(() => {
@@ -81,7 +121,7 @@ onUnmounted(() => {
 
 .vip-card {
   width: 100%;
-  max-width: 520px;
+  max-width: 560px;
   padding: 32px 28px;
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.32);
@@ -114,6 +154,7 @@ onUnmounted(() => {
 
 .vip-card-header,
 .vip-body,
+.pricing-block,
 .vip-actions {
   position: relative;
   z-index: 1;
@@ -186,6 +227,60 @@ onUnmounted(() => {
   font-size: 0.88rem;
   line-height: 1.5;
   color: #6b608e;
+}
+
+.pricing-block {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.35);
+  text-align: left;
+}
+
+.pricing-title {
+  margin: 0 0 12px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #4a3f7a;
+}
+
+.pricing-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pricing-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(106, 90, 205, 0.12);
+}
+
+.pricing-item .dur {
+  font-size: 0.92rem;
+  color: #444;
+}
+
+.pricing-item .price {
+  font-weight: 800;
+  color: #b45309;
+  font-size: 1rem;
+}
+
+.pricing-note {
+  margin: 12px 0 0;
+  font-size: 0.8rem;
+  color: #6b608e;
+  line-height: 1.45;
+}
+
+.pricing-err {
+  color: #b91c1c;
+  font-size: 0.9rem;
 }
 
 .vip-actions {

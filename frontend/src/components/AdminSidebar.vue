@@ -34,6 +34,12 @@
             <span class="nav-text">用户管理</span>
           </router-link>
         </li>
+        <li v-if="hasPermission('user_edit')">
+          <router-link to="/admin/vip-pricing" class="nav-link" :class="{ 'active': isActiveRoute('/admin/vip-pricing') }">
+            <span class="nav-icon">💎</span>
+            <span class="nav-text">VIP 价目</span>
+          </router-link>
+        </li>
       </ul>
     </nav>
   </div>
@@ -65,7 +71,8 @@ defineExpose({
 
 // 检查当前路由是否与指定路径完全匹配
 const isActiveRoute = (path) => {
-  return route.path === path
+  if (path === '/admin') return route.path === '/admin'
+  return route.path === path || route.path.startsWith(path + '/')
 }
 
 // 获取管理员信息
