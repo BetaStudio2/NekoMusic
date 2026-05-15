@@ -5,6 +5,8 @@ import com.neko.music.config.ConfigManager;
 import com.neko.music.database.VideoRenderDatabaseManager;
 import com.neko.music.model.VideoRenderJob;
 import com.neko.music.util.BundledFfmpegSupport;
+import com.neko.music.util.BundledRenderFontSupport;
+import com.neko.music.util.LrcParser;
 import com.neko.music.util.MusicAssetLocator;
 import com.neko.music.util.VideoRenderPaths;
 import org.slf4j.Logger;
@@ -29,7 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 横屏短视频 FFmpeg 渲染：独立线程池异步执行，HTTP 请求仅入队后立即返回。
- * 文字叠加使用 ASS + subtitles 滤镜（静态 FFmpeg 常无 drawtext）。
+ * 文字叠加使用 ASS + subtitles 滤镜；内嵌 Noto Sans SC 支持中日韩等非拉丁字符。
  */
 public class VideoRenderService {
     private static final Logger logger = LoggerFactory.getLogger(VideoRenderService.class);
@@ -37,6 +39,7 @@ public class VideoRenderService {
     private static final int WIDTH = 1920;
     private static final int HEIGHT = 1080;
     private static final int FFMPEG_TIMEOUT_MINUTES = 15;
+    private static final String FONT = BundledRenderFontSupport.FONT_FAMILY;
 
     private final ConfigManager configManager;
     private final VideoRenderDatabaseManager jobDb;
@@ -78,13 +81,16 @@ public class VideoRenderService {
             VideoRenderPaths.ensureVideoDir();
             Path output = VideoRenderPaths.outputFile(job.getId());
             assFile = VideoRenderPaths.assFile(job.getId());
-            writeAssFile(assFile, job, title, artist);
-            runFfmpeg(job, audioFile, coverFile, assFile, output);
+            Path fontsDir = BundledRenderFontSupport.ensureFontsDir();
+            List<LrcParser.Line> lyrics = loadLyrics(job.getMusicId());
+            writeAssFile(assFile, job, title, artist, lyrics);
+            runFfmpeg(job, audioFile, coverFile, assFile, fontsDir, output);
             if (!Files.isRegularFile(output) || Files.size(output) <= 0) {
                 throw new IOException("渲染输出文件无效");
             }
             jobDb.markDone(job.getId(), VideoRenderPaths.outputRelPath(job.getId()));
-            logger.info("视频渲染完成 jobId={} userId={} musicId={}", job.getId(), job.getUserId(), job.getMusicId());
+            logger.info("视频渲染完成 jobId={} userId={} musicId={} lyricsLines={}",
+                    job.getId(), job.getUserId(), job.getMusicId(), lyrics.size());
             notifyRenderCompleteByEmail(job, title, artist);
         } catch (Exception e) {
             logger.error("视频渲染失败 jobId={}: {}", job.getId(), e.getMessage(), e);
@@ -101,6 +107,12 @@ public class VideoRenderService {
                 }
             }
         }
+    }
+
+    private List<LrcParser.Line> loadLyrics(int musicId) {
+        return MusicAssetLocator.findLyricsFile(musicId)
+                .flatMap(LrcParser::parseFile)
+                .orElse(List.of());
     }
 
     private void notifyRenderCompleteByEmail(VideoRenderJob job, String title, String artist) {
@@ -128,8 +140,11 @@ public class VideoRenderService {
         }
     }
 
-    private void writeAssFile(Path assFile, VideoRenderJob job, String title, String artist) throws IOException {
-        String end = formatAssTime(job.getDurationSec());
+    private void writeAssFile(Path assFile, VideoRenderJob job, String title, String artist,
+                              List<LrcParser.Line> lyrics) throws IOException {
+        double duration = job.getDurationSec();
+        double clipStart = job.getStartSec();
+        String end = formatAssTime(duration);
         String safeTitle = VideoRenderPaths.escapeAssText(
                 VideoRenderPaths.truncateText(title == null ? "未知歌曲" : title, 48));
         String safeArtist = VideoRenderPaths.escapeAssText(
@@ -146,21 +161,78 @@ public class VideoRenderService {
         ass.append("Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, ")
                 .append("Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, ")
                 .append("Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n");
-        ass.append("Style: Title,Arial,56,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,2,0,8,40,40,120,1\n");
-        ass.append("Style: Artist,Arial,40,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,1,0,8,40,40,200,1\n");
-        ass.append("Style: Mark,Arial,34,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,0,0,3,48,48,48,1\n\n");
+        ass.append("Style: Title,").append(FONT).append(",52,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,2,0,8,40,40,80,1\n");
+        ass.append("Style: Artist,").append(FONT).append(",36,&H00D4D4D4,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,8,40,40,140,1\n");
+        ass.append("Style: LyricActive,").append(FONT).append(",54,&H00FFFFFF,&H000000FF,&H00000000,&H66000000,1,0,0,0,100,100,0,0,3,0,0,5,40,40,0,1\n");
+        ass.append("Style: LyricDim,").append(FONT).append(",40,&H80FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,40,40,0,1\n");
+        ass.append("Style: LyricTrans,").append(FONT).append(",32,&H80C8C8C8,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,40,40,0,1\n");
+        ass.append("Style: Mark,").append(FONT).append(",30,&H00FFFFFF,&H000000FF,&H00000000,&H66000000,0,0,0,0,100,100,0,0,3,0,0,3,48,48,48,1\n\n");
         ass.append("[Events]\n");
         ass.append("Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n");
-        ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Title,,0,0,0,,").append(safeTitle).append('\n');
-        ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Artist,,0,0,0,,").append(safeArtist).append('\n');
+        ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Title,,0,0,0,,{\\an8\\pos(960,100)}").append(safeTitle).append('\n');
+        ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Artist,,0,0,0,,{\\an8\\pos(960,165)}").append(safeArtist).append('\n');
+        appendLyricEvents(ass, lyrics, clipStart, duration);
         if (job.isWatermarked()) {
-            ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Mark,,0,0,0,,").append(watermark).append('\n');
+            ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Mark,,0,0,0,,{\\an3\\pos(1840,48)}").append(watermark).append('\n');
         }
         Files.writeString(assFile, ass.toString(), StandardCharsets.UTF_8);
     }
 
-    private void runFfmpeg(VideoRenderJob job, Path audioFile, Optional<Path> coverFile, Path assFile, Path output)
-            throws IOException, InterruptedException {
+    private void appendLyricEvents(StringBuilder ass, List<LrcParser.Line> lyrics, double clipStart, double duration) {
+        if (lyrics.isEmpty()) {
+            return;
+        }
+        double clipEnd = clipStart + duration;
+        for (int i = 0; i < lyrics.size(); i++) {
+            LrcParser.Line line = lyrics.get(i);
+            if (line.getTimeSec() >= clipEnd) {
+                break;
+            }
+            double relStart = line.getTimeSec() - clipStart;
+            if (relStart >= duration) {
+                continue;
+            }
+            double relEnd = duration;
+            for (int j = i + 1; j < lyrics.size(); j++) {
+                double nextRel = lyrics.get(j).getTimeSec() - clipStart;
+                if (nextRel > relStart) {
+                    relEnd = Math.min(duration, nextRel);
+                    break;
+                }
+            }
+            if (relEnd <= relStart) {
+                relEnd = Math.min(duration, relStart + 2.0);
+            }
+            String startTs = formatAssTime(Math.max(0, relStart));
+            String endTs = formatAssTime(relEnd);
+
+            if (i > 0) {
+                String prev = VideoRenderPaths.escapeAssText(
+                        VideoRenderPaths.truncateText(lyrics.get(i - 1).getText(), 64));
+                ass.append("Dialogue: 0,").append(startTs).append(',').append(endTs)
+                        .append(",LyricDim,,0,0,0,,{\\an5\\pos(960,640)\\fad(250,250)}").append(prev).append('\n');
+            }
+            String active = VideoRenderPaths.escapeAssText(VideoRenderPaths.truncateText(line.getText(), 64));
+            ass.append("Dialogue: 0,").append(startTs).append(',').append(endTs)
+                    .append(",LyricActive,,0,0,0,,{\\an5\\pos(960,720)\\fad(300,300)\\move(960,750,960,720,0,350)}")
+                    .append(active).append('\n');
+            if (line.hasTranslation()) {
+                String trans = VideoRenderPaths.escapeAssText(
+                        VideoRenderPaths.truncateText(line.getTranslation(), 80));
+                ass.append("Dialogue: 0,").append(startTs).append(',').append(endTs)
+                        .append(",LyricTrans,,0,0,0,,{\\an5\\pos(960,790)\\fad(300,300)}").append(trans).append('\n');
+            }
+            if (i + 1 < lyrics.size()) {
+                String next = VideoRenderPaths.escapeAssText(
+                        VideoRenderPaths.truncateText(lyrics.get(i + 1).getText(), 64));
+                ass.append("Dialogue: 0,").append(startTs).append(',').append(endTs)
+                        .append(",LyricDim,,0,0,0,,{\\an5\\pos(960,860)\\fad(250,250)}").append(next).append('\n');
+            }
+        }
+    }
+
+    private void runFfmpeg(VideoRenderJob job, Path audioFile, Optional<Path> coverFile, Path assFile,
+                           Path fontsDir, Path output) throws IOException, InterruptedException {
         String ffmpeg = BundledFfmpegSupport.resolve(
                 configManager.getVideoRenderFfmpegPath(),
                 configManager.isVideoRenderPreferBundledFfmpeg());
@@ -194,8 +266,8 @@ public class VideoRenderService {
             cmd.add(coverFile.get().toAbsolutePath().toString());
         }
 
-        String assPath = VideoRenderPaths.escapeSubtitlesPath(assFile);
-        String filter = buildLandscapeFilter(hasCover, durFrames, fps, assPath);
+        String subtitles = VideoRenderPaths.subtitlesFilterArg(assFile, fontsDir);
+        String filter = buildLandscapeFilter(hasCover, durFrames, fps, subtitles);
         cmd.add("-filter_complex");
         cmd.add(filter);
         cmd.add("-map");
@@ -246,23 +318,32 @@ public class VideoRenderService {
         }
     }
 
-    /** 横屏 1920×1080：封面背景 + 底部波形 + ASS 字幕（标题/艺术家/水印） */
-    private static String buildLandscapeFilter(boolean hasCover, int durFrames, int fps, String assPath) {
+    /**
+     * 横屏 1920×1080：模糊背景 + 居中封面 + 毛玻璃歌词区 + 波形 + ASS 字幕。
+     */
+    private static String buildLandscapeFilter(boolean hasCover, int durFrames, int fps, String subtitles) {
         String sizeWxH = WIDTH + "x" + HEIGHT;
         String sizeColon = WIDTH + ":" + HEIGHT;
         StringBuilder fc = new StringBuilder();
         if (hasCover) {
             fc.append("[1:v]scale=").append(sizeColon)
                     .append(":force_original_aspect_ratio=increase,crop=").append(sizeColon)
-                    .append(",setsar=1[vbg];");
+                    .append(",setsar=1[c0];");
+            fc.append("[c0]split=2[c_bg][c_fg];");
+            fc.append("[c_bg]gblur=sigma=28[blur_bg];");
+            fc.append("[c_fg]scale=440:440:force_original_aspect_ratio=decrease,")
+                    .append("pad=440:440:(ow-iw)/2:(oh-ih)/2:color=0x00000000,format=rgba[art];");
+            fc.append("[blur_bg][art]overlay=(W-w)/2:120:format=auto[composed];");
         } else {
-            fc.append("color=c=0x1a1a2e:s=").append(sizeWxH).append(":d=")
-                    .append(durFrames).append(":r=").append(fps).append("[vbg];");
+            fc.append("color=c=0x0f172a:s=").append(sizeWxH).append(":d=")
+                    .append(durFrames).append(":r=").append(fps).append("[composed];");
         }
-        fc.append("[0:a]showwaves=s=1800x160:mode=line:rate=").append(fps)
-                .append(":colors=0xFFFFFF@0.85:scale=lin[waves];");
-        fc.append("[vbg][waves]overlay=60:880[base];");
-        fc.append("[base]subtitles='").append(assPath).append("'[vout]");
+        fc.append("color=c=0x1e293b@0.55:s=1760x360:d=").append(durFrames).append(":r=").append(fps).append("[panel];");
+        fc.append("[composed][panel]overlay=80:520:format=auto[with_panel];");
+        fc.append("[0:a]showwaves=s=1740x130:mode=line:rate=").append(fps)
+                .append(":colors=0xA78BFA@0.92:scale=lin[waves];");
+        fc.append("[with_panel][waves]overlay=90:870:format=auto[base];");
+        fc.append("[base]").append(subtitles).append("[vout]");
         return fc.toString();
     }
 
@@ -271,7 +352,7 @@ public class VideoRenderService {
     }
 
     private static String formatAssTime(double sec) {
-        int totalCs = Math.max(1, (int) Math.ceil(sec * 100));
+        int totalCs = Math.max(0, (int) Math.round(sec * 100));
         int s = totalCs / 100;
         int cs = totalCs % 100;
         int h = s / 3600;

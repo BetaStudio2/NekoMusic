@@ -63,9 +63,18 @@ public final class VideoRenderPaths {
 
     /** subtitles 滤镜中的文件路径转义（Linux） */
     public static String escapeSubtitlesPath(Path assFile) {
-        return assFile.toAbsolutePath().normalize().toString()
+        return escapeFilterPath(assFile);
+    }
+
+    public static String escapeFilterPath(Path path) {
+        return path.toAbsolutePath().normalize().toString()
                 .replace("\\", "\\\\")
                 .replace(":", "\\:")
                 .replace("'", "\\'");
+    }
+
+    /** subtitles=ass:fontsdir=... 参数字符串 */
+    public static String subtitlesFilterArg(Path assFile, Path fontsDir) {
+        return "subtitles='" + escapeFilterPath(assFile) + "':fontsdir='" + escapeFilterPath(fontsDir) + "'";
     }
 }
