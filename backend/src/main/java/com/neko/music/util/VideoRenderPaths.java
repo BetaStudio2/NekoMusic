@@ -6,13 +6,14 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public final class VideoRenderPaths {
-    public static final String VIDEO_REL_DIR = "Music/videos";
+    /** 渲染成片目录（系统临时目录，重启后可能被清理） */
+    public static final Path VIDEO_DIR = Paths.get("/tmp/NekoMusic-video-render");
 
     private VideoRenderPaths() {
     }
 
     public static Path videoDir() {
-        return MusicAssetLocator.baseDir().resolve(VIDEO_REL_DIR);
+        return VIDEO_DIR;
     }
 
     public static Path outputFile(String jobId) {
@@ -20,7 +21,7 @@ public final class VideoRenderPaths {
     }
 
     public static String outputRelPath(String jobId) {
-        return VIDEO_REL_DIR + "/" + jobId + ".mp4";
+        return outputFile(jobId).toAbsolutePath().normalize().toString();
     }
 
     public static void ensureVideoDir() throws IOException {

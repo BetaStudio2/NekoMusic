@@ -38,8 +38,15 @@ public class VideoRenderService {
 
     private static final int WIDTH = 1920;
     private static final int HEIGHT = 1080;
+    private static final int LEFT_WIDTH = 960;
+    private static final int RIGHT_CENTER_X = 1440;
+    private static final int LYRIC_CENTER_Y = 560;
+    private static final int LINE_SPACING = 62;
+    private static final int TRANS_OFFSET_Y = 36;
+    private static final int SCROLL_MS = 450;
     private static final int FFMPEG_TIMEOUT_MINUTES = 15;
     private static final String FONT = BundledRenderFontSupport.FONT_FAMILY;
+    private static final String LYRIC_CLIP = "\\clip(1000,300,1880,900)";
 
     private final ConfigManager configManager;
     private final VideoRenderDatabaseManager jobDb;
@@ -169,8 +176,10 @@ public class VideoRenderService {
         ass.append("Style: Mark,").append(FONT).append(",30,&H00FFFFFF,&H000000FF,&H00000000,&H66000000,0,0,0,0,100,100,0,0,3,0,0,3,48,48,48,1\n\n");
         ass.append("[Events]\n");
         ass.append("Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n");
-        ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Title,,0,0,0,,{\\an8\\pos(960,100)}").append(safeTitle).append('\n');
-        ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Artist,,0,0,0,,{\\an8\\pos(960,165)}").append(safeArtist).append('\n');
+        ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Title,,0,0,0,,{\\an8\\pos(")
+                .append(RIGHT_CENTER_X).append(",100)}").append(safeTitle).append('\n');
+        ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Artist,,0,0,0,,{\\an8\\pos(")
+                .append(RIGHT_CENTER_X).append(",165)}").append(safeArtist).append('\n');
         appendLyricEvents(ass, lyrics, clipStart, duration);
         if (job.isWatermarked()) {
             ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Mark,,0,0,0,,{\\an3\\pos(1840,48)}").append(watermark).append('\n');
@@ -182,53 +191,87 @@ public class VideoRenderService {
         if (lyrics.isEmpty()) {
             return;
         }
-        double clipEnd = clipStart + duration;
-        for (int i = 0; i < lyrics.size(); i++) {
-            LrcParser.Line line = lyrics.get(i);
-            if (line.getTimeSec() >= clipEnd) {
+        List<LyricSegment> segments = buildLyricSegments(lyrics, clipStart, duration);
+        for (LyricSegment seg : segments) {
+            appendScrollSegment(ass, lyrics, seg);
+        }
+    }
+
+    private record LyricSegment(int activeIndex, double relStart, double relEnd, boolean scrollToNext) {
+    }
+
+    private List<LyricSegment> buildLyricSegments(List<LrcParser.Line> lyrics, double clipStart, double duration) {
+        List<LyricSegment> segments = new ArrayList<>();
+        int active = 0;
+        for (int k = 0; k < lyrics.size(); k++) {
+            if (lyrics.get(k).getTimeSec() <= clipStart) {
+                active = k;
+            } else {
                 break;
             }
-            double relStart = line.getTimeSec() - clipStart;
-            if (relStart >= duration) {
-                continue;
-            }
+        }
+        double relStart = 0;
+        while (active < lyrics.size() && relStart < duration) {
             double relEnd = duration;
-            for (int j = i + 1; j < lyrics.size(); j++) {
-                double nextRel = lyrics.get(j).getTimeSec() - clipStart;
-                if (nextRel > relStart) {
-                    relEnd = Math.min(duration, nextRel);
-                    break;
+            boolean scroll = false;
+            if (active + 1 < lyrics.size()) {
+                double nextRel = lyrics.get(active + 1).getTimeSec() - clipStart;
+                if (nextRel > relStart && nextRel <= duration) {
+                    relEnd = nextRel;
+                    scroll = true;
                 }
             }
             if (relEnd <= relStart) {
-                relEnd = Math.min(duration, relStart + 2.0);
+                break;
             }
-            String startTs = formatAssTime(Math.max(0, relStart));
-            String endTs = formatAssTime(relEnd);
+            segments.add(new LyricSegment(active, relStart, relEnd, scroll));
+            if (!scroll) {
+                break;
+            }
+            active++;
+            relStart = relEnd;
+        }
+        return segments;
+    }
 
-            if (i > 0) {
-                String prev = VideoRenderPaths.escapeAssText(
-                        VideoRenderPaths.truncateText(lyrics.get(i - 1).getText(), 64));
-                ass.append("Dialogue: 0,").append(startTs).append(',').append(endTs)
-                        .append(",LyricDim,,0,0,0,,{\\an5\\pos(960,640)\\fad(250,250)}").append(prev).append('\n');
-            }
-            String active = VideoRenderPaths.escapeAssText(VideoRenderPaths.truncateText(line.getText(), 64));
-            ass.append("Dialogue: 0,").append(startTs).append(',').append(endTs)
-                    .append(",LyricActive,,0,0,0,,{\\an5\\pos(960,720)\\fad(300,300)\\move(960,750,960,720,0,350)}")
-                    .append(active).append('\n');
-            if (line.hasTranslation()) {
+    private void appendScrollSegment(StringBuilder ass, List<LrcParser.Line> lyrics, LyricSegment seg) {
+        String startTs = formatAssTime(seg.relStart);
+        String endTs = formatAssTime(seg.relEnd);
+        long segMs = Math.max(1, Math.round((seg.relEnd - seg.relStart) * 1000));
+        long scrollMs = seg.scrollToNext ? Math.min(SCROLL_MS, segMs) : 0;
+        long moveStart = Math.max(0, segMs - scrollMs);
+        long moveEnd = segMs;
+
+        int visibleFrom = Math.max(0, seg.activeIndex - 2);
+        int visibleTo = Math.min(lyrics.size() - 1, seg.activeIndex + 3);
+        for (int j = visibleFrom; j <= visibleTo; j++) {
+            LrcParser.Line line = lyrics.get(j);
+            int yHold = LYRIC_CENTER_Y + (j - seg.activeIndex) * LINE_SPACING;
+            int yNext = yHold - LINE_SPACING;
+            String style = j == seg.activeIndex ? "LyricActive" : "LyricDim";
+            String text = VideoRenderPaths.escapeAssText(VideoRenderPaths.truncateText(line.getText(), 64));
+            ass.append("Dialogue: 0,").append(startTs).append(',').append(endTs).append(',')
+                    .append(style).append(",,0,0,0,,")
+                    .append(buildScrollTags(yHold, yNext, moveStart, moveEnd, seg.scrollToNext))
+                    .append(text).append('\n');
+
+            if (j == seg.activeIndex && line.hasTranslation()) {
                 String trans = VideoRenderPaths.escapeAssText(
                         VideoRenderPaths.truncateText(line.getTranslation(), 80));
-                ass.append("Dialogue: 0,").append(startTs).append(',').append(endTs)
-                        .append(",LyricTrans,,0,0,0,,{\\an5\\pos(960,790)\\fad(300,300)}").append(trans).append('\n');
-            }
-            if (i + 1 < lyrics.size()) {
-                String next = VideoRenderPaths.escapeAssText(
-                        VideoRenderPaths.truncateText(lyrics.get(i + 1).getText(), 64));
-                ass.append("Dialogue: 0,").append(startTs).append(',').append(endTs)
-                        .append(",LyricDim,,0,0,0,,{\\an5\\pos(960,860)\\fad(250,250)}").append(next).append('\n');
+                ass.append("Dialogue: 0,").append(startTs).append(',').append(endTs).append(",LyricTrans,,0,0,0,,")
+                        .append(buildScrollTags(yHold + TRANS_OFFSET_Y, yNext + TRANS_OFFSET_Y, moveStart, moveEnd, seg.scrollToNext))
+                        .append(trans).append('\n');
             }
         }
+    }
+
+    private String buildScrollTags(int yHold, int yNext, long moveStart, long moveEnd, boolean scroll) {
+        if (scroll && moveEnd > moveStart) {
+            return String.format(Locale.US, "{\\an5%s\\pos(%d,%d)\\move(%d,%d,%d,%d,%d,%d)}",
+                    LYRIC_CLIP, RIGHT_CENTER_X, yHold,
+                    RIGHT_CENTER_X, yHold, RIGHT_CENTER_X, yNext, moveStart, moveEnd);
+        }
+        return String.format(Locale.US, "{\\an5%s\\pos(%d,%d)}", LYRIC_CLIP, RIGHT_CENTER_X, yHold);
     }
 
     private void runFfmpeg(VideoRenderJob job, Path audioFile, Optional<Path> coverFile, Path assFile,
@@ -319,30 +362,38 @@ public class VideoRenderService {
     }
 
     /**
-     * 横屏 1920×1080：模糊背景 + 居中封面 + 毛玻璃歌词区 + 波形 + ASS 字幕。
+     * 横屏 1920×1080：左封面 / 右歌词分屏 + 右侧波形 + ASS 字幕。
      */
     private static String buildLandscapeFilter(boolean hasCover, int durFrames, int fps, String subtitles) {
-        String sizeWxH = WIDTH + "x" + HEIGHT;
-        String sizeColon = WIDTH + ":" + HEIGHT;
+        String leftSize = LEFT_WIDTH + "x" + HEIGHT;
+        String leftColon = LEFT_WIDTH + ":" + HEIGHT;
+        String rightSize = LEFT_WIDTH + "x" + HEIGHT;
         StringBuilder fc = new StringBuilder();
         if (hasCover) {
-            fc.append("[1:v]scale=").append(sizeColon)
-                    .append(":force_original_aspect_ratio=increase,crop=").append(sizeColon)
+            fc.append("[1:v]scale=").append(leftColon)
+                    .append(":force_original_aspect_ratio=increase,crop=").append(leftColon)
                     .append(",setsar=1[c0];");
             fc.append("[c0]split=2[c_bg][c_fg];");
-            fc.append("[c_bg]gblur=sigma=28[blur_bg];");
-            fc.append("[c_fg]scale=440:440:force_original_aspect_ratio=decrease,")
-                    .append("pad=440:440:(ow-iw)/2:(oh-ih)/2:color=0x00000000,format=rgba[art];");
-            fc.append("[blur_bg][art]overlay=(W-w)/2:120:format=auto[composed];");
+            fc.append("[c_bg]gblur=sigma=22[blur_left];");
+            fc.append("[c_fg]scale=680:680:force_original_aspect_ratio=decrease,")
+                    .append("pad=680:680:(ow-iw)/2:(oh-ih)/2:color=0x00000000,format=rgba[art_left];");
+            fc.append("[blur_left][art_left]overlay=(W-w)/2:(H-h)/2:format=auto[left];");
         } else {
-            fc.append("color=c=0x0f172a:s=").append(sizeWxH).append(":d=")
-                    .append(durFrames).append(":r=").append(fps).append("[composed];");
+            fc.append("color=c=0x0f172a:s=").append(leftSize).append(":d=")
+                    .append(durFrames).append(":r=").append(fps).append("[left];");
         }
-        fc.append("color=c=0x1e293b@0.55:s=1760x360:d=").append(durFrames).append(":r=").append(fps).append("[panel];");
-        fc.append("[composed][panel]overlay=80:520:format=auto[with_panel];");
-        fc.append("[0:a]showwaves=s=1740x130:mode=line:rate=").append(fps)
+        fc.append("color=c=0x111827:s=").append(rightSize).append(":d=")
+                .append(durFrames).append(":r=").append(fps).append("[right_base];");
+        fc.append("color=c=0x1e293b@0.42:s=").append(rightSize).append(":d=")
+                .append(durFrames).append(":r=").append(fps).append("[right_glass];");
+        fc.append("[right_base][right_glass]overlay=0:0:format=auto[right];");
+        fc.append("color=c=0x334155@0.65:s=2x").append(HEIGHT).append(":d=")
+                .append(durFrames).append(":r=").append(fps).append("[divider];");
+        fc.append("[left][right]hstack=inputs=2[stacked];");
+        fc.append("[stacked][divider]overlay=").append(LEFT_WIDTH - 1).append(":0:format=auto[composed];");
+        fc.append("[0:a]showwaves=s=880x110:mode=line:rate=").append(fps)
                 .append(":colors=0xA78BFA@0.92:scale=lin[waves];");
-        fc.append("[with_panel][waves]overlay=90:870:format=auto[base];");
+        fc.append("[composed][waves]overlay=").append(LEFT_WIDTH + 40).append(":930:format=auto[base];");
         fc.append("[base]").append(subtitles).append("[vout]");
         return fc.toString();
     }
