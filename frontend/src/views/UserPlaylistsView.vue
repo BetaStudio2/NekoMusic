@@ -118,6 +118,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
+import { applyVipFromPlaylistsResponse } from '@/utils/userVip.js'
 import { useToast } from 'vue-toastification'
 
 const toast = useToast()
@@ -168,7 +169,8 @@ const fetchPlaylists = async () => {
     const data = await response.json()
     if (data.success) {
       playlists.value = data.playlists || []
-      
+      applyVipFromPlaylistsResponse(data)
+
       // 为每个有音乐的歌单异步获取第一首音乐的封面
       playlists.value.forEach(playlist => {
         if (playlist.musicCount > 0) {

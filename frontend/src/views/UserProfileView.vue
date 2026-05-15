@@ -10,7 +10,10 @@
           </div>
         </div>
         <div class="user-info">
-          <h2 class="username">{{ user.username }}</h2>
+          <h2 class="username">
+            {{ user.username }}
+            <span v-if="user.isVip" class="vip-badge" title="会员">VIP</span>
+          </h2>
           <p class="email">{{ user.email }}</p>
           <p class="join-date">加入时间: {{ formatDate(user.createdAt) }}</p>
         </div>
@@ -38,6 +41,14 @@
             <div class="info-item">
               <label>邮箱:</label>
               <span>{{ user.email }}</span>
+            </div>
+            <div class="info-item">
+              <label>会员状态:</label>
+              <span>{{ user.isVip ? '会员' : '非会员' }}</span>
+            </div>
+            <div class="info-item">
+              <label>会员到期:</label>
+              <span>{{ formatVipExpiresAt(user.vipExpiresAt) }}</span>
             </div>
             <div class="info-item">
               <label>注册时间:</label>
@@ -73,14 +84,18 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import API_CONFIG from '@/config/apiConfig.js'
 import { useToast } from 'vue-toastification'
+import { formatVipExpiresAt, syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
 
 const toast = useToast()
 
-// 获取用户信息
+const vipSyncTick = ref(0)
+
+// 获取用户信息（vipSyncTick 用于在歌单接口合并 VIP 后触发重读 localStorage）
 const user = computed(() => {
+  vipSyncTick.value
   const userStr = localStorage.getItem('user');
   if (!userStr || userStr === 'undefined' || userStr === 'null') {
     return null;
@@ -102,6 +117,20 @@ const isLoggedIn = computed(() => {
 if (!isLoggedIn.value || !user.value) {
   window.location.href = '/login';
 }
+
+const bumpUserFromStorage = () => {
+  vipSyncTick.value++
+}
+
+onMounted(async () => {
+  window.addEventListener(USER_VIP_SYNC_EVENT, bumpUserFromStorage)
+  await syncUserVipFromPlaylistsApi()
+  bumpUserFromStorage()
+})
+
+onUnmounted(() => {
+  window.removeEventListener(USER_VIP_SYNC_EVENT, bumpUserFromStorage)
+})
 
 const userAvatar = computed(() => {
   // 使用用户 ID 获取头像
@@ -295,6 +324,22 @@ const changePassword = async () => {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.user-info .username .vip-badge {
+  -webkit-text-fill-color: initial;
+  background: linear-gradient(135deg, #ffe082, #ffb300);
+  color: #3d2a00;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(255, 179, 0, 0.35);
 }
 
 .user-info .email {

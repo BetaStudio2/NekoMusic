@@ -52,6 +52,7 @@
                     <th>邮箱</th>
                     <th>角色</th>
                     <th>注册时间</th>
+                    <th>会员</th>
                     <th>操作</th>
                   </tr>
                 </thead>
@@ -62,6 +63,14 @@
                     <td>{{ user.email }}</td>
                     <td>{{ getRoleText(user.role) }}</td>
                     <td>{{ formatDate(user.registerTime) }}</td>
+                    <td>
+                      <template v-if="user.accountType === 'user'">
+                        <span v-if="user.vip" class="vip-tag">VIP</span>
+                        <span v-else class="cell-muted">—</span>
+                        <div v-if="user.vipExpiresAt" class="cell-sub">{{ formatVipExpiresAt(user.vipExpiresAt) }}</div>
+                      </template>
+                      <span v-else class="cell-muted">—</span>
+                    </td>
                     <td>
                       <button 
                         class="action-btn edit-btn" 
@@ -172,6 +181,21 @@
               <label>确认新密码</label>
               <input type="password" v-model="editingUser.confirmPassword" placeholder="如果不修改密码请留空" />
             </div>
+            <template v-if="editingUser.accountType === 'user'">
+              <div class="form-group">
+                <label>会员到期（东八区 UTC+8）</label>
+                <input
+                  type="datetime-local"
+                  v-model="editingUser.vipLocal"
+                  :disabled="editingUser.vipClear"
+                  class="modal-input"
+                />
+                <label class="vip-clear-row">
+                  <input type="checkbox" v-model="editingUser.vipClear" />
+                  清除会员
+                </label>
+              </div>
+            </template>
           </div>
           <div class="modal-actions">
             <button class="secondary-btn" @click="closeEditModal">取消</button>
@@ -189,6 +213,11 @@ import { useRouter } from 'vue-router'
 import AdminSidebar from '@/components/AdminSidebar.vue'
 import { useToast } from 'vue-toastification'
 import API_CONFIG from '@/config/apiConfig.js'
+import {
+  isoToDatetimeLocalValue,
+  datetimeLocalShanghaiToIso,
+  formatVipExpiresAt
+} from '@/utils/userVip.js'
 
 const toast = useToast()
 
@@ -453,10 +482,15 @@ const totalPages = computed(() => {
   return Math.max(1, Math.ceil(result.length / usersPerPage))
 })
 
-// 格式化日期
+// 格式化日期（统一东八区）
 const formatDate = (date) => {
   if (!date) return '无'
-  return new Date(date).toLocaleDateString('zh-CN')
+  const d = new Date(date)
+  if (Number.isNaN(d.getTime())) return '无'
+  return d.toLocaleString('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    dateStyle: 'medium'
+  })
 }
 
 // 获取角色文本
@@ -474,7 +508,9 @@ const editUser = (user) => {
   editingUser.value = {
     ...user,
     newPassword: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    vipClear: false,
+    vipLocal: user.accountType === 'user' ? isoToDatetimeLocalValue(user.vipExpiresAt) : ''
   }
 }
 
@@ -586,61 +622,90 @@ const createUser = async () => {
   }
 }
 
-// 保存用户编辑
+// 保存用户编辑（普通用户：密码可选；会员到期按东八区提交）
 const saveUserEdit = async () => {
-  if (!editingUser.value.newPassword && !editingUser.value.confirmPassword) {
-    toast.info('密码未修改')
-    closeEditModal()
-    return
-  }
-  
-  if (editingUser.value.newPassword !== editingUser.value.confirmPassword) {
-    toast.error('两次输入的密码不一致')
-    return
-  }
-  
-  if (editingUser.value.newPassword.length < 6) {
-    toast.error('密码长度不能少于6位')
-    return
-  }
-  
-  try {
-    let endpoint
-    let requestBody
-    
-    if (editingUser.value.accountType === 'admin') {
-      // 管理员账户使用专用 API
-      endpoint = `${API_CONFIG.BASE_URL}/api/admin/users/${editingUser.value.id}/edit`
-      requestBody = {
-        password: editingUser.value.newPassword
-      }
-    } else {
-      // 普通用户使用专用 API
-      endpoint = `${API_CONFIG.BASE_URL}/api/users/${editingUser.value.id}/edit`
-      requestBody = {
-        password: editingUser.value.newPassword
-      }
+  const e = editingUser.value
+  if (!e) return
+
+  const pwd = (e.newPassword || '').trim()
+  const confirm = (e.confirmPassword || '').trim()
+  const wantPwd = pwd.length > 0 || confirm.length > 0
+  if (wantPwd) {
+    if (pwd !== confirm) {
+      toast.error('两次输入的密码不一致')
+      return
     }
-    
-    const response = await fetch(endpoint, {
+    if (pwd.length < 6) {
+      toast.error('密码长度不能少于6位')
+      return
+    }
+  }
+
+  if (e.accountType === 'admin') {
+    if (!wantPwd) {
+      toast.info('未填写新密码，未做修改')
+      closeEditModal()
+      return
+    }
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/admin/users/${e.id}/edit`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('adminToken')}`
+        },
+        body: JSON.stringify({ password: pwd })
+      })
+      const data = await response.json()
+      if (data.success) {
+        toast.success('密码修改成功')
+        closeEditModal()
+        await fetchAdminUsers()
+      } else {
+        toast.error(data.message || '密码修改失败')
+      }
+    } catch (err) {
+      console.error('密码修改失败:', err)
+      toast.error('密码修改失败')
+    }
+    return
+  }
+
+  let vipExpiresAt
+  if (e.vipClear) {
+    vipExpiresAt = null
+  } else {
+    const iso = datetimeLocalShanghaiToIso(e.vipLocal)
+    if (!iso) {
+      toast.error('请填写有效的会员到期时间（东八区），或勾选「清除会员」')
+      return
+    }
+    vipExpiresAt = iso
+  }
+
+  const requestBody = { vipExpiresAt }
+  if (wantPwd) requestBody.password = pwd
+
+  try {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/users/${e.id}/edit`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        Authorization: `Bearer ${localStorage.getItem('adminToken')}`
       },
       body: JSON.stringify(requestBody)
     })
-    
     const data = await response.json()
     if (data.success) {
-      toast.success('密码修改成功')
+      toast.success('保存成功')
       closeEditModal()
+      await loadAllUsers()
     } else {
-      toast.error(data.message || '密码修改失败')
+      toast.error(data.message || '保存失败')
     }
-  } catch (error) {
-    console.error('密码修改失败:', error)
-    toast.error('密码修改失败')
+  } catch (err) {
+    console.error('保存失败:', err)
+    toast.error('保存失败')
   }
 }
 
@@ -898,6 +963,35 @@ const logout = () => {
 
 .users-table tr:hover {
   background: rgba(106, 90, 205, 0.1);
+}
+
+.vip-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: linear-gradient(135deg, #ffd700, #ffb347);
+  color: #5c3d00;
+}
+
+.cell-muted {
+  color: #999;
+}
+
+.cell-sub {
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.vip-clear-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-weight: 500;
+  color: #555;
 }
 
 .action-btn {

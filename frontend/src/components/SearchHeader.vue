@@ -47,6 +47,7 @@
         <div v-if="isLoggedIn" class="user-info">
           <img :src="userAvatar" alt="用户头像" class="user-avatar" @error="handleAvatarError" />
           <span class="username">{{ username }}</span>
+          <span v-if="user?.isVip" class="vip-badge" title="会员">VIP</span>
           <button @click="goToPlaylists" class="playlists-btn" title="我的歌单">我的歌单</button>
           <button @click="goToFavorites" class="favorites-btn" title="我的收藏">我的收藏</button>
           <button @click="goToUpload" class="upload-btn" title="上传音乐">上传音乐</button>
@@ -67,6 +68,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
+import { syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
 
 const router = useRouter()
 const searchQuery = ref('')
@@ -334,10 +336,13 @@ const handleClickOutside = (event) => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   initializeUserState()
   window.addEventListener('storage', handleStorageChange)
+  window.addEventListener(USER_VIP_SYNC_EVENT, initializeUserState)
   document.addEventListener('click', handleClickOutside)
+  await syncUserVipFromPlaylistsApi()
+  initializeUserState()
 })
 
 onUnmounted(() => {
@@ -345,6 +350,7 @@ onUnmounted(() => {
     clearTimeout(debounceTimer)
   }
   window.removeEventListener('storage', handleStorageChange)
+  window.removeEventListener(USER_VIP_SYNC_EVENT, initializeUserState)
   document.removeEventListener('click', handleClickOutside)
 })
 </script>
@@ -441,6 +447,18 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.vip-badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #3d2a00;
+  background: linear-gradient(135deg, #ffe082, #ffb300);
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(255, 179, 0, 0.45);
 }
 
 .logout-btn {
