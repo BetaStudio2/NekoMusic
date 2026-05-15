@@ -184,13 +184,16 @@ public class VideoRenderService {
         ass.append("[Events]\n");
         ass.append("Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n");
         ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Title,,0,0,0,,{\\an8\\pos(")
-                .append(RIGHT_CENTER_X).append(",120)\\blur1\\bord2\\3c&H60C4B5FD&\\shad1\\4c&H40000000&}")
+                .append(RIGHT_CENTER_X).append(",115)\\blur2\\bord3\\3c&H00C4B5FD&\\shad2\\4c&H50000000&}")
                 .append(safeTitle).append('\n');
         ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Artist,,0,0,0,,{\\an8\\pos(")
-                .append(RIGHT_CENTER_X).append(",200)\\1c&H00F5F5F5&}").append(safeArtist).append('\n');
+                .append(RIGHT_CENTER_X).append(",195)\\1c&H00FAFAFA&}").append(safeArtist).append('\n');
+        ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Artist,,0,0,0,,{\\an8\\pos(")
+                .append(RIGHT_CENTER_X).append(",248)\\1c&H00A78BFA&\\fs18\\blur1}").append("━━━━━━━━━━━━").append('\n');
         appendLyricEvents(ass, lyrics, clipStart, duration);
         if (job.isWatermarked()) {
-            ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Mark,,0,0,0,,{\\an3\\pos(1840,48)}").append(watermark).append('\n');
+            ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Mark,,0,0,0,,")
+                    .append("{\\an3\\pos(1840,44)\\blur1\\3c&H80C4B5FD&\\bord1}").append(watermark).append('\n');
         }
         Files.writeString(assFile, ass.toString(), StandardCharsets.UTF_8);
     }
@@ -263,7 +266,7 @@ public class VideoRenderService {
         String startTs = formatAssTime(seg.relStart());
         String endTs = formatAssTime(seg.relEnd());
         ass.append("Dialogue: 0,").append(startTs).append(',').append(endTs).append(",LyricBase,,0,0,0,,")
-                .append(buildSegmentMotionTags(yHold, yNext, segMs, seg.scrollAtEnd(), active, fadeIn, fadeOut))
+                .append(buildSegmentMotionTags(yHold, yNext, segMs, seg.scrollAtEnd(), active, fadeIn, fadeOut, line.hasTranslation()))
                 .append(text).append('\n');
     }
 
@@ -275,23 +278,24 @@ public class VideoRenderService {
         }
         String trans = VideoRenderPaths.escapeAssText(VideoRenderPaths.truncateText(line.getTranslation(), 80));
         if (active) {
-            return main + "{\\r\\fs34\\1c&H00EEEEEE&\\b0\\bord0\\blur0\\shad0}\\N" + trans;
+            return main + "{\\r\\fs36\\1c&H00FFFFFF&\\b0\\bord0\\blur1\\3c&H60C4B5FD&}\\N" + trans;
         }
-        return main + "{\\r\\fs30\\1c&H00B8B8B8&\\b0\\bord0}\\N" + trans;
+        return main + "{\\r\\fs30\\1c&H00CCCCCC&\\b0\\bord0}\\N" + trans;
     }
 
     /**
      * 整段匀速 {@code \\move}（速度随 LRC 句间隔自动变化），比段末短促跳动更自然。
      */
     private String buildSegmentMotionTags(int yHold, int yNext, long segMs, boolean scroll, boolean active,
-                                          boolean fadeIn, boolean fadeOut) {
+                                          boolean fadeIn, boolean fadeOut, boolean hasTranslation) {
         StringBuilder tags = new StringBuilder("{\\an5").append(LYRIC_CLIP);
         if (fadeIn) {
             tags.append("\\fad(").append(FADE_MS).append(",0)");
         } else if (fadeOut) {
             tags.append("\\fad(0,").append(FADE_MS).append(')');
         }
-        appendLyricVisualState(tags, active);
+        appendLyricVisualState(tags, active, hasTranslation);
+        appendActivePulse(tags, active, segMs);
         if (scroll) {
             tags.append(String.format(Locale.US, "\\move(%d,%d,%d,%d,0,%d)",
                     RIGHT_CENTER_X, yHold, RIGHT_CENTER_X, yNext, segMs));
@@ -300,6 +304,17 @@ public class VideoRenderService {
         }
         tags.append('}');
         return tags.toString();
+    }
+
+    /** 当前句微缩放脉冲，增强节奏感 */
+    private static void appendActivePulse(StringBuilder tags, boolean active, long segMs) {
+        if (!active || segMs < 300) {
+            return;
+        }
+        long mid = Math.min(350, segMs / 3);
+        long relax = Math.min(segMs, mid * 2);
+        tags.append(String.format(Locale.US, "\\t(0,%d,\\fscx112\\fscy112\\blur5)", mid));
+        tags.append(String.format(Locale.US, "\\t(%d,%d,\\fscx106\\fscy106\\blur4)", mid, relax));
     }
 
     private static int activeIndexAt(List<LrcParser.Line> lyrics, double clipStart) {
@@ -321,11 +336,15 @@ public class VideoRenderService {
                 && lineIndex <= activeIndex + LYRIC_VISIBLE_AFTER;
     }
 
-    private static void appendLyricVisualState(StringBuilder tags, boolean active) {
+    private static void appendLyricVisualState(StringBuilder tags, boolean active, boolean hasTranslation) {
         if (active) {
-            tags.append("\\fs62\\1c&H00FFFFFF&\\1a&H00&\\b1\\bord3\\3c&H80C4B5FD&\\blur2\\shad0");
+            tags.append("\\fs64\\1c&H00FFFFFF&\\1a&H00&\\b1\\bord4\\3c&H00E879F9&\\4c&H40C4B5FD&\\blur3\\shad0");
+            tags.append("\\fscx106\\fscy106");
         } else {
-            tags.append("\\fs44\\1c&H00E8E8E8&\\1a&H00&\\b0\\bord0");
+            tags.append("\\fs44\\1c&H00F0F0F0&\\1a&H00&\\b0\\bord0\\fscx100\\fscy100");
+            if (hasTranslation) {
+                tags.append("\\1a&H15&");
+            }
         }
     }
 
@@ -423,7 +442,8 @@ public class VideoRenderService {
     }
 
     /**
-     * 横屏 1920×1080：全屏模糊毛玻璃底 + 左侧圆角封面 + 底部波形 + ASS 字幕（右侧无独立底色）。
+     * 炫酷版横屏 1920×1080：
+     * 背景呼吸毛玻璃 + 噪点质感 + 圆角封面光晕 + 霓虹发光波形 + ASS 字幕。
      */
     private static String buildLandscapeFilter(boolean hasCover, int durFrames, int fps, String subtitles) {
         String sizeWxH = WIDTH + "x" + HEIGHT;
@@ -434,37 +454,55 @@ public class VideoRenderService {
             fc.append("[1:v]scale=").append(sizeColon)
                     .append(":force_original_aspect_ratio=increase,crop=").append(sizeColon)
                     .append(",setsar=1[bg_src];");
-            fc.append("[bg_src]gblur=sigma=46,eq=brightness=0.02:saturation=1.05:contrast=1.06[blur_bg];");
-            fc.append("color=c=white@0.26:s=").append(sizeWxH).append(":d=").append(durFrames)
-                    .append(":r=").append(fps).append(",gblur=sigma=4[frost_blur];");
-            fc.append("[blur_bg][frost_blur]overlay=0:0:format=auto[glass];");
-            fc.append("color=c=0x7C3AED@0.08:s=").append(sizeWxH).append(":d=").append(durFrames)
-                    .append(":r=").append(fps).append("[tint];");
-            fc.append("[glass][tint]overlay=0:0:format=auto[glass_tint];");
-            fc.append("color=c=black@0.14:s=").append(sizeWxH).append(":d=").append(durFrames)
+            fc.append("[bg_src]gblur=sigma=50,eq=brightness='0.02+0.015*sin(n/30)':saturation=1.12:contrast=1.06[blur_bg];");
+            fc.append("color=c=white@0.22:s=").append(sizeWxH).append(":d=").append(durFrames)
+                    .append(":r=").append(fps).append("[frost_base];");
+            fc.append("[frost_base]noise=alls=8:allf=t[frost_noise];");
+            fc.append("[blur_bg][frost_noise]overlay=0:0:format=auto[glass];");
+            fc.append("[glass]hue=h='4*sin(2*PI*t/14)':s=1.18[glass_hue];");
+            fc.append("color=c=0x7C3AED@0.10:s=").append(sizeWxH).append(":d=").append(durFrames)
+                    .append(":r=").append(fps).append("[tint_p];");
+            fc.append("color=c=0x22D3EE@0.05:s=").append(sizeWxH).append(":d=").append(durFrames)
+                    .append(":r=").append(fps).append("[tint_c];");
+            fc.append("[glass_hue][tint_p]overlay=0:0:format=auto[glass_p];");
+            fc.append("[glass_p][tint_c]overlay=0:0:format=auto[glass_tint];");
+            fc.append("color=c=black@0.15:s=").append(sizeWxH).append(":d=").append(durFrames)
                     .append(":r=").append(fps).append("[vign];");
             fc.append("[glass_tint][vign]overlay=0:0:format=auto[bg];");
             fc.append("[1:v]scale=").append(coverColon).append(":force_original_aspect_ratio=decrease,")
                     .append("pad=").append(coverColon).append(":(ow-iw)/2:(oh-ih)/2:color=black@0,")
-                    .append("format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='").append(ROUNDED_ALPHA)
-                    .append("'[cover_raw];");
-            fc.append("[cover_raw]split[cover_main][cover_blur_src];");
-            fc.append("[cover_blur_src]gblur=sigma=14,colorchannelmixer=aa=0.65[cover_shadow];");
-            fc.append("[bg][cover_shadow]overlay=").append(COVER_X + 10).append(':').append(COVER_Y + 14)
+                    .append("format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='")
+                    .append(ROUNDED_ALPHA).append("'[cover_raw];");
+            fc.append("[cover_raw]split=3[cover_main][cover_shadow_src][cover_glow_src];");
+            fc.append("[cover_shadow_src]gblur=sigma=18,colorchannelmixer=aa=0.72[cover_shadow];");
+            fc.append("[cover_glow_src]gblur=sigma=24,eq=saturation=1.7:brightness=0.06,")
+                    .append("colorchannelmixer=rr=0.55:gg=0.38:bb=1.0:aa=0.68[cover_glow];");
+            fc.append("[bg][cover_glow]overlay=").append(COVER_X - 10).append(':').append(COVER_Y - 10)
+                    .append(":format=auto[bg_glow];");
+            fc.append("[bg_glow][cover_shadow]overlay=").append(COVER_X + 12).append(':').append(COVER_Y + 16)
                     .append(":format=auto[bg_shadow];");
             fc.append("[bg_shadow][cover_main]overlay=").append(COVER_X).append(':').append(COVER_Y)
                     .append(":format=auto[composed];");
         } else {
             fc.append("color=c=0x0f172a:s=").append(sizeWxH).append(":d=").append(durFrames)
-                    .append(":r=").append(fps).append("[dark];");
-            fc.append("color=c=white@0.12:s=").append(sizeWxH).append(":d=").append(durFrames)
-                    .append(":r=").append(fps).append("[frost];");
+                    .append(":r=").append(fps).append(",eq=brightness='0.02+0.01*sin(n/30)'[dark];");
+            fc.append("color=c=white@0.14:s=").append(sizeWxH).append(":d=").append(durFrames)
+                    .append(":r=").append(fps).append(",noise=alls=6:allf=t[frost];");
             fc.append("[dark][frost]overlay=0:0:format=auto[composed];");
+            fc.append("[composed]hue=h='4*sin(2*PI*t/14)':s=1.12[composed];");
         }
-        fc.append("[0:a]showwaves=s=1760x150:mode=cline:rate=").append(fps)
-                .append(":colors=0xC4B5FD@0.92|0x67E8F9@0.88:scale=lin[waves];");
-        fc.append("[composed][waves]overlay=80:900:format=auto[base];");
-        fc.append("[base]").append(subtitles).append("[vout]");
+        fc.append("[0:a]aformat=sample_rates=44100:channel_layouts=stereo,asplit=2[a_spec][a_wave];");
+        fc.append("[a_spec]showfreqs=s=1760x180:mode=bar:ascale=log:overlap=0.85:rate=").append(fps)
+                .append(":colors=0xC4B5FD|0x67E8F9[spec];");
+        fc.append("[a_wave]showwaves=s=1760x180:mode=p2p:rate=").append(fps)
+                .append(":colors=0x67E8F9@0.95|0xC4B5FD@0.85:scale=lin[waves_raw];");
+        fc.append("[waves_raw]split[w1][w2];");
+        fc.append("[w1]gblur=sigma=3[waves_glow];");
+        fc.append("[w2][waves_glow]blend=all_mode=screen[waves_neon];");
+        fc.append("[spec][waves_neon]blend=all_mode=addition[vis];");
+        fc.append("[composed][vis]overlay=80:860:format=auto[base];");
+        fc.append("[base]eq=gamma=1.06:saturation=1.1:brightness=0.012[flash];");
+        fc.append("[flash]").append(subtitles).append("[vout]");
         return fc.toString();
     }
 
