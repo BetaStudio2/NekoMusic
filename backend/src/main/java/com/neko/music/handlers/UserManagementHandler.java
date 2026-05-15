@@ -1,6 +1,8 @@
 package com.neko.music.handlers;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
+import com.neko.music.util.VipUtil;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +16,14 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.sql.Types;
+import java.time.DateTimeException;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -105,9 +115,9 @@ public class UserManagementHandler extends HttpServlet {
             requestBody.append(line);
         }
 
-        UserEditRequest editRequest;
+        JsonNode root;
         try {
-            editRequest = Main.getObjectMapper().readValue(requestBody.toString(), UserEditRequest.class);
+            root = Main.getObjectMapper().readTree(requestBody.toString());
         } catch (Exception e) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
@@ -116,13 +126,31 @@ public class UserManagementHandler extends HttpServlet {
             return;
         }
 
-        // 修改用户信息
-        boolean success = updateUserInfo(userId, editRequest);
-        
-        if (!success) {
-            response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
+        String pwdField = root.has("password") && root.get("password").isTextual() ? root.get("password").asText("") : "";
+        boolean hasPassword = root.has("password") && !pwdField.isBlank();
+        boolean hasVip = root.has("vipExpiresAt");
+        if (!hasPassword && !hasVip) {
+            response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("修改用户信息失败");
+            ErrorResponse errorResponse = new ErrorResponse("请提供非空 password 和/或 vipExpiresAt");
+            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+            return;
+        }
+
+        try {
+            boolean success = updateUserFields(userId, root);
+            if (!success) {
+                response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
+                response.setContentType("application/json;charset=utf-8");
+                ErrorResponse errorResponse = new ErrorResponse("修改用户信息失败");
+                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+                return;
+            }
+        } catch (IllegalArgumentException e) {
+            logger.warn("修改用户 VIP 参数无效: {}", e.getMessage());
+            response.setStatus(HttpStatus.BAD_REQUEST_400);
+            response.setContentType("application/json;charset=utf-8");
+            ErrorResponse errorResponse = new ErrorResponse(e.getMessage());
             response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
@@ -205,7 +233,7 @@ public class UserManagementHandler extends HttpServlet {
         List<RegularUser> regularUsers = new ArrayList<>();
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, username, email, created_at FROM users ORDER BY created_at DESC";
+            String sql = "SELECT id, username, email, created_at, vip_expires_at FROM users ORDER BY created_at DESC";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 ResultSet rs = stmt.executeQuery();
                 
@@ -215,6 +243,14 @@ public class UserManagementHandler extends HttpServlet {
                     regularUser.setUsername(rs.getString("username"));
                     regularUser.setEmail(rs.getString("email"));
                     regularUser.setRegisterTime(rs.getTimestamp("created_at").toString());
+                    Timestamp vip = rs.getTimestamp("vip_expires_at");
+                    if (rs.wasNull()) {
+                        regularUser.setVipExpiresAt(null);
+                        regularUser.setVip(false);
+                    } else {
+                        regularUser.setVipExpiresAt(vip.toInstant().toString());
+                        regularUser.setVip(VipUtil.isVipActiveNow(vip));
+                    }
                     
                     regularUsers.add(regularUser);
                 }
@@ -241,28 +277,100 @@ public class UserManagementHandler extends HttpServlet {
         }
     }
 
-    // 修改用户信息
-    private boolean updateUserInfo(int userId, UserEditRequest editRequest) {
-        try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            // 如果提供了新密码，则修改密码
-            if (editRequest.getPassword() != null && !editRequest.getPassword().trim().isEmpty()) {
-                // 使用Argon2加密密码
-                de.mkammerer.argon2.Argon2 argon2 = de.mkammerer.argon2.Argon2Factory.create();
-                String passwordHash = argon2.hash(10, 65536, 1, editRequest.getPassword().toCharArray());
-                
-                String sql = "UPDATE users SET password = ? WHERE id = ?";
-                try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                    stmt.setString(1, passwordHash);
-                    stmt.setInt(2, userId);
-                    int rowsAffected = stmt.executeUpdate();
-                    return rowsAffected > 0;
-                }
+    /**
+     * 更新密码与/或 VIP 到期时间。请求 JSON 字段：
+     * <ul>
+     *   <li>{@code password}（可选）：非空则更新密码</li>
+     *   <li>{@code vipExpiresAt}（可选）：ISO-8601 字符串、或 {@code null}、或空字符串表示清除会员</li>
+     * </ul>
+     */
+    private boolean updateUserFields(int userId, JsonNode root) throws IllegalArgumentException {
+        String password = null;
+        if (root.has("password") && root.get("password").isTextual()) {
+            String p = root.get("password").asText("");
+            if (!p.isBlank()) {
+                password = p;
             }
-            
-            return true; // 如果没有提供密码，也返回成功
-        } catch (Exception e) {
+        }
+
+        boolean hasVip = root.has("vipExpiresAt");
+        boolean clearVip = false;
+        Timestamp vipTs = null;
+        if (hasVip) {
+            JsonNode n = root.get("vipExpiresAt");
+            if (n.isNull()) {
+                clearVip = true;
+            } else if (n.isTextual()) {
+                String raw = n.asText("").trim();
+                if (raw.isEmpty()) {
+                    clearVip = true;
+                } else {
+                    vipTs = parseVipExpiresAt(raw);
+                }
+            } else {
+                throw new IllegalArgumentException("vipExpiresAt 必须为字符串或 null");
+            }
+        }
+
+        if (password == null && !hasVip) {
+            return false;
+        }
+
+        try (Connection conn = Main.getDatabaseManager().getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                if (password != null) {
+                    de.mkammerer.argon2.Argon2 argon2 = de.mkammerer.argon2.Argon2Factory.create();
+                    String passwordHash = argon2.hash(10, 65536, 1, password.toCharArray());
+                    String sql = "UPDATE users SET password = ? WHERE id = ?";
+                    try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                        stmt.setString(1, passwordHash);
+                        stmt.setInt(2, userId);
+                        if (stmt.executeUpdate() == 0) {
+                            conn.rollback();
+                            return false;
+                        }
+                    }
+                }
+                if (hasVip) {
+                    String sql = "UPDATE users SET vip_expires_at = ? WHERE id = ?";
+                    try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                        if (clearVip) {
+                            stmt.setNull(1, Types.TIMESTAMP);
+                        } else {
+                            stmt.setTimestamp(1, vipTs);
+                        }
+                        stmt.setInt(2, userId);
+                        if (stmt.executeUpdate() == 0) {
+                            conn.rollback();
+                            return false;
+                        }
+                    }
+                }
+                conn.commit();
+                return true;
+            } catch (SQLException e) {
+                conn.rollback();
+                logger.error("修改用户信息失败", e);
+                return false;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
             logger.error("修改用户信息失败", e);
             return false;
+        }
+    }
+
+    private static Timestamp parseVipExpiresAt(String raw) {
+        try {
+            if (raw.endsWith("Z") || raw.contains("+") || raw.matches(".+-\\d{2}:\\d{2}$")) {
+                return Timestamp.from(Instant.parse(raw));
+            }
+            LocalDateTime ldt = LocalDateTime.parse(raw, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            return Timestamp.from(ldt.atZone(ZoneId.of("Asia/Shanghai")).toInstant());
+        } catch (DateTimeException e) {
+            throw new IllegalArgumentException("vipExpiresAt 格式无效，请使用 ISO-8601 日期时间");
         }
     }
 
@@ -272,6 +380,8 @@ public class UserManagementHandler extends HttpServlet {
         private String username;
         private String email;
         private String registerTime;
+        private boolean vip;
+        private String vipExpiresAt;
 
         public int getId() { return id; }
         public void setId(int id) { this.id = id; }
@@ -281,14 +391,10 @@ public class UserManagementHandler extends HttpServlet {
         public void setEmail(String email) { this.email = email; }
         public String getRegisterTime() { return registerTime; }
         public void setRegisterTime(String registerTime) { this.registerTime = registerTime; }
-    }
-
-    // 内部类：用户编辑请求
-    private static class UserEditRequest {
-        private String password;
-
-        public String getPassword() { return password; }
-        public void setPassword(String password) { this.password = password; }
+        public boolean isVip() { return vip; }
+        public void setVip(boolean vip) { this.vip = vip; }
+        public String getVipExpiresAt() { return vipExpiresAt; }
+        public void setVipExpiresAt(String vipExpiresAt) { this.vipExpiresAt = vipExpiresAt; }
     }
 
     // 内部类：普通用户列表响应

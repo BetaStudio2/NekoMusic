@@ -1,5 +1,7 @@
 package com.neko.music.model;
 
+import java.sql.Timestamp;
+
 public class User {
     private int id;
     private String username;
@@ -8,6 +10,8 @@ public class User {
     private boolean emailVerified;
     private String avatar;
     private String createdAt;
+    /** 会员到期时间，null 表示非会员或未设置 */
+    private Timestamp vipExpiresAt;
 
     public User() {
     }
@@ -73,5 +77,13 @@ public class User {
 
     public void setAvatar(String avatar) {
         this.avatar = avatar;
+    }
+
+    public Timestamp getVipExpiresAt() {
+        return vipExpiresAt;
+    }
+
+    public void setVipExpiresAt(Timestamp vipExpiresAt) {
+        this.vipExpiresAt = vipExpiresAt;
     }
 }

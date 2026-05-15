@@ -486,6 +486,21 @@ public class DatabaseManager {
                 logger.debug("avatar 字段可能已存在，跳过添加: {}", e.getMessage());
             }
 
+            // 为 users 表添加 VIP 到期时间（NULL 表示非会员）
+            try {
+                String alterVip = """
+                    ALTER TABLE users
+                    ADD COLUMN IF NOT EXISTS vip_expires_at TIMESTAMP NULL DEFAULT NULL
+                    AFTER avatar
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(alterVip)) {
+                    stmt.execute();
+                    logger.info("已为 users 表添加 vip_expires_at 字段");
+                }
+            } catch (SQLException e) {
+                logger.debug("vip_expires_at 字段可能已存在，跳过添加: {}", e.getMessage());
+            }
+
             // 创建歌单表
             String createPlaylistTable = """
                 CREATE TABLE IF NOT EXISTS playlists (

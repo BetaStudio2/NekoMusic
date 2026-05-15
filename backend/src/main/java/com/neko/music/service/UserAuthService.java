@@ -72,7 +72,7 @@ public class UserAuthService {
     public Optional<User> authenticate(String email, String password) {
         logger.info("用户登录尝试: {}", email);
 
-        String sql = "SELECT id, username, password, email, created_at FROM users WHERE email = ?";
+        String sql = "SELECT id, username, password, email, created_at, vip_expires_at FROM users WHERE email = ?";
 
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -90,6 +90,8 @@ public class UserAuthService {
                     user.setUsername(rs.getString("username"));
                     user.setEmail(rs.getString("email"));
                     user.setCreatedAt(rs.getString("created_at"));
+                    java.sql.Timestamp vipTs = rs.getTimestamp("vip_expires_at");
+                    user.setVipExpiresAt(rs.wasNull() ? null : vipTs);
 
                     logger.info("用户登录成功: {}", email);
                     return Optional.of(user);
@@ -293,9 +295,35 @@ public class UserAuthService {
     }
     
     /**
-     * 验证token并返回用户ID - 优先查Redis缓存
+     * 查询用户当前 VIP 到期时间（数据库为准）。
+     */
+    public Optional<java.sql.Timestamp> findVipExpiresAtByUserId(int userId) {
+        String sql = "SELECT vip_expires_at FROM users WHERE id = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, userId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    java.sql.Timestamp vip = rs.getTimestamp("vip_expires_at");
+                    return Optional.ofNullable(rs.wasNull() ? null : vip);
+                }
+            }
+        } catch (SQLException e) {
+            logger.error("查询 VIP 到期时间失败: {}", e.getMessage(), e);
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * 验证 token 并返回用户 ID，优先查 Redis 缓存。
      */
     public Optional<Integer> validateToken(String token) {
+        if (token != null) {
+            token = token.trim();
+            if (token.startsWith("Bearer ")) {
+                token = token.substring(7).trim();
+            }
+        }
         // 先查Redis缓存
         try {
             String cached = redisService.get(TOKEN_CACHE_PREFIX + token);
@@ -334,6 +362,12 @@ public class UserAuthService {
      * 注销token
      */
     public boolean revokeToken(String token) {
+        if (token != null) {
+            token = token.trim();
+            if (token.startsWith("Bearer ")) {
+                token = token.substring(7).trim();
+            }
+        }
         // 先删Redis缓存
         redisService.del(TOKEN_CACHE_PREFIX + token);
 

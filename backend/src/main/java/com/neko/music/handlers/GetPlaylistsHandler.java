@@ -2,10 +2,12 @@ package com.neko.music.handlers;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonNull;
 import com.neko.music.Main;
 import com.neko.music.model.Playlist;
 import com.neko.music.service.PlaylistService;
 import com.neko.music.service.UserAuthService;
+import com.neko.music.util.VipUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -20,7 +22,9 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.List;
+import java.util.Optional;
 
 @WebServlet("/api/user/playlists")
 public class GetPlaylistsHandler extends HttpServlet {
@@ -89,6 +93,16 @@ public class GetPlaylistsHandler extends HttpServlet {
             }
 
             response.add("playlists", playlistsArray);
+
+            // 与登录接口一致：附带当前用户 VIP 状态（便于前端复用本接口刷新，无需单独路由）
+            Optional<Timestamp> vipOpt = userAuthService.findVipExpiresAtByUserId(userId);
+            Timestamp vip = vipOpt.orElse(null);
+            response.addProperty("isVip", VipUtil.isVipActiveNow(vip));
+            if (vip != null) {
+                response.addProperty("vipExpiresAt", vip.toInstant().toString());
+            } else {
+                response.add("vipExpiresAt", JsonNull.INSTANCE);
+            }
 
             sendSuccessResponse(resp, response);
         } catch (Exception e) {

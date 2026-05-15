@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
 import com.neko.music.model.User;
 import com.neko.music.service.UserAuthService;
+import com.neko.music.util.VipUtil;
 import jakarta.servlet.annotation.WebServlet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -98,6 +99,9 @@ public class UserLoginHandler extends HttpServlet {
                 userData.put("username", user.getUsername());
                 userData.put("email", user.getEmail());
                 userData.put("createdAt", user.getCreatedAt());
+                userData.put("isVip", VipUtil.isVipActiveNow(user.getVipExpiresAt()));
+                userData.put("vipExpiresAt",
+                        user.getVipExpiresAt() != null ? user.getVipExpiresAt().toInstant().toString() : null);
 
                 Map<String, Object> responseData = new HashMap<>();
                 responseData.put("user", userData);
