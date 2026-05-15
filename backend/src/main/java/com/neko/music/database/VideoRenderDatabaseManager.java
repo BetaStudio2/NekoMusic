@@ -19,53 +19,19 @@ public class VideoRenderDatabaseManager {
     public void insertPending(VideoRenderJob job) throws SQLException {
         String sql = """
                 INSERT INTO video_render_jobs
-                (id, download_token, user_id, music_id, start_sec, duration_sec, watermarked, status)
-                VALUES (?,?,?,?,?,?,?, 'pending')
+                (id, user_id, music_id, start_sec, duration_sec, watermarked, status)
+                VALUES (?,?,?,?,?,?, 'pending')
                 """;
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, job.getId());
-            ps.setString(2, job.getDownloadToken());
-            ps.setInt(3, job.getUserId());
-            ps.setInt(4, job.getMusicId());
-            ps.setDouble(5, job.getStartSec());
-            ps.setDouble(6, job.getDurationSec());
-            ps.setBoolean(7, job.isWatermarked());
+            ps.setInt(2, job.getUserId());
+            ps.setInt(3, job.getMusicId());
+            ps.setDouble(4, job.getStartSec());
+            ps.setDouble(5, job.getDurationSec());
+            ps.setBoolean(6, job.isWatermarked());
             ps.executeUpdate();
         }
-    }
-
-    public void ensureDownloadToken(String jobId, String downloadToken) throws SQLException {
-        String sql = """
-                UPDATE video_render_jobs
-                SET download_token = ?
-                WHERE id = ? AND (download_token IS NULL OR download_token = '')
-                """;
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, downloadToken);
-            ps.setString(2, jobId);
-            ps.executeUpdate();
-        }
-    }
-
-    public Optional<VideoRenderJob> findByDownloadToken(String downloadToken) {
-        if (downloadToken == null || downloadToken.isBlank()) {
-            return Optional.empty();
-        }
-        String sql = "SELECT * FROM video_render_jobs WHERE download_token = ? LIMIT 1";
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, downloadToken.trim());
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return Optional.of(mapRow(rs));
-                }
-            }
-        } catch (SQLException e) {
-            logger.error("按 download_token 查询视频任务失败", e);
-        }
-        return Optional.empty();
     }
 
     public void markProcessing(String jobId) throws SQLException {
@@ -148,7 +114,6 @@ public class VideoRenderDatabaseManager {
     private static VideoRenderJob mapRow(ResultSet rs) throws SQLException {
         VideoRenderJob job = new VideoRenderJob();
         job.setId(rs.getString("id"));
-        job.setDownloadToken(rs.getString("download_token"));
         job.setUserId(rs.getInt("user_id"));
         job.setMusicId(rs.getInt("music_id"));
         job.setStartSec(rs.getDouble("start_sec"));

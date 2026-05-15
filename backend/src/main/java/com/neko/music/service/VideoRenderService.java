@@ -110,13 +110,7 @@ public class VideoRenderService {
                 logger.warn("未配置 video_render.notify_frontend_base_url，跳过渲染完成邮件 jobId={}", job.getId());
                 return;
             }
-            String downloadToken = resolveDownloadToken(job);
-            if (downloadToken == null || downloadToken.isBlank()) {
-                logger.warn("无法生成下载令牌，跳过渲染完成邮件 jobId={}", job.getId());
-                return;
-            }
-            String downloadUrl = base + "/api/video/render/" + job.getId()
-                    + "/download?token=" + downloadToken;
+            String downloadUrl = base + "/api/video/render/" + job.getId() + "/download";
             Main.getUserAuthService().findEmailByUserId(job.getUserId()).ifPresent(email -> {
                 boolean sent = Main.getEmailService().sendVideoRenderCompleteEmail(
                         email,
@@ -131,21 +125,6 @@ public class VideoRenderService {
             });
         } catch (Exception e) {
             logger.warn("发送渲染完成邮件异常 jobId={}: {}", job.getId(), e.getMessage());
-        }
-    }
-
-    private String resolveDownloadToken(VideoRenderJob job) {
-        if (job.getDownloadToken() != null && !job.getDownloadToken().isBlank()) {
-            return job.getDownloadToken();
-        }
-        String token = com.neko.music.handlers.VideoRenderHandler.newDownloadToken();
-        try {
-            Main.getVideoRenderDatabaseManager().ensureDownloadToken(job.getId(), token);
-            job.setDownloadToken(token);
-            return token;
-        } catch (Exception e) {
-            logger.warn("补写 download_token 失败 jobId={}: {}", job.getId(), e.getMessage());
-            return null;
         }
     }
 

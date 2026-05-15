@@ -61,13 +61,8 @@ export async function fetchVideoRenderStatus(jobId) {
  * @param {string} filename
  */
 export async function downloadVideoRenderFile(jobId, filename) {
-  const token = getUserToken()
-  if (!token) {
-    throw new Error('请先登录')
-  }
   const res = await fetch(`${API_CONFIG.BASE_URL}/api/video/render/${jobId}/download`, {
-    method: 'GET',
-    headers: authHeaders()
+    method: 'GET'
   })
   if (!res.ok) {
     const data = await parseJson(res)

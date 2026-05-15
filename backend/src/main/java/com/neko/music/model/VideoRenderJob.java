@@ -4,8 +4,6 @@ import java.sql.Timestamp;
 
 public class VideoRenderJob {
     private String id;
-    /** 公开下载令牌，邮件链接携带，无需登录 */
-    private String downloadToken;
     private int userId;
     private int musicId;
     private double startSec;
@@ -23,14 +21,6 @@ public class VideoRenderJob {
 
     public void setId(String id) {
         this.id = id;
-    }
-
-    public String getDownloadToken() {
-        return downloadToken;
-    }
-
-    public void setDownloadToken(String downloadToken) {
-        this.downloadToken = downloadToken;
     }
 
     public int getUserId() {
