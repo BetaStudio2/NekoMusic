@@ -21,20 +21,43 @@
           <span class="vip-label">到期时间</span>
           <span class="vip-value">{{ formatVipExpiresAt(user.vipExpiresAt) }}</span>
         </div>
-        <p v-if="!user.isVip" class="vip-hint">如需开通或续期会员，请联系平台管理员。</p>
+        <p v-if="user" class="vip-hint">
+          选择下方套餐与支付方式可在线开通或续期；支付完成后返回站点即可（会员状态会自动刷新）。
+        </p>
       </div>
 
       <div v-if="pricingLoading" class="pricing-block">加载价目中…</div>
       <div v-else-if="pricingError" class="pricing-block pricing-err">{{ pricingError }}</div>
       <div v-else-if="pricingRows.length" class="pricing-block">
-        <h2 class="pricing-title">套餐参考价</h2>
+        <h2 class="pricing-title">套餐与支付</h2>
+        <p v-if="payError" class="pay-err">{{ payError }}</p>
         <ul class="pricing-list">
           <li v-for="row in pricingRows" :key="row.id" class="pricing-item">
-            <span class="dur">{{ formatPlanDuration(row.months, row.days) }}</span>
-            <span class="price">¥{{ formatYuan(row.priceYuan) }}</span>
+            <div class="pricing-main">
+              <span class="dur">{{ formatPlanDuration(row.months, row.days) }}</span>
+              <span class="price">¥{{ formatYuan(row.priceYuan) }}</span>
+            </div>
+            <div class="pay-actions">
+              <button
+                type="button"
+                class="pay-btn pay-btn--ali"
+                :disabled="payBusyId === row.id"
+                @click="startPay(row, 'alipay')"
+              >
+                {{ payBusyId === row.id ? '跳转中…' : '支付宝' }}
+              </button>
+              <button
+                type="button"
+                class="pay-btn pay-btn--wx"
+                :disabled="payBusyId === row.id"
+                @click="startPay(row, 'wxpay')"
+              >
+                {{ payBusyId === row.id ? '跳转中…' : '微信' }}
+              </button>
+            </div>
           </li>
         </ul>
-        <p class="pricing-note">以下为平台公示价目；实际开通与优惠以管理员说明为准。</p>
+        <p class="pricing-note">支付由 ZPay 收银台完成；若提示未启用支付，请联系管理员检查服务端配置。</p>
       </div>
 
       <div class="vip-actions">
@@ -49,13 +72,15 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { formatVipExpiresAt, syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
-import { fetchVipPricing } from '@/api/vipPricing.js'
+import { fetchVipPricing, createVipPayOrder } from '@/api/vipPricing.js'
 
 const router = useRouter()
 const vipTick = ref(0)
 const pricingRows = ref([])
 const pricingLoading = ref(true)
 const pricingError = ref('')
+const payBusyId = ref(null)
+const payError = ref('')
 
 const user = computed(() => {
   vipTick.value
@@ -85,6 +110,36 @@ function formatYuan(n) {
   const x = Number(n)
   if (Number.isNaN(x)) return '—'
   return x.toFixed(2)
+}
+
+async function startPay(row, payType) {
+  if (payBusyId.value != null) return
+  payError.value = ''
+  payBusyId.value = row.id
+  try {
+    const d = await createVipPayOrder(row.id, payType)
+    if (d.payurl) {
+      window.location.href = d.payurl
+      return
+    }
+    if (d.payurl2) {
+      window.location.href = d.payurl2
+      return
+    }
+    if (d.qrcode) {
+      window.location.href = d.qrcode
+      return
+    }
+    if (d.img) {
+      window.location.href = d.img
+      return
+    }
+    payError.value = '未返回支付链接，请稍后再试或联系管理员。'
+  } catch (e) {
+    payError.value = e?.message || '下单失败'
+  } finally {
+    payBusyId.value = null
+  }
 }
 
 onMounted(async () => {
@@ -121,7 +176,7 @@ onUnmounted(() => {
 
 .vip-card {
   width: 100%;
-  max-width: 560px;
+  max-width: 620px;
   padding: 32px 28px;
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.32);
@@ -251,13 +306,23 @@ onUnmounted(() => {
 
 .pricing-item {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 12px;
+  gap: 10px;
+  padding: 12px 14px;
   margin-bottom: 8px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.45);
   border: 1px solid rgba(106, 90, 205, 0.12);
+}
+
+.pricing-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex: 1 1 200px;
+  gap: 12px;
 }
 
 .pricing-item .dur {
@@ -269,6 +334,48 @@ onUnmounted(() => {
   font-weight: 800;
   color: #b45309;
   font-size: 1rem;
+}
+
+.pay-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pay-btn {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.15s ease;
+}
+
+.pay-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.pay-btn:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.pay-btn--ali {
+  background: linear-gradient(135deg, #1677ff, #4096ff);
+  color: #fff;
+}
+
+.pay-btn--wx {
+  background: linear-gradient(135deg, #07c160, #38d973);
+  color: #fff;
+}
+
+.pay-err {
+  margin: 0 0 10px;
+  font-size: 0.88rem;
+  color: #b91c1c;
+  line-height: 1.4;
 }
 
 .pricing-note {
