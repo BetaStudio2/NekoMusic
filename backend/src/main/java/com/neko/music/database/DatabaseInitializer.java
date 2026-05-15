@@ -246,6 +246,25 @@ public class DatabaseInitializer {
                 logger.warn("重算歌单首字母索引失败: {}", e.getMessage());
             }
 
+            // VIP 价目表（与主库一并备份）
+            String createVipPricing = """
+                CREATE TABLE IF NOT EXISTS vip_pricing (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    months INT NOT NULL DEFAULT 0,
+                    days INT NOT NULL DEFAULT 0,
+                    price_yuan DECIMAL(12,2) NOT NULL,
+                    sort_order INT NOT NULL DEFAULT 0,
+                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    KEY idx_vip_pricing_sort (sort_order, id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """;
+            try {
+                stmt.execute(createVipPricing);
+                logger.info("vip_pricing 表已就绪");
+            } catch (Exception e) {
+                logger.warn("创建 vip_pricing 表失败（可能已存在）: {}", e.getMessage());
+            }
+
             logger.info("数据库表初始化完成");
             
         } catch (Exception e) {

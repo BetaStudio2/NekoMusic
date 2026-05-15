@@ -6,6 +6,7 @@ import com.neko.music.config.ConfigManager;
 import com.neko.music.database.AdminDatabaseManager;
 import com.neko.music.database.DatabaseManager;
 import com.neko.music.database.DatabaseInitializer;
+import com.neko.music.database.VipPricingDatabaseManager;
 import com.neko.music.handlers.*;
 
 import com.neko.music.service.AdminAuthService;
@@ -58,6 +59,7 @@ public class Main {
     private static PlaylistService playlistService;
     private static NotificationService notificationService;
     private static IPRateLimitService ipRateLimitService;
+    private static VipPricingDatabaseManager vipPricingDatabaseManager;
 
     public static void main(String[] args) throws Exception {
         // 设置JVM默认时区为中国标准时间（UTC+8）
@@ -79,6 +81,8 @@ public class Main {
         
         // 初始化数据库表
         DatabaseInitializer.initializeTables(databaseManager);
+
+        vipPricingDatabaseManager = new VipPricingDatabaseManager(databaseManager);
         
         // 初始化管理员数据库管理器和认证服务
         adminDatabaseManager = new AdminDatabaseManager(databaseManager);
@@ -261,6 +265,12 @@ public class Main {
         ServletHolder userManagementHolder = new ServletHolder(new UserManagementHandler());
         context.addServlet(userManagementHolder, "/api/users/*");
 
+        ServletHolder vipPricingPublicHolder = new ServletHolder(new VipPricingPublicHandler());
+        context.addServlet(vipPricingPublicHolder, "/api/vip/pricing");
+
+        ServletHolder vipPricingAdminHolder = new ServletHolder(new VipPricingAdminHandler());
+        context.addServlet(vipPricingAdminHolder, "/api/admin/vip/pricing");
+
         // 注册创建歌单API处理器
         ServletHolder createPlaylistHolder = new ServletHolder(new CreatePlaylistHandler());
         context.addServlet(createPlaylistHolder, "/api/user/playlist/create");
@@ -340,6 +350,8 @@ public class Main {
         logger.info("  POST /api/playlist/{id} - 获取歌单详情 (无需登录)");
         logger.info("  POST /api/playlists/search - 搜索歌单 (无需登录)");
         logger.info("  POST /api/artists/search - 搜索歌手 (无需登录)");
+        logger.info("  GET /api/vip/pricing - 获取 VIP 价目表 (无需登录)");
+        logger.info("  PUT /api/admin/vip/pricing - 全量更新 VIP 价目表 (需要管理员)");
         logger.info("  POST /api/user/upload - 用户上传音乐 (需要用户登录)");
         logger.info("  GET /api/admin/audit/pending - 获取待审核列表 (需要管理员登录)");
         logger.info("  POST /api/admin/audit/approve/{id} - 审核通过 (需要管理员登录)");
@@ -445,6 +457,10 @@ public class Main {
 
     public static PlaylistService getPlaylistService() {
         return playlistService;
+    }
+
+    public static VipPricingDatabaseManager getVipPricingDatabaseManager() {
+        return vipPricingDatabaseManager;
     }
 
     public static NotificationService getNotificationService() {
