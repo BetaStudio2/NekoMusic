@@ -69,6 +69,8 @@ public class ConfigManager {
     private int videoRenderWorkerThreads = 2;
     /** 非 VIP 水印文字 */
     private String videoRenderWatermarkText = "NekoMusic";
+    /** 渲染完成邮件中的前端站点根 URL */
+    private String videoRenderNotifyFrontendBaseUrl = "";
 
     /** ZPay（易支付兼容）：见 https://z-pay.cn/doc.html */
     private boolean zpayEnabled = false;
@@ -221,6 +223,9 @@ public class ConfigManager {
                     }
                     if (videoRenderNode.has("watermark_text")) {
                         videoRenderWatermarkText = videoRenderNode.get("watermark_text").asText(videoRenderWatermarkText).trim();
+                    }
+                    if (videoRenderNode.has("notify_frontend_base_url")) {
+                        videoRenderNotifyFrontendBaseUrl = videoRenderNode.get("notify_frontend_base_url").asText("").trim();
                     }
                 }
 
@@ -463,6 +468,21 @@ public class ConfigManager {
 
     public String getVideoRenderWatermarkText() {
         return videoRenderWatermarkText;
+    }
+
+    /** 渲染完成邮件中的前端站点根（无尾斜杠），用于拼接 /detail/{musicId}?videoJob=… */
+    public String getVideoRenderNotifyFrontendBaseUrl() {
+        if (videoRenderNotifyFrontendBaseUrl != null && !videoRenderNotifyFrontendBaseUrl.isEmpty()) {
+            return trimTrailingSlash(videoRenderNotifyFrontendBaseUrl);
+        }
+        String vip = getZpayFrontendReturnUrl();
+        if (!vip.isEmpty() && vip.endsWith("/vip")) {
+            return trimTrailingSlash(vip.substring(0, vip.length() - 4));
+        }
+        if (!vip.isEmpty()) {
+            return vip;
+        }
+        return zpaySiteRootFromPublicBase(getZpayPublicBaseUrl());
     }
 
     public boolean isZpayEnabled() {

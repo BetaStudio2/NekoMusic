@@ -295,6 +295,28 @@ public class UserAuthService {
     }
     
     /**
+     * 根据用户 ID 查询注册邮箱。
+     */
+    public Optional<String> findEmailByUserId(int userId) {
+        String sql = "SELECT email FROM users WHERE id = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, userId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    String email = rs.getString("email");
+                    if (email != null && !email.isBlank()) {
+                        return Optional.of(email.trim());
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            logger.error("查询用户邮箱失败 userId={}: {}", userId, e.getMessage(), e);
+        }
+        return Optional.empty();
+    }
+
+    /**
      * 查询用户当前 VIP 到期时间（数据库为准）。
      */
     public Optional<java.sql.Timestamp> findVipExpiresAtByUserId(int userId) {

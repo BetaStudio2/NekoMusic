@@ -211,7 +211,7 @@ public class VideoRenderHandler extends HttpServlet {
 
         JsonObject out = new JsonObject();
         out.addProperty("success", true);
-        out.addProperty("message", "任务已创建，正在后台渲染");
+        out.addProperty("message", "任务已创建，完成后将邮件通知并附下载链接");
         out.add("data", data);
         sendRawJson(resp, HttpServletResponse.SC_ACCEPTED, out);
     }

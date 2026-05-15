@@ -19,12 +19,14 @@ public class EmailService {
     private final String emailTemplate;
     private final String reviewTemplate;
     private final String reviewApprovedTemplate;
+    private final String videoRenderCompleteTemplate;
 
     public EmailService(ConfigManager configManager) {
         this.configManager = configManager;
         this.emailTemplate = loadEmailTemplate();
         this.reviewTemplate = loadReviewTemplate();
         this.reviewApprovedTemplate = loadReviewApprovedTemplate();
+        this.videoRenderCompleteTemplate = loadVideoRenderCompleteTemplate();
     }
 
     /**
@@ -56,6 +58,22 @@ public class EmailService {
         } catch (IOException e) {
             logger.error("加载审核邮件模板失败", e);
             return getDefaultReviewTemplate();
+        }
+    }
+
+    /**
+     * 加载视频渲染完成邮件模板
+     */
+    private String loadVideoRenderCompleteTemplate() {
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream("VideoRenderComplete.html")) {
+            if (is == null) {
+                logger.error("无法加载邮件模板 VideoRenderComplete.html");
+                return getDefaultVideoRenderCompleteTemplate();
+            }
+            return new String(is.readAllBytes(), "UTF-8");
+        } catch (IOException e) {
+            logger.error("加载视频渲染完成邮件模板失败", e);
+            return getDefaultVideoRenderCompleteTemplate();
         }
     }
 
@@ -103,6 +121,16 @@ public class EmailService {
                "</body></html>";
     }
 
+    private String getDefaultVideoRenderCompleteTemplate() {
+        return "<!DOCTYPE html><html><head><meta charset='UTF-8'></head><body>"
+                + "<h2>分享视频已生成</h2>"
+                + "<p>《{{musicName}}》 · {{artistName}}</p>"
+                + "<p>时长约 {{durationSec}} 秒</p>"
+                + "<p><a href=\"{{downloadUrl}}\">前往下载 MP4</a></p>"
+                + "<p>生成时间：{{completedAt}}</p>"
+                + "</body></html>";
+    }
+
     /**
      * 默认邮件模板
      */
@@ -125,6 +153,43 @@ public class EmailService {
         String content = emailTemplate.replace("{{verificationCode}}", verificationCode);
 
         return sendEmail(toEmail, subject, content);
+    }
+
+    /**
+     * 视频渲染完成通知（HTML 邮件，含下载页链接）。
+     */
+    public boolean sendVideoRenderCompleteEmail(String toEmail, String musicName, String artistName,
+                                                double durationSec, String downloadUrl, boolean watermarked) {
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        java.time.format.DateTimeFormatter formatter =
+                java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        String completedAt = now.format(formatter);
+        String durationText = String.format(java.util.Locale.ROOT, "%.0f", durationSec);
+
+        String content = videoRenderCompleteTemplate
+                .replace("{{musicName}}", escapeHtml(musicName))
+                .replace("{{artistName}}", escapeHtml(artistName))
+                .replace("{{durationSec}}", escapeHtml(durationText))
+                .replace("{{downloadUrl}}", escapeHtml(downloadUrl))
+                .replace("{{completedAt}}", escapeHtml(completedAt));
+        if (watermarked) {
+            content = content.replace("style=\"{{showWatermarkNote}}\"", "");
+        } else {
+            content = content.replace("style=\"{{showWatermarkNote}}\"", "style=\"display:none\"");
+        }
+
+        String subject = "NekoMusic - 分享视频已生成";
+        return sendEmail(toEmail, subject, content);
+    }
+
+    private static String escapeHtml(String s) {
+        if (s == null) {
+            return "";
+        }
+        return s.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;");
     }
 
     /**
@@ -211,7 +276,7 @@ public class EmailService {
             message.setContent(content, "text/html; charset=utf-8");
 
             Transport.send(message);
-            logger.info("验证码邮件已发送至: {}", to);
+            logger.info("邮件已发送至: {}", to);
             return true;
         } catch (Exception e) {
             logger.error("发送邮件失败: {}", e.getMessage(), e);

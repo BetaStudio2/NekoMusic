@@ -1,5 +1,6 @@
 package com.neko.music.service;
 
+import com.neko.music.Main;
 import com.neko.music.config.ConfigManager;
 import com.neko.music.database.VideoRenderDatabaseManager;
 import com.neko.music.model.VideoRenderJob;
@@ -84,6 +85,7 @@ public class VideoRenderService {
             }
             jobDb.markDone(job.getId(), VideoRenderPaths.outputRelPath(job.getId()));
             logger.info("视频渲染完成 jobId={} userId={} musicId={}", job.getId(), job.getUserId(), job.getMusicId());
+            notifyRenderCompleteByEmail(job, title, artist);
         } catch (Exception e) {
             logger.error("视频渲染失败 jobId={}: {}", job.getId(), e.getMessage(), e);
             jobDb.markFailed(job.getId(), shortenError(e.getMessage()));
@@ -98,6 +100,31 @@ public class VideoRenderService {
                 } catch (IOException ignored) {
                 }
             }
+        }
+    }
+
+    private void notifyRenderCompleteByEmail(VideoRenderJob job, String title, String artist) {
+        try {
+            String base = configManager.getVideoRenderNotifyFrontendBaseUrl();
+            if (base == null || base.isEmpty()) {
+                logger.warn("未配置 video_render.notify_frontend_base_url，跳过渲染完成邮件 jobId={}", job.getId());
+                return;
+            }
+            String downloadUrl = base + "/detail/" + job.getMusicId() + "?videoJob=" + job.getId();
+            Main.getUserAuthService().findEmailByUserId(job.getUserId()).ifPresent(email -> {
+                boolean sent = Main.getEmailService().sendVideoRenderCompleteEmail(
+                        email,
+                        title == null ? "未知歌曲" : title,
+                        artist == null ? "未知艺术家" : artist,
+                        job.getDurationSec(),
+                        downloadUrl,
+                        job.isWatermarked());
+                if (!sent) {
+                    logger.warn("渲染完成邮件发送失败 jobId={} email={}", job.getId(), email);
+                }
+            });
+        } catch (Exception e) {
+            logger.warn("发送渲染完成邮件异常 jobId={}: {}", job.getId(), e.getMessage());
         }
     }
 
