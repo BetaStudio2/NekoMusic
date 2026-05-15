@@ -55,10 +55,10 @@
           />
           <span class="username">{{ username }}</span>
           <router-link
-            to="/account"
+            to="/vip"
             class="header-vip-pill"
             :class="{ 'header-vip-pill--active': user?.isVip }"
-            :title="user?.isVip ? '会员已开通 · 点击查看个人中心' : '非会员 · 点击查看会员信息'"
+            :title="user?.isVip ? '会员已开通 · 点击查看会员中心' : '非会员 · 点击查看会员中心'"
           >
             VIP
           </router-link>

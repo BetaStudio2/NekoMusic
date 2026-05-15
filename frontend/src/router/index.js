@@ -23,6 +23,7 @@ import DownloadView from '@/views/DownloadView.vue'
 import ErrorView from '@/views/ErrorView.vue'
 import UploadMusicView from '@/views/UploadMusicView.vue'
 import UserProfileView from '@/views/UserProfileView.vue'
+import UserVipView from '@/views/UserVipView.vue'
 
 // 检查是否是移动设备
 function isMobileDevice() {
@@ -196,6 +197,16 @@ const router = createRouter({
       }
     },
     {
+      path: '/vip',
+      name: 'vip',
+      component: UserVipView,
+      meta: {
+        title: '会员中心 - Neko云音乐',
+        description: '查看会员状态与到期时间。',
+        keywords: '会员,VIP,会员中心'
+      }
+    },
+    {
       path: '/ranking',
       name: 'ranking',
       component: RankingView,
@@ -332,6 +343,7 @@ router.beforeEach((to, from, next) => {
       !to.path.startsWith('/detail/') && 
       !to.path.startsWith('/playlist/') &&
       !to.path.startsWith('/account') &&
+      !to.path.startsWith('/vip') &&
       !to.path.startsWith('/admin')) {
     next('/download')
     return

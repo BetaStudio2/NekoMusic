@@ -12,7 +12,7 @@
         <div class="user-info">
           <h2 class="username">
             {{ user.username }}
-            <span v-if="user.isVip" class="vip-badge" title="会员">VIP</span>
+            <router-link v-if="user.isVip" to="/vip" class="vip-badge" title="会员中心">VIP</router-link>
           </h2>
           <p class="email">{{ user.email }}</p>
           <p class="join-date">加入时间: {{ formatDate(user.createdAt) }}</p>
@@ -334,6 +334,9 @@ const changePassword = async () => {
   padding: 4px 10px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(255, 179, 0, 0.35);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
 }
 
 .user-info .email {
