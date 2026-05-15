@@ -40,7 +40,7 @@
               下载音乐
             </button>
             <button
-              @click="startVideoRender"
+              @click="openVideoRenderDialog"
               class="clip-btn"
               :disabled="videoRenderBusy"
             >
@@ -85,7 +85,24 @@
         <h3 id="clip-modal-title">生成分享视频</h3>
         <p class="clip-modal-song" v-if="currentMusic">{{ currentMusic.title }} · {{ currentMusic.artist }}</p>
 
-        <div v-if="videoRenderPhase === 'pending' || videoRenderPhase === 'processing'" class="clip-modal-status">
+        <div v-if="videoRenderPhase === 'confirm'" class="clip-modal-confirm">
+          <label class="clip-watermark-option" :class="{ 'clip-watermark-option--locked': !userIsVip }">
+            <input
+              v-model="videoWatermarkChoice"
+              type="checkbox"
+              :disabled="!userIsVip"
+            />
+            <span>添加平台水印</span>
+          </label>
+          <p v-if="userIsVip" class="clip-modal-sub">会员可选是否添加水印，默认无水印</p>
+          <p v-else class="clip-modal-sub">免费用户须开启水印（15 秒成片，每日 10 次）</p>
+          <div class="clip-modal-actions">
+            <button type="button" class="clip-cancel-btn" @click="closeVideoModal">取消</button>
+            <button type="button" class="clip-confirm-btn" @click="confirmVideoRender">开始生成</button>
+          </div>
+        </div>
+
+        <div v-else-if="videoRenderPhase === 'pending' || videoRenderPhase === 'processing'" class="clip-modal-status">
           <div class="clip-spinner" aria-hidden="true"></div>
           <p>{{ videoRenderPhase === 'pending' ? '任务已提交，排队中…' : '正在后台渲染，请稍候…' }}</p>
           <p class="clip-modal-sub">不会阻塞播放，可关闭此窗口稍后回来查看</p>
@@ -99,7 +116,7 @@
 
         <div v-else-if="videoRenderPhase === 'failed'" class="clip-modal-status clip-modal-status--fail">
           <p>{{ videoRenderError || '渲染失败' }}</p>
-          <button type="button" class="clip-retry-btn" @click="startVideoRender">重试</button>
+          <button type="button" class="clip-retry-btn" @click="openVideoRenderDialog">重试</button>
         </div>
 
         <p v-if="videoRenderRemainingToday != null && !userIsVip" class="clip-quota">
@@ -142,6 +159,7 @@ const videoRenderError = ref('')
 const videoRenderRemainingToday = ref(null)
 const videoRenderWatermarked = ref(false)
 const videoRenderDuration = ref(15)
+const videoWatermarkChoice = ref(true)
 
 // 用于定时器的引用
 let timeUpdateInterval = null
@@ -494,28 +512,43 @@ const pollVideoJob = (jobId) => {
 
 const closeVideoModal = () => {
   videoModalOpen.value = false
+  if (videoRenderPhase.value === 'confirm') {
+    return
+  }
   if (videoRenderPhase.value === 'done' || videoRenderPhase.value === 'failed') {
     videoRenderBusy.value = false
     stopVideoPoll()
   }
 }
 
-const startVideoRender = async () => {
+const openVideoRenderDialog = () => {
   if (!currentMusic.value || videoRenderBusy.value) return
   if (!isLoggedIn()) {
     toast.error('请先登录')
+    return
+  }
+  videoRenderError.value = ''
+  videoWatermarkChoice.value = !userIsVip.value
+  videoRenderPhase.value = 'confirm'
+  videoModalOpen.value = true
+}
+
+const confirmVideoRender = async () => {
+  if (!currentMusic.value || videoRenderBusy.value) return
+  if (!userIsVip.value && !videoWatermarkChoice.value) {
+    toast.error('非会员须开启水印才能生成')
     return
   }
 
   videoRenderBusy.value = true
   videoRenderError.value = ''
   videoRenderPhase.value = 'pending'
-  videoModalOpen.value = true
   stopVideoPoll()
 
   try {
     const startSec = getClipStartSec()
-    const data = await createVideoRenderJob(currentMusic.value.id, startSec)
+    const watermarked = userIsVip.value ? videoWatermarkChoice.value : true
+    const data = await createVideoRenderJob(currentMusic.value.id, startSec, watermarked)
     videoRenderJobId.value = data.jobId || ''
     videoRenderWatermarked.value = !!data.watermarked
     videoRenderDuration.value = data.durationSec || 15
@@ -530,7 +563,7 @@ const startVideoRender = async () => {
     videoRenderPhase.value = 'failed'
     videoRenderError.value = e.message || '创建任务失败'
     videoRenderBusy.value = false
-    if (videoRenderError.value.includes('次数')) {
+    if (videoRenderError.value.includes('次数') || videoRenderError.value.includes('水印')) {
       toast.error(videoRenderError.value)
     }
   }
@@ -1070,6 +1103,61 @@ onUnmounted(() => {
   margin: 0 0 20px;
   color: #887bb0;
   font-size: 0.9rem;
+}
+
+.clip-modal-confirm {
+  text-align: left;
+}
+
+.clip-watermark-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(106, 90, 205, 0.08);
+  border: 1px solid rgba(106, 90, 205, 0.2);
+  color: #5c4b7b;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.clip-watermark-option--locked {
+  cursor: not-allowed;
+  opacity: 0.92;
+}
+
+.clip-watermark-option input {
+  width: 18px;
+  height: 18px;
+  accent-color: #6a5acd;
+}
+
+.clip-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.clip-cancel-btn,
+.clip-confirm-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.clip-cancel-btn {
+  background: rgba(153, 136, 187, 0.2);
+  color: #7766aa;
+}
+
+.clip-confirm-btn {
+  color: white;
+  background: linear-gradient(135deg, #6a5acd, #8a2be2);
 }
 
 .clip-modal-status p {

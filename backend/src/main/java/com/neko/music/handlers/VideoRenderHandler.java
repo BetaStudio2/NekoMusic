@@ -136,14 +136,23 @@ public class VideoRenderHandler extends HttpServlet {
             return;
         }
 
+        Boolean watermarkedParam = null;
+        if (root.has("watermarked") && root.get("watermarked").isJsonPrimitive()) {
+            watermarkedParam = root.get("watermarked").getAsBoolean();
+        }
+
         double clipDuration;
         boolean watermarked;
         Integer remainingToday = null;
 
         if (isVip) {
             clipDuration = trackDuration - startSec;
-            watermarked = false;
+            watermarked = watermarkedParam != null ? watermarkedParam : false;
         } else {
+            if (watermarkedParam != null && !watermarkedParam) {
+                sendJson(resp, HttpServletResponse.SC_FORBIDDEN, false, "非会员须开启水印");
+                return;
+            }
             int limit = cfg.getVideoRenderNonVipDailyLimit();
             int maxSec = cfg.getVideoRenderNonVipMaxDurationSec();
             VideoRenderQuotaService quota = Main.getVideoRenderQuotaService();

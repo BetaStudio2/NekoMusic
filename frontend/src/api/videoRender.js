@@ -19,8 +19,9 @@ async function parseJson(res) {
  * 创建横屏短视频渲染任务（异步，立即返回 jobId）
  * @param {number} musicId
  * @param {number} [startSec=0]
+ * @param {boolean} [watermarked=true] 是否添加平台水印（非会员必须为 true）
  */
-export async function createVideoRenderJob(musicId, startSec = 0) {
+export async function createVideoRenderJob(musicId, startSec = 0, watermarked = true) {
   const token = getUserToken()
   if (!token) {
     throw new Error('请先登录')
@@ -28,7 +29,7 @@ export async function createVideoRenderJob(musicId, startSec = 0) {
   const res = await fetch(`${API_CONFIG.BASE_URL}/api/video/render/create`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ musicId, startSec })
+    body: JSON.stringify({ musicId, startSec, watermarked })
   })
   const data = await parseJson(res)
   if (!res.ok || !data.success) {
