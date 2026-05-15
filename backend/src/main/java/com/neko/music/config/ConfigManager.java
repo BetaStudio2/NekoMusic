@@ -55,13 +55,19 @@ public class ConfigManager {
     private int hikariMinimumIdle = 5;
     private int redisPoolMaxTotal = 32;
 
-    /** 竖屏短视频渲染（FFmpeg） */
+    /** 横屏短视频渲染：见 config.yml video_render */
     private boolean videoRenderEnabled = true;
+    /** auto / ffmpeg / 绝对路径，见 {@link #getVideoRenderFfmpegPath()} */
     private String videoRenderFfmpegPath = "auto";
+    /** true 时优先 JAR 内嵌 linux-x86_64 FFmpeg */
     private boolean videoRenderPreferBundledFfmpeg = true;
+    /** 非 VIP 单次最长秒数 */
     private int videoRenderNonVipMaxDurationSec = 15;
+    /** 非 VIP 每日次数上限（Redis，东八区自然日） */
     private int videoRenderNonVipDailyLimit = 10;
+    /** 异步渲染线程池大小 */
     private int videoRenderWorkerThreads = 2;
+    /** 非 VIP 水印文字 */
     private String videoRenderWatermarkText = "NekoMusic";
 
     /** ZPay（易支付兼容）：见 https://z-pay.cn/doc.html */

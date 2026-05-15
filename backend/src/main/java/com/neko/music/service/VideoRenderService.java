@@ -9,7 +9,10 @@ import com.neko.music.util.VideoRenderPaths;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -25,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 横屏短视频 FFmpeg 渲染：独立线程池异步执行，HTTP 请求仅入队后立即返回。
+ * 文字叠加使用 ASS + subtitles 滤镜（静态 FFmpeg 常无 drawtext）。
  */
 public class VideoRenderService {
     private static final Logger logger = LoggerFactory.getLogger(VideoRenderService.class);
@@ -58,9 +62,6 @@ public class VideoRenderService {
         logger.info("视频渲染线程池已启动 threads={}, queueCapacity={}", threads, threads * 4);
     }
 
-    /**
-     * 非阻塞入队；队列满时抛出 {@link RejectedExecutionException}，由 Handler 返回 503。
-     */
     public void submit(VideoRenderJob job, String title, String artist, Path audioFile, Optional<Path> coverFile) {
         executor.execute(() -> runJob(job, title, artist, audioFile, coverFile));
     }
@@ -70,11 +71,14 @@ public class VideoRenderService {
     }
 
     private void runJob(VideoRenderJob job, String title, String artist, Path audioFile, Optional<Path> coverFile) {
+        Path assFile = null;
         try {
             jobDb.markProcessing(job.getId());
             VideoRenderPaths.ensureVideoDir();
             Path output = VideoRenderPaths.outputFile(job.getId());
-            runFfmpeg(job, title, artist, audioFile, coverFile, output);
+            assFile = VideoRenderPaths.assFile(job.getId());
+            writeAssFile(assFile, job, title, artist);
+            runFfmpeg(job, audioFile, coverFile, assFile, output);
             if (!Files.isRegularFile(output) || Files.size(output) <= 0) {
                 throw new IOException("渲染输出文件无效");
             }
@@ -87,11 +91,49 @@ public class VideoRenderService {
                 Files.deleteIfExists(VideoRenderPaths.outputFile(job.getId()));
             } catch (IOException ignored) {
             }
+        } finally {
+            if (assFile != null) {
+                try {
+                    Files.deleteIfExists(assFile);
+                } catch (IOException ignored) {
+                }
+            }
         }
     }
 
-    private void runFfmpeg(VideoRenderJob job, String title, String artist, Path audioFile,
-                           Optional<Path> coverFile, Path output) throws IOException, InterruptedException {
+    private void writeAssFile(Path assFile, VideoRenderJob job, String title, String artist) throws IOException {
+        String end = formatAssTime(job.getDurationSec());
+        String safeTitle = VideoRenderPaths.escapeAssText(
+                VideoRenderPaths.truncateText(title == null ? "未知歌曲" : title, 48));
+        String safeArtist = VideoRenderPaths.escapeAssText(
+                VideoRenderPaths.truncateText(artist == null ? "未知艺术家" : artist, 48));
+        String watermark = VideoRenderPaths.escapeAssText(configManager.getVideoRenderWatermarkText());
+
+        StringBuilder ass = new StringBuilder();
+        ass.append("[Script Info]\n");
+        ass.append("ScriptType: v4.00+\n");
+        ass.append("PlayResX: ").append(WIDTH).append('\n');
+        ass.append("PlayResY: ").append(HEIGHT).append('\n');
+        ass.append("WrapStyle: 0\n\n");
+        ass.append("[V4+ Styles]\n");
+        ass.append("Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, ")
+                .append("Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, ")
+                .append("Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n");
+        ass.append("Style: Title,Arial,56,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,2,0,8,40,40,120,1\n");
+        ass.append("Style: Artist,Arial,40,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,1,0,8,40,40,200,1\n");
+        ass.append("Style: Mark,Arial,34,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,0,0,3,48,48,48,1\n\n");
+        ass.append("[Events]\n");
+        ass.append("Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n");
+        ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Title,,0,0,0,,").append(safeTitle).append('\n');
+        ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Artist,,0,0,0,,").append(safeArtist).append('\n');
+        if (job.isWatermarked()) {
+            ass.append("Dialogue: 0,0:00:00.00,").append(end).append(",Mark,,0,0,0,,").append(watermark).append('\n');
+        }
+        Files.writeString(assFile, ass.toString(), StandardCharsets.UTF_8);
+    }
+
+    private void runFfmpeg(VideoRenderJob job, Path audioFile, Optional<Path> coverFile, Path assFile, Path output)
+            throws IOException, InterruptedException {
         String ffmpeg = BundledFfmpegSupport.resolve(
                 configManager.getVideoRenderFfmpegPath(),
                 configManager.isVideoRenderPreferBundledFfmpeg());
@@ -99,12 +141,6 @@ public class VideoRenderService {
         double start = job.getStartSec();
         int fps = 30;
         int durFrames = Math.max(1, (int) Math.ceil(duration * fps));
-
-        String safeTitle = VideoRenderPaths.escapeDrawText(
-                VideoRenderPaths.truncateDrawText(title == null ? "未知歌曲" : title, 48));
-        String safeArtist = VideoRenderPaths.escapeDrawText(
-                VideoRenderPaths.truncateDrawText(artist == null ? "未知艺术家" : artist, 48));
-        String watermark = VideoRenderPaths.escapeDrawText(configManager.getVideoRenderWatermarkText());
 
         List<String> cmd = new ArrayList<>();
         cmd.add(ffmpeg);
@@ -131,7 +167,8 @@ public class VideoRenderService {
             cmd.add(coverFile.get().toAbsolutePath().toString());
         }
 
-        String filter = buildLandscapeFilter(hasCover, durFrames, fps, safeTitle, safeArtist, job.isWatermarked(), watermark);
+        String assPath = VideoRenderPaths.escapeSubtitlesPath(assFile);
+        String filter = buildLandscapeFilter(hasCover, durFrames, fps, assPath);
         cmd.add("-filter_complex");
         cmd.add(filter);
         cmd.add("-map");
@@ -157,12 +194,18 @@ public class VideoRenderService {
         cmd.add("-shortest");
         cmd.add(output.toAbsolutePath().toString());
 
-        ProcessBuilder pb = new ProcessBuilder(cmd);
-        pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-        pb.redirectError(ProcessBuilder.Redirect.DISCARD);
-
         logger.info("异步 ffmpeg 开始 jobId={} durationSec={} watermarked={}", job.getId(), duration, job.isWatermarked());
+
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        pb.redirectErrorStream(true);
         Process process = pb.start();
+        StringBuilder logOut = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                logOut.append(line).append('\n');
+            }
+        }
         boolean finished = process.waitFor(FFMPEG_TIMEOUT_MINUTES, TimeUnit.MINUTES);
         if (!finished) {
             process.destroyForcibly();
@@ -171,42 +214,50 @@ public class VideoRenderService {
         }
         int code = process.exitValue();
         if (code != 0) {
-            throw new IOException("ffmpeg 退出码 " + code);
+            String detail = tail(logOut.toString(), 1200);
+            throw new IOException("ffmpeg 退出码 " + code + (detail.isBlank() ? "" : ": " + detail.trim()));
         }
     }
 
-    /** 横屏 1920×1080：封面背景 + 底部波形 + 标题/艺术家 + 可选水印 */
-    private static String buildLandscapeFilter(boolean hasCover, int durFrames, int fps,
-                                               String title, String artist, boolean watermarked,
-                                               String watermarkText) {
-        String size = WIDTH + "x" + HEIGHT;
+    /** 横屏 1920×1080：封面背景 + 底部波形 + ASS 字幕（标题/艺术家/水印） */
+    private static String buildLandscapeFilter(boolean hasCover, int durFrames, int fps, String assPath) {
+        String sizeWxH = WIDTH + "x" + HEIGHT;
+        String sizeColon = WIDTH + ":" + HEIGHT;
         StringBuilder fc = new StringBuilder();
         if (hasCover) {
-            fc.append("[1:v]scale=").append(size)
-                    .append(":force_original_aspect_ratio=increase,crop=").append(size)
+            fc.append("[1:v]scale=").append(sizeColon)
+                    .append(":force_original_aspect_ratio=increase,crop=").append(sizeColon)
                     .append(",setsar=1[vbg];");
         } else {
-            fc.append("color=c=0x1a1a2e:s=").append(size).append(":d=")
+            fc.append("color=c=0x1a1a2e:s=").append(sizeWxH).append(":d=")
                     .append(durFrames).append(":r=").append(fps).append("[vbg];");
         }
         fc.append("[0:a]showwaves=s=1800x160:mode=line:rate=").append(fps)
                 .append(":colors=0xFFFFFF@0.85:scale=lin[waves];");
         fc.append("[vbg][waves]overlay=60:880[base];");
-        fc.append("[base]drawtext=text='").append(title)
-                .append("':fontcolor=white:fontsize=56:x=(w-text_w)/2:y=120:borderw=2:bordercolor=black@0.35[v1];");
-        fc.append("[v1]drawtext=text='").append(artist)
-                .append("':fontcolor=white@0.85:fontsize=40:x=(w-text_w)/2:y=200[v2];");
-        if (watermarked) {
-            fc.append("[v2]drawtext=text='").append(watermarkText)
-                    .append("':fontcolor=white@0.55:fontsize=34:x=w-text_w-48:y=h-text_h-36[vout]");
-        } else {
-            fc.append("[v2]null[vout]");
-        }
+        fc.append("[base]subtitles='").append(assPath).append("'[vout]");
         return fc.toString();
     }
 
     private static String formatSec(double sec) {
         return String.format(Locale.US, "%.3f", Math.max(0, sec));
+    }
+
+    private static String formatAssTime(double sec) {
+        int totalCs = Math.max(1, (int) Math.ceil(sec * 100));
+        int s = totalCs / 100;
+        int cs = totalCs % 100;
+        int h = s / 3600;
+        int m = (s % 3600) / 60;
+        int ss = s % 60;
+        return String.format(Locale.US, "%d:%02d:%02d.%02d", h, m, ss, cs);
+    }
+
+    private static String tail(String s, int max) {
+        if (s == null || s.isBlank()) {
+            return "";
+        }
+        return s.length() <= max ? s : s.substring(s.length() - max);
     }
 
     private static String shortenError(String msg) {

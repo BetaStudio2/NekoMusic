@@ -31,20 +31,7 @@ public final class VideoRenderPaths {
         return MusicAssetLocator.isUnderDirectory(file, videoDir());
     }
 
-    public static String escapeDrawText(String text) {
-        if (text == null || text.isEmpty()) {
-            return " ";
-        }
-        return text
-                .replace("\\", "\\\\")
-                .replace(":", "\\:")
-                .replace("'", "\\'")
-                .replace("%", "\\%")
-                .replace("\n", " ")
-                .replace("\r", " ");
-    }
-
-    public static String truncateDrawText(String text, int maxLen) {
+    public static String truncateText(String text, int maxLen) {
         if (text == null) {
             return "";
         }
@@ -53,5 +40,32 @@ public final class VideoRenderPaths {
             return t;
         }
         return t.substring(0, maxLen - 1) + "…";
+    }
+
+    public static Path assFile(String jobId) throws IOException {
+        Path dir = MusicAssetLocator.baseDir().resolve(".neko/video-render");
+        Files.createDirectories(dir);
+        return dir.resolve(jobId + ".ass");
+    }
+
+    /** ASS 事件行内文本转义 */
+    public static String escapeAssText(String text) {
+        if (text == null || text.isEmpty()) {
+            return " ";
+        }
+        return text
+                .replace("\\", "\\\\")
+                .replace("{", "\\{")
+                .replace("}", "\\}")
+                .replace("\r", "")
+                .replace("\n", "\\N");
+    }
+
+    /** subtitles 滤镜中的文件路径转义（Linux） */
+    public static String escapeSubtitlesPath(Path assFile) {
+        return assFile.toAbsolutePath().normalize().toString()
+                .replace("\\", "\\\\")
+                .replace(":", "\\:")
+                .replace("'", "\\'");
     }
 }
