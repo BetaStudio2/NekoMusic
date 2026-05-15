@@ -39,7 +39,18 @@
             <button @click="downloadMusic" class="download-btn">
               下载音乐
             </button>
+            <button
+              @click="startVideoRender"
+              class="clip-btn"
+              :disabled="videoRenderBusy"
+            >
+              {{ videoRenderBusy ? '生成中…' : '生成分享视频' }}
+            </button>
           </div>
+          <p v-if="isLoggedIn()" class="clip-hint">
+            <template v-if="userIsVip">会员：整首横屏成片，无水印、不限次数</template>
+            <template v-else>免费：15 秒横屏成片（含水印），每日 10 次 · <router-link to="/vip">开通会员</router-link></template>
+          </p>
         </div>
         
         <!-- 右侧：歌词显示 -->
@@ -66,6 +77,36 @@
     <div v-else class="loading">
       <p>加载音乐详情中...</p>
     </div>
+
+    <!-- 视频渲染进度 -->
+    <div v-if="videoModalOpen" class="clip-modal-backdrop" @click.self="closeVideoModal">
+      <div class="clip-modal" role="dialog" aria-labelledby="clip-modal-title">
+        <button type="button" class="clip-modal-close" aria-label="关闭" @click="closeVideoModal">×</button>
+        <h3 id="clip-modal-title">生成分享视频</h3>
+        <p class="clip-modal-song" v-if="currentMusic">{{ currentMusic.title }} · {{ currentMusic.artist }}</p>
+
+        <div v-if="videoRenderPhase === 'pending' || videoRenderPhase === 'processing'" class="clip-modal-status">
+          <div class="clip-spinner" aria-hidden="true"></div>
+          <p>{{ videoRenderPhase === 'pending' ? '任务已提交，排队中…' : '正在后台渲染，请稍候…' }}</p>
+          <p class="clip-modal-sub">不会阻塞播放，可关闭此窗口稍后回来查看</p>
+        </div>
+
+        <div v-else-if="videoRenderPhase === 'done'" class="clip-modal-status clip-modal-status--done">
+          <p>渲染完成！</p>
+          <p v-if="videoRenderWatermarked" class="clip-modal-sub">免费版含平台水印，时长 {{ Math.round(videoRenderDuration) }} 秒</p>
+          <button type="button" class="clip-download-btn" @click="downloadRenderedVideo">下载 MP4</button>
+        </div>
+
+        <div v-else-if="videoRenderPhase === 'failed'" class="clip-modal-status clip-modal-status--fail">
+          <p>{{ videoRenderError || '渲染失败' }}</p>
+          <button type="button" class="clip-retry-btn" @click="startVideoRender">重试</button>
+        </div>
+
+        <p v-if="videoRenderRemainingToday != null && !userIsVip" class="clip-quota">
+          今日剩余免费次数：{{ videoRenderRemainingToday }}
+        </p>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -73,6 +114,8 @@
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
+import { createVideoRenderJob, fetchVideoRenderStatus, downloadVideoRenderFile } from '@/api/videoRender.js'
+import { syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
 import { tryOpenMusicDetailInApp } from '@/utils/nativeAppOpen.js'
 import { useToast } from 'vue-toastification'
 const toast = useToast()
@@ -89,9 +132,20 @@ const lyricsContent = ref(null)
 const favoriteMusicIds = ref(new Set()) // 存储收藏的音乐ID
 const isMobile = ref(false)
 const showBanner = ref(true)
+const userIsVip = ref(false)
+
+const videoModalOpen = ref(false)
+const videoRenderBusy = ref(false)
+const videoRenderPhase = ref('idle')
+const videoRenderJobId = ref('')
+const videoRenderError = ref('')
+const videoRenderRemainingToday = ref(null)
+const videoRenderWatermarked = ref(false)
+const videoRenderDuration = ref(15)
 
 // 用于定时器的引用
 let timeUpdateInterval = null
+let videoPollTimer = null
 
 // 检测是否是移动设备
 const checkMobile = () => {
@@ -376,6 +430,123 @@ const isLoggedIn = () => {
   return !!getToken();
 }
 
+const loadUserVipFromStorage = () => {
+  try {
+    const u = JSON.parse(localStorage.getItem('user') || 'null')
+    userIsVip.value = !!u?.isVip
+  } catch {
+    userIsVip.value = false
+  }
+}
+
+const handleVipSync = () => {
+  loadUserVipFromStorage()
+}
+
+/** 若当前正在播放本页歌曲，从该时间点起剪；否则从 0 秒 */
+const getClipStartSec = () => {
+  try {
+    const playing = JSON.parse(localStorage.getItem('currentPlayingMusic') || 'null')
+    const state = JSON.parse(localStorage.getItem('globalPlayerState') || 'null')
+    if (playing && currentMusic.value && playing.id === currentMusic.value.id && state?.currentTime > 0) {
+      return Math.floor(state.currentTime)
+    }
+  } catch {
+    /* ignore */
+  }
+  return 0
+}
+
+const stopVideoPoll = () => {
+  if (videoPollTimer) {
+    clearInterval(videoPollTimer)
+    videoPollTimer = null
+  }
+}
+
+const pollVideoJob = (jobId) => {
+  stopVideoPoll()
+  videoPollTimer = setInterval(async () => {
+    try {
+      const data = await fetchVideoRenderStatus(jobId)
+      if (data.status === 'done') {
+        videoRenderPhase.value = 'done'
+        videoRenderBusy.value = false
+        videoRenderWatermarked.value = !!data.watermarked
+        videoRenderDuration.value = data.durationSec || 15
+        stopVideoPoll()
+      } else if (data.status === 'failed') {
+        videoRenderPhase.value = 'failed'
+        videoRenderError.value = data.error || '渲染失败'
+        videoRenderBusy.value = false
+        stopVideoPoll()
+      } else if (data.status === 'processing') {
+        videoRenderPhase.value = 'processing'
+      }
+    } catch (e) {
+      videoRenderPhase.value = 'failed'
+      videoRenderError.value = e.message || '查询状态失败'
+      videoRenderBusy.value = false
+      stopVideoPoll()
+    }
+  }, 2000)
+}
+
+const closeVideoModal = () => {
+  videoModalOpen.value = false
+  if (videoRenderPhase.value === 'done' || videoRenderPhase.value === 'failed') {
+    videoRenderBusy.value = false
+    stopVideoPoll()
+  }
+}
+
+const startVideoRender = async () => {
+  if (!currentMusic.value || videoRenderBusy.value) return
+  if (!isLoggedIn()) {
+    toast.error('请先登录')
+    return
+  }
+
+  videoRenderBusy.value = true
+  videoRenderError.value = ''
+  videoRenderPhase.value = 'pending'
+  videoModalOpen.value = true
+  stopVideoPoll()
+
+  try {
+    const startSec = getClipStartSec()
+    const data = await createVideoRenderJob(currentMusic.value.id, startSec)
+    videoRenderJobId.value = data.jobId || ''
+    videoRenderWatermarked.value = !!data.watermarked
+    videoRenderDuration.value = data.durationSec || 15
+    if (typeof data.remainingToday === 'number') {
+      videoRenderRemainingToday.value = data.remainingToday
+    }
+    if (!videoRenderJobId.value) {
+      throw new Error('未返回任务 ID')
+    }
+    pollVideoJob(videoRenderJobId.value)
+  } catch (e) {
+    videoRenderPhase.value = 'failed'
+    videoRenderError.value = e.message || '创建任务失败'
+    videoRenderBusy.value = false
+    if (videoRenderError.value.includes('次数')) {
+      toast.error(videoRenderError.value)
+    }
+  }
+}
+
+const downloadRenderedVideo = async () => {
+  if (!videoRenderJobId.value) return
+  try {
+    const name = `${currentMusic.value?.title || 'clip'}.mp4`.replace(/[/\\?%*:|"<>]/g, '_')
+    await downloadVideoRenderFile(videoRenderJobId.value, name)
+    toast.success('已开始下载')
+  } catch (e) {
+    toast.error(e.message || '下载失败')
+  }
+}
+
 // 检查音乐是否已收藏
 const isFavorite = (musicId) => {
   return favoriteMusicIds.value.has(musicId);
@@ -580,6 +751,11 @@ onMounted(async () => {
 
   // 监听自定义事件，以响应全局播放器的状态变化
   window.addEventListener('playerStateChange', handlePlayerStateChange)
+  window.addEventListener(USER_VIP_SYNC_EVENT, handleVipSync)
+  loadUserVipFromStorage()
+  if (isLoggedIn()) {
+    syncUserVipFromPlaylistsApi()
+  }
 
   const musicId = route.params.id
   if (checkMobile() && musicId) {
@@ -599,6 +775,8 @@ onMounted(async () => {
 // 组件卸载时移除事件监听和定时器
 onUnmounted(() => {
   window.removeEventListener('playerStateChange', handlePlayerStateChange)
+  window.removeEventListener(USER_VIP_SYNC_EVENT, handleVipSync)
+  stopVideoPoll()
   if (timeUpdateInterval) {
     clearInterval(timeUpdateInterval);
     timeUpdateInterval = null;
@@ -748,11 +926,30 @@ onUnmounted(() => {
 .action-buttons {
   margin-top: 30px;
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
-  gap: 20px;
+  gap: 16px;
 }
 
-.play-btn, .download-btn {
+.clip-hint {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #887bb0;
+  line-height: 1.5;
+}
+
+.clip-hint a {
+  color: #6a5acd;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.clip-hint a:hover {
+  text-decoration: underline;
+}
+
+.play-btn, .download-btn, .clip-btn {
   padding: 12px 24px;
   border-radius: 25px;
   border: none;
@@ -811,6 +1008,114 @@ onUnmounted(() => {
 
 .favorite-btn.is-favorite:hover {
   box-shadow: 0 6px 20px rgba(255, 69, 0, 0.6);
+}
+
+.clip-btn {
+  background: linear-gradient(135deg, rgba(255, 152, 0, 0.92), rgba(255, 87, 34, 0.92));
+  color: white;
+  box-shadow: 0 4px 15px rgba(255, 152, 0, 0.35);
+}
+
+.clip-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 152, 0, 0.55);
+}
+
+.clip-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.clip-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(20, 16, 40, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.clip-modal {
+  position: relative;
+  width: min(420px, 100%);
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  padding: 28px 24px 24px;
+  box-shadow: 0 16px 48px rgba(60, 40, 120, 0.25);
+  text-align: center;
+}
+
+.clip-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  border: none;
+  background: none;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: #9988bb;
+  cursor: pointer;
+}
+
+.clip-modal h3 {
+  margin: 0 0 8px;
+  color: #5c4b7b;
+  font-size: 1.25rem;
+}
+
+.clip-modal-song {
+  margin: 0 0 20px;
+  color: #887bb0;
+  font-size: 0.9rem;
+}
+
+.clip-modal-status p {
+  margin: 0 0 8px;
+  color: #5c4b7b;
+}
+
+.clip-modal-sub {
+  font-size: 0.85rem !important;
+  color: #9988bb !important;
+}
+
+.clip-spinner {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 16px;
+  border: 3px solid rgba(106, 90, 205, 0.2);
+  border-top-color: #6a5acd;
+  border-radius: 50%;
+  animation: clip-spin 0.8s linear infinite;
+}
+
+@keyframes clip-spin {
+  to { transform: rotate(360deg); }
+}
+
+.clip-download-btn,
+.clip-retry-btn {
+  margin-top: 12px;
+  padding: 10px 24px;
+  border: none;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+  color: white;
+  background: linear-gradient(135deg, #6a5acd, #8a2be2);
+}
+
+.clip-retry-btn {
+  background: linear-gradient(135deg, #ff9800, #ff5722);
+}
+
+.clip-quota {
+  margin: 16px 0 0;
+  font-size: 0.82rem;
+  color: #9988bb;
 }
 
 /* 歌词显示区域 */
@@ -992,6 +1297,16 @@ audio {
   .favorite-btn,
   .download-btn {
     display: none !important;
+  }
+
+  .clip-btn {
+    width: 100%;
+    min-width: auto;
+  }
+
+  .clip-hint {
+    font-size: 0.8rem;
+    padding: 0 8px;
   }
 
   /* 歌词区域 */
