@@ -45,9 +45,9 @@ public class VideoRenderService {
     /** 右侧内容区中心（封面右缘至屏幕右缘的中点） */
     private static final int RIGHT_CENTER_X = COVER_X + COVER_SIZE + (WIDTH - COVER_X - COVER_SIZE) / 2;
     private static final int LYRIC_CENTER_Y = 620;
-    private static final int LINE_SPACING = 76;
-    private static final int TRANS_OFFSET_Y = 46;
-    private static final int SCROLL_MS = 520;
+    /** 含翻译行（\\N）的单行歌词块垂直间距 */
+    private static final int LINE_SPACING = 102;
+    private static final int FADE_MS = 220;
     private static final int FFMPEG_TIMEOUT_MINUTES = 15;
     private static final String FONT = BundledRenderFontSupport.FONT_FAMILY;
     private static final String LYRIC_CLIP = "\\clip(" + (COVER_X + COVER_SIZE + 24) + ",340,1880,920)";
@@ -209,15 +209,16 @@ public class VideoRenderService {
         int jTo = Math.min(lyrics.size() - 1, lastActive + LYRIC_VISIBLE_AFTER);
 
         for (ScrollSegment seg : segments) {
+            int nextActive = seg.scrollAtEnd() ? seg.activeIndex() + 1 : seg.activeIndex();
             for (int j = jFrom; j <= jTo; j++) {
                 if (!isLyricLineVisible(j, seg.activeIndex())) {
                     continue;
                 }
                 LrcParser.Line line = lyrics.get(j);
-                appendLyricLineSegment(ass, line.getText(), j, seg, false);
-                if (line.hasTranslation() && j == seg.activeIndex()) {
-                    appendLyricLineSegment(ass, line.getTranslation(), j, seg, true);
-                }
+                boolean active = j == seg.activeIndex();
+                boolean fadeIn = j == seg.activeIndex() + LYRIC_VISIBLE_AFTER;
+                boolean fadeOut = seg.scrollAtEnd() && !isLyricLineVisible(j, nextActive);
+                appendLyricLineSegment(ass, line, j, seg, active, fadeIn, fadeOut);
             }
         }
     }
@@ -252,35 +253,48 @@ public class VideoRenderService {
         return segments;
     }
 
-    private void appendLyricLineSegment(StringBuilder ass, String rawText, int lineIndex, ScrollSegment seg,
-                                        boolean translation) {
-        String text = VideoRenderPaths.escapeAssText(VideoRenderPaths.truncateText(rawText, translation ? 80 : 64));
-        int yHold = LYRIC_CENTER_Y + (lineIndex - seg.activeIndex()) * LINE_SPACING
-                + (translation ? TRANS_OFFSET_Y : 0);
+    private void appendLyricLineSegment(StringBuilder ass, LrcParser.Line line, int lineIndex, ScrollSegment seg,
+                                        boolean active, boolean fadeIn, boolean fadeOut) {
+        String text = formatLyricBlock(line, active);
+        int yHold = LYRIC_CENTER_Y + (lineIndex - seg.activeIndex()) * LINE_SPACING;
         int yNext = yHold - LINE_SPACING;
         long segMs = Math.max(1, Math.round((seg.relEnd() - seg.relStart()) * 1000));
-        long scrollMs = seg.scrollAtEnd() ? Math.min(SCROLL_MS, segMs) : 0;
-        long moveStart = Math.max(0, segMs - scrollMs);
-        long moveEnd = segMs;
 
-        String style = translation ? "LyricTrans" : "LyricBase";
         String startTs = formatAssTime(seg.relStart());
         String endTs = formatAssTime(seg.relEnd());
-        boolean active = lineIndex == seg.activeIndex();
-        ass.append("Dialogue: 0,").append(startTs).append(',').append(endTs).append(',').append(style)
-                .append(",,0,0,0,,")
-                .append(buildSegmentMotionTags(yHold, yNext, moveStart, moveEnd, seg.scrollAtEnd(), active, translation))
+        ass.append("Dialogue: 0,").append(startTs).append(',').append(endTs).append(",LyricBase,,0,0,0,,")
+                .append(buildSegmentMotionTags(yHold, yNext, segMs, seg.scrollAtEnd(), active, fadeIn, fadeOut))
                 .append(text).append('\n');
     }
 
-    /** libass 对 {@code \\t} 插值不稳定，改用分段 {@code \\move} 与 LRC 时间轴对齐。 */
-    private String buildSegmentMotionTags(int yHold, int yNext, long moveStart, long moveEnd, boolean scroll,
-                                          boolean active, boolean translation) {
+    /** 主歌词 + 翻译合并为同一块（\\N），随主行一起滚动，避免翻译单独消失。 */
+    private static String formatLyricBlock(LrcParser.Line line, boolean active) {
+        String main = VideoRenderPaths.escapeAssText(VideoRenderPaths.truncateText(line.getText(), 64));
+        if (!line.hasTranslation()) {
+            return main;
+        }
+        String trans = VideoRenderPaths.escapeAssText(VideoRenderPaths.truncateText(line.getTranslation(), 80));
+        if (active) {
+            return main + "{\\r\\fs34\\1c&H00EEEEEE&\\b0\\bord0\\blur0\\shad0}\\N" + trans;
+        }
+        return main + "{\\r\\fs30\\1c&H00B8B8B8&\\b0\\bord0}\\N" + trans;
+    }
+
+    /**
+     * 整段匀速 {@code \\move}（速度随 LRC 句间隔自动变化），比段末短促跳动更自然。
+     */
+    private String buildSegmentMotionTags(int yHold, int yNext, long segMs, boolean scroll, boolean active,
+                                          boolean fadeIn, boolean fadeOut) {
         StringBuilder tags = new StringBuilder("{\\an5").append(LYRIC_CLIP);
-        appendLyricVisualState(tags, active, translation);
-        if (scroll && moveEnd > moveStart) {
-            tags.append(String.format(Locale.US, "\\move(%d,%d,%d,%d,%d,%d)",
-                    RIGHT_CENTER_X, yHold, RIGHT_CENTER_X, yNext, moveStart, moveEnd));
+        if (fadeIn) {
+            tags.append("\\fad(").append(FADE_MS).append(",0)");
+        } else if (fadeOut) {
+            tags.append("\\fad(0,").append(FADE_MS).append(')');
+        }
+        appendLyricVisualState(tags, active);
+        if (scroll) {
+            tags.append(String.format(Locale.US, "\\move(%d,%d,%d,%d,0,%d)",
+                    RIGHT_CENTER_X, yHold, RIGHT_CENTER_X, yNext, segMs));
         } else {
             tags.append(String.format(Locale.US, "\\pos(%d,%d)", RIGHT_CENTER_X, yHold));
         }
@@ -307,15 +321,11 @@ public class VideoRenderService {
                 && lineIndex <= activeIndex + LYRIC_VISIBLE_AFTER;
     }
 
-    private static void appendLyricVisualState(StringBuilder tags, boolean active, boolean translation) {
-        if (translation) {
-            tags.append("\\fs32\\1c&H00F0F0F0&\\1a&H00&\\b0");
-            return;
-        }
+    private static void appendLyricVisualState(StringBuilder tags, boolean active) {
         if (active) {
             tags.append("\\fs62\\1c&H00FFFFFF&\\1a&H00&\\b1\\bord3\\3c&H80C4B5FD&\\blur2\\shad0");
         } else {
-            tags.append("\\fs42\\1c&H00DCDCDC&\\1a&H00&\\b0\\bord0");
+            tags.append("\\fs44\\1c&H00E8E8E8&\\1a&H00&\\b0\\bord0");
         }
     }
 
