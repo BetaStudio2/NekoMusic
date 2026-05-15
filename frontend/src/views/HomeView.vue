@@ -17,6 +17,24 @@
           </div>
         </a>
 
+        <router-link
+          v-if="isLoggedIn"
+          to="/upload"
+          class="recommendation-card upload-card"
+        >
+          <div class="card-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+          </div>
+          <div class="card-content">
+            <h3 class="card-title">上传音乐</h3>
+            <p class="card-description">分享你的作品到平台，支持封面与歌词</p>
+          </div>
+        </router-link>
+
         <a href="https://github.com/NyaNyagulugulu/NekoMusicDocs" target="_blank" rel="noopener noreferrer" class="recommendation-card docs-card">
           <div class="card-icon">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -118,7 +136,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import { useToast } from 'vue-toastification'
@@ -130,6 +148,12 @@ const latestList = ref([])
 const loading = ref(false)
 const playlistList = ref([])
 const playlistsLoading = ref(false)
+
+const isLoggedIn = ref(false)
+const syncLoginState = () => {
+  const t = localStorage.getItem('userToken')
+  isLoggedIn.value = t != null && t !== ''
+}
 
 // 显示列表，只显示前20首
 const displayList = computed(() => {
@@ -305,9 +329,15 @@ const getRankClass = (index) => {
 }
 
 onMounted(() => {
+  syncLoginState()
+  window.addEventListener('storage', syncLoginState)
   fetchRanking()
   fetchLatest()
   fetchPlaylists()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('storage', syncLoginState)
 })
 </script>
 
@@ -373,6 +403,14 @@ onMounted(() => {
 
 .docs-card:hover::before {
   background: linear-gradient(135deg, rgba(240, 147, 251, 0.2) 0%, rgba(245, 87, 108, 0.2) 100%);
+}
+
+.upload-card:hover::before {
+  background: linear-gradient(135deg, rgba(45, 212, 191, 0.2) 0%, rgba(20, 184, 166, 0.2) 100%);
+}
+
+.upload-card .card-icon {
+  color: #14b8a6;
 }
 
 .card-icon {
