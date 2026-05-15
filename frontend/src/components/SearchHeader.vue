@@ -47,7 +47,14 @@
         <div v-if="isLoggedIn" class="user-info">
           <img :src="userAvatar" alt="用户头像" class="user-avatar" @error="handleAvatarError" />
           <span class="username">{{ username }}</span>
-          <span v-if="user?.isVip" class="vip-badge" title="会员">VIP</span>
+          <router-link
+            to="/account"
+            class="header-vip-pill"
+            :class="{ 'header-vip-pill--active': user?.isVip }"
+            :title="user?.isVip ? '会员已开通 · 点击查看个人中心' : '非会员 · 点击查看会员信息'"
+          >
+            VIP
+          </router-link>
           <button @click="goToPlaylists" class="playlists-btn" title="我的歌单">我的歌单</button>
           <button @click="goToFavorites" class="favorites-btn" title="我的收藏">我的收藏</button>
           <button @click="logout" class="logout-btn">退出</button>
@@ -443,16 +450,62 @@ onUnmounted(() => {
   text-overflow: ellipsis;
 }
 
-.vip-badge {
+/* 顶栏常驻会员入口：非会员灰色可点，会员金色长亮 */
+.header-vip-pill {
   flex-shrink: 0;
-  padding: 2px 8px;
-  font-size: 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  padding: 7px 16px;
+  font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.12em;
+  border-radius: 999px;
+  text-decoration: none;
+  color: #6b6b70;
+  background: rgba(110, 110, 120, 0.22);
+  border: 1px solid rgba(110, 110, 120, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+  cursor: pointer;
+}
+
+.header-vip-pill:hover {
+  transform: translateY(-1px);
+  background: rgba(110, 110, 120, 0.32);
+  color: #4a4a4f;
+}
+
+.header-vip-pill--active {
   color: #3d2a00;
   background: linear-gradient(135deg, #ffe082, #ffb300);
-  border-radius: 6px;
-  box-shadow: 0 1px 4px rgba(255, 179, 0, 0.45);
+  border-color: rgba(255, 179, 0, 0.7);
+  box-shadow:
+    0 0 14px rgba(255, 193, 7, 0.55),
+    0 2px 10px rgba(255, 179, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  animation: header-vip-pill-glow 2.2s ease-in-out infinite alternate;
+}
+
+.header-vip-pill--active:hover {
+  color: #2a1d00;
+  background: linear-gradient(135deg, #ffecb3, #ffa000);
+}
+
+@keyframes header-vip-pill-glow {
+  from {
+    box-shadow:
+      0 0 10px rgba(255, 193, 7, 0.45),
+      0 2px 8px rgba(255, 179, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  }
+  to {
+    box-shadow:
+      0 0 22px rgba(255, 193, 7, 0.75),
+      0 2px 12px rgba(255, 179, 0, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  }
 }
 
 .logout-btn {

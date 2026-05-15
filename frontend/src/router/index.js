@@ -22,6 +22,7 @@ import DownloadView from '@/views/DownloadView.vue'
 
 import ErrorView from '@/views/ErrorView.vue'
 import UploadMusicView from '@/views/UploadMusicView.vue'
+import UserProfileView from '@/views/UserProfileView.vue'
 
 // 检查是否是移动设备
 function isMobileDevice() {
@@ -185,6 +186,16 @@ const router = createRouter({
       }
     },
     {
+      path: '/account',
+      name: 'account',
+      component: UserProfileView,
+      meta: {
+        title: '个人中心 - Neko云音乐',
+        description: '查看账户信息与会员状态，管理密码与安全设置。',
+        keywords: '个人中心,账户,会员'
+      }
+    },
+    {
       path: '/ranking',
       name: 'ranking',
       component: RankingView,
@@ -320,6 +331,7 @@ router.beforeEach((to, from, next) => {
       to.path !== '/download' && 
       !to.path.startsWith('/detail/') && 
       !to.path.startsWith('/playlist/') &&
+      !to.path.startsWith('/account') &&
       !to.path.startsWith('/admin')) {
     next('/download')
     return

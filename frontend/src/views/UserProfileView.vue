@@ -72,11 +72,6 @@
             </div>
             <button @click="changePassword" class="save-btn" :disabled="changePasswordLoading">修改密码</button>
           </div>
-          
-          <div v-if="activeTab === 'history'" class="tab-panel">
-            <h3>播放历史</h3>
-            <p>此功能将在后续版本中实现</p>
-          </div>
         </div>
       </div>
     </div>
@@ -146,8 +141,7 @@ const changePasswordLoading = ref(false)
 
 const tabs = [
   { key: 'profile', label: '个人信息' },
-  { key: 'security', label: '安全设置' },
-  { key: 'history', label: '播放历史' }
+  { key: 'security', label: '安全设置' }
 ]
 
 // 格式化日期
