@@ -87,8 +87,8 @@ public final class BundledFfmpegSupport {
         String platform = detectPlatformKey();
         throw new IOException("未找到 FFmpeg。"
                 + (platform == null
-                ? " 当前系统不受内嵌包支持，请安装 ffmpeg 或在 config.yml 设置 video_render.ffmpeg_path"
-                : " 请使用 mvn package 重新打包（会内嵌 " + platform + " 静态 FFmpeg），或配置 ffmpeg_path"));
+                ? " 内嵌包仅支持 Linux x86_64，请安装 ffmpeg 或在 config.yml 设置 video_render.ffmpeg_path"
+                : " 请使用 mvn package 重新打包（内嵌 linux-x86_64 静态 FFmpeg），或配置 ffmpeg_path"));
     }
 
     private static boolean isExplicitPath(String configuredPath) {
@@ -137,7 +137,7 @@ public final class BundledFfmpegSupport {
         return null;
     }
 
-    /** @return linux-x86_64 / linux-aarch64，不支持则 null */
+    /** 内嵌包仅提供 linux-x86_64；非 amd64 服务器请配置系统 ffmpeg_path */
     static String detectPlatformKey() {
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
         if (!os.contains("linux")) {
@@ -146,9 +146,6 @@ public final class BundledFfmpegSupport {
         String arch = System.getProperty("os.arch", "").toLowerCase(Locale.ROOT);
         if (arch.equals("amd64") || arch.equals("x86_64")) {
             return "linux-x86_64";
-        }
-        if (arch.equals("aarch64") || arch.equals("arm64")) {
-            return "linux-aarch64";
         }
         return null;
     }

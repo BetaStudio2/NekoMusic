@@ -14,8 +14,6 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- 设为 true 可跳过打包内嵌 FFmpeg（需自行安装 ffmpeg 或配置 ffmpeg_path） -->
         <skip.ffmpeg.bundle>false</skip.ffmpeg.bundle>
-        <!-- 默认 false：只内嵌本机 CPU 架构（更快）；true 则同时打入 x86_64 + arm64 -->
-        <ffmpeg.bundle.all>false</ffmpeg.bundle.all>
     </properties>
 
     <dependencies>
@@ -203,9 +201,6 @@
                         <configuration>
                             <skip>${skip.ffmpeg.bundle}</skip>
                             <executable>bash</executable>
-                            <environmentVariables>
-                                <FFMPEG_BUNDLE_ALL>${ffmpeg.bundle.all}</FFMPEG_BUNDLE_ALL>
-                            </environmentVariables>
                             <arguments>
                                 <argument>${project.basedir}/scripts/fetch-bundled-ffmpeg.sh</argument>
                                 <argument>${project.build.outputDirectory}</argument>
