@@ -52,7 +52,7 @@
             <template v-else>免费：15 秒横屏成片（含水印），每日 10 次 · <router-link to="/vip">开通会员</router-link></template>
           </p>
           <div v-if="videoRenderSubmitted" class="clip-notice clip-notice--submitted">
-            <p>已提交渲染，完成后将向注册邮箱发送 HTML 通知并附下载链接。</p>
+            <p>已提交渲染，完成后将向注册邮箱发送通知并附下载链接。</p>
             <p v-if="videoRenderRemainingToday != null && !userIsVip" class="clip-notice-meta">
               今日剩余免费次数：{{ videoRenderRemainingToday }}
             </p>
