@@ -265,6 +265,32 @@ public class DatabaseInitializer {
                 logger.warn("创建 vip_pricing 表失败（可能已存在）: {}", e.getMessage());
             }
 
+            String createVipPayOrders = """
+                CREATE TABLE IF NOT EXISTS vip_pay_orders (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    out_trade_no VARCHAR(32) NOT NULL,
+                    user_id INT NOT NULL,
+                    pricing_id INT NULL,
+                    months INT NOT NULL DEFAULT 0,
+                    days INT NOT NULL DEFAULT 0,
+                    money DECIMAL(12,2) NOT NULL,
+                    pay_type VARCHAR(16) NOT NULL,
+                    status ENUM('pending','paid','cancelled') NOT NULL DEFAULT 'pending',
+                    zpay_trade_no VARCHAR(128) NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    paid_at TIMESTAMP NULL DEFAULT NULL,
+                    UNIQUE KEY uk_vip_pay_out_trade_no (out_trade_no),
+                    KEY idx_vip_pay_user_created (user_id, created_at),
+                    CONSTRAINT fk_vip_pay_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """;
+            try {
+                stmt.execute(createVipPayOrders);
+                logger.info("vip_pay_orders 表已就绪");
+            } catch (Exception e) {
+                logger.warn("创建 vip_pay_orders 表失败（可能已存在）: {}", e.getMessage());
+            }
+
             logger.info("数据库表初始化完成");
             
         } catch (Exception e) {

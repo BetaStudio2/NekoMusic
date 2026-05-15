@@ -50,7 +50,7 @@ public class IPRateLimitFilter implements Filter {
 
         HttpServletRequest httpRequest = (HttpServletRequest) request;
 
-        if (isMusicUploadApiPath(httpRequest)) {
+        if (isMusicUploadApiPath(httpRequest) || isZpayNotifyPath(httpRequest)) {
             chain.doFilter(request, response);
             return;
         }
@@ -96,6 +96,21 @@ public class IPRateLimitFilter implements Filter {
             return true;
         }
         return path.equals("/api/user/upload") || path.startsWith("/api/user/upload/");
+    }
+
+    /** ZPay 异步通知由平台服务器回调，不参与 IP 限流，避免通知失败。 */
+    private static boolean isZpayNotifyPath(HttpServletRequest req) {
+        String path = req.getRequestURI();
+        String ctx = req.getContextPath();
+        if (ctx != null && !ctx.isEmpty() && path.startsWith(ctx)) {
+            path = path.substring(ctx.length());
+        }
+        if (path.isEmpty()) {
+            path = "/";
+        } else if (!path.startsWith("/")) {
+            path = "/" + path;
+        }
+        return path.equals("/api/payment/zpay/notify");
     }
 
     /**

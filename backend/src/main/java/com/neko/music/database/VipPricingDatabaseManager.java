@@ -9,6 +9,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * VIP 价目表：使用主库 MySQL 表 {@code vip_pricing}，便于与业务库一并备份。
@@ -54,6 +55,22 @@ public class VipPricingDatabaseManager {
             }
             logger.info("已写入 VIP 价目表默认示例数据（MySQL）");
         }
+    }
+
+    public Optional<VipPriceItem> getById(int id) {
+        String sql = "SELECT id, months, days, price_yuan, sort_order, updated_at FROM vip_pricing WHERE id = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return Optional.of(mapRow(rs));
+                }
+            }
+        } catch (SQLException e) {
+            logger.error("按 id 读取 VIP 价目失败: {}", id, e);
+        }
+        return Optional.empty();
     }
 
     public List<VipPriceItem> listAll() {

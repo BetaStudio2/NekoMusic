@@ -55,6 +55,16 @@ public class ConfigManager {
     private int hikariMinimumIdle = 5;
     private int redisPoolMaxTotal = 32;
 
+    /** ZPay（易支付兼容）：见 https://z-pay.cn/doc.html */
+    private boolean zpayEnabled = false;
+    private String zpayPid = "";
+    private String zpayKey = "";
+    private String zpayMapiUrl = "https://zpayz.cn/mapi.php";
+    private String zpaySubmitUrl = "https://zpayz.cn/submit.php";
+    /** 异步通知：可为站点根或已是完整 notify URL，见 {@link #getZpayNotifyUrl()} */
+    private String zpayPublicBaseUrl = "";
+    private String zpayFrontendReturnUrl = "";
+
     private ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
 
     public void loadConfig() {
@@ -174,6 +184,17 @@ public class ConfigManager {
                     if (rateLimitNode.has("block_duration")) rateLimitBlockDuration = rateLimitNode.get("block_duration").asInt();
                     if (rateLimitNode.has("silent_timeout")) rateLimitSilentTimeout = rateLimitNode.get("silent_timeout").asBoolean();
                 }
+
+                JsonNode zpayNode = configNode.get("zpay");
+                if (zpayNode != null) {
+                    if (zpayNode.has("enabled")) zpayEnabled = zpayNode.get("enabled").asBoolean();
+                    if (zpayNode.has("pid")) zpayPid = zpayNode.get("pid").asText("").trim();
+                    if (zpayNode.has("key")) zpayKey = zpayNode.get("key").asText("").trim();
+                    if (zpayNode.has("mapi_url")) zpayMapiUrl = zpayNode.get("mapi_url").asText(zpayMapiUrl).trim();
+                    if (zpayNode.has("submit_url")) zpaySubmitUrl = zpayNode.get("submit_url").asText(zpaySubmitUrl).trim();
+                    if (zpayNode.has("public_base_url")) zpayPublicBaseUrl = zpayNode.get("public_base_url").asText("").trim();
+                    if (zpayNode.has("frontend_return_url")) zpayFrontendReturnUrl = zpayNode.get("frontend_return_url").asText("").trim();
+                }
             }
 
             clampPerformanceConfig();
@@ -192,6 +213,8 @@ public class ConfigManager {
             logger.info("  Jetty 线程池: min={}, max={}, idleTimeoutMs={}", jettyMinThreads, jettyMaxThreads, jettyIdleTimeoutMs);
             logger.info("  HikariCP: maximumPoolSize={}, minimumIdle={}", hikariMaximumPoolSize, hikariMinimumIdle);
             logger.info("  Redis 连接池 maxTotal: {}", redisPoolMaxTotal);
+            logger.info("  ZPay 支付: enabled={}, pidConfigured={}, publicBaseUrlConfigured={}",
+                    zpayEnabled, !zpayPid.isEmpty(), !zpayPublicBaseUrl.isEmpty());
         } catch (Exception e) {
             logger.error("加载配置时出错", e);
             clampPerformanceConfig();
@@ -362,5 +385,81 @@ public class ConfigManager {
 
     public int getRedisPoolMaxTotal() {
         return redisPoolMaxTotal;
+    }
+
+    public boolean isZpayEnabled() {
+        return zpayEnabled;
+    }
+
+    public String getZpayPid() {
+        return zpayPid;
+    }
+
+    public String getZpayKey() {
+        return zpayKey;
+    }
+
+    public String getZpayMapiUrl() {
+        return zpayMapiUrl;
+    }
+
+    public String getZpaySubmitUrl() {
+        return zpaySubmitUrl;
+    }
+
+    public String getZpayPublicBaseUrl() {
+        return trimTrailingSlash(zpayPublicBaseUrl);
+    }
+
+    /**
+     * ZPay 异步通知完整 URL：若 {@code public_base_url} 已包含 {@code /api/payment/zpay/notify} 则原样使用，
+     * 否则视为站点根并在其后拼接 {@code /api/payment/zpay/notify}。
+     */
+    public String getZpayNotifyUrl() {
+        String pub = zpayPublicBaseUrl == null ? "" : zpayPublicBaseUrl.trim();
+        if (pub.isEmpty()) {
+            return "";
+        }
+        pub = trimTrailingSlash(pub);
+        if (pub.contains("/api/payment/zpay/notify")) {
+            return pub;
+        }
+        return pub + "/api/payment/zpay/notify";
+    }
+
+    public String getZpayFrontendReturnUrl() {
+        String raw = zpayFrontendReturnUrl.trim();
+        if (!raw.isEmpty()) {
+            return trimTrailingSlash(raw);
+        }
+        String site = zpaySiteRootFromPublicBase(getZpayPublicBaseUrl());
+        if (site.isEmpty()) {
+            return "";
+        }
+        return site + "/vip";
+    }
+
+    /** 从 public_base_url 推出站点根（用于 return_url 默认 /vip） */
+    private static String zpaySiteRootFromPublicBase(String publicTrimmed) {
+        if (publicTrimmed == null || publicTrimmed.isEmpty()) {
+            return "";
+        }
+        String marker = "/api/payment/zpay/notify";
+        int i = publicTrimmed.indexOf(marker);
+        if (i > 0) {
+            return trimTrailingSlash(publicTrimmed.substring(0, i));
+        }
+        return publicTrimmed;
+    }
+
+    private static String trimTrailingSlash(String s) {
+        if (s == null || s.isEmpty()) {
+            return "";
+        }
+        String t = s.trim();
+        while (t.endsWith("/")) {
+            t = t.substring(0, t.length() - 1);
+        }
+        return t;
     }
 }

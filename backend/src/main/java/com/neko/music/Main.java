@@ -6,6 +6,7 @@ import com.neko.music.config.ConfigManager;
 import com.neko.music.database.AdminDatabaseManager;
 import com.neko.music.database.DatabaseManager;
 import com.neko.music.database.DatabaseInitializer;
+import com.neko.music.database.VipPayOrderDatabaseManager;
 import com.neko.music.database.VipPricingDatabaseManager;
 import com.neko.music.handlers.*;
 
@@ -60,6 +61,7 @@ public class Main {
     private static NotificationService notificationService;
     private static IPRateLimitService ipRateLimitService;
     private static VipPricingDatabaseManager vipPricingDatabaseManager;
+    private static VipPayOrderDatabaseManager vipPayOrderDatabaseManager;
 
     public static void main(String[] args) throws Exception {
         // 设置JVM默认时区为中国标准时间（UTC+8）
@@ -83,7 +85,8 @@ public class Main {
         DatabaseInitializer.initializeTables(databaseManager);
 
         vipPricingDatabaseManager = new VipPricingDatabaseManager(databaseManager);
-        
+        vipPayOrderDatabaseManager = new VipPayOrderDatabaseManager(databaseManager);
+
         // 初始化管理员数据库管理器和认证服务
         adminDatabaseManager = new AdminDatabaseManager(databaseManager);
         adminAuthService = new AdminAuthService(adminDatabaseManager);
@@ -271,6 +274,12 @@ public class Main {
         ServletHolder vipPricingAdminHolder = new ServletHolder(new VipPricingAdminHandler());
         context.addServlet(vipPricingAdminHolder, "/api/admin/vip/pricing");
 
+        ServletHolder vipPayCreateHolder = new ServletHolder(new VipPayCreateHandler());
+        context.addServlet(vipPayCreateHolder, "/api/vip/pay/create");
+
+        ServletHolder zpayNotifyHolder = new ServletHolder(new ZpayNotifyHandler());
+        context.addServlet(zpayNotifyHolder, "/api/payment/zpay/notify");
+
         // 注册创建歌单API处理器
         ServletHolder createPlaylistHolder = new ServletHolder(new CreatePlaylistHandler());
         context.addServlet(createPlaylistHolder, "/api/user/playlist/create");
@@ -351,6 +360,8 @@ public class Main {
         logger.info("  POST /api/playlists/search - 搜索歌单 (无需登录)");
         logger.info("  POST /api/artists/search - 搜索歌手 (无需登录)");
         logger.info("  GET /api/vip/pricing - 获取 VIP 价目表 (无需登录)");
+        logger.info("  POST /api/vip/pay/create - 创建 ZPay VIP 订单 (需要用户登录，config zpay.enabled)");
+        logger.info("  GET|POST /api/payment/zpay/notify - ZPay 异步通知 (无登录)");
         logger.info("  PUT /api/admin/vip/pricing - 全量更新 VIP 价目表 (需要管理员)");
         logger.info("  POST /api/user/upload - 用户上传音乐 (需要用户登录)");
         logger.info("  GET /api/admin/audit/pending - 获取待审核列表 (需要管理员登录)");
@@ -461,6 +472,10 @@ public class Main {
 
     public static VipPricingDatabaseManager getVipPricingDatabaseManager() {
         return vipPricingDatabaseManager;
+    }
+
+    public static VipPayOrderDatabaseManager getVipPayOrderDatabaseManager() {
+        return vipPayOrderDatabaseManager;
     }
 
     public static NotificationService getNotificationService() {
