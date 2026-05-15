@@ -60,7 +60,6 @@ public class ConfigManager {
     private String zpayPid = "";
     private String zpayKey = "";
     private String zpayMapiUrl = "https://zpayz.cn/mapi.php";
-    private String zpaySubmitUrl = "https://zpayz.cn/submit.php";
     /** 异步通知：可为站点根或已是完整 notify URL，见 {@link #getZpayNotifyUrl()} */
     private String zpayPublicBaseUrl = "";
     private String zpayFrontendReturnUrl = "";
@@ -191,7 +190,6 @@ public class ConfigManager {
                     if (zpayNode.has("pid")) zpayPid = zpayNode.get("pid").asText("").trim();
                     if (zpayNode.has("key")) zpayKey = zpayNode.get("key").asText("").trim();
                     if (zpayNode.has("mapi_url")) zpayMapiUrl = zpayNode.get("mapi_url").asText(zpayMapiUrl).trim();
-                    if (zpayNode.has("submit_url")) zpaySubmitUrl = zpayNode.get("submit_url").asText(zpaySubmitUrl).trim();
                     if (zpayNode.has("public_base_url")) zpayPublicBaseUrl = zpayNode.get("public_base_url").asText("").trim();
                     if (zpayNode.has("frontend_return_url")) zpayFrontendReturnUrl = zpayNode.get("frontend_return_url").asText("").trim();
                 }
@@ -401,10 +399,6 @@ public class ConfigManager {
 
     public String getZpayMapiUrl() {
         return zpayMapiUrl;
-    }
-
-    public String getZpaySubmitUrl() {
-        return zpaySubmitUrl;
     }
 
     public String getZpayPublicBaseUrl() {

@@ -44,7 +44,7 @@
                 :disabled="payBusyId === row.id"
                 @click="startPay(row, 'alipay')"
               >
-                {{ payBusyId === row.id ? '跳转中…' : '支付宝' }}
+                {{ payBusyId === row.id ? '处理中…' : '支付宝' }}
               </button>
               <button
                 type="button"
@@ -52,12 +52,12 @@
                 :disabled="payBusyId === row.id"
                 @click="startPay(row, 'wxpay')"
               >
-                {{ payBusyId === row.id ? '跳转中…' : '微信' }}
+                {{ payBusyId === row.id ? '处理中…' : '微信' }}
               </button>
             </div>
           </li>
         </ul>
-        <p class="pricing-note">支付由 ZPay 收银台完成；若提示未启用支付，请联系管理员检查服务端配置。</p>
+        <p class="pricing-note">下单后以二维码为主；App 内请扫码支付。若支付未开通会提示联系管理员。</p>
       </div>
 
       <div class="vip-actions">
@@ -65,12 +65,59 @@
         <router-link to="/" class="btn-primary">返回首页</router-link>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="payModal.open"
+        class="pay-modal-backdrop"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pay-modal-title"
+        @click.self="closePayModal"
+      >
+        <div class="pay-modal">
+          <h3 id="pay-modal-title" class="pay-modal-title">{{ payModal.title }}</h3>
+          <p class="pay-modal-tip">
+            App 内 WebView 常无法直接调起支付；请<strong>用系统相机或对应 App 扫下方二维码</strong>完成付款。若必须跳网页，可点「在浏览器打开」。
+          </p>
+          <div class="pay-qr-wrap">
+            <img
+              v-if="payModal.imageUrl"
+              :src="payModal.imageUrl"
+              class="pay-qr-img"
+              alt="支付二维码"
+              referrerpolicy="no-referrer"
+            />
+            <img
+              v-else-if="payModal.qrDataUrl"
+              :src="payModal.qrDataUrl"
+              class="pay-qr-img"
+              alt="支付二维码"
+            />
+          </div>
+          <div class="pay-modal-links">
+            <a
+              v-if="payModal.browserUrl"
+              class="pay-modal-link"
+              :href="payModal.browserUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+            >在浏览器中打开支付页</a>
+          </div>
+          <div class="pay-modal-actions">
+            <button type="button" class="pay-modal-btn pay-modal-btn--primary" @click="onPaidDone">我已完成支付</button>
+            <button type="button" class="pay-modal-btn" @click="closePayModal">关闭</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import QRCode from 'qrcode'
 import { formatVipExpiresAt, syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
 import { fetchVipPricing, createVipPayOrder } from '@/api/vipPricing.js'
 
@@ -81,6 +128,13 @@ const pricingLoading = ref(true)
 const pricingError = ref('')
 const payBusyId = ref(null)
 const payError = ref('')
+const payModal = ref({
+  open: false,
+  title: '',
+  imageUrl: '',
+  qrDataUrl: '',
+  browserUrl: ''
+})
 
 const user = computed(() => {
   vipTick.value
@@ -112,29 +166,71 @@ function formatYuan(n) {
   return x.toFixed(2)
 }
 
+function closePayModal() {
+  payModal.value = {
+    open: false,
+    title: '',
+    imageUrl: '',
+    qrDataUrl: '',
+    browserUrl: ''
+  }
+}
+
+async function onPaidDone() {
+  await syncUserVipFromPlaylistsApi()
+  bump()
+  closePayModal()
+}
+
+/** 优先用 ZPay 返回的二维码图；否则用链接本地生成二维码；不在当前页整页跳转。 */
+async function openPayModal(d, payLabel) {
+  const imageUrl = (d.img && String(d.img).trim()) || ''
+  const linkForEncode =
+    (d.qrcode && String(d.qrcode).trim()) ||
+    (d.payurl && String(d.payurl).trim()) ||
+    (d.payurl2 && String(d.payurl2).trim()) ||
+    ''
+  let qrDataUrl = ''
+  if (!imageUrl) {
+    if (!linkForEncode) {
+      payError.value = '未返回二维码图片或支付链接，请稍后再试。'
+      return
+    }
+    try {
+      qrDataUrl = await QRCode.toDataURL(linkForEncode, {
+        width: 260,
+        margin: 2,
+        errorCorrectionLevel: 'M',
+        color: { dark: '#111111', light: '#ffffff' }
+      })
+    } catch {
+      payError.value = '二维码生成失败，请稍后再试。'
+      return
+    }
+  }
+  const browserUrl =
+    (d.payurl2 && String(d.payurl2).trim()) ||
+    (d.payurl && String(d.payurl).trim()) ||
+    (d.qrcode && String(d.qrcode).trim()) ||
+    ''
+  payModal.value = {
+    open: true,
+    title: `请使用${payLabel}完成支付`,
+    imageUrl,
+    qrDataUrl,
+    browserUrl
+  }
+  payError.value = ''
+}
+
 async function startPay(row, payType) {
   if (payBusyId.value != null) return
   payError.value = ''
   payBusyId.value = row.id
   try {
     const d = await createVipPayOrder(row.id, payType)
-    if (d.payurl) {
-      window.location.href = d.payurl
-      return
-    }
-    if (d.payurl2) {
-      window.location.href = d.payurl2
-      return
-    }
-    if (d.qrcode) {
-      window.location.href = d.qrcode
-      return
-    }
-    if (d.img) {
-      window.location.href = d.img
-      return
-    }
-    payError.value = '未返回支付链接，请稍后再试或联系管理员。'
+    const label = payType === 'wxpay' ? '微信' : '支付宝'
+    await openPayModal(d, label)
   } catch (e) {
     payError.value = e?.message || '下单失败'
   } finally {
@@ -431,5 +527,94 @@ onUnmounted(() => {
 .btn-secondary:hover {
   transform: translateY(-2px);
   background: rgba(255, 255, 255, 0.75);
+}
+
+.pay-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.pay-modal {
+  width: 100%;
+  max-width: 360px;
+  padding: 22px 20px 20px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  text-align: center;
+}
+
+.pay-modal-title {
+  margin: 0 0 10px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #312e81;
+}
+
+.pay-modal-tip {
+  margin: 0 0 16px;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: #4b5563;
+  text-align: left;
+}
+
+.pay-qr-wrap {
+  margin: 0 auto 14px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.pay-qr-img {
+  display: block;
+  width: 260px;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.pay-modal-links {
+  margin-bottom: 14px;
+}
+
+.pay-modal-link {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #4f46e5;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pay-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pay-modal-btn {
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  background: #f1f5f9;
+  color: #334155;
+  cursor: pointer;
+}
+
+.pay-modal-btn--primary {
+  border: none;
+  background: linear-gradient(135deg, #6a5acd, #8b5cf6);
+  color: #fff;
 }
 </style>
