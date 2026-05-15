@@ -2,7 +2,8 @@
 # 下载 Linux x86_64 静态 FFmpeg → target/classes/native/linux-x86_64/，随 mvn package 打入 fat JAR。
 #
 # 跳过：mvn package -Dskip.ffmpeg.bundle=true
-# 自定义代理（可选）：export http_proxy=https://... https_proxy=https://...
+export http_proxy="http://127.0.0.1:7890"
+export https_proxy="http://127.0.0.1:7890"
 set -euo pipefail
 
 OUT_BASE="${1:-target/classes}"
