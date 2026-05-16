@@ -17,7 +17,7 @@ public final class PublicMusicLookup {
 
     public static Optional<PublicMusic> findById(int musicId) {
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, title, artist, album, duration, updated_at FROM music WHERE id = ?";
+            String sql = "SELECT id, title, artist, album, duration, tags, language, updated_at FROM music WHERE id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setInt(1, musicId);
                 ResultSet rs = stmt.executeQuery();
@@ -30,6 +30,8 @@ public final class PublicMusicLookup {
                 m.artist = rs.getString("artist");
                 m.album = rs.getString("album");
                 m.duration = rs.getInt("duration");
+                m.tags = rs.getString("tags");
+                m.language = rs.getString("language");
                 if (rs.getTimestamp("updated_at") != null) {
                     m.updatedAt = rs.getTimestamp("updated_at").toInstant().toString();
                 }
@@ -47,6 +49,8 @@ public final class PublicMusicLookup {
         public String artist;
         public String album;
         public int duration;
+        public String tags;
+        public String language;
         public String updatedAt;
     }
 }
