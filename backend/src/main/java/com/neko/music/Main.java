@@ -214,6 +214,10 @@ public class Main {
         // 注册音乐信息API处理器（无需管理员权限）
         ServletHolder musicInfoHolder = new ServletHolder(new MusicInfoHandler());
         context.addServlet(musicInfoHolder, "/api/music/info/*");
+
+        // /detail/{id} 服务端 HTML（SEO：curl 无 JS 可读 meta）
+        ServletHolder musicDetailPageHolder = new ServletHolder(new MusicDetailPageHandler());
+        context.addServlet(musicDetailPageHolder, "/detail/*");
         
         // 注册音乐文件API处理器（无需管理员权限）
         ServletHolder musicFileHolder = new ServletHolder(new MusicFileHandler());
