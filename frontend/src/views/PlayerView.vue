@@ -49,7 +49,7 @@
           </div>
           <p v-if="isLoggedIn()" class="clip-hint">
             <template v-if="userIsVip">会员：整首横屏成片，无水印、不限次数</template>
-            <template v-else>免费：15 秒横屏成片（含水印），每日 10 次 · <router-link to="/vip">开通会员</router-link></template>
+            <template v-else>免费：30 秒横屏成片（含水印），每日 10 次 · <router-link to="/vip">开通会员</router-link></template>
           </p>
           <div v-if="videoRenderSubmitted" class="clip-notice clip-notice--submitted">
             <p>已提交渲染，完成后将向注册邮箱发送通知并附下载链接。</p>
@@ -121,7 +121,7 @@
             />
             <p class="clip-modal-sub clip-range-hint">
               <template v-if="userIsVip">会员：从所选位置渲染至歌曲结束（约 {{ formatClipTime(clipPreviewDurationSec) }}）</template>
-              <template v-else>免费：所选范围内固定 15 秒成片（每日 10 次）</template>
+              <template v-else>免费：所选范围内固定 30 秒成片（每日 10 次）</template>
             </p>
             <div class="clip-preview-actions">
               <button
@@ -183,7 +183,7 @@ const videoWatermarkChoice = ref(true)
 const clipStartSec = ref(0)
 const clipPreviewPlaying = ref(false)
 
-const NON_VIP_CLIP_SEC = 15
+const NON_VIP_CLIP_SEC = 30
 
 // 用于定时器的引用
 let timeUpdateInterval = null
