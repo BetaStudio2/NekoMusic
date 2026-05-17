@@ -1,17 +1,32 @@
 package com.neko.music.util;
 
-import com.github.houbb.sensitive.word.core.SensitiveWordHelper;
+import com.github.houbb.sensitive.word.api.IWordAllow;
+import com.github.houbb.sensitive.word.api.IWordDeny;
+import com.github.houbb.sensitive.word.bs.SensitiveWordBs;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 违禁词检测工具类，封装 sensitive-word 库
+ * 违禁词检测：词表来自 {@code src/main/resources/违禁词/}（自 sensitive-word 0.21.0 导出），
+ * 检测引擎仍使用 houbb/sensitive-word 库。
  */
-public class SensitiveWordUtil {
+public final class SensitiveWordUtil {
 
-    /**
-     * 检测文本是否包含违禁词
-     * 检测前会去除空白字符，防止通过空格等方式绕过
-     */
+    private static final String WORD_DIR = "/违禁词/";
+
+    private static final SensitiveWordBs WORD_BS = SensitiveWordBs.newInstance()
+            .wordDeny(wordDenyFromResources())
+            .wordAllow(wordAllowFromResources())
+            .init();
+
+    private SensitiveWordUtil() {
+    }
+
     public static boolean contains(String text) {
         if (text == null || text.isEmpty()) {
             return false;
@@ -20,13 +35,9 @@ public class SensitiveWordUtil {
         if (normalized.isEmpty()) {
             return false;
         }
-        return SensitiveWordHelper.contains(normalized);
+        return WORD_BS.contains(normalized);
     }
 
-    /**
-     * 查找文本中的所有违禁词
-     * 检测前会去除空白字符，防止通过空格等方式绕过
-     */
     public static List<String> findAll(String text) {
         if (text == null || text.isEmpty()) {
             return List.of();
@@ -35,12 +46,49 @@ public class SensitiveWordUtil {
         if (normalized.isEmpty()) {
             return List.of();
         }
-        return SensitiveWordHelper.findAll(normalized);
+        return WORD_BS.findAll(normalized);
     }
 
-    /**
-     * 去除文本中的空白字符和零宽字符，防止绕过检测
-     */
+    private static IWordDeny wordDenyFromResources() {
+        return () -> {
+            List<String> words = new ArrayList<>();
+            words.addAll(loadResourceLines("主词表.txt"));
+            words.addAll(loadResourceLines("英文词表.txt"));
+            return words;
+        };
+    }
+
+    private static IWordAllow wordAllowFromResources() {
+        return () -> {
+            List<String> words = new ArrayList<>();
+            words.addAll(loadResourceLines("白名单.txt"));
+            return words;
+        };
+    }
+
+    private static List<String> loadResourceLines(String fileName) {
+        String path = WORD_DIR + fileName;
+        try (InputStream in = SensitiveWordUtil.class.getResourceAsStream(path)) {
+            if (in == null) {
+                throw new IllegalStateException("Missing sensitive word resource: " + path);
+            }
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+                List<String> lines = new ArrayList<>();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    line = line.trim();
+                    if (line.isEmpty() || line.startsWith("#")) {
+                        continue;
+                    }
+                    lines.add(line);
+                }
+                return lines;
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to load sensitive word resource: " + path, e);
+        }
+    }
+
     private static String removeWhitespace(String text) {
         return text.replaceAll("[\\s\\u200B\\u200C\\u200D\\u2060\\uFEFF]+", "");
     }
