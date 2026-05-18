@@ -18,15 +18,16 @@ public class VideoRenderJobStore {
     private static final Logger logger = LoggerFactory.getLogger(VideoRenderJobStore.class);
 
     static final String KEY_PREFIX = "video_render:job:";
-    /** 任务记录在 Redis 中的保留时间（含 pending / done，便于邮件下载链接有效期内查询） */
-    private static final int JOB_TTL_SECONDS = 7 * 86400;
 
     private final RedisService redisService;
     private final ObjectMapper objectMapper;
+    private final int jobTtlSeconds;
 
-    public VideoRenderJobStore(RedisService redisService, ObjectMapper objectMapper) {
+    public VideoRenderJobStore(RedisService redisService, ObjectMapper objectMapper, int artifactRetentionHours) {
         this.redisService = redisService;
         this.objectMapper = objectMapper;
+        int hours = Math.max(1, artifactRetentionHours);
+        this.jobTtlSeconds = hours * 3600;
     }
 
     public void insertPending(VideoRenderJob job) {
@@ -91,7 +92,7 @@ public class VideoRenderJobStore {
     private void save(VideoRenderJob job) {
         try {
             String json = objectMapper.writeValueAsString(toNode(job));
-            redisService.setWithExpiry(KEY_PREFIX + job.getId(), json, JOB_TTL_SECONDS);
+            redisService.setWithExpiry(KEY_PREFIX + job.getId(), json, jobTtlSeconds);
         } catch (Exception e) {
             throw new IllegalStateException("保存视频任务到 Redis 失败 jobId=" + job.getId(), e);
         }

@@ -162,7 +162,7 @@ public final class BundledFfmpegSupport {
             return null;
         }
 
-        Path cacheDir = MusicAssetLocator.baseDir().resolve(".neko").resolve("ffmpeg").resolve(platform);
+        Path cacheDir = VideoRenderPaths.ffmpegCacheDir(platform);
         Files.createDirectories(cacheDir);
         Path target = cacheDir.resolve("ffmpeg");
         Path versionMarker = cacheDir.resolve(".bundled.ok");

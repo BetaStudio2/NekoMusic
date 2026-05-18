@@ -69,6 +69,8 @@ public class ConfigManager {
     private int videoRenderWorkerThreads = 2;
     /** 渲染完成邮件中的前端站点根 URL */
     private String videoRenderNotifyFrontendBaseUrl = "";
+    /** 成片与 ASS 在 /tmp/.neko 中的保留小时数，到期自动删除 */
+    private int videoRenderArtifactRetentionHours = 3;
 
     /** ZPay（易支付兼容）：见 https://z-pay.cn/doc.html */
     private boolean zpayEnabled = false;
@@ -222,6 +224,9 @@ public class ConfigManager {
                     if (videoRenderNode.has("notify_frontend_base_url")) {
                         videoRenderNotifyFrontendBaseUrl = videoRenderNode.get("notify_frontend_base_url").asText("").trim();
                     }
+                    if (videoRenderNode.has("artifact_retention_hours")) {
+                        videoRenderArtifactRetentionHours = videoRenderNode.get("artifact_retention_hours").asInt();
+                    }
                 }
 
                 JsonNode zpayNode = configNode.get("zpay");
@@ -272,6 +277,7 @@ public class ConfigManager {
         videoRenderNonVipMaxDurationSec = Math.max(5, Math.min(120, videoRenderNonVipMaxDurationSec));
         videoRenderNonVipDailyLimit = Math.max(1, Math.min(1000, videoRenderNonVipDailyLimit));
         videoRenderWorkerThreads = Math.max(1, Math.min(16, videoRenderWorkerThreads));
+        videoRenderArtifactRetentionHours = Math.max(1, Math.min(168, videoRenderArtifactRetentionHours));
         if (videoRenderFfmpegPath == null || videoRenderFfmpegPath.isBlank()) {
             videoRenderFfmpegPath = "auto";
         }
@@ -456,6 +462,10 @@ public class ConfigManager {
 
     public int getVideoRenderWorkerThreads() {
         return videoRenderWorkerThreads;
+    }
+
+    public int getVideoRenderArtifactRetentionHours() {
+        return videoRenderArtifactRetentionHours;
     }
 
     /** 渲染完成邮件中的前端站点根（无尾斜杠），用于拼接 /detail/{musicId}?videoJob=… */

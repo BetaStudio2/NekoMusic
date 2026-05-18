@@ -58,11 +58,14 @@ public class VideoRenderService {
 
     private final ConfigManager configManager;
     private final VideoRenderJobStore jobStore;
+    private final VideoRenderArtifactCleanup artifactCleanup;
     private final ThreadPoolExecutor executor;
 
-    public VideoRenderService(ConfigManager configManager, VideoRenderJobStore jobStore) {
+    public VideoRenderService(ConfigManager configManager, VideoRenderJobStore jobStore,
+                              VideoRenderArtifactCleanup artifactCleanup) {
         this.configManager = configManager;
         this.jobStore = jobStore;
+        this.artifactCleanup = artifactCleanup;
         int threads = Math.max(1, configManager.getVideoRenderWorkerThreads());
         AtomicInteger idx = new AtomicInteger();
         ThreadFactory factory = r -> {
@@ -79,6 +82,7 @@ public class VideoRenderService {
                 factory,
                 new ThreadPoolExecutor.AbortPolicy());
         logger.info("视频渲染线程池已启动 threads={}, queueCapacity={}", threads, threads * 4);
+        artifactCleanup.start();
         warmupBundledAssets();
     }
 
@@ -107,6 +111,7 @@ public class VideoRenderService {
 
     private void runJob(VideoRenderJob job, String title, String artist, Path audioFile, Optional<Path> coverFile) {
         Path assFile = null;
+        boolean retainArtifacts = false;
         try {
             jobStore.markProcessing(job.getId());
             VideoRenderPaths.ensureVideoDir();
@@ -120,18 +125,17 @@ public class VideoRenderService {
                 throw new IOException("渲染输出文件无效");
             }
             jobStore.markDone(job.getId(), VideoRenderPaths.outputRelPath(job.getId()));
+            artifactCleanup.scheduleJobArtifacts(job.getId());
+            retainArtifacts = true;
             logger.info("视频渲染完成 jobId={} userId={} musicId={} lyricsLines={}",
                     job.getId(), job.getUserId(), job.getMusicId(), lyrics.size());
             notifyRenderCompleteByEmail(job, title, artist);
         } catch (Exception e) {
             logger.error("视频渲染失败 jobId={}: {}", job.getId(), e.getMessage(), e);
             jobStore.markFailed(job.getId(), shortenError(e.getMessage()));
-            try {
-                Files.deleteIfExists(VideoRenderPaths.outputFile(job.getId()));
-            } catch (IOException ignored) {
-            }
+            artifactCleanup.deleteJobArtifacts(job.getId());
         } finally {
-            if (assFile != null) {
+            if (assFile != null && !retainArtifacts) {
                 try {
                     Files.deleteIfExists(assFile);
                 } catch (IOException ignored) {
@@ -603,6 +607,7 @@ public class VideoRenderService {
     }
 
     public void shutdown() {
+        artifactCleanup.shutdown();
         executor.shutdown();
         try {
             if (!executor.awaitTermination(30, TimeUnit.SECONDS)) {

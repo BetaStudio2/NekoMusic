@@ -5,31 +5,65 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+/**
+ * 视频渲染相关临时文件统一放在 {@code /tmp/.neko}（tmpfs），避免占用业务盘。
+ */
 public final class VideoRenderPaths {
-    /** 渲染成片目录（系统临时目录，重启后可能被清理） */
-    public static final Path VIDEO_DIR = Paths.get("/tmp/NekoMusic-video-render");
+    public static final Path NEKO_TMP_ROOT = Paths.get("/tmp/.neko");
+    public static final Path VIDEO_RENDER_DIR = NEKO_TMP_ROOT.resolve("video-render");
+    private static final Path ASS_DIR = VIDEO_RENDER_DIR.resolve("ass");
+    private static final Path FONTS_DIR = VIDEO_RENDER_DIR.resolve("fonts");
+    private static final Path FFMPEG_ROOT = NEKO_TMP_ROOT.resolve("ffmpeg");
 
     private VideoRenderPaths() {
     }
 
-    public static Path videoDir() {
-        return VIDEO_DIR;
+    public static Path videoRenderDir() {
+        return VIDEO_RENDER_DIR;
     }
 
     public static Path outputFile(String jobId) {
-        return videoDir().resolve(jobId + ".mp4");
+        return VIDEO_RENDER_DIR.resolve(jobId + ".mp4");
     }
 
     public static String outputRelPath(String jobId) {
         return outputFile(jobId).toAbsolutePath().normalize().toString();
     }
 
+    public static Path assFile(String jobId) throws IOException {
+        Files.createDirectories(ASS_DIR);
+        return ASS_DIR.resolve(jobId + ".ass");
+    }
+
+    public static Path fontsDir() {
+        return FONTS_DIR;
+    }
+
+    public static Path watermarkFile() {
+        return VIDEO_RENDER_DIR.resolve("watermark.png");
+    }
+
+    public static Path watermarkMarkerFile() {
+        return VIDEO_RENDER_DIR.resolve(".watermark.ok");
+    }
+
+    public static Path ffmpegCacheDir(String platform) {
+        return FFMPEG_ROOT.resolve(platform);
+    }
+
     public static void ensureVideoDir() throws IOException {
-        Files.createDirectories(videoDir());
+        Files.createDirectories(VIDEO_RENDER_DIR);
+        Files.createDirectories(ASS_DIR);
+    }
+
+    public static boolean isUnderNekoTmp(Path file) {
+        return MusicAssetLocator.isUnderDirectory(file, NEKO_TMP_ROOT);
     }
 
     public static boolean isAllowedOutput(Path file) {
-        return MusicAssetLocator.isUnderDirectory(file, videoDir());
+        return MusicAssetLocator.isUnderDirectory(file, VIDEO_RENDER_DIR)
+                && file.getFileName() != null
+                && file.getFileName().toString().endsWith(".mp4");
     }
 
     public static String truncateText(String text, int maxLen) {
@@ -43,13 +77,6 @@ public final class VideoRenderPaths {
         return t.substring(0, maxLen - 1) + "…";
     }
 
-    public static Path assFile(String jobId) throws IOException {
-        Path dir = MusicAssetLocator.baseDir().resolve(".neko/video-render");
-        Files.createDirectories(dir);
-        return dir.resolve(jobId + ".ass");
-    }
-
-    /** ASS 事件行内文本转义 */
     public static String escapeAssText(String text) {
         if (text == null || text.isEmpty()) {
             return " ";
@@ -62,11 +89,6 @@ public final class VideoRenderPaths {
                 .replace("\n", "\\N");
     }
 
-    /** subtitles 滤镜中的文件路径转义（Linux） */
-    public static String escapeSubtitlesPath(Path assFile) {
-        return escapeFilterPath(assFile);
-    }
-
     public static String escapeFilterPath(Path path) {
         return path.toAbsolutePath().normalize().toString()
                 .replace("\\", "\\\\")
@@ -74,7 +96,6 @@ public final class VideoRenderPaths {
                 .replace("'", "\\'");
     }
 
-    /** subtitles=ass:fontsdir=... 参数字符串 */
     public static String subtitlesFilterArg(Path assFile, Path fontsDir) {
         return "subtitles='" + escapeFilterPath(assFile) + "':fontsdir='" + escapeFilterPath(fontsDir) + "'";
     }

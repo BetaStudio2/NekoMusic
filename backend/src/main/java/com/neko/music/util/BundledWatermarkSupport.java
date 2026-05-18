@@ -13,7 +13,7 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 
 /**
- * 从 JAR 内嵌 {@code watermark.png} 自动释放到 {@code .neko/video-render/watermark.png}，
+ * 从 JAR 内嵌 {@code watermark.png} 自动释放到 {@code /tmp/.neko/video-render/watermark.png}，
  * 供 FFmpeg overlay 使用；JAR 资源变更时按 SHA-256 重新释放。
  */
 public final class BundledWatermarkSupport {
@@ -64,10 +64,10 @@ public final class BundledWatermarkSupport {
     }
 
     private static Path releaseBundledWatermark(String jarHash) throws IOException {
-        Path dir = MusicAssetLocator.baseDir().resolve(".neko").resolve("video-render");
+        Path dir = VideoRenderPaths.videoRenderDir();
         Files.createDirectories(dir);
-        Path target = dir.resolve(FILE_NAME);
-        Path marker = dir.resolve(".watermark.ok");
+        Path target = VideoRenderPaths.watermarkFile();
+        Path marker = VideoRenderPaths.watermarkMarkerFile();
 
         String markerHash = readMarkerHash(marker);
         boolean cacheHit = Files.isRegularFile(target) && jarHash.equals(markerHash);

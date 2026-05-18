@@ -32,7 +32,7 @@ public final class BundledRenderFontSupport {
             if (cachedFontsDir != null && Files.isRegularFile(cachedFontsDir.resolve(FONT_FILE_NAME))) {
                 return cachedFontsDir;
             }
-            Path fontsDir = MusicAssetLocator.baseDir().resolve(".neko").resolve("video-render").resolve("fonts");
+            Path fontsDir = VideoRenderPaths.fontsDir();
             Files.createDirectories(fontsDir);
             Path target = fontsDir.resolve(FONT_FILE_NAME);
             Path marker = fontsDir.resolve(".bundled.ok");

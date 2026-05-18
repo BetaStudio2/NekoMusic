@@ -19,6 +19,7 @@ import com.neko.music.service.RedisService;
 import com.neko.music.service.RedisTokenStore;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.service.IPRateLimitService;
+import com.neko.music.service.VideoRenderArtifactCleanup;
 import com.neko.music.service.VideoRenderQuotaService;
 import com.neko.music.service.VideoRenderService;
 import org.eclipse.jetty.server.Server;
@@ -99,9 +100,12 @@ public class Main {
         ipRateLimitService = new IPRateLimitService(configManager, redisService);
         RedisTokenStore tokenStore = new RedisTokenStore(redisService);
 
-        videoRenderJobStore = new VideoRenderJobStore(redisService, objectMapper);
+        VideoRenderArtifactCleanup videoRenderArtifactCleanup =
+                new VideoRenderArtifactCleanup(configManager.getVideoRenderArtifactRetentionHours());
+        videoRenderJobStore = new VideoRenderJobStore(
+                redisService, objectMapper, configManager.getVideoRenderArtifactRetentionHours());
         videoRenderQuotaService = new VideoRenderQuotaService(configManager, redisService);
-        videoRenderService = new VideoRenderService(configManager, videoRenderJobStore);
+        videoRenderService = new VideoRenderService(configManager, videoRenderJobStore, videoRenderArtifactCleanup);
         Runtime.getRuntime().addShutdownHook(new Thread(videoRenderService::shutdown, "video-render-shutdown"));
 
         // 初始化管理员数据库管理器和认证服务
