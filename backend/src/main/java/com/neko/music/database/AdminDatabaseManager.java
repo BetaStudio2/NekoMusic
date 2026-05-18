@@ -67,27 +67,12 @@ public class AdminDatabaseManager {
         
 
         
-        // 创建会话表（用于管理员身份验证）
-        String sessionSql = """
-            CREATE TABLE IF NOT EXISTS admin_sessions (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                admin_id INT NOT NULL,
-                session_token VARCHAR(255) UNIQUE NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                expires_at TIMESTAMP NOT NULL,
-                is_active BOOLEAN DEFAULT TRUE,
-                FOREIGN KEY (admin_id) REFERENCES admins(id)
-            )
-        """;
-        
         try (Connection conn = databaseManager.getConnection();
              Statement stmt = conn.createStatement()) {
             
-            // 执行所有表创建语句
             stmt.execute(adminSql);
             stmt.execute(musicSql);
             stmt.execute(userSql);
-            stmt.execute(sessionSql);
             
             // 检查并更新music表结构（添加missing列）
             updateMusicTableStructure(conn);
@@ -249,82 +234,6 @@ public class AdminDatabaseManager {
             logger.error("检查管理员是否存在失败", e);
         }
         return false;
-    }
-    
-    /**
-     * 创建管理员会话
-     * @param adminId 管理员ID
-     * @param sessionToken 会话令牌
-     * @param expiresAt 过期时间戳 (毫秒)
-     * @return 创建是否成功
-     */
-    public boolean createAdminSession(int adminId, String sessionToken, long expiresAt) {
-        String sql = """
-            INSERT INTO admin_sessions (admin_id, session_token, expires_at)
-            VALUES (?, ?, ?)
-        """;
-        
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setInt(1, adminId);
-            stmt.setString(2, sessionToken);
-            // 创建一个Timestamp对象来处理毫秒时间戳
-            stmt.setTimestamp(3, new Timestamp(expiresAt));
-            
-            int rowsAffected = stmt.executeUpdate();
-            return rowsAffected > 0;
-        } catch (SQLException e) {
-            logger.error("创建管理员会话失败", e);
-            return false;
-        }
-    }
-    
-    /**
-     * 验证管理员会话令牌
-     * @param sessionToken 会话令牌
-     * @return 会话是否有效
-     */
-    public boolean validateAdminSession(String sessionToken) {
-        String sql = """
-            SELECT COUNT(*) FROM admin_sessions 
-            WHERE session_token = ? AND is_active = TRUE AND expires_at > NOW()
-        """;
-        
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setString(1, sessionToken);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt(1) > 0;
-                }
-            }
-        } catch (SQLException e) {
-            logger.error("验证管理员会话失败", e);
-        }
-        return false;
-    }
-    
-    /**
-     * 使管理员会话失效
-     * @param sessionToken 会话令牌
-     * @return 是否成功
-     */
-    public boolean invalidateAdminSession(String sessionToken) {
-        String sql = "UPDATE admin_sessions SET is_active = FALSE WHERE session_token = ?";
-        
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setString(1, sessionToken);
-            
-            int rowsAffected = stmt.executeUpdate();
-            return rowsAffected > 0;
-        } catch (SQLException e) {
-            logger.error("使管理员会话失效失败", e);
-            return false;
-        }
     }
     
     /**

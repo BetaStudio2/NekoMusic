@@ -37,28 +37,6 @@ public class DatabaseInitializer {
                 logger.warn("创建 user_favorites 表失败（可能是表已存在）: {}", e.getMessage());
             }
             
-            // 创建用户token表
-            String createTokensTable = """
-                CREATE TABLE IF NOT EXISTS user_tokens (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    user_id INT NOT NULL,
-                    token VARCHAR(64) NOT NULL UNIQUE,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    expires_at TIMESTAMP NOT NULL,
-                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                    INDEX idx_user_id (user_id),
-                    INDEX idx_token (token),
-                    INDEX idx_expires_at (expires_at)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-                """;
-            
-            try {
-                stmt.execute(createTokensTable);
-                logger.info("user_tokens 表创建成功");
-            } catch (Exception e) {
-                logger.warn("创建 user_tokens 表失败（可能是表已存在）: {}", e.getMessage());
-            }
-            
             // 创建用户收藏歌单表
             String createFavoritePlaylistsTable = """
                 CREATE TABLE IF NOT EXISTS user_favorite_playlists (

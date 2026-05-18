@@ -129,24 +129,8 @@ public class UserAvatarUploadHandler extends HttpServlet {
         }
     }
     
-    /**
-     * 验证Token并返回用户ID
-     */
     private Integer validateToken(String token) {
-        try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT user_id FROM user_tokens WHERE token = ? AND expires_at > NOW()";
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setString(1, token);
-                try (ResultSet rs = stmt.executeQuery()) {
-                    if (rs.next()) {
-                        return rs.getInt("user_id");
-                    }
-                }
-            }
-        } catch (Exception e) {
-            logger.error("验证Token时出错", e);
-        }
-        return null;
+        return Main.getUserAuthService().validateToken(token).orElse(null);
     }
     
     /**

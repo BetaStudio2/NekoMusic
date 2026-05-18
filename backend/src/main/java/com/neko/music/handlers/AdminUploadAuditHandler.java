@@ -571,21 +571,7 @@ public class AdminUploadAuditHandler extends HttpServlet {
      * 根据token获取管理员ID
      */
     private int getAdminIdByToken(String token) {
-        String sql = "SELECT admin_id FROM admin_sessions WHERE session_token = ? AND is_active = TRUE AND expires_at > NOW()";
-        
-        try (Connection conn = Main.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setString(1, token);
-            try (java.sql.ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt("admin_id");
-                }
-            }
-        } catch (java.sql.SQLException e) {
-            logger.error("获取管理员ID失败: " + e.getMessage(), e);
-        }
-        return -1;
+        return Main.getAdminAuthService().getAdminIdByToken(token).orElse(-1);
     }
     
     /**

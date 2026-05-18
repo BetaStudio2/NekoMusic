@@ -84,7 +84,7 @@ public class UserLoginHandler extends HttpServlet {
                 User user = userOpt.get();
                 logger.info("用户登录成功: {}", user.getEmail());
 
-                // 生成token并保存到数据库
+                // 生成 token 并写入 Redis
                 String token = userAuthService.createTokenForUser(user.getId());
 
                 if (token == null) {

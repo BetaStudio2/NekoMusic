@@ -158,22 +158,7 @@ public class UserFavoritePlaylistHandler extends HttpServlet {
     }
     
     private Integer validateToken(String token) {
-        String sql = "SELECT user_id FROM user_tokens WHERE token = ? AND expires_at > NOW()";
-        
-        try (Connection conn = Main.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setString(1, token);
-            ResultSet rs = stmt.executeQuery();
-            
-            if (rs.next()) {
-                return rs.getInt("user_id");
-            }
-        } catch (SQLException e) {
-            logger.error("验证token失败: {}", e.getMessage(), e);
-        }
-        
-        return null;
+        return Main.getUserAuthService().validateToken(token).orElse(null);
     }
     
     private List<JsonObject> getFavoritePlaylists(int userId) throws SQLException {

@@ -16,6 +16,7 @@ import com.neko.music.service.EmailService;
 import com.neko.music.service.NotificationService;
 import com.neko.music.service.PlaylistService;
 import com.neko.music.service.RedisService;
+import com.neko.music.service.RedisTokenStore;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.service.IPRateLimitService;
 import com.neko.music.service.VideoRenderQuotaService;
@@ -96,6 +97,7 @@ public class Main {
         // 初始化Redis服务（视频配额依赖 Redis，须在 video 服务之前）
         redisService = new RedisService(configManager);
         ipRateLimitService = new IPRateLimitService(configManager, redisService);
+        RedisTokenStore tokenStore = new RedisTokenStore(redisService);
 
         videoRenderDatabaseManager = new VideoRenderDatabaseManager(databaseManager);
         videoRenderQuotaService = new VideoRenderQuotaService(configManager, redisService);
@@ -104,13 +106,13 @@ public class Main {
 
         // 初始化管理员数据库管理器和认证服务
         adminDatabaseManager = new AdminDatabaseManager(databaseManager);
-        adminAuthService = new AdminAuthService(adminDatabaseManager);
+        adminAuthService = new AdminAuthService(adminDatabaseManager, tokenStore);
         
         // 初始化邮件服务
         emailService = new EmailService(configManager);
 
         // 初始化用户认证服务
-        userAuthService = new UserAuthService(databaseManager, configManager, emailService, redisService);
+        userAuthService = new UserAuthService(databaseManager, configManager, emailService, redisService, tokenStore);
 
         // 初始化歌单服务
         playlistService = new PlaylistService(databaseManager);

@@ -18,19 +18,23 @@ public class UserAuthService {
     private final ConfigManager configManager;
     private final EmailService emailService;
     private final RedisService redisService;
+    private final RedisTokenStore tokenStore;
     private final Argon2 argon2 = Argon2Factory.create();
     private static final SecureRandom secureRandom = new SecureRandom();
     
     private static final String VERIFICATION_CODE_PREFIX = "verification_code:";
-    private static final String TOKEN_CACHE_PREFIX = "user_token:";
     private static final int VERIFICATION_CODE_EXPIRY = 300; // 5分钟过期
     private static final int TOKEN_EXPIRY_DAYS = 30; // Token有效期30天
+    private static final int TOKEN_EXPIRY_SECONDS = TOKEN_EXPIRY_DAYS * 86400;
 
-    public UserAuthService(DatabaseManager databaseManager, ConfigManager configManager, EmailService emailService, RedisService redisService) {
+    public UserAuthService(DatabaseManager databaseManager, ConfigManager configManager,
+                           EmailService emailService, RedisService redisService,
+                           RedisTokenStore tokenStore) {
         this.databaseManager = databaseManager;
         this.configManager = configManager;
         this.emailService = emailService;
         this.redisService = redisService;
+        this.tokenStore = tokenStore;
     }
 
     /**
@@ -39,7 +43,6 @@ public class UserAuthService {
     public boolean registerUser(String username, String password, String email) {
         logger.info("开始注册用户: {}", username);
 
-        // 检查邮箱是否已存在（用户名允许重复）
         if (emailExists(email)) {
             logger.warn("邮箱已存在: {}", email);
             return false;
@@ -111,14 +114,11 @@ public class UserAuthService {
     public boolean sendVerificationCode(String email, String username) {
         logger.info("发送验证码至: {}", email);
 
-        // 生成验证码
         String verificationCode = emailService.generateVerificationCode();
         
-        // 尝试发送邮件
         boolean emailSent = emailService.sendVerificationCode(email, username, verificationCode);
         
         if (emailSent) {
-            // 将验证码存储到Redis中，设置5分钟过期
             String key = VERIFICATION_CODE_PREFIX + email;
             redisService.setWithExpiry(key, verificationCode, VERIFICATION_CODE_EXPIRY);
             logger.info("验证码已生成并存储到Redis: {}", email);
@@ -135,7 +135,6 @@ public class UserAuthService {
     public boolean isWhitelistedEmail(String email) {
         String emailWhitelist = configManager.getEmailWhitelist();
         
-        // 如果白名单为空，则允许所有邮箱
         if (emailWhitelist == null || emailWhitelist.trim().isEmpty()) {
             return true;
         }
@@ -164,9 +163,7 @@ public class UserAuthService {
             return false;
         }
         
-        // 验证码匹配
         if (storedCode.equals(code)) {
-            // 验证成功后删除验证码
             redisService.del(key);
             logger.info("验证码验证成功: {}", email);
             return true;
@@ -176,9 +173,6 @@ public class UserAuthService {
         }
     }
 
-    /**
-     * 检查邮箱是否已存在
-     */
     private boolean emailExists(String email) {
         String sql = "SELECT COUNT(*) FROM users WHERE email = ?";
 
@@ -245,16 +239,10 @@ public class UserAuthService {
         return false;
     }
 
-    /**
-     * 密码哈希
-     */
     private String hashPassword(String password) {
         return argon2.hash(10, 65536, 1, password.toCharArray());
     }
     
-    /**
-     * 生成随机token
-     */
     public String generateToken() {
         byte[] tokenBytes = new byte[32];
         secureRandom.nextBytes(tokenBytes);
@@ -266,37 +254,20 @@ public class UserAuthService {
     }
     
     /**
-     * 为用户创建并保存token
+     * 为用户创建会话 token（仅存 Redis，TTL {@link #TOKEN_EXPIRY_DAYS} 天）。
      */
     public String createTokenForUser(int userId) {
         String token = generateToken();
-        String sql = "INSERT INTO user_tokens (user_id, token, created_at, expires_at) VALUES (?, ?, NOW(), DATE_ADD(NOW(), INTERVAL ? DAY))";
-        
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setInt(1, userId);
-            stmt.setString(2, token);
-            stmt.setInt(3, TOKEN_EXPIRY_DAYS);
-            
-            int affectedRows = stmt.executeUpdate();
-            if (affectedRows > 0) {
-                // 写入Redis缓存
-                redisService.setWithExpiry(TOKEN_CACHE_PREFIX + token,
-                    String.valueOf(userId), TOKEN_EXPIRY_DAYS * 86400);
-                logger.info("Token创建成功，用户ID: {}", userId);
-                return token;
-            }
-        } catch (SQLException e) {
+        try {
+            tokenStore.saveUserToken(token, userId, TOKEN_EXPIRY_SECONDS);
+            logger.info("Token创建成功，用户ID: {}", userId);
+            return token;
+        } catch (Exception e) {
             logger.error("创建token失败: {}", e.getMessage(), e);
+            return null;
         }
-        
-        return null;
     }
     
-    /**
-     * 根据用户 ID 查询注册邮箱。
-     */
     public Optional<String> findEmailByUserId(int userId) {
         String sql = "SELECT email FROM users WHERE id = ?";
         try (Connection conn = databaseManager.getConnection();
@@ -316,9 +287,6 @@ public class UserAuthService {
         return Optional.empty();
     }
 
-    /**
-     * 查询用户当前 VIP 到期时间（数据库为准）。
-     */
     public Optional<java.sql.Timestamp> findVipExpiresAtByUserId(int userId) {
         String sql = "SELECT vip_expires_at FROM users WHERE id = ?";
         try (Connection conn = databaseManager.getConnection();
@@ -337,96 +305,20 @@ public class UserAuthService {
     }
 
     /**
-     * 验证 token 并返回用户 ID，优先查 Redis 缓存。
+     * 验证 token 并返回用户 ID（仅查 Redis）。
      */
     public Optional<Integer> validateToken(String token) {
-        if (token != null) {
-            token = token.trim();
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7).trim();
-            }
-        }
-        // 先查Redis缓存
-        try {
-            String cached = redisService.get(TOKEN_CACHE_PREFIX + token);
-            if (cached != null && !cached.isEmpty()) {
-                return Optional.of(Integer.parseInt(cached));
-            }
-        } catch (Exception e) {
-            logger.debug("Redis token缓存查询失败，回退到数据库: {}", e.getMessage());
-        }
-
-        // 缓存miss，查数据库
-        String sql = "SELECT user_id FROM user_tokens WHERE token = ? AND expires_at > NOW()";
-
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setString(1, token);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    int userId = rs.getInt("user_id");
-                    // 写入Redis缓存，TTL与token有效期一致
-                    redisService.setWithExpiry(TOKEN_CACHE_PREFIX + token,
-                        String.valueOf(userId), TOKEN_EXPIRY_DAYS * 86400);
-                    logger.debug("Token验证成功(已缓存)，用户ID: {}", userId);
-                    return Optional.of(userId);
-                }
-            }
-        } catch (SQLException e) {
-            logger.error("验证token失败: {}", e.getMessage(), e);
-        }
-
-        return Optional.empty();
+        return tokenStore.getUserIdByToken(token);
     }
     
     /**
-     * 注销token
+     * 注销 token（从 Redis 删除）。
      */
     public boolean revokeToken(String token) {
-        if (token != null) {
-            token = token.trim();
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7).trim();
-            }
+        boolean revoked = tokenStore.deleteUserToken(token);
+        if (revoked) {
+            logger.info("Token已注销");
         }
-        // 先删Redis缓存
-        redisService.del(TOKEN_CACHE_PREFIX + token);
-
-        String sql = "DELETE FROM user_tokens WHERE token = ?";
-        
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setString(1, token);
-            int affectedRows = stmt.executeUpdate();
-            
-            if (affectedRows > 0) {
-                logger.info("Token已注销");
-                return true;
-            }
-        } catch (SQLException e) {
-            logger.error("注销token失败: {}", e.getMessage(), e);
-        }
-        
-        return false;
-    }
-    
-    /**
-     * 清理过期token
-     */
-    public void cleanupExpiredTokens() {
-        String sql = "DELETE FROM user_tokens WHERE expires_at < NOW()";
-        
-        try (Connection conn = databaseManager.getConnection();
-             Statement stmt = conn.createStatement()) {
-            
-            int deletedCount = stmt.executeUpdate(sql);
-            if (deletedCount > 0) {
-                logger.info("清理了 {} 个过期token", deletedCount);
-            }
-        } catch (SQLException e) {
-            logger.error("清理过期token失败: {}", e.getMessage(), e);
-        }
+        return revoked;
     }
 }
