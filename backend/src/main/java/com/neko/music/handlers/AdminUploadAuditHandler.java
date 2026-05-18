@@ -3,6 +3,7 @@ package com.neko.music.handlers;
 import com.neko.music.Main;
 import com.neko.music.model.UserUpload;
 import com.neko.music.util.PinyinUtil;
+import com.neko.music.util.MusicAdMetadataPatcher;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -325,6 +326,7 @@ public class AdminUploadAuditHandler extends HttpServlet {
             newMusicPath = Paths.get(MUSIC_AUDIO_DIR, newMusicFileName).toString();
             Files.move(Paths.get(tempMusicPath), Paths.get(newMusicPath), StandardCopyOption.REPLACE_EXISTING);
             logger.info("重命名音乐文件: {} -> {}", tempMusicPath, newMusicPath);
+            MusicAdMetadataPatcher.patchQuietly(Paths.get(newMusicPath));
 
             // 重命名封面文件（如果有）
             if (upload.getCoverFilePath() != null && !upload.getCoverFilePath().isEmpty() && newCoverFileName != null) {

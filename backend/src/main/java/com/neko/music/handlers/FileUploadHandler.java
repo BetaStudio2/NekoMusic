@@ -4,6 +4,7 @@ import com.neko.music.Main;
 import com.neko.music.util.MusicAssetLocator;
 import com.neko.music.util.AudioFileValidator;
 import com.neko.music.util.LrcValidator;
+import com.neko.music.util.MusicAdMetadataPatcher;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -268,6 +269,7 @@ public class FileUploadHandler extends HttpServlet {
                 Files.copy(inputStream, musicFile);
                 logger.info("音乐文件已保存到: " + musicFilePath);
             }
+            MusicAdMetadataPatcher.patchQuietly(musicFile);
 
             // 文件保存后，如果前端未提供时长，从已保存文件读取（避免临时文件双写）
             if (duration == 0) {
@@ -516,6 +518,7 @@ public class FileUploadHandler extends HttpServlet {
                     Files.copy(inputStream, musicFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                     logger.info("音乐文件已保存到: " + musicFilePath);
                 }
+                MusicAdMetadataPatcher.patchQuietly(musicFile);
 
                 // 更新数据库中的文件格式
                 updateFileFormatInDatabase(id, fileFormat);
