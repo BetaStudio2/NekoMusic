@@ -24,7 +24,7 @@ public class UserAuthService {
     
     private static final String VERIFICATION_CODE_PREFIX = "verification_code:";
     private static final int VERIFICATION_CODE_EXPIRY = 300; // 5分钟过期
-    private static final int TOKEN_EXPIRY_DAYS = 30; // Token有效期30天
+    private static final int TOKEN_EXPIRY_DAYS = 365; // Token 有效期 1 年
     private static final int TOKEN_EXPIRY_SECONDS = TOKEN_EXPIRY_DAYS * 86400;
 
     public UserAuthService(DatabaseManager databaseManager, ConfigManager configManager,
@@ -215,10 +215,12 @@ public class UserAuthService {
     }
 
     /**
-     * 重置用户密码
+     * 重置用户密码，成功后注销该用户全部会话 token。
      */
     public boolean resetPassword(String email, String newPassword) {
         logger.info("重置用户密码: {}", email);
+
+        Optional<Integer> userIdOpt = findUserIdByEmail(email);
 
         String sql = "UPDATE users SET password = ? WHERE email = ?";
 
@@ -230,13 +232,43 @@ public class UserAuthService {
             stmt.setString(2, email);
 
             int affectedRows = stmt.executeUpdate();
-            logger.info("密码重置结果: {}, 邮箱: {}", affectedRows > 0, email);
-            return affectedRows > 0;
+            if (affectedRows > 0) {
+                userIdOpt.ifPresent(this::revokeAllTokensForUser);
+                logger.info("密码重置成功: {}", email);
+                return true;
+            }
+            logger.warn("密码重置未影响任何行: {}", email);
         } catch (SQLException e) {
             logger.error("重置密码失败: {}", e.getMessage(), e);
         }
 
         return false;
+    }
+
+    public Optional<Integer> findUserIdByEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return Optional.empty();
+        }
+        String sql = "SELECT id FROM users WHERE email = ? LIMIT 1";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, email.trim());
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return Optional.of(rs.getInt("id"));
+                }
+            }
+        } catch (SQLException e) {
+            logger.error("按邮箱查询用户 ID 失败: {}", e.getMessage(), e);
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * 注销某用户全部会话（改密、重置密码后须重新登录）。
+     */
+    public void revokeAllTokensForUser(int userId) {
+        tokenStore.revokeAllUserTokens(userId);
     }
 
     private String hashPassword(String password) {
@@ -320,5 +352,24 @@ public class UserAuthService {
             logger.info("Token已注销");
         }
         return revoked;
+    }
+
+    /**
+     * 修改密码成功后调用：更新数据库密码并注销全部会话。
+     */
+    public boolean changePassword(int userId, String newPassword) {
+        String sql = "UPDATE users SET password = ? WHERE id = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, hashPassword(newPassword));
+            stmt.setInt(2, userId);
+            if (stmt.executeUpdate() > 0) {
+                revokeAllTokensForUser(userId);
+                return true;
+            }
+        } catch (SQLException e) {
+            logger.error("修改密码失败 userId={}: {}", userId, e.getMessage(), e);
+        }
+        return false;
     }
 }

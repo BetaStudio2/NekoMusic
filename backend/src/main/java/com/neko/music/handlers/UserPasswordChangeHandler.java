@@ -77,12 +77,11 @@ public class UserPasswordChangeHandler extends HttpServlet {
                 return;
             }
             
-            // 更新密码
-            boolean success = updatePassword(userId, changeRequest.getNewPassword());
-            
+            boolean success = Main.getUserAuthService().changePassword(userId, changeRequest.getNewPassword());
+
             if (success) {
-                logger.info("用户 {} 修改密码成功", userId);
-                sendSuccessResponse(response, "密码修改成功");
+                logger.info("用户 {} 修改密码成功，已注销全部会话", userId);
+                sendSuccessResponse(response, "密码修改成功，请使用新密码重新登录");
             } else {
                 sendErrorResponse(response, HttpStatus.INTERNAL_SERVER_ERROR_500, "密码修改失败");
             }
@@ -116,26 +115,6 @@ public class UserPasswordChangeHandler extends HttpServlet {
             logger.error("验证原密码时出错", e);
         }
         return false;
-    }
-    
-    /**
-     * 更新密码
-     */
-    private boolean updatePassword(int userId, String newPassword) {
-        try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "UPDATE users SET password = ? WHERE id = ?";
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                String passwordHash = argon2.hash(10, 65536, 1, newPassword.toCharArray());
-                stmt.setString(1, passwordHash);
-                stmt.setInt(2, userId);
-                
-                int rowsAffected = stmt.executeUpdate();
-                return rowsAffected > 0;
-            }
-        } catch (Exception e) {
-            logger.error("更新密码时出错", e);
-            return false;
-        }
     }
     
     /**

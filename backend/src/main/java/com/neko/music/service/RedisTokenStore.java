@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 用户与管理员会话 Token 仅存 Redis，依赖 TTL 自动过期。
@@ -12,6 +13,8 @@ public class RedisTokenStore {
     private static final Logger logger = LoggerFactory.getLogger(RedisTokenStore.class);
 
     public static final String USER_TOKEN_PREFIX = "user_token:";
+    /** 某用户当前全部有效 token（SET），与单 token 键同 TTL 续期 */
+    public static final String USER_TOKEN_INDEX_PREFIX = "user_token_index:";
     public static final String ADMIN_TOKEN_PREFIX = "admin_token:";
 
     private final RedisService redisService;
@@ -36,6 +39,9 @@ public class RedisTokenStore {
             return;
         }
         redisService.setWithExpiry(USER_TOKEN_PREFIX + token, String.valueOf(userId), ttlSeconds);
+        String indexKey = userTokenIndexKey(userId);
+        redisService.sadd(indexKey, token);
+        redisService.expire(indexKey, ttlSeconds);
     }
 
     public Optional<Integer> getUserIdByToken(String token) {
@@ -50,7 +56,7 @@ public class RedisTokenStore {
             }
         } catch (NumberFormatException e) {
             logger.warn("Redis 用户 token 值非法，已删除: {}", e.getMessage());
-            redisService.del(USER_TOKEN_PREFIX + token);
+            deleteUserToken(token);
         } catch (Exception e) {
             logger.error("读取用户 token 失败: {}", e.getMessage(), e);
         }
@@ -58,15 +64,47 @@ public class RedisTokenStore {
     }
 
     public boolean deleteUserToken(String token) {
-        token = normalizeBearerToken(token);
-        if (token.isEmpty()) {
+        String normalized = normalizeBearerToken(token);
+        if (normalized.isEmpty()) {
             return false;
         }
-        if (!redisService.exists(USER_TOKEN_PREFIX + token)) {
+        Optional<Integer> userId = getUserIdByToken(normalized);
+        if (!redisService.exists(USER_TOKEN_PREFIX + normalized)) {
             return false;
         }
-        redisService.del(USER_TOKEN_PREFIX + token);
+        redisService.del(USER_TOKEN_PREFIX + normalized);
+        userId.ifPresent(id -> redisService.srem(userTokenIndexKey(id), normalized));
         return true;
+    }
+
+    /**
+     * 注销某用户的全部会话 token（改密、重置密码后调用）。
+     *
+     * @return 删除的 token 数量
+     */
+    public int revokeAllUserTokens(int userId) {
+        if (userId <= 0) {
+            return 0;
+        }
+        String indexKey = userTokenIndexKey(userId);
+        Set<String> tokens = redisService.smembers(indexKey);
+        int count = 0;
+        for (String t : tokens) {
+            if (t == null || t.isEmpty()) {
+                continue;
+            }
+            redisService.del(USER_TOKEN_PREFIX + t);
+            count++;
+        }
+        redisService.del(indexKey);
+        if (count > 0) {
+            logger.info("已注销用户全部会话 token userId={} count={}", userId, count);
+        }
+        return count;
+    }
+
+    private static String userTokenIndexKey(int userId) {
+        return USER_TOKEN_INDEX_PREFIX + userId;
     }
 
     public void saveAdminToken(String token, int adminId, int ttlSeconds) {

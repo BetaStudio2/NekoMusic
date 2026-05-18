@@ -14,6 +14,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
+import java.util.Collections;
+import java.util.Set;
 
 public class RedisService {
     private static final Logger logger = LoggerFactory.getLogger(RedisService.class);
@@ -146,6 +148,68 @@ public class RedisService {
         } catch (Exception e) {
             logger.error("执行Redis Lua脚本失败: {}", e.getMessage(), e);
             return null;
+        } finally {
+            returnConnection(conn);
+        }
+    }
+
+    public void sadd(String key, String member) {
+        if (key == null || member == null || member.isEmpty()) {
+            return;
+        }
+        StatefulRedisConnection<String, String> conn = null;
+        try {
+            conn = connectionPool.borrowObject();
+            conn.sync().sadd(key, member);
+        } catch (Exception e) {
+            logger.error("Redis SADD 失败: {}", e.getMessage(), e);
+        } finally {
+            returnConnection(conn);
+        }
+    }
+
+    public void srem(String key, String member) {
+        if (key == null || member == null || member.isEmpty()) {
+            return;
+        }
+        StatefulRedisConnection<String, String> conn = null;
+        try {
+            conn = connectionPool.borrowObject();
+            conn.sync().srem(key, member);
+        } catch (Exception e) {
+            logger.error("Redis SREM 失败: {}", e.getMessage(), e);
+        } finally {
+            returnConnection(conn);
+        }
+    }
+
+    public Set<String> smembers(String key) {
+        if (key == null || key.isEmpty()) {
+            return Collections.emptySet();
+        }
+        StatefulRedisConnection<String, String> conn = null;
+        try {
+            conn = connectionPool.borrowObject();
+            Set<String> members = conn.sync().smembers(key);
+            return members != null ? members : Collections.emptySet();
+        } catch (Exception e) {
+            logger.error("Redis SMEMBERS 失败: {}", e.getMessage(), e);
+            return Collections.emptySet();
+        } finally {
+            returnConnection(conn);
+        }
+    }
+
+    public void expire(String key, long seconds) {
+        if (key == null || key.isEmpty() || seconds <= 0) {
+            return;
+        }
+        StatefulRedisConnection<String, String> conn = null;
+        try {
+            conn = connectionPool.borrowObject();
+            conn.sync().expire(key, seconds);
+        } catch (Exception e) {
+            logger.error("Redis EXPIRE 失败: {}", e.getMessage(), e);
         } finally {
             returnConnection(conn);
         }

@@ -107,7 +107,7 @@ public class ResetPasswordHandler extends HttpServlet {
 
             if (success) {
                 logger.info("密码重置成功: {}", email);
-                sendResponse(response, true, "密码重置成功，请使用新密码登录", null);
+                sendResponse(response, true, "密码重置成功，请使用新密码重新登录", null);
             } else {
                 logger.error("密码重置失败: {}", email);
                 sendResponse(response, false, "密码重置失败，请稍后重试", null);
