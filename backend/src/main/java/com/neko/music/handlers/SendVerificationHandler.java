@@ -2,6 +2,7 @@ package com.neko.music.handlers;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
+import com.neko.music.service.SendVerificationCodeResult;
 import com.neko.music.service.UserAuthService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,10 +79,13 @@ public class SendVerificationHandler extends HttpServlet {
                 return;
             }
 
-            // 发送验证码
-            boolean success = userAuthService.sendVerificationCode(email, username);
+            SendVerificationCodeResult result = userAuthService.sendVerificationCode(email, username);
 
-            if (success) {
+            if (result.rateLimited()) {
+                sendCooldownResponse(response, result.retryAfterSec());
+                return;
+            }
+            if (result.success()) {
                 logger.info("验证码发送成功: {}", email);
                 sendResponse(response, true, "验证码已发送至您的邮箱", null);
             } else {
@@ -100,6 +104,17 @@ public class SendVerificationHandler extends HttpServlet {
      */
     private boolean isValidEmail(String email) {
         return email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
+    }
+
+    private void sendCooldownResponse(HttpServletResponse response, long retryAfterSec) throws IOException {
+        long sec = Math.max(1, retryAfterSec);
+        response.setStatus(429);
+        response.setHeader("Retry-After", String.valueOf(sec));
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("retryAfterSec", sec);
+
+        sendResponse(response, false, "发送过于频繁，请 " + sec + " 秒后再试", data);
     }
 
     /**

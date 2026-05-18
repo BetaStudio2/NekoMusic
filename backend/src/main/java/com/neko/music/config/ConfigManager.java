@@ -47,6 +47,9 @@ public class ConfigManager {
     private int rateLimitBlockDuration = 3600; // 封锁时间（秒）
     private boolean rateLimitSilentTimeout = true; // 是否静默超时
 
+    /** 验证码发信：同邮箱冷却秒数 */
+    private int verificationCodeEmailCooldownSeconds = 60;
+
     /** Jetty / Hikari / Redis 连接池，可在 config.yml 的 performance、redis.pool_max_total 中覆盖 */
     private int jettyMaxThreads = 200;
     private int jettyMinThreads = 10;
@@ -199,6 +202,11 @@ public class ConfigManager {
                     if (rateLimitNode.has("max_requests")) rateLimitMaxRequests = rateLimitNode.get("max_requests").asInt();
                     if (rateLimitNode.has("block_duration")) rateLimitBlockDuration = rateLimitNode.get("block_duration").asInt();
                     if (rateLimitNode.has("silent_timeout")) rateLimitSilentTimeout = rateLimitNode.get("silent_timeout").asBoolean();
+                }
+
+                JsonNode verificationCodeNode = configNode.get("verification_code");
+                if (verificationCodeNode != null && verificationCodeNode.has("email_cooldown_seconds")) {
+                    verificationCodeEmailCooldownSeconds = verificationCodeNode.get("email_cooldown_seconds").asInt();
                 }
 
                 JsonNode videoRenderNode = configNode.get("video_render");
@@ -414,6 +422,10 @@ public class ConfigManager {
 
     public boolean isRateLimitSilentTimeout() {
         return rateLimitSilentTimeout;
+    }
+
+    public int getVerificationCodeEmailCooldownSeconds() {
+        return verificationCodeEmailCooldownSeconds;
     }
 
     public int getJettyMaxThreads() {

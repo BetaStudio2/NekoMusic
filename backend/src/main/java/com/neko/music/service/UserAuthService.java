@@ -19,6 +19,7 @@ public class UserAuthService {
     private final EmailService emailService;
     private final RedisService redisService;
     private final RedisTokenStore tokenStore;
+    private final VerificationCodeRateLimitService verificationCodeRateLimitService;
     private final Argon2 argon2 = Argon2Factory.create();
     private static final SecureRandom secureRandom = new SecureRandom();
     
@@ -29,12 +30,14 @@ public class UserAuthService {
 
     public UserAuthService(DatabaseManager databaseManager, ConfigManager configManager,
                            EmailService emailService, RedisService redisService,
-                           RedisTokenStore tokenStore) {
+                           RedisTokenStore tokenStore,
+                           VerificationCodeRateLimitService verificationCodeRateLimitService) {
         this.databaseManager = databaseManager;
         this.configManager = configManager;
         this.emailService = emailService;
         this.redisService = redisService;
         this.tokenStore = tokenStore;
+        this.verificationCodeRateLimitService = verificationCodeRateLimitService;
     }
 
     /**
@@ -109,24 +112,30 @@ public class UserAuthService {
     }
 
     /**
-     * 发送验证码
+     * 发送验证码（注册与重置密码共用；同邮箱有发信冷却）
      */
-    public boolean sendVerificationCode(String email, String username) {
+    public SendVerificationCodeResult sendVerificationCode(String email, String username) {
         logger.info("发送验证码至: {}", email);
 
+        var cooldown = verificationCodeRateLimitService.tryAcquireSendSlot(email);
+        if (cooldown.isPresent()) {
+            return SendVerificationCodeResult.cooldown(cooldown.get());
+        }
+
         String verificationCode = emailService.generateVerificationCode();
-        
+
         boolean emailSent = emailService.sendVerificationCode(email, username, verificationCode);
-        
+
         if (emailSent) {
-            String key = VERIFICATION_CODE_PREFIX + email;
+            String key = VERIFICATION_CODE_PREFIX + email.trim().toLowerCase();
             redisService.setWithExpiry(key, verificationCode, VERIFICATION_CODE_EXPIRY);
             logger.info("验证码已生成并存储到Redis: {}", email);
-            return true;
-        } else {
-            logger.error("发送验证码邮件失败: {}", email);
-            return false;
+            return SendVerificationCodeResult.ok();
         }
+
+        verificationCodeRateLimitService.releaseSendSlot(email);
+        logger.error("发送验证码邮件失败: {}", email);
+        return SendVerificationCodeResult.sendFailed();
     }
     
     /**
@@ -155,7 +164,7 @@ public class UserAuthService {
      * 验证验证码
      */
     public boolean verifyCode(String email, String code) {
-        String key = VERIFICATION_CODE_PREFIX + email;
+        String key = VERIFICATION_CODE_PREFIX + email.trim().toLowerCase();
         String storedCode = redisService.get(key);
         
         if (storedCode == null) {

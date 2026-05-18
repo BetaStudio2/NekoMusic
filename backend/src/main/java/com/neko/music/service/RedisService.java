@@ -3,6 +3,7 @@ package com.neko.music.service;
 import com.neko.music.config.ConfigManager;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
+import io.lettuce.core.SetArgs;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisCommands;
 import io.lettuce.core.resource.ClientResources;
@@ -71,6 +72,27 @@ public class RedisService {
     private void returnConnection(StatefulRedisConnection<String, String> conn) {
         if (conn != null) {
             connectionPool.returnObject(conn);
+        }
+    }
+
+    /**
+     * 仅当键不存在时设置并附带过期时间（SET NX EX）。
+     * @return true 表示设置成功（获得槽位），false 表示键已存在
+     */
+    public boolean setIfAbsentWithExpiry(String key, String value, int seconds) {
+        if (key == null || key.isEmpty() || seconds <= 0) {
+            return false;
+        }
+        StatefulRedisConnection<String, String> conn = null;
+        try {
+            conn = connectionPool.borrowObject();
+            String result = conn.sync().set(key, value, SetArgs.Builder.nx().ex(seconds));
+            return "OK".equals(result);
+        } catch (Exception e) {
+            logger.error("Redis SET NX 失败: {}", e.getMessage(), e);
+            return false;
+        } finally {
+            returnConnection(conn);
         }
     }
 

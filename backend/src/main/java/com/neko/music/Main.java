@@ -18,6 +18,7 @@ import com.neko.music.service.PlaylistService;
 import com.neko.music.service.RedisService;
 import com.neko.music.service.RedisTokenStore;
 import com.neko.music.service.UserAuthService;
+import com.neko.music.service.VerificationCodeRateLimitService;
 import com.neko.music.service.IPRateLimitService;
 import com.neko.music.service.VideoRenderArtifactCleanup;
 import com.neko.music.service.VideoRenderQuotaService;
@@ -115,8 +116,13 @@ public class Main {
         // 初始化邮件服务
         emailService = new EmailService(configManager);
 
+        VerificationCodeRateLimitService verificationCodeRateLimitService =
+                new VerificationCodeRateLimitService(configManager, redisService);
+
         // 初始化用户认证服务
-        userAuthService = new UserAuthService(databaseManager, configManager, emailService, redisService, tokenStore);
+        userAuthService = new UserAuthService(
+                databaseManager, configManager, emailService, redisService, tokenStore,
+                verificationCodeRateLimitService);
 
         // 初始化歌单服务
         playlistService = new PlaylistService(databaseManager);
