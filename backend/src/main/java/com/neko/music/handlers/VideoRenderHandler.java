@@ -188,7 +188,7 @@ public class VideoRenderHandler extends HttpServlet {
         job.setWatermarked(watermarked);
 
         try {
-            Main.getVideoRenderDatabaseManager().insertPending(job);
+            Main.getVideoRenderJobStore().insertPending(job);
         } catch (Exception e) {
             logger.error("创建视频任务失败 userId={} musicId={}", userId, musicId, e);
             sendJson(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false, "创建任务失败");
@@ -224,7 +224,7 @@ public class VideoRenderHandler extends HttpServlet {
 
     private static void jobDbMarkFailed(String jobId, String message) {
         try {
-            Main.getVideoRenderDatabaseManager().markFailed(jobId, message);
+            Main.getVideoRenderJobStore().markFailed(jobId, message);
         } catch (Exception ignored) {
         }
     }
@@ -240,7 +240,7 @@ public class VideoRenderHandler extends HttpServlet {
             return;
         }
 
-        Optional<VideoRenderJob> jobOpt = Main.getVideoRenderDatabaseManager()
+        Optional<VideoRenderJob> jobOpt = Main.getVideoRenderJobStore()
                 .findByIdAndUserId(jobId, userIdOpt.get());
         if (jobOpt.isEmpty()) {
             sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "任务不存在");
@@ -274,7 +274,7 @@ public class VideoRenderHandler extends HttpServlet {
             return;
         }
 
-        Optional<VideoRenderJob> jobOpt = Main.getVideoRenderDatabaseManager().findById(jobId);
+        Optional<VideoRenderJob> jobOpt = Main.getVideoRenderJobStore().findById(jobId);
         if (jobOpt.isEmpty()) {
             sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "任务不存在");
             return;

@@ -269,52 +269,6 @@ public class DatabaseInitializer {
                 logger.warn("创建 vip_pay_orders 表失败（可能已存在）: {}", e.getMessage());
             }
 
-            String createVideoRenderJobs = """
-                CREATE TABLE IF NOT EXISTS video_render_jobs (
-                    id CHAR(36) NOT NULL PRIMARY KEY,
-                    download_token CHAR(64) NULL,
-                    user_id INT NOT NULL,
-                    music_id INT NOT NULL,
-                    start_sec DOUBLE NOT NULL DEFAULT 0,
-                    duration_sec DOUBLE NOT NULL,
-                    watermarked TINYINT(1) NOT NULL DEFAULT 0,
-                    status ENUM('pending','processing','done','failed') NOT NULL DEFAULT 'pending',
-                    error_message VARCHAR(512) NULL,
-                    output_rel_path VARCHAR(512) NULL,
-                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    finished_at TIMESTAMP NULL DEFAULT NULL,
-                    UNIQUE KEY uk_video_render_download_token (download_token),
-                    KEY idx_video_render_user_created (user_id, created_at),
-                    KEY idx_video_render_status (status, created_at),
-                    CONSTRAINT fk_video_render_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-                """;
-            try {
-                stmt.execute(createVideoRenderJobs);
-                logger.info("video_render_jobs 表已就绪");
-            } catch (Exception e) {
-                logger.warn("创建 video_render_jobs 表失败（可能已存在）: {}", e.getMessage());
-            }
-
-            try {
-                stmt.execute("""
-                        ALTER TABLE video_render_jobs
-                        ADD COLUMN download_token CHAR(64) NULL AFTER id
-                        """);
-                logger.info("video_render_jobs.download_token 列已添加");
-            } catch (Exception e) {
-                logger.debug("video_render_jobs.download_token 列可能已存在: {}", e.getMessage());
-            }
-            try {
-                stmt.execute("""
-                        ALTER TABLE video_render_jobs
-                        ADD UNIQUE KEY uk_video_render_download_token (download_token)
-                        """);
-                logger.info("video_render_jobs.download_token 唯一索引已添加");
-            } catch (Exception e) {
-                logger.debug("video_render_jobs.download_token 唯一索引可能已存在: {}", e.getMessage());
-            }
-
             logger.info("数据库表初始化完成");
             
         } catch (Exception e) {

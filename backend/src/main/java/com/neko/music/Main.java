@@ -6,7 +6,7 @@ import com.neko.music.config.ConfigManager;
 import com.neko.music.database.AdminDatabaseManager;
 import com.neko.music.database.DatabaseManager;
 import com.neko.music.database.DatabaseInitializer;
-import com.neko.music.database.VideoRenderDatabaseManager;
+import com.neko.music.service.VideoRenderJobStore;
 import com.neko.music.database.VipPayOrderDatabaseManager;
 import com.neko.music.database.VipPricingDatabaseManager;
 import com.neko.music.handlers.*;
@@ -66,7 +66,7 @@ public class Main {
     private static IPRateLimitService ipRateLimitService;
     private static VipPricingDatabaseManager vipPricingDatabaseManager;
     private static VipPayOrderDatabaseManager vipPayOrderDatabaseManager;
-    private static VideoRenderDatabaseManager videoRenderDatabaseManager;
+    private static VideoRenderJobStore videoRenderJobStore;
     private static VideoRenderQuotaService videoRenderQuotaService;
     private static VideoRenderService videoRenderService;
 
@@ -99,9 +99,9 @@ public class Main {
         ipRateLimitService = new IPRateLimitService(configManager, redisService);
         RedisTokenStore tokenStore = new RedisTokenStore(redisService);
 
-        videoRenderDatabaseManager = new VideoRenderDatabaseManager(databaseManager);
+        videoRenderJobStore = new VideoRenderJobStore(redisService, objectMapper);
         videoRenderQuotaService = new VideoRenderQuotaService(configManager, redisService);
-        videoRenderService = new VideoRenderService(configManager, videoRenderDatabaseManager);
+        videoRenderService = new VideoRenderService(configManager, videoRenderJobStore);
         Runtime.getRuntime().addShutdownHook(new Thread(videoRenderService::shutdown, "video-render-shutdown"));
 
         // 初始化管理员数据库管理器和认证服务
@@ -506,8 +506,8 @@ public class Main {
         return vipPayOrderDatabaseManager;
     }
 
-    public static VideoRenderDatabaseManager getVideoRenderDatabaseManager() {
-        return videoRenderDatabaseManager;
+    public static VideoRenderJobStore getVideoRenderJobStore() {
+        return videoRenderJobStore;
     }
 
     public static VideoRenderQuotaService getVideoRenderQuotaService() {

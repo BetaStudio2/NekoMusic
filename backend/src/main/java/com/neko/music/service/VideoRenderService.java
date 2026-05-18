@@ -2,7 +2,6 @@ package com.neko.music.service;
 
 import com.neko.music.Main;
 import com.neko.music.config.ConfigManager;
-import com.neko.music.database.VideoRenderDatabaseManager;
 import com.neko.music.model.VideoRenderJob;
 import com.neko.music.util.BundledFfmpegSupport;
 import com.neko.music.util.BundledRenderFontSupport;
@@ -58,12 +57,12 @@ public class VideoRenderService {
     private static final String ROUNDED_ALPHA = roundedRectAlphaExpr(COVER_RADIUS);
 
     private final ConfigManager configManager;
-    private final VideoRenderDatabaseManager jobDb;
+    private final VideoRenderJobStore jobStore;
     private final ThreadPoolExecutor executor;
 
-    public VideoRenderService(ConfigManager configManager, VideoRenderDatabaseManager jobDb) {
+    public VideoRenderService(ConfigManager configManager, VideoRenderJobStore jobStore) {
         this.configManager = configManager;
-        this.jobDb = jobDb;
+        this.jobStore = jobStore;
         int threads = Math.max(1, configManager.getVideoRenderWorkerThreads());
         AtomicInteger idx = new AtomicInteger();
         ThreadFactory factory = r -> {
@@ -109,7 +108,7 @@ public class VideoRenderService {
     private void runJob(VideoRenderJob job, String title, String artist, Path audioFile, Optional<Path> coverFile) {
         Path assFile = null;
         try {
-            jobDb.markProcessing(job.getId());
+            jobStore.markProcessing(job.getId());
             VideoRenderPaths.ensureVideoDir();
             Path output = VideoRenderPaths.outputFile(job.getId());
             assFile = VideoRenderPaths.assFile(job.getId());
@@ -120,13 +119,13 @@ public class VideoRenderService {
             if (!Files.isRegularFile(output) || Files.size(output) <= 0) {
                 throw new IOException("渲染输出文件无效");
             }
-            jobDb.markDone(job.getId(), VideoRenderPaths.outputRelPath(job.getId()));
+            jobStore.markDone(job.getId(), VideoRenderPaths.outputRelPath(job.getId()));
             logger.info("视频渲染完成 jobId={} userId={} musicId={} lyricsLines={}",
                     job.getId(), job.getUserId(), job.getMusicId(), lyrics.size());
             notifyRenderCompleteByEmail(job, title, artist);
         } catch (Exception e) {
             logger.error("视频渲染失败 jobId={}: {}", job.getId(), e.getMessage(), e);
-            jobDb.markFailed(job.getId(), shortenError(e.getMessage()));
+            jobStore.markFailed(job.getId(), shortenError(e.getMessage()));
             try {
                 Files.deleteIfExists(VideoRenderPaths.outputFile(job.getId()));
             } catch (IOException ignored) {
