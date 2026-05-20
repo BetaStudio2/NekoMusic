@@ -2,6 +2,8 @@ package com.neko.music.handlers;
 
 import com.neko.music.Main;
 import com.neko.music.util.AudioFileValidator;
+import com.neko.music.util.AudioIntegrityValidator;
+import com.neko.music.util.TempAudioSpool;
 import com.neko.music.util.LrcValidator;
 import com.neko.music.util.SensitiveWordUtil;
 import jakarta.servlet.ServletException;
@@ -94,17 +96,6 @@ public class UserUploadHandler extends HttpServlet {
             }
             else logger.info("所有内容未包含违禁词");
             
-            // 查重检查：检查是否已存在相同的音乐
-            String duplicateType = isDuplicateMusic(title, artist, album);
-            if (duplicateType != null) {
-                if ("pending".equals(duplicateType)) {
-                    sendError(response, 409, "已有用户上传。请勿重复提交");
-                } else {
-                    sendError(response, 409, "已有重复音乐，请检查后重新上传");
-                }
-                return;
-            }
-            
             int duration = 0;
             if (durationStr != null && !durationStr.isEmpty()) {
                 try {
@@ -124,22 +115,28 @@ public class UserUploadHandler extends HttpServlet {
                 return;
             }
             
-            // 验证音乐文件格式 - 完全基于文件内容检测格式
+            // 音乐：临时文件上先完成魔数、假无损/完整性校验，通过后再查重并落盘 user_upload（无效文件不打查重库、不占业务盘）
+            String uploadBaseDir = UPLOAD_DIR;
+
             String musicFileExtension = getFileExtension(musicFilePart.getSubmittedFileName()).toLowerCase();
+            String dotExt = musicFileExtension.startsWith(".") ? musicFileExtension : "." + musicFileExtension;
+            String extNoDot = dotExt.substring(1);
+            String timestamp = String.valueOf(System.currentTimeMillis());
+            Path musicTemp = Files.createTempFile("neko_user_music_", "." + extNoDot);
+            boolean deleteTempIfPresent = true;
+            String musicFilePath;
             String fileFormat;
-            
-            // 使用魔数验证音频文件的真实格式，不信任文件扩展名
-            try (InputStream musicInputStream = musicFilePart.getInputStream()) {
-                AudioFileValidator.FormatDetectionResult detectionResult = AudioFileValidator.detectAndValidate(
-                        musicInputStream, musicFileExtension);
-                
+            AudioFileValidator.AudioFormat detectedFormat;
+            try {
+                Files.copy(musicFilePart.getInputStream(), musicTemp, StandardCopyOption.REPLACE_EXISTING);
+                AudioFileValidator.FormatDetectionResult detectionResult =
+                        AudioFileValidator.detectAndValidatePath(musicTemp, musicFileExtension);
                 if (!detectionResult.isValid()) {
                     sendError(response, 400, "音频文件格式错误: " + detectionResult.getErrorMessage());
                     return;
                 }
-                
-                // 根据检测到的实际格式设置文件格式
-                switch (detectionResult.getFormat()) {
+                detectedFormat = detectionResult.getFormat();
+                switch (detectedFormat) {
                     case MP3:
                         fileFormat = "mp3";
                         break;
@@ -153,28 +150,45 @@ public class UserUploadHandler extends HttpServlet {
                         sendError(response, 400, "不支持的音频格式");
                         return;
                 }
-                
                 logger.info("检测到文件格式: {} (实际格式: {})", fileFormat, detectionResult.getFormatDescription());
+
+                String audioProblem = AudioIntegrityValidator.validateSavedFile(musicTemp, detectedFormat);
+                if (audioProblem != null) {
+                    sendError(response, 400, audioProblem);
+                    return;
+                }
+
+                String duplicateType = isDuplicateMusic(title, artist, album);
+                if (duplicateType != null) {
+                    if ("pending".equals(duplicateType)) {
+                        sendError(response, 409, "已有用户上传。请勿重复提交");
+                    } else {
+                        sendError(response, 409, "已有重复音乐，请检查后重新上传");
+                    }
+                    return;
+                }
+
+                File uploadDir = new File(uploadBaseDir);
+                if (!uploadDir.exists()) {
+                    uploadDir.mkdirs();
+                }
+                String musicFileName = "music_" + timestamp + "." + fileFormat;
+                musicFilePath = Paths.get(uploadBaseDir, musicFileName).toString();
+                TempAudioSpool.commitReplace(musicTemp, Paths.get(musicFilePath));
+                deleteTempIfPresent = false;
             } catch (Exception e) {
-                logger.error("验证音频文件格式时出错", e);
-                sendError(response, 400, "验证音频文件格式时出错: " + e.getMessage());
+                logger.error("处理音乐文件时出错", e);
+                sendError(response, 400, "处理音乐文件时出错: " + e.getMessage());
                 return;
+            } finally {
+                if (deleteTempIfPresent) {
+                    try {
+                        Files.deleteIfExists(musicTemp);
+                    } catch (IOException ex) {
+                        logger.warn("删除临时音乐失败: {}", musicTemp);
+                    }
+                }
             }
-            
-            // 创建上传目录
-            String uploadBaseDir = UPLOAD_DIR;
-            File uploadDir = new File(uploadBaseDir);
-            if (!uploadDir.exists()) {
-                uploadDir.mkdirs();
-            }
-            
-            // 生成唯一文件名
-            String timestamp = String.valueOf(System.currentTimeMillis());
-            
-            // 保存音乐文件（使用检测到的实际格式）
-            String musicFileName = "music_" + timestamp + "." + fileFormat;
-            String musicFilePath = Paths.get(uploadBaseDir, musicFileName).toString();
-            saveFile(musicFilePart, musicFilePath);
             
             // 保存封面文件（可选）
             String coverFilePath = null;

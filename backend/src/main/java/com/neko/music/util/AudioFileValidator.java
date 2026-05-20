@@ -1,7 +1,10 @@
 package com.neko.music.util;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * 音频文件格式验证工具类
@@ -377,6 +380,35 @@ public class AudioFileValidator {
             }
 
             return FormatDetectionResult.success(detectedFormat, formatDescription);
+        } catch (IOException e) {
+            return FormatDetectionResult.fail("读取文件失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 基于磁盘路径做魔数 + 扩展名检测（先读至多 512KB 前缀，避免大文件全读入内存）。
+     */
+    public static FormatDetectionResult detectAndValidatePath(Path path, String fileExtension) {
+        try {
+            long size = Files.size(path);
+            if (size < 4) {
+                return FormatDetectionResult.fail("文件太小，无法确定格式");
+            }
+            int peek = (int) Math.min(size, 512 * 1024);
+            byte[] prefix = new byte[peek];
+            int totalRead = 0;
+            try (InputStream in = Files.newInputStream(path)) {
+                while (totalRead < peek) {
+                    int n = in.read(prefix, totalRead, peek - totalRead);
+                    if (n <= 0) {
+                        break;
+                    }
+                    totalRead += n;
+                }
+            }
+            try (ByteArrayInputStream bais = new ByteArrayInputStream(prefix, 0, totalRead)) {
+                return detectAndValidate(bais, fileExtension);
+            }
         } catch (IOException e) {
             return FormatDetectionResult.fail("读取文件失败: " + e.getMessage());
         }

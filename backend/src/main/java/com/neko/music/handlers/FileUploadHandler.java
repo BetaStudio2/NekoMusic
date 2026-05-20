@@ -3,8 +3,10 @@ package com.neko.music.handlers;
 import com.neko.music.Main;
 import com.neko.music.util.MusicAssetLocator;
 import com.neko.music.util.AudioFileValidator;
+import com.neko.music.util.AudioIntegrityValidator;
 import com.neko.music.util.LrcValidator;
 import com.neko.music.util.MusicAdMetadataPatcher;
+import com.neko.music.util.TempAudioSpool;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -121,15 +123,6 @@ public class FileUploadHandler extends HttpServlet {
                 return;
             }
             
-            // 查重检查：检查是否已存在相同的音乐
-            if (isDuplicateMusic(title, artist, album)) {
-                response.setStatus(HttpStatus.OK_200);
-                response.setContentType("application/json;charset=utf-8");
-                MusicResponse errorResponse = new MusicResponse(false, "已有重复音乐", null);
-                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-                return;
-            }
-            
             // 验证歌词文件必填
             if (lyricsFilePart == null) {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
@@ -177,53 +170,6 @@ public class FileUploadHandler extends HttpServlet {
                 return;
             }
             
-            // 检查文件类型 - 完全基于文件内容检测格式
-            String musicFileName = getFileName(musicFilePart);
-            String fileExtension = getFileExtension(musicFileName).toLowerCase();
-
-            // 使用魔数验证音频文件的真实格式，不信任文件扩展名
-            String fileFormat;
-            try (InputStream musicInputStream = musicFilePart.getInputStream()) {
-                AudioFileValidator.FormatDetectionResult detectionResult = AudioFileValidator.detectAndValidate(
-                        musicInputStream, fileExtension);
-                
-                if (!detectionResult.isValid()) {
-                    response.setStatus(HttpStatus.BAD_REQUEST_400);
-                    response.setContentType("application/json;charset=utf-8");
-                    ErrorResponse errorResponse = new ErrorResponse("音频文件格式错误: " + detectionResult.getErrorMessage());
-                    response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-                    return;
-                }
-                
-                // 根据检测到的实际格式设置文件格式
-                switch (detectionResult.getFormat()) {
-                    case MP3:
-                        fileFormat = "mp3";
-                        break;
-                    case FLAC:
-                        fileFormat = "flac";
-                        break;
-                    case WAV:
-                        fileFormat = "wav";
-                        break;
-                    default:
-                        response.setStatus(HttpStatus.BAD_REQUEST_400);
-                        response.setContentType("application/json;charset=utf-8");
-                        ErrorResponse errorResponse = new ErrorResponse("不支持的音频格式");
-                        response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-                        return;
-                }
-                
-                logger.info("检测到文件格式: {} (实际格式: {})", fileFormat, detectionResult.getFormatDescription());
-            } catch (Exception e) {
-                logger.error("验证音频文件格式时出错", e);
-                response.setStatus(HttpStatus.BAD_REQUEST_400);
-                response.setContentType("application/json;charset=utf-8");
-                ErrorResponse errorResponse = new ErrorResponse("验证音频文件格式时出错: " + e.getMessage());
-                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-                return;
-            }
-            
             // 创建上传目录
             Path musicPath = Paths.get(MUSIC_DIR);
             Path coverPath = Paths.get(COVER_DIR);
@@ -246,36 +192,110 @@ public class FileUploadHandler extends HttpServlet {
                 
                 coverFileName = fileName;
             }
-            
-            // 读取音频时长（如果前端没有提供）- 先跳过，在文件保存后再读取
-            // duration会在文件保存后更新
 
-            // 生成音乐ID并保存音乐信息到数据库
-            int musicId = insertMusicToDatabase(title, artist, album, language, tags, duration, uploadUserId, fileFormat);
-
-            // 构建文件路径（根据文件格式动态生成扩展名）
-            String musicFilePath = MUSIC_DIR + File.separator + musicId + "." + fileFormat;
+            // 音乐：先写入系统临时目录校验，通过后再入库并落盘（失败无库行、不写 Music/music）
+            String musicFileName = getFileName(musicFilePart);
+            String fileExtension = getFileExtension(musicFileName).toLowerCase();
+            Path musicTemp = Files.createTempFile("neko_admin_music_", "." + fileExtension);
+            boolean deleteMusicTempIfPresent = true;
+            int musicId = 0;
+            String musicFilePath = null;
             String coverFilePath = null;
-            
-            if (coverFilePart != null) {
-                // 获取文件扩展名
-                String extension = getFileExtension(coverFileName);
-                coverFilePath = COVER_DIR + File.separator + musicId + "." + extension;
-            }
-            
-            // 保存音乐文件
-            Path musicFile = Paths.get(musicFilePath);
-            try (InputStream inputStream = musicFilePart.getInputStream()) {
-                Files.copy(inputStream, musicFile);
-                logger.info("音乐文件已保存到: " + musicFilePath);
-            }
-            MusicAdMetadataPatcher.patchQuietly(musicFile);
+            String fileFormat = null;
+            try {
+                Files.copy(musicFilePart.getInputStream(), musicTemp, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
 
-            // 文件保存后，如果前端未提供时长，从已保存文件读取（避免临时文件双写）
-            if (duration == 0) {
+                AudioFileValidator.FormatDetectionResult detectionResult =
+                        AudioFileValidator.detectAndValidatePath(musicTemp, fileExtension);
+                if (!detectionResult.isValid()) {
+                    response.setStatus(HttpStatus.BAD_REQUEST_400);
+                    response.setContentType("application/json;charset=utf-8");
+                    ErrorResponse errorResponse = new ErrorResponse("音频文件格式错误: " + detectionResult.getErrorMessage());
+                    response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+                    return;
+                }
+                switch (detectionResult.getFormat()) {
+                    case MP3 -> fileFormat = "mp3";
+                    case FLAC -> fileFormat = "flac";
+                    case WAV -> fileFormat = "wav";
+                    default -> {
+                        response.setStatus(HttpStatus.BAD_REQUEST_400);
+                        response.setContentType("application/json;charset=utf-8");
+                        ErrorResponse errorResponse = new ErrorResponse("不支持的音频格式");
+                        response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+                        return;
+                    }
+                }
+                logger.info("检测到文件格式: {} (实际格式: {})", fileFormat, detectionResult.getFormatDescription());
+
+                if (duration == 0) {
+                    duration = readAudioDurationFromPath(musicTemp.toString());
+                }
+
+                AudioFileValidator.AudioFormat integrityFormat = switch (fileFormat) {
+                    case "flac" -> AudioFileValidator.AudioFormat.FLAC;
+                    case "wav" -> AudioFileValidator.AudioFormat.WAV;
+                    default -> AudioFileValidator.AudioFormat.MP3;
+                };
+                String audioIntegrityError = AudioIntegrityValidator.validateSavedFile(musicTemp, integrityFormat);
+                if (audioIntegrityError != null) {
+                    response.setStatus(HttpStatus.BAD_REQUEST_400);
+                    response.setContentType("application/json;charset=utf-8");
+                    ErrorResponse errorResponse = new ErrorResponse(audioIntegrityError);
+                    response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+                    return;
+                }
+
+                // 音频通过后再查重，避免无效文件也访问库
+                if (isDuplicateMusic(title, artist, album)) {
+                    response.setStatus(HttpStatus.OK_200);
+                    response.setContentType("application/json;charset=utf-8");
+                    MusicResponse errorResponse = new MusicResponse(false, "已有重复音乐", null);
+                    response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+                    return;
+                }
+
+                MusicAdMetadataPatcher.patchQuietly(musicTemp);
+
+                musicId = insertMusicToDatabase(title, artist, album, language, tags, duration, uploadUserId, fileFormat);
+                musicFilePath = MUSIC_DIR + File.separator + musicId + "." + fileFormat;
+                if (coverFilePart != null) {
+                    String extension = getFileExtension(coverFileName);
+                    coverFilePath = COVER_DIR + File.separator + musicId + "." + extension;
+                }
+                TempAudioSpool.commitReplace(musicTemp, Paths.get(musicFilePath));
+                deleteMusicTempIfPresent = false;
+                logger.info("音乐文件已保存到: {}", musicFilePath);
+            } catch (Exception e) {
+                if (musicId > 0) {
+                    deleteMusicRecordById(musicId);
+                    if (musicFilePath != null) {
+                        try {
+                            Files.deleteIfExists(Paths.get(musicFilePath));
+                        } catch (IOException io) {
+                            logger.warn("删除不完整音乐文件失败: {}", musicFilePath, io);
+                        }
+                    }
+                }
+                logger.error("处理管理员上传音乐文件失败", e);
+                response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
+                response.setContentType("application/json;charset=utf-8");
+                ErrorResponse errorResponse = new ErrorResponse("上传音乐失败: " + e.getMessage());
+                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+                return;
+            } finally {
+                if (deleteMusicTempIfPresent) {
+                    try {
+                        Files.deleteIfExists(musicTemp);
+                    } catch (IOException io) {
+                        logger.warn("删除临时音乐文件失败: {}", musicTemp, io);
+                    }
+                }
+            }
+
+            if (duration == 0 && musicFilePath != null) {
                 duration = readAudioDurationFromPath(musicFilePath);
                 if (duration > 0) {
-                    // 更新数据库中的时长
                     updateDurationInDatabase(musicId, duration);
                 }
             }
@@ -455,16 +475,17 @@ public class FileUploadHandler extends HttpServlet {
             
             // 检查是否上传了新的音乐文件
             if (musicFilePart != null) {
-                // 检查文件类型 - 完全基于文件内容检测格式
                 String musicFileName = getFileName(musicFilePart);
                 String fileExtension = getFileExtension(musicFileName).toLowerCase();
+                Path musicTemp = Files.createTempFile("neko_admin_music_", "." + fileExtension);
+                boolean deleteMusicTempIfPresent = true;
+                String fileFormat = null;
+                String musicFilePath = null;
+                try {
+                    Files.copy(musicFilePart.getInputStream(), musicTemp, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
 
-                // 使用魔数验证音频文件的真实格式，不信任文件扩展名
-                String fileFormat;
-                try (InputStream musicInputStream = musicFilePart.getInputStream()) {
-                    AudioFileValidator.FormatDetectionResult detectionResult = AudioFileValidator.detectAndValidate(
-                            musicInputStream, fileExtension);
-                    
+                    AudioFileValidator.FormatDetectionResult detectionResult =
+                            AudioFileValidator.detectAndValidatePath(musicTemp, fileExtension);
                     if (!detectionResult.isValid()) {
                         response.setStatus(HttpStatus.BAD_REQUEST_400);
                         response.setContentType("application/json;charset=utf-8");
@@ -472,56 +493,63 @@ public class FileUploadHandler extends HttpServlet {
                         response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                         return;
                     }
-                    
-                    // 根据检测到的实际格式设置文件格式
                     switch (detectionResult.getFormat()) {
-                        case MP3:
-                            fileFormat = "mp3";
-                            break;
-                        case FLAC:
-                            fileFormat = "flac";
-                            break;
-                        case WAV:
-                            fileFormat = "wav";
-                            break;
-                        default:
+                        case MP3 -> fileFormat = "mp3";
+                        case FLAC -> fileFormat = "flac";
+                        case WAV -> fileFormat = "wav";
+                        default -> {
                             response.setStatus(HttpStatus.BAD_REQUEST_400);
                             response.setContentType("application/json;charset=utf-8");
                             ErrorResponse errorResponse = new ErrorResponse("不支持的音频格式");
                             response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                             return;
+                        }
                     }
-                    
                     logger.info("检测到文件格式: {} (实际格式: {})", fileFormat, detectionResult.getFormatDescription());
+
+                    if (duration == 0) {
+                        duration = readAudioDurationFromPath(musicTemp.toString());
+                    }
+
+                    AudioFileValidator.AudioFormat integrityFormat = switch (fileFormat) {
+                        case "flac" -> AudioFileValidator.AudioFormat.FLAC;
+                        case "wav" -> AudioFileValidator.AudioFormat.WAV;
+                        default -> AudioFileValidator.AudioFormat.MP3;
+                    };
+                    String audioIntegrityError = AudioIntegrityValidator.validateSavedFile(musicTemp, integrityFormat);
+                    if (audioIntegrityError != null) {
+                        response.setStatus(HttpStatus.BAD_REQUEST_400);
+                        response.setContentType("application/json;charset=utf-8");
+                        ErrorResponse errorResponse = new ErrorResponse(audioIntegrityError);
+                        response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+                        return;
+                    }
+
+                    MusicAdMetadataPatcher.patchQuietly(musicTemp);
+
+                    musicFilePath = MUSIC_DIR + File.separator + id + "." + fileFormat;
+                    MusicAssetLocator.deleteAudioVariants(id);
+                    TempAudioSpool.commitReplace(musicTemp, Paths.get(musicFilePath));
+                    deleteMusicTempIfPresent = false;
+                    logger.info("音乐文件已保存到: {}", musicFilePath);
+
+                    updateFileFormatInDatabase(id, fileFormat);
                 } catch (Exception e) {
-                    logger.error("验证音频文件格式时出错", e);
-                    response.setStatus(HttpStatus.BAD_REQUEST_400);
+                    logger.error("更新音乐文件失败 id={}", id, e);
+                    response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
                     response.setContentType("application/json;charset=utf-8");
-                    ErrorResponse errorResponse = new ErrorResponse("验证音频文件格式时出错: " + e.getMessage());
+                    ErrorResponse errorResponse = new ErrorResponse("更新音乐文件失败: " + e.getMessage());
                     response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                     return;
+                } finally {
+                    if (deleteMusicTempIfPresent) {
+                        try {
+                            Files.deleteIfExists(musicTemp);
+                        } catch (IOException io) {
+                            logger.warn("删除临时音乐文件失败: {}", musicTemp, io);
+                        }
+                    }
                 }
-
-                // 读取音频时长（如果前端没有提供）
-                if (duration == 0) {
-                    duration = readAudioDuration(musicFilePart, fileExtension);
-                }
-
-                // 构建新文件路径（根据文件格式动态生成扩展名）
-                String musicFilePath = MUSIC_DIR + File.separator + id + "." + fileFormat;
-
-                MusicAssetLocator.deleteAudioVariants(id);
-
-                // 保存音乐文件
-                Path musicFile = Paths.get(musicFilePath);
-                try (InputStream inputStream = musicFilePart.getInputStream()) {
-                    Files.copy(inputStream, musicFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                    logger.info("音乐文件已保存到: " + musicFilePath);
-                }
-                MusicAdMetadataPatcher.patchQuietly(musicFile);
-
-                // 更新数据库中的文件格式
-                updateFileFormatInDatabase(id, fileFormat);
             } else {
                 // 如果没有上传新音乐文件，但前端提供了时长，更新时长
                 if (duration != 0) {
@@ -694,7 +722,17 @@ public class FileUploadHandler extends HttpServlet {
         }
         return id;
     }
-    
+
+    private void deleteMusicRecordById(int musicId) {
+        try (Connection conn = Main.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement("DELETE FROM music WHERE id = ?")) {
+            stmt.setInt(1, musicId);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            logger.error("删除无效 music 记录失败 id={}", musicId, e);
+        }
+    }
+
     // 验证用户是否存在
     private boolean isUserExists(Connection conn, int userId) throws SQLException {
         String sql = "SELECT COUNT(*) FROM users WHERE id = ?";
