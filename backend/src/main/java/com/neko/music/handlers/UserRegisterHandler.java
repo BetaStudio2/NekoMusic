@@ -59,13 +59,6 @@ public class UserRegisterHandler extends HttpServlet {
             String password = requestData.has("password") ? requestData.get("password").asText() : null;
             String email = requestData.has("email") ? requestData.get("email").asText().trim() : null;
             String verificationCode = requestData.has("verificationCode") ? requestData.get("verificationCode").asText().trim() : null;
-            String captchaToken = requestData.has("captchaToken") ? requestData.get("captchaToken").asText().trim() : null;
-            final int captchaOffsetX;
-            if (requestData.has("captchaOffsetX") && requestData.get("captchaOffsetX").isNumber()) {
-                captchaOffsetX = requestData.get("captchaOffsetX").asInt();
-            } else {
-                captchaOffsetX = Integer.MIN_VALUE;
-            }
 
             // 1. 基础非空校验
             if (isEmpty(username) || isEmpty(password) || isEmpty(email)) {
@@ -73,25 +66,14 @@ public class UserRegisterHandler extends HttpServlet {
                 return;
             }
 
-            // 2. 注册接口内强制滑块校验（缺参、过期、位移不对一律拒绝，不查库、不写用户）
-            if (isEmpty(captchaToken) || captchaOffsetX == Integer.MIN_VALUE) {
-                logger.warn("注册缺少滑块参数 IP: {}", request.getRemoteAddr());
-                sendResponse(response, false, "注册必须完成滑块验证喵", null);
-                return;
-            }
-            if (!Main.getSliderCaptchaService().verifyAndConsume(captchaToken, captchaOffsetX)) {
-                sendResponse(response, false, "滑块验证失败或已过期，请刷新后重试喵", null);
-                return;
-            }
-
-            // 3. 邮箱验证码
+            // 2. 邮箱验证码
             if (isEmpty(verificationCode)) {
                 logger.warn("检测到恶意注册尝试：未提供验证码。IP: {}", request.getRemoteAddr());
                 sendResponse(response, false, "必须提供验证码喵！", null);
                 return;
             }
 
-            // 4. 邮箱格式及白名单校验
+            // 3. 邮箱格式及白名单校验
             if (!isValidEmail(email)) {
                 sendResponse(response, false, "邮箱格式不正确喵", null);
                 return;
@@ -102,7 +84,7 @@ public class UserRegisterHandler extends HttpServlet {
                 return;
             }
 
-            // 5. 用户名与密码长度/合规校验
+            // 4. 用户名与密码长度/合规校验
             if (username.length() < 3 || username.length() > 20) {
                 sendResponse(response, false, "用户名长度需在3-20之间喵", null);
                 return;
@@ -116,14 +98,14 @@ public class UserRegisterHandler extends HttpServlet {
                 return;
             }
 
-            // 6. 邮箱验证码有效性校验
+            // 5. 邮箱验证码有效性校验
             boolean isValidCode = userAuthService.verifyCode(email, verificationCode);
             if (!isValidCode) {
                 sendResponse(response, false, "验证码错误或已过期喵", null);
                 return;
             }
 
-            // 7. 执行注册
+            // 6. 执行注册
             boolean success = userAuthService.registerUser(username, password, email);
             if (success) {
                 logger.info("用户注册成功: {}", username);

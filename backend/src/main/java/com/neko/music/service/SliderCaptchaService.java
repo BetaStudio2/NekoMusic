@@ -12,17 +12,17 @@ import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.security.SecureRandom;
 
 /**
- * 服务端滑块拼图：生成图、在内存中保存正确 X；{@link #verifyAndConsume} 一次性消费 token。
- * 与 {@code POST /api/user/register} 配合：注册接口内必须校验通过才允许继续。
+ * 服务端滑块拼图：签发挑战、松手校验换取短时 passToken、发送邮箱验证码时消费 passToken。
  */
 public class SliderCaptchaService {
 
@@ -34,10 +34,13 @@ public class SliderCaptchaService {
     private static final int PUZZLE_H = 52;
     private static final int PUZZLE_ARC = 10;
     private static final int TOLERANCE_PX = 5;
-    private static final long TTL_MS = 3 * 60 * 1000L;
+    private static final long CHALLENGE_TTL_MS = 3 * 60 * 1000L;
+    public static final long PASS_TTL_MS = 2 * 60 * 1000L;
 
     private final SecureRandom random = new SecureRandom();
-    private final ConcurrentHashMap<String, StoredChallenge> store = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, StoredChallenge> challenges = new ConcurrentHashMap<>();
+    /** passToken -> 过期时间 epoch ms */
+    private final ConcurrentHashMap<String, Long> passTokens = new ConcurrentHashMap<>();
 
     private static final class StoredChallenge {
         final int secretX;
@@ -76,7 +79,7 @@ public class SliderCaptchaService {
 
         String token = UUID.randomUUID().toString().replace("-", "");
         long now = System.currentTimeMillis();
-        store.put(token, new StoredChallenge(secretX, now + TTL_MS));
+        challenges.put(token, new StoredChallenge(secretX, now + CHALLENGE_TTL_MS));
 
         return Map.of(
                 "captchaToken", token,
@@ -90,35 +93,57 @@ public class SliderCaptchaService {
         );
     }
 
-    /** 校验成功则删除 token，失败或过期返回 false */
-    public boolean verifyAndConsume(String token, int clientOffsetX) {
+    /**
+     * 校验拼图位移；无论对错都会消耗当前 captchaToken。
+     *
+     * @return 成功时返回短时 captchaPassToken，失败返回 empty
+     */
+    public Optional<String> verifySlideAndIssuePass(String token, int clientOffsetX) {
         if (token == null || token.isBlank()) {
+            return Optional.empty();
+        }
+        pruneExpired();
+        StoredChallenge ch = challenges.remove(token.trim());
+        if (ch == null) {
+            return Optional.empty();
+        }
+        if (System.currentTimeMillis() > ch.expiresAtMs) {
+            return Optional.empty();
+        }
+        if (Math.abs(clientOffsetX - ch.secretX) > TOLERANCE_PX) {
+            logger.debug("slider offset mismatch clientX={} expected={}", clientOffsetX, ch.secretX);
+            return Optional.empty();
+        }
+        String pass = UUID.randomUUID().toString().replace("-", "");
+        passTokens.put(pass, System.currentTimeMillis() + PASS_TTL_MS);
+        return Optional.of(pass);
+    }
+
+    /** 发送验证码前消费 passToken；重复或过期返回 false */
+    public boolean consumePassToken(String passToken) {
+        if (passToken == null || passToken.isBlank()) {
             return false;
         }
         pruneExpired();
-        StoredChallenge ch = store.remove(token.trim());
-        if (ch == null) {
-            return false;
-        }
-        if (System.currentTimeMillis() > ch.expiresAtMs) {
-            return false;
-        }
-        boolean ok = Math.abs(clientOffsetX - ch.secretX) <= TOLERANCE_PX;
-        if (!ok) {
-            logger.debug("slider captcha fail clientX={} expected={}", clientOffsetX, ch.secretX);
-        }
-        return ok;
+        Long exp = passTokens.remove(passToken.trim());
+        return exp != null && System.currentTimeMillis() <= exp;
     }
 
     private void pruneExpired() {
-        if (store.size() < 512) {
+        long now = System.currentTimeMillis();
+        if (challenges.size() + passTokens.size() < 512) {
             return;
         }
-        long now = System.currentTimeMillis();
-        Iterator<Map.Entry<String, StoredChallenge>> it = store.entrySet().iterator();
+        Iterator<Map.Entry<String, StoredChallenge>> it = challenges.entrySet().iterator();
         while (it.hasNext()) {
             if (it.next().getValue().expiresAtMs < now) {
                 it.remove();
+            }
+        }
+        Iterator<Map.Entry<String, Long>> pit = passTokens.entrySet().iterator();
+        while (pit.hasNext()) {
+            if (pit.next().getValue() < now) {
+                pit.remove();
             }
         }
     }

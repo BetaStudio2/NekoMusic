@@ -51,12 +51,16 @@ public class SendVerificationHandler extends HttpServlet {
 
             String email = null;
             String username = "用户"; // 默认用户名，实际应用中可能需要从请求中获取
+            String captchaPassToken = null;
             if (requestData != null) {
                 if (requestData.has("email")) {
                     email = requestData.get("email").asText();
                 }
                 if (requestData.has("username")) {
                     username = requestData.get("username").asText();
+                }
+                if (requestData.has("captchaPassToken")) {
+                    captchaPassToken = requestData.get("captchaPassToken").asText().trim();
                 }
             }
 
@@ -69,6 +73,16 @@ public class SendVerificationHandler extends HttpServlet {
             // 验证邮箱格式
             if (!isValidEmail(email)) {
                 sendResponse(response, false, "邮箱格式不正确", null);
+                return;
+            }
+
+            if (captchaPassToken == null || captchaPassToken.isEmpty()) {
+                logger.warn("发送验证码缺少 captchaPassToken IP: {}", request.getRemoteAddr());
+                sendResponse(response, false, "请先完成安全验证（滑动拼图）", null);
+                return;
+            }
+            if (!Main.getSliderCaptchaService().consumePassToken(captchaPassToken)) {
+                sendResponse(response, false, "安全验证已失效或已使用，请重新滑动验证", null);
                 return;
             }
 

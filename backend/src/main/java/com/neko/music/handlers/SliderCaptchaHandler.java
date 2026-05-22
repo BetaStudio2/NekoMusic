@@ -15,7 +15,7 @@ import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.Map;
 
-/** GET /api/captcha/slider — 签发滑块挑战（注册页应始终拉取并展示） */
+/** GET /api/captcha/slider — 签发滑块挑战（获取邮箱验证码前在弹窗中拉取并展示） */
 @WebServlet("/api/captcha/slider")
 public class SliderCaptchaHandler extends HttpServlet {
 

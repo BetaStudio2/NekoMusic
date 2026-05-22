@@ -267,6 +267,9 @@ public class Main {
 
         ServletHolder sliderCaptchaHolder = new ServletHolder(new SliderCaptchaHandler());
         context.addServlet(sliderCaptchaHolder, "/api/captcha/slider");
+
+        ServletHolder sliderCaptchaVerifyHolder = new ServletHolder(new SliderCaptchaVerifyHandler());
+        context.addServlet(sliderCaptchaVerifyHolder, "/api/captcha/slider/verify");
         
         // 注册发送验证码API处理器
         ServletHolder sendVerificationHolder = new ServletHolder(new SendVerificationHandler());
@@ -401,7 +404,8 @@ public class Main {
         logger.info("  POST /api/playlist/{id} - 获取歌单详情 (无需登录)");
         logger.info("  POST /api/playlists/search - 搜索歌单 (无需登录)");
         logger.info("  POST /api/artists/search - 搜索歌手 (无需登录)");
-        logger.info("  GET /api/captcha/slider - 获取注册用滑块挑战 (无需登录)");
+        logger.info("  GET /api/captcha/slider - 获取滑块挑战 (无需登录，用于发送注册验证码前)");
+        logger.info("  POST /api/captcha/slider/verify - 提交滑块位移换取 passToken (用于发送注册验证码)");
         logger.info("  GET /api/vip/pricing - 获取 VIP 价目表 (无需登录)");
         logger.info("  POST /api/vip/pay/create - 创建 ZPay VIP 订单 (需要用户登录，config zpay.enabled)");
         logger.info("  GET|POST /api/payment/zpay/notify - ZPay 异步通知 (无登录)");
