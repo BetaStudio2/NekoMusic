@@ -154,19 +154,34 @@ public class ConfigManager {
                     if (smtpNode.has("tls")) smtpTls = smtpNode.get("tls").asBoolean();
                 }
                 
-                // 读取邮箱白名单配置
+                // 读取邮箱白名单（与发验证码、注册共用；缺省或从配置中删除键 = 不限制）
+                emailWhitelist = "";
                 if (configNode.has("whitelist_email")) {
                     JsonNode whitelistNode = configNode.get("whitelist_email");
                     if (whitelistNode.isArray()) {
                         StringBuilder whitelistBuilder = new StringBuilder();
                         for (JsonNode node : whitelistNode) {
+                            if (node == null || !node.isTextual()) {
+                                continue;
+                            }
+                            String part = node.asText().trim();
+                            if (part.isEmpty()) {
+                                continue;
+                            }
                             if (whitelistBuilder.length() > 0) {
                                 whitelistBuilder.append(",");
                             }
-                            whitelistBuilder.append(node.asText().trim());
+                            whitelistBuilder.append(part);
                         }
                         emailWhitelist = whitelistBuilder.toString();
+                    } else if (whitelistNode.isTextual()) {
+                        emailWhitelist = whitelistNode.asText().trim();
                     }
+                }
+                if (emailWhitelist.isEmpty()) {
+                    logger.info("  邮箱白名单: (未配置，不限制域名)");
+                } else {
+                    logger.info("  邮箱白名单: {}", emailWhitelist);
                 }
                 
                 // 读取Redis配置

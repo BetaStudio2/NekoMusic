@@ -17,16 +17,11 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Arrays;
-import java.util.List;
 
 @WebServlet("/api/user/register")
 public class UserRegisterHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserRegisterHandler.class);
     private UserAuthService userAuthService;
-
-    // 欣悦可以在这里配置你的白名单域名喵！
-    private static final List<String> ALLOWED_DOMAINS = Arrays.asList("gmail.com", "outlook.com", "qq.com", "163.com");
 
     @Override
     public void init() throws ServletException {
@@ -78,7 +73,7 @@ public class UserRegisterHandler extends HttpServlet {
                 sendResponse(response, false, "邮箱格式不正确喵", null);
                 return;
             }
-            if (!isWhiteListed(email)) {
+            if (!userAuthService.isWhitelistedEmail(email)) {
                 logger.warn("非白名单邮箱注册尝试: {}", email);
                 sendResponse(response, false, "该邮箱域名不在允许范围内喵", null);
                 return;
@@ -126,11 +121,6 @@ public class UserRegisterHandler extends HttpServlet {
 
     private boolean isValidEmail(String email) {
         return email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
-    }
-
-    private boolean isWhiteListed(String email) {
-        String domain = email.substring(email.lastIndexOf("@") + 1).toLowerCase();
-        return ALLOWED_DOMAINS.contains(domain);
     }
 
     private void sendResponse(HttpServletResponse response, boolean success, String message, Object data) throws IOException {
