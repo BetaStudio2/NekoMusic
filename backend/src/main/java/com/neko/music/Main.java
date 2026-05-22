@@ -20,6 +20,7 @@ import com.neko.music.service.RedisTokenStore;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.service.VerificationCodeRateLimitService;
 import com.neko.music.service.IPRateLimitService;
+import com.neko.music.service.SliderCaptchaService;
 import com.neko.music.service.VideoRenderArtifactCleanup;
 import com.neko.music.service.VideoRenderQuotaService;
 import com.neko.music.service.VideoRenderService;
@@ -71,6 +72,7 @@ public class Main {
     private static VideoRenderJobStore videoRenderJobStore;
     private static VideoRenderQuotaService videoRenderQuotaService;
     private static VideoRenderService videoRenderService;
+    private static SliderCaptchaService sliderCaptchaService;
 
     public static void main(String[] args) throws Exception {
         // 设置JVM默认时区为中国标准时间（UTC+8）
@@ -123,6 +125,8 @@ public class Main {
         userAuthService = new UserAuthService(
                 databaseManager, configManager, emailService, redisService, tokenStore,
                 verificationCodeRateLimitService);
+
+        sliderCaptchaService = new SliderCaptchaService();
 
         // 初始化歌单服务
         playlistService = new PlaylistService(databaseManager);
@@ -260,6 +264,9 @@ public class Main {
         // 注册用户注册API处理器
         ServletHolder userRegisterHolder = new ServletHolder(new UserRegisterHandler());
         context.addServlet(userRegisterHolder, "/api/user/register");
+
+        ServletHolder sliderCaptchaHolder = new ServletHolder(new SliderCaptchaHandler());
+        context.addServlet(sliderCaptchaHolder, "/api/captcha/slider");
         
         // 注册发送验证码API处理器
         ServletHolder sendVerificationHolder = new ServletHolder(new SendVerificationHandler());
@@ -394,6 +401,7 @@ public class Main {
         logger.info("  POST /api/playlist/{id} - 获取歌单详情 (无需登录)");
         logger.info("  POST /api/playlists/search - 搜索歌单 (无需登录)");
         logger.info("  POST /api/artists/search - 搜索歌手 (无需登录)");
+        logger.info("  GET /api/captcha/slider - 获取注册用滑块挑战 (无需登录)");
         logger.info("  GET /api/vip/pricing - 获取 VIP 价目表 (无需登录)");
         logger.info("  POST /api/vip/pay/create - 创建 ZPay VIP 订单 (需要用户登录，config zpay.enabled)");
         logger.info("  GET|POST /api/payment/zpay/notify - ZPay 异步通知 (无登录)");
@@ -490,6 +498,10 @@ public class Main {
     
     public static UserAuthService getUserAuthService() {
         return userAuthService;
+    }
+
+    public static SliderCaptchaService getSliderCaptchaService() {
+        return sliderCaptchaService;
     }
     
     public static EmailService getEmailService() {
