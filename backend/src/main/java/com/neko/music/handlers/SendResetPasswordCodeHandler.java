@@ -73,12 +73,10 @@ public class SendResetPasswordCodeHandler extends HttpServlet {
                 return;
             }
 
-            // 检查邮箱是否存在于系统中
+            // 未注册邮箱：明确提示且不发送验证码
             if (!userAuthService.userExistsByEmail(email)) {
-                // 为了安全考虑，不直接告诉用户邮箱不存在
-                // 但记录日志以便管理员查看
-                logger.warn("尝试重置密码，但邮箱不存在: {}", email);
-                sendResponse(response, true, "如果该邮箱已注册，验证码已发送", null);
+                logger.info("发送重置密码验证码被拒绝，邮箱未注册: {}", email);
+                sendResponse(response, false, "该邮箱未注册", null);
                 return;
             }
 
