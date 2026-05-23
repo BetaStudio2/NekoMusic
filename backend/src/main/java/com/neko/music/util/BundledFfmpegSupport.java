@@ -16,10 +16,13 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 从 JAR 内嵌的静态 FFmpeg 解压到运行目录，或在系统 PATH / 常见路径中查找。
+ * 从 JAR 内嵌的 Linux x86_64 FFmpeg（BtbN 构建，含 NVENC/CUDA）解压到运行目录，或在系统 PATH / 常见路径中查找。
  */
 public final class BundledFfmpegSupport {
     private static final Logger logger = LoggerFactory.getLogger(BundledFfmpegSupport.class);
+
+    /** 内嵌包更新时递增，用于使 /tmp/.neko/ffmpeg 缓存失效并重新解压 */
+    private static final String BUNDLED_FFMPEG_REVISION = "btbn-gpl-nvenc-1";
 
     private static volatile String cachedPath;
 
@@ -167,7 +170,7 @@ public final class BundledFfmpegSupport {
         Path target = cacheDir.resolve("ffmpeg");
         Path versionMarker = cacheDir.resolve(".bundled.ok");
 
-        if (Files.isRegularFile(target) && Files.isExecutable(target) && Files.isRegularFile(versionMarker)) {
+        if (Files.isRegularFile(target) && Files.isExecutable(target) && bundledRevisionMatches(versionMarker, platform)) {
             in.close();
             return target.toAbsolutePath().normalize().toString();
         }
@@ -178,8 +181,16 @@ public final class BundledFfmpegSupport {
         }
         makeExecutable(tmp);
         Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        Files.writeString(versionMarker, "bundled-" + platform);
+        Files.writeString(versionMarker, BUNDLED_FFMPEG_REVISION + "-" + platform);
         return target.toAbsolutePath().normalize().toString();
+    }
+
+    private static boolean bundledRevisionMatches(Path versionMarker, String platform) throws IOException {
+        if (!Files.isRegularFile(versionMarker)) {
+            return false;
+        }
+        String s = Files.readString(versionMarker).trim();
+        return s.equals(BUNDLED_FFMPEG_REVISION + "-" + platform);
     }
 
     private static void makeExecutable(Path file) throws IOException {

@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.util.Locale;
 
 public class ConfigManager {
     private static final Logger logger = LoggerFactory.getLogger(ConfigManager.class);
@@ -62,8 +63,18 @@ public class ConfigManager {
     private boolean videoRenderEnabled = true;
     /** auto / ffmpeg / 绝对路径，见 {@link #getVideoRenderFfmpegPath()} */
     private String videoRenderFfmpegPath = "auto";
-    /** true 时优先 JAR 内嵌 linux-x86_64 FFmpeg */
+    /** true 时优先 JAR 内嵌 linux-x86_64 FFmpeg（BtbN 构建，含 NVENC/CUDA） */
     private boolean videoRenderPreferBundledFfmpeg = true;
+    /**
+     * 成片视频编码：libx264（CPU）或 h264_nvenc（NVIDIA GPU，需驱动与带 NVENC 的 FFmpeg）。
+     * 配置可写别名：cpu / x264 → libx264；nvenc → h264_nvenc。
+     */
+    private String videoRenderVideoCodec = "h264_nvenc";
+    /**
+     * 渲染管线：{@code cpu_legacy} 为原 CPU 滤镜（含 showfreqs/showwaves）；{@code cuda_native} 为 CUDA
+     * 显存内合成 + NVENC（无实时频谱，底部为静态色条；字幕仍由 libass 在 CPU 绘制）。
+     */
+    private String videoRenderPipeline = "cuda_native";
     /** 非 VIP 单次最长秒数 */
     private int videoRenderNonVipMaxDurationSec = 15;
     /** 非 VIP 每日次数上限（Redis，东八区自然日） */
@@ -235,6 +246,14 @@ public class ConfigManager {
                     if (videoRenderNode.has("prefer_bundled_ffmpeg")) {
                         videoRenderPreferBundledFfmpeg = videoRenderNode.get("prefer_bundled_ffmpeg").asBoolean();
                     }
+                    if (videoRenderNode.has("video_codec")) {
+                        videoRenderVideoCodec = normalizeVideoRenderCodec(
+                                videoRenderNode.get("video_codec").asText(videoRenderVideoCodec));
+                    }
+                    if (videoRenderNode.has("pipeline")) {
+                        videoRenderPipeline = normalizeVideoRenderPipeline(
+                                videoRenderNode.get("pipeline").asText(videoRenderPipeline));
+                    }
                     if (videoRenderNode.has("non_vip_max_duration_sec")) {
                         videoRenderNonVipMaxDurationSec = videoRenderNode.get("non_vip_max_duration_sec").asInt();
                     }
@@ -279,9 +298,9 @@ public class ConfigManager {
             logger.info("  Jetty 线程池: min={}, max={}, idleTimeoutMs={}", jettyMinThreads, jettyMaxThreads, jettyIdleTimeoutMs);
             logger.info("  HikariCP: maximumPoolSize={}, minimumIdle={}", hikariMaximumPoolSize, hikariMinimumIdle);
             logger.info("  Redis 连接池 maxTotal: {}", redisPoolMaxTotal);
-            logger.info("  视频渲染: enabled={}, ffmpegPath={}, preferBundled={}, nonVipMaxSec={}, nonVipDailyLimit={}",
-                    videoRenderEnabled, videoRenderFfmpegPath, videoRenderPreferBundledFfmpeg,
-                    videoRenderNonVipMaxDurationSec, videoRenderNonVipDailyLimit);
+            logger.info("  视频渲染: enabled={}, pipeline={}, ffmpegPath={}, preferBundled={}, videoCodec={}, nonVipMaxSec={}, nonVipDailyLimit={}",
+                    videoRenderEnabled, videoRenderPipeline, videoRenderFfmpegPath, videoRenderPreferBundledFfmpeg,
+                    videoRenderVideoCodec, videoRenderNonVipMaxDurationSec, videoRenderNonVipDailyLimit);
             logger.info("  ZPay 支付: enabled={}, pidConfigured={}, publicBaseUrlConfigured={}",
                     zpayEnabled, !zpayPid.isEmpty(), !zpayPublicBaseUrl.isEmpty());
         } catch (Exception e) {
@@ -304,6 +323,40 @@ public class ConfigManager {
         if (videoRenderFfmpegPath == null || videoRenderFfmpegPath.isBlank()) {
             videoRenderFfmpegPath = "auto";
         }
+        videoRenderVideoCodec = normalizeVideoRenderCodec(videoRenderVideoCodec);
+        videoRenderPipeline = normalizeVideoRenderPipeline(videoRenderPipeline);
+    }
+
+    private static String normalizeVideoRenderPipeline(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "cuda_native";
+        }
+        String s = raw.trim().toLowerCase(Locale.ROOT);
+        return switch (s) {
+            case "cpu", "cpu_legacy", "legacy" -> "cpu_legacy";
+            case "cuda", "cuda_native", "gpu", "full_gpu" -> "cuda_native";
+            default -> {
+                LoggerFactory.getLogger(ConfigManager.class).warn(
+                        "未知的 video_render.pipeline: {}，回退为 cpu_legacy", raw);
+                yield "cpu_legacy";
+            }
+        };
+    }
+
+    private static String normalizeVideoRenderCodec(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "h264_nvenc";
+        }
+        String s = raw.trim().toLowerCase(Locale.ROOT);
+        return switch (s) {
+            case "cpu", "x264", "libx264" -> "libx264";
+            case "nvenc", "gpu", "h264_nvenc" -> "h264_nvenc";
+            default -> {
+                LoggerFactory.getLogger(ConfigManager.class).warn(
+                        "未知的 video_render.video_codec: {}，回退为 libx264", raw);
+                yield "libx264";
+            }
+        };
     }
     
     /**
@@ -477,6 +530,16 @@ public class ConfigManager {
 
     public boolean isVideoRenderPreferBundledFfmpeg() {
         return videoRenderPreferBundledFfmpeg;
+    }
+
+    /** 成片编码：{@code libx264} 或 {@code h264_nvenc} */
+    public String getVideoRenderVideoCodec() {
+        return videoRenderVideoCodec;
+    }
+
+    /** {@code cpu_legacy} 或 {@code cuda_native} */
+    public String getVideoRenderPipeline() {
+        return videoRenderPipeline;
     }
 
     public int getVideoRenderNonVipMaxDurationSec() {

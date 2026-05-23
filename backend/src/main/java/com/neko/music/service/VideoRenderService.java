@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * 横屏短视频 FFmpeg 渲染：独立线程池异步执行，HTTP 请求仅入队后立即返回。
  * 文字叠加使用 ASS + subtitles 滤镜；内嵌 Noto Sans SC 支持中日韩等非拉丁字符。
+ * <p>支持两种管线：{@code cpu_legacy}（CPU 滤镜含频谱/波形）与 {@code cuda_native}（CUDA 显存合成 + NVENC）。</p>
  */
 public class VideoRenderService {
     private static final Logger logger = LoggerFactory.getLogger(VideoRenderService.class);
@@ -382,6 +383,37 @@ public class VideoRenderService {
                 + radius + "),255,0))";
     }
 
+    /**
+     * 视频编码：NVENC 走 GPU（需系统 FFmpeg 编译含 h264_nvenc 与 NVIDIA 驱动）；libx264 走 CPU。
+     */
+    private static void appendVideoEncodeArgs(List<String> cmd, String codec) {
+        if ("h264_nvenc".equals(codec)) {
+            cmd.add("-c:v");
+            cmd.add("h264_nvenc");
+            cmd.add("-preset");
+            cmd.add("p4");
+            cmd.add("-rc");
+            cmd.add("vbr");
+            cmd.add("-cq");
+            cmd.add("23");
+            cmd.add("-b:v");
+            cmd.add("0");
+            cmd.add("-pix_fmt");
+            cmd.add("yuv420p");
+            return;
+        }
+        cmd.add("-c:v");
+        cmd.add("libx264");
+        cmd.add("-preset");
+        cmd.add("veryfast");
+        cmd.add("-threads");
+        cmd.add("2");
+        cmd.add("-crf");
+        cmd.add("23");
+        cmd.add("-pix_fmt");
+        cmd.add("yuv420p");
+    }
+
     private void runFfmpeg(VideoRenderJob job, Path audioFile, Optional<Path> coverFile, Path assFile,
                            Path fontsDir, Path output) throws IOException, InterruptedException {
         String ffmpeg = BundledFfmpegSupport.resolve(
@@ -394,6 +426,13 @@ public class VideoRenderService {
 
         List<String> cmd = new ArrayList<>();
         cmd.add(ffmpeg);
+        boolean cudaNative = "cuda_native".equals(configManager.getVideoRenderPipeline());
+        if (cudaNative) {
+            cmd.add("-init_hw_device");
+            cmd.add("cuda=cuda:0");
+            cmd.add("-filter_hw_device");
+            cmd.add("cuda");
+        }
         cmd.add("-hide_banner");
         cmd.add("-loglevel");
         cmd.add("error");
@@ -439,7 +478,10 @@ public class VideoRenderService {
         }
 
         String subtitles = VideoRenderPaths.subtitlesFilterArg(assFile, fontsDir);
-        String filter = buildLandscapeFilter(hasCover, coverInputIdx, watermarked, watermarkInputIdx,
+        String filter = cudaNative
+                ? buildLandscapeFilterNativeCuda(hasCover, coverInputIdx, watermarked, watermarkInputIdx,
+                fps, subtitles, duration)
+                : buildLandscapeFilter(hasCover, coverInputIdx, watermarked, watermarkInputIdx,
                 durFrames, fps, subtitles);
         if (watermarked) {
             logger.info("视频水印 FFmpeg overlay jobId={} wmInput=[{}:v] filterTail={}",
@@ -451,16 +493,7 @@ public class VideoRenderService {
         cmd.add("[vout]");
         cmd.add("-map");
         cmd.add("0:a");
-        cmd.add("-c:v");
-        cmd.add("libx264");
-        cmd.add("-preset");
-        cmd.add("veryfast");
-        cmd.add("-threads");
-        cmd.add("2");
-        cmd.add("-crf");
-        cmd.add("23");
-        cmd.add("-pix_fmt");
-        cmd.add("yuv420p");
+        appendVideoEncodeArgs(cmd, cudaNative ? "h264_nvenc" : configManager.getVideoRenderVideoCodec());
         cmd.add("-c:a");
         cmd.add("aac");
         cmd.add("-b:a");
@@ -470,8 +503,11 @@ public class VideoRenderService {
         cmd.add("-shortest");
         cmd.add(output.toAbsolutePath().toString());
 
-        logger.info("异步 ffmpeg 开始 jobId={} durationSec={} watermarked={} watermarkMode={}",
-                job.getId(), duration, job.isWatermarked(),
+        logger.info("异步 ffmpeg 开始 jobId={} pipeline={} videoCodec={} durationSec={} watermarked={} watermarkMode={}",
+                job.getId(),
+                configManager.getVideoRenderPipeline(),
+                cudaNative ? "h264_nvenc" : configManager.getVideoRenderVideoCodec(),
+                duration, job.isWatermarked(),
                 watermarked ? "png-overlay" : "none");
 
         ProcessBuilder pb = new ProcessBuilder(cmd);
@@ -568,6 +604,64 @@ public class VideoRenderService {
             fc.append("[flash]").append(subtitles).append("[vout]");
         }
         return fc.toString();
+    }
+
+    /**
+     * 全链路在 CUDA 显存中完成合成（scale_cuda / overlay_cuda / pad_cuda），NVENC 编码。
+     * FFmpeg 无 CUDA 版 showfreqs/showwaves，底部用半透明色条代替；ASS 与水印叠在 CPU（libass 输出与 hwupload_cuda 不兼容易 -38），
+     * NVENC 从系统内存 yuv420p 编码。
+     */
+    private static String buildLandscapeFilterNativeCuda(boolean hasCover, int coverInputIdx,
+                                                         boolean watermarked, int watermarkInputIdx,
+                                                         int fps, String subtitles, double durationSec) {
+        String d = formatSec(durationSec);
+        String wxh = WIDTH + "x" + HEIGHT;
+        String sizeColon = WIDTH + ":" + HEIGHT;
+        StringBuilder fc = new StringBuilder(2200);
+        if (hasCover) {
+            String coverIn = "[" + coverInputIdx + ":v]";
+            fc.append(coverIn).append("format=yuv420p,hwupload_cuda,split=2[gb_in][cv_in];");
+            fc.append("[gb_in]scale_cuda=96:54,scale_cuda=").append(sizeColon).append("[gb];");
+            fc.append("[cv_in]scale_cuda=").append(COVER_SIZE).append(':').append(COVER_SIZE)
+                    .append(":force_original_aspect_ratio=decrease,pad_cuda=")
+                    .append(COVER_SIZE).append(':').append(COVER_SIZE)
+                    .append(":(ow-iw)/2:(oh-ih)/2:color=black[cv];");
+            fc.append("[gb][cv]overlay_cuda=").append(COVER_X).append(':').append(COVER_Y).append("[c0];");
+            fc.append("color=c=0x7C3AED@0.10:s=").append(wxh).append(":d=").append(d).append(":r=").append(fps)
+                    .append(",format=yuva420p,hwupload_cuda[ct0];");
+            fc.append("[c0][ct0]overlay_cuda=0:0[c1];");
+            fc.append("color=c=0x22D3EE@0.05:s=").append(wxh).append(":d=").append(d).append(":r=").append(fps)
+                    .append(",format=yuva420p,hwupload_cuda[ct1];");
+            fc.append("[c1][ct1]overlay_cuda=0:0[c2];");
+            fc.append("color=c=black@0.15:s=").append(wxh).append(":d=").append(d).append(":r=").append(fps)
+                    .append(",format=yuva420p,hwupload_cuda[ct2];");
+            fc.append("[c2][ct2]overlay_cuda=0:0[c3];");
+            appendCudaStripSubtitlesWatermark(fc, d, fps, watermarked, watermarkInputIdx, subtitles, "c3");
+        } else {
+            fc.append("color=c=0x0f172a:s=").append(wxh).append(":d=").append(d).append(":r=").append(fps)
+                    .append(",format=yuv420p,hwupload_cuda[c0];");
+            appendCudaStripSubtitlesWatermark(fc, d, fps, watermarked, watermarkInputIdx, subtitles, "c0");
+        }
+        return fc.toString();
+    }
+
+    private static void appendCudaStripSubtitlesWatermark(StringBuilder fc, String d, int fps,
+                                                          boolean watermarked, int watermarkInputIdx,
+                                                          String subtitles, String bgCudaLabel) {
+        fc.append("color=c=0x475569@0.55:s=1760x180:d=").append(d).append(":r=").append(fps)
+                .append(",format=yuva420p,hwupload_cuda[bar];");
+        fc.append('[').append(bgCudaLabel).append("][bar]overlay_cuda=80:860[pre_sub];");
+        fc.append("[pre_sub]hwdownload,format=yuv420p,").append(subtitles).append("[sub_raw];");
+        // libass 可能输出 yuv444p 等，hwupload_cuda 易报 -38；此处全程 CPU，固定 1080p yuv420p 后由 NVENC 从系统内存编码
+        fc.append("[sub_raw]scale=").append(WIDTH).append(':').append(HEIGHT)
+                .append(":flags=fast_bilinear,format=yuv420p[sub_yuv];");
+        if (watermarked) {
+            fc.append("[").append(watermarkInputIdx).append(":v]scale=220:-1,format=yuva420p[wm_cpu];");
+            fc.append("[sub_yuv][wm_cpu]overlay=W-w-36:36:format=auto[v_wm];");
+            fc.append("[v_wm]format=yuv420p[vout]");
+        } else {
+            fc.append("[sub_yuv]null[vout]");
+        }
     }
 
     private static String formatSec(double sec) {
