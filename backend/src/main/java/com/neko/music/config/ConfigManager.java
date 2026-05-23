@@ -71,7 +71,7 @@ public class ConfigManager {
      */
     private String videoRenderVideoCodec = "h264_nvenc";
     /**
-     * 渲染管线：{@code cpu_legacy} 与 {@code cuda_native} 共用同一套 CPU 滤镜图（圆形封面、环形频谱等）；
+     * 渲染管线：{@code cpu_legacy} 与 {@code cuda_native} 共用同一套 CPU 滤镜图（圆形封面、封面外径向频谱条等）；
      * {@code cuda_native} 仅将成片编码固定为 {@code h264_nvenc}，{@code cpu_legacy} 可由 video_codec 选 libx264 或 nvenc。
      */
     private String videoRenderPipeline = "cuda_native";

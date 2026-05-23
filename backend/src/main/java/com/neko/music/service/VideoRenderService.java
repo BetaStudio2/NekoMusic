@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * 横屏短视频 FFmpeg 渲染：独立线程池异步执行，HTTP 请求仅入队后立即返回。
  * 文字叠加使用 ASS + subtitles 滤镜；内嵌 Noto Sans SC 支持中日韩等非拉丁字符。
- * <p>渲染管线 {@code cuda_native} 与 {@code cpu_legacy} 共用同一套 CPU 滤镜图（圆形封面、环形频谱等），
+ * <p>渲染管线 {@code cuda_native} 与 {@code cpu_legacy} 共用同一套 CPU 滤镜图（圆形封面、封面外径向频谱条等），
  * 区别仅在于成片编码：前者固定 {@code h264_nvenc}，后者可选 libx264 / h264_nvenc。</p>
  */
 public class VideoRenderService {
@@ -40,18 +40,26 @@ public class VideoRenderService {
 
     private static final int WIDTH = 1920;
     private static final int HEIGHT = 1080;
-    private static final int COVER_SIZE = 680;
+    private static final int COVER_SIZE = 600;
     private static final int COVER_X = 72;
     private static final int COVER_Y = (HEIGHT - COVER_SIZE) / 2;
     /** 封面圆形蒙版中心（与左侧封面块几何中心一致） */
     private static final int COVER_CENTER_X = COVER_X + COVER_SIZE / 2;
     private static final int COVER_CENTER_Y = COVER_Y + COVER_SIZE / 2;
-    /** 环形频谱/波形画布（正方形，叠在封面上方，中心与封面一致） */
+    /** 径向频谱叠层画布（正方形，中心与封面圆一致） */
     private static final int RING_VIS_SIZE = 820;
     private static final int RING_HALF = RING_VIS_SIZE / 2;
-    /** 环形内、外半径（相对 RING_VIS 局部坐标） */
-    private static final int RING_DONUT_R0 = 338;
-    private static final int RING_DONUT_R1 = 418;
+    /** showfreqs 条形图：宽越大角向越细，越容易看出一根根往外射的条 */
+    private static final int RADIAL_SPEC_W = 1792;
+    private static final int RADIAL_SPEC_H = 288;
+    /** showfreqs 纵向：跳过底部基线附近与顶端几行，避免径向内侧整圈发黑 */
+    private static final int RADIAL_SPEC_YMARGIN = 12;
+    /** 径向叠层：亮度低于此值视为透明（略低更易露出细条） */
+    private static final int RADIAL_ALPHA_LUM_THRESH = 12;
+    /** 径向条起始/结束半径（相对 RING_VIS 中心，略大于封面圆半径） */
+    private static final int RADIAL_R0 = COVER_SIZE / 2 + 10;
+    /** 外伸长度：越大条「拉」得越远 */
+    private static final int RADIAL_R1 = RADIAL_R0 + 118;
     /** 右侧内容区中心（封面右缘至屏幕右缘的中点） */
     private static final int RIGHT_CENTER_X = COVER_X + COVER_SIZE + (WIDTH - COVER_X - COVER_SIZE) / 2;
     private static final int LYRIC_CENTER_Y = 620;
@@ -390,11 +398,36 @@ public class VideoRenderService {
         return "if(lte(pow(X-W/2,2)+pow(Y-H/2,2)," + r2 + "),255,0)";
     }
 
-    /** 环形频谱蒙版：内透明、环内不透明、外透明；圆心 (RING_HALF,RING_HALF) */
-    private static String ringDonutAlphaGeq() {
+    /** remap 用 x 坐标图（8bit）：角向对应 showfreqs 的列 */
+    private static String radialXmapLumGeq() {
         int c = RING_HALF;
-        return "if(lte(hypot(X-" + c + ",Y-" + c + ")," + RING_DONUT_R0 + "),0,"
-                + "if(lte(hypot(X-" + c + ",Y-" + c + ")," + RING_DONUT_R1 + "),255,0))";
+        int smax = RADIAL_SPEC_W - 1;
+        return "if(lt(hypot(X-" + c + ",Y-" + c + ")," + RADIAL_R0 + "),0,"
+                + "if(gt(hypot(X-" + c + ",Y-" + c + ")," + RADIAL_R1 + "),0,"
+                + "min(255,max(0,(255*min(" + smax + ",max(0,(" + smax + ")*(atan2(Y-" + c + ",X-" + c + ")+PI)/(2*PI))))/(" + smax + ")))))";
+    }
+
+    /** remap 用 y 坐标图：半径越大越靠近条形顶端（能量越强） */
+    private static String radialYmapLumGeq() {
+        int c = RING_HALF;
+        int sh = RADIAL_SPEC_H - 1;
+        int span = RADIAL_R1 - RADIAL_R0;
+        int m = RADIAL_SPEC_YMARGIN;
+        int yr = Math.max(1, sh - 2 * m);
+        return "if(lt(hypot(X-" + c + ",Y-" + c + ")," + RADIAL_R0 + "),0,"
+                + "if(gt(hypot(X-" + c + ",Y-" + c + ")," + RADIAL_R1 + "),0,"
+                + "min(255,max(0,(255*min(" + sh + ",max(0," + m + "+(" + yr + ")*(1-((hypot(X-" + c + ",Y-" + c + ")-" + RADIAL_R0 + ")/(" + span + ")))))/" + sh + ")))))";
+    }
+
+    /**
+     * 径向叠层 alpha：环外与内圆透明；环带内按亮度抠除黑底（仅保留有能量的条），避免整圈黑环盖住封面。
+     */
+    private static String radialRingLumAlphaGeq() {
+        int c = RING_HALF;
+        String lum = "0.299*r(X,Y)+0.587*g(X,Y)+0.114*b(X,Y)";
+        return "if(lt(hypot(X-" + c + ",Y-" + c + ")," + RADIAL_R0 + "),0,"
+                + "if(gt(hypot(X-" + c + ",Y-" + c + ")," + RADIAL_R1 + "),0,"
+                + "if(gt(" + lum + "," + RADIAL_ALPHA_LUM_THRESH + "),min(255,52+1.35*(" + lum + ")),0)))";
     }
 
     /**
@@ -539,7 +572,7 @@ public class VideoRenderService {
     }
 
     /**
-     * 横屏 1920×1080：背景毛玻璃 + 圆形封面 + 环形条状频谱/波形 + ASS 字幕。
+     * 横屏 1920×1080：背景毛玻璃 + 圆形封面 + 封面外径向频谱条（showfreqs + remap）+ ASS 字幕。
      */
     private static String buildLandscapeFilter(boolean hasCover, int coverInputIdx, boolean watermarked,
                                                int watermarkInputIdx, int durFrames, int fps, String subtitles) {
@@ -589,19 +622,18 @@ public class VideoRenderService {
             fc.append("[dark][frost]overlay=0:0:format=auto[composed];");
             fc.append("[composed]hue=h='4*sin(2*PI*t/14)':s=1.12[composed];");
         }
-        fc.append("[0:a]aformat=sample_rates=44100:channel_layouts=stereo,asplit=2[a_spec][a_wave];");
-        fc.append("[a_spec]showfreqs=s=").append(RING_VIS_SIZE).append('x').append(RING_VIS_SIZE)
-                .append(":mode=bar:ascale=log:overlap=0.85:rate=").append(fps)
-                .append(":colors=0xC4B5FD|0x67E8F9[spec];");
-        fc.append("[a_wave]showwaves=s=").append(RING_VIS_SIZE).append('x').append(RING_VIS_SIZE)
-                .append(":mode=p2p:rate=").append(fps)
-                .append(":colors=0x67E8F9@0.95|0xC4B5FD@0.85:scale=lin[waves_raw];");
-        fc.append("[waves_raw]split[w1][w2];");
-        fc.append("[w1]gblur=sigma=3[waves_glow];");
-        fc.append("[w2][waves_glow]blend=all_mode=screen[waves_neon];");
-        fc.append("[spec][waves_neon]blend=all_mode=addition[ring_src];");
-        fc.append("[ring_src]format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='")
-                .append(ringDonutAlphaGeq()).append("'[ring_vis];");
+        String mapDurSec = String.format(Locale.US, "%.5f", Math.max(0.1, durFrames / (double) fps));
+        fc.append("[0:a]aformat=sample_rates=44100:channel_layouts=stereo,showfreqs=s=").append(RADIAL_SPEC_W).append('x')
+                .append(RADIAL_SPEC_H).append(":mode=bar:ascale=sqrt:fscale=log:overlap=0.46:averaging=1:win_size=4096:rate=")
+                .append(fps).append(":colors=0xD8C8FF|0x7AE8FF[spec_raw];");
+        fc.append("[spec_raw]eq=saturation=1.72:contrast=1.16:brightness=0.045[spec_eq];");
+        fc.append("[spec_eq]gblur=sigma=0.28[spec_strip];");
+        fc.append("color=c=black:s=").append(RING_VIS_SIZE).append('x').append(RING_VIS_SIZE).append(":d=").append(mapDurSec)
+                .append(":r=").append(fps).append(",format=gray,geq=lum='").append(radialXmapLumGeq()).append("'[xmap];");
+        fc.append("color=c=black:s=").append(RING_VIS_SIZE).append('x').append(RING_VIS_SIZE).append(":d=").append(mapDurSec)
+                .append(":r=").append(fps).append(",format=gray,geq=lum='").append(radialYmapLumGeq()).append("'[ymap];");
+        fc.append("[spec_strip][xmap][ymap]remap=fill=black,unsharp=7:7:1.05:5:5:0.0,format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='")
+                .append(radialRingLumAlphaGeq()).append("'[ring_vis];");
         int ringOy = ((hasCover ? COVER_CENTER_Y : HEIGHT / 2) - RING_HALF);
         fc.append("[composed][ring_vis]overlay=").append(COVER_CENTER_X - RING_HALF).append(':').append(ringOy)
                 .append(":format=auto[base];");
