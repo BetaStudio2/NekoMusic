@@ -71,8 +71,8 @@ public class ConfigManager {
      */
     private String videoRenderVideoCodec = "h264_nvenc";
     /**
-     * 渲染管线：{@code cpu_legacy} 为原 CPU 滤镜（含 showfreqs/showwaves）；{@code cuda_native} 为 CUDA
-     * 显存内合成 + NVENC（无实时频谱，底部为静态色条；字幕仍由 libass 在 CPU 绘制）。
+     * 渲染管线：{@code cpu_legacy} 与 {@code cuda_native} 共用同一套 CPU 滤镜图（圆形封面、环形频谱等）；
+     * {@code cuda_native} 仅将成片编码固定为 {@code h264_nvenc}，{@code cpu_legacy} 可由 video_codec 选 libx264 或 nvenc。
      */
     private String videoRenderPipeline = "cuda_native";
     /** 非 VIP 单次最长秒数 */

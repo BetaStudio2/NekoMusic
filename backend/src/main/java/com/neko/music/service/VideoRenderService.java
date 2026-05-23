@@ -32,7 +32,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * 横屏短视频 FFmpeg 渲染：独立线程池异步执行，HTTP 请求仅入队后立即返回。
  * 文字叠加使用 ASS + subtitles 滤镜；内嵌 Noto Sans SC 支持中日韩等非拉丁字符。
- * <p>支持两种管线：{@code cpu_legacy}（CPU 滤镜含频谱/波形）与 {@code cuda_native}（CUDA 显存合成 + NVENC）。</p>
+ * <p>渲染管线 {@code cuda_native} 与 {@code cpu_legacy} 共用同一套 CPU 滤镜图（圆形封面、环形频谱等），
+ * 区别仅在于成片编码：前者固定 {@code h264_nvenc}，后者可选 libx264 / h264_nvenc。</p>
  */
 public class VideoRenderService {
     private static final Logger logger = LoggerFactory.getLogger(VideoRenderService.class);
@@ -40,9 +41,17 @@ public class VideoRenderService {
     private static final int WIDTH = 1920;
     private static final int HEIGHT = 1080;
     private static final int COVER_SIZE = 680;
-    private static final int COVER_RADIUS = 44;
     private static final int COVER_X = 72;
     private static final int COVER_Y = (HEIGHT - COVER_SIZE) / 2;
+    /** 封面圆形蒙版中心（与左侧封面块几何中心一致） */
+    private static final int COVER_CENTER_X = COVER_X + COVER_SIZE / 2;
+    private static final int COVER_CENTER_Y = COVER_Y + COVER_SIZE / 2;
+    /** 环形频谱/波形画布（正方形，叠在封面上方，中心与封面一致） */
+    private static final int RING_VIS_SIZE = 820;
+    private static final int RING_HALF = RING_VIS_SIZE / 2;
+    /** 环形内、外半径（相对 RING_VIS 局部坐标） */
+    private static final int RING_DONUT_R0 = 338;
+    private static final int RING_DONUT_R1 = 418;
     /** 右侧内容区中心（封面右缘至屏幕右缘的中点） */
     private static final int RIGHT_CENTER_X = COVER_X + COVER_SIZE + (WIDTH - COVER_X - COVER_SIZE) / 2;
     private static final int LYRIC_CENTER_Y = 620;
@@ -54,9 +63,6 @@ public class VideoRenderService {
     private static final String LYRIC_CLIP = "\\clip(" + (COVER_X + COVER_SIZE + 24) + ",340,1880,920)";
     private static final int LYRIC_VISIBLE_BEFORE = 2;
     private static final int LYRIC_VISIBLE_AFTER = 2;
-    /** 圆角矩形 SDF alpha（避免四角圆形伪影） */
-    private static final String ROUNDED_ALPHA = roundedRectAlphaExpr(COVER_RADIUS);
-
     private final ConfigManager configManager;
     private final VideoRenderJobStore jobStore;
     private final VideoRenderArtifactCleanup artifactCleanup;
@@ -377,10 +383,18 @@ public class VideoRenderService {
         }
     }
 
-    private static String roundedRectAlphaExpr(int radius) {
-        return "if(lte(max(abs(X-W/2)-W/2+" + radius + ",abs(Y-H/2)-H/2+" + radius + "),0),255,"
-                + "if(lte(hypot(max(abs(X-W/2)-W/2+" + radius + ",0),max(abs(Y-H/2)-H/2+" + radius + ",0)),"
-                + radius + "),255,0))";
+    /** 封面正方形内切圆：alpha 在圆内 255、圆外 0（W=H=COVER_SIZE） */
+    private static String circleCoverAlphaGeq() {
+        int r = COVER_SIZE / 2 - 1;
+        int r2 = r * r;
+        return "if(lte(pow(X-W/2,2)+pow(Y-H/2,2)," + r2 + "),255,0)";
+    }
+
+    /** 环形频谱蒙版：内透明、环内不透明、外透明；圆心 (RING_HALF,RING_HALF) */
+    private static String ringDonutAlphaGeq() {
+        int c = RING_HALF;
+        return "if(lte(hypot(X-" + c + ",Y-" + c + ")," + RING_DONUT_R0 + "),0,"
+                + "if(lte(hypot(X-" + c + ",Y-" + c + ")," + RING_DONUT_R1 + "),255,0))";
     }
 
     /**
@@ -427,12 +441,6 @@ public class VideoRenderService {
         List<String> cmd = new ArrayList<>();
         cmd.add(ffmpeg);
         boolean cudaNative = "cuda_native".equals(configManager.getVideoRenderPipeline());
-        if (cudaNative) {
-            cmd.add("-init_hw_device");
-            cmd.add("cuda=cuda:0");
-            cmd.add("-filter_hw_device");
-            cmd.add("cuda");
-        }
         cmd.add("-hide_banner");
         cmd.add("-loglevel");
         cmd.add("error");
@@ -478,10 +486,7 @@ public class VideoRenderService {
         }
 
         String subtitles = VideoRenderPaths.subtitlesFilterArg(assFile, fontsDir);
-        String filter = cudaNative
-                ? buildLandscapeFilterNativeCuda(hasCover, coverInputIdx, watermarked, watermarkInputIdx,
-                fps, subtitles, duration)
-                : buildLandscapeFilter(hasCover, coverInputIdx, watermarked, watermarkInputIdx,
+        String filter = buildLandscapeFilter(hasCover, coverInputIdx, watermarked, watermarkInputIdx,
                 durFrames, fps, subtitles);
         if (watermarked) {
             logger.info("视频水印 FFmpeg overlay jobId={} wmInput=[{}:v] filterTail={}",
@@ -534,8 +539,7 @@ public class VideoRenderService {
     }
 
     /**
-     * 炫酷版横屏 1920×1080：
-     * 背景呼吸毛玻璃 + 噪点质感 + 圆角封面光晕 + 霓虹发光波形 + ASS 字幕。
+     * 横屏 1920×1080：背景毛玻璃 + 圆形封面 + 环形条状频谱/波形 + ASS 字幕。
      */
     private static String buildLandscapeFilter(boolean hasCover, int coverInputIdx, boolean watermarked,
                                                int watermarkInputIdx, int durFrames, int fps, String subtitles) {
@@ -566,7 +570,7 @@ public class VideoRenderService {
             fc.append(coverIn).append("scale=").append(coverColon).append(":force_original_aspect_ratio=decrease,")
                     .append("pad=").append(coverColon).append(":(ow-iw)/2:(oh-ih)/2:color=black@0,")
                     .append("format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='")
-                    .append(ROUNDED_ALPHA).append("'[cover_raw];");
+                    .append(circleCoverAlphaGeq()).append("'[cover_raw];");
             fc.append("[cover_raw]split=3[cover_main][cover_shadow_src][cover_glow_src];");
             fc.append("[cover_shadow_src]gblur=sigma=18,colorchannelmixer=aa=0.72[cover_shadow];");
             fc.append("[cover_glow_src]gblur=sigma=24,eq=saturation=1.7:brightness=0.06,")
@@ -586,15 +590,21 @@ public class VideoRenderService {
             fc.append("[composed]hue=h='4*sin(2*PI*t/14)':s=1.12[composed];");
         }
         fc.append("[0:a]aformat=sample_rates=44100:channel_layouts=stereo,asplit=2[a_spec][a_wave];");
-        fc.append("[a_spec]showfreqs=s=1760x180:mode=bar:ascale=log:overlap=0.85:rate=").append(fps)
+        fc.append("[a_spec]showfreqs=s=").append(RING_VIS_SIZE).append('x').append(RING_VIS_SIZE)
+                .append(":mode=bar:ascale=log:overlap=0.85:rate=").append(fps)
                 .append(":colors=0xC4B5FD|0x67E8F9[spec];");
-        fc.append("[a_wave]showwaves=s=1760x180:mode=p2p:rate=").append(fps)
+        fc.append("[a_wave]showwaves=s=").append(RING_VIS_SIZE).append('x').append(RING_VIS_SIZE)
+                .append(":mode=p2p:rate=").append(fps)
                 .append(":colors=0x67E8F9@0.95|0xC4B5FD@0.85:scale=lin[waves_raw];");
         fc.append("[waves_raw]split[w1][w2];");
         fc.append("[w1]gblur=sigma=3[waves_glow];");
         fc.append("[w2][waves_glow]blend=all_mode=screen[waves_neon];");
-        fc.append("[spec][waves_neon]blend=all_mode=addition[vis];");
-        fc.append("[composed][vis]overlay=80:860:format=auto[base];");
+        fc.append("[spec][waves_neon]blend=all_mode=addition[ring_src];");
+        fc.append("[ring_src]format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='")
+                .append(ringDonutAlphaGeq()).append("'[ring_vis];");
+        int ringOy = ((hasCover ? COVER_CENTER_Y : HEIGHT / 2) - RING_HALF);
+        fc.append("[composed][ring_vis]overlay=").append(COVER_CENTER_X - RING_HALF).append(':').append(ringOy)
+                .append(":format=auto[base];");
         fc.append("[base]eq=gamma=1.06:saturation=1.1:brightness=0.012[flash];");
         if (watermarked) {
             fc.append("[flash]").append(subtitles).append("[vsub];");
@@ -604,64 +614,6 @@ public class VideoRenderService {
             fc.append("[flash]").append(subtitles).append("[vout]");
         }
         return fc.toString();
-    }
-
-    /**
-     * 全链路在 CUDA 显存中完成合成（scale_cuda / overlay_cuda / pad_cuda），NVENC 编码。
-     * FFmpeg 无 CUDA 版 showfreqs/showwaves，底部用半透明色条代替；ASS 与水印叠在 CPU（libass 输出与 hwupload_cuda 不兼容易 -38），
-     * NVENC 从系统内存 yuv420p 编码。
-     */
-    private static String buildLandscapeFilterNativeCuda(boolean hasCover, int coverInputIdx,
-                                                         boolean watermarked, int watermarkInputIdx,
-                                                         int fps, String subtitles, double durationSec) {
-        String d = formatSec(durationSec);
-        String wxh = WIDTH + "x" + HEIGHT;
-        String sizeColon = WIDTH + ":" + HEIGHT;
-        StringBuilder fc = new StringBuilder(2200);
-        if (hasCover) {
-            String coverIn = "[" + coverInputIdx + ":v]";
-            fc.append(coverIn).append("format=yuv420p,hwupload_cuda,split=2[gb_in][cv_in];");
-            fc.append("[gb_in]scale_cuda=96:54,scale_cuda=").append(sizeColon).append("[gb];");
-            fc.append("[cv_in]scale_cuda=").append(COVER_SIZE).append(':').append(COVER_SIZE)
-                    .append(":force_original_aspect_ratio=decrease,pad_cuda=")
-                    .append(COVER_SIZE).append(':').append(COVER_SIZE)
-                    .append(":(ow-iw)/2:(oh-ih)/2:color=black[cv];");
-            fc.append("[gb][cv]overlay_cuda=").append(COVER_X).append(':').append(COVER_Y).append("[c0];");
-            fc.append("color=c=0x7C3AED@0.10:s=").append(wxh).append(":d=").append(d).append(":r=").append(fps)
-                    .append(",format=yuva420p,hwupload_cuda[ct0];");
-            fc.append("[c0][ct0]overlay_cuda=0:0[c1];");
-            fc.append("color=c=0x22D3EE@0.05:s=").append(wxh).append(":d=").append(d).append(":r=").append(fps)
-                    .append(",format=yuva420p,hwupload_cuda[ct1];");
-            fc.append("[c1][ct1]overlay_cuda=0:0[c2];");
-            fc.append("color=c=black@0.15:s=").append(wxh).append(":d=").append(d).append(":r=").append(fps)
-                    .append(",format=yuva420p,hwupload_cuda[ct2];");
-            fc.append("[c2][ct2]overlay_cuda=0:0[c3];");
-            appendCudaStripSubtitlesWatermark(fc, d, fps, watermarked, watermarkInputIdx, subtitles, "c3");
-        } else {
-            fc.append("color=c=0x0f172a:s=").append(wxh).append(":d=").append(d).append(":r=").append(fps)
-                    .append(",format=yuv420p,hwupload_cuda[c0];");
-            appendCudaStripSubtitlesWatermark(fc, d, fps, watermarked, watermarkInputIdx, subtitles, "c0");
-        }
-        return fc.toString();
-    }
-
-    private static void appendCudaStripSubtitlesWatermark(StringBuilder fc, String d, int fps,
-                                                          boolean watermarked, int watermarkInputIdx,
-                                                          String subtitles, String bgCudaLabel) {
-        fc.append("color=c=0x475569@0.55:s=1760x180:d=").append(d).append(":r=").append(fps)
-                .append(",format=yuva420p,hwupload_cuda[bar];");
-        fc.append('[').append(bgCudaLabel).append("][bar]overlay_cuda=80:860[pre_sub];");
-        fc.append("[pre_sub]hwdownload,format=yuv420p,").append(subtitles).append("[sub_raw];");
-        // libass 可能输出 yuv444p 等，hwupload_cuda 易报 -38；此处全程 CPU，固定 1080p yuv420p 后由 NVENC 从系统内存编码
-        fc.append("[sub_raw]scale=").append(WIDTH).append(':').append(HEIGHT)
-                .append(":flags=fast_bilinear,format=yuv420p[sub_yuv];");
-        if (watermarked) {
-            fc.append("[").append(watermarkInputIdx).append(":v]scale=220:-1,format=yuva420p[wm_cpu];");
-            fc.append("[sub_yuv][wm_cpu]overlay=W-w-36:36:format=auto[v_wm];");
-            fc.append("[v_wm]format=yuv420p[vout]");
-        } else {
-            fc.append("[sub_yuv]null[vout]");
-        }
     }
 
     private static String formatSec(double sec) {
