@@ -40,8 +40,8 @@ public class UserAvatarUploadHandler extends HttpServlet {
         "image/bmp"
     };
     
-    // 最大文件大小 50MiB
-    private static final long MAX_FILE_SIZE = 50 * 1024 * 1024;
+    // 最大文件大小 10MiB
+    private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -74,7 +74,7 @@ public class UserAvatarUploadHandler extends HttpServlet {
             
             // 检查文件大小
             if (avatarPart.getSize() > MAX_FILE_SIZE) {
-                sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "文件大小超过50MiB限制");
+                sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "文件大小超过10MiB限制");
                 return;
             }
             
