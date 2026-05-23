@@ -49,15 +49,15 @@ public class VideoRenderService {
     /** 径向频谱叠层画布（正方形，中心与封面圆一致） */
     private static final int RING_VIS_SIZE = 820;
     private static final int RING_HALF = RING_VIS_SIZE / 2;
-    /** showfreqs 条形图：宽越大角向越细，越容易看出一根根往外射的条 */
-    private static final int RADIAL_SPEC_W = 1792;
+    /** showfreqs 条形图：宽越大角向越细，越接近「一根根白射线」 */
+    private static final int RADIAL_SPEC_W = 2048;
     private static final int RADIAL_SPEC_H = 288;
     /** showfreqs 纵向：跳过底部基线附近与顶端几行，避免径向内侧整圈发黑 */
     private static final int RADIAL_SPEC_YMARGIN = 12;
     /** 径向叠层：亮度低于此值视为透明（略低更易露出细条） */
     private static final int RADIAL_ALPHA_LUM_THRESH = 12;
-    /** 径向条起始/结束半径（相对 RING_VIS 中心，略大于封面圆半径） */
-    private static final int RADIAL_R0 = COVER_SIZE / 2 + 10;
+    /** 径向条内缘：尽量贴封面圆，减少「一圈死黑空隙」 */
+    private static final int RADIAL_R0 = COVER_SIZE / 2 + 4;
     /** 外伸长度：越大条「拉」得越远 */
     private static final int RADIAL_R1 = RADIAL_R0 + 118;
     /** 右侧内容区中心（封面右缘至屏幕右缘的中点） */
@@ -420,14 +420,23 @@ public class VideoRenderService {
     }
 
     /**
-     * 径向叠层 alpha：环外与内圆透明；环带内按亮度抠除黑底（仅保留有能量的条），避免整圈黑环盖住封面。
+     * 叠层 RGB：环带内、频谱够亮则输出纯白（对齐参考 demo 的白色径向细条）。
      */
-    private static String radialRingLumAlphaGeq() {
+    private static String radialRingWhiteRgbGeq() {
         int c = RING_HALF;
         String lum = "0.299*r(X,Y)+0.587*g(X,Y)+0.114*b(X,Y)";
         return "if(lt(hypot(X-" + c + ",Y-" + c + ")," + RADIAL_R0 + "),0,"
                 + "if(gt(hypot(X-" + c + ",Y-" + c + ")," + RADIAL_R1 + "),0,"
-                + "if(gt(" + lum + "," + RADIAL_ALPHA_LUM_THRESH + "),min(255,52+1.35*(" + lum + ")),0)))";
+                + "if(gt(" + lum + "," + RADIAL_ALPHA_LUM_THRESH + "),255,0)))";
+    }
+
+    /** 叠层 alpha：同径向带；略抬 alpha 让白条在毛玻璃上更站得住 */
+    private static String radialRingWhiteAlphaGeq() {
+        int c = RING_HALF;
+        String lum = "0.299*r(X,Y)+0.587*g(X,Y)+0.114*b(X,Y)";
+        return "if(lt(hypot(X-" + c + ",Y-" + c + ")," + RADIAL_R0 + "),0,"
+                + "if(gt(hypot(X-" + c + ",Y-" + c + ")," + RADIAL_R1 + "),0,"
+                + "if(gt(" + lum + "," + RADIAL_ALPHA_LUM_THRESH + "),min(255,58+1.4*(" + lum + ")),0)))";
     }
 
     /**
@@ -624,16 +633,17 @@ public class VideoRenderService {
         }
         String mapDurSec = String.format(Locale.US, "%.5f", Math.max(0.1, durFrames / (double) fps));
         fc.append("[0:a]aformat=sample_rates=44100:channel_layouts=stereo,showfreqs=s=").append(RADIAL_SPEC_W).append('x')
-                .append(RADIAL_SPEC_H).append(":mode=bar:ascale=sqrt:fscale=log:overlap=0.46:averaging=1:win_size=4096:rate=")
-                .append(fps).append(":colors=0xD8C8FF|0x7AE8FF[spec_raw];");
-        fc.append("[spec_raw]eq=saturation=1.72:contrast=1.16:brightness=0.045[spec_eq];");
-        fc.append("[spec_eq]gblur=sigma=0.28[spec_strip];");
+                .append(RADIAL_SPEC_H).append(":mode=bar:ascale=sqrt:fscale=log:overlap=0.30:averaging=1:win_size=4096:rate=")
+                .append(fps).append(":colors=white|white[spec_raw];");
+        fc.append("[spec_raw]eq=contrast=1.28:brightness=0.08[spec_eq];");
+        fc.append("[spec_eq]gblur=sigma=0.22[spec_strip];");
         fc.append("color=c=black:s=").append(RING_VIS_SIZE).append('x').append(RING_VIS_SIZE).append(":d=").append(mapDurSec)
                 .append(":r=").append(fps).append(",format=gray,geq=lum='").append(radialXmapLumGeq()).append("'[xmap];");
         fc.append("color=c=black:s=").append(RING_VIS_SIZE).append('x').append(RING_VIS_SIZE).append(":d=").append(mapDurSec)
                 .append(":r=").append(fps).append(",format=gray,geq=lum='").append(radialYmapLumGeq()).append("'[ymap];");
-        fc.append("[spec_strip][xmap][ymap]remap=fill=black,unsharp=7:7:1.05:5:5:0.0,format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='")
-                .append(radialRingLumAlphaGeq()).append("'[ring_vis];");
+        fc.append("[spec_strip][xmap][ymap]remap=fill=black,unsharp=7:7:1.05:5:5:0.0,format=rgba,geq=r='")
+                .append(radialRingWhiteRgbGeq()).append("':g='").append(radialRingWhiteRgbGeq()).append("':b='")
+                .append(radialRingWhiteRgbGeq()).append("':a='").append(radialRingWhiteAlphaGeq()).append("'[ring_vis];");
         int ringOy = ((hasCover ? COVER_CENTER_Y : HEIGHT / 2) - RING_HALF);
         fc.append("[composed][ring_vis]overlay=").append(COVER_CENTER_X - RING_HALF).append(':').append(ringOy)
                 .append(":format=auto[base];");

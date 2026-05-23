@@ -27,6 +27,8 @@ backend/target/
 backend/lib/
 # 内嵌 FFmpeg（BtbN 构建，体积大；由 scripts/fetch-bundled-ffmpeg-gpu.sh 或 mvn 生成）
 backend/src/main/resources/native/linux-x86_64/ffmpeg
+# 本地参考图 / demo（勿提交）
+backend/*_720.jpg
 !.mvn/wrapper/maven-wrapper.jar
 
 ### Frontend specific ###
