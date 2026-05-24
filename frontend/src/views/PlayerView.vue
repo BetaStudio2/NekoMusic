@@ -1,92 +1,124 @@
 <template>
-  <div class="music-detail-view">
+  <div class="player-page" :class="{ 'player-page--has-banner': isMobile && showBanner }">
+    <div class="ambient" aria-hidden="true">
+      <div class="ambient__blob ambient__blob--a" />
+      <div class="ambient__blob ambient__blob--b" />
+      <div class="ambient__blob ambient__blob--c" />
+      <div class="ambient__grid" />
+    </div>
+
     <!-- 移动设备下载提示横幅 -->
-    <div v-if="isMobile" class="mobile-download-banner">
+    <div v-if="isMobile && showBanner" class="mobile-download-banner">
       <div class="banner-content">
-        <span class="banner-text">下载APP体验更好</span>
+        <span class="banner-text">下载 APP 体验更好</span>
         <a href="/download" class="banner-btn">立即下载</a>
-        <button @click="closeBanner" class="banner-close">×</button>
+        <button type="button" class="banner-close" aria-label="关闭" @click="closeBanner">×</button>
       </div>
     </div>
 
-    <div class="detail-container" v-if="currentMusic">
-      <div class="content-wrapper">
-        <!-- 左侧：音乐详情 -->
-        <div class="detail-section">
-          <!-- 音乐封面 -->
-          <div class="cover-section">
-            <img 
-              :src="getCoverUrl(currentMusic.id)" 
-              :alt="currentMusic.title"
-              class="music-cover"
-              @error="handleImageError"
-            />
-          </div>
-          
-          <!-- 音乐信息 -->
-          <div class="music-info">
-            <h1 class="music-title">{{ currentMusic.title }}</h1>
-            <p class="music-artist">艺术家：{{ currentMusic.artist }}</p>
-            <p class="music-album" v-if="currentMusic.album">专辑：{{ currentMusic.album }}</p>
-          </div>
-          
-          <!-- 操作按钮 -->
-          <div class="action-buttons">
-            <button @click="playMusic" class="play-btn">播放音乐</button>
-            <button @click="toggleFavorite" class="favorite-btn" :class="{ 'is-favorite': isFavorite(currentMusic?.id) }">
-              {{ isFavorite(currentMusic?.id) ? '❤️ 已收藏' : '🤍 收藏' }}
-            </button>
-            <button @click="downloadMusic" class="download-btn">
-              下载音乐
-            </button>
-            <button
-              @click="openVideoRenderDialog"
-              class="clip-btn"
-              :disabled="videoRenderBusy"
-            >
-              {{ videoRenderBusy ? '生成中…' : '生成分享视频' }}
-            </button>
-          </div>
-          <p v-if="isLoggedIn()" class="clip-hint">
-            <template v-if="userIsVip">会员：整首横屏成片，无水印、不限次数</template>
-            <template v-else>免费：30 秒横屏成片（含水印），每日 10 次 · <router-link to="/vip">开通会员</router-link></template>
-          </p>
-          <div v-if="videoRenderSubmitted" class="clip-notice clip-notice--submitted">
-            <p>已提交渲染，完成后将向注册邮箱发送通知并附下载链接。</p>
-            <p v-if="videoRenderRemainingToday != null && !userIsVip" class="clip-notice-meta">
-              今日剩余免费次数：{{ videoRenderRemainingToday }}
+    <div v-if="!currentMusic" class="shell shell--state" aria-busy="true">
+      <div class="state state--loading">
+        <div class="state__spinner" aria-hidden="true" />
+        <p class="state__text">加载曲目中…</p>
+      </div>
+    </div>
+
+    <main v-else class="shell" aria-labelledby="track-title">
+      <div class="layout">
+        <section class="panel panel--meta" aria-label="曲目信息">
+          <div class="meta-card">
+            <div class="cover-wrap">
+              <img
+                :src="getCoverUrl(currentMusic.id)"
+                :alt="currentMusic.title"
+                class="cover"
+                width="320"
+                height="320"
+                @error="handleImageError"
+              />
+            </div>
+
+            <div class="track-head">
+              <h1 id="track-title" class="track-title">{{ currentMusic.title }}</h1>
+              <p class="track-artist">{{ currentMusic.artist }}</p>
+              <p v-if="currentMusic.album" class="track-album">{{ currentMusic.album }}</p>
+              <p v-if="currentMusic.duration" class="track-duration">
+                时长 {{ formatDuration(currentMusic.duration) }}
+              </p>
+            </div>
+
+            <div class="actions-primary">
+              <button type="button" class="btn btn--play" @click="playMusic">
+                播放
+              </button>
+            </div>
+
+            <div class="actions-row">
+              <button
+                type="button"
+                class="btn btn--ghost btn--hide-sm"
+                :class="{ 'btn--on': isFavorite(currentMusic?.id) }"
+                @click="toggleFavorite"
+              >
+                {{ isFavorite(currentMusic?.id) ? '已收藏' : '收藏' }}
+              </button>
+              <button type="button" class="btn btn--ghost btn--hide-sm" @click="downloadMusic">下载</button>
+              <button
+                type="button"
+                class="btn btn--ghost btn--accent"
+                :disabled="videoRenderBusy"
+                @click="openVideoRenderDialog"
+              >
+                {{ videoRenderBusy ? '生成中…' : '分享视频' }}
+              </button>
+            </div>
+
+            <p v-if="isLoggedIn()" class="clip-hint">
+              <template v-if="userIsVip">会员：整首横屏成片，无水印、不限次数</template>
+              <template v-else>
+                免费：30 秒横屏成片（含水印），每日 10 次 ·
+                <router-link to="/vip">开通会员</router-link>
+              </template>
             </p>
+            <div v-if="videoRenderSubmitted" class="clip-notice clip-notice--submitted">
+              <p>已提交渲染，完成后将向注册邮箱发送通知并附下载链接。</p>
+              <p v-if="videoRenderRemainingToday != null && !userIsVip" class="clip-notice-meta">
+                今日剩余免费次数：{{ videoRenderRemainingToday }}
+              </p>
+            </div>
+            <div v-if="videoRenderReady" class="clip-notice clip-notice--ready">
+              <p>分享视频已生成，可下载 MP4。</p>
+              <button type="button" class="clip-download-inline" @click="downloadRenderedVideo">下载 MP4</button>
+            </div>
           </div>
-          <div v-if="videoRenderReady" class="clip-notice clip-notice--ready">
-            <p>分享视频已生成，可下载 MP4。</p>
-            <button type="button" class="clip-download-inline" @click="downloadRenderedVideo">下载 MP4</button>
-          </div>
-        </div>
-        
-        <!-- 右侧：歌词显示 -->
-        <div class="lyrics-section" v-if="parsedLyrics.length > 0">
-          <h3>歌词</h3>
-          <div class="lyrics-container">
-            <div class="lyrics-content" ref="lyricsContent">
-              <div 
-                v-for="(line, index) in parsedLyrics" 
-                :key="index" 
+        </section>
+
+        <section class="panel panel--lyrics" aria-label="歌词">
+          <header class="lyrics-head">
+            <h2 class="lyrics-title">歌词</h2>
+            <p v-if="parsedLyrics.length" class="lyrics-sub">{{ parsedLyrics.length }} 行</p>
+          </header>
+
+          <div v-if="parsedLyrics.length > 0" class="lyrics-shell">
+            <div class="lyrics-scroll" ref="lyricsContent">
+              <div
+                v-for="(line, index) in parsedLyrics"
+                :key="index"
                 class="lyric-line"
                 :class="getLyricLineClass(index)"
               >
                 <div class="lyric-text">{{ line.text }}</div>
-                <div class="lyric-translation" v-if="line.translation">{{ line.translation }}</div>
+                <div v-if="line.translation" class="lyric-translation">{{ line.translation }}</div>
               </div>
             </div>
           </div>
-        </div>
+          <div v-else class="lyrics-empty">
+            <p>暂无歌词</p>
+            <p class="lyrics-empty-hint">播放时可在底栏播放器查看音频进度</p>
+          </div>
+        </section>
       </div>
-      
-    </div>
-    
-    <div v-else class="loading">
-      <p>加载音乐详情中...</p>
-    </div>
+    </main>
 
     <!-- 水印确认弹窗（提交后关闭，不占据整页进度） -->
     <div v-if="videoModalOpen" class="clip-modal-backdrop" @click.self="closeVideoModal">
@@ -215,7 +247,8 @@ const fetchMusicDetail = async (musicId) => {
     
     const data = await response.json()
     if (data.success) {
-      currentMusic.value = data.data;
+      currentMusic.value = data.data
+      syncPlayStateFromStorage()
       // 加载歌词
       loadLyrics(musicId)
     } else {
@@ -317,18 +350,37 @@ const parseLrcLyrics = (lrcText) => {
   parsedLyrics.value = parsed
 }
 
+/** 进入详情或外部切歌后，与 localStorage 对齐本页「是否正在播当前曲」 */
+const syncPlayStateFromStorage = () => {
+  try {
+    const playing = JSON.parse(localStorage.getItem('currentPlayingMusic') || 'null')
+    const state = JSON.parse(localStorage.getItem('globalPlayerState') || 'null')
+    if (playing && currentMusic.value && playing.id === currentMusic.value.id && state) {
+      isPlaying.value = !!state.isPlaying
+      currentTime.value = state.currentTime ?? 0
+      duration.value = state.duration ?? currentMusic.value.duration ?? 0
+    } else {
+      isPlaying.value = false
+      currentTime.value = 0
+      duration.value = currentMusic.value?.duration || 0
+    }
+  } catch {
+    isPlaying.value = false
+  }
+}
+
 // 监听全局播放器状态变化
 const handlePlayerStateChange = (e) => {
-  const state = e.detail;
-  // 只有在当前音乐是正在播放的音乐时才更新本地状态
-  const currentPlayingMusic = JSON.parse(localStorage.getItem('currentPlayingMusic') || 'null');
-  if (currentPlayingMusic && currentMusic.value && currentPlayingMusic.id === currentMusic.value.id) {
-    isPlaying.value = state.isPlaying;
-    currentTime.value = state.currentTime;
-    duration.value = state.duration;
-    
-    // 更新歌词位置
-    updateActiveLyric(); // 直接更新歌词高亮状态
+  const state = e.detail
+  const currentPlayingMusic = JSON.parse(localStorage.getItem('currentPlayingMusic') || 'null')
+  if (!currentMusic.value) return
+  if (currentPlayingMusic && currentPlayingMusic.id === currentMusic.value.id) {
+    isPlaying.value = state.isPlaying
+    currentTime.value = state.currentTime
+    duration.value = state.duration
+    updateActiveLyric()
+  } else {
+    isPlaying.value = false
   }
 }
 
@@ -958,6 +1010,8 @@ const startTimer = () => {
         if (Math.abs(currentTime.value - previousTime) > 0.1) { // 防止过于频繁的更新
           updateActiveLyric();
         }
+      } else if (currentMusic.value) {
+        isPlaying.value = false
       }
     }
   }, 300); // 每300毫秒更新一次，平衡性能和流畅度
@@ -1010,162 +1064,337 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.music-detail-view {
-  max-width: 1200px;
-  margin: 40px auto;
-  padding: 20px;
+/* Appended by refactor script — will be merged into PlayerView.vue */
+.player-page {
+  --text: rgba(255, 255, 255, 0.92);
+  --muted: rgba(255, 255, 255, 0.62);
+  --faint: rgba(255, 255, 255, 0.42);
+  --line: rgba(255, 255, 255, 0.1);
+  --card: rgba(255, 255, 255, 0.06);
+  --card2: rgba(255, 255, 255, 0.09);
+  --accent: #8b5cf6;
+  --accent2: #22d3ee;
+  --accent3: #34d399;
+  --radius: 18px;
+  --radius-lg: 22px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+
+  position: relative;
+  min-height: 100vh;
+  padding-top: env(safe-area-inset-top, 0px);
+  color: var(--text);
+  background: transparent;
 }
 
-/* 移动设备下载横幅 */
-.mobile-download-banner {
+.ambient {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1000;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-  animation: slideDown 0.3s ease;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
 }
 
-@keyframes slideDown {
-  from {
-    transform: translateY(-100%);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
-
-.banner-content {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.banner-text {
-  color: white;
-  font-weight: bold;
-  font-size: 1rem;
-  margin-right: 15px;
-}
-
-.banner-btn {
-  background: white;
-  color: #667eea;
-  text-decoration: none;
-  padding: 8px 20px;
-  border-radius: 20px;
-  font-weight: bold;
-  font-size: 0.9rem;
-  transition: all 0.3s ease;
-  white-space: nowrap;
-}
-
-.banner-btn:hover {
-  transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.banner-close {
-  background: none;
-  border: none;
-  color: white;
-  font-size: 1.5rem;
-  font-weight: bold;
-  cursor: pointer;
-  padding: 0;
-  margin-left: 15px;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.ambient__blob {
+  position: absolute;
   border-radius: 50%;
-  transition: all 0.3s ease;
+  filter: blur(72px);
+  opacity: 0.5;
+  animation: blobFloat 22s var(--ease) infinite;
 }
 
-.banner-close:hover {
-  background: rgba(255, 255, 255, 0.2);
+.ambient__blob--a {
+  width: 420px;
+  height: 420px;
+  background: rgba(139, 92, 246, 0.42);
+  top: -140px;
+  left: -120px;
 }
 
-.detail-container {
-  background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 30px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+.ambient__blob--b {
+  width: 360px;
+  height: 360px;
+  background: rgba(34, 211, 238, 0.24);
+  bottom: -80px;
+  right: -100px;
+  animation-delay: -7s;
 }
 
-.content-wrapper {
-  display: flex;
-  gap: 30px;
+.ambient__blob--c {
+  width: 280px;
+  height: 280px;
+  background: rgba(52, 211, 153, 0.18);
+  top: 42%;
+  left: 38%;
+  animation-delay: -12s;
 }
 
-.detail-section {
-  flex: 1;
-  min-width: 0; /* 防止flex item溢出 */
+.ambient__grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.32;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 20%, black, transparent);
+  animation: gridBreathe 10s ease-in-out infinite;
 }
 
-.cover-section {
-  margin-bottom: 25px;
-  text-align: center;
+@keyframes gridBreathe {
+  0%,
+  100% {
+    opacity: 0.26;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 
-.music-cover {
-  width: 250px;
-  height: 250px;
-  object-fit: cover;
-  border-radius: 15px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+@keyframes blobFloat {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(20px, -14px) scale(1.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient__blob,
+  .ambient__grid {
+    animation: none;
+  }
+}
+
+.shell {
+  position: relative;
+  z-index: 1;
+  width: min(1180px, 100%);
   margin: 0 auto;
+  padding: clamp(16px, 3vw, 28px) clamp(14px, 3.5vw, 28px) clamp(28px, 5vw, 56px);
 }
 
-.music-info {
-  margin: 25px 0;
-  text-align: left;
+.shell--state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
 }
 
-.music-title {
-  font-size: 1.8rem;
-  color: #5c4b7b;
-  margin: 0 0 15px 0;
-  font-weight: bold;
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 36px 28px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: var(--card);
+  box-shadow: var(--shadow);
 }
 
-.music-artist,
-.music-album,
-.music-duration {
-  font-size: 1.1rem;
-  color: #6a5acd;
-  margin: 8px 0;
-  text-align: left;
+.state--loading {
+  animation: statePulse 2.4s ease-in-out infinite;
 }
 
-.action-buttons {
-  margin-top: 30px;
+@keyframes statePulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
+  }
+  50% {
+    box-shadow: 0 0 40px 2px rgba(34, 211, 238, 0.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .state--loading {
+    animation: none;
+  }
+}
+
+.state__spinner {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.12);
+  border-top-color: var(--accent2);
+  animation: spin 0.85s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .state__spinner {
+    animation: none;
+    border-color: rgba(34, 211, 238, 0.35);
+  }
+}
+
+.state__text {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 400px) minmax(0, 1fr);
+  gap: clamp(18px, 3vw, 28px);
+  align-items: start;
+}
+
+.panel {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: linear-gradient(145deg, rgba(139, 92, 246, 0.12), rgba(255, 255, 255, 0.04));
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.panel--lyrics {
+  display: flex;
+  flex-direction: column;
+  min-height: min(70vh, 640px);
+}
+
+.meta-card {
+  padding: clamp(20px, 3vw, 28px);
+}
+
+.cover-wrap {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 20px;
+}
+
+.cover {
+  display: block;
+  width: min(280px, 100%);
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+}
+
+.track-head {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.track-title {
+  margin: 0 0 8px;
+  font-size: clamp(1.35rem, 3vw, 1.75rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.track-artist {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--accent2);
+  font-weight: 600;
+}
+
+.track-album,
+.track-duration {
+  margin: 8px 0 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.actions-primary {
+  margin-bottom: 14px;
+}
+
+.actions-row {
   display: flex;
   flex-wrap: wrap;
+  gap: 10px;
   justify-content: center;
-  gap: 16px;
+}
+
+.btn {
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+  transition:
+    transform 0.2s var(--ease),
+    box-shadow 0.2s var(--ease),
+    background 0.2s var(--ease),
+    border-color 0.2s var(--ease);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn--play {
+  width: 100%;
+  padding: 14px 22px;
+  border-radius: 999px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0c0a14;
+  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
+  box-shadow: 0 8px 28px rgba(139, 92, 246, 0.35);
+}
+
+@media (hover: hover) {
+  .btn--play:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 36px rgba(34, 211, 238, 0.25);
+  }
+}
+
+.btn--ghost {
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+@media (hover: hover) {
+  .btn--ghost:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(139, 92, 246, 0.35);
+  }
+}
+
+.btn--accent {
+  border-color: rgba(251, 191, 36, 0.35);
+  color: #fde68a;
+}
+
+.btn--on {
+  border-color: rgba(244, 114, 182, 0.45);
+  color: #fbcfe8;
+  background: rgba(244, 114, 182, 0.12);
 }
 
 .clip-hint {
-  margin: 14px 0 0;
+  margin: 16px 0 0;
   text-align: center;
-  font-size: 0.85rem;
-  color: #887bb0;
-  line-height: 1.5;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--faint);
 }
 
 .clip-hint a {
-  color: #6a5acd;
+  color: var(--accent2);
   text-decoration: none;
   font-weight: 600;
 }
@@ -1174,90 +1403,12 @@ onUnmounted(() => {
   text-decoration: underline;
 }
 
-.play-btn, .download-btn, .clip-btn {
-  padding: 12px 24px;
-  border-radius: 25px;
-  border: none;
-  font-size: 1rem;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  min-width: 120px;
-}
-
-.play-btn {
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.9), rgba(138, 43, 226, 0.9));
-  color: white;
-  box-shadow: 0 4px 15px rgba(106, 90, 205, 0.4);
-}
-
-.play-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(106, 90, 205, 0.6);
-}
-
-.download-btn {
-  background: linear-gradient(135deg, rgba(76, 175, 80, 0.9), rgba(25, 118, 210, 0.9));
-  color: white;
-  box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
-}
-
-.download-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(76, 175, 80, 0.6);
-}
-
-.favorite-btn {
-  padding: 12px 24px;
-  border-radius: 25px;
-  border: none;
-  font-size: 1rem;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  min-width: 120px;
-  background: linear-gradient(135deg, rgba(255, 105, 180, 0.9), rgba(255, 20, 147, 0.9));
-  color: white;
-  box-shadow: 0 4px 15px rgba(255, 105, 180, 0.4);
-}
-
-.favorite-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(255, 105, 180, 0.6);
-}
-
-.favorite-btn.is-favorite {
-  background: linear-gradient(135deg, rgba(255, 69, 0, 0.9), rgba(220, 20, 60, 0.9));
-  box-shadow: 0 4px 15px rgba(255, 69, 0, 0.4);
-}
-
-.favorite-btn.is-favorite:hover {
-  box-shadow: 0 6px 20px rgba(255, 69, 0, 0.6);
-}
-
-.clip-btn {
-  background: linear-gradient(135deg, rgba(255, 152, 0, 0.92), rgba(255, 87, 34, 0.92));
-  color: white;
-  box-shadow: 0 4px 15px rgba(255, 152, 0, 0.35);
-}
-
-.clip-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(255, 152, 0, 0.55);
-}
-
-.clip-btn:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
-
 .clip-notice {
   margin-top: 14px;
-  padding: 12px 16px;
-  border-radius: 12px;
-  font-size: 0.88rem;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
   line-height: 1.5;
-  text-align: left;
 }
 
 .clip-notice p {
@@ -1266,20 +1417,20 @@ onUnmounted(() => {
 
 .clip-notice-meta {
   margin-top: 6px !important;
-  font-size: 0.82rem;
-  opacity: 0.85;
+  font-size: 0.8rem;
+  opacity: 0.9;
 }
 
 .clip-notice--submitted {
-  background: rgba(106, 90, 205, 0.1);
-  border: 1px solid rgba(106, 90, 205, 0.25);
-  color: #5c4b7b;
+  background: rgba(139, 92, 246, 0.12);
+  border: 1px solid rgba(139, 92, 246, 0.28);
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .clip-notice--ready {
-  background: rgba(76, 175, 80, 0.12);
-  border: 1px solid rgba(76, 175, 80, 0.35);
-  color: #2e6b32;
+  background: rgba(52, 211, 153, 0.12);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  color: rgba(255, 255, 255, 0.9);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1287,22 +1438,179 @@ onUnmounted(() => {
 }
 
 .clip-download-inline {
-  padding: 8px 18px;
+  padding: 8px 16px;
   border: none;
   border-radius: 999px;
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   cursor: pointer;
-  color: white;
-  background: linear-gradient(135deg, #6a5acd, #8a2be2);
+  color: #0c0a14;
+  background: linear-gradient(135deg, var(--accent2), var(--accent3));
+}
+
+.lyrics-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.lyrics-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.lyrics-sub {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.lyrics-shell {
+  flex: 1;
+  min-height: 0;
+  padding: 8px 12px 16px;
+}
+
+.lyrics-scroll {
+  height: min(62vh, 560px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px 12px 24px;
+  scroll-behavior: smooth;
+  mask-image: linear-gradient(180deg, transparent, black 12px, black calc(100% - 12px), transparent);
+}
+
+.lyrics-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 24px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.lyrics-empty p {
+  margin: 0;
+}
+
+.lyrics-empty-hint {
+  font-size: 0.82rem;
+  color: var(--faint);
+}
+
+.lyric-line {
+  color: rgba(255, 255, 255, 0.38);
+  font-size: 0.82rem;
+  padding: 10px 8px;
+  text-align: center;
+  transition:
+    color 0.25s var(--ease),
+    transform 0.25s var(--ease),
+    opacity 0.25s var(--ease);
+  line-height: 1.55;
+  max-width: 42rem;
+  margin: 0 auto;
+}
+
+.lyric-text {
+  display: block;
+}
+
+.lyric-translation {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78em;
+  opacity: 0.85;
+}
+
+.lyric-line.before {
+  opacity: 0.55;
+  transform: scale(0.98);
+}
+
+.lyric-line.active {
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.15rem;
+  opacity: 1;
+  transform: scale(1.02);
+  text-shadow:
+    0 0 20px rgba(34, 211, 238, 0.45),
+    0 0 36px rgba(139, 92, 246, 0.35);
+}
+
+.lyric-line.active .lyric-translation {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.mobile-download-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: linear-gradient(135deg, rgba(30, 27, 50, 0.95), rgba(15, 16, 32, 0.98));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.banner-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 11px 16px;
+  max-width: 1180px;
+  margin: 0 auto;
+  gap: 10px;
+}
+
+.banner-text {
+  color: rgba(255, 255, 255, 0.88);
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.banner-btn {
+  background: linear-gradient(135deg, var(--accent), #6366f1);
+  color: #fff;
+  text-decoration: none;
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.banner-close {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .clip-modal-backdrop {
   position: fixed;
   inset: 0;
   z-index: 2000;
-  background: rgba(20, 16, 40, 0.45);
-  backdrop-filter: blur(4px);
+  background: rgba(6, 5, 12, 0.72);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1311,12 +1619,13 @@ onUnmounted(() => {
 
 .clip-modal {
   position: relative;
-  width: min(420px, 100%);
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 16px;
-  padding: 28px 24px 24px;
-  box-shadow: 0 16px 48px rgba(60, 40, 120, 0.25);
-  text-align: center;
+  width: min(440px, 100%);
+  background: linear-gradient(165deg, rgba(30, 28, 48, 0.98), rgba(18, 17, 28, 0.99));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-lg);
+  padding: 26px 22px 22px;
+  box-shadow: var(--shadow);
+  color: var(--text);
 }
 
 .clip-modal-close {
@@ -1325,22 +1634,24 @@ onUnmounted(() => {
   right: 12px;
   border: none;
   background: none;
-  font-size: 1.6rem;
+  font-size: 1.5rem;
   line-height: 1;
-  color: #9988bb;
+  color: var(--faint);
   cursor: pointer;
 }
 
 .clip-modal h3 {
   margin: 0 0 8px;
-  color: #5c4b7b;
-  font-size: 1.25rem;
+  color: var(--text);
+  font-size: 1.15rem;
+  text-align: center;
 }
 
 .clip-modal-song {
-  margin: 0 0 20px;
-  color: #887bb0;
-  font-size: 0.9rem;
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  text-align: center;
 }
 
 .clip-modal-confirm {
@@ -1350,9 +1661,9 @@ onUnmounted(() => {
 .clip-range-block {
   margin-bottom: 14px;
   padding: 14px;
-  border-radius: 12px;
-  background: rgba(106, 90, 205, 0.06);
-  border: 1px solid rgba(106, 90, 205, 0.18);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
 }
 
 .clip-range-head {
@@ -1360,25 +1671,25 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 10px;
-  font-size: 0.9rem;
-  color: #5c4b7b;
+  font-size: 0.88rem;
+  color: var(--muted);
   font-weight: 600;
 }
 
 .clip-range-value {
   font-weight: 500;
-  color: #7c6aad;
+  color: var(--accent2);
   font-variant-numeric: tabular-nums;
 }
 
 .clip-range-slider {
   width: 100%;
-  accent-color: #6a5acd;
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
 .clip-range-slider:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
@@ -1393,21 +1704,21 @@ onUnmounted(() => {
 
 .clip-preview-btn {
   padding: 8px 16px;
-  border: 1px solid rgba(106, 90, 205, 0.35);
+  border: 1px solid rgba(139, 92, 246, 0.4);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.85);
-  color: #6a5acd;
-  font-size: 0.85rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--accent2);
+  font-size: 0.84rem;
   font-weight: 600;
   cursor: pointer;
 }
 
 .clip-preview-btn:hover:not(:disabled) {
-  background: rgba(106, 90, 205, 0.12);
+  background: rgba(139, 92, 246, 0.15);
 }
 
 .clip-preview-btn:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -1417,23 +1728,23 @@ onUnmounted(() => {
   gap: 10px;
   margin-bottom: 12px;
   padding: 12px 14px;
-  border-radius: 12px;
-  background: rgba(106, 90, 205, 0.08);
-  border: 1px solid rgba(106, 90, 205, 0.2);
-  color: #5c4b7b;
-  font-size: 0.95rem;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.9rem;
   cursor: pointer;
 }
 
 .clip-watermark-option--locked {
   cursor: not-allowed;
-  opacity: 0.92;
+  opacity: 0.85;
 }
 
 .clip-watermark-option input {
   width: 18px;
   height: 18px;
-  accent-color: #6a5acd;
+  accent-color: var(--accent);
 }
 
 .clip-modal-actions {
@@ -1445,313 +1756,68 @@ onUnmounted(() => {
 
 .clip-cancel-btn,
 .clip-confirm-btn {
-  padding: 10px 20px;
+  padding: 10px 18px;
   border: none;
   border-radius: 999px;
   font-weight: 600;
   cursor: pointer;
+  font-size: 0.88rem;
 }
 
 .clip-cancel-btn {
-  background: rgba(153, 136, 187, 0.2);
-  color: #7766aa;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
 }
 
 .clip-confirm-btn {
-  color: white;
-  background: linear-gradient(135deg, #6a5acd, #8a2be2);
-}
-
-.clip-modal-status p {
-  margin: 0 0 8px;
-  color: #5c4b7b;
+  color: #0c0a14;
+  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
 }
 
 .clip-modal-sub {
-  font-size: 0.85rem !important;
-  color: #9988bb !important;
+  font-size: 0.82rem !important;
+  color: var(--faint) !important;
 }
 
-.clip-spinner {
-  width: 40px;
-  height: 40px;
-  margin: 0 auto 16px;
-  border: 3px solid rgba(106, 90, 205, 0.2);
-  border-top-color: #6a5acd;
-  border-radius: 50%;
-  animation: clip-spin 0.8s linear infinite;
-}
-
-@keyframes clip-spin {
-  to { transform: rotate(360deg); }
-}
-
-.clip-download-btn,
-.clip-retry-btn {
-  margin-top: 12px;
-  padding: 10px 24px;
-  border: none;
-  border-radius: 999px;
-  font-weight: 600;
-  cursor: pointer;
-  color: white;
-  background: linear-gradient(135deg, #6a5acd, #8a2be2);
-}
-
-.clip-retry-btn {
-  background: linear-gradient(135deg, #ff9800, #ff5722);
-}
-
-.clip-quota {
-  margin: 16px 0 0;
-  font-size: 0.82rem;
-  color: #9988bb;
-}
-
-/* 歌词显示区域 */
-.lyrics-section {
-  flex: 1;
-  min-width: 0; /* 防止flex item溢出 */
-  display: flex;
-  flex-direction: column;
-}
-
-.lyrics-section h3 {
-  color: #6a5acd;
-  margin-bottom: 15px;
-  font-size: 1.2rem;
-  align-self: center;
-}
-
-.lyrics-container {
-  flex: 1;
-  max-height: 500px; /* 限高 */
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 15px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  overflow-y: hidden;
-  overflow-x: hidden;
-}
-
-.lyrics-content {
-  height: 100%;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  align-items: center;
-  overflow-y: auto;
-  position: relative;
-  gap: 20px;
-  padding: 20px 0;
-}
-
-.lyric-line {
-  color: rgba(136, 136, 136, 0.7);
-  font-size: 0.8rem;
-  padding: 8px 10px;
-  text-align: center;
-  transition: all 0.3s ease;
-  white-space: normal;
-  word-wrap: break-word;
-  word-break: break-word;
-  z-index: 1;
-  width: 100%;
-  max-width: 90%;
-  flex-shrink: 0;
-  display: block;
-  line-height: 1.5;
-}
-
-.lyric-text {
-  display: block;
-  margin-bottom: 4px;
-}
-
-.lyric-translation {
-  display: block;
-  font-size: 0.75em;
-  opacity: 0.8;
-  color: rgba(136, 136, 136, 0.9);
-}
-
-.lyric-line.active {
-  color: #ffffff;
-  font-weight: 700;
-  font-size: 1.4rem;
-  text-shadow: 0 0 10px rgba(106, 90, 205, 0.8), 0 0 20px rgba(106, 90, 205, 0.6);
-  z-index: 10;
-  transform: scale(1.1); /* 减小放大比例，避免过长歌词溢出 */
-  transition: all 0.3s ease;
-}
-
-.lyric-line.active .lyric-text {
-  color: #ffffff;
-}
-
-.lyric-line.active .lyric-translation {
-  color: rgba(255, 255, 255, 0.9);
-  opacity: 1;
-}
-
-.lyric-line.before {
-  transform: scale(0.95); /* 轻微放大 */
-  opacity: 0.7;
-  transition: all 0.3s ease;
-}
-
-.lyric-line.after {
-  transform: scale(0.95); /* 轻微放大 */
-  opacity: 0.7;
-  transition: all 0.3s ease;
-}
-
-.loading {
-  text-align: center;
-  padding: 40px;
-  color: #887bb0;
-  font-size: 1.2rem;
-}
-
-/* 隐藏的音频元素 */
 audio {
   display: none;
 }
 
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .panel--lyrics {
+    min-height: auto;
+  }
+
+  .lyrics-scroll {
+    height: min(48vh, 420px);
+  }
+}
+
 @media (max-width: 768px) {
-  .music-detail-view {
-    padding: 100px 10px 20px; /* 为横幅留出更多空间 */
-    margin: 0;
+  .player-page--has-banner .shell {
+    padding-top: 52px;
   }
 
-  .detail-container {
-    padding: 15px;
-    margin: 0;
-    border-radius: 15px;
-  }
-
-  .content-wrapper {
-    flex-direction: column;
-    gap: 20px;
-  }
-
-  .detail-section {
-    width: 100%;
-  }
-
-  .cover-section {
-    margin-bottom: 20px;
-  }
-
-  .music-cover {
-    width: 280px;
-    height: 280px;
-    border-radius: 12px;
-  }
-
-  .music-info {
-    margin: 20px 0;
-    text-align: center;
-  }
-
-  .music-title {
-    font-size: 1.6rem;
-    margin-bottom: 10px;
-  }
-
-  .music-artist,
-  .music-album {
-    font-size: 1rem;
-    margin: 6px 0;
-  }
-
-  .action-buttons {
-    margin-top: 25px;
-    flex-direction: column;
-    align-items: center;
-    gap: 15px;
-  }
-
-  .play-btn {
-    width: 100%;
-    padding: 16px 24px;
-    font-size: 1.1rem;
-    min-width: auto;
-  }
-
-  /* 隐藏收藏和下载按钮 */
-  .favorite-btn,
-  .download-btn {
+  .btn--hide-sm {
     display: none !important;
   }
 
-  .clip-btn {
+  .btn--play {
+    padding: 16px 22px;
+    font-size: 1.05rem;
+  }
+
+  .actions-row {
+    flex-direction: column;
+  }
+
+  .actions-row .btn--accent {
     width: 100%;
-    min-width: auto;
-  }
-
-  .clip-hint {
-    font-size: 0.8rem;
-    padding: 0 8px;
-  }
-
-  /* 歌词区域 */
-  .lyrics-section {
-    flex: 1;
-  }
-
-  .lyrics-section h3 {
-    font-size: 1.1rem;
-    margin-bottom: 10px;
-  }
-
-  .lyrics-container {
-    padding: 15px;
-    max-height: 350px;
-  }
-
-  .lyrics-content {
-    gap: 15px;
-    padding: 15px 0;
-  }
-
-  .lyric-line {
-    font-size: 0.9rem;
-    padding: 6px 8px;
-  }
-
-  .lyric-line.active {
-    font-size: 1.1rem;
-  }
-
-  /* 下载横幅优化 */
-  .mobile-download-banner {
-    padding: 10px 0;
-  }
-
-  .banner-content {
-    padding: 10px 15px;
-  }
-
-  .banner-text {
-    font-size: 0.9rem;
-    margin-right: 10px;
-  }
-
-  .banner-btn {
-    padding: 6px 16px;
-    font-size: 0.85rem;
-  }
-
-  .banner-close {
-    width: 28px;
-    height: 28px;
-    font-size: 1.3rem;
-    margin-left: 10px;
   }
 }
+
 </style>

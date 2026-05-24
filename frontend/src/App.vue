@@ -7,22 +7,24 @@ import GlobalPlayer from './components/GlobalPlayer.vue'
 
 const route = useRoute()
 
-// 下载页与首页：全幅背景壳层，去掉 main 内边距外框
-const isFlushMain = computed(() => route.name === 'download' || route.name === 'home')
+// 下载页、首页、音乐详情：全幅背景壳层，去掉 main 内边距外框
+const isFlushMain = computed(
+  () => route.name === 'download' || route.name === 'home' || route.name === 'detail'
+)
 // 下载页独立布局：不显示顶栏搜索、底栏与全局播放器
 const isDownloadPage = computed(() => route.name === 'download')
-// 首页：顶栏 / 播放器 / 底栏使用与主页内容一致的深色玻璃，避免与 body 浅色渐变冲突
-const isHomePage = computed(() => route.name === 'home')
+// 首页与音乐详情：顶栏 / 播放器 / 底栏使用与页面一致的深色玻璃
+const isChromeDarkShell = computed(() => route.name === 'home' || route.name === 'detail')
 </script>
 
 <template>
-  <div id="app" :class="{ 'app--home': isHomePage }">
-    <SearchHeader v-if="!isDownloadPage" :chrome-dark="isHomePage" />
+  <div id="app" :class="{ 'app--home': isChromeDarkShell }">
+    <SearchHeader v-if="!isDownloadPage" :chrome-dark="isChromeDarkShell" />
     <main :class="{ 'main--flush': isFlushMain }">
       <RouterView />
     </main>
-    <GlobalPlayer v-if="!isDownloadPage" :chrome-dark="isHomePage" />
-    <Footer v-if="!isDownloadPage" :chrome-dark="isHomePage" />
+    <GlobalPlayer v-if="!isDownloadPage" :chrome-dark="isChromeDarkShell" />
+    <Footer v-if="!isDownloadPage" :chrome-dark="isChromeDarkShell" />
   </div>
 </template>
 
@@ -33,7 +35,7 @@ const isHomePage = computed(() => route.name === 'home')
   flex-direction: column;
 }
 
-/* 与 HomeView 完全一致的三层背景，顶栏与主内容共用同一底图，避免「两块屏」色差 */
+/* HomeView / PlayerView：三层背景，顶栏与主内容共用同一底图 */
 #app.app--home {
   background: radial-gradient(1200px 700px at 10% -10%, rgba(139, 92, 246, 0.35), transparent 55%),
     radial-gradient(900px 600px at 95% 10%, rgba(34, 211, 238, 0.18), transparent 50%),
