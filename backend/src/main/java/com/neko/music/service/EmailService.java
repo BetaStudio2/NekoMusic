@@ -5,11 +5,17 @@ import com.neko.music.config.ConfigManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.activation.DataHandler;
 import javax.mail.*;
 import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeBodyPart;
 import javax.mail.internet.MimeMessage;
+import javax.mail.internet.MimeMultipart;
+import javax.mail.internet.MimeUtility;
+import javax.mail.util.ByteArrayDataSource;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -33,7 +39,8 @@ public class EmailService {
     private final String videoRenderCompleteTemplate;
     private final String neteaseLyricsValidationFailedTemplate;
 
-    private static final int NETEASE_LYRICS_EMAIL_MAX_CHARS = 12_000;
+    /** 超过此长度时正文不内嵌歌词，改为 UTF-8 附件（不截断） */
+    private static final int NETEASE_LYRICS_INLINE_MAX_CHARS = 48_000;
 
     private static final ExecutorService ASYNC_MAIL_EXECUTOR = Executors.newSingleThreadExecutor(new ThreadFactory() {
         private final AtomicInteger n = new AtomicInteger();
@@ -236,7 +243,7 @@ public class EmailService {
                 + "<h2>网易云歌词 LRC 校验失败</h2>"
                 + "<p>{{title}} — {{artist}} | 曲库 ID: {{musicId}} | 网易云 ID: {{songId}}</p>"
                 + "<p><strong>原因：</strong>{{reason}}</p>"
-                + "<pre>{{lyricsContent}}</pre>"
+                + "{{lyricsBlock}}"
                 + "<p>{{notifiedAt}}</p>"
                 + "</body></html>";
     }
@@ -283,7 +290,19 @@ public class EmailService {
             return false;
         }
 
-        String lyricsForMail = truncateForEmail(rawLyrics);
+        String raw = rawLyrics == null ? "" : rawLyrics;
+        String attachmentFileName = buildNeteaseLyricsAttachmentFileName(title, neteaseSongId);
+        byte[] attachmentBytes = null;
+        String lyricsBlock;
+        if (raw.length() <= NETEASE_LYRICS_INLINE_MAX_CHARS) {
+            lyricsBlock = "<pre>" + escapeHtml(raw) + "</pre>";
+        } else {
+            attachmentBytes = raw.getBytes(StandardCharsets.UTF_8);
+            lyricsBlock = "<p>原始歌词共 <strong>" + raw.length()
+                    + "</strong> 字符，已完整放入附件 <strong>" + escapeHtml(attachmentFileName)
+                    + "</strong>（UTF-8，未截断），请下载查看。</p>";
+        }
+
         String notifiedAt = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         String content = neteaseLyricsValidationFailedTemplate
                 .replace("{{musicId}}", escapeHtml(String.valueOf(ingestedMusicId)))
@@ -291,20 +310,37 @@ public class EmailService {
                 .replace("{{title}}", escapeHtml(nullToEmpty(title)))
                 .replace("{{artist}}", escapeHtml(nullToEmpty(artist)))
                 .replace("{{reason}}", escapeHtml(nullToEmpty(validationReason)))
-                .replace("{{lyricsContent}}", escapeHtml(lyricsForMail))
+                .replace("{{lyricsBlock}}", lyricsBlock)
                 .replace("{{notifiedAt}}", escapeHtml(notifiedAt));
 
         String subject = "NekoMusic - 网易云补全歌词校验失败 · " + nullToEmpty(title);
-        boolean ok = sendEmailBroadcast(recipients, subject, content);
-        logger.info("网易云歌词校验失败邮件(BCC 群发): neteaseSongId={} musicId={} 收件人={} 成功={}",
-                neteaseSongId, ingestedMusicId, recipients.size(), ok);
+        boolean ok = sendEmailBroadcast(recipients, subject, content, attachmentFileName, attachmentBytes);
+        logger.info("网易云歌词校验失败邮件(BCC 群发): neteaseSongId={} musicId={} 收件人={} 附件={} 成功={}",
+                neteaseSongId, ingestedMusicId, recipients.size(), attachmentBytes != null, ok);
         return ok;
+    }
+
+    private static String buildNeteaseLyricsAttachmentFileName(String title, long neteaseSongId) {
+        String safe = nullToEmpty(title).replaceAll("[\\\\/:*?\"<>|\\r\\n]+", "_").strip();
+        if (safe.isEmpty()) {
+            safe = "unknown";
+        }
+        if (safe.length() > 80) {
+            safe = safe.substring(0, 80);
+        }
+        return "netease-lyrics-" + neteaseSongId + "-" + safe + ".lrc";
     }
 
     /**
      * 一封邮件、BCC 抄送所有收件人（发件人地址作为唯一 To，兼容多数 SMTP）。
      */
-    private boolean sendEmailBroadcast(List<String> bccRecipients, String subject, String content) {
+    private boolean sendEmailBroadcast(
+            List<String> bccRecipients,
+            String subject,
+            String htmlContent,
+            String attachmentFileName,
+            byte[] attachmentBytes
+    ) {
         if (bccRecipients == null || bccRecipients.isEmpty()) {
             return false;
         }
@@ -330,7 +366,7 @@ public class EmailService {
             });
 
             String from = configManager.getSmtpUsername();
-            Message message = new MimeMessage(session);
+            MimeMessage message = new MimeMessage(session);
             message.setFrom(new InternetAddress(from));
             message.setRecipient(Message.RecipientType.TO, new InternetAddress(from));
             InternetAddress[] bcc = new InternetAddress[bccRecipients.size()];
@@ -338,11 +374,26 @@ public class EmailService {
                 bcc[i] = new InternetAddress(bccRecipients.get(i).trim());
             }
             message.setRecipients(Message.RecipientType.BCC, bcc);
-            message.setSubject(subject);
-            message.setContent(content, "text/html; charset=utf-8");
+            message.setSubject(subject, "UTF-8");
 
+            MimeMultipart multipart = new MimeMultipart();
+            MimeBodyPart htmlPart = new MimeBodyPart();
+            htmlPart.setContent(htmlContent, "text/html; charset=utf-8");
+            multipart.addBodyPart(htmlPart);
+
+            if (attachmentBytes != null && attachmentBytes.length > 0 && attachmentFileName != null) {
+                MimeBodyPart attachPart = new MimeBodyPart();
+                attachPart.setDataHandler(new DataHandler(
+                        new ByteArrayDataSource(attachmentBytes, "text/plain; charset=UTF-8")));
+                attachPart.setFileName(MimeUtility.encodeText(attachmentFileName, "UTF-8", "B"));
+                attachPart.setDisposition(MimeBodyPart.ATTACHMENT);
+                multipart.addBodyPart(attachPart);
+            }
+
+            message.setContent(multipart);
             Transport.send(message);
-            logger.info("群发邮件已发送: BCC {} 人, subject={}", bccRecipients.size(), subject);
+            logger.info("群发邮件已发送: BCC {} 人, subject={}, attachment={}",
+                    bccRecipients.size(), subject, attachmentFileName != null);
             return true;
         } catch (Exception e) {
             logger.error("群发邮件失败: {}", e.getMessage(), e);
@@ -352,17 +403,6 @@ public class EmailService {
 
     private static String nullToEmpty(String s) {
         return s == null ? "" : s;
-    }
-
-    private static String truncateForEmail(String raw) {
-        if (raw == null) {
-            return "";
-        }
-        if (raw.length() <= NETEASE_LYRICS_EMAIL_MAX_CHARS) {
-            return raw;
-        }
-        return raw.substring(0, NETEASE_LYRICS_EMAIL_MAX_CHARS)
-                + "\n\n…（内容过长，已截断，完整原文见服务端日志）";
     }
 
     /**

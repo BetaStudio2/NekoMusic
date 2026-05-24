@@ -48,6 +48,9 @@ public class NeteaseCloudMusicClient {
 
     public record SongDetail(String title, String artist, String album, String coverUrl, int durationMs) {}
 
+    /** /lyric 接口返回：用于校验的主歌词 + 各字段完整原文（供管理员邮件）。 */
+    public record LyricApiPayload(String primaryLrc, String fullOriginalLyrics) {}
+
     /**
      * 调用 NeteaseCloudMusicApi {@code /login/status}。
      * {@code profile == null} 表示未登录或 Cookie 已失效（与官方文档一致，HTTP 仍为 200）。
@@ -139,12 +142,42 @@ public class NeteaseCloudMusicClient {
     }
 
     public String fetchLyricLrc(long songId) throws IOException {
+        return fetchLyricPayload(songId).primaryLrc();
+    }
+
+    public LyricApiPayload fetchLyricPayload(long songId) throws IOException {
         JsonNode root = getJson("/lyric?id=" + songId);
-        String lrc = textOrEmpty(root.path("lrc").path("lyric"));
-        if (!lrc.isBlank()) {
-            return lrc;
+        String primary = textOrEmpty(root.path("lrc").path("lyric"));
+        if (primary.isBlank()) {
+            primary = textOrEmpty(root.path("tlyric").path("lyric"));
         }
-        return textOrEmpty(root.path("tlyric").path("lyric"));
+        return new LyricApiPayload(primary, buildFullOriginalLyrics(root));
+    }
+
+    /**
+     * 拼接网易云 /lyric 各字段的完整原文（lrc、tlyric、yrc 等），避免邮件只含用于校验的那一段。
+     */
+    private static String buildFullOriginalLyrics(JsonNode root) {
+        StringBuilder sb = new StringBuilder();
+        appendLyricSection(sb, "lrc", root.path("lrc").path("lyric"));
+        appendLyricSection(sb, "tlyric", root.path("tlyric").path("lyric"));
+        appendLyricSection(sb, "romalrc", root.path("romalrc").path("lyric"));
+        appendLyricSection(sb, "yrc", root.path("yrc").path("lyric"));
+        appendLyricSection(sb, "klyric", root.path("klyric").path("lyric"));
+        appendLyricSection(sb, "ytlrc", root.path("ytlrc").path("lyric"));
+        return sb.toString().strip();
+    }
+
+    private static void appendLyricSection(StringBuilder sb, String label, JsonNode lyricNode) {
+        String text = textOrEmpty(lyricNode);
+        if (text.isBlank()) {
+            return;
+        }
+        if (!sb.isEmpty()) {
+            sb.append("\n\n");
+        }
+        sb.append("===== [").append(label).append("] =====\n");
+        sb.append(text);
     }
 
     public void downloadToFile(String url, Path destination) throws IOException {

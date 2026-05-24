@@ -303,13 +303,14 @@ public class NeteaseSearchFillService {
                             ingested.get().id(),
                             alert.title(),
                             alert.artist(),
-                            alert.rawLrc(),
+                            alert.fullOriginalLyrics(),
                             alert.reason()));
         }
         return ingested;
     }
 
-    private record InvalidLyricsAlert(long neteaseSongId, String title, String artist, String rawLrc, String reason) {
+    private record InvalidLyricsAlert(
+            long neteaseSongId, String title, String artist, String fullOriginalLyrics, String reason) {
     }
 
     private record LyricsPrepareResult(Path lyricsPath, Optional<InvalidLyricsAlert> invalidLyricsAlert) {
@@ -341,8 +342,11 @@ public class NeteaseSearchFillService {
         Path lyricsTemp = workDir.resolve("lyrics.lrc");
         Optional<InvalidLyricsAlert> invalidAlert = Optional.empty();
         String lrc = "";
+        String fullOriginalLyrics = "";
         try {
-            lrc = neteaseClient.fetchLyricLrc(songId);
+            NeteaseCloudMusicClient.LyricApiPayload payload = neteaseClient.fetchLyricPayload(songId);
+            lrc = payload.primaryLrc();
+            fullOriginalLyrics = payload.fullOriginalLyrics();
         } catch (IOException e) {
             logger.warn("获取歌词失败 songId={}: {}", songId, e.getMessage());
         }
@@ -356,10 +360,11 @@ public class NeteaseSearchFillService {
                     return new LyricsPrepareResult(lyricsTemp, Optional.empty());
                 }
                 String reason = check.getErrorMessage();
+                String lyricsForEmail = !fullOriginalLyrics.isBlank() ? fullOriginalLyrics : lrc;
                 logger.warn("网易云歌词未通过 LRC 校验 songId={} title={}: {}，将使用占位歌词",
                         songId, title, reason);
-                logger.warn("网易云歌词原文 songId={}:\n{}", songId, lrc);
-                invalidAlert = Optional.of(new InvalidLyricsAlert(songId, title, artist, lrc, reason));
+                logger.warn("网易云完整原始歌词 songId={}:\n{}", songId, lyricsForEmail);
+                invalidAlert = Optional.of(new InvalidLyricsAlert(songId, title, artist, lyricsForEmail, reason));
             }
             Files.deleteIfExists(lyricsTemp);
         }
