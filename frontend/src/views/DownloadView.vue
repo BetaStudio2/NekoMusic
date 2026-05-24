@@ -33,7 +33,7 @@
         </div>
         <div class="hero__art">
           <div class="hero__frame">
-            <img src="/favicon.ico" alt="" class="hero__logo" />
+            <img src="/favicon.ico" alt="" class="hero__logo" height="276" width="256" />
           </div>
           <p class="hero__art-caption">Android · Windows · Linux · macOS</p>
         </div>
