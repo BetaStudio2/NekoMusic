@@ -26,9 +26,12 @@ export default defineConfig({
     },
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vue-vendor': ['vue', 'vue-router'],
-          'ui-vendor': ['vue-toastification'],
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+          if (id.includes('vue-toastification')) return 'ui-vendor'
+          if (id.includes('vue-router') || /node_modules[/\\]vue[/\\]/.test(id)) {
+            return 'vue-vendor'
+          }
         },
         // 文件名哈希，利于缓存
         chunkFileNames: 'assets/js/[name]-[hash].js',
