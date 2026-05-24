@@ -1244,11 +1244,15 @@ onUnmounted(() => {
 .layout {
   display: grid;
   grid-template-columns: minmax(280px, 400px) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: clamp(18px, 3vw, 28px);
   align-items: start;
 }
 
 .panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   background: linear-gradient(145deg, rgba(139, 92, 246, 0.12), rgba(255, 255, 255, 0.04));
@@ -1259,10 +1263,20 @@ onUnmounted(() => {
 .panel--lyrics {
   display: flex;
   flex-direction: column;
-  min-height: min(70vh, 640px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.panel--meta {
+  min-height: 0;
 }
 
 .meta-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
   padding: clamp(20px, 3vw, 28px);
 }
 
@@ -1478,13 +1492,39 @@ onUnmounted(() => {
 }
 
 .lyrics-scroll {
-  height: min(62vh, 560px);
+  height: min(630vh, 560px);
   overflow-y: auto;
   overflow-x: hidden;
   padding: 16px 12px 24px;
   scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 92, 246, 0.5) rgba(255, 255, 255, 0.06);
   mask-image: linear-gradient(180deg, transparent, black 12px, black calc(100% - 12px), transparent);
 }
+
+.lyrics-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.lyrics-scroll::-webkit-scrollbar-track {
+  margin: 10px 0;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+}
+
+.lyrics-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(139, 92, 246, 0.55), rgba(34, 211, 238, 0.4));
+  border-radius: 999px;
+  border: 2px solid rgba(12, 10, 20, 0.4);
+  background-clip: padding-box;
+}
+
+.lyrics-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(167, 139, 250, 0.7), rgba(34, 211, 238, 0.55));
+  background-clip: padding-box;
+}
+
 
 .lyrics-empty {
   flex: 1;
@@ -1786,14 +1826,15 @@ audio {
 @media (max-width: 900px) {
   .layout {
     grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    height: auto;
+    max-height: none;
   }
 
   .panel--lyrics {
-    min-height: auto;
-  }
-
-  .lyrics-scroll {
-    height: min(48vh, 420px);
+    min-height: min(48vh, 420px);
+    max-height: min(58vh, 520px);
+    overflow: hidden;
   }
 }
 
