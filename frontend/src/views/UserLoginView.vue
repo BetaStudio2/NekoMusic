@@ -1,39 +1,46 @@
 <template>
-  <div class="login-container">
-    <div class="login-card">
-      <h2 class="login-title">用户登录</h2>
-      <form @submit.prevent="handleLogin" class="login-form">
-        <div class="form-group">
-          <input
-            type="text"
-            v-model="username"
-            class="form-input"
-            placeholder="邮箱"
-            required
-          />
-        </div>
-        
-        <div class="form-group">
-          <input
-            type="password"
-            v-model="password"
-            class="form-input"
-            placeholder="密码"
-            required
-          />
-        </div>
-        
-        <button type="submit" class="login-btn" :disabled="loading">
-          <span v-if="loading">登录中...</span>
-          <span v-else>登录</span>
-        </button>
-      </form>
-      
-      <div class="login-footer">
-        <p>还没有账户？<a href="#" @click.prevent="goToRegister">立即注册</a></p>
-        <p><a href="#" @click.prevent="goToForgotPassword">忘记密码？</a></p>
-      </div>
+  <div class="glass-page">
+    <div class="ambient" aria-hidden="true">
+      <div class="ambient__blob ambient__blob--a" />
+      <div class="ambient__blob ambient__blob--b" />
+      <div class="ambient__blob ambient__blob--c" />
+      <div class="ambient__grid" />
     </div>
+    <main class="shell auth-main">
+      <div class="panel auth-card">
+        <h2 class="auth-title">用户登录</h2>
+        <form class="auth-form" @submit.prevent="handleLogin">
+          <div class="form-group">
+            <input
+              v-model="username"
+              type="text"
+              class="form-input"
+              placeholder="邮箱"
+              required
+              autocomplete="username"
+            />
+          </div>
+          <div class="form-group">
+            <input
+              v-model="password"
+              type="password"
+              class="form-input"
+              placeholder="密码"
+              required
+              autocomplete="current-password"
+            />
+          </div>
+          <button type="submit" class="btn-submit" :disabled="loading">
+            <span v-if="loading">登录中…</span>
+            <span v-else>登录</span>
+          </button>
+        </form>
+        <div class="auth-footer">
+          <p>还没有账户？<a href="#" @click.prevent="goToRegister">立即注册</a></p>
+          <p><a href="#" @click.prevent="goToForgotPassword">忘记密码？</a></p>
+        </div>
+      </div>
+    </main>
   </div>
 </template>
 
@@ -42,7 +49,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { useToast } from 'vue-toastification'
-import API_CONFIG from "@/config/apiConfig.js";
+import API_CONFIG from '@/config/apiConfig.js'
 
 const toast = useToast()
 const router = useRouter()
@@ -50,7 +57,6 @@ const username = ref('')
 const password = ref('')
 const loading = ref(false)
 
-// 处理登录逻辑
 const handleLogin = async () => {
   loading.value = true
   try {
@@ -58,26 +64,24 @@ const handleLogin = async () => {
       username: username.value,
       password: password.value
     })
-    
+
     if (response.data.success) {
       toast.success('登录成功！')
-      // 存储用户信息和token到localStorage
       const previousToken = localStorage.getItem('userToken')
-      const previousUser = localStorage.getItem('user')
-      
+
       localStorage.setItem('userToken', response.data.data.token)
       localStorage.setItem('user', JSON.stringify(response.data.data.user))
-      
-      // 触发storage事件，确保其他标签页或组件能够检测到状态变化
+
       if (!previousToken) {
-        // 只有在之前没有登录的情况下才触发storage事件
-        window.dispatchEvent(new StorageEvent('storage', {
-          key: 'userToken',
-          oldValue: null,
-          newValue: response.data.data.token
-        }));
+        window.dispatchEvent(
+          new StorageEvent('storage', {
+            key: 'userToken',
+            oldValue: null,
+            newValue: response.data.data.token
+          })
+        )
       }
-      
+
       router.push('/')
     } else {
       toast.error(response.data.message || '登录失败')
@@ -94,172 +98,115 @@ const handleLogin = async () => {
   }
 }
 
-// 跳转到注册页面
 const goToRegister = () => {
   router.push('/register')
 }
 
-// 跳转到忘记密码页面
 const goToForgotPassword = () => {
   router.push('/forgot-password')
 }
 </script>
 
 <style scoped>
-.login-container {
-  min-height: 70vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
+.panel {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: linear-gradient(145deg, rgba(139, 92, 246, 0.14), rgba(255, 255, 255, 0.04));
+  box-shadow: var(--shadow);
 }
 
-.login-card {
-  background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 40px;
+.auth-card {
   width: 100%;
-  max-width: 400px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  position: relative;
-  overflow: hidden;
+  max-width: 420px;
+  padding: clamp(28px, 4vw, 40px) clamp(22px, 4vw, 32px);
 }
 
-.login-card::before {
-  content: '';
-  position: absolute;
-  top: -10px;
-  left: -10px;
-  right: -10px;
-  bottom: -10px;
-  background: linear-gradient(45deg, #ff9ec0, #6a5acd, #84ffff, #ff9ec0);
-  background-size: 400%;
-  border-radius: 25px;
-  z-index: -1;
-  filter: blur(20px);
-  opacity: 0.6;
-  animation: gradientShift 10s ease infinite;
-}
-
-@keyframes gradientShift {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-.login-title {
+.auth-title {
+  margin: 0 0 24px;
   text-align: center;
-  margin-bottom: 30px;
-  font-size: 1.8rem;
-  color: #6a5acd;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-  background: linear-gradient(45deg, #ff9ec0, #6a5acd, #84ffff);
+  font-size: clamp(1.35rem, 3vw, 1.65rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(120deg, #e9d5ff, #a5f3fc, #c4b5fd);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  position: relative;
-  z-index: 1;
 }
 
-.login-form {
+.auth-form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
 }
 
 .form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  margin: 0;
 }
 
 .form-input {
-  padding: 14px 20px;
-  border: none;
-  border-radius: 30px;
-  font-size: 1rem;
-  outline: none;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  transition: all 0.3s ease;
-  color: #333;
   width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-family: inherit;
+  transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 
 .form-input::placeholder {
-  color: rgba(92, 75, 123, 0.6);
+  color: var(--faint);
 }
 
 .form-input:focus {
-  border: 1px solid rgba(106, 90, 205, 0.5);
-  box-shadow: 0 8px 32px rgba(106, 90, 205, 0.3);
-  background: rgba(255, 255, 255, 0.35);
+  outline: none;
+  border-color: rgba(34, 211, 238, 0.45);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12);
 }
 
-.login-btn {
-  padding: 14px 20px;
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(147, 112, 219, 0.8));
-  color: white;
+.btn-submit {
+  font-family: inherit;
+  margin-top: 6px;
+  padding: 12px 20px;
   border: none;
-  border-radius: 30px;
-  font-size: 1.1rem;
-  font-weight: bold;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.95rem;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 8px 32px rgba(106, 90, 205, 0.3);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
-  width: 100%;
-  margin-top: 10px;
+  color: #0c0a14;
+  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
+  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
 }
 
-.login-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 30px rgba(106, 90, 205, 0.5);
-  background: linear-gradient(135deg, rgba(92, 75, 123, 0.9), rgba(122, 91, 192, 0.9));
+.btn-submit:hover:not(:disabled) {
+  filter: brightness(1.05);
 }
 
-.login-btn:disabled {
-  opacity: 0.6;
+.btn-submit:disabled {
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
-.login-footer {
+.auth-footer {
+  margin-top: 22px;
   text-align: center;
-  margin-top: 20px;
-  color: #6a5acd;
+  font-size: 0.88rem;
+  color: var(--muted);
 }
 
-.login-footer p {
+.auth-footer p {
   margin: 8px 0;
 }
 
-.login-footer a {
-  color: #6a5acd;
+.auth-footer a {
+  color: var(--accent2);
+  font-weight: 600;
   text-decoration: none;
-  font-weight: 500;
 }
 
-.login-footer a:hover {
+.auth-footer a:hover {
   text-decoration: underline;
-}
-
-@media (max-width: 768px) {
-  .login-card {
-    padding: 30px 20px;
-    margin: 0 10px;
-  }
 }
 </style>

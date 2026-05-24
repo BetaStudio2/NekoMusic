@@ -1,6 +1,13 @@
 <template>
-  <div class="register-container">
-    <div class="register-card">
+  <div class="glass-page">
+    <div class="ambient" aria-hidden="true">
+      <div class="ambient__blob ambient__blob--a" />
+      <div class="ambient__blob ambient__blob--b" />
+      <div class="ambient__blob ambient__blob--c" />
+      <div class="ambient__grid" />
+    </div>
+    <main class="shell auth-main">
+      <div class="panel register-card">
       <h2 class="register-title">用户注册</h2>
       <form @submit.prevent="handleRegister" class="register-form">
         <div class="form-group">
@@ -73,7 +80,8 @@
       <div class="register-footer">
         <p>已有账户？<a href="#" @click.prevent="goToLogin">立即登录</a></p>
       </div>
-    </div>
+      </div>
+    </main>
 
     <Teleport to="body">
       <Transition name="captcha-modal">
@@ -535,14 +543,6 @@ const goToLogin = () => {
 </script>
 
 <style scoped>
-.register-container {
-  min-height: 70vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
 .captcha-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -978,60 +978,29 @@ const goToLogin = () => {
   color: rgba(92, 75, 123, 0.85);
 }
 
+.panel {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: linear-gradient(145deg, rgba(139, 92, 246, 0.14), rgba(255, 255, 255, 0.04));
+  box-shadow: var(--shadow);
+}
+
 .register-card {
-  background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 40px;
   width: 100%;
   max-width: 440px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  position: relative;
-  overflow: hidden;
-}
-
-.register-card::before {
-  content: '';
-  position: absolute;
-  top: -10px;
-  left: -10px;
-  right: -10px;
-  bottom: -10px;
-  background: linear-gradient(45deg, #ff9ec0, #6a5acd, #84ffff, #ff9ec0);
-  background-size: 400%;
-  border-radius: 25px;
-  z-index: -1;
-  filter: blur(20px);
-  opacity: 0.6;
-  animation: gradientShift 10s ease infinite;
-}
-
-@keyframes gradientShift {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
+  padding: clamp(28px, 4vw, 40px) clamp(22px, 4vw, 32px);
 }
 
 .register-title {
+  margin: 0 0 22px;
   text-align: center;
-  margin-bottom: 30px;
-  font-size: 1.8rem;
-  color: #6a5acd;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-  background: linear-gradient(45deg, #ff9ec0, #6a5acd, #84ffff);
+  font-size: clamp(1.35rem, 3vw, 1.65rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(120deg, #e9d5ff, #a5f3fc, #c4b5fd);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  position: relative;
-  z-index: 1;
 }
 
 .register-form {
@@ -1047,97 +1016,87 @@ const goToLogin = () => {
 }
 
 .form-input {
-  padding: 14px 20px;
-  border: none;
-  border-radius: 30px;
-  font-size: 1rem;
-  outline: none;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  transition: all 0.3s ease;
-  color: #333;
   width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-family: inherit;
+  transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 
 .form-input::placeholder {
-  color: rgba(92, 75, 123, 0.6);
+  color: var(--faint);
 }
 
 .form-input:focus {
-  border: 1px solid rgba(106, 90, 205, 0.5);
-  box-shadow: 0 8px 32px rgba(106, 90, 205, 0.3);
-  background: rgba(255, 255, 255, 0.35);
+  outline: none;
+  border-color: rgba(34, 211, 238, 0.45);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12);
 }
 
 .verification-btn {
-  padding: 14px 15px;
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(147, 112, 219, 0.8));
-  color: white;
+  font-family: inherit;
+  flex-shrink: 0;
+  padding: 12px 16px;
   border: none;
-  border-radius: 30px;
-  font-size: 0.9rem;
-  font-weight: bold;
+  border-radius: var(--radius);
+  font-size: 0.82rem;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 8px 32px rgba(106, 90, 205, 0.3);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
-  width: auto;
+  color: #0c0a14;
+  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
+  box-shadow: 0 6px 18px rgba(139, 92, 246, 0.28);
   white-space: nowrap;
 }
 
 .verification-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 30px rgba(106, 90, 205, 0.5);
-  background: linear-gradient(135deg, rgba(92, 75, 123, 0.9), rgba(122, 91, 192, 0.9));
+  filter: brightness(1.05);
 }
 
 .verification-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
 .register-btn {
-  padding: 14px 20px;
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(147, 112, 219, 0.8));
-  color: white;
-  border: none;
-  border-radius: 30px;
-  font-size: 1.1rem;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 8px 32px rgba(106, 90, 205, 0.3);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
+  font-family: inherit;
+  margin-top: 6px;
+  padding: 12px 20px;
   width: 100%;
-  margin-top: 10px;
+  border: none;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: #0c0a14;
+  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
+  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
 }
 
 .register-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 30px rgba(106, 90, 205, 0.5);
-  background: linear-gradient(135deg, rgba(92, 75, 123, 0.9), rgba(122, 91, 192, 0.9));
+  filter: brightness(1.05);
 }
 
 .register-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
 .register-footer {
+  margin-top: 22px;
   text-align: center;
-  margin-top: 20px;
-  color: #6a5acd;
+  font-size: 0.88rem;
+  color: var(--muted);
 }
 
 .register-footer a {
-  color: #6a5acd;
+  color: var(--accent2);
+  font-weight: 600;
   text-decoration: none;
-  font-weight: 500;
 }
 
 .register-footer a:hover {
@@ -1146,8 +1105,7 @@ const goToLogin = () => {
 
 @media (max-width: 768px) {
   .register-card {
-    padding: 30px 20px;
-    margin: 0 10px;
+    padding: 26px 18px;
   }
 }
 </style>

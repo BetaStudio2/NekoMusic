@@ -1,6 +1,13 @@
 <template>
-  <div class="profile-container">
-    <div class="profile-card">
+  <div class="glass-page">
+    <div class="ambient" aria-hidden="true">
+      <div class="ambient__blob ambient__blob--a" />
+      <div class="ambient__blob ambient__blob--b" />
+      <div class="ambient__blob ambient__blob--c" />
+      <div class="ambient__grid" />
+    </div>
+    <main class="shell profile-shell">
+      <div class="panel profile-card">
       <div class="profile-header">
         <div class="avatar-section">
           <img :src="userAvatar" alt="用户头像" class="profile-avatar" @error="handleAvatarError" />
@@ -74,7 +81,8 @@
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </main>
   </div>
 </template>
 
@@ -211,54 +219,17 @@ const changePassword = async () => {
 </script>
 
 <style scoped>
-.profile-container {
-  min-height: calc(100vh - 200px);
-  padding: 20px;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
+.panel {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: linear-gradient(145deg, rgba(139, 92, 246, 0.14), rgba(255, 255, 255, 0.04));
+  box-shadow: var(--shadow);
 }
 
 .profile-card {
-  background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 30px;
   width: 100%;
   max-width: 800px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  position: relative;
-  overflow: hidden;
-}
-
-.profile-card::before {
-  content: '';
-  position: absolute;
-  top: -10px;
-  left: -10px;
-  right: -10px;
-  bottom: -10px;
-  background: linear-gradient(45deg, #ff9ec0, #6a5acd, #84ffff, #ff9ec0);
-  background-size: 400%;
-  border-radius: 25px;
-  z-index: -1;
-  filter: blur(20px);
-  opacity: 0.6;
-  animation: gradientShift 10s ease infinite;
-}
-
-@keyframes gradientShift {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
+  padding: clamp(22px, 3vw, 32px);
 }
 
 .profile-header {

@@ -1,0 +1,114 @@
+/**
+ * 与首页 / 搜索一致的深色页壳：环境光 + main.shell。
+ * 在页面根节点使用 class="glass-page"，内层放 .ambient 与 main.shell。
+ */
+.glass-page {
+  --text: rgba(255, 255, 255, 0.92);
+  --muted: rgba(255, 255, 255, 0.62);
+  --faint: rgba(255, 255, 255, 0.42);
+  --line: rgba(255, 255, 255, 0.1);
+  --accent: #8b5cf6;
+  --accent2: #22d3ee;
+  --accent3: #34d399;
+  --radius: 14px;
+  --radius-lg: 20px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+
+  position: relative;
+  min-height: 100vh;
+  padding-top: env(safe-area-inset-top, 0px);
+  color: var(--text);
+  background: transparent;
+}
+
+.glass-page .ambient {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.glass-page .ambient__blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(72px);
+  opacity: 0.48;
+  animation: glass-shell-blob-float 22s var(--ease) infinite;
+}
+
+.glass-page .ambient__blob--a {
+  width: 400px;
+  height: 400px;
+  background: rgba(139, 92, 246, 0.4);
+  top: -120px;
+  right: -80px;
+}
+
+.glass-page .ambient__blob--b {
+  width: 340px;
+  height: 340px;
+  background: rgba(34, 211, 238, 0.22);
+  bottom: -60px;
+  left: -60px;
+  animation-delay: -8s;
+}
+
+.glass-page .ambient__blob--c {
+  width: 260px;
+  height: 260px;
+  background: rgba(52, 211, 153, 0.16);
+  top: 38%;
+  left: 30%;
+  animation-delay: -14s;
+}
+
+.glass-page .ambient__grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.3;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 80% 55% at 50% 15%, black, transparent);
+}
+
+@keyframes glass-shell-blob-float {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-16px, 12px) scale(1.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-page .ambient__blob {
+    animation: none;
+  }
+}
+
+.glass-page .shell {
+  position: relative;
+  z-index: 1;
+  width: min(960px, 100%);
+  margin: 0 auto;
+  padding: clamp(16px, 3vw, 28px) clamp(14px, 3.5vw, 24px) 48px;
+}
+
+/* 登录 / 注册 / 忘记密码：主内容区垂直居中偏上 */
+.glass-page .shell.auth-main {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: min(78vh, 880px);
+  padding-top: clamp(24px, 5vh, 48px);
+}
+
+/* 个人中心：内容区水平居中 */
+.glass-page .shell.profile-shell {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}

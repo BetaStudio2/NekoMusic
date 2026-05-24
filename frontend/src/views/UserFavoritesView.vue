@@ -1,21 +1,31 @@
 <template>
-  <div class="favorites-view">
-    <div class="favorites-container">
-      <div class="favorites-header">
-        <div class="header-left">
-          <h2>我的收藏</h2>
-          <p v-if="favorites.length === 0" class="empty-message">还没有收藏任何音乐</p>
+  <div class="glass-page">
+    <div class="ambient" aria-hidden="true">
+      <div class="ambient__blob ambient__blob--a" />
+      <div class="ambient__blob ambient__blob--b" />
+      <div class="ambient__blob ambient__blob--c" />
+      <div class="ambient__grid" />
+    </div>
+    <main class="shell">
+      <section class="panel fav-head">
+        <div class="fav-head__main">
+          <h1 class="fav-title">我的收藏</h1>
+          <p v-if="favorites.length === 0" class="fav-empty-hint">还没有收藏任何音乐</p>
         </div>
-        <div class="header-right" v-if="favorites.length > 0">
-          <button @click="playAllFavorites" class="play-all-btn" title="播放全部">
-            <svg class="play-all-icon" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M8 5v14l11-7z"/>
-            </svg>
-            播放全部
-          </button>
-        </div>
-      </div>
-      
+        <button
+          v-if="favorites.length > 0"
+          type="button"
+          class="btn-play-all"
+          title="播放全部"
+          @click="playAllFavorites"
+        >
+          <svg class="play-all-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+          播放全部
+        </button>
+      </section>
+
       <div v-if="favorites.length > 0" class="favorites-list">
         <div 
           v-for="music in favorites" 
@@ -34,16 +44,16 @@
             <div class="favorite-album">专辑：{{ music.album || '未知专辑' }}</div>
           </div>
           <div class="favorite-actions">
-            <button @click.stop="playMusic(music)" class="play-btn" title="播放">
-              ▶️
+            <button type="button" class="text-btn text-btn--play" title="播放" @click.stop="playMusic(music)">
+              播放
             </button>
-            <button @click.stop="removeFavorite(music.id)" class="remove-btn" title="取消收藏">
-              💔
+            <button type="button" class="text-btn text-btn--remove" title="取消收藏" @click.stop="removeFavorite(music.id)">
+              移除
             </button>
           </div>
         </div>
       </div>
-    </div>
+    </main>
   </div>
 </template>
 
@@ -218,7 +228,7 @@ const getCoverUrl = (musicId) => {
 
 // 处理封面图片加载错误
 const handleImageError = (event) => {
-  event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/`
+  event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/0`
 }
 
 onMounted(() => {
@@ -227,112 +237,94 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.favorites-view {
-  max-width: 800px;
-  margin: 20px auto;
-  padding: 20px;
+.panel {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: linear-gradient(145deg, rgba(139, 92, 246, 0.12), rgba(255, 255, 255, 0.04));
+  box-shadow: var(--shadow);
 }
 
-.favorites-container {
-  background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 30px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-}
-
-.favorites-header {
-  margin-bottom: 30px;
+.fav-head {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
   flex-wrap: wrap;
-  gap: 15px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: clamp(18px, 3vw, 24px) clamp(18px, 3vw, 22px);
+  margin-bottom: 16px;
 }
 
-.header-left {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+.fav-head__main {
   flex: 1;
+  min-width: 0;
 }
 
-.header-right {
-  display: flex;
-  align-items: center;
+.fav-title {
+  margin: 0 0 6px;
+  font-size: clamp(1.45rem, 3vw, 1.85rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
 }
 
-.favorites-header h2 {
-  color: #6a5acd;
-  font-size: 2rem;
-  margin-bottom: 10px;
+.fav-empty-hint {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--muted);
 }
 
-.empty-message {
-  color: #887bb0;
-  font-size: 1.2rem;
-}
-
-.play-all-btn {
-  padding: 10px 20px;
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.9), rgba(138, 43, 226, 0.9));
-  color: white;
-  border: none;
-  border-radius: 25px;
-  font-size: 1rem;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
+.btn-play-all {
+  font-family: inherit;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  box-shadow: 0 4px 15px rgba(106, 90, 205, 0.4);
-}
-
-.play-all-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(106, 90, 205, 0.6);
+  padding: 10px 18px;
+  border: none;
+  border-radius: 999px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: #0c0a14;
+  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
+  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
 }
 
 .play-all-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
 .favorites-list {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 12px;
 }
 
 .favorite-item {
-  padding: 15px 20px;
-  cursor: pointer;
-  transition: background-color 0.2s, transform 0.2s;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: linear-gradient(145deg, rgba(139, 92, 246, 0.08), rgba(255, 255, 255, 0.03));
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
 }
 
-.favorite-item:hover {
-  background-color: rgba(255, 255, 255, 0.5);
-  box-shadow: inset 0 0 10px rgba(106, 90, 205, 0.3);
+@media (hover: hover) {
+  .favorite-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(139, 92, 246, 0.28);
+  }
 }
 
 .favorite-cover {
-  width: 50px;
-  height: 50px;
+  width: 52px;
+  height: 52px;
   object-fit: cover;
-  border-radius: 6px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   flex-shrink: 0;
 }
 
@@ -340,30 +332,32 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  flex-grow: 1;
+  flex: 1;
+  min-width: 0;
   gap: 2px;
+  cursor: pointer;
 }
 
 .favorite-title {
-  font-weight: bold;
-  color: #5c4b7b;
+  font-weight: 700;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
 
 .favorite-artist {
-  color: #9370db;
-  font-size: 0.9rem;
+  color: var(--accent2);
+  font-size: 0.82rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .favorite-album {
-  color: #a0a0a0;
-  font-size: 0.8rem;
+  color: var(--faint);
+  font-size: 0.76rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -371,36 +365,42 @@ onMounted(() => {
 
 .favorite-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   flex-shrink: 0;
-  align-items: center;
 }
 
-.play-btn, .remove-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: none;
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(138, 43, 226, 0.8));
-  color: white;
+.text-btn {
+  font-family: inherit;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  font-size: 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
 }
 
-.play-btn:hover, .remove-btn:hover {
-  transform: scale(1.1);
-  box-shadow: 0 0 8px rgba(106, 90, 205, 0.6);
+.text-btn--play:hover {
+  border-color: rgba(139, 92, 246, 0.45);
+  background: rgba(139, 92, 246, 0.2);
 }
 
-.remove-btn {
-  background: linear-gradient(135deg, rgba(255, 107, 107, 0.8), rgba(220, 20, 60, 0.8));
+.text-btn--remove {
+  border-color: rgba(251, 113, 133, 0.35);
+  background: rgba(244, 63, 94, 0.12);
+  color: #fecdd3;
 }
 
-.remove-btn:hover {
-  box-shadow: 0 0 8px rgba(255, 107, 107, 0.6);
+@media (max-width: 560px) {
+  .favorite-item {
+    flex-wrap: wrap;
+  }
+
+  .favorite-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 </style>

@@ -1,19 +1,32 @@
 <template>
-  <div class="ranking-view">
-    <div class="content">
-      <div class="ranking-header">
-        <div class="header-content">
-          <div class="header-text">
-            <h1 class="page-title">热门音乐排行榜</h1>
-            <p class="page-description">基于播放次数排序的热门音乐</p>
+  <div class="glass-page">
+    <div class="ambient" aria-hidden="true">
+      <div class="ambient__blob ambient__blob--a" />
+      <div class="ambient__blob ambient__blob--b" />
+      <div class="ambient__blob ambient__blob--c" />
+      <div class="ambient__grid" />
+    </div>
+    <main class="shell">
+      <section class="panel page-hero">
+        <div class="page-hero__row">
+          <div class="page-hero__text">
+            <h1 class="page-hero__title">热门音乐排行榜</h1>
+            <p class="page-hero__desc">基于播放次数排序的热门音乐</p>
           </div>
-          <button v-if="rankingList && rankingList.length > 0" @click="playAll" class="play-all-btn">
+          <button
+            v-if="rankingList && rankingList.length > 0"
+            type="button"
+            class="btn-play-all"
+            @click="playAll"
+          >
             播放全部
           </button>
         </div>
-      </div>
+      </section>
 
-      <div v-if="loading" class="loading">加载中...</div>
+      <div v-if="loading" class="panel state-panel">
+        <p class="state-text">加载中…</p>
+      </div>
       <div v-else-if="rankingList && rankingList.length > 0" class="ranking-list">
         <div
           v-for="(item, index) in rankingList"
@@ -38,10 +51,10 @@
           </div>
         </div>
       </div>
-      <div v-else class="no-ranking">
-        <p>暂无排行榜数据</p>
+      <div v-else class="panel state-panel state-panel--empty">
+        <p class="state-text">暂无排行榜数据</p>
       </div>
-    </div>
+    </main>
   </div>
 </template>
 
@@ -67,7 +80,6 @@ const fetchRanking = async () => {
         ...item,
         coverUrl: `${API_CONFIG.BASE_URL}/api/music/cover/${item.id}`
       }))
-      console.log('排行榜加载成功:', data.data.length, '首')
     } else {
       console.error('获取排行榜失败:', data.message)
     }
@@ -165,128 +177,134 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.content {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 40px 20px;
+.panel {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: linear-gradient(145deg, rgba(139, 92, 246, 0.12), rgba(255, 255, 255, 0.04));
+  box-shadow: var(--shadow);
 }
 
-.ranking-header {
-  margin-bottom: 40px;
+.page-hero {
+  padding: clamp(18px, 3vw, 26px) clamp(18px, 3vw, 24px);
+  margin-bottom: 16px;
 }
 
-.header-content {
+.page-hero__row {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
   align-items: center;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 20px;
-  padding: 30px;
-  box-shadow: 0 4px 20px rgba(31, 38, 135, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  justify-content: space-between;
+  gap: 16px;
 }
 
-.header-text {
+.page-hero__text {
   flex: 1;
+  min-width: 0;
 }
 
-.page-title {
-  color: #6a5acd;
-  font-size: 2.5rem;
-  font-weight: bold;
-  margin: 0 0 10px 0;
+.page-hero__title {
+  margin: 0 0 8px;
+  font-size: clamp(1.45rem, 3vw, 1.85rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
 }
 
-.page-description {
-  color: #887bb0;
-  font-size: 1.1rem;
+.page-hero__desc {
   margin: 0;
+  font-size: 0.92rem;
+  color: var(--muted);
+  line-height: 1.45;
 }
 
-.play-all-btn {
-  padding: 12px 30px;
+.btn-play-all {
+  font-family: inherit;
+  padding: 11px 20px;
   border: none;
-  border-radius: 25px;
-  font-size: 1rem;
-  font-weight: 600;
+  border-radius: 999px;
+  font-size: 0.88rem;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.3s ease;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  color: #0c0a14;
+  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
+  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
   white-space: nowrap;
 }
 
-.play-all-btn:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+.state-panel {
+  padding: 36px 24px;
+  text-align: center;
+  margin-bottom: 16px;
 }
 
-.loading {
-  text-align: center;
-  color: #887bb0;
-  padding: 40px;
-  font-size: 1.1rem;
+.state-panel--empty {
+  padding: 48px 24px;
+}
+
+.state-text {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
 }
 
 .ranking-list {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 12px;
 }
 
 .ranking-item {
   display: flex;
   align-items: center;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 15px;
-  box-shadow: 0 4px 12px rgba(31, 38, 135, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: linear-gradient(145deg, rgba(139, 92, 246, 0.08), rgba(255, 255, 255, 0.03));
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
 }
 
-.ranking-item:hover {
-  background: rgba(255, 255, 255, 0.4);
-  transform: translateX(5px);
-  box-shadow: 0 6px 20px rgba(31, 38, 135, 0.25);
+@media (hover: hover) {
+  .ranking-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(139, 92, 246, 0.28);
+  }
 }
 
 .ranking-number {
-  font-size: 2rem;
-  font-weight: bold;
-  width: 50px;
+  font-size: 1.5rem;
+  font-weight: 800;
+  width: 44px;
   text-align: center;
-  margin-right: 20px;
-  color: #887bb0;
+  flex-shrink: 0;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
 }
 
 .rank-first {
-  color: #ffd700;
-  font-size: 2.5rem;
+  color: #fde047;
+  font-size: 1.75rem;
 }
 
 .rank-second {
-  color: #c0c0c0;
-  font-size: 2.3rem;
+  color: #e5e7eb;
+  font-size: 1.6rem;
 }
 
 .rank-third {
-  color: #cd7f32;
-  font-size: 2.1rem;
+  color: #fdba74;
+  font-size: 1.5rem;
 }
 
 .ranking-cover {
-  width: 80px;
-  height: 80px;
-  border-radius: 12px;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius);
   object-fit: cover;
-  margin-right: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
 }
 
 .ranking-info {
@@ -295,59 +313,67 @@ onMounted(() => {
 }
 
 .ranking-title-text {
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .ranking-artist {
-  font-size: 1rem;
-  color: #666;
-  margin-bottom: 8px;
+  font-size: 0.86rem;
+  color: var(--accent2);
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ranking-play-count {
-  font-size: 0.9rem;
-  color: #887bb0;
+  font-size: 0.78rem;
+  color: var(--faint);
   font-weight: 500;
 }
 
 .ranking-actions {
   display: flex;
-  gap: 12px;
-  margin-left: 20px;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .ranking-actions .play-btn,
 .ranking-actions .download-btn {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 25px;
-  font-size: 0.95rem;
+  font-family: inherit;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 0.8rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(106, 90, 205, 0.2);
-  color: #6a5acd;
-  font-weight: 500;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
 }
 
-.ranking-actions .play-btn:hover,
-.ranking-actions .download-btn:hover {
-  background: rgba(106, 90, 205, 0.4);
-  transform: scale(1.05);
+@media (hover: hover) {
+  .ranking-actions .play-btn:hover,
+  .ranking-actions .download-btn:hover {
+    background: rgba(139, 92, 246, 0.22);
+    border-color: rgba(139, 92, 246, 0.4);
+  }
 }
 
-.no-ranking {
-  text-align: center;
-  color: #887bb0;
-  padding: 60px;
-  font-size: 1.2rem;
+@media (max-width: 640px) {
+  .ranking-item {
+    flex-wrap: wrap;
+  }
+
+  .ranking-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 </style>

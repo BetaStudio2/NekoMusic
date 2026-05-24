@@ -1,23 +1,27 @@
 <template>
-  <div class="not-found-container">
-    <div class="not-found-content">
-      <div class="error-code">404</div>
-      <div class="error-message">页面未找到</div>
-      <div class="error-description">抱歉，您访问的页面不存在或已被移除</div>
-      <div class="error-actions">
-        <router-link to="/" class="btn btn-primary">
-          <span class="btn-text">返回首页</span>
-        </router-link>
-        <button @click="goBack" class="btn btn-secondary">
-          <span class="btn-text">返回上一页</span>
-        </button>
-      </div>
-      <div class="decoration">
-        <div class="music-note note-1">♪</div>
-        <div class="music-note note-2">♫</div>
-        <div class="music-note note-3">♪</div>
-      </div>
+  <div class="glass-page">
+    <div class="ambient" aria-hidden="true">
+      <div class="ambient__blob ambient__blob--a" />
+      <div class="ambient__blob ambient__blob--b" />
+      <div class="ambient__blob ambient__blob--c" />
+      <div class="ambient__grid" />
     </div>
+    <main class="shell shell--center">
+      <section class="panel err-card">
+        <div class="err-code" aria-hidden="true">404</div>
+        <h1 class="err-title">页面未找到</h1>
+        <p class="err-desc">抱歉，您访问的页面不存在或已被移除。</p>
+        <div class="err-actions">
+          <router-link to="/" class="btn btn-primary">返回首页</router-link>
+          <button type="button" class="btn btn-ghost" @click="goBack">返回上一页</button>
+        </div>
+        <div class="err-notes" aria-hidden="true">
+          <span class="n">♪</span>
+          <span class="n n2">♫</span>
+          <span class="n n3">♪</span>
+        </div>
+      </section>
+    </main>
   </div>
 </template>
 
@@ -36,179 +40,28 @@ const goBack = () => {
 </script>
 
 <style scoped>
-.not-found-container {
-  min-height: calc(100vh - 200px);
+.shell--center {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
-  position: relative;
-  overflow: hidden;
+  min-height: min(70vh, 720px);
 }
 
-.not-found-content {
+.err-card {
+  width: min(520px, 100%);
   text-align: center;
-  position: relative;
-  z-index: 1;
-  background: rgba(255, 255, 255, 0.25);
-  border-radius: 30px;
-  padding: 60px 40px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  max-width: 600px;
-  width: 90%;
-  animation: fadeIn 0.6s ease-out;
+  padding: clamp(36px, 5vw, 52px) clamp(22px, 4vw, 36px);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: linear-gradient(145deg, rgba(139, 92, 246, 0.14), rgba(255, 255, 255, 0.05));
+  box-shadow: var(--shadow);
+  animation: err-in 0.5s var(--ease) both;
 }
 
-.not-found-content::before {
-  content: '';
-  position: absolute;
-  top: -15px;
-  left: -15px;
-  right: -15px;
-  bottom: -15px;
-  background: linear-gradient(45deg, #ff9ec0, #6a5acd, #84ffff, #ff9ec0);
-  background-size: 400%;
-  border-radius: 35px;
-  z-index: -1;
-  filter: blur(20px);
-  opacity: 0.5;
-  animation: gradientShift 10s ease infinite;
-}
-
-.error-code {
-  font-size: 8rem;
-  font-weight: bold;
-  background: linear-gradient(45deg, #ff9ec0, #6a5acd, #84ffff);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin-bottom: 20px;
-  line-height: 1;
-  text-shadow: 0 0 30px rgba(106, 90, 205, 0.3);
-  animation: bounce 2s ease-in-out infinite;
-}
-
-.error-message {
-  font-size: 2rem;
-  color: #6a5acd;
-  margin-bottom: 15px;
-  font-weight: 600;
-}
-
-.error-description {
-  font-size: 1.1rem;
-  color: #887bb0;
-  margin-bottom: 40px;
-  line-height: 1.6;
-}
-
-.error-actions {
-  display: flex;
-  gap: 15px;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-.btn {
-  padding: 12px 30px;
-  border-radius: 25px;
-  border: none;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  overflow: hidden;
-}
-
-.btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-  transition: left 0.5s ease;
-}
-
-.btn:hover::before {
-  left: 100%;
-}
-
-.btn-text {
-  position: relative;
-  z-index: 1;
-}
-
-.btn-primary {
-  background: linear-gradient(45deg, #6a5acd, #84ffff);
-  color: white;
-  box-shadow: 0 4px 15px rgba(106, 90, 205, 0.4);
-}
-
-.btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(106, 90, 205, 0.6);
-}
-
-.btn-secondary {
-  background: rgba(255, 255, 255, 0.3);
-  color: #6a5acd;
-  border: 2px solid rgba(106, 90, 205, 0.3);
-}
-
-.btn-secondary:hover {
-  background: rgba(106, 90, 205, 0.1);
-  border-color: rgba(106, 90, 205, 0.6);
-  transform: translateY(-2px);
-}
-
-.decoration {
-  position: relative;
-  height: 60px;
-  margin-top: 30px;
-}
-
-.music-note {
-  position: absolute;
-  font-size: 2rem;
-  opacity: 0.6;
-  animation: float 3s ease-in-out infinite;
-}
-
-.note-1 {
-  top: 0;
-  left: 20%;
-  color: #ff9ec0;
-  animation-delay: 0s;
-}
-
-.note-2 {
-  top: 15px;
-  right: 20%;
-  color: #6a5acd;
-  animation-delay: 1s;
-}
-
-.note-3 {
-  top: 5px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: #84ffff;
-  animation-delay: 2s;
-}
-
-@keyframes fadeIn {
+@keyframes err-in {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -216,60 +69,138 @@ const goBack = () => {
   }
 }
 
-@keyframes bounce {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
+.err-code {
+  font-size: clamp(4rem, 14vw, 6.5rem);
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 12px;
+  background: linear-gradient(120deg, #fbcfe8, #c4b5fd, #a5f3fc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.err-title {
+  margin: 0 0 10px;
+  font-size: clamp(1.25rem, 3vw, 1.6rem);
+  font-weight: 800;
+  color: var(--text);
+}
+
+.err-desc {
+  margin: 0 0 28px;
+  font-size: 0.95rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.err-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.btn {
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 11px 22px;
+  border-radius: 999px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  border: none;
+  transition: filter 0.15s var(--ease), background 0.15s var(--ease);
+}
+
+.btn-primary {
+  color: #0c0a14;
+  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
+  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+}
+
+.btn-primary:hover {
+  filter: brightness(1.05);
+}
+
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.err-notes {
+  position: relative;
+  height: 48px;
+  margin-top: 28px;
+  opacity: 0.45;
+}
+
+.err-notes .n {
+  position: absolute;
+  font-size: 1.5rem;
+  animation: float 3s ease-in-out infinite;
+}
+
+.err-notes .n {
+  left: 18%;
+  color: #fbcfe8;
+}
+
+.err-notes .n2 {
+  left: auto;
+  right: 18%;
+  top: 6px;
+  color: #c4b5fd;
+  animation-delay: 0.8s;
+}
+
+.err-notes .n3 {
+  left: 50%;
+  transform: translateX(-50%);
+  top: 2px;
+  color: #a5f3fc;
+  animation-delay: 1.6s;
 }
 
 @keyframes float {
-  0%, 100% {
-    transform: translateY(0px) rotate(0deg);
-  }
-  50% {
-    transform: translateY(-15px) rotate(10deg);
-  }
-}
-
-@keyframes gradientShift {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
+  0%,
   100% {
-    background-position: 0% 50%;
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
   }
 }
 
-@media (max-width: 768px) {
-  .error-code {
-    font-size: 5rem;
-  }
+.err-notes .n3 {
+  animation-name: float-mid;
+}
 
-  .error-message {
-    font-size: 1.5rem;
+@keyframes float-mid {
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(0);
   }
-
-  .error-description {
-    font-size: 1rem;
+  50% {
+    transform: translateX(-50%) translateY(-8px);
   }
+}
 
-  .error-actions {
+@media (max-width: 520px) {
+  .err-actions {
     flex-direction: column;
-    width: 100%;
   }
 
   .btn {
     width: 100%;
-  }
-
-  .not-found-content {
-    padding: 40px 20px;
   }
 }
 </style>

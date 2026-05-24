@@ -7,7 +7,7 @@ import GlobalPlayer from './components/GlobalPlayer.vue'
 
 const route = useRoute()
 
-// 下载页、首页、音乐详情、搜索、歌单相关页：全幅背景壳层，去掉 main 内边距外框
+// 全幅背景壳层：去掉 main 内边距外框（与 app--home 的页面集合对齐）
 const isFlushMain = computed(
   () =>
     route.name === 'download' ||
@@ -17,11 +17,22 @@ const isFlushMain = computed(
     route.name === 'search-query' ||
     route.name === 'playlists' ||
     route.name === 'create-playlist' ||
-    route.name === 'playlist-detail'
+    route.name === 'playlist-detail' ||
+    route.name === 'about' ||
+    route.name === 'login' ||
+    route.name === 'register' ||
+    route.name === 'forgot-password' ||
+    route.name === 'favorites' ||
+    route.name === 'ranking' ||
+    route.name === 'latest' ||
+    route.name === 'upload' ||
+    route.name === 'account' ||
+    route.name === 'vip' ||
+    route.name === 'not-found'
 )
 // 下载页独立布局：不显示顶栏搜索、底栏与全局播放器
 const isDownloadPage = computed(() => route.name === 'download')
-// 首页、音乐详情、搜索、歌单：顶栏 / 播放器 / 底栏使用与页面一致的深色玻璃
+// 顶栏 / 播放器 / 底栏：与深色内容区一致的 chrome（管理后台除外）
 const isChromeDarkShell = computed(
   () =>
     route.name === 'home' ||
@@ -30,7 +41,18 @@ const isChromeDarkShell = computed(
     route.name === 'search-query' ||
     route.name === 'playlists' ||
     route.name === 'create-playlist' ||
-    route.name === 'playlist-detail'
+    route.name === 'playlist-detail' ||
+    route.name === 'about' ||
+    route.name === 'login' ||
+    route.name === 'register' ||
+    route.name === 'forgot-password' ||
+    route.name === 'favorites' ||
+    route.name === 'ranking' ||
+    route.name === 'latest' ||
+    route.name === 'upload' ||
+    route.name === 'account' ||
+    route.name === 'vip' ||
+    route.name === 'not-found'
 )
 </script>
 
@@ -52,7 +74,7 @@ const isChromeDarkShell = computed(
   flex-direction: column;
 }
 
-/* Home / Player / Search / Playlists：三层背景 */
+/* 深色内容页：三层背景（与 glass-page 页共用） */
 #app.app--home {
   background: radial-gradient(1200px 700px at 10% -10%, rgba(139, 92, 246, 0.35), transparent 55%),
     radial-gradient(900px 600px at 95% 10%, rgba(34, 211, 238, 0.18), transparent 50%),

@@ -1,121 +1,113 @@
 <template>
-  <div class="forgot-password-container">
-    <div class="forgot-password-card">
-      <h2 class="forgot-password-title">忘记密码</h2>
-      
-      <!-- 步骤指示器 -->
-      <div class="steps-indicator">
-        <div :class="['step', { active: step === 1 }, { completed: step > 1 }]">
-          <span class="step-number">1</span>
-          <span class="step-label">验证邮箱</span>
-        </div>
-        <div class="step-divider"></div>
-        <div :class="['step', { active: step === 2 }, { completed: step > 2 }]">
-          <span class="step-number">2</span>
-          <span class="step-label">重置密码</span>
-        </div>
-      </div>
-
-      <!-- 步骤1：发送验证码 -->
-      <div v-if="step === 1" class="step-content">
-        <form @submit.prevent="handleSendCode" class="forgot-password-form">
-          <div class="form-group">
-            <input
-              type="email"
-              v-model="email"
-              class="form-input"
-              placeholder="请输入注册邮箱"
-              required
-            />
-          </div>
-          
-          <button type="submit" class="submit-btn" :disabled="loading">
-            <span v-if="loading">发送中...</span>
-            <span v-else>发送验证码</span>
-          </button>
-        </form>
-        
-        <div class="back-link">
-          <a href="#" @click.prevent="goToLogin">返回登录</a>
-        </div>
-      </div>
-
-      <!-- 步骤2：验证码和重置密码 -->
-      <div v-if="step === 2" class="step-content">
-        <form @submit.prevent="handleResetPassword" class="forgot-password-form">
-          <div class="form-group">
-            <input
-              type="email"
-              v-model="email"
-              class="form-input"
-              placeholder="注册邮箱"
-              disabled
-            />
-          </div>
-          
-          <div class="form-group">
-            <div class="code-input-group">
-              <input
-                type="text"
-                v-model="verificationCode"
-                class="form-input code-input"
-                placeholder="请输入验证码"
-                required
-                maxlength="6"
-              />
-              <button
-                type="button"
-                class="resend-btn"
-                :disabled="countdown > 0 || resendLoading"
-                @click="handleResendCode"
-              >
-                <span v-if="countdown > 0">{{ countdown }}秒后重发</span>
-                <span v-else-if="resendLoading">发送中...</span>
-                <span v-else>重新发送</span>
-              </button>
-            </div>
-          </div>
-          
-          <div class="form-group">
-            <input
-              type="password"
-              v-model="newPassword"
-              class="form-input"
-              placeholder="请输入新密码（6-30位）"
-              required
-              minlength="6"
-              maxlength="30"
-            />
-          </div>
-          
-          <div class="form-group">
-            <input
-              type="password"
-              v-model="confirmPassword"
-              class="form-input"
-              placeholder="请确认新密码"
-              required
-              minlength="6"
-              maxlength="30"
-            />
-          </div>
-          
-          <button type="submit" class="submit-btn" :disabled="loading">
-            <span v-if="loading">重置中...</span>
-            <span v-else>重置密码</span>
-          </button>
-        </form>
-        
-        <div class="back-link">
-          <a href="#" @click.prevent="goToLogin">返回登录</a>
-        </div>
-      </div>
+  <div class="glass-page">
+    <div class="ambient" aria-hidden="true">
+      <div class="ambient__blob ambient__blob--a" />
+      <div class="ambient__blob ambient__blob--b" />
+      <div class="ambient__blob ambient__blob--c" />
+      <div class="ambient__grid" />
     </div>
+    <main class="shell auth-main">
+      <div class="panel forgot-card">
+        <h2 class="forgot-title">忘记密码</h2>
+
+        <div class="steps-indicator">
+          <div :class="['step', { active: step === 1 }, { completed: step > 1 }]">
+            <span class="step-number">1</span>
+            <span class="step-label">验证邮箱</span>
+          </div>
+          <div class="step-divider" />
+          <div :class="['step', { active: step === 2 }, { completed: step > 2 }]">
+            <span class="step-number">2</span>
+            <span class="step-label">重置密码</span>
+          </div>
+        </div>
+
+        <div v-if="step === 1" class="step-content">
+          <form class="forgot-form" @submit.prevent="handleSendCode">
+            <div class="form-group">
+              <input
+                v-model="email"
+                type="email"
+                class="form-input"
+                placeholder="请输入注册邮箱"
+                required
+              />
+            </div>
+            <button type="submit" class="submit-btn" :disabled="loading">
+              <span v-if="loading">发送中…</span>
+              <span v-else>发送验证码</span>
+            </button>
+          </form>
+          <div class="back-link">
+            <a href="#" @click.prevent="goToLogin">返回登录</a>
+          </div>
+        </div>
+
+        <div v-if="step === 2" class="step-content">
+          <form class="forgot-form" @submit.prevent="handleResetPassword">
+            <div class="form-group">
+              <input v-model="email" type="email" class="form-input" placeholder="注册邮箱" disabled />
+            </div>
+            <div class="form-group">
+              <div class="code-input-group">
+                <input
+                  v-model="verificationCode"
+                  type="text"
+                  class="form-input code-input"
+                  placeholder="请输入验证码"
+                  required
+                  maxlength="6"
+                />
+                <button
+                  type="button"
+                  class="resend-btn"
+                  :disabled="countdown > 0 || resendLoading"
+                  @click="handleResendCode"
+                >
+                  <span v-if="countdown > 0">{{ countdown }}秒后重发</span>
+                  <span v-else-if="resendLoading">发送中…</span>
+                  <span v-else>重新发送</span>
+                </button>
+              </div>
+            </div>
+            <div class="form-group">
+              <input
+                v-model="newPassword"
+                type="password"
+                class="form-input"
+                placeholder="请输入新密码（6-30位）"
+                required
+                minlength="6"
+                maxlength="30"
+              />
+            </div>
+            <div class="form-group">
+              <input
+                v-model="confirmPassword"
+                type="password"
+                class="form-input"
+                placeholder="请确认新密码"
+                required
+                minlength="6"
+                maxlength="30"
+              />
+            </div>
+            <button type="submit" class="submit-btn" :disabled="loading">
+              <span v-if="loading">重置中…</span>
+              <span v-else>重置密码</span>
+            </button>
+          </form>
+          <div class="back-link">
+            <a href="#" @click.prevent="goToLogin">返回登录</a>
+          </div>
+        </div>
+      </div>
+    </main>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { useToast } from 'vue-toastification'
@@ -258,8 +250,6 @@ const goToLogin = () => {
   router.push('/login')
 }
 
-// 组件卸载时清除倒计时
-import { onUnmounted } from 'vue'
 onUnmounted(() => {
   if (countdownTimer) {
     clearInterval(countdownTimer)
@@ -268,77 +258,36 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.forgot-password-container {
-  min-height: 70vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
+.panel {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: linear-gradient(145deg, rgba(139, 92, 246, 0.14), rgba(255, 255, 255, 0.04));
+  box-shadow: var(--shadow);
 }
 
-.forgot-password-card {
-  background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 40px;
+.forgot-card {
   width: 100%;
-  max-width: 450px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  position: relative;
-  overflow: hidden;
+  max-width: 460px;
+  padding: clamp(26px, 4vw, 38px) clamp(20px, 4vw, 30px);
 }
 
-.forgot-password-card::before {
-  content: '';
-  position: absolute;
-  top: -10px;
-  left: -10px;
-  right: -10px;
-  bottom: -10px;
-  background: linear-gradient(45deg, #ff9ec0, #6a5acd, #84ffff, #ff9ec0);
-  background-size: 400%;
-  border-radius: 25px;
-  z-index: -1;
-  filter: blur(20px);
-  opacity: 0.6;
-  animation: gradientShift 10s ease infinite;
-}
-
-@keyframes gradientShift {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-.forgot-password-title {
+.forgot-title {
+  margin: 0 0 22px;
   text-align: center;
-  margin-bottom: 30px;
-  font-size: 1.8rem;
-  color: #6a5acd;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-  background: linear-gradient(45deg, #ff9ec0, #6a5acd, #84ffff);
+  font-size: clamp(1.35rem, 3vw, 1.65rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(120deg, #e9d5ff, #a5f3fc, #c4b5fd);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  position: relative;
-  z-index: 1;
 }
 
 .steps-indicator {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 30px;
-  position: relative;
-  z-index: 1;
+  margin-bottom: 24px;
 }
 
 .step {
@@ -346,177 +295,162 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  position: relative;
 }
 
 .step-number {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.5);
-  border: 2px solid rgba(106, 90, 205, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 255, 255, 0.16);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
-  color: #6a5acd;
-  transition: all 0.3s ease;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--muted);
+  transition: border-color 0.2s var(--ease), background 0.2s var(--ease), transform 0.2s var(--ease);
 }
 
 .step.active .step-number {
-  background: linear-gradient(135deg, #6a5acd, #84ffff);
-  border-color: #6a5acd;
-  color: white;
-  transform: scale(1.1);
-  box-shadow: 0 4px 15px rgba(106, 90, 205, 0.4);
+  background: linear-gradient(135deg, #8b5cf6, #22d3ee);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  transform: scale(1.06);
+  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.35);
 }
 
 .step.completed .step-number {
-  background: #4caf50;
-  border-color: #4caf50;
-  color: white;
+  background: rgba(52, 211, 153, 0.35);
+  border-color: rgba(52, 211, 153, 0.55);
+  color: #ecfdf5;
 }
 
 .step-label {
-  font-size: 0.85rem;
-  color: rgba(106, 90, 205, 0.7);
+  font-size: 0.8rem;
+  color: var(--faint);
 }
 
 .step.active .step-label {
-  color: #6a5acd;
-  font-weight: 500;
+  color: var(--accent2);
+  font-weight: 600;
 }
 
 .step-divider {
-  width: 60px;
+  width: 56px;
   height: 2px;
-  background: rgba(106, 90, 205, 0.2);
-  margin: 0 10px 16px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0 10px 18px;
 }
 
-.step-content {
-  position: relative;
-  z-index: 1;
-}
-
-.forgot-password-form {
+.forgot-form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
 }
 
 .form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  margin: 0;
 }
 
 .form-input {
-  padding: 14px 20px;
-  border: none;
-  border-radius: 30px;
-  font-size: 1rem;
-  outline: none;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  transition: all 0.3s ease;
-  color: #333;
   width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-family: inherit;
+  transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 
 .form-input::placeholder {
-  color: rgba(92, 75, 123, 0.6);
+  color: var(--faint);
 }
 
 .form-input:focus {
-  border: 1px solid rgba(106, 90, 205, 0.5);
-  box-shadow: 0 8px 32px rgba(106, 90, 205, 0.3);
-  background: rgba(255, 255, 255, 0.35);
+  outline: none;
+  border-color: rgba(34, 211, 238, 0.45);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12);
 }
 
 .form-input:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
-  background: rgba(255, 255, 255, 0.15);
 }
 
 .code-input-group {
   display: flex;
   gap: 10px;
+  align-items: stretch;
 }
 
 .code-input {
   flex: 1;
+  min-width: 0;
 }
 
 .resend-btn {
-  padding: 14px 20px;
-  background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  color: #6a5acd;
-  border: 1px solid rgba(106, 90, 205, 0.3);
-  border-radius: 30px;
-  font-size: 0.9rem;
-  font-weight: 500;
+  font-family: inherit;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.82rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
   white-space: nowrap;
-  min-width: 100px;
+  min-width: 108px;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
 }
 
 .resend-btn:hover:not(:disabled) {
-  background: rgba(106, 90, 205, 0.1);
-  border-color: rgba(106, 90, 205, 0.5);
-  transform: translateY(-1px);
+  background: rgba(139, 92, 246, 0.22);
+  border-color: rgba(139, 92, 246, 0.4);
 }
 
 .resend-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 .submit-btn {
-  padding: 14px 20px;
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(147, 112, 219, 0.8));
-  color: white;
-  border: none;
-  border-radius: 30px;
-  font-size: 1.1rem;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 8px 32px rgba(106, 90, 205, 0.3);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
+  font-family: inherit;
+  margin-top: 4px;
+  padding: 12px 20px;
   width: 100%;
-  margin-top: 10px;
+  border: none;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: #0c0a14;
+  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
+  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
 }
 
 .submit-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 30px rgba(106, 90, 205, 0.5);
-  background: linear-gradient(135deg, rgba(92, 75, 123, 0.9), rgba(122, 91, 192, 0.9));
+  filter: brightness(1.05);
 }
 
 .submit-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
 .back-link {
   text-align: center;
-  margin-top: 20px;
-  color: #6a5acd;
+  margin-top: 18px;
+  font-size: 0.88rem;
 }
 
 .back-link a {
-  color: #6a5acd;
+  color: var(--accent2);
+  font-weight: 600;
   text-decoration: none;
-  font-weight: 500;
 }
 
 .back-link a:hover {
@@ -524,15 +458,10 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
-  .forgot-password-card {
-    padding: 30px 20px;
-    margin: 0 10px;
-  }
-  
   .code-input-group {
     flex-direction: column;
   }
-  
+
   .resend-btn {
     width: 100%;
   }
