@@ -19,9 +19,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 访问 NeteaseCloudMusicApi（如 /search、/song/url/v1、/lyric）。
@@ -49,8 +51,8 @@ public class NeteaseCloudMusicClient {
 
     public record SongDetail(String title, String artist, String album, String coverUrl, int durationMs) {}
 
-    /** /lyric 接口返回：用于校验的主歌词 + 审计报告（供管理员邮件，含各字段与原始 JSON）。 */
-    public record LyricApiPayload(String primaryLrc, String lyricAuditReport) {}
+    /** /lyric 接口返回：用于校验的主歌词 + 供管理员邮件展示的可读原文（去重，无 JSON）。 */
+    public record LyricApiPayload(String primaryLrc, String lyricsEmailBody) {}
 
     /**
      * 调用 NeteaseCloudMusicApi {@code /login/status}。
@@ -156,7 +158,7 @@ public class NeteaseCloudMusicClient {
         if (primary.isBlank() && newRoot != null) {
             primary = textOrEmpty(newRoot.path("lrc").path("lyric"));
         }
-        return new LyricApiPayload(primary, buildLyricAuditReport(standardRoot, newRoot));
+        return new LyricApiPayload(primary, buildLyricsEmailBody(standardRoot, newRoot));
     }
 
     private JsonNode fetchLyricNewRoot(long songId) {
@@ -169,74 +171,103 @@ public class NeteaseCloudMusicClient {
     }
 
     /**
-     * 管理员邮件用：拼接 /lyric、/lyric/new 各文本字段及接口原始 JSON（不省略任何返回字段）。
+     * 管理员邮件：仅可读歌词文本，按类型分段，内容去重（不含接口路径、不含原始 JSON）。
      */
-    private String buildLyricAuditReport(JsonNode standardRoot, JsonNode newRoot) {
+    private String buildLyricsEmailBody(JsonNode standardRoot, JsonNode newRoot) {
         StringBuilder sb = new StringBuilder();
-        appendLyricSection(sb, "GET /lyric → lrc", standardRoot.path("lrc").path("lyric"));
-        appendLyricSection(sb, "GET /lyric → tlyric", standardRoot.path("tlyric").path("lyric"));
-        appendLyricSection(sb, "GET /lyric → romalrc", standardRoot.path("romalrc").path("lyric"));
-        appendLyricSection(sb, "GET /lyric → yrc", standardRoot.path("yrc").path("lyric"));
-        appendLyricSection(sb, "GET /lyric → klyric", standardRoot.path("klyric").path("lyric"));
-        appendLyricSection(sb, "GET /lyric → ytlrc", standardRoot.path("ytlrc").path("lyric"));
-        appendLyricSection(sb, "GET /lyric → briefDesc", standardRoot.path("briefDesc"));
-        collectNestedLyricFields(sb, "GET /lyric", standardRoot);
+        Set<String> seen = new LinkedHashSet<>();
+
+        appendLyricsPart(sb, seen, "原文（LRC）", standardRoot.path("lrc").path("lyric"));
+        appendLyricsPart(sb, seen, "翻译", standardRoot.path("tlyric").path("lyric"));
+        appendLyricsPart(sb, seen, "罗马音", standardRoot.path("romalrc").path("lyric"));
+        appendLyricsPart(sb, seen, "逐字歌词", standardRoot.path("yrc").path("lyric"));
+
         if (newRoot != null) {
-            appendLyricSection(sb, "GET /lyric/new → lrc", newRoot.path("lrc").path("lyric"));
-            appendLyricSection(sb, "GET /lyric/new → tlyric", newRoot.path("tlyric").path("lyric"));
-            collectNestedLyricFields(sb, "GET /lyric/new", newRoot);
+            String newLrc = textOrEmpty(newRoot.path("lrc").path("lyric"));
+            String newText = flattenLyricBlob(newLrc);
+            if (!newText.isBlank() && seen.add(dedupKey(newText))) {
+                if (!sb.isEmpty()) {
+                    sb.append("\n\n");
+                }
+                sb.append("【新版歌词格式】\n").append(newText);
+            }
         }
-        appendJsonSection(sb, "GET /lyric 原始 JSON", standardRoot);
-        if (newRoot != null) {
-            appendJsonSection(sb, "GET /lyric/new 原始 JSON", newRoot);
-        }
+
         if (sb.isEmpty()) {
-            return "（网易云歌词接口未返回任何文本字段）";
+            return "（网易云未返回歌词文本）";
         }
         return sb.toString().strip();
     }
 
-    private void collectNestedLyricFields(StringBuilder sb, String apiLabel, JsonNode root) {
-        if (root == null || !root.isObject()) {
+    private void appendLyricsPart(StringBuilder sb, Set<String> seen, String label, JsonNode lyricNode) {
+        String flat = flattenLyricBlob(textOrEmpty(lyricNode));
+        if (flat.isBlank() || !seen.add(dedupKey(flat))) {
             return;
         }
-        root.fields().forEachRemaining(entry -> {
-            String name = entry.getKey();
-            JsonNode val = entry.getValue();
-            if (val != null && val.isObject() && val.has("lyric")) {
-                String label = apiLabel + " → " + name + ".lyric";
-                if (sb.indexOf("===== [" + label + "]") < 0) {
-                    appendLyricSection(sb, label, val.path("lyric"));
-                }
+        if (!sb.isEmpty()) {
+            sb.append("\n\n");
+        }
+        sb.append('【').append(label).append("】\n").append(flat);
+    }
+
+    /** 将 LRC 行或 lyric/new 的 JSON 行转为纯文本。 */
+    private String flattenLyricBlob(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        StringBuilder out = new StringBuilder();
+        for (String line : raw.split("\\r?\\n")) {
+            String t = line.trim();
+            if (t.isEmpty()) {
+                continue;
             }
-        });
+            if (t.startsWith("{") && t.contains("\"tx\"")) {
+                t = parseNewLyricJsonLine(t);
+            }
+            if (t.isEmpty()) {
+                continue;
+            }
+            if (!out.isEmpty()) {
+                out.append('\n');
+            }
+            out.append(t);
+        }
+        return out.toString();
     }
 
-    private void appendLyricSection(StringBuilder sb, String label, JsonNode lyricNode) {
-        String text = textOrEmpty(lyricNode);
-        if (text.isBlank()) {
-            return;
-        }
-        if (!sb.isEmpty()) {
-            sb.append("\n\n");
-        }
-        sb.append("===== [").append(label).append("] =====\n");
-        sb.append(text);
-    }
-
-    private void appendJsonSection(StringBuilder sb, String label, JsonNode root) {
-        if (root == null || root.isNull() || root.isMissingNode()) {
-            return;
-        }
-        if (!sb.isEmpty()) {
-            sb.append("\n\n");
-        }
-        sb.append("===== [").append(label).append("] =====\n");
+    private String parseNewLyricJsonLine(String jsonLine) {
         try {
-            sb.append(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(root));
+            JsonNode node = objectMapper.readTree(jsonLine);
+            JsonNode chars = node.path("c");
+            if (!chars.isArray()) {
+                return jsonLine;
+            }
+            StringBuilder sb = new StringBuilder();
+            for (JsonNode part : chars) {
+                sb.append(textOrEmpty(part.path("tx")));
+            }
+            return sb.toString().trim();
         } catch (JsonProcessingException e) {
-            sb.append(root.toString());
+            return jsonLine;
         }
+    }
+
+    /** 去重：去掉时间轴后比较，避免 LRC 行与新版 JSON 解析结果重复展示。 */
+    private static String dedupKey(String flatText) {
+        StringBuilder key = new StringBuilder();
+        for (String line : flatText.split("\\r?\\n")) {
+            String l = line.trim();
+            l = l.replaceFirst("^\\[\\d{2}:\\d{2}\\.\\d{1,5}[^\\]]*\\]\\s*", "");
+            if (l.isEmpty()) {
+                continue;
+            }
+            if (!key.isEmpty()) {
+                key.append('|');
+            }
+            l = l.replaceAll("\\s*:\\s*", ":").replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
+            key.append(l);
+        }
+        return key.toString();
     }
 
     public void downloadToFile(String url, Path destination) throws IOException {

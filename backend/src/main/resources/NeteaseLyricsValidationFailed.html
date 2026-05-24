@@ -17,13 +17,13 @@
 <body>
 <div class="box">
     <h2>网易云自动爬虫 · 歌词 LRC 校验失败</h2>
-    <p class="meta">歌曲已使用占位歌词继续入库。下方为网易云歌词接口返回的<strong>全部</strong>文本字段与原始 JSON（若仅有作词/作曲行，说明接口未提供带时间轴的完整歌词）。</p>
+    <p class="meta">歌曲已使用占位歌词继续入库。下方为网易云返回的歌词原文（已去重；若仅有作词/作曲行，表示接口未提供可解析的完整 LRC）。</p>
     <p><strong>歌曲：</strong>{{title}} — {{artist}}</p>
     <p><strong>曲库 ID：</strong>{{musicId}}（已入库完成）</p>
     <p><strong>网易云 ID：</strong>{{songId}}</p>
     <p class="label">校验失败原因</p>
     <p class="reason">{{reason}}</p>
-    <p class="label">网易云歌词接口完整返回（/lyric、/lyric/new 及原始 JSON）</p>
+    <p class="label">网易云返回的歌词原文</p>
     {{lyricsBlock}}
     <p class="foot">通知时间：{{notifiedAt}} · NekoMusic 后端</p>
 </div>
