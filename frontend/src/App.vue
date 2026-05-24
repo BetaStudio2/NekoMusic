@@ -9,12 +9,23 @@ const route = useRoute()
 
 // 下载页、首页、音乐详情：全幅背景壳层，去掉 main 内边距外框
 const isFlushMain = computed(
-  () => route.name === 'download' || route.name === 'home' || route.name === 'detail'
+  () =>
+    route.name === 'download' ||
+    route.name === 'home' ||
+    route.name === 'detail' ||
+    route.name === 'search' ||
+    route.name === 'search-query'
 )
 // 下载页独立布局：不显示顶栏搜索、底栏与全局播放器
 const isDownloadPage = computed(() => route.name === 'download')
 // 首页与音乐详情：顶栏 / 播放器 / 底栏使用与页面一致的深色玻璃
-const isChromeDarkShell = computed(() => route.name === 'home' || route.name === 'detail')
+const isChromeDarkShell = computed(
+  () =>
+    route.name === 'home' ||
+    route.name === 'detail' ||
+    route.name === 'search' ||
+    route.name === 'search-query'
+)
 </script>
 
 <template>
@@ -35,7 +46,7 @@ const isChromeDarkShell = computed(() => route.name === 'home' || route.name ===
   flex-direction: column;
 }
 
-/* HomeView / PlayerView：三层背景，顶栏与主内容共用同一底图 */
+/* HomeView / PlayerView / Search：三层背景 */
 #app.app--home {
   background: radial-gradient(1200px 700px at 10% -10%, rgba(139, 92, 246, 0.35), transparent 55%),
     radial-gradient(900px 600px at 95% 10%, rgba(34, 211, 238, 0.18), transparent 50%),
