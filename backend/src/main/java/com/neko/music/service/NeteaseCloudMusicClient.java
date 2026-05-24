@@ -1,5 +1,6 @@
 package com.neko.music.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.config.ConfigManager;
@@ -48,8 +49,8 @@ public class NeteaseCloudMusicClient {
 
     public record SongDetail(String title, String artist, String album, String coverUrl, int durationMs) {}
 
-    /** /lyric 接口返回：用于校验的主歌词 + 各字段完整原文（供管理员邮件）。 */
-    public record LyricApiPayload(String primaryLrc, String fullOriginalLyrics) {}
+    /** /lyric 接口返回：用于校验的主歌词 + 审计报告（供管理员邮件，含各字段与原始 JSON）。 */
+    public record LyricApiPayload(String primaryLrc, String lyricAuditReport) {}
 
     /**
      * 调用 NeteaseCloudMusicApi {@code /login/status}。
@@ -146,29 +147,72 @@ public class NeteaseCloudMusicClient {
     }
 
     public LyricApiPayload fetchLyricPayload(long songId) throws IOException {
-        JsonNode root = getJson("/lyric?id=" + songId);
-        String primary = textOrEmpty(root.path("lrc").path("lyric"));
+        JsonNode standardRoot = getJson("/lyric?id=" + songId);
+        JsonNode newRoot = fetchLyricNewRoot(songId);
+        String primary = textOrEmpty(standardRoot.path("lrc").path("lyric"));
         if (primary.isBlank()) {
-            primary = textOrEmpty(root.path("tlyric").path("lyric"));
+            primary = textOrEmpty(standardRoot.path("tlyric").path("lyric"));
         }
-        return new LyricApiPayload(primary, buildFullOriginalLyrics(root));
+        if (primary.isBlank() && newRoot != null) {
+            primary = textOrEmpty(newRoot.path("lrc").path("lyric"));
+        }
+        return new LyricApiPayload(primary, buildLyricAuditReport(standardRoot, newRoot));
+    }
+
+    private JsonNode fetchLyricNewRoot(long songId) {
+        try {
+            return getJson("/lyric/new?id=" + songId);
+        } catch (IOException e) {
+            logger.debug("lyric/new 请求失败 songId={}: {}", songId, e.getMessage());
+            return null;
+        }
     }
 
     /**
-     * 拼接网易云 /lyric 各字段的完整原文（lrc、tlyric、yrc 等），避免邮件只含用于校验的那一段。
+     * 管理员邮件用：拼接 /lyric、/lyric/new 各文本字段及接口原始 JSON（不省略任何返回字段）。
      */
-    private static String buildFullOriginalLyrics(JsonNode root) {
+    private String buildLyricAuditReport(JsonNode standardRoot, JsonNode newRoot) {
         StringBuilder sb = new StringBuilder();
-        appendLyricSection(sb, "lrc", root.path("lrc").path("lyric"));
-        appendLyricSection(sb, "tlyric", root.path("tlyric").path("lyric"));
-        appendLyricSection(sb, "romalrc", root.path("romalrc").path("lyric"));
-        appendLyricSection(sb, "yrc", root.path("yrc").path("lyric"));
-        appendLyricSection(sb, "klyric", root.path("klyric").path("lyric"));
-        appendLyricSection(sb, "ytlrc", root.path("ytlrc").path("lyric"));
+        appendLyricSection(sb, "GET /lyric → lrc", standardRoot.path("lrc").path("lyric"));
+        appendLyricSection(sb, "GET /lyric → tlyric", standardRoot.path("tlyric").path("lyric"));
+        appendLyricSection(sb, "GET /lyric → romalrc", standardRoot.path("romalrc").path("lyric"));
+        appendLyricSection(sb, "GET /lyric → yrc", standardRoot.path("yrc").path("lyric"));
+        appendLyricSection(sb, "GET /lyric → klyric", standardRoot.path("klyric").path("lyric"));
+        appendLyricSection(sb, "GET /lyric → ytlrc", standardRoot.path("ytlrc").path("lyric"));
+        appendLyricSection(sb, "GET /lyric → briefDesc", standardRoot.path("briefDesc"));
+        collectNestedLyricFields(sb, "GET /lyric", standardRoot);
+        if (newRoot != null) {
+            appendLyricSection(sb, "GET /lyric/new → lrc", newRoot.path("lrc").path("lyric"));
+            appendLyricSection(sb, "GET /lyric/new → tlyric", newRoot.path("tlyric").path("lyric"));
+            collectNestedLyricFields(sb, "GET /lyric/new", newRoot);
+        }
+        appendJsonSection(sb, "GET /lyric 原始 JSON", standardRoot);
+        if (newRoot != null) {
+            appendJsonSection(sb, "GET /lyric/new 原始 JSON", newRoot);
+        }
+        if (sb.isEmpty()) {
+            return "（网易云歌词接口未返回任何文本字段）";
+        }
         return sb.toString().strip();
     }
 
-    private static void appendLyricSection(StringBuilder sb, String label, JsonNode lyricNode) {
+    private void collectNestedLyricFields(StringBuilder sb, String apiLabel, JsonNode root) {
+        if (root == null || !root.isObject()) {
+            return;
+        }
+        root.fields().forEachRemaining(entry -> {
+            String name = entry.getKey();
+            JsonNode val = entry.getValue();
+            if (val != null && val.isObject() && val.has("lyric")) {
+                String label = apiLabel + " → " + name + ".lyric";
+                if (sb.indexOf("===== [" + label + "]") < 0) {
+                    appendLyricSection(sb, label, val.path("lyric"));
+                }
+            }
+        });
+    }
+
+    private void appendLyricSection(StringBuilder sb, String label, JsonNode lyricNode) {
         String text = textOrEmpty(lyricNode);
         if (text.isBlank()) {
             return;
@@ -178,6 +222,21 @@ public class NeteaseCloudMusicClient {
         }
         sb.append("===== [").append(label).append("] =====\n");
         sb.append(text);
+    }
+
+    private void appendJsonSection(StringBuilder sb, String label, JsonNode root) {
+        if (root == null || root.isNull() || root.isMissingNode()) {
+            return;
+        }
+        if (!sb.isEmpty()) {
+            sb.append("\n\n");
+        }
+        sb.append("===== [").append(label).append("] =====\n");
+        try {
+            sb.append(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(root));
+        } catch (JsonProcessingException e) {
+            sb.append(root.toString());
+        }
     }
 
     public void downloadToFile(String url, Path destination) throws IOException {

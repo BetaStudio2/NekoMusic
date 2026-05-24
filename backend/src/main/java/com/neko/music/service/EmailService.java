@@ -292,15 +292,11 @@ public class EmailService {
 
         String raw = rawLyrics == null ? "" : rawLyrics;
         String attachmentFileName = buildNeteaseLyricsAttachmentFileName(title, neteaseSongId);
-        byte[] attachmentBytes = null;
-        String lyricsBlock;
-        if (raw.length() <= NETEASE_LYRICS_INLINE_MAX_CHARS) {
-            lyricsBlock = "<pre>" + escapeHtml(raw) + "</pre>";
-        } else {
-            attachmentBytes = raw.getBytes(StandardCharsets.UTF_8);
-            lyricsBlock = "<p>原始歌词共 <strong>" + raw.length()
-                    + "</strong> 字符，已完整放入附件 <strong>" + escapeHtml(attachmentFileName)
-                    + "</strong>（UTF-8，未截断），请下载查看。</p>";
+        byte[] attachmentBytes = raw.isEmpty() ? null : raw.getBytes(StandardCharsets.UTF_8);
+        String lyricsBlock = "<pre>" + escapeHtml(raw) + "</pre>";
+        if (raw.length() > NETEASE_LYRICS_INLINE_MAX_CHARS) {
+            lyricsBlock += "<p>（正文较长，相同内容另附附件 <strong>" + escapeHtml(attachmentFileName)
+                    + "</strong> 备份，未截断）</p>";
         }
 
         String notifiedAt = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
