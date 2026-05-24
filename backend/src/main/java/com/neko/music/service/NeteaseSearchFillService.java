@@ -2,6 +2,7 @@ package com.neko.music.service;
 
 import com.neko.music.config.ConfigManager;
 import com.neko.music.util.LrcValidator;
+import com.neko.music.util.RuntimeDiskGuard;
 import com.neko.music.util.SongLanguageInferer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,7 +60,9 @@ public class NeteaseSearchFillService {
         /** API 未登录，高音质不可用（常因 Cookie 过期） */
         LOGIN_EXPIRED,
         /** 其它异常 */
-        ERROR
+        ERROR,
+        /** 运行目录磁盘可用空间不足 */
+        LOW_DISK_SPACE
     }
 
     public record FillAttempt(Optional<AdminMusicIngestService.IngestedMusic> music, FillReason reason) {
@@ -71,6 +74,9 @@ public class NeteaseSearchFillService {
     public FillAttempt tryFillFromNetease(String query) {
         if (!config.isNeteaseSearchFillEnabled()) {
             return FillAttempt.skipped();
+        }
+        if (!RuntimeDiskGuard.hasSufficientSpaceForMusicWrites()) {
+            return new FillAttempt(Optional.empty(), FillReason.LOW_DISK_SPACE);
         }
         if (query == null || query.isBlank()) {
             return FillAttempt.skipped();

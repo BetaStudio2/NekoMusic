@@ -2,6 +2,7 @@ package com.neko.music.handlers;
 
 import com.neko.music.Main;
 import com.neko.music.util.MusicAssetLocator;
+import com.neko.music.util.RuntimeDiskGuard;
 import com.neko.music.util.AudioFileValidator;
 import com.neko.music.util.AudioIntegrityValidator;
 import com.neko.music.util.LrcValidator;
@@ -51,6 +52,9 @@ public class FileUploadHandler extends HttpServlet {
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("未授权访问");
             response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+            return;
+        }
+        if (rejectIfLowDisk(response)) {
             return;
         }
         
@@ -337,6 +341,9 @@ public class FileUploadHandler extends HttpServlet {
             response.setContentType("application/json;charset=utf-8");
             ErrorResponse errorResponse = new ErrorResponse("未授权访问");
             response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+            return;
+        }
+        if (rejectIfLowDisk(response)) {
             return;
         }
         
@@ -935,6 +942,17 @@ public class FileUploadHandler extends HttpServlet {
         public void setData(Music data) { this.data = data; }
     }
     
+    private static boolean rejectIfLowDisk(HttpServletResponse response) throws IOException {
+        if (RuntimeDiskGuard.hasSufficientSpaceForMusicWrites()) {
+            return false;
+        }
+        response.setStatus(HttpStatus.INSUFFICIENT_STORAGE_507);
+        response.setContentType("application/json;charset=utf-8");
+        ErrorResponse errorResponse = new ErrorResponse(RuntimeDiskGuard.uploadBlockedMessage());
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+        return true;
+    }
+
     // 内部类用于表示错误响应
     private static class ErrorResponse {
         private String error;

@@ -42,6 +42,8 @@ public class MusicSearchHandler extends HttpServlet {
                     message = "未找到匹配的音乐（网易云登录已失效，无法补全 Hi-Res/无损，请更新 API Cookie 后重试）";
                 } else if (fill.reason() == NeteaseSearchFillService.FillReason.ERROR) {
                     message = "未找到匹配的音乐（网易云补全服务异常，请查看服务端日志）";
+                } else if (fill.reason() == NeteaseSearchFillService.FillReason.LOW_DISK_SPACE) {
+                    message = com.neko.music.util.RuntimeDiskGuard.neteaseFillBlockedMessage();
                 }
             }
 

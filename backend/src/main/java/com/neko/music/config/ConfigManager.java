@@ -96,6 +96,11 @@ public class ConfigManager {
     private Integer neteaseFillUploadUserId = null;
     private int neteaseHttpTimeoutSeconds = 45;
 
+    /** 运行目录所在分区最低可用空间（GB，十进制 1 GB = 10⁹ 字节），不足时禁止音乐上传与网易云补全 */
+    private int storageMinFreeGb = 10;
+
+    private static final long STORAGE_BYTES_PER_GB = 1_000_000_000L;
+
     /** ZPay（易支付兼容）：见 https://z-pay.cn/doc.html */
     private boolean zpayEnabled = false;
     private String zpayPid = "";
@@ -281,6 +286,11 @@ public class ConfigManager {
                     }
                 }
 
+                JsonNode storageNode = configNode.get("storage");
+                if (storageNode != null && storageNode.has("min_free_gb")) {
+                    storageMinFreeGb = storageNode.get("min_free_gb").asInt();
+                }
+
                 JsonNode neteaseFillNode = configNode.get("netease_search_fill");
                 if (neteaseFillNode != null) {
                     if (neteaseFillNode.has("enabled")) {
@@ -336,6 +346,7 @@ public class ConfigManager {
             logger.info("  视频渲染: enabled={}, pipeline={}, ffmpegPath={}, preferBundled={}, videoCodec={}, nonVipMaxSec={}, nonVipDailyLimit={}",
                     videoRenderEnabled, videoRenderPipeline, videoRenderFfmpegPath, videoRenderPreferBundledFfmpeg,
                     videoRenderVideoCodec, videoRenderNonVipMaxDurationSec, videoRenderNonVipDailyLimit);
+            logger.info("  存储保护: minFreeGb={}（不足时禁止音乐上传与网易云补全）", storageMinFreeGb);
             logger.info("  网易云搜索补全: enabled={}, apiBaseUrl={}, quality={}, cookieConfigured={}",
                     neteaseSearchFillEnabled, neteaseApiBaseUrl, neteaseQuality, !neteaseCookie.isEmpty());
             logger.info("  ZPay 支付: enabled={}, pidConfigured={}, publicBaseUrlConfigured={}",
@@ -357,6 +368,7 @@ public class ConfigManager {
         videoRenderNonVipDailyLimit = Math.max(1, Math.min(1000, videoRenderNonVipDailyLimit));
         videoRenderWorkerThreads = Math.max(1, Math.min(16, videoRenderWorkerThreads));
         videoRenderArtifactRetentionHours = Math.max(1, Math.min(168, videoRenderArtifactRetentionHours));
+        storageMinFreeGb = Math.max(1, Math.min(1024, storageMinFreeGb));
         neteaseHttpTimeoutSeconds = Math.max(5, Math.min(300, neteaseHttpTimeoutSeconds));
         if (neteaseApiBaseUrl == null || neteaseApiBaseUrl.isBlank()) {
             neteaseApiBaseUrl = "http://127.0.0.1:3000";
@@ -618,6 +630,14 @@ public class ConfigManager {
             return vip;
         }
         return zpaySiteRootFromPublicBase(getZpayPublicBaseUrl());
+    }
+
+    public int getStorageMinFreeGb() {
+        return storageMinFreeGb;
+    }
+
+    public long getStorageMinFreeBytes() {
+        return storageMinFreeGb * STORAGE_BYTES_PER_GB;
     }
 
     public boolean isNeteaseSearchFillEnabled() {

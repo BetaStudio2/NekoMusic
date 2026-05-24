@@ -2,6 +2,7 @@ package com.neko.music.handlers;
 
 import com.neko.music.Main;
 import com.neko.music.util.AudioFileValidator;
+import com.neko.music.util.RuntimeDiskGuard;
 import com.neko.music.util.AudioIntegrityValidator;
 import com.neko.music.util.TempAudioSpool;
 import com.neko.music.util.LrcValidator;
@@ -53,6 +54,11 @@ public class UserUploadHandler extends HttpServlet {
         }
         
         int userId = userIdOpt.get();
+
+        if (!RuntimeDiskGuard.hasSufficientSpaceForMusicWrites()) {
+            sendError(response, 507, RuntimeDiskGuard.uploadBlockedMessage());
+            return;
+        }
         
         try {
             // 获取表单数据
