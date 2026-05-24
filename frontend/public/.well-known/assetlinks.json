@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.neko.music",
+      "sha256_cert_fingerprints": [
+        "53:A6:4C:DB:14:91:A2:B2:8A:3D:30:9E:41:E9:2A:DD:BA:BC:C6:91:B8:FB:5B:DC:1B:A3:9E:C8:6E:81:7F:A2"
+      ]
+    }
+  }
+]
