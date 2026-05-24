@@ -236,9 +236,9 @@ const changePassword = async () => {
   display: flex;
   align-items: center;
   gap: 30px;
-  padding-bottom: 30px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  margin-bottom: 30px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 24px;
 }
 
 .avatar-section {
@@ -250,8 +250,8 @@ const changePassword = async () => {
   height: 150px;
   border-radius: 50%;
   object-fit: cover;
-  border: 4px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+  border: 3px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
 }
 
 .upload-avatar-btn {
@@ -265,27 +265,25 @@ const changePassword = async () => {
 .upload-avatar-btn label {
   display: inline-block;
   padding: 8px 16px;
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(147, 112, 219, 0.8));
-  color: white;
-  border-radius: 20px;
+  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
+  color: #0c0a14;
+  border-radius: 999px;
   cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(106, 90, 205, 0.4);
+  font-size: 0.86rem;
+  font-weight: 700;
+  transition: filter 0.15s var(--ease);
+  box-shadow: 0 6px 18px rgba(139, 92, 246, 0.28);
 }
 
 .upload-avatar-btn label:hover {
-  background: linear-gradient(135deg, rgba(92, 75, 123, 0.95), rgba(122, 91, 192, 0.95));
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(106, 90, 205, 0.6);
+  filter: brightness(1.06);
 }
 
 .user-info .username {
   margin: 0;
-  font-size: 1.8rem;
-  color: #6a5acd;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-  background: linear-gradient(45deg, #ff9ec0, #6a5acd, #84ffff);
+  font-size: clamp(1.35rem, 3vw, 1.75rem);
+  font-weight: 800;
+  background: linear-gradient(120deg, #e9d5ff, #a5f3fc, #c4b5fd);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -312,14 +310,14 @@ const changePassword = async () => {
 
 .user-info .email {
   margin: 10px 0;
-  font-size: 1.1rem;
-  color: #6a5acd;
+  font-size: 1rem;
+  color: var(--muted);
 }
 
 .user-info .join-date {
   margin: 5px 0 0;
-  font-size: 0.9rem;
-  color: #9370db;
+  font-size: 0.88rem;
+  color: var(--faint);
 }
 
 .profile-content {
@@ -335,61 +333,61 @@ const changePassword = async () => {
 }
 
 .tab-btn {
-  padding: 12px 24px;
-  background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 20px;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
   cursor: pointer;
-  font-size: 1rem;
-  color: #6a5acd;
-  transition: all 0.3s ease;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease), color 0.15s var(--ease);
 }
 
 .tab-btn:hover {
-  background: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
 }
 
 .tab-btn.active {
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(147, 112, 219, 0.8));
-  color: white;
-  box-shadow: 0 4px 15px rgba(106, 90, 205, 0.4);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.45), rgba(34, 211, 238, 0.2));
+  border-color: rgba(139, 92, 246, 0.45);
+  color: var(--text);
+  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.25);
 }
 
 .tab-content {
-  background: rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 15px;
-  padding: 25px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: var(--radius);
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .tab-panel h3 {
   margin-top: 0;
-  margin-bottom: 20px;
-  color: #6a5acd;
-  font-size: 1.4rem;
+  margin-bottom: 18px;
+  color: var(--text);
+  font-size: 1.15rem;
+  font-weight: 800;
 }
 
 .info-item {
   display: flex;
-  margin-bottom: 15px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .info-item label {
-  font-weight: bold;
-  color: #6a5acd;
+  font-weight: 700;
+  color: var(--accent2);
   width: 120px;
   flex-shrink: 0;
 }
 
 .info-item span {
   flex-grow: 1;
-  color: #5c4b7b;
+  color: var(--muted);
 }
 
 .form-group {
@@ -399,59 +397,55 @@ const changePassword = async () => {
 .form-group label {
   display: block;
   margin-bottom: 8px;
-  font-weight: bold;
-  color: #6a5acd;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .form-group input {
   width: 100%;
-  padding: 12px 15px;
-  border: none;
-  border-radius: 30px;
-  font-size: 1rem;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 0.95rem;
+  font-family: inherit;
   outline: none;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  transition: all 0.3s ease;
-  color: #333;
+  color: var(--text);
+  transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 
 .form-group input::placeholder {
-  color: rgba(92, 75, 123, 0.6);
+  color: var(--faint);
 }
 
 .form-group input:focus {
-  border: 1px solid rgba(106, 90, 205, 0.5);
-  box-shadow: 0 8px 32px rgba(106, 90, 205, 0.3);
-  background: rgba(255, 255, 255, 0.35);
+  border-color: rgba(34, 211, 238, 0.45);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12);
 }
 
 .save-btn {
-  padding: 12px 25px;
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(147, 112, 219, 0.8));
-  color: white;
+  font-family: inherit;
+  margin-top: 8px;
+  padding: 11px 22px;
+  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
+  color: #0c0a14;
   border: none;
-  border-radius: 30px;
-  font-size: 1rem;
-  font-weight: bold;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(106, 90, 205, 0.4);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
+  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.28);
+  transition: filter 0.15s var(--ease);
 }
 
 .save-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, rgba(92, 75, 123, 0.95), rgba(122, 91, 192, 0.95));
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(106, 90, 205, 0.6);
+  filter: brightness(1.05);
 }
 
 .save-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
