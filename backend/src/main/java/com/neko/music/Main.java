@@ -135,7 +135,8 @@ public class Main {
         neteaseSearchFillService = new NeteaseSearchFillService(
                 configManager,
                 new NeteaseCloudMusicClient(configManager, objectMapper),
-                new AdminMusicIngestService());
+                new AdminMusicIngestService(),
+                redisService);
 
         // 初始化歌单服务
         playlistService = new PlaylistService(databaseManager);

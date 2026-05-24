@@ -24,6 +24,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.Optional;
 
 /**
  * 管理员后台入库：校验临时音频/歌词/封面后写入 Music 目录与数据库（与 FileUploadHandler 规则一致）。
@@ -136,6 +137,50 @@ public class AdminMusicIngestService {
                 Files.deleteIfExists(MusicAssetLocator.lyricsDir().resolve(musicId + ".lrc"));
             }
             throw e;
+        }
+    }
+
+    /**
+     * 按搜索关键词在曲库中找最近一条可能匹配（用于补全并发时复用已入库结果）。
+     */
+    public Optional<IngestedMusic> findBestLocalMatchForQuery(String query) throws SQLException {
+        if (query == null || query.isBlank()) {
+            return Optional.empty();
+        }
+        String q = query.trim();
+        String like = "%" + q + "%";
+        try (Connection conn = Main.getDatabaseManager().getConnection()) {
+            String sql = """
+                    SELECT id, title, artist, album, duration, upload_user_id, created_at
+                    FROM music
+                    WHERE title LIKE ? OR artist LIKE ? OR album LIKE ?
+                    ORDER BY id DESC
+                    LIMIT 1
+                    """;
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setString(1, like);
+                stmt.setString(2, like);
+                stmt.setString(3, like);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (!rs.next()) {
+                        return Optional.empty();
+                    }
+                    int uploadUserId = rs.getInt("upload_user_id");
+                    if (rs.wasNull()) {
+                        uploadUserId = 0;
+                    }
+                    Timestamp createdAt = rs.getTimestamp("created_at");
+                    return Optional.of(new IngestedMusic(
+                            rs.getInt("id"),
+                            rs.getString("title"),
+                            rs.getString("artist"),
+                            rs.getString("album"),
+                            rs.getInt("duration"),
+                            uploadUserId,
+                            createdAt != null ? createdAt.toString() : ""
+                    ));
+                }
+            }
         }
     }
 

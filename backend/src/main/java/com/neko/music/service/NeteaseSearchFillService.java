@@ -7,13 +7,18 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.sql.SQLException;
 import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * 本地单曲搜索无结果时：从 NeteaseCloudMusicApi 拉取一首匹配曲并走管理员入库流程。
@@ -21,18 +26,28 @@ import java.util.Optional;
 public class NeteaseSearchFillService {
     private static final Logger logger = LoggerFactory.getLogger(NeteaseSearchFillService.class);
 
+    private static final int REDIS_LOCK_SECONDS = 180;
+    private static final int PEER_WAIT_MAX_MS = 90_000;
+    private static final int PEER_WAIT_POLL_MS = 500;
+
+    /** 同一 JVM 内按搜索词串行化补全，避免并发双份入库 */
+    private static final ConcurrentHashMap<String, ReentrantLock> QUERY_LOCKS = new ConcurrentHashMap<>();
+
     private final ConfigManager config;
     private final NeteaseCloudMusicClient neteaseClient;
     private final AdminMusicIngestService ingestService;
+    private final RedisService redisService;
 
     public NeteaseSearchFillService(
             ConfigManager config,
             NeteaseCloudMusicClient neteaseClient,
-            AdminMusicIngestService ingestService
+            AdminMusicIngestService ingestService,
+            RedisService redisService
     ) {
         this.config = config;
         this.neteaseClient = neteaseClient;
         this.ingestService = ingestService;
+        this.redisService = redisService;
     }
 
     public enum FillReason {
@@ -65,6 +80,40 @@ public class NeteaseSearchFillService {
             return new FillAttempt(Optional.empty(), FillReason.ERROR);
         }
 
+        String lockKey = lockKeyForQuery(trimmed);
+        ReentrantLock localLock = QUERY_LOCKS.computeIfAbsent(lockKey, k -> new ReentrantLock());
+
+        localLock.lock();
+        try {
+            Optional<AdminMusicIngestService.IngestedMusic> existing = findLocalMatch(trimmed);
+            if (existing.isPresent()) {
+                return new FillAttempt(existing, FillReason.NONE);
+            }
+
+            boolean redisHeld = tryAcquireRedisLock(lockKey);
+            if (!redisHeld) {
+                logger.info("网易云补全已有其它实例/请求在处理: query={}", trimmed);
+                return waitForPeerIngest(trimmed);
+            }
+
+            try {
+                existing = findLocalMatch(trimmed);
+                if (existing.isPresent()) {
+                    return new FillAttempt(existing, FillReason.NONE);
+                }
+                return doFillFromNetease(trimmed);
+            } finally {
+                releaseRedisLock(lockKey);
+            }
+        } catch (SQLException e) {
+            logger.error("查询本地曲库失败 query={}", trimmed, e);
+            return new FillAttempt(Optional.empty(), FillReason.ERROR);
+        } finally {
+            localLock.unlock();
+        }
+    }
+
+    private FillAttempt doFillFromNetease(String trimmed) {
         boolean loggedIn = neteaseClient.isLoggedIn();
         if (!loggedIn) {
             logger.warn("网易云 API 未登录或 Cookie 已失效（/login/status profile 为空），"
@@ -88,6 +137,11 @@ public class NeteaseSearchFillService {
                         ? "未知专辑"
                         : candidate.album();
                 if (ingestService.isDuplicateMusic(candidate.title(), candidate.artist(), album)) {
+                    Optional<AdminMusicIngestService.IngestedMusic> dup =
+                            findLocalMatch(candidate.title());
+                    if (dup.isPresent()) {
+                        return new FillAttempt(dup, FillReason.NONE);
+                    }
                     continue;
                 }
                 Optional<AdminMusicIngestService.IngestedMusic> ingested =
@@ -105,6 +159,61 @@ public class NeteaseSearchFillService {
             if (workDir != null) {
                 deleteRecursively(workDir);
             }
+        }
+    }
+
+    private FillAttempt waitForPeerIngest(String query) {
+        long deadline = System.currentTimeMillis() + PEER_WAIT_MAX_MS;
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                Optional<AdminMusicIngestService.IngestedMusic> existing = findLocalMatch(query);
+                if (existing.isPresent()) {
+                    logger.info("等待其它补全完成后命中曲库: query={} id={}", query, existing.get().id());
+                    return new FillAttempt(existing, FillReason.NONE);
+                }
+                Thread.sleep(PEER_WAIT_POLL_MS);
+            } catch (SQLException e) {
+                logger.error("等待补全时查询曲库失败 query={}", query, e);
+                return new FillAttempt(Optional.empty(), FillReason.ERROR);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return FillAttempt.skipped();
+            }
+        }
+        logger.warn("等待其它补全超时: query={}", query);
+        return FillAttempt.skipped();
+    }
+
+    private Optional<AdminMusicIngestService.IngestedMusic> findLocalMatch(String query) throws SQLException {
+        return ingestService.findBestLocalMatchForQuery(query);
+    }
+
+    private boolean tryAcquireRedisLock(String lockKey) {
+        if (redisService == null) {
+            return true;
+        }
+        return redisService.setIfAbsentWithExpiry(redisLockKey(lockKey), "1", REDIS_LOCK_SECONDS);
+    }
+
+    private void releaseRedisLock(String lockKey) {
+        if (redisService == null) {
+            return;
+        }
+        redisService.del(redisLockKey(lockKey));
+    }
+
+    private static String redisLockKey(String lockKey) {
+        return "neko:netease_fill:lock:" + lockKey;
+    }
+
+    private static String lockKeyForQuery(String query) {
+        String normalized = query.trim().toLowerCase(Locale.ROOT);
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(normalized.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (Exception e) {
+            return normalized;
         }
     }
 
@@ -127,6 +236,10 @@ public class NeteaseSearchFillService {
         String album = pickNonEmpty(detail.album(), candidate.album());
         if (album.isBlank()) {
             album = "未知专辑";
+        }
+
+        if (ingestService.isDuplicateMusic(title, artist, album)) {
+            return ingestService.findBestLocalMatchForQuery(title);
         }
 
         NeteaseCloudMusicClient.SongPlayUrl playUrl = neteaseClient
