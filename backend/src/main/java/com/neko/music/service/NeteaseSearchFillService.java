@@ -325,21 +325,27 @@ public class NeteaseSearchFillService {
             Files.writeString(lyricsTemp, lrc);
             try (InputStream in = Files.newInputStream(lyricsTemp)) {
                 long size = Files.size(lyricsTemp);
-                if (LrcValidator.validate(in, size).isValid()) {
+                LrcValidator.ValidationResult check = LrcValidator.validate(in, size);
+                if (check.isValid()) {
                     return lyricsTemp;
                 }
+                logger.warn("网易云歌词未通过 LRC 校验 songId={}: {}，将使用占位歌词", songId, check.getErrorMessage());
             }
             Files.deleteIfExists(lyricsTemp);
         }
 
+        writePlaceholderLyrics(lyricsTemp);
+        return lyricsTemp;
+    }
+
+    private void writePlaceholderLyrics(Path lyricsTemp) throws IOException {
         try (InputStream fallback = getClass().getClassLoader().getResourceAsStream("no_lrc.lrc")) {
             if (fallback == null) {
-                Files.writeString(lyricsTemp, "[00:00.00]暂无歌词\n");
+                Files.writeString(lyricsTemp, "[00:00.00]Neko云音乐 暂无歌词\n");
             } else {
-                Files.copy(fallback, lyricsTemp);
+                Files.copy(fallback, lyricsTemp, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             }
         }
-        return lyricsTemp;
     }
 
     private FillAttempt failReason(boolean loggedIn) {

@@ -25,6 +25,10 @@ public class LrcValidator {
     // 翻译行正则表达式：{"翻译内容"}
     private static final Pattern TRANSLATION_PATTERN = Pattern.compile("^\\{\"\'(.+)[\"\']\\}$");
 
+    /** LRC 元数据标签行，如 [ti:歌名]、[ar:歌手]（不含 [mm:ss.xx] 时间轴） */
+    private static final Pattern METADATA_TAG_PATTERN = Pattern.compile(
+            "^\\[[a-zA-Z]+:[^\\]]*\\]\\s*$", Pattern.CASE_INSENSITIVE);
+
     /**
      * 校验LRC文件
      *
@@ -73,6 +77,8 @@ public class LrcValidator {
             return ValidationResult.fail("歌词文件内容为空");
         }
 
+        int lyricTimestampLines = 0;
+
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.get(i).trim();
 
@@ -90,6 +96,7 @@ public class LrcValidator {
 
             // 如果这一行包含时间戳
             if (!timestampPositions.isEmpty()) {
+                lyricTimestampLines++;
                 // 检查是否只有一个时间戳
                 if (timestampPositions.size() > 1) {
                     return ValidationResult.fail(
@@ -186,6 +193,15 @@ public class LrcValidator {
                     }
                 }
             } else {
+                // 允许标准 LRC 元数据标签行（无时间轴）
+                if (METADATA_TAG_PATTERN.matcher(line).matches()) {
+                    continue;
+                }
+                // 允许 JSON 翻译行（须跟在时间戳行之后，由上文逻辑校验内容）
+                if (TRANSLATION_PATTERN.matcher(line).matches()) {
+                    continue;
+                }
+
                 // 如果这一行不包含合法的时间戳，检查是否包含非法的时间戳格式
                 // 检查 [xx:xx:xx] 格式（小时:分钟:秒）
                 Pattern invalidTimestampPattern1 = Pattern.compile("\\[\\d{1,2}:\\d{2}:\\d{2}\\.?\\d*\\]");
@@ -209,7 +225,15 @@ public class LrcValidator {
                             String.format("第%d行包含方括号但不是合法的时间戳格式，格式应为[mm:ss.xx]到[mm:ss.xxxxx]（毫秒1-5位）", i + 1)
                     );
                 }
+
+                return ValidationResult.fail(
+                        String.format("第%d行不是合法的 LRC 歌词行（需 [mm:ss.xx] 时间轴或 [ti:]/[ar:] 等元数据标签）", i + 1)
+                );
             }
+        }
+
+        if (lyricTimestampLines == 0) {
+            return ValidationResult.fail("歌词文件缺少 [mm:ss.xx] 时间轴行，不能为纯文本歌词");
         }
 
         return ValidationResult.success();
