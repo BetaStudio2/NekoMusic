@@ -1,30 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '@/views/HomeView.vue'
-import AboutView from '@/views/AboutView.vue'
-import SearchResultsView from '@/views/SearchResultsView.vue'
-import PlayerView from '@/views/PlayerView.vue'
-import UserLoginView from '@/views/UserLoginView.vue'
-import UserRegisterView from '@/views/UserRegisterView.vue'
-import ForgotPasswordView from '@/views/ForgotPasswordView.vue'
-import UserFavoritesView from '@/views/UserFavoritesView.vue'
-import UserPlaylistsView from '@/views/UserPlaylistsView.vue'
-import CreatePlaylistView from '@/views/CreatePlaylistView.vue'
-import PlaylistDetailView from '@/views/PlaylistDetailView.vue'
-import RankingView from '@/views/RankingView.vue'
-import LatestView from '@/views/LatestView.vue'
-import AdminLoginView from '@/views/admin/AdminLoginView.vue'
-import AdminView from '@/views/admin/AdminView.vue'
-import AdminMusicView from '@/views/admin/AdminMusicView.vue'
-import AdminAuditView from '@/views/admin/AdminAuditView.vue'
-import AdminUsersView from '@/views/admin/AdminUsersView.vue'
-import AdminVipPricingView from '@/views/admin/AdminVipPricingView.vue'
-import AdminSettingsView from '@/views/admin/AdminSettingsView.vue'
-import DownloadView from '@/views/DownloadView.vue'
-
-import ErrorView from '@/views/ErrorView.vue'
-import UploadMusicView from '@/views/UploadMusicView.vue'
-import UserProfileView from '@/views/UserProfileView.vue'
-import UserVipView from '@/views/UserVipView.vue'
 
 // 检查是否是移动设备
 function isMobileDevice() {
@@ -72,7 +46,7 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: HomeView,
+      component: () => import('@/views/HomeView.vue'),
       meta: {
         title: '首页 - Neko云音乐 | 完全免费的音乐平台',
         description: 'Neko云音乐 - 完全免费的在线音乐播放平台，提供海量免费音乐资源，无需付费，永久免费。发现海量音乐资源，享受高品质音乐体验。',
@@ -82,7 +56,7 @@ const router = createRouter({
     {
       path: '/about',
       name: 'about',
-      component: AboutView,
+      component: () => import('@/views/AboutView.vue'),
       meta: {
         title: '关于我们 - Neko云音乐 | 免费音乐平台',
         description: '了解Neko云音乐项目，一个完全免费的在线音乐播放平台。无需付费，永久免费，享受高品质音乐体验。',
@@ -92,7 +66,7 @@ const router = createRouter({
     {
       path: '/download',
       name: 'download',
-      component: DownloadView,
+      component: () => import('@/views/DownloadView.vue'),
       meta: {
         title: '下载客户端 - Neko云音乐 | 免费音乐应用',
         description: '下载Neko云音乐客户端，享受完全免费的音乐体验。支持移动端和PC端。无需付费，永久免费。',
@@ -103,7 +77,7 @@ const router = createRouter({
     {
       path: '/upload',
       name: 'upload',
-      component: UploadMusicView,
+      component: () => import('@/views/UploadMusicView.vue'),
       meta: {
         title: '上传音乐 - Neko云音乐 | 免费音乐上传',
         description: '上传您的音乐到Neko云音乐平台，分享您的作品给更多人。完全免费，无需付费。',
@@ -113,7 +87,7 @@ const router = createRouter({
     {
       path: '/search',
       name: 'search',
-      component: SearchResultsView,
+      component: () => import('@/views/SearchResultsView.vue'),
       props: true,
       meta: {
         title: '搜索音乐 - Neko云音乐 | 免费音乐搜索',
@@ -124,7 +98,7 @@ const router = createRouter({
     {
       path: '/search/:query',
       name: 'search-query',
-      component: SearchResultsView,
+      component: () => import('@/views/SearchResultsView.vue'),
       props: true,
       meta: {
         title: '搜索结果 - Neko云音乐 | 免费音乐',
@@ -135,7 +109,7 @@ const router = createRouter({
     {
       path: '/login',
       name: 'login',
-      component: UserLoginView,
+      component: () => import('@/views/UserLoginView.vue'),
       meta: {
         title: '用户登录 - Neko云音乐 | 免费音乐平台',
         description: '登录您的Neko云音乐账户，享受完全免费的个性化音乐服务。无需付费，永久免费。',
@@ -145,7 +119,7 @@ const router = createRouter({
     {
       path: '/register',
       name: 'register',
-      component: UserRegisterView,
+      component: () => import('@/views/UserRegisterView.vue'),
       meta: {
         title: '用户注册 - Neko云音乐 | 免费音乐平台',
         description: '注册Neko云音乐账户，开启您的免费音乐之旅。完全免费，无需付费，永久免费。',
@@ -155,7 +129,7 @@ const router = createRouter({
     {
       path: '/forgot-password',
       name: 'forgot-password',
-      component: ForgotPasswordView,
+      component: () => import('@/views/ForgotPasswordView.vue'),
       meta: {
         title: '忘记密码 - Neko云音乐 | 免费音乐平台',
         description: '忘记密码？通过邮箱验证码重置您的Neko云音乐账户密码。完全免费，无需付费。',
@@ -165,7 +139,7 @@ const router = createRouter({
     {
       path: '/favorites',
       name: 'favorites',
-      component: UserFavoritesView,
+      component: () => import('@/views/UserFavoritesView.vue'),
       meta: {
         title: '我的收藏 - Neko云音乐 | 免费音乐收藏',
         description: '查看您在Neko云音乐收藏的免费音乐，管理您的个人音乐收藏夹。完全免费，无需付费。',
@@ -175,7 +149,7 @@ const router = createRouter({
     {
       path: '/playlists',
       name: 'playlists',
-      component: UserPlaylistsView,
+      component: () => import('@/views/UserPlaylistsView.vue'),
       meta: {
         title: '我的歌单 - Neko云音乐 | 免费音乐歌单',
         description: '查看和管理您的歌单，创建个性化音乐播放列表。完全免费，无需付费。',
@@ -185,7 +159,7 @@ const router = createRouter({
     {
       path: '/account',
       name: 'account',
-      component: UserProfileView,
+      component: () => import('@/views/UserProfileView.vue'),
       meta: {
         title: '个人中心 - Neko云音乐',
         description: '查看账户信息与会员状态，管理密码与安全设置。',
@@ -195,7 +169,7 @@ const router = createRouter({
     {
       path: '/vip',
       name: 'vip',
-      component: UserVipView,
+      component: () => import('@/views/UserVipView.vue'),
       meta: {
         title: '会员中心 - Neko云音乐',
         description: '查看会员状态与到期时间。',
@@ -205,7 +179,7 @@ const router = createRouter({
     {
       path: '/ranking',
       name: 'ranking',
-      component: RankingView,
+      component: () => import('@/views/RankingView.vue'),
       meta: {
         title: '热门音乐排行榜 - Neko云音乐 | 免费音乐排行',
         description: '查看基于播放次数排序的热门音乐排行榜，发现最受欢迎的免费音乐。完全免费，无需付费。',
@@ -215,7 +189,7 @@ const router = createRouter({
     {
       path: '/latest',
       name: 'latest',
-      component: LatestView,
+      component: () => import('@/views/LatestView.vue'),
       meta: {
         title: '最新音乐 - Neko云音乐 | 免费新歌',
         description: '查看刚刚上传的最新音乐，发现最新的免费音乐资源。完全免费，无需付费。',
@@ -225,7 +199,7 @@ const router = createRouter({
     {
       path: '/playlist/create',
       name: 'create-playlist',
-      component: CreatePlaylistView,
+      component: () => import('@/views/CreatePlaylistView.vue'),
       meta: {
         title: '创建歌单 - Neko云音乐 | 免费音乐歌单',
         description: '创建新的歌单，整理您喜爱的免费音乐。完全免费，无需付费。',
@@ -235,7 +209,7 @@ const router = createRouter({
     {
       path: '/playlist/:id',
       name: 'playlist-detail',
-      component: PlaylistDetailView,
+      component: () => import('@/views/PlaylistDetailView.vue'),
       props: true,
       meta: {
         title: '歌单详情 - Neko云音乐 | 免费音乐歌单',
@@ -244,19 +218,9 @@ const router = createRouter({
       }
     },
     {
-      path: '/favorites',
-      name: 'favorites',
-      component: UserFavoritesView,
-      meta: {
-        title: '我的收藏 - Neko云音乐 | 免费音乐收藏',
-        description: '查看和管理您收藏的免费音乐，随时播放喜爱的免费歌曲。Neko云音乐提供完全免费的收藏功能。',
-        keywords: '音乐收藏,我的收藏,免费音乐收藏'
-      }
-    },
-    {
       path: '/admin/login',
       name: 'admin-login',
-      component: AdminLoginView,
+      component: () => import('@/views/admin/AdminLoginView.vue'),
       meta: {
         title: '管理员登录 - Neko云音乐',
         description: '管理员登录页面，管理免费音乐平台内容。',
@@ -266,7 +230,7 @@ const router = createRouter({
     {
       path: '/admin',
       name: 'admin',
-      component: AdminView,
+      component: () => import('@/views/admin/AdminView.vue'),
       beforeEnter: adminGuard,
       meta: {
         title: '管理后台 - Neko云音乐',
@@ -277,7 +241,7 @@ const router = createRouter({
     {
       path: '/admin/music',
       name: 'admin-music',
-      component: AdminMusicView,
+      component: () => import('@/views/admin/AdminMusicView.vue'),
       beforeEnter: adminGuard,
       meta: {
         title: '音乐管理 - Neko云音乐',
@@ -288,7 +252,7 @@ const router = createRouter({
     {
       path: '/admin/audit',
       name: 'admin-audit',
-      component: AdminAuditView,
+      component: () => import('@/views/admin/AdminAuditView.vue'),
       beforeEnter: adminGuard,
       meta: {
         title: '审核管理 - Neko云音乐',
@@ -299,7 +263,7 @@ const router = createRouter({
     {
       path: '/admin/users',
       name: 'admin-users',
-      component: AdminUsersView,
+      component: () => import('@/views/admin/AdminUsersView.vue'),
       beforeEnter: adminGuard,
       meta: {
         title: '用户管理 - Neko云音乐',
@@ -310,7 +274,7 @@ const router = createRouter({
     {
       path: '/admin/vip-pricing',
       name: 'admin-vip-pricing',
-      component: AdminVipPricingView,
+      component: () => import('@/views/admin/AdminVipPricingView.vue'),
       beforeEnter: adminGuard,
       meta: {
         title: 'VIP 价目 - Neko云音乐',
@@ -321,7 +285,7 @@ const router = createRouter({
     {
       path: '/detail/:id',
       name: 'detail',
-      component: PlayerView,
+      component: () => import('@/views/PlayerView.vue'),
       props: true,
       meta: {
         title: '音乐详情 - Neko云音乐 | 免费音乐播放',
@@ -332,7 +296,7 @@ const router = createRouter({
     {
       path: '/:pathMatch(.*)*',
       name: 'not-found',
-      component: ErrorView,
+      component: () => import('@/views/ErrorView.vue'),
       meta: {
         title: '404 - 页面未找到 - Neko云音乐',
         description: '您访问的页面不存在或已被移除。返回首页继续探索免费音乐。',
