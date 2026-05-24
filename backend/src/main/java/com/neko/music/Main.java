@@ -23,6 +23,9 @@ import com.neko.music.service.IPRateLimitService;
 import com.neko.music.service.SliderCaptchaService;
 import com.neko.music.service.VideoRenderArtifactCleanup;
 import com.neko.music.service.VideoRenderQuotaService;
+import com.neko.music.service.AdminMusicIngestService;
+import com.neko.music.service.NeteaseCloudMusicClient;
+import com.neko.music.service.NeteaseSearchFillService;
 import com.neko.music.service.VideoRenderService;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
@@ -73,6 +76,7 @@ public class Main {
     private static VideoRenderQuotaService videoRenderQuotaService;
     private static VideoRenderService videoRenderService;
     private static SliderCaptchaService sliderCaptchaService;
+    private static NeteaseSearchFillService neteaseSearchFillService;
 
     public static void main(String[] args) throws Exception {
         // 设置JVM默认时区为中国标准时间（UTC+8）
@@ -127,6 +131,11 @@ public class Main {
                 verificationCodeRateLimitService);
 
         sliderCaptchaService = new SliderCaptchaService();
+
+        neteaseSearchFillService = new NeteaseSearchFillService(
+                configManager,
+                new NeteaseCloudMusicClient(configManager, objectMapper),
+                new AdminMusicIngestService());
 
         // 初始化歌单服务
         playlistService = new PlaylistService(databaseManager);
@@ -506,6 +515,10 @@ public class Main {
 
     public static SliderCaptchaService getSliderCaptchaService() {
         return sliderCaptchaService;
+    }
+
+    public static NeteaseSearchFillService getNeteaseSearchFillService() {
+        return neteaseSearchFillService;
     }
     
     public static EmailService getEmailService() {

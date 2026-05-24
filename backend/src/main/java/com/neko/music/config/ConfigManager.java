@@ -86,6 +86,15 @@ public class ConfigManager {
     /** 成片与 ASS 在 /tmp/.neko 中的保留小时数，到期自动删除 */
     private int videoRenderArtifactRetentionHours = 3;
 
+    /** 单曲搜索无本地结果时，通过 NeteaseCloudMusicApi 补全入库 */
+    private boolean neteaseSearchFillEnabled = false;
+    private String neteaseApiBaseUrl = "http://127.0.0.1:3000";
+    private String neteaseCookie = "";
+    private String neteaseQuality = "hires";
+    private String neteaseFillLanguage = "华语";
+    private Integer neteaseFillUploadUserId = null;
+    private int neteaseHttpTimeoutSeconds = 45;
+
     /** ZPay（易支付兼容）：见 https://z-pay.cn/doc.html */
     private boolean zpayEnabled = false;
     private String zpayPid = "";
@@ -271,6 +280,31 @@ public class ConfigManager {
                     }
                 }
 
+                JsonNode neteaseFillNode = configNode.get("netease_search_fill");
+                if (neteaseFillNode != null) {
+                    if (neteaseFillNode.has("enabled")) {
+                        neteaseSearchFillEnabled = neteaseFillNode.get("enabled").asBoolean();
+                    }
+                    if (neteaseFillNode.has("api_base_url")) {
+                        neteaseApiBaseUrl = neteaseFillNode.get("api_base_url").asText(neteaseApiBaseUrl).trim();
+                    }
+                    if (neteaseFillNode.has("cookie")) {
+                        neteaseCookie = neteaseFillNode.get("cookie").asText("").trim();
+                    }
+                    if (neteaseFillNode.has("quality")) {
+                        neteaseQuality = neteaseFillNode.get("quality").asText(neteaseQuality).trim();
+                    }
+                    if (neteaseFillNode.has("language")) {
+                        neteaseFillLanguage = neteaseFillNode.get("language").asText(neteaseFillLanguage).trim();
+                    }
+                    if (neteaseFillNode.has("upload_user_id") && !neteaseFillNode.get("upload_user_id").isNull()) {
+                        neteaseFillUploadUserId = neteaseFillNode.get("upload_user_id").asInt();
+                    }
+                    if (neteaseFillNode.has("http_timeout_seconds")) {
+                        neteaseHttpTimeoutSeconds = neteaseFillNode.get("http_timeout_seconds").asInt();
+                    }
+                }
+
                 JsonNode zpayNode = configNode.get("zpay");
                 if (zpayNode != null) {
                     if (zpayNode.has("enabled")) zpayEnabled = zpayNode.get("enabled").asBoolean();
@@ -301,6 +335,8 @@ public class ConfigManager {
             logger.info("  视频渲染: enabled={}, pipeline={}, ffmpegPath={}, preferBundled={}, videoCodec={}, nonVipMaxSec={}, nonVipDailyLimit={}",
                     videoRenderEnabled, videoRenderPipeline, videoRenderFfmpegPath, videoRenderPreferBundledFfmpeg,
                     videoRenderVideoCodec, videoRenderNonVipMaxDurationSec, videoRenderNonVipDailyLimit);
+            logger.info("  网易云搜索补全: enabled={}, apiBaseUrl={}, quality={}, cookieConfigured={}",
+                    neteaseSearchFillEnabled, neteaseApiBaseUrl, neteaseQuality, !neteaseCookie.isEmpty());
             logger.info("  ZPay 支付: enabled={}, pidConfigured={}, publicBaseUrlConfigured={}",
                     zpayEnabled, !zpayPid.isEmpty(), !zpayPublicBaseUrl.isEmpty());
         } catch (Exception e) {
@@ -320,6 +356,16 @@ public class ConfigManager {
         videoRenderNonVipDailyLimit = Math.max(1, Math.min(1000, videoRenderNonVipDailyLimit));
         videoRenderWorkerThreads = Math.max(1, Math.min(16, videoRenderWorkerThreads));
         videoRenderArtifactRetentionHours = Math.max(1, Math.min(168, videoRenderArtifactRetentionHours));
+        neteaseHttpTimeoutSeconds = Math.max(5, Math.min(300, neteaseHttpTimeoutSeconds));
+        if (neteaseApiBaseUrl == null || neteaseApiBaseUrl.isBlank()) {
+            neteaseApiBaseUrl = "http://127.0.0.1:3000";
+        }
+        if (neteaseQuality == null || neteaseQuality.isBlank()) {
+            neteaseQuality = "hires";
+        }
+        if (neteaseFillLanguage == null || neteaseFillLanguage.isBlank()) {
+            neteaseFillLanguage = "华语";
+        }
         if (videoRenderFfmpegPath == null || videoRenderFfmpegPath.isBlank()) {
             videoRenderFfmpegPath = "auto";
         }
@@ -571,6 +617,34 @@ public class ConfigManager {
             return vip;
         }
         return zpaySiteRootFromPublicBase(getZpayPublicBaseUrl());
+    }
+
+    public boolean isNeteaseSearchFillEnabled() {
+        return neteaseSearchFillEnabled;
+    }
+
+    public String getNeteaseApiBaseUrl() {
+        return trimTrailingSlash(neteaseApiBaseUrl);
+    }
+
+    public String getNeteaseCookie() {
+        return neteaseCookie == null ? "" : neteaseCookie;
+    }
+
+    public String getNeteaseQuality() {
+        return neteaseQuality;
+    }
+
+    public String getNeteaseFillLanguage() {
+        return neteaseFillLanguage;
+    }
+
+    public Integer getNeteaseFillUploadUserId() {
+        return neteaseFillUploadUserId;
+    }
+
+    public int getNeteaseHttpTimeoutSeconds() {
+        return neteaseHttpTimeoutSeconds;
     }
 
     public boolean isZpayEnabled() {

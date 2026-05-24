@@ -2,6 +2,8 @@ package com.neko.music.handlers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.Main;
+import com.neko.music.service.AdminMusicIngestService;
+import com.neko.music.service.NeteaseSearchFillService;
 import com.neko.music.util.MusicAssetLocator;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -26,12 +28,28 @@ public class MusicSearchHandler extends HttpServlet {
 
         try {
             SearchRequest searchRequest = Main.getObjectMapper().readValue(requestBody, SearchRequest.class);
-            List<Music> results = searchMusic(searchRequest.getQuery());
+            String query = searchRequest.getQuery();
+            List<Music> results = searchMusic(query);
+
+            String message = "搜索成功";
+            if (results.isEmpty() && Main.getConfigManager().isNeteaseSearchFillEnabled()) {
+                NeteaseSearchFillService.FillAttempt fill =
+                        Main.getNeteaseSearchFillService().tryFillFromNetease(query);
+                if (fill.music().isPresent()) {
+                    results.add(toSearchMusic(fill.music().get()));
+                    message = "搜索成功（已从网易云补全入库）";
+                } else if (fill.reason() == NeteaseSearchFillService.FillReason.LOGIN_EXPIRED) {
+                    message = "未找到匹配的音乐（网易云登录已失效，无法补全 Hi-Res/无损，请更新 API Cookie 后重试）";
+                } else if (fill.reason() == NeteaseSearchFillService.FillReason.ERROR) {
+                    message = "未找到匹配的音乐（网易云补全服务异常，请查看服务端日志）";
+                }
+            }
 
             Object responseResults = results.isEmpty() ? null : results;
-            SearchResponse searchResponse = new SearchResponse(!results.isEmpty(),
-                results.isEmpty() ? "未找到匹配的音乐" : "搜索成功",
-                responseResults);
+            if (results.isEmpty() && "搜索成功".equals(message)) {
+                message = "未找到匹配的音乐";
+            }
+            SearchResponse searchResponse = new SearchResponse(!results.isEmpty(), message, responseResults);
 
             response.setStatus(HttpStatus.OK_200);
             response.setContentType("application/json;charset=utf-8");
@@ -312,6 +330,20 @@ public class MusicSearchHandler extends HttpServlet {
         }
 
         return score;
+    }
+
+    private static Music toSearchMusic(AdminMusicIngestService.IngestedMusic row) {
+        Music music = new Music();
+        music.setId(row.id());
+        music.setTitle(row.title());
+        music.setArtist(row.artist());
+        music.setAlbum(row.album());
+        music.setDuration(row.duration());
+        music.setFilePath(MusicAssetLocator.fileApiUrl(row.id()));
+        music.setCoverFilePath(MusicAssetLocator.coverApiUrl(row.id()));
+        music.setUploadUserId(row.uploadUserId());
+        music.setCreatedAt(row.createdAt());
+        return music;
     }
 
     // 辅助类：带分数的音乐
