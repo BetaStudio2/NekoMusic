@@ -640,6 +640,10 @@ public class ConfigManager {
         return storageMinFreeGb * STORAGE_BYTES_PER_GB;
     }
 
+    public long getStorageBytesPerGb() {
+        return STORAGE_BYTES_PER_GB;
+    }
+
     public boolean isNeteaseSearchFillEnabled() {
         return neteaseSearchFillEnabled;
     }

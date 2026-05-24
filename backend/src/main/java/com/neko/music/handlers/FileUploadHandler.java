@@ -54,6 +54,7 @@ public class FileUploadHandler extends HttpServlet {
             response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
+        RuntimeDiskGuard.logStorageForOperation("管理员上传音乐", "POST");
         if (rejectIfLowDisk(response)) {
             return;
         }
@@ -343,6 +344,7 @@ public class FileUploadHandler extends HttpServlet {
             response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
+        RuntimeDiskGuard.logStorageForOperation("管理员更新音乐", "PUT");
         if (rejectIfLowDisk(response)) {
             return;
         }

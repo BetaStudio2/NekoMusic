@@ -75,13 +75,14 @@ public class NeteaseSearchFillService {
         if (!config.isNeteaseSearchFillEnabled()) {
             return FillAttempt.skipped();
         }
-        if (!RuntimeDiskGuard.hasSufficientSpaceForMusicWrites()) {
-            return new FillAttempt(Optional.empty(), FillReason.LOW_DISK_SPACE);
-        }
         if (query == null || query.isBlank()) {
             return FillAttempt.skipped();
         }
         String trimmed = query.trim();
+        RuntimeDiskGuard.logStorageForOperation("网易云自动补全", "query=" + trimmed);
+        if (!RuntimeDiskGuard.hasSufficientSpaceForMusicWrites()) {
+            return new FillAttempt(Optional.empty(), FillReason.LOW_DISK_SPACE);
+        }
         if (config.getNeteaseApiBaseUrl().isBlank()) {
             logger.warn("netease_search_fill 已启用但 api_base_url 为空");
             return new FillAttempt(Optional.empty(), FillReason.ERROR);

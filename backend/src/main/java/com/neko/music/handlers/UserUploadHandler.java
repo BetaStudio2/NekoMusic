@@ -55,6 +55,7 @@ public class UserUploadHandler extends HttpServlet {
         
         int userId = userIdOpt.get();
 
+        RuntimeDiskGuard.logStorageForOperation("用户上传音乐", "userId=" + userId);
         if (!RuntimeDiskGuard.hasSufficientSpaceForMusicWrites()) {
             sendError(response, 507, RuntimeDiskGuard.uploadBlockedMessage());
             return;
