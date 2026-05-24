@@ -2,6 +2,7 @@ package com.neko.music.service;
 
 import com.neko.music.config.ConfigManager;
 import com.neko.music.util.LrcValidator;
+import com.neko.music.util.SongLanguageInferer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -272,6 +273,9 @@ public class NeteaseSearchFillService {
                 ? detail.durationMs() / 1000
                 : (playUrl.durationMs() > 0 ? playUrl.durationMs() / 1000 : 0);
 
+        String language = resolveLanguage(title, artist, album, lyricsTemp);
+        logger.info("网易云补全语种: title={} language={}", title, language);
+
         return ingestService.ingestFromTempFiles(
                 audioTemp,
                 coverTemp,
@@ -279,11 +283,33 @@ public class NeteaseSearchFillService {
                 title,
                 artist,
                 album,
-                config.getNeteaseFillLanguage(),
+                language,
                 "",
                 durationSec,
                 config.getNeteaseFillUploadUserId()
         );
+    }
+
+    private String resolveLanguage(String title, String artist, String album, Path lyricsTemp) {
+        String configured = config.getNeteaseFillLanguage();
+        if (configured != null && !configured.isBlank()) {
+            String c = configured.trim();
+            if (!"auto".equalsIgnoreCase(c)) {
+                return c;
+            }
+        }
+        String lrcSample = "";
+        try {
+            if (Files.isRegularFile(lyricsTemp)) {
+                lrcSample = Files.readString(lyricsTemp);
+                if (lrcSample.length() > 4000) {
+                    lrcSample = lrcSample.substring(0, 4000);
+                }
+            }
+        } catch (IOException e) {
+            logger.warn("读取歌词样本用于语种推断失败: {}", e.getMessage());
+        }
+        return SongLanguageInferer.infer(title, artist, album, lrcSample);
     }
 
     private Path prepareLyricsFile(Path workDir, long songId) throws IOException {

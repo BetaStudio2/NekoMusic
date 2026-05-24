@@ -91,7 +91,8 @@ public class ConfigManager {
     private String neteaseApiBaseUrl = "http://127.0.0.1:3000";
     private String neteaseCookie = "";
     private String neteaseQuality = "hires";
-    private String neteaseFillLanguage = "华语";
+    /** 空或 auto 表示按歌曲元数据自动推断 */
+    private String neteaseFillLanguage = "";
     private Integer neteaseFillUploadUserId = null;
     private int neteaseHttpTimeoutSeconds = 45;
 
@@ -363,8 +364,8 @@ public class ConfigManager {
         if (neteaseQuality == null || neteaseQuality.isBlank()) {
             neteaseQuality = "hires";
         }
-        if (neteaseFillLanguage == null || neteaseFillLanguage.isBlank()) {
-            neteaseFillLanguage = "华语";
+        if (neteaseFillLanguage == null) {
+            neteaseFillLanguage = "";
         }
         if (videoRenderFfmpegPath == null || videoRenderFfmpegPath.isBlank()) {
             videoRenderFfmpegPath = "auto";
