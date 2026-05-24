@@ -133,27 +133,40 @@
       <!-- 播放列表弹窗 -->
       <div v-if="showPlaylist" class="playlist-container">
         <div class="playlist-header">
-          <h3>播放列表</h3>
+          <h3 class="playlist-title">
+            播放列表
+            <span v-if="playlist.length" class="playlist-count">{{ playlist.length }} 首</span>
+          </h3>
           <div class="playlist-header-actions">
-            <button @click="clearPlaylist" class="clear-playlist-btn" title="清空列表" :disabled="playlist.length === 0">
+            <button
+              type="button"
+              class="clear-playlist-btn"
+              title="清空列表"
+              :disabled="playlist.length === 0"
+              @click="clearPlaylist"
+            >
               清空
             </button>
-            <button @click="togglePlaylist" class="close-playlist">✕</button>
+            <button type="button" class="close-playlist" aria-label="关闭播放列表" title="关闭" @click="togglePlaylist">
+              ×
+            </button>
           </div>
         </div>
         <div class="playlist-items">
-          <div 
-            v-for="(item, index) in playlist" 
-            :key="item.id" 
-            class="playlist-item" 
-            :class="{ 'current': currentMusic && item.id === currentMusic.id }"
+          <p v-if="playlist.length === 0" class="playlist-empty">列表为空，播放任意曲目后会自动加入此处。</p>
+          <div
+            v-for="(item, index) in playlist"
+            :key="item.id"
+            class="playlist-item"
+            :class="{ current: currentMusic && item.id === currentMusic.id }"
             @click="playFromPlaylist(index)"
           >
+            <span class="playlist-idx" aria-hidden="true">{{ index + 1 }}</span>
             <div class="playlist-item-info">
               <span class="playlist-item-title">{{ item.title }}</span>
               <span class="playlist-item-artist">{{ item.artist }}</span>
             </div>
-            <span v-if="currentMusic && item.id === currentMusic.id" class="current-indicator">▶</span>
+            <span v-if="currentMusic && item.id === currentMusic.id" class="current-indicator" aria-label="正在播放">▶</span>
           </div>
         </div>
       </div>
@@ -1915,9 +1928,57 @@ onUnmounted(() => {
 }
 
 .global-player--chrome-dark .playlist-container {
-  background: rgba(12, 11, 22, 0.96);
+  background: linear-gradient(165deg, rgba(22, 20, 38, 0.97), rgba(10, 10, 18, 0.98));
   border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(139, 92, 246, 0.12);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.global-player--chrome-dark .playlist-header {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.22), rgba(34, 211, 238, 0.08));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.global-player--chrome-dark .playlist-title {
+  color: rgba(255, 255, 255, 0.94);
+}
+
+.global-player--chrome-dark .playlist-count {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.global-player--chrome-dark .clear-playlist-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.global-player--chrome-dark .clear-playlist-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.global-player--chrome-dark .close-playlist {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.global-player--chrome-dark .close-playlist:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.global-player--chrome-dark .playlist-items {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.12), transparent 48%);
+}
+
+.global-player--chrome-dark .playlist-empty {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.global-player--chrome-dark .playlist-idx {
+  color: rgba(255, 255, 255, 0.38);
 }
 
 .global-player--chrome-dark .playlist-item {
@@ -1926,20 +1987,21 @@ onUnmounted(() => {
 }
 
 .global-player--chrome-dark .playlist-item:hover {
-  background: rgba(139, 92, 246, 0.15);
+  background: rgba(139, 92, 246, 0.14);
+  border-color: rgba(139, 92, 246, 0.28);
 }
 
 .global-player--chrome-dark .playlist-item.current {
-  background: rgba(139, 92, 246, 0.22);
-  border-color: rgba(167, 139, 250, 0.5);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.22), rgba(34, 211, 238, 0.08));
+  border-color: rgba(167, 139, 250, 0.45);
 }
 
 .global-player--chrome-dark .playlist-item-title {
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .global-player--chrome-dark .playlist-item-artist {
-  color: rgba(255, 255, 255, 0.5);
+  color: #a5b4fc;
 }
 
 .global-player--chrome-dark .current-indicator {
@@ -2222,139 +2284,183 @@ onUnmounted(() => {
 
 /* 播放列表 */
 .playlist-container {
+  --pl-radius: 18px;
   position: fixed;
   bottom: 80px;
   right: 20px;
-  width: 350px;
-  height: 400px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  width: min(380px, calc(100vw - 32px));
+  height: min(420px, 52vh);
+  max-height: min(420px, 52vh);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-radius: var(--pl-radius);
+  box-shadow: 0 16px 48px rgba(15, 16, 32, 0.18), 0 0 0 1px rgba(99, 102, 241, 0.08);
   z-index: 1001;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.65);
 }
 
 .playlist-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px;
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.9), rgba(138, 43, 226, 0.9));
-  color: white;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.14), rgba(139, 92, 246, 0.1));
+  border-bottom: 1px solid rgba(15, 16, 32, 0.08);
+  color: #1a1628;
 }
 
-.playlist-header h3 {
+.playlist-title {
   margin: 0;
-  font-size: 1rem;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.98rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.playlist-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(26, 22, 40, 0.5);
 }
 
 .playlist-header-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .clear-playlist-btn {
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: white;
-  padding: 5px 12px;
-  border-radius: 15px;
-  font-size: 0.8rem;
+  font-family: inherit;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(26, 22, 40, 0.1);
+  color: #312a44;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .clear-playlist-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.3);
-  transform: scale(1.05);
+  background: #fff;
+  border-color: rgba(99, 102, 241, 0.35);
 }
 
 .clear-playlist-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
 .close-playlist {
-  background: none;
-  border: none;
-  color: white;
-  font-size: 1.2rem;
+  font-family: inherit;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(26, 22, 40, 0.08);
+  color: #312a44;
+  font-size: 1.1rem;
+  line-height: 1;
   cursor: pointer;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.3s;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .close-playlist:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(99, 102, 241, 0.12);
+  color: #1a1628;
 }
 
 .playlist-items {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 10px;
+  padding: 10px 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
+.playlist-empty {
+  margin: 24px 12px;
+  text-align: center;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: rgba(26, 22, 40, 0.45);
+}
+
 .playlist-item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 10px;
-  border-radius: 8px;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: background 0.3s;
-  border: 1px solid #eee;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  border: 1px solid rgba(26, 22, 40, 0.06);
+  background: rgba(255, 255, 255, 0.55);
 }
 
 .playlist-item:hover {
-  background: rgba(106, 90, 205, 0.1);
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.2);
 }
 
 .playlist-item.current {
-  background: rgba(106, 90, 205, 0.2);
-  border-color: #6a5acd;
+  background: rgba(99, 102, 241, 0.14);
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+.playlist-idx {
+  width: 22px;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgba(26, 22, 40, 0.35);
 }
 
 .playlist-item-info {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 
 .playlist-item-title {
-  font-weight: bold;
-  color: #333;
-  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1a1628;
+  font-size: 0.88rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .playlist-item-artist {
-  font-size: 0.8rem;
-  color: #666;
+  font-size: 0.78rem;
+  color: rgba(26, 22, 40, 0.48);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .current-indicator {
-  color: #6a5acd;
-  font-weight: bold;
-  margin-left: 10px;
+  color: #6366f1;
+  font-weight: 700;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+  margin-left: 4px;
 }
 
 /* 隐藏audio元素 */
