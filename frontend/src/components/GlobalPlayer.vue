@@ -34,13 +34,14 @@
         
         <div class="progress-container" @click.stop>
           <span class="time">{{ formatTime(currentTime) }}</span>
-          <input 
-            v-if="currentMusic"
-            type="range" 
-            class="progress-bar" 
-            :value="progress" 
-            @input="onProgressChange"
-            :max="duration"
+          <input
+              v-if="currentMusic"
+              type="range"
+              class="progress-bar"
+              :value="progress"
+              @input="onProgressChange"
+              :max="duration"
+              aria-label="播放进度"
           />
           <span class="time">{{ formatTime(duration) }}</span>
         </div>
@@ -76,11 +77,29 @@
           </button>
           
           <!-- 播放/暂停按钮 -->
-          <button @click="togglePlayPause" class="play-pause-btn" :disabled="!currentMusic">
-            <svg v-if="isPlaying && currentMusic" class="btn-icon" viewBox="0 0 24 24" fill="currentColor">
+          <button
+              @click="togglePlayPause"
+              class="play-pause-btn"
+              :disabled="!currentMusic"
+              :aria-label="isPlaying && currentMusic ? '暂停' : '播放'"
+              :aria-pressed="isPlaying && currentMusic"
+          >
+            <svg
+                v-if="isPlaying && currentMusic"
+                class="btn-icon"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+            >
               <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
             </svg>
-            <svg v-else class="btn-icon" viewBox="0 0 24 24" fill="currentColor">
+            <svg
+                v-else
+                class="btn-icon"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+            >
               <path d="M8 5v14l11-7z"/>
             </svg>
           </button>
