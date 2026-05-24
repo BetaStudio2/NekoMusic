@@ -5,5 +5,10 @@ Allow: /
 Disallow: /admin/
 Disallow: /api/
 
+# 禁止爬取下载页面
+Disallow: /download
+
+Disallow: /search
+
 # 网站地图
 Sitemap: https://music.cnmsb.xin/sitemap.xml
