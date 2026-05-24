@@ -1,5 +1,5 @@
 <template>
-  <div class="global-player">
+  <div class="global-player" :class="{ 'global-player--chrome-dark': chromeDark }">
     <div class="player-content">
       <!-- 音乐封面 -->
       <div class="cover-container" @click="goToDetails">
@@ -177,6 +177,14 @@ import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import { useToast } from 'vue-toastification'
+
+defineProps({
+  chromeDark: {
+    type: Boolean,
+    default: false
+  }
+})
+
 const toast = useToast()
 
 const router = useRouter()
@@ -1842,6 +1850,92 @@ onUnmounted(() => {
   flex-direction: row;
   align-items: center;
   gap: 15px;
+}
+
+.global-player--chrome-dark {
+  background: rgba(7, 6, 13, 0.88);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.global-player--chrome-dark .music-title {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.global-player--chrome-dark .music-artist {
+  color: #a5b4fc;
+}
+
+.global-player--chrome-dark .placeholder-text {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.global-player--chrome-dark .time {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.global-player--chrome-dark .progress-bar {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.global-player--chrome-dark .lyrics-container {
+  /* 仅保留与控件区的左侧分隔，避免再套一层四边 border 造成「多一圈外框」 */
+  background: transparent;
+  border: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.global-player--chrome-dark .lyric-text {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.global-player--chrome-dark .lyric-line.active .lyric-text {
+  color: #67e8f9;
+}
+
+.global-player--chrome-dark .playlist-container {
+  background: rgba(12, 11, 22, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+}
+
+.global-player--chrome-dark .playlist-item {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.global-player--chrome-dark .playlist-item:hover {
+  background: rgba(139, 92, 246, 0.15);
+}
+
+.global-player--chrome-dark .playlist-item.current {
+  background: rgba(139, 92, 246, 0.22);
+  border-color: rgba(167, 139, 250, 0.5);
+}
+
+.global-player--chrome-dark .playlist-item-title {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.global-player--chrome-dark .playlist-item-artist {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.global-player--chrome-dark .current-indicator {
+  color: #67e8f9;
+}
+
+.global-player--chrome-dark .confirm-modal {
+  background: rgba(18, 17, 30, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.global-player--chrome-dark .confirm-modal-header h3,
+.global-player--chrome-dark .confirm-modal-body p {
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .player-content {

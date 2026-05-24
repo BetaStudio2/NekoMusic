@@ -1,137 +1,102 @@
 <template>
-  <div class="home-view">
-    <div class="content">
-<!-- 推荐卡片 -->
-      <div class="recommendation-cards">
-        <a href="/download" class="recommendation-card download-card">
-          <div class="card-icon">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-          </div>
-          <div class="card-content">
-            <h3 class="card-title">下载客户端</h3>
-            <p class="card-description">支持 Windows、macOS 和 Linux，享受更好的播放体验</p>
-          </div>
-        </a>
-
-        <router-link
-          v-if="isLoggedIn"
-          to="/upload"
-          class="recommendation-card upload-card"
-        >
-          <div class="card-icon">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="17 8 12 3 7 8"></polyline>
-              <line x1="12" y1="3" x2="12" y2="15"></line>
-            </svg>
-          </div>
-          <div class="card-content">
-            <h3 class="card-title">上传音乐</h3>
-            <p class="card-description">分享你的作品到平台，支持封面与歌词</p>
-          </div>
-        </router-link>
-
-        <a href="https://github.com/NyaNyagulugulu/NekoMusicDocs" target="_blank" rel="noopener noreferrer" class="recommendation-card docs-card">
-          <div class="card-icon">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-            </svg>
-          </div>
-          <div class="card-content">
-            <h3 class="card-title">开发者文档</h3>
-            <p class="card-description">查看完整的 API 文档，快速集成 Neko云音乐服务</p>
-          </div>
-        </a>
-      </div>
-
-      <!-- 推荐歌单 -->
-      <div class="playlist-card">
-        <div class="section-header">
-          <h2 class="section-title">推荐歌单</h2>
-          <a href="/playlists" class="view-more-link">查看更多</a>
-        </div>
-        <div v-if="playlistsLoading || loading" class="loading">加载中...</div>
-        <div v-else-if="(playlistList && playlistList.length > 0) || (displayList && displayList.length > 0)" class="playlist-scroll">
-          <!-- 热门音乐整体卡片 -->
-          <div
-            class="playlist-item hot-music-card"
-            @click="goToRanking"
-          >
-            <div class="playlist-cover hot-music-cover">
-              <div class="hot-music-mosaic">
-                <img
-                  v-for="(item, index) in displayList.slice(0, 4)"
-                  :key="index"
-                  :src="item.coverUrl"
-                  :alt="item.title"
-                  class="mosaic-img"
-                  @error="handleImageError"
-                />
-              </div>
-              <div class="playlist-count hot-music-count">{{ rankingList.length }}首</div>
-            </div>
-            <div class="playlist-info">
-              <h3 class="playlist-name">热门音乐</h3>
-              <p class="playlist-description">播放次数最高的热门歌曲</p>
-            </div>
-          </div>
-
-          <!-- 最新音乐整体卡片 -->
-          <div
-            class="playlist-item latest-music-card"
-            @click="goToLatest"
-          >
-            <div class="playlist-cover latest-music-cover">
-              <div class="latest-music-mosaic">
-                <img
-                  v-for="(item, index) in displayLatestList.slice(0, 4)"
-                  :key="index"
-                  :src="item.coverUrl"
-                  :alt="item.title"
-                  class="mosaic-img"
-                  @error="handleImageError"
-                />
-              </div>
-              <div class="playlist-count latest-music-count">{{ latestList.length }}首</div>
-            </div>
-            <div class="playlist-info">
-              <h3 class="playlist-name">最新音乐</h3>
-              <p class="playlist-description">刚刚上传的最新歌曲</p>
-            </div>
-          </div>
-
-          <!-- 歌单卡片 -->
-          <div
-            v-for="playlist in playlistList"
-            :key="'playlist-' + playlist.id"
-            class="playlist-item"
-            @click="goToPlaylist(playlist.id)"
-          >
-            <div class="playlist-cover">
-              <img
-                :src="playlist.firstMusicCover"
-                :alt="playlist.name"
-                class="playlist-cover-img"
-                @error="handlePlaylistCoverError"
-              />
-              <div class="playlist-count">{{ playlist.musicCount }}首</div>
-            </div>
-            <div class="playlist-info">
-              <h3 class="playlist-name">{{ playlist.name }}</h3>
-              <p class="playlist-description">{{ playlist.description || '暂无描述' }}</p>
-            </div>
-          </div>
-        </div>
-        <div v-else class="no-playlist">
-          <p>暂无推荐内容</p>
-        </div>
-      </div>
+  <div class="home-page">
+    <div class="ambient" aria-hidden="true">
+      <div class="ambient__blob ambient__blob--a" />
+      <div class="ambient__blob ambient__blob--b" />
+      <div class="ambient__blob ambient__blob--c" />
+      <div class="ambient__grid" />
     </div>
+
+    <main class="shell">
+      <section class="intro" aria-labelledby="home-title">
+        <div class="intro__text">
+          <h1 id="home-title" class="intro__title">从这里开始听</h1>
+          <p class="intro__lede">用顶栏搜索与播放；下载、上传与文档从下方进入。</p>
+        </div>
+        <nav class="intro__nav" aria-label="快捷入口">
+          <router-link to="/download" class="intro__chip">下载客户端</router-link>
+          <router-link v-if="isLoggedIn" to="/upload" class="intro__chip">上传音乐</router-link>
+          <a
+            href="https://github.com/NyaNyagulugulu/NekoMusicDocs"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="intro__chip"
+          >开发者文档</a>
+          <router-link to="/playlists" class="intro__chip">歌单</router-link>
+        </nav>
+      </section>
+
+      <section class="browse" aria-labelledby="browse-heading">
+        <div class="browse__rail" aria-hidden="true" />
+        <div class="browse__inner">
+          <header class="browse__head">
+            <div>
+              <h2 id="browse-heading" class="browse__title">热门与最新</h2>
+              <p class="browse__sub">排行榜与最新上架封面预览</p>
+            </div>
+          </header>
+
+          <div v-if="showDiscoverSkeleton" class="state state--loading">
+            <div class="state__spinner" aria-hidden="true" />
+            <p class="state__text">正在加载预览…</p>
+          </div>
+
+          <div v-else class="browse__tiles">
+            <article
+              class="b-tile b-tile--hot"
+              tabindex="0"
+              role="button"
+              @click="goToRanking"
+              @keydown.enter.prevent="goToRanking"
+            >
+              <div class="b-tile__cover b-tile__cover--hot">
+                <div class="b-tile__mosaic">
+                  <img
+                    v-for="(item, index) in displayList.slice(0, 4)"
+                    :key="'h-' + index"
+                    :src="item.coverUrl"
+                    :alt="item.title"
+                    class="b-tile__img"
+                    @error="handleImageError"
+                  />
+                </div>
+                <span class="b-tile__badge">{{ rankingList.length }} 首</span>
+              </div>
+              <div class="b-tile__meta">
+                <h3 class="b-tile__name">热门音乐</h3>
+                <p class="b-tile__hint">进入排行榜</p>
+              </div>
+            </article>
+
+            <article
+              class="b-tile b-tile--latest"
+              tabindex="0"
+              role="button"
+              @click="goToLatest"
+              @keydown.enter.prevent="goToLatest"
+            >
+              <div class="b-tile__cover b-tile__cover--latest">
+                <div class="b-tile__mosaic">
+                  <img
+                    v-for="(item, index) in displayLatestList.slice(0, 4)"
+                    :key="'l-' + index"
+                    :src="item.coverUrl"
+                    :alt="item.title"
+                    class="b-tile__img"
+                    @error="handleImageError"
+                  />
+                </div>
+                <span class="b-tile__badge">{{ latestList.length }} 首</span>
+              </div>
+              <div class="b-tile__meta">
+                <h3 class="b-tile__name">最新音乐</h3>
+                <p class="b-tile__hint">进入最新上架</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
   </div>
 </template>
 
@@ -140,14 +105,14 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import { useToast } from 'vue-toastification'
+
 const toast = useToast()
 const router = useRouter()
 
 const rankingList = ref([])
 const latestList = ref([])
-const loading = ref(false)
-const playlistList = ref([])
-const playlistsLoading = ref(false)
+const rankingLoading = ref(true)
+const latestLoading = ref(true)
 
 const isLoggedIn = ref(false)
 const syncLoginState = () => {
@@ -155,30 +120,27 @@ const syncLoginState = () => {
   isLoggedIn.value = t != null && t !== ''
 }
 
-// 显示列表，只显示前20首
-const displayList = computed(() => {
-  return rankingList.value.slice(0, 20)
-})
+const displayList = computed(() => rankingList.value.slice(0, 20))
+const displayLatestList = computed(() => latestList.value.slice(0, 20))
 
-// 显示最新音乐列表，只显示前20首
-const displayLatestList = computed(() => {
-  return latestList.value.slice(0, 20)
-})
+const showDiscoverSkeleton = computed(
+  () =>
+    (rankingLoading.value || latestLoading.value) &&
+    rankingList.value.length === 0 &&
+    latestList.value.length === 0
+)
 
-// 获取排行榜数据
 const fetchRanking = async () => {
-  loading.value = true
+  rankingLoading.value = true
   try {
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/ranking`)
     const data = await response.json()
 
     if (data.success && data.data) {
-      // 为每首音乐设置正确的封面URL
-      rankingList.value = data.data.map(item => ({
+      rankingList.value = data.data.map((item) => ({
         ...item,
         coverUrl: `${API_CONFIG.BASE_URL}/api/music/cover/${item.id}`
       }))
-      console.log('排行榜加载成功:', data.data.length, '首')
     } else {
       console.error('获取排行榜失败:', data.message)
     }
@@ -186,24 +148,21 @@ const fetchRanking = async () => {
     console.error('排行榜请求失败:', error)
     toast.error('加载排行榜失败')
   } finally {
-    loading.value = false
+    rankingLoading.value = false
   }
 }
 
-// 获取最新音乐数据
 const fetchLatest = async () => {
-  loading.value = true
+  latestLoading.value = true
   try {
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/latest?limit=300`)
     const data = await response.json()
 
     if (data.success && data.data) {
-      // 为每首音乐设置正确的封面URL
-      latestList.value = data.data.map(item => ({
+      latestList.value = data.data.map((item) => ({
         ...item,
         coverUrl: `${API_CONFIG.BASE_URL}/api/music/cover/${item.id}`
       }))
-      console.log('最新音乐加载成功:', data.data.length, '首')
     } else {
       console.error('获取最新音乐失败:', data.message)
     }
@@ -211,121 +170,20 @@ const fetchLatest = async () => {
     console.error('最新音乐请求失败:', error)
     toast.error('加载最新音乐失败')
   } finally {
-    loading.value = false
+    latestLoading.value = false
   }
 }
 
-// 获取推荐歌单
-const fetchPlaylists = async () => {
-  playlistsLoading.value = true
-  try {
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/playlists/search`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        query: ''
-      })
-    })
-    const data = await response.json()
-
-    if (data.success && data.results) {
-      // 为歌单封面添加正确的URL
-      playlistList.value = data.results.slice(0, 10).map(playlist => ({
-        ...playlist,
-        firstMusicCover: playlist.firstMusicCover
-          ? (playlist.firstMusicCover.startsWith('http') || playlist.firstMusicCover.startsWith('/api'))
-            ? playlist.firstMusicCover
-            : `${API_CONFIG.BASE_URL}${playlist.firstMusicCover}`
-          : '/api/defaultIcon'
-      }))
-      console.log('歌单加载成功:', data.results.length, '个')
-    } else {
-      console.error('获取歌单失败:', data.message)
-    }
-  } catch (error) {
-    console.error('歌单请求失败:', error)
-    toast.error('加载歌单失败')
-  } finally {
-    playlistsLoading.value = false
-  }
-}
-
-// 跳转到歌单详情
-const goToPlaylist = (playlistId) => {
-  router.push(`/playlist/${playlistId}`)
-}
-
-// 跳转到排行榜页面
 const goToRanking = () => {
   router.push('/ranking')
 }
 
-// 跳转到最新音乐页面
 const goToLatest = () => {
   router.push('/latest')
 }
 
-// 播放音乐
-const playMusic = (music) => {
-  // 这里需要调用全局播放器的播放方法
-  // 暂时使用路由跳转到播放页面
-  window.location.href = `/player?musicId=${music.id}`
-}
-
-// 下载音乐
-const downloadMusic = async (music) => {
-  try {
-    toast.info(`正在准备下载: ${music.title}`)
-    const downloadUrl = `${API_CONFIG.BASE_URL}/api/music/file/${music.id}`
-
-    // 使用fetch获取文件数据
-    const response = await fetch(downloadUrl)
-    if (!response.ok) {
-      throw new Error('下载失败')
-    }
-
-    // 将响应转换为blob
-    const blob = await response.blob()
-
-    // 创建blob URL
-    const blobUrl = URL.createObjectURL(blob)
-
-    // 创建下载链接
-    const link = document.createElement('a')
-    link.href = blobUrl
-    link.download = `${music.title}-${music.artist}.mp3`
-    document.body.appendChild(link)
-    link.click()
-
-    // 清理
-    document.body.removeChild(link)
-    URL.revokeObjectURL(blobUrl)
-
-    toast.success(`开始下载: ${music.title}`)
-  } catch (error) {
-    console.error('下载失败:', error)
-    toast.error('下载失败，请重试')
-  }
-}
-
-// 处理图片加载错误
 const handleImageError = (event) => {
   event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/0`
-}
-
-// 处理歌单封面加载错误
-const handlePlaylistCoverError = (event) => {
-  event.target.src = '/api/defaultIcon'
-}
-
-// 获取排名样式类
-const getRankClass = (index) => {
-  if (index === 0) return 'rank-first'
-  if (index === 1) return 'rank-second'
-  if (index === 2) return 'rank-third'
-  return 'rank-normal'
 }
 
 onMounted(() => {
@@ -333,7 +191,6 @@ onMounted(() => {
   window.addEventListener('storage', syncLoginState)
   fetchRanking()
   fetchLatest()
-  fetchPlaylists()
 })
 
 onUnmounted(() => {
@@ -342,492 +199,446 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.content {
-  max-width: 900px;
-  margin: 0 auto;
+/* —— 与下载页同一套页面基底（深色、光斑、网格）—— */
+.home-page {
+  --bg0: #07060d;
+  --bg1: #0f1020;
+  --line: rgba(255, 255, 255, 0.08);
+  --text: rgba(255, 255, 255, 0.92);
+  --muted: rgba(255, 255, 255, 0.62);
+  --faint: rgba(255, 255, 255, 0.42);
+  --card: rgba(255, 255, 255, 0.06);
+  --card2: rgba(255, 255, 255, 0.09);
+  --accent: #8b5cf6;
+  --accent2: #22d3ee;
+  --accent3: #34d399;
+  --radius: 18px;
+  --radius-lg: 24px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+
   position: relative;
-  padding-top: 40px;
+  min-height: 100vh;
+  padding-top: env(safe-area-inset-top, 0px);
+  color: var(--text);
+  /* 底图由 #app.app--home 统一提供，避免顶栏下沿与主内容背景不一致 */
+  background: transparent;
 }
 
-/* 推荐卡片样式 */
-.recommendation-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 20px;
-  margin-bottom: 30px;
-}
-
-.recommendation-card {
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 20px;
-  padding: 25px;
-  text-decoration: none;
-  color: inherit;
-  display: flex;
-  align-items: flex-start;
-  gap: 20px;
-  box-shadow: 0 4px 20px rgba(31, 38, 135, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.recommendation-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
+.ambient {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
   z-index: 0;
 }
 
-.recommendation-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 30px rgba(31, 38, 135, 0.25);
+.ambient__blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(72px);
+  opacity: 0.55;
+  animation: blobFloat 22s var(--ease) infinite;
 }
 
-.recommendation-card:hover::before {
-  opacity: 1;
+.ambient__blob--a {
+  width: 420px;
+  height: 420px;
+  background: rgba(139, 92, 246, 0.45);
+  top: -140px;
+  left: -120px;
 }
 
-.download-card:hover::before {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+.ambient__blob--b {
+  width: 360px;
+  height: 360px;
+  background: rgba(34, 211, 238, 0.28);
+  bottom: -80px;
+  right: -100px;
+  animation-delay: -7s;
 }
 
-.docs-card:hover::before {
-  background: linear-gradient(135deg, rgba(240, 147, 251, 0.2) 0%, rgba(245, 87, 108, 0.2) 100%);
+.ambient__blob--c {
+  width: 280px;
+  height: 280px;
+  background: rgba(52, 211, 153, 0.2);
+  top: 42%;
+  left: 38%;
+  animation-delay: -12s;
 }
 
-.upload-card:hover::before {
-  background: linear-gradient(135deg, rgba(45, 212, 191, 0.2) 0%, rgba(20, 184, 166, 0.2) 100%);
+.ambient__grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 20%, black, transparent);
+  animation: gridBreathe 10s ease-in-out infinite;
 }
 
-.upload-card .card-icon {
-  color: #14b8a6;
+@keyframes gridBreathe {
+  0%,
+  100% {
+    opacity: 0.28;
+  }
+  50% {
+    opacity: 0.42;
+  }
 }
 
-.card-icon {
-  flex-shrink: 0;
-  width: 60px;
-  height: 60px;
-  background: rgba(255, 255, 255, 0.5);
-  border-radius: 15px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+@keyframes blobFloat {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(24px, -18px) scale(1.05);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient__blob {
+    animation: none;
+  }
+
+  .ambient__grid {
+    animation: none;
+  }
+}
+
+.shell {
   position: relative;
   z-index: 1;
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  padding: clamp(18px, 3.5vw, 36px) clamp(16px, 4vw, 32px) 56px;
 }
 
-.music-card .card-icon {
-  color: #ff6b6b;
+.intro {
+  margin-bottom: clamp(22px, 3.5vw, 32px);
+  padding-bottom: clamp(16px, 2.8vw, 24px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.download-card .card-icon {
-  color: #667eea;
+.intro__text {
+  max-width: 38rem;
 }
 
-.docs-card .card-icon {
-  color: #f5576c;
+.intro__title {
+  margin: 0 0 8px;
+  font-size: clamp(1.55rem, 3.5vw, 2.1rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--text);
 }
 
-.card-content {
-  flex: 1;
-  position: relative;
-  z-index: 1;
-}
-
-.card-title {
-  font-size: 1.3rem;
-  font-weight: 700;
-  color: #333;
-  margin: 0 0 8px 0;
-}
-
-.card-description {
-  font-size: 0.95rem;
-  color: #666;
+.intro__lede {
   margin: 0;
+  font-size: clamp(0.88rem, 1.75vw, 0.97rem);
   line-height: 1.5;
+  color: var(--muted);
+  max-width: 40ch;
 }
 
-/* 排行榜样式 */
-.ranking-card {
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 25px;
-  padding: 30px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  position: relative;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  margin: 30px auto;
-  max-width: 90%;
-  overflow: hidden;
-}
-
-.ranking-header {
+.intro__nav {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: clamp(14px, 2.5vw, 20px);
+}
+
+.intro__chip {
+  display: inline-flex;
   align-items: center;
+  padding: 9px 15px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  text-decoration: none;
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  transition: background 0.2s var(--ease), border-color 0.2s var(--ease), transform 0.2s var(--ease);
+}
+
+.intro__chip:focus-visible {
+  outline: 2px solid var(--accent2);
+  outline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .intro__chip:hover {
+    background: rgba(255, 255, 255, 0.11);
+    border-color: rgba(139, 92, 246, 0.35);
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes sectionLift {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 36px, 0) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* —— 浏览区：左侧彩条 + 与 Android 区块同气质 —— */
+.browse {
+  position: relative;
+  margin-bottom: clamp(24px, 4vw, 36px);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.18), rgba(255, 255, 255, 0.03));
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: sectionLift 0.85s var(--ease) 0.2s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .browse {
+    animation: none;
+  }
+}
+
+@media (hover: hover) {
+  .browse:hover {
+    border-color: rgba(139, 92, 246, 0.35);
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(139, 92, 246, 0.15);
+  }
+}
+
+.browse__rail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  background: linear-gradient(180deg, var(--accent), var(--accent2), var(--accent3));
+  background-size: 100% 200%;
+  animation: railFlow 3.5s linear infinite;
+}
+
+@keyframes railFlow {
+  0% {
+    background-position: 0% 0%;
+  }
+  100% {
+    background-position: 0% 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .browse__rail {
+    animation: none;
+  }
+}
+
+.browse__inner {
+  padding: clamp(20px, 3.5vw, 28px) clamp(20px, 3.5vw, 32px) clamp(20px, 3.5vw, 28px) clamp(24px, 4vw, 36px);
+}
+
+.browse__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
   margin-bottom: 20px;
 }
 
-.ranking-title {
-  color: #6a5acd;
-  font-size: 1.8rem;
-  font-weight: bold;
+.browse__title {
+  margin: 0 0 4px;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.browse__sub {
   margin: 0;
+  font-size: 0.86rem;
+  color: var(--muted);
+  line-height: 1.4;
 }
 
-.view-more-link {
-  color: #887bb0;
-  text-decoration: none;
-  font-size: 0.95rem;
-  font-weight: 500;
-  transition: all 0.3s ease;
-  padding: 8px 16px;
-  border-radius: 15px;
-  background: rgba(136, 123, 176, 0.1);
-}
-
-.view-more-link:hover {
-  color: #6a5acd;
-  background: rgba(106, 90, 205, 0.15);
-  transform: translateX(3px);
-}
-
-.loading {
-  text-align: center;
-  color: #887bb0;
-  padding: 40px;
-  font-size: 1.1rem;
-}
-
-.ranking-list {
-  max-height: 800px;
-  overflow-y: auto;
-  padding-right: 10px;
-}
-
-.ranking-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.ranking-list::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
-}
-
-.ranking-list::-webkit-scrollbar-thumb {
-  background: rgba(106, 90, 205, 0.5);
-  border-radius: 3px;
-}
-
-.ranking-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(106, 90, 205, 0.7);
-}
-
-.ranking-item {
+.state {
   display: flex;
-  align-items: center;
-  padding: 15px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 15px;
-  margin-bottom: 10px;
-  transition: all 0.3s ease;
-  cursor: pointer;
-}
-
-.ranking-item:hover {
-  background: rgba(255, 255, 255, 0.35);
-  transform: translateX(5px);
-}
-
-.ranking-number {
-  font-size: 1.5rem;
-  font-weight: bold;
-  width: 40px;
-  text-align: center;
-  margin-right: 15px;
-  color: #887bb0;
-}
-
-.rank-first {
-  color: #ffd700;
-  font-size: 1.8rem;
-}
-
-.rank-second {
-  color: #c0c0c0;
-  font-size: 1.7rem;
-}
-
-.rank-third {
-  color: #cd7f32;
-  font-size: 1.6rem;
-}
-
-.ranking-cover {
-  width: 60px;
-  height: 60px;
-  border-radius: 10px;
-  object-fit: cover;
-  margin-right: 15px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-.ranking-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.ranking-title-text {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ranking-artist {
-  font-size: 0.9rem;
-  color: #666;
-  margin-bottom: 5px;
-}
-
-.ranking-play-count {
-  font-size: 0.85rem;
-  color: #887bb0;
-}
-
-.ranking-actions {
-  display: flex;
-  gap: 10px;
-  margin-left: 15px;
-}
-
-.ranking-actions .play-btn,
-.ranking-actions .download-btn {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 20px;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: rgba(106, 90, 205, 0.2);
-  color: #6a5acd;
-  font-weight: 500;
+  gap: 16px;
+  padding: 40px 24px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--card);
 }
 
-.ranking-actions .play-btn:hover,
-.ranking-actions .download-btn:hover {
-  background: rgba(106, 90, 205, 0.4);
-  transform: scale(1.05);
+.state--loading {
+  animation: statePulse 2.4s ease-in-out infinite;
 }
 
-.no-ranking {
-  text-align: center;
-  color: #887bb0;
-  padding: 40px;
-  font-size: 1.1rem;
+@keyframes statePulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
+  }
+  50% {
+    box-shadow: 0 0 40px 2px rgba(34, 211, 238, 0.08);
+  }
 }
 
-/* 推荐歌单样式 */
-.playlist-card {
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 25px;
-  padding: 30px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  position: relative;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  margin: 30px auto;
-  max-width: 90%;
-  overflow: hidden;
+@media (prefers-reduced-motion: reduce) {
+  .state--loading {
+    animation: none;
+  }
 }
 
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
+.state__spinner {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.12);
+  border-top-color: var(--accent2);
+  animation: spin 0.85s linear infinite;
 }
 
-.section-title {
-  color: #6a5acd;
-  font-size: 1.8rem;
-  font-weight: bold;
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .state__spinner {
+    animation: none;
+    border-color: rgba(34, 211, 238, 0.35);
+  }
+}
+
+.state__text {
   margin: 0;
+  text-align: center;
+  color: var(--muted);
+  max-width: 36ch;
 }
 
-.playlist-scroll {
+.browse__tiles {
   display: flex;
-  gap: 20px;
+  gap: 16px;
   overflow-x: auto;
-  padding-bottom: 10px;
+  padding-bottom: 8px;
+  scroll-snap-type: x mandatory;
   scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
 }
 
-.playlist-scroll::-webkit-scrollbar {
+.browse__tiles::-webkit-scrollbar {
   height: 6px;
 }
 
-.playlist-scroll::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
+.browse__tiles::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.45);
+  border-radius: 999px;
 }
 
-.playlist-scroll::-webkit-scrollbar-thumb {
-  background: rgba(106, 90, 205, 0.5);
-  border-radius: 3px;
-}
-
-.playlist-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(106, 90, 205, 0.7);
-}
-
-.playlist-item {
-  flex-shrink: 0;
-  width: 180px;
+.b-tile {
+  flex: 0 0 auto;
+  width: min(200px, 78vw);
+  scroll-snap-align: start;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: transform 0.25s var(--ease);
 }
 
-.playlist-item:hover {
-  transform: translateY(-5px);
+.b-tile:focus-visible {
+  outline: 2px solid var(--accent2);
+  outline-offset: 4px;
 }
 
-.playlist-cover {
+@media (hover: hover) {
+  .b-tile:hover {
+    transform: translateY(-6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .b-tile {
+    transition: none;
+  }
+
+  .b-tile:hover {
+    transform: none;
+  }
+}
+
+.b-tile__cover {
   position: relative;
-  width: 180px;
-  height: 180px;
-  border-radius: 15px;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--radius);
   overflow: hidden;
-  margin-bottom: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
 }
 
-.playlist-cover-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.3s ease;
-}
-
-.playlist-item:hover .playlist-cover-img {
-  transform: scale(1.05);
-}
-
-/* 热门音乐卡片样式 */
-.hot-music-card {
-  background: linear-gradient(135deg, rgba(255, 107, 107, 0.1) 0%, rgba(255, 159, 67, 0.1) 100%);
-}
-
-.hot-music-cover {
-  background: linear-gradient(135deg, #ff6b6b, #ff9f43);
+.b-tile__cover--hot {
+  background: linear-gradient(135deg, #fb7185, #fb923c);
   padding: 4px;
 }
 
-.hot-music-mosaic {
+.b-tile__cover--latest {
+  background: linear-gradient(135deg, #6366f1, #7c3aed);
+  padding: 4px;
+}
+
+.b-tile__mosaic {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
   gap: 4px;
   width: 100%;
   height: 100%;
+  border-radius: 14px;
+  overflow: hidden;
 }
 
-.mosaic-img {
+.b-tile__img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 4px;
 }
 
-.hot-music-count {
-  background: rgba(255, 107, 107, 0.9);
-  color: white;
-  font-weight: 600;
-}
-
-/* 最新音乐卡片样式 */
-.latest-music-card {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-}
-
-.latest-music-cover {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  padding: 4px;
-}
-
-.latest-music-mosaic {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 4px;
-  width: 100%;
-  height: 100%;
-}
-
-.latest-music-count {
-  background: rgba(102, 126, 234, 0.9);
-  color: white;
-  font-weight: 600;
-}
-
-.playlist-count {
+.b-tile__badge {
   position: absolute;
-  bottom: 0;
   left: 0;
   right: 0;
+  bottom: 0;
+  padding: 18px 10px 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #fff;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
-  color: white;
-  padding: 20px 10px 8px;
-  font-size: 0.85rem;
-  font-weight: 500;
 }
 
-.playlist-info {
-  padding: 0 5px;
+.b-tile__meta {
+  padding: 0 2px;
 }
 
-.playlist-name {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #333;
-  margin: 0 0 6px 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.b-tile__name {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
-.playlist-description {
-  font-size: 0.85rem;
-  color: #666;
+.b-tile__hint {
   margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 0.78rem;
+  color: var(--muted);
 }
 
-.no-playlist {
-  text-align: center;
-  color: #887bb0;
-  padding: 40px;
-  font-size: 1.1rem;
-}
 </style>

@@ -7,18 +7,22 @@ import GlobalPlayer from './components/GlobalPlayer.vue'
 
 const route = useRoute()
 
-// 判断是否是下载页面
+// 下载页与首页：全幅背景壳层，去掉 main 内边距外框
+const isFlushMain = computed(() => route.name === 'download' || route.name === 'home')
+// 下载页独立布局：不显示顶栏搜索、底栏与全局播放器
 const isDownloadPage = computed(() => route.name === 'download')
+// 首页：顶栏 / 播放器 / 底栏使用与主页内容一致的深色玻璃，避免与 body 浅色渐变冲突
+const isHomePage = computed(() => route.name === 'home')
 </script>
 
 <template>
-  <div id="app">
-    <SearchHeader v-if="!isDownloadPage" />
-    <main :class="{ 'main--flush': isDownloadPage }">
+  <div id="app" :class="{ 'app--home': isHomePage }">
+    <SearchHeader v-if="!isDownloadPage" :chrome-dark="isHomePage" />
+    <main :class="{ 'main--flush': isFlushMain }">
       <RouterView />
     </main>
-    <GlobalPlayer v-if="!isDownloadPage" />
-    <Footer v-if="!isDownloadPage" />
+    <GlobalPlayer v-if="!isDownloadPage" :chrome-dark="isHomePage" />
+    <Footer v-if="!isDownloadPage" :chrome-dark="isHomePage" />
   </div>
 </template>
 
@@ -29,13 +33,20 @@ const isDownloadPage = computed(() => route.name === 'download')
   flex-direction: column;
 }
 
+/* 与 HomeView 完全一致的三层背景，顶栏与主内容共用同一底图，避免「两块屏」色差 */
+#app.app--home {
+  background: radial-gradient(1200px 700px at 10% -10%, rgba(139, 92, 246, 0.35), transparent 55%),
+    radial-gradient(900px 600px at 95% 10%, rgba(34, 211, 238, 0.18), transparent 50%),
+    linear-gradient(180deg, #07060d, #0f1020 40%, #0a0a12 100%);
+}
+
 main {
   flex: 1;
   padding: 20px;
   position: relative;
 }
 
-/* 下载页全幅背景，避免 main 内边距形成一圈「外框」 */
+/* 下载页 / 首页：全幅背景，避免 main 内边距形成一圈「外框」 */
 main.main--flush {
   padding: 0;
 }

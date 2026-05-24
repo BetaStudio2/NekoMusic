@@ -1,5 +1,5 @@
 <template>
-  <header class="search-header">
+  <header class="search-header" :class="{ 'search-header--chrome-dark': chromeDark }">
     <div class="header-content">
       <div class="logo-container">
         <h1 class="logo" @click="goHome">Neko云音乐</h1>
@@ -15,10 +15,6 @@
             class="search-input"
             :disabled="isLoading"
           />
-<!--          <button @click="performSearch" class="search-button" :disabled="isLoading">
-            <span v-if="isLoading">⏳</span>
-            <span v-else>搜索</span>
-          </button>-->
         </div>
         
         <!-- 搜索结果下拉框 -->
@@ -69,11 +65,6 @@
         <button v-else @click="goToLogin" class="login-btn">登录</button>
       </div>
     </div>
-    <div class="header-decoration">
-      <div class="decoration-dot"></div>
-      <div class="decoration-dot"></div>
-      <div class="decoration-dot"></div>
-    </div>
   </header>
 </template>
 
@@ -82,6 +73,14 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import { syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
+
+defineProps({
+  /** 与首页深色壳层一致，避免顶栏浅色玻璃与主内容撞色 */
+  chromeDark: {
+    type: Boolean,
+    default: false
+  }
+})
 
 const router = useRouter()
 const searchQuery = ref('')
@@ -654,39 +653,6 @@ onUnmounted(() => {
   cursor: not-allowed;
 }
 
-.search-button {
-  position: absolute;
-  right: 5px;
-  top: 50%;
-  transform: translateY(-50%);
-  padding: 9px 20px;
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(147, 112, 219, 0.8));
-  color: white;
-  border: none;
-  border-radius: 24px;
-  cursor: pointer;
-  font-size: 1.2rem;
-  transition: all 0.3s ease;
-  box-shadow: 0 8px 32px rgba(106, 90, 205, 0.3);
-  min-width: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
-}
-
-.search-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, rgba(92, 75, 123, 0.9), rgba(122, 91, 192, 0.9));
-  transform: translateY(-50%) scale(1.05);
-  box-shadow: 0 10px 30px rgba(106, 90, 205, 0.5);
-}
-
-.search-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 .search-results {
   position: absolute;
   top: 100%;
@@ -778,29 +744,6 @@ onUnmounted(() => {
   font-style: italic;
 }
 
-.header-decoration {
-  position: absolute;
-  top: 0;
-  right: 10%;
-  display: flex;
-  gap: 10px;
-}
-
-.decoration-dot {
-  width: 12px;
-  height: 12px;
-  background: rgba(255, 255, 255, 0.6);
-  border-radius: 50%;
-  animation: pulse 2s infinite;
-}
-
-.decoration-dot:nth-child(2) {
-  animation-delay: 0.5s;
-}
-
-.decoration-dot:nth-child(3) {
-  animation-delay: 1s;
-}
 
 @keyframes bounce {
   0%, 100% { transform: translateY(0); }
@@ -817,4 +760,86 @@ onUnmounted(() => {
     display: none !important;
   }
 }
+
+/* —— 首页深色壳层：与 #app.app--home 同一套底图上的顶栏玻璃 —— */
+.search-header--chrome-dark {
+  --line: rgba(255, 255, 255, 0.1);
+  --text: rgba(255, 255, 255, 0.92);
+  --muted: rgba(255, 255, 255, 0.58);
+  --faint: rgba(255, 255, 255, 0.38);
+  --accent2: #22d3ee;
+
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  /* 略透明，透出与主内容相同的 #app 渐变，避免顶栏像另一张图 */
+  background: rgba(7, 6, 13, 0.55);
+  box-shadow: none;
+  color: var(--text);
+}
+
+.search-header--chrome-dark .logo {
+  background: linear-gradient(120deg, #c4b5fd, #f9a8d4, #67e8f9);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: none;
+}
+
+.search-header--chrome-dark .username {
+  color: var(--muted);
+}
+
+.search-header--chrome-dark .user-info {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.search-header--chrome-dark .search-input {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+}
+
+.search-header--chrome-dark .search-input::placeholder {
+  color: var(--faint);
+}
+
+.search-header--chrome-dark .search-input:focus {
+  border-color: rgba(34, 211, 238, 0.45);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.2), 0 12px 36px rgba(0, 0, 0, 0.4);
+}
+
+.search-header--chrome-dark .search-results {
+  background: rgba(12, 11, 22, 0.96);
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+}
+
+.search-header--chrome-dark .result-item {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.search-header--chrome-dark .result-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+}
+
+.search-header--chrome-dark .result-title {
+  color: var(--text);
+}
+
+.search-header--chrome-dark .result-artist {
+  color: #a5b4fc;
+}
+
+.search-header--chrome-dark .result-album {
+  color: var(--faint);
+}
+
 </style>

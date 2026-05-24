@@ -1,5 +1,5 @@
 <template>
-  <footer class="footer">
+  <footer class="footer" :class="{ 'footer--chrome-dark': chromeDark }">
     <div class="footer-content">
       <div class="footer-info">
         <div class="footer-text">
@@ -19,7 +19,12 @@
 </template>
 
 <script setup>
-// Footer组件逻辑
+defineProps({
+  chromeDark: {
+    type: Boolean,
+    default: false
+  }
+})
 </script>
 
 <style scoped>
@@ -120,5 +125,45 @@
     justify-content: center;
     margin-top: 10px;
   }
+}
+
+.footer--chrome-dark {
+  --line: rgba(255, 255, 255, 0.1);
+  --text: rgba(255, 255, 255, 0.88);
+  --muted: rgba(255, 255, 255, 0.55);
+  --accent: #a5b4fc;
+
+  background: rgba(7, 6, 13, 0.82);
+  border-top: 1px solid var(--line);
+  color: var(--text);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.footer--chrome-dark .footer-text p {
+  color: var(--muted);
+}
+
+.footer--chrome-dark .fantasy-network {
+  color: var(--accent);
+  text-shadow: 0 0 20px rgba(139, 92, 246, 0.35);
+}
+
+.footer--chrome-dark .footer-link {
+  color: #7dd3fc;
+}
+
+.footer--chrome-dark .footer-link::after {
+  background: #22d3ee;
+}
+
+.footer--chrome-dark .footer-link:hover {
+  color: #a5f3fc;
+}
+
+.footer--chrome-dark .footer-bottom {
+  border-top-color: var(--line);
+  color: var(--muted);
 }
 </style>
