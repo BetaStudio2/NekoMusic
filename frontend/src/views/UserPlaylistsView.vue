@@ -1,113 +1,94 @@
 <template>
-  <div class="playlists-view">
-    <div class="playlists-container">
-      <div class="playlists-header">
-        <h2>我的歌单</h2>
-        <button @click="goToCreatePlaylist" class="create-btn">
-          创建歌单
-        </button>
-      </div>
-      
-      <div v-if="loading" class="loading">
-        <div class="loading-spinner"></div>
-        <p>加载中...</p>
-      </div>
-      
-      <div v-else-if="playlists.length > 0" class="playlists-list">
-        <div 
-          v-for="playlist in playlists" 
-          :key="playlist.id" 
-          class="playlist-item"
-          @click="goToPlaylistDetail(playlist.id)"
-        >
-          <div class="playlist-cover">
-            <img 
-              :src="getPlaylistCover(playlist)" 
-              alt="歌单封面"
-              @error="handleCoverError($event)"
-            />
-          </div>
-          <div class="playlist-info">
-            <div class="playlist-title">{{ playlist.name }}</div>
-            <div class="playlist-meta">
-              <span class="playlist-count">{{ playlist.musicCount }} 首歌曲</span>
-<!--              <span class="playlist-time">{{ formatTime(playlist.updatedAt) }}</span>-->
-            </div>
-            <div v-if="playlist.description" class="playlist-description">
-              {{ playlist.description }}
-            </div>
-          </div>
-          <div class="playlist-actions">
-            <button 
-              v-if="isPlaylistOwner(playlist.userId)" 
-              @click.stop="showEditDialog(playlist)"
-              class="edit-btn"
-              title="编辑歌单"
-            >
-              编辑歌单
-            </button>
-            <button 
-              v-if="isPlaylistOwner(playlist.userId)" 
-              @click.stop="confirmDelete(playlist)"
-              class="delete-btn"
-              title="删除歌单"
-            >
-              删除歌单
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      <div v-else class="empty-state">
-        <div class="empty-icon">📋</div>
-        <p>暂无歌单</p>
-        <button @click="goToCreatePlaylist" class="create-first-btn">
-          创建第一个歌单
-        </button>
-      </div>
+  <div class="pl-page">
+    <div class="ambient" aria-hidden="true">
+      <div class="ambient__blob ambient__blob--a" />
+      <div class="ambient__blob ambient__blob--b" />
+      <div class="ambient__blob ambient__blob--c" />
+      <div class="ambient__grid" />
     </div>
-    
-    <!-- 编辑歌单对话框 -->
-    <div v-if="showEdit" class="modal-overlay" @click="closeEditDialog">
-      <div class="modal-content" @click.stop>
-        <h3>编辑歌单</h3>
+
+    <main class="shell">
+      <header class="page-head">
+        <div class="page-head-row">
+          <div>
+            <h1 class="page-title">我的歌单</h1>
+            <p class="page-lede">管理自建歌单，点击进入详情或编辑。</p>
+          </div>
+          <button type="button" class="btn-primary" @click="goToCreatePlaylist">创建歌单</button>
+        </div>
+      </header>
+
+      <section v-if="loading" class="panel state-panel">
+        <div class="state state--loading">
+          <div class="state__spinner" aria-hidden="true" />
+          <p class="state__text">加载中…</p>
+        </div>
+      </section>
+
+      <div v-else-if="playlists.length > 0" class="pl-grid">
+        <article
+          v-for="playlist in playlists"
+          :key="playlist.id"
+          class="pl-card panel"
+          tabindex="0"
+          role="link"
+          @click="goToPlaylistDetail(playlist.id)"
+          @keydown.enter.prevent="goToPlaylistDetail(playlist.id)"
+        >
+          <div class="pl-card-cover">
+            <img :src="getPlaylistCover(playlist)" alt="" @error="handleCoverError($event)" />
+          </div>
+          <div class="pl-card-body">
+            <h2 class="pl-card-title">{{ playlist.name }}</h2>
+            <p class="pl-card-meta">{{ playlist.musicCount }} 首</p>
+            <p v-if="playlist.description" class="pl-card-desc">{{ playlist.description }}</p>
+          </div>
+          <div v-if="isPlaylistOwner(playlist.userId)" class="pl-card-actions" @click.stop>
+            <button type="button" class="btn-chip" title="编辑歌单" @click="showEditDialog(playlist)">编辑</button>
+            <button type="button" class="btn-chip btn-chip--danger" title="删除歌单" @click="confirmDelete(playlist)">
+              删除
+            </button>
+          </div>
+        </article>
+      </div>
+
+      <section v-else class="panel state-panel state--empty">
+        <h2 class="state__title">暂无歌单</h2>
+        <p class="state__text">创建第一个歌单，把喜欢的曲目收在一起。</p>
+        <button type="button" class="btn-primary" @click="goToCreatePlaylist">创建歌单</button>
+      </section>
+    </main>
+
+    <div v-if="showEdit" class="modal-overlay" @click.self="closeEditDialog">
+      <div class="modal panel" role="dialog" aria-labelledby="edit-title" @click.stop>
+        <button type="button" class="modal-close" aria-label="关闭" @click="closeEditDialog">×</button>
+        <h3 id="edit-title" class="modal-title">编辑歌单</h3>
         <form @submit.prevent="handleEditPlaylist">
           <div class="form-group">
-            <label>歌单名称</label>
-            <input 
-              v-model="editForm.name" 
-              type="text" 
-              required 
-              maxlength="255"
-              placeholder="请输入歌单名称"
-            />
+            <label for="edit-name">歌单名称</label>
+            <input id="edit-name" v-model="editForm.name" type="text" required maxlength="255" />
           </div>
           <div class="form-group">
-            <label>歌单描述</label>
-            <textarea 
-              v-model="editForm.description" 
-              maxlength="500"
-              rows="4"
-              placeholder="请输入歌单描述（可选）"
-            ></textarea>
+            <label for="edit-desc">歌单描述</label>
+            <textarea id="edit-desc" v-model="editForm.description" maxlength="500" rows="4" />
           </div>
-          <div class="form-actions">
-            <button type="button" @click="closeEditDialog" class="cancel-btn">取消</button>
-            <button type="submit" class="submit-btn">保存</button>
+          <div class="modal-actions">
+            <button type="button" class="btn-ghost" @click="closeEditDialog">取消</button>
+            <button type="submit" class="btn-primary">保存</button>
           </div>
         </form>
       </div>
     </div>
-    
-    <!-- 删除确认对话框 -->
-    <div v-if="showDeleteConfirm" class="modal-overlay" @click="closeDeleteConfirm">
-      <div class="modal-content" @click.stop>
-        <h3>确认删除</h3>
-        <p>确定要删除歌单"{{ playlistToDelete?.name }}"吗？</p>
-        <p class="warning">此操作不可恢复，歌单中的所有音乐也会被移除。</p>
-        <div class="form-actions">
-          <button @click="closeDeleteConfirm" class="cancel-btn">取消</button>
-          <button @click="handleDeletePlaylist" class="delete-confirm-btn">删除</button>
+
+    <div v-if="showDeleteConfirm" class="modal-overlay" @click.self="closeDeleteConfirm">
+      <div class="modal panel" role="dialog" aria-labelledby="del-title" @click.stop>
+        <button type="button" class="modal-close" aria-label="关闭" @click="closeDeleteConfirm">×</button>
+        <h3 id="del-title" class="modal-title">确认删除</h3>
+        <p class="modal-text">确定要删除歌单「{{ playlistToDelete?.name }}」吗？</p>
+        <p class="modal-warn">此操作不可恢复，歌单内曲目会从歌单中移除。</p>
+        <div class="modal-actions">
+          <button type="button" class="btn-ghost" @click="closeDeleteConfirm">取消</button>
+          <button type="button" class="btn-primary btn-primary--danger" @click="handleDeletePlaylist">删除</button>
         </div>
       </div>
     </div>
@@ -292,19 +273,15 @@ const handleDeletePlaylist = async () => {
 
 // 获取歌单封面
 const getPlaylistCover = (playlist) => {
-  // 如果歌单有第一首音乐的封面信息（来自后端返回）
   if (playlist.firstMusicId && playlist.firstMusicCover) {
     return `${API_CONFIG.BASE_URL}/api/music/cover/${playlist.firstMusicId}`
   }
-  // 如果歌单有音乐数量，尝试获取歌单详情来获取第一首音乐
   if (playlist.musicCount > 0) {
-    // 异步获取，这里暂时返回默认头像
-    // 可以在 fetchPlaylists 中为每个歌单添加第一首音乐的封面信息
     fetchPlaylistFirstMusicCover(playlist.id)
   }
-  // 如果歌单没有音乐，使用用户头像
-  const userId = user.value ? user.value.id : 'default';
-  return `${API_CONFIG.BASE_URL}/api/user/avatar/${userId}`;
+  const u = getCurrentUser()
+  const userId = u ? u.id : 'default'
+  return `${API_CONFIG.BASE_URL}/api/user/avatar/${userId}`
 }
 
 // 异步获取歌单第一首音乐的封面
@@ -334,8 +311,9 @@ const fetchPlaylistFirstMusicCover = async (playlistId) => {
 
 // 处理封面加载错误
 const handleCoverError = (event) => {
-  const userId = user.value ? user.value.id : 'default';
-  event.target.src = `${API_CONFIG.BASE_URL}/api/user/avatar/${userId}`;
+  const u = getCurrentUser()
+  const userId = u ? u.id : 'default'
+  event.target.src = `${API_CONFIG.BASE_URL}/api/user/avatar/${userId}`
 }
 
 // 格式化时间
@@ -363,361 +341,391 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.playlists-view {
-  min-height: calc(100vh - 80px);
-  padding: 20px;
+.pl-page {
+  --text: rgba(255, 255, 255, 0.92);
+  --muted: rgba(255, 255, 255, 0.62);
+  --faint: rgba(255, 255, 255, 0.42);
+  --line: rgba(255, 255, 255, 0.1);
+  --accent2: #22d3ee;
+  --radius: 16px;
+  --radius-lg: 22px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+
+  position: relative;
+  min-height: 100vh;
+  padding-top: env(safe-area-inset-top, 0px);
+  color: var(--text);
+  background: transparent;
 }
 
-.playlists-container {
-  max-width: 1200px;
-  margin: 0 auto;
+.ambient {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
 }
 
-.playlists-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 30px;
-  padding: 0 10px;
-}
-
-.playlists-header h2 {
-  color: #333;
-  font-size: 2.5em;
-  margin: 0;
-  font-weight: 600;
-}
-
-.create-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 25px;
-  font-size: 1em;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-}
-
-.create-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-}
-
-.loading {
-  text-align: center;
-  color: #666;
-  padding: 60px 0;
-}
-
-.loading-spinner {
-  width: 50px;
-  height: 50px;
-  border: 4px solid rgba(102, 126, 234, 0.2);
-  border-top-color: #667eea;
+.ambient__blob {
+  position: absolute;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 20px;
+  filter: blur(72px);
+  opacity: 0.48;
+}
+
+.ambient__blob--a {
+  width: 400px;
+  height: 400px;
+  background: rgba(139, 92, 246, 0.38);
+  top: -120px;
+  left: -80px;
+}
+
+.ambient__blob--b {
+  width: 320px;
+  height: 320px;
+  background: rgba(34, 211, 238, 0.2);
+  bottom: -40px;
+  right: -60px;
+}
+
+.ambient__blob--c {
+  width: 260px;
+  height: 260px;
+  background: rgba(52, 211, 153, 0.14);
+  top: 40%;
+  right: 20%;
+}
+
+.ambient__grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.28;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 80% 55% at 50% 15%, black, transparent);
+}
+
+.shell {
+  position: relative;
+  z-index: 1;
+  width: min(1100px, 100%);
+  margin: 0 auto;
+  padding: clamp(16px, 3vw, 28px) clamp(14px, 3.5vw, 24px) 48px;
+}
+
+.page-head {
+  margin-bottom: 22px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.page-head-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.page-title {
+  margin: 0 0 6px;
+  font-size: clamp(1.45rem, 3vw, 1.85rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.page-lede {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: 1.45;
+  max-width: 40ch;
+}
+
+.btn-primary {
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+  padding: 11px 20px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #0c0a14;
+  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
+  box-shadow: 0 8px 28px rgba(139, 92, 246, 0.35);
+  white-space: nowrap;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.06);
+}
+
+.btn-primary--danger {
+  background: linear-gradient(135deg, #fb7185, #f43f5e);
+  box-shadow: 0 8px 28px rgba(244, 63, 94, 0.3);
+}
+
+.panel {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: linear-gradient(145deg, rgba(139, 92, 246, 0.14), rgba(255, 255, 255, 0.04));
+  box-shadow: var(--shadow);
+}
+
+.state-panel {
+  padding: 36px 24px;
+}
+
+.state {
+  text-align: center;
+}
+
+.state--loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.state__spinner {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.12);
+  border-top-color: var(--accent2);
+  animation: spin 0.85s linear infinite;
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-.playlists-list {
+.state__text {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.state--empty .state__title {
+  margin: 0 0 10px;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.state--empty .state__text {
+  margin: 0 0 22px;
+  line-height: 1.55;
+}
+
+.pl-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
 }
 
-.playlist-item {
-  background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 20px;
+.pl-card {
   display: flex;
-  align-items: center;
-  gap: 20px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  position: relative;
-  box-shadow: 0 4px 15px rgba(31, 38, 135, 0.1);
-}
-
-.playlist-item:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 25px rgba(31, 38, 135, 0.2);
-  border-color: rgba(102, 126, 234, 0.3);
-}
-
-.playlist-cover {
-  width: 80px;
-  height: 80px;
-  border-radius: 15px;
+  flex-direction: column;
+  padding: 0;
   overflow: hidden;
-  flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: transform 0.2s var(--ease), border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 
-.playlist-cover img {
+.pl-card:focus-visible {
+  outline: 2px solid var(--accent2);
+  outline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .pl-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(139, 92, 246, 0.4);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+  }
+}
+
+.pl-card-cover {
+  aspect-ratio: 16 / 10;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.pl-card-cover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
-.playlist-info {
+.pl-card-body {
+  padding: 14px 16px 10px;
   flex: 1;
-  min-width: 0;
+  min-height: 0;
 }
 
-.playlist-title {
-  color: #333;
-  font-size: 1.2em;
+.pl-card-title {
+  margin: 0 0 6px;
+  font-size: 1.02rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.pl-card-meta {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--accent2);
   font-weight: 600;
-  margin-bottom: 8px;
-  white-space: nowrap;
+}
+
+.pl-card-desc {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  color: var(--faint);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.playlist-meta {
-  color: #666;
-  font-size: 0.9em;
+.pl-card-actions {
   display: flex;
-  gap: 15px;
-  margin-bottom: 8px;
-}
-
-.playlist-description {
-  color: #888;
-  font-size: 0.9em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.playlist-actions {
-  display: flex;
-  flex-direction: column;
   gap: 8px;
+  padding: 0 12px 12px;
+  flex-wrap: wrap;
 }
 
-.edit-btn,
-.delete-btn {
-  background: rgba(255, 255, 255, 0.5);
-  color: #666;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  width: auto;
-  height: 36px;
-  padding: 0 15px;
-  border-radius: 18px;
-  cursor: pointer;
-  font-size: 0.9em;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(5px);
-  white-space: nowrap;
-}
-
-.edit-btn:hover {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  transform: scale(1.1);
-  border-color: transparent;
-}
-
-.delete-btn:hover {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  color: white;
-  transform: scale(1.1);
-  border-color: transparent;
-}
-
-.empty-state {
-  text-align: center;
-  color: #666;
-  padding: 80px 20px;
-}
-
-.empty-icon {
-  font-size: 80px;
-  margin-bottom: 20px;
-  opacity: 0.5;
-}
-
-.empty-state p {
-  font-size: 1.3em;
-  margin-bottom: 30px;
-  color: #888;
-}
-
-.create-first-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  padding: 15px 40px;
-  border-radius: 25px;
-  font-size: 1.1em;
+.btn-chip {
+  font-family: inherit;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.76rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
-.create-first-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+.btn-chip:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.btn-chip--danger {
+  border-color: rgba(251, 113, 133, 0.4);
+  color: #fecdd3;
 }
 
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  inset: 0;
+  z-index: 2000;
+  background: rgba(6, 5, 12, 0.72);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
-  backdrop-filter: blur(5px);
+  padding: 20px;
 }
 
-.modal-content {
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-radius: 20px;
-  padding: 40px;
-  max-width: 500px;
-  width: 90%;
-  box-shadow: 0 20px 60px rgba(31, 38, 135, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+.modal {
+  position: relative;
+  width: min(440px, 100%);
+  padding: 26px 22px 22px;
+  color: var(--text);
 }
 
-.modal-content h3 {
-  margin: 0 0 30px 0;
-  color: #333;
-  font-size: 1.8em;
+.modal-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  border: none;
+  background: none;
+  color: var(--faint);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
 }
 
-.modal-content p {
-  color: #666;
-  margin-bottom: 20px;
-  line-height: 1.6;
+.modal-title {
+  margin: 0 0 18px;
+  font-size: 1.15rem;
+  font-weight: 800;
 }
 
-.modal-content .warning {
-  color: #f59e0b;
-  font-weight: 500;
-  margin-bottom: 30px;
+.modal-text,
+.modal-warn {
+  margin: 0 0 12px;
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.modal-warn {
+  color: #fcd34d;
 }
 
 .form-group {
-  margin-bottom: 25px;
+  margin-bottom: 16px;
 }
 
 .form-group label {
   display: block;
-  color: #333;
+  font-size: 0.82rem;
   font-weight: 600;
-  margin-bottom: 10px;
-  font-size: 1em;
+  margin-bottom: 6px;
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .form-group input,
 .form-group textarea {
   width: 100%;
-  padding: 12px 16px;
-  border: 2px solid rgba(255, 255, 255, 0.5);
-  border-radius: 15px;
-  font-size: 1em;
-  transition: all 0.3s ease;
   box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.5);
-  backdrop-filter: blur(5px);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.92rem;
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 100px;
 }
 
 .form-group input:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #667eea;
-  background: rgba(255, 255, 255, 0.7);
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+  border-color: rgba(34, 211, 238, 0.45);
 }
 
-.form-actions {
+.modal-actions {
   display: flex;
-  gap: 15px;
   justify-content: flex-end;
-  margin-top: 30px;
+  gap: 10px;
+  margin-top: 18px;
 }
 
-.cancel-btn {
-  background: rgba(255, 255, 255, 0.5);
-  color: #333;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  padding: 12px 30px;
-  border-radius: 15px;
-  font-size: 1em;
+.btn-ghost {
+  font-family: inherit;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.88);
   font-weight: 600;
+  font-size: 0.86rem;
   cursor: pointer;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(5px);
-}
-
-.cancel-btn:hover {
-  background: rgba(255, 255, 255, 0.7);
-  transform: translateY(-2px);
-}
-
-.submit-btn,
-.delete-confirm-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  padding: 12px 30px;
-  border-radius: 15px;
-  font-size: 1em;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-}
-
-.submit-btn:hover,
-.delete-confirm-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-}
-
-.delete-confirm-btn {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
-}
-
-.delete-confirm-btn:hover {
-  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
-}
-
-@media (max-width: 768px) {
-  .playlists-header h2 {
-    font-size: 2em;
-  }
-  
-  .playlists-list {
-    grid-template-columns: 1fr;
-  }
-  
-  .playlist-item {
-    padding: 15px;
-  }
-  
-  .playlist-cover {
-    width: 60px;
-    height: 60px;
-  }
 }
 </style>

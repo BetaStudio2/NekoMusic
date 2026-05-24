@@ -7,24 +7,30 @@ import GlobalPlayer from './components/GlobalPlayer.vue'
 
 const route = useRoute()
 
-// 下载页、首页、音乐详情：全幅背景壳层，去掉 main 内边距外框
+// 下载页、首页、音乐详情、搜索、歌单相关页：全幅背景壳层，去掉 main 内边距外框
 const isFlushMain = computed(
   () =>
     route.name === 'download' ||
     route.name === 'home' ||
     route.name === 'detail' ||
     route.name === 'search' ||
-    route.name === 'search-query'
+    route.name === 'search-query' ||
+    route.name === 'playlists' ||
+    route.name === 'create-playlist' ||
+    route.name === 'playlist-detail'
 )
 // 下载页独立布局：不显示顶栏搜索、底栏与全局播放器
 const isDownloadPage = computed(() => route.name === 'download')
-// 首页与音乐详情：顶栏 / 播放器 / 底栏使用与页面一致的深色玻璃
+// 首页、音乐详情、搜索、歌单：顶栏 / 播放器 / 底栏使用与页面一致的深色玻璃
 const isChromeDarkShell = computed(
   () =>
     route.name === 'home' ||
     route.name === 'detail' ||
     route.name === 'search' ||
-    route.name === 'search-query'
+    route.name === 'search-query' ||
+    route.name === 'playlists' ||
+    route.name === 'create-playlist' ||
+    route.name === 'playlist-detail'
 )
 </script>
 
@@ -46,7 +52,7 @@ const isChromeDarkShell = computed(
   flex-direction: column;
 }
 
-/* HomeView / PlayerView / Search：三层背景 */
+/* Home / Player / Search / Playlists：三层背景 */
 #app.app--home {
   background: radial-gradient(1200px 700px at 10% -10%, rgba(139, 92, 246, 0.35), transparent 55%),
     radial-gradient(900px 600px at 95% 10%, rgba(34, 211, 238, 0.18), transparent 50%),
