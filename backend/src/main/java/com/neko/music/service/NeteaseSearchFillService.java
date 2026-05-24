@@ -346,7 +346,7 @@ public class NeteaseSearchFillService {
         try {
             NeteaseCloudMusicClient.LyricApiPayload payload = neteaseClient.fetchLyricPayload(songId);
             lrc = payload.primaryLrc();
-            fullOriginalLyrics = payload.lyricsEmailBody();
+            fullOriginalLyrics = payload.lrcLyricRaw();
         } catch (IOException e) {
             logger.warn("获取歌词失败 songId={}: {}", songId, e.getMessage());
         }
@@ -360,7 +360,7 @@ public class NeteaseSearchFillService {
                     return new LyricsPrepareResult(lyricsTemp, Optional.empty());
                 }
                 String reason = check.getErrorMessage();
-                String lyricsForEmail = !fullOriginalLyrics.isBlank() ? fullOriginalLyrics : lrc;
+                String lyricsForEmail = fullOriginalLyrics;
                 logger.warn("网易云歌词未通过 LRC 校验 songId={} title={}: {}，将使用占位歌词",
                         songId, title, reason);
                 logger.warn("网易云完整原始歌词 songId={}:\n{}", songId, lyricsForEmail);

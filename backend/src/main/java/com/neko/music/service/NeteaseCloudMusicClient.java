@@ -1,6 +1,5 @@
 package com.neko.music.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.config.ConfigManager;
@@ -19,11 +18,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * 访问 NeteaseCloudMusicApi（如 /search、/song/url/v1、/lyric）。
@@ -51,8 +48,8 @@ public class NeteaseCloudMusicClient {
 
     public record SongDetail(String title, String artist, String album, String coverUrl, int durationMs) {}
 
-    /** /lyric 接口返回：用于校验的主歌词 + 供管理员邮件展示的可读原文（去重，无 JSON）。 */
-    public record LyricApiPayload(String primaryLrc, String lyricsEmailBody) {}
+    /** /lyric 接口返回：用于校验的主歌词 + 邮件仅含 lrc 字段原文。 */
+    public record LyricApiPayload(String primaryLrc, String lrcLyricRaw) {}
 
     /**
      * 调用 NeteaseCloudMusicApi {@code /login/status}。
@@ -150,124 +147,12 @@ public class NeteaseCloudMusicClient {
 
     public LyricApiPayload fetchLyricPayload(long songId) throws IOException {
         JsonNode standardRoot = getJson("/lyric?id=" + songId);
-        JsonNode newRoot = fetchLyricNewRoot(songId);
-        String primary = textOrEmpty(standardRoot.path("lrc").path("lyric"));
+        String lrcRaw = textOrEmpty(standardRoot.path("lrc").path("lyric"));
+        String primary = lrcRaw;
         if (primary.isBlank()) {
             primary = textOrEmpty(standardRoot.path("tlyric").path("lyric"));
         }
-        if (primary.isBlank() && newRoot != null) {
-            primary = textOrEmpty(newRoot.path("lrc").path("lyric"));
-        }
-        return new LyricApiPayload(primary, buildLyricsEmailBody(standardRoot, newRoot));
-    }
-
-    private JsonNode fetchLyricNewRoot(long songId) {
-        try {
-            return getJson("/lyric/new?id=" + songId);
-        } catch (IOException e) {
-            logger.debug("lyric/new 请求失败 songId={}: {}", songId, e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * 管理员邮件：仅可读歌词文本，按类型分段，内容去重（不含接口路径、不含原始 JSON）。
-     */
-    private String buildLyricsEmailBody(JsonNode standardRoot, JsonNode newRoot) {
-        StringBuilder sb = new StringBuilder();
-        Set<String> seen = new LinkedHashSet<>();
-
-        appendLyricsPart(sb, seen, "原文（LRC）", standardRoot.path("lrc").path("lyric"));
-        appendLyricsPart(sb, seen, "翻译", standardRoot.path("tlyric").path("lyric"));
-        appendLyricsPart(sb, seen, "罗马音", standardRoot.path("romalrc").path("lyric"));
-        appendLyricsPart(sb, seen, "逐字歌词", standardRoot.path("yrc").path("lyric"));
-
-        if (newRoot != null) {
-            String newLrc = textOrEmpty(newRoot.path("lrc").path("lyric"));
-            String newText = flattenLyricBlob(newLrc);
-            if (!newText.isBlank() && seen.add(dedupKey(newText))) {
-                if (!sb.isEmpty()) {
-                    sb.append("\n\n");
-                }
-                sb.append("【新版歌词格式】\n").append(newText);
-            }
-        }
-
-        if (sb.isEmpty()) {
-            return "（网易云未返回歌词文本）";
-        }
-        return sb.toString().strip();
-    }
-
-    private void appendLyricsPart(StringBuilder sb, Set<String> seen, String label, JsonNode lyricNode) {
-        String flat = flattenLyricBlob(textOrEmpty(lyricNode));
-        if (flat.isBlank() || !seen.add(dedupKey(flat))) {
-            return;
-        }
-        if (!sb.isEmpty()) {
-            sb.append("\n\n");
-        }
-        sb.append('【').append(label).append("】\n").append(flat);
-    }
-
-    /** 将 LRC 行或 lyric/new 的 JSON 行转为纯文本。 */
-    private String flattenLyricBlob(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return "";
-        }
-        StringBuilder out = new StringBuilder();
-        for (String line : raw.split("\\r?\\n")) {
-            String t = line.trim();
-            if (t.isEmpty()) {
-                continue;
-            }
-            if (t.startsWith("{") && t.contains("\"tx\"")) {
-                t = parseNewLyricJsonLine(t);
-            }
-            if (t.isEmpty()) {
-                continue;
-            }
-            if (!out.isEmpty()) {
-                out.append('\n');
-            }
-            out.append(t);
-        }
-        return out.toString();
-    }
-
-    private String parseNewLyricJsonLine(String jsonLine) {
-        try {
-            JsonNode node = objectMapper.readTree(jsonLine);
-            JsonNode chars = node.path("c");
-            if (!chars.isArray()) {
-                return jsonLine;
-            }
-            StringBuilder sb = new StringBuilder();
-            for (JsonNode part : chars) {
-                sb.append(textOrEmpty(part.path("tx")));
-            }
-            return sb.toString().trim();
-        } catch (JsonProcessingException e) {
-            return jsonLine;
-        }
-    }
-
-    /** 去重：去掉时间轴后比较，避免 LRC 行与新版 JSON 解析结果重复展示。 */
-    private static String dedupKey(String flatText) {
-        StringBuilder key = new StringBuilder();
-        for (String line : flatText.split("\\r?\\n")) {
-            String l = line.trim();
-            l = l.replaceFirst("^\\[\\d{2}:\\d{2}\\.\\d{1,5}[^\\]]*\\]\\s*", "");
-            if (l.isEmpty()) {
-                continue;
-            }
-            if (!key.isEmpty()) {
-                key.append('|');
-            }
-            l = l.replaceAll("\\s*:\\s*", ":").replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
-            key.append(l);
-        }
-        return key.toString();
+        return new LyricApiPayload(primary, lrcRaw);
     }
 
     public void downloadToFile(String url, Path destination) throws IOException {
