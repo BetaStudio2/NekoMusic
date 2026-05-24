@@ -46,7 +46,7 @@ const adminGuard = (to, from, next) => {
       if (adminInfo) {
         const parsedInfo = JSON.parse(adminInfo)
         const role = parsedInfo.role || 'admin'
-        
+
         // 审核员不能访问音乐管理页面
         if (role === 'auditor' && to.path.startsWith('/admin/music')) {
           next('/admin') // 重定向到管理首页
@@ -99,16 +99,7 @@ const router = createRouter({
         keywords: 'Neko云音乐下载,APP下载,免费音乐APP,移动音乐,PC下载,桌面音乐'
       }
     },
-    {
-      path: '/dev-docs',
-      name: 'dev-docs',
-      redirect: 'https://github.com/NyaNyagulugulu/NekoMusicDocs',
-      meta: {
-        title: '开发者文档 - Neko云音乐 | API接口文档',
-        description: 'Neko云音乐开发者文档，提供完整的API接口文档和使用说明。包括用户认证、音乐搜索、收藏等功能。',
-        keywords: 'Neko云音乐API,开发者文档,API文档,接口文档,RESTful API'
-      }
-    },
+
     {
       path: '/upload',
       name: 'upload',
@@ -354,9 +345,9 @@ const router = createRouter({
 // 全局路由守卫 - 更新页面标题和元数据 + 移动设备检测
 router.beforeEach((to, from, next) => {
   // 如果是移动设备访问非下载页面、非播放页面、非歌单详情页面、非管理员页面，重定向到下载页面
-  if (isMobileDevice() && 
-      to.path !== '/download' && 
-      !to.path.startsWith('/detail/') && 
+  if (isMobileDevice() &&
+      to.path !== '/download' &&
+      !to.path.startsWith('/detail/') &&
       !to.path.startsWith('/playlist/') &&
       !to.path.startsWith('/account') &&
       !to.path.startsWith('/vip') &&
