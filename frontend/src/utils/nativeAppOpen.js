@@ -1,17 +1,20 @@
 /**
  * 移动端进入详情 / 歌单页时尝试拉起原生 App。
  *
- * Android 常见问题：
- * 1. Chrome 对「无用户手势」的 intent / location 跳转可能完全静默失败 → 用 <a> 点击 + 首次触摸再试。
- * 2. 若仍无反应，约 800ms 后试 nekomusic://（会有系统框，但比「什么都没发生」可诊断）。
- * 3. 若已切到后台（可能已进 App），不再试 scheme。
- * 4. 无 App 时 intent 的 S.browser_fallback_url 回到当前页并带 nekoweb=1，避免死循环。
+ * Android：只发起 **一次** VIEW intent（含 S.browser_fallback_url）。
+ * 不再做「首次触摸重试」或延迟 nekomusic://，避免同一进入连弹多个系统框。
+ * 若 Chrome 在无手势下完全静默失败，用户可刷新或从下载页 / App 内打开。
+ *
+ * 无 App 时 intent 的 fallback 回到当前页并带 nekoweb=1，避免死循环（见 stripSkipQueryFromUrl）。
  *
  * 微信 / QQ 内置浏览器常拦截，需在系统浏览器中打开。
  */
 const APP_LINK_HOST = 'music.cnmsb.xin'
 const ANDROID_PKG = 'com.neko.music'
 const SKIP_QUERY = 'nekoweb'
+
+/** 同一条资源在几秒内只尝试拉起一次（含 Vue Strict Mode 双挂载、路由重复触发） */
+const OPEN_DEDUPE_MS = 12000
 
 function shouldTryMobile() {
   if (typeof window === 'undefined') return false
@@ -36,7 +39,7 @@ function buildAppHttpsUrl(webPath) {
   return `https://${APP_LINK_HOST}${path}`
 }
 
-/** 部分浏览器只响应「像用户点的」导航；失败再退回 location */
+/** 单次导航：程序化 `<a>` 点击；失败再 `assign` */
 function navigateLikeUserClick(url) {
   try {
     const a = document.createElement('a')
@@ -47,12 +50,24 @@ function navigateLikeUserClick(url) {
     a.click()
     document.body.removeChild(a)
   } catch {
-    /* ignore */
+    try {
+      window.location.assign(url)
+    } catch {
+      /* ignore */
+    }
   }
+}
+
+function shouldFireNativeOpen(kind, id) {
   try {
-    window.location.assign(url)
+    const key = `neko-native-open:${kind}:${id}`
+    const now = Date.now()
+    const prev = sessionStorage.getItem(key)
+    if (prev && now - Number(prev) < OPEN_DEDUPE_MS) return false
+    sessionStorage.setItem(key, String(now))
+    return true
   } catch {
-    /* ignore */
+    return true
   }
 }
 
@@ -75,6 +90,8 @@ function tryOpenNative(kind, id, webPath, schemeUrl) {
     /* ignore */
   }
 
+  if (!shouldFireNativeOpen(kind, id)) return
+
   const origin = window.location.origin
   const pathOnly = webPath.startsWith('/') ? webPath : `/${webPath}`
   const webBase = `${origin}${pathOnly}`
@@ -95,31 +112,7 @@ function tryOpenNative(kind, id, webPath, schemeUrl) {
     `package=${ANDROID_PKG};` +
     `S.browser_fallback_url=${fallback};end`
 
-  let pageHidden = false
-  const onVisibility = () => {
-    if (document.visibilityState === 'hidden') pageHidden = true
-  }
-  document.addEventListener('visibilitychange', onVisibility)
-
-  const fireIntent = () => {
-    navigateLikeUserClick(intent)
-  }
-
-  fireIntent()
-
-  const onFirstPointer = () => {
-    document.removeEventListener('pointerdown', onFirstPointer, true)
-    fireIntent()
-  }
-  document.addEventListener('pointerdown', onFirstPointer, { capture: true, once: true })
-
-  let schemeFallbackSent = false
-  window.setTimeout(() => {
-    document.removeEventListener('visibilitychange', onVisibility)
-    if (pageHidden || schemeFallbackSent) return
-    schemeFallbackSent = true
-    navigateLikeUserClick(schemeUrl)
-  }, 800)
+  navigateLikeUserClick(intent)
 }
 
 export function tryOpenMusicDetailInApp(musicId) {
