@@ -1,10 +1,5 @@
 <template>
-  <div
-    ref="pageRoot"
-    class="download-page"
-    @mousemove="onPointerMove"
-    @mouseleave="onPointerLeave"
-  >
+  <div class="download-page">
     <div class="ambient" aria-hidden="true">
       <div class="ambient__blob ambient__blob--a" />
       <div class="ambient__blob ambient__blob--b" />
@@ -37,10 +32,10 @@
           </ul>
         </div>
         <div class="hero__art">
-            <div class="hero__frame">
-              <img src="/favicon.ico" alt="" class="hero__logo" />
-            </div>
-            <p class="hero__art-caption">Android · Windows · Linux · macOS</p>
+          <div class="hero__frame">
+            <img src="/favicon.ico" alt="" class="hero__logo" />
+          </div>
+          <p class="hero__art-caption">Android · Windows · Linux · macOS</p>
         </div>
       </section>
 
@@ -157,7 +152,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import axios from 'axios'
 
 const versionInfo = ref({ ver: '', updateUrl: '' })
@@ -165,32 +160,6 @@ const loading = ref(true)
 const error = ref('')
 
 const year = new Date().getFullYear()
-
-const pageRoot = ref(null)
-const ptr = ref({ x: 0.5, y: 0.5 })
-let reduceMotionMql = null
-let onReduceMotionChange = null
-
-const prefersReducedMotion = () =>
-  typeof window !== 'undefined' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-function onPointerMove(e) {
-  if (prefersReducedMotion()) return
-  const el = pageRoot.value
-  if (!el) return
-  const r = el.getBoundingClientRect()
-  const w = r.width || 1
-  const h = r.height || 1
-  ptr.value = {
-    x: Math.max(0, Math.min(1, (e.clientX - r.left) / w)),
-    y: Math.max(0, Math.min(1, (e.clientY - r.top) / h))
-  }
-}
-
-function onPointerLeave() {
-  ptr.value = { x: 0.5, y: 0.5 }
-}
 
 const fetchVersionInfo = async () => {
   try {
@@ -229,14 +198,6 @@ const macDownloadUrl = computed(() => {
 
 onMounted(() => {
   fetchVersionInfo()
-  if (typeof window === 'undefined') return
-  reduceMotionMql = window.matchMedia('(prefers-reduced-motion: reduce)')
-  onReduceMotionChange = () => onPointerLeave()
-  reduceMotionMql.addEventListener('change', onReduceMotionChange)
-})
-
-onUnmounted(() => {
-  reduceMotionMql?.removeEventListener('change', onReduceMotionChange)
 })
 </script>
 
@@ -535,6 +496,7 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 14px;
   text-align: center;
   animation: fadeBlurIn 0.88s var(--ease) 0.18s both;
 }
