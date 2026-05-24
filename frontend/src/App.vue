@@ -14,7 +14,7 @@ const isDownloadPage = computed(() => route.name === 'download')
 <template>
   <div id="app">
     <SearchHeader v-if="!isDownloadPage" />
-    <main>
+    <main :class="{ 'main--flush': isDownloadPage }">
       <RouterView />
     </main>
     <GlobalPlayer v-if="!isDownloadPage" />
@@ -33,6 +33,11 @@ main {
   flex: 1;
   padding: 20px;
   position: relative;
+}
+
+/* 下载页全幅背景，避免 main 内边距形成一圈「外框」 */
+main.main--flush {
+  padding: 0;
 }
 
 .content {
