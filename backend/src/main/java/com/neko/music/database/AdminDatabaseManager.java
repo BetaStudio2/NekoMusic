@@ -192,6 +192,25 @@ public class AdminDatabaseManager {
         }
     }
 
+    /** 所有已启用且配置了邮箱的管理员地址（用于系统通知群发）。 */
+    public List<String> getActiveAdminEmails() {
+        List<String> emails = new ArrayList<>();
+        String sql = "SELECT email FROM admins WHERE active = 1 AND email IS NOT NULL AND TRIM(email) <> ''";
+        try (Connection conn = databaseManager.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                String email = rs.getString("email");
+                if (email != null && !email.isBlank()) {
+                    emails.add(email.trim());
+                }
+            }
+        } catch (SQLException e) {
+            logger.error("获取管理员邮箱列表失败", e);
+        }
+        return emails;
+    }
+
     public List<Admin> getAllAdmins() {
         List<Admin> admins = new ArrayList<>();
         String sql = "SELECT * FROM admins ORDER BY created_at DESC";

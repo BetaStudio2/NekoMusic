@@ -1,5 +1,6 @@
 package com.neko.music.service;
 
+import com.neko.music.Main;
 import com.neko.music.config.ConfigManager;
 import com.neko.music.util.LrcValidator;
 import com.neko.music.util.RuntimeDiskGuard;
@@ -262,7 +263,7 @@ public class NeteaseSearchFillService {
         Path audioTemp = workDir.resolve("audio." + audioExt);
         neteaseClient.downloadToFile(playUrl.url(), audioTemp);
 
-        Path lyricsTemp = prepareLyricsFile(workDir, songId);
+        LyricsPrepareResult lyricsPrep = prepareLyricsFile(workDir, songId, title, artist);
 
         Path coverTemp = null;
         if (detail.coverUrl() != null && !detail.coverUrl().isBlank()) {
@@ -280,13 +281,13 @@ public class NeteaseSearchFillService {
                 ? detail.durationMs() / 1000
                 : (playUrl.durationMs() > 0 ? playUrl.durationMs() / 1000 : 0);
 
-        String language = resolveLanguage(title, artist, album, lyricsTemp);
+        String language = resolveLanguage(title, artist, album, lyricsPrep.lyricsPath());
         logger.info("网易云补全语种: title={} language={}", title, language);
 
-        return ingestService.ingestFromTempFiles(
+        Optional<AdminMusicIngestService.IngestedMusic> ingested = ingestService.ingestFromTempFiles(
                 audioTemp,
                 coverTemp,
-                lyricsTemp,
+                lyricsPrep.lyricsPath(),
                 title,
                 artist,
                 album,
@@ -295,6 +296,23 @@ public class NeteaseSearchFillService {
                 durationSec,
                 config.getNeteaseFillUploadUserId()
         );
+        if (ingested.isPresent()) {
+            lyricsPrep.invalidLyricsAlert().ifPresent(alert ->
+                    Main.getEmailService().scheduleNeteaseInvalidLyricsAlertToAdmins(
+                            alert.neteaseSongId(),
+                            ingested.get().id(),
+                            alert.title(),
+                            alert.artist(),
+                            alert.rawLrc(),
+                            alert.reason()));
+        }
+        return ingested;
+    }
+
+    private record InvalidLyricsAlert(long neteaseSongId, String title, String artist, String rawLrc, String reason) {
+    }
+
+    private record LyricsPrepareResult(Path lyricsPath, Optional<InvalidLyricsAlert> invalidLyricsAlert) {
     }
 
     private String resolveLanguage(String title, String artist, String album, Path lyricsTemp) {
@@ -319,8 +337,9 @@ public class NeteaseSearchFillService {
         return SongLanguageInferer.infer(title, artist, album, lrcSample);
     }
 
-    private Path prepareLyricsFile(Path workDir, long songId) throws IOException {
+    private LyricsPrepareResult prepareLyricsFile(Path workDir, long songId, String title, String artist) throws IOException {
         Path lyricsTemp = workDir.resolve("lyrics.lrc");
+        Optional<InvalidLyricsAlert> invalidAlert = Optional.empty();
         String lrc = "";
         try {
             lrc = neteaseClient.fetchLyricLrc(songId);
@@ -334,15 +353,19 @@ public class NeteaseSearchFillService {
                 long size = Files.size(lyricsTemp);
                 LrcValidator.ValidationResult check = LrcValidator.validate(in, size);
                 if (check.isValid()) {
-                    return lyricsTemp;
+                    return new LyricsPrepareResult(lyricsTemp, Optional.empty());
                 }
-                logger.warn("网易云歌词未通过 LRC 校验 songId={}: {}，将使用占位歌词", songId, check.getErrorMessage());
+                String reason = check.getErrorMessage();
+                logger.warn("网易云歌词未通过 LRC 校验 songId={} title={}: {}，将使用占位歌词",
+                        songId, title, reason);
+                logger.warn("网易云歌词原文 songId={}:\n{}", songId, lrc);
+                invalidAlert = Optional.of(new InvalidLyricsAlert(songId, title, artist, lrc, reason));
             }
             Files.deleteIfExists(lyricsTemp);
         }
 
         writePlaceholderLyrics(lyricsTemp);
-        return lyricsTemp;
+        return new LyricsPrepareResult(lyricsTemp, invalidAlert);
     }
 
     private void writePlaceholderLyrics(Path lyricsTemp) throws IOException {
