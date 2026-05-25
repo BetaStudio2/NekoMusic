@@ -100,9 +100,9 @@ public class MusicSearchHandler extends HttpServlet {
 
             Music music = null;
             try {
-                music = findExactMusic(title, artist);
+                music = findBestLocalMusicForBatchItem(title, artist);
             } catch (SQLException e) {
-                logger.error("批量精确搜索查库失败 title={} artist={}", title, artist, e);
+                logger.error("批量搜索查库失败 title={} artist={}", title, artist, e);
             }
 
             if (music == null && Main.getConfigManager().isNeteaseSearchFillEnabled()) {
@@ -159,9 +159,9 @@ public class MusicSearchHandler extends HttpServlet {
         response.getWriter().println(Main.getObjectMapper().writeValueAsString(searchResponse));
     }
 
-    private Music findExactMusic(String title, String artist) throws SQLException {
+    private Music findBestLocalMusicForBatchItem(String title, String artist) throws SQLException {
         return Main.getAdminMusicIngestService()
-                .findExactMatch(title, artist)
+                .findBestLocalMatchForBatchItem(title, artist)
                 .map(MusicSearchHandler::toSearchMusic)
                 .orElse(null);
     }

@@ -2,6 +2,7 @@ package com.neko.music.service;
 
 import com.neko.music.Main;
 import com.neko.music.config.ConfigManager;
+import com.neko.music.util.BatchMusicMatchUtil;
 import com.neko.music.util.LrcValidator;
 import com.neko.music.util.RuntimeDiskGuard;
 import com.neko.music.util.SongLanguageInferer;
@@ -15,10 +16,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
@@ -91,10 +95,6 @@ public class NeteaseSearchFillService {
         }
         String trimmedTitle = title.trim();
         String trimmedArtist = artist == null ? "" : artist.trim();
-        String neteaseQuery = buildNeteaseSearchQuery(trimmedTitle, trimmedArtist);
-        RuntimeDiskGuard.logStorageForOperation(
-                "网易云自动补全",
-                "title=" + trimmedTitle + (trimmedArtist.isEmpty() ? "" : ", artist=" + trimmedArtist));
         if (!RuntimeDiskGuard.hasSufficientSpaceForMusicWrites()) {
             return new FillAttempt(Optional.empty(), FillReason.LOW_DISK_SPACE);
         }
@@ -109,7 +109,7 @@ public class NeteaseSearchFillService {
         localLock.lock();
         try {
             Optional<AdminMusicIngestService.IngestedMusic> existing =
-                    findLocalExact(trimmedTitle, trimmedArtist);
+                    findLocalBeforeNetease(trimmedTitle, trimmedArtist);
             if (existing.isPresent()) {
                 return new FillAttempt(existing, FillReason.NONE);
             }
@@ -122,11 +122,11 @@ public class NeteaseSearchFillService {
             }
 
             try {
-                existing = findLocalExact(trimmedTitle, trimmedArtist);
+                existing = findLocalBeforeNetease(trimmedTitle, trimmedArtist);
                 if (existing.isPresent()) {
                     return new FillAttempt(existing, FillReason.NONE);
                 }
-                return doFillFromNetease(neteaseQuery, trimmedTitle, trimmedArtist);
+                return doFillFromNetease(trimmedTitle, trimmedArtist);
             } finally {
                 releaseRedisLock(lockKey);
             }
@@ -138,7 +138,7 @@ public class NeteaseSearchFillService {
         }
     }
 
-    private FillAttempt doFillFromNetease(String neteaseQuery, String reqTitle, String reqArtist) {
+    private FillAttempt doFillFromNetease(String reqTitle, String reqArtist) {
         boolean loggedIn = neteaseClient.isLoggedIn();
         if (!loggedIn) {
             logger.warn("网易云 API 未登录或 Cookie 已失效（/login/status profile 为空），"
@@ -148,13 +148,17 @@ public class NeteaseSearchFillService {
         Path workDir = null;
         try {
             List<NeteaseCloudMusicClient.NeteaseSongCandidate> candidates =
-                    neteaseClient.searchSongs(neteaseQuery, 8);
+                    searchNeteaseCandidates(reqTitle, reqArtist);
             if (candidates.isEmpty()) {
-                logger.info("网易云搜索无结果: query={}", neteaseQuery);
+                logger.info("网易云搜索无结果: title={} artist={}", reqTitle, reqArtist);
                 return failReason(loggedIn);
             }
 
             candidates.sort(Comparator.comparingInt(c -> scoreCandidate(c, reqTitle, reqArtist)));
+
+            RuntimeDiskGuard.logStorageForOperation(
+                    "网易云自动补全",
+                    "title=" + reqTitle + (reqArtist.isBlank() ? "" : ", artist=" + reqArtist));
 
             workDir = Files.createTempDirectory("neko-netease-fill-");
             for (NeteaseCloudMusicClient.NeteaseSongCandidate candidate : candidates) {
@@ -163,7 +167,7 @@ public class NeteaseSearchFillService {
                         : candidate.album();
                 if (ingestService.isDuplicateMusic(candidate.title(), candidate.artist(), album)) {
                     Optional<AdminMusicIngestService.IngestedMusic> dup =
-                            findLocalExact(candidate.title(), candidate.artist());
+                            findLocalBeforeNetease(reqTitle, reqArtist);
                     if (dup.isPresent()) {
                         return new FillAttempt(dup, FillReason.NONE);
                     }
@@ -175,10 +179,10 @@ public class NeteaseSearchFillService {
                     return new FillAttempt(ingested, FillReason.NONE);
                 }
             }
-            logger.info("网易云候选均未能入库: query={}", neteaseQuery);
+            logger.info("网易云候选均未能入库: title={} artist={}", reqTitle, reqArtist);
             return failReason(loggedIn);
         } catch (Exception e) {
-            logger.error("网易云搜索补全失败 query={}", neteaseQuery, e);
+            logger.error("网易云搜索补全失败 title={} artist={}", reqTitle, reqArtist, e);
             return new FillAttempt(Optional.empty(), FillReason.ERROR);
         } finally {
             if (workDir != null) {
@@ -191,7 +195,7 @@ public class NeteaseSearchFillService {
         long deadline = System.currentTimeMillis() + PEER_WAIT_MAX_MS;
         while (System.currentTimeMillis() < deadline) {
             try {
-                Optional<AdminMusicIngestService.IngestedMusic> existing = findLocalExact(title, artist);
+                Optional<AdminMusicIngestService.IngestedMusic> existing = findLocalBeforeNetease(title, artist);
                 if (existing.isPresent()) {
                     logger.info("等待其它补全完成后命中曲库: title={} artist={} id={}",
                             title, artist, existing.get().id());
@@ -210,24 +214,51 @@ public class NeteaseSearchFillService {
         return FillAttempt.skipped();
     }
 
-    private Optional<AdminMusicIngestService.IngestedMusic> findLocalExact(String title, String artist)
+    private Optional<AdminMusicIngestService.IngestedMusic> findLocalBeforeNetease(String title, String artist)
             throws SQLException {
-        Optional<AdminMusicIngestService.IngestedMusic> exact =
-                ingestService.findExactMatch(title, artist);
-        if (exact.isPresent()) {
-            return exact;
-        }
-        String q = buildNeteaseSearchQuery(title, artist == null ? "" : artist);
-        return ingestService.findBestLocalMatchForQuery(q);
+        return ingestService.findBestLocalMatchForBatchItem(title, artist);
     }
 
-    private static String buildNeteaseSearchQuery(String title, String artist) {
-        String t = title == null ? "" : title.trim();
-        String a = artist == null ? "" : artist.trim();
-        if (t.isEmpty()) {
-            return "";
+    private List<NeteaseCloudMusicClient.NeteaseSongCandidate> searchNeteaseCandidates(
+            String reqTitle,
+            String reqArtist
+    ) throws IOException {
+        Map<Long, NeteaseCloudMusicClient.NeteaseSongCandidate> merged = new LinkedHashMap<>();
+        for (String query : buildNeteaseSearchQueries(reqTitle, reqArtist)) {
+            for (NeteaseCloudMusicClient.NeteaseSongCandidate c : neteaseClient.searchSongs(query, 12)) {
+                merged.putIfAbsent(c.id(), c);
+            }
+            if (!merged.isEmpty() && merged.size() >= 5) {
+                break;
+            }
         }
-        return a.isEmpty() ? t : t + " " + a;
+        return new ArrayList<>(merged.values());
+    }
+
+    /**
+     * 网易云搜索词：优先「核心歌名 + 主歌手」，其次仅核心歌名，避免 feat/remix 长串导致无结果。
+     */
+    private static List<String> buildNeteaseSearchQueries(String title, String artist) {
+        List<String> queries = new ArrayList<>();
+        String fullTitle = title == null ? "" : title.trim();
+        String coreTitle = BatchMusicMatchUtil.coreTitle(fullTitle);
+        String fullArtist = artist == null ? "" : artist.trim();
+        List<String> artistTokens = BatchMusicMatchUtil.artistTokens(fullArtist);
+        String primaryArtist = artistTokens.isEmpty() ? "" : artistTokens.get(0);
+
+        if (!coreTitle.isBlank() && !primaryArtist.isBlank()) {
+            queries.add(coreTitle + " " + primaryArtist);
+        }
+        if (!coreTitle.isBlank()) {
+            queries.add(coreTitle);
+        }
+        if (!fullTitle.isBlank() && !fullTitle.equals(coreTitle) && !primaryArtist.isBlank()) {
+            queries.add(fullTitle + " " + primaryArtist);
+        }
+        if (!fullTitle.isBlank() && primaryArtist.isBlank()) {
+            queries.add(fullTitle);
+        }
+        return queries.stream().distinct().toList();
     }
 
     private static String lockKeyForTitleArtist(String title, String artist) {
@@ -287,7 +318,12 @@ public class NeteaseSearchFillService {
         }
 
         if (ingestService.isDuplicateMusic(title, artist, album)) {
-            return ingestService.findBestLocalMatchForQuery(title);
+            try {
+                return ingestService.findBestLocalMatchForBatchItem(title, artist);
+            } catch (SQLException e) {
+                logger.warn("重复曲库查询失败 title={}: {}", title, e.getMessage());
+                return Optional.empty();
+            }
         }
 
         NeteaseCloudMusicClient.SongPlayUrl playUrl = neteaseClient
@@ -445,32 +481,9 @@ public class NeteaseSearchFillService {
             String reqTitle,
             String reqArtist
     ) {
-        String t = reqTitle == null ? "" : reqTitle.trim().toLowerCase(Locale.ROOT);
-        String a = reqArtist == null ? "" : reqArtist.trim().toLowerCase(Locale.ROOT);
-        String ct = c.title().toLowerCase(Locale.ROOT);
-        String ca = c.artist().toLowerCase(Locale.ROOT);
-        if (!a.isEmpty()) {
-            if (ct.equals(t) && ca.equals(a)) {
-                return 0;
-            }
-            if (ct.equals(t) && ca.contains(a)) {
-                return 1;
-            }
-            if (ct.contains(t) && ca.contains(a)) {
-                return 2;
-            }
-            return 3;
-        }
-        if (ct.equals(t)) {
-            return 0;
-        }
-        if (ct.startsWith(t)) {
-            return 1;
-        }
-        if (ct.contains(t) || ca.contains(t)) {
-            return 2;
-        }
-        return 3;
+        int score = BatchMusicMatchUtil.scoreTitleContribution(reqTitle, c.title())
+                + BatchMusicMatchUtil.scoreArtistContribution(reqArtist, c.artist());
+        return score <= 0 ? 999 : -score;
     }
 
     private static String pickNonEmpty(String primary, String fallback) {

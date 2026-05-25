@@ -5,6 +5,7 @@ import com.neko.music.util.AudioFileValidator;
 import com.neko.music.util.AudioIntegrityValidator;
 import com.neko.music.util.LrcValidator;
 import com.neko.music.util.MusicAdMetadataPatcher;
+import com.neko.music.util.BatchMusicMatchUtil;
 import com.neko.music.util.ChineseConverter;
 import com.neko.music.util.MusicAssetLocator;
 import com.neko.music.util.PinyinUtil;
@@ -37,6 +38,12 @@ import java.util.Set;
  */
 public class AdminMusicIngestService {
     private static final Logger logger = LoggerFactory.getLogger(AdminMusicIngestService.class);
+
+    /** 批量搜索：有歌手时站内模糊匹配最低分 */
+    private static final int MIN_BATCH_MATCH_SCORE_WITH_ARTIST = 100;
+    /** 批量搜索：仅歌名时站内模糊匹配最低分 */
+    private static final int MIN_BATCH_MATCH_SCORE_TITLE_ONLY = 90;
+    private static final int BATCH_CANDIDATE_LIMIT = 80;
 
     public record IngestedMusic(
             int id,
@@ -147,8 +154,43 @@ public class AdminMusicIngestService {
     }
 
     /**
-     * 按搜索关键词在曲库中找最近一条可能匹配（用于补全并发时复用已入库结果）。
+     * 批量搜索：先在站内找最匹配（精确 → 模糊打分），无合格结果再由调用方走网易云。
      */
+    public Optional<IngestedMusic> findBestLocalMatchForBatchItem(String title, String artist) throws SQLException {
+        Optional<IngestedMusic> exact = findExactMatch(title, artist);
+        if (exact.isPresent()) {
+            return exact;
+        }
+        if (title == null || title.isBlank()) {
+            return Optional.empty();
+        }
+        String reqTitle = title.trim();
+        String reqArtist = artist == null ? "" : artist.trim();
+
+        List<IngestedMusic> candidates = loadBatchSearchCandidates(reqTitle, reqArtist);
+        if (candidates.isEmpty()) {
+            return Optional.empty();
+        }
+
+        IngestedMusic best = null;
+        int bestScore = 0;
+        for (IngestedMusic candidate : candidates) {
+            int score = scoreBatchItemMatch(candidate, reqTitle, reqArtist);
+            if (score > bestScore) {
+                bestScore = score;
+                best = candidate;
+            }
+        }
+
+        int minScore = reqArtist.isEmpty() ? MIN_BATCH_MATCH_SCORE_TITLE_ONLY : MIN_BATCH_MATCH_SCORE_WITH_ARTIST;
+        if (best != null && bestScore >= minScore) {
+            logger.debug("批量站内模糊命中: title={} artist={} id={} score={}",
+                    reqTitle, reqArtist, best.id(), bestScore);
+            return Optional.of(best);
+        }
+        return Optional.empty();
+    }
+
     /**
      * 按歌名（及可选歌手）精确匹配曲库，多条时取 id 最大的一条。
      * 仅歌名且无歌手时：同标题下必须唯一歌手，否则视为歧义不返回。
@@ -164,14 +206,31 @@ public class AdminMusicIngestService {
             return Optional.empty();
         }
         if (!reqArtist.isEmpty()) {
-            String normArtist = normalizeForExact(reqArtist);
             List<IngestedMusic> matched = new ArrayList<>();
             for (IngestedMusic m : candidates) {
-                if (normalizeForExact(m.artist()).equals(normArtist)) {
+                if (BatchMusicMatchUtil.artistsRelate(reqArtist, m.artist())) {
                     matched.add(m);
                 }
             }
-            return matched.isEmpty() ? Optional.empty() : Optional.of(matched.get(0));
+            if (matched.size() == 1) {
+                return Optional.of(matched.get(0));
+            }
+            if (matched.size() > 1) {
+                IngestedMusic best = null;
+                int bestScore = 0;
+                for (IngestedMusic m : matched) {
+                    int s = BatchMusicMatchUtil.scoreTitleContribution(reqTitle, m.title())
+                            + BatchMusicMatchUtil.scoreArtistContribution(reqArtist, m.artist());
+                    if (s > bestScore) {
+                        bestScore = s;
+                        best = m;
+                    }
+                }
+                if (best != null && bestScore >= MIN_BATCH_MATCH_SCORE_WITH_ARTIST) {
+                    return Optional.of(best);
+                }
+            }
+            return Optional.empty();
         }
         Set<String> distinctArtists = new HashSet<>();
         for (IngestedMusic m : candidates) {
@@ -217,24 +276,97 @@ public class AdminMusicIngestService {
                     if (rowTitle == null || !normalizeForExact(rowTitle).equals(normalizeForExact(title))) {
                         continue;
                     }
-                    int uploadUserId = rs.getInt("upload_user_id");
-                    if (rs.wasNull()) {
-                        uploadUserId = 0;
-                    }
-                    Timestamp createdAt = rs.getTimestamp("created_at");
-                    rows.add(new IngestedMusic(
-                            rs.getInt("id"),
-                            rs.getString("title"),
-                            rs.getString("artist"),
-                            rs.getString("album"),
-                            rs.getInt("duration"),
-                            uploadUserId,
-                            createdAt != null ? createdAt.toString() : ""
-                    ));
+                    rows.add(mapIngestedRow(rs));
                 }
             }
         }
         return rows;
+    }
+
+    private List<IngestedMusic> loadBatchSearchCandidates(String title, String artist) throws SQLException {
+        List<String> titleVariants = ChineseConverter.getFullSearchVariants(title);
+        if (titleVariants.isEmpty()) {
+            return List.of();
+        }
+
+        List<String> conditions = new ArrayList<>();
+        List<String> params = new ArrayList<>();
+
+        for (String variant : titleVariants) {
+            conditions.add("title LIKE ?");
+            params.add("%" + variant + "%");
+        }
+        String coreTitle = BatchMusicMatchUtil.coreTitle(title);
+        if (!coreTitle.isBlank() && !normalizeForExact(coreTitle).equals(normalizeForExact(title))) {
+            for (String variant : ChineseConverter.getFullSearchVariants(coreTitle)) {
+                conditions.add("title LIKE ?");
+                params.add("%" + variant + "%");
+            }
+        }
+        if (artist != null && !artist.isBlank()) {
+            for (String variant : ChineseConverter.getFullSearchVariants(artist)) {
+                conditions.add("artist LIKE ?");
+                params.add("%" + variant + "%");
+            }
+            for (String token : BatchMusicMatchUtil.artistTokens(artist)) {
+                if (token.length() >= 2) {
+                    conditions.add("artist LIKE ?");
+                    params.add("%" + token + "%");
+                }
+            }
+        }
+
+        String sql = "SELECT id, title, artist, album, duration, upload_user_id, created_at FROM music WHERE ("
+                + String.join(" OR ", conditions)
+                + ") ORDER BY id DESC LIMIT ?";
+
+        List<IngestedMusic> rows = new ArrayList<>();
+        try (Connection conn = Main.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            int idx = 1;
+            for (String param : params) {
+                stmt.setString(idx++, param);
+            }
+            stmt.setInt(idx, BATCH_CANDIDATE_LIMIT);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    rows.add(mapIngestedRow(rs));
+                }
+            }
+        }
+        return rows;
+    }
+
+    /**
+     * 批量条目站内匹配打分：歌名权重高于歌手，要求歌名至少有一定相似度。
+     */
+    static int scoreBatchItemMatch(IngestedMusic music, String reqTitle, String reqArtist) {
+        if (music == null || reqTitle == null || reqTitle.isBlank()) {
+            return 0;
+        }
+        int score = BatchMusicMatchUtil.scoreTitleContribution(reqTitle, music.title());
+        if (score <= 0) {
+            return 0;
+        }
+        score += BatchMusicMatchUtil.scoreArtistContribution(reqArtist, music.artist());
+        return Math.max(score, 0);
+    }
+
+    private static IngestedMusic mapIngestedRow(ResultSet rs) throws SQLException {
+        int uploadUserId = rs.getInt("upload_user_id");
+        if (rs.wasNull()) {
+            uploadUserId = 0;
+        }
+        Timestamp createdAt = rs.getTimestamp("created_at");
+        return new IngestedMusic(
+                rs.getInt("id"),
+                rs.getString("title"),
+                rs.getString("artist"),
+                rs.getString("album"),
+                rs.getInt("duration"),
+                uploadUserId,
+                createdAt != null ? createdAt.toString() : ""
+        );
     }
 
     public Optional<IngestedMusic> findBestLocalMatchForQuery(String query) throws SQLException {
