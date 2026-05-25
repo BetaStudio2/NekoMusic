@@ -76,6 +76,7 @@ public class Main {
     private static VideoRenderQuotaService videoRenderQuotaService;
     private static VideoRenderService videoRenderService;
     private static SliderCaptchaService sliderCaptchaService;
+    private static AdminMusicIngestService adminMusicIngestService;
     private static NeteaseSearchFillService neteaseSearchFillService;
 
     public static void main(String[] args) throws Exception {
@@ -132,10 +133,11 @@ public class Main {
 
         sliderCaptchaService = new SliderCaptchaService();
 
+        adminMusicIngestService = new AdminMusicIngestService();
         neteaseSearchFillService = new NeteaseSearchFillService(
                 configManager,
                 new NeteaseCloudMusicClient(configManager, objectMapper),
-                new AdminMusicIngestService(),
+                adminMusicIngestService,
                 redisService);
 
         // 初始化歌单服务
@@ -516,6 +518,10 @@ public class Main {
 
     public static SliderCaptchaService getSliderCaptchaService() {
         return sliderCaptchaService;
+    }
+
+    public static AdminMusicIngestService getAdminMusicIngestService() {
+        return adminMusicIngestService;
     }
 
     public static NeteaseSearchFillService getNeteaseSearchFillService() {

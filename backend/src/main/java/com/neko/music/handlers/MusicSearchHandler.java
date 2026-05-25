@@ -1,10 +1,9 @@
 package com.neko.music.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.neko.music.Main;
 import com.neko.music.service.AdminMusicIngestService;
 import com.neko.music.service.NeteaseSearchFillService;
-import com.neko.music.util.MusicAssetLocator;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +15,7 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,34 +28,24 @@ public class MusicSearchHandler extends HttpServlet {
 
         try {
             SearchRequest searchRequest = Main.getObjectMapper().readValue(requestBody, SearchRequest.class);
-            String query = searchRequest.getQuery();
-            List<Music> results = searchMusic(query);
+            boolean hasQuery = searchRequest.getQuery() != null && !searchRequest.getQuery().isBlank();
+            boolean hasItems = searchRequest.getItems() != null && !searchRequest.getItems().isEmpty();
 
-            String message = "搜索成功";
-            if (results.isEmpty() && Main.getConfigManager().isNeteaseSearchFillEnabled()) {
-                NeteaseSearchFillService.FillAttempt fill =
-                        Main.getNeteaseSearchFillService().tryFillFromNetease(query);
-                if (fill.music().isPresent()) {
-                    results.add(toSearchMusic(fill.music().get()));
-                    message = "搜索成功（已从网易云补全入库）";
-                } else if (fill.reason() == NeteaseSearchFillService.FillReason.LOGIN_EXPIRED) {
-                    message = "未找到匹配的音乐（网易云登录已失效，无法补全 Hi-Res/无损，请更新 API Cookie 后重试）";
-                } else if (fill.reason() == NeteaseSearchFillService.FillReason.ERROR) {
-                    message = "未找到匹配的音乐（网易云补全服务异常，请查看服务端日志）";
-                } else if (fill.reason() == NeteaseSearchFillService.FillReason.LOW_DISK_SPACE) {
-                    message = com.neko.music.util.RuntimeDiskGuard.neteaseFillBlockedMessage();
-                }
+            if (hasQuery && hasItems) {
+                sendError(response, "请求格式错误: query 与 items 不能同时提供");
+                return;
+            }
+            if (!hasQuery && !hasItems) {
+                sendError(response, "请求格式错误: 请提供 query 或 items");
+                return;
             }
 
-            Object responseResults = results.isEmpty() ? null : results;
-            if (results.isEmpty() && "搜索成功".equals(message)) {
-                message = "未找到匹配的音乐";
+            if (hasItems) {
+                handleBatchSearch(searchRequest.getItems(), response);
+                return;
             }
-            SearchResponse searchResponse = new SearchResponse(!results.isEmpty(), message, responseResults);
 
-            response.setStatus(HttpStatus.OK_200);
-            response.setContentType("application/json;charset=utf-8");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(searchResponse));
+            handleLegacySearch(searchRequest.getQuery().trim(), response);
 
         } catch (Exception e) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
@@ -63,6 +53,117 @@ public class MusicSearchHandler extends HttpServlet {
             ErrorResponse errorResponse = new ErrorResponse("请求格式错误: " + e.getMessage());
             response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
         }
+    }
+
+    private void sendError(HttpServletResponse response, String message) throws IOException {
+        response.setStatus(HttpStatus.BAD_REQUEST_400);
+        response.setContentType("application/json;charset=utf-8");
+        ErrorResponse errorResponse = new ErrorResponse(message);
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+    }
+
+    private void handleLegacySearch(String query, HttpServletResponse response) throws IOException {
+        List<Music> results = searchMusic(query);
+
+        String message = "搜索成功";
+        if (results.isEmpty() && Main.getConfigManager().isNeteaseSearchFillEnabled()) {
+            NeteaseSearchFillService.FillAttempt fill =
+                    Main.getNeteaseSearchFillService().tryFillFromNetease(query);
+            if (fill.music().isPresent()) {
+                results.add(toSearchMusic(fill.music().get()));
+                message = "搜索成功（已从网易云补全入库）";
+            } else {
+                message = neteaseFillFailureMessage(message, fill.reason());
+            }
+        }
+
+        Object responseResults = results.isEmpty() ? null : results;
+        if (results.isEmpty() && "搜索成功".equals(message)) {
+            message = "未找到匹配的音乐";
+        }
+        writeSearchResponse(response, !results.isEmpty(), message, responseResults);
+    }
+
+    private void handleBatchSearch(List<SearchItem> items, HttpServletResponse response) throws IOException {
+        List<Music> results = new ArrayList<>(items.size());
+        int foundCount = 0;
+        int fillCount = 0;
+        String lastFillFailure = null;
+
+        for (SearchItem item : items) {
+            if (item == null || item.getTitle() == null || item.getTitle().isBlank()) {
+                sendError(response, "请求格式错误: items 中每项 title 不能为空");
+                return;
+            }
+            String title = item.getTitle().trim();
+            String artist = item.getArtist() == null ? "" : item.getArtist().trim();
+
+            Music music = null;
+            try {
+                music = findExactMusic(title, artist);
+            } catch (SQLException e) {
+                logger.error("批量精确搜索查库失败 title={} artist={}", title, artist, e);
+            }
+
+            if (music == null && Main.getConfigManager().isNeteaseSearchFillEnabled()) {
+                NeteaseSearchFillService.FillAttempt fill =
+                        Main.getNeteaseSearchFillService().tryFillFromNetease(title, artist);
+                if (fill.music().isPresent()) {
+                    music = toSearchMusic(fill.music().get());
+                    fillCount++;
+                } else if (fill.reason() != NeteaseSearchFillService.FillReason.NONE) {
+                    lastFillFailure = neteaseFillFailureMessage("搜索成功", fill.reason());
+                }
+            }
+
+            results.add(music);
+            if (music != null) {
+                foundCount++;
+            }
+        }
+
+        String message = buildBatchMessage(foundCount, items.size(), fillCount, lastFillFailure);
+        writeSearchResponse(response, foundCount > 0, message, results);
+    }
+
+    private static String buildBatchMessage(int found, int total, int fillCount, String lastFillFailure) {
+        if (found == 0) {
+            return lastFillFailure != null ? lastFillFailure : "未找到匹配的音乐";
+        }
+        if (fillCount > 0) {
+            return "搜索成功（" + found + "/" + total + " 已找到，" + fillCount + " 条已从网易云补全入库）";
+        }
+        return found == total ? "搜索成功" : "搜索成功（" + found + "/" + total + " 已找到）";
+    }
+
+    private static String neteaseFillFailureMessage(String defaultMessage, NeteaseSearchFillService.FillReason reason) {
+        return switch (reason) {
+            case LOGIN_EXPIRED ->
+                    "未找到匹配的音乐（网易云登录已失效，无法补全 Hi-Res/无损，请更新 API Cookie 后重试）";
+            case ERROR -> "未找到匹配的音乐（网易云补全服务异常，请查看服务端日志）";
+            case LOW_DISK_SPACE -> com.neko.music.util.RuntimeDiskGuard.neteaseFillBlockedMessage();
+            case NOT_FOUND -> "未找到匹配的音乐";
+            default -> defaultMessage;
+        };
+    }
+
+    private void writeSearchResponse(
+            HttpServletResponse response,
+            boolean success,
+            String message,
+            Object results
+    ) throws IOException {
+        SearchResponse searchResponse = new SearchResponse(success, message, results);
+        response.setStatus(HttpStatus.OK_200);
+        response.setContentType("application/json;charset=utf-8");
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(searchResponse));
+    }
+
+    private Music findExactMusic(String title, String artist) throws SQLException {
+        return Main.getAdminMusicIngestService()
+                .findExactMatch(title, artist)
+                .map(MusicSearchHandler::toSearchMusic)
+                .orElse(null);
     }
 
     /**
@@ -147,9 +248,6 @@ public class MusicSearchHandler extends HttpServlet {
                         music.setArtist(rs.getString("artist") != null ? rs.getString("artist") : "");
                         music.setAlbum(rs.getString("album") != null ? rs.getString("album") : "");
                         music.setDuration(rs.getInt("duration"));
-                        int mid = rs.getInt("id");
-                        music.setFilePath(MusicAssetLocator.fileApiUrl(mid));
-                        music.setCoverFilePath(MusicAssetLocator.coverApiUrl(mid));
                         music.setUploadUserId(rs.getInt("upload_user_id"));
                         music.setCreatedAt(rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toString() : "");
 
@@ -341,8 +439,6 @@ public class MusicSearchHandler extends HttpServlet {
         music.setArtist(row.artist());
         music.setAlbum(row.album());
         music.setDuration(row.duration());
-        music.setFilePath(MusicAssetLocator.fileApiUrl(row.id()));
-        music.setCoverFilePath(MusicAssetLocator.coverApiUrl(row.id()));
         music.setUploadUserId(row.uploadUserId());
         music.setCreatedAt(row.createdAt());
         return music;
@@ -361,8 +457,22 @@ public class MusicSearchHandler extends HttpServlet {
     // 内部类：搜索请求
     private static class SearchRequest {
         private String query;
+        private List<SearchItem> items;
+
         public String getQuery() { return query; }
         public void setQuery(String query) { this.query = query; }
+        public List<SearchItem> getItems() { return items; }
+        public void setItems(List<SearchItem> items) { this.items = items; }
+    }
+
+    private static class SearchItem {
+        private String title;
+        private String artist;
+
+        public String getTitle() { return title; }
+        public void setTitle(String title) { this.title = title; }
+        public String getArtist() { return artist; }
+        public void setArtist(String artist) { this.artist = artist; }
     }
 
     // 内部类：音乐对象（含拼音列）
@@ -372,8 +482,6 @@ public class MusicSearchHandler extends HttpServlet {
         private String artist;
         private String album;
         private int duration;
-        private String filePath;
-        private String coverFilePath;
         private int uploadUserId;
         private String createdAt;
         // 预计算拼音列
@@ -395,26 +503,29 @@ public class MusicSearchHandler extends HttpServlet {
         public void setAlbum(String album) { this.album = album; }
         public int getDuration() { return duration; }
         public void setDuration(int duration) { this.duration = duration; }
-        public String getFilePath() { return filePath; }
-        public void setFilePath(String filePath) { this.filePath = filePath; }
-        public String getCoverFilePath() { return coverFilePath; }
-        public void setCoverFilePath(String coverFilePath) { this.coverFilePath = coverFilePath; }
         public int getUploadUserId() { return uploadUserId; }
         public void setUploadUserId(int uploadUserId) { this.uploadUserId = uploadUserId; }
         public String getCreatedAt() { return createdAt; }
         public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+        @JsonIgnore
         public String getTitlePinyin() { return titlePinyin; }
         public void setTitlePinyin(String titlePinyin) { this.titlePinyin = titlePinyin; }
+        @JsonIgnore
         public String getTitlePinyinInitials() { return titlePinyinInitials; }
         public void setTitlePinyinInitials(String titlePinyinInitials) { this.titlePinyinInitials = titlePinyinInitials; }
+        @JsonIgnore
         public String getTitleWordInitials() { return titleWordInitials; }
         public void setTitleWordInitials(String titleWordInitials) { this.titleWordInitials = titleWordInitials; }
+        @JsonIgnore
         public String getArtistPinyin() { return artistPinyin; }
         public void setArtistPinyin(String artistPinyin) { this.artistPinyin = artistPinyin; }
+        @JsonIgnore
         public String getArtistPinyinInitials() { return artistPinyinInitials; }
         public void setArtistPinyinInitials(String artistPinyinInitials) { this.artistPinyinInitials = artistPinyinInitials; }
+        @JsonIgnore
         public String getArtistWordInitials() { return artistWordInitials; }
         public void setArtistWordInitials(String artistWordInitials) { this.artistWordInitials = artistWordInitials; }
+        @JsonIgnore
         public String getAlbumPinyin() { return albumPinyin; }
         public void setAlbumPinyin(String albumPinyin) { this.albumPinyin = albumPinyin; }
     }

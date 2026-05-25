@@ -5,6 +5,7 @@ import com.neko.music.util.AudioFileValidator;
 import com.neko.music.util.AudioIntegrityValidator;
 import com.neko.music.util.LrcValidator;
 import com.neko.music.util.MusicAdMetadataPatcher;
+import com.neko.music.util.ChineseConverter;
 import com.neko.music.util.MusicAssetLocator;
 import com.neko.music.util.PinyinUtil;
 import com.neko.music.util.TempAudioSpool;
@@ -24,7 +25,12 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 管理员后台入库：校验临时音频/歌词/封面后写入 Music 目录与数据库（与 FileUploadHandler 规则一致）。
@@ -143,6 +149,94 @@ public class AdminMusicIngestService {
     /**
      * 按搜索关键词在曲库中找最近一条可能匹配（用于补全并发时复用已入库结果）。
      */
+    /**
+     * 按歌名（及可选歌手）精确匹配曲库，多条时取 id 最大的一条。
+     * 仅歌名且无歌手时：同标题下必须唯一歌手，否则视为歧义不返回。
+     */
+    public Optional<IngestedMusic> findExactMatch(String title, String artist) throws SQLException {
+        if (title == null || title.isBlank()) {
+            return Optional.empty();
+        }
+        String reqTitle = title.trim();
+        String reqArtist = artist == null ? "" : artist.trim();
+        List<IngestedMusic> candidates = loadByTitleVariants(reqTitle);
+        if (candidates.isEmpty()) {
+            return Optional.empty();
+        }
+        if (!reqArtist.isEmpty()) {
+            String normArtist = normalizeForExact(reqArtist);
+            List<IngestedMusic> matched = new ArrayList<>();
+            for (IngestedMusic m : candidates) {
+                if (normalizeForExact(m.artist()).equals(normArtist)) {
+                    matched.add(m);
+                }
+            }
+            return matched.isEmpty() ? Optional.empty() : Optional.of(matched.get(0));
+        }
+        Set<String> distinctArtists = new HashSet<>();
+        for (IngestedMusic m : candidates) {
+            distinctArtists.add(normalizeForExact(m.artist()));
+        }
+        if (distinctArtists.size() != 1) {
+            return Optional.empty();
+        }
+        return Optional.of(candidates.get(0));
+    }
+
+    private static String normalizeForExact(String s) {
+        if (s == null) {
+            return "";
+        }
+        return ChineseConverter.toSimplified(s.trim()).toLowerCase(Locale.ROOT);
+    }
+
+    private List<IngestedMusic> loadByTitleVariants(String title) throws SQLException {
+        List<String> variants = ChineseConverter.getFullSearchVariants(title);
+        if (variants.isEmpty()) {
+            return List.of();
+        }
+        StringBuilder sql = new StringBuilder(
+                "SELECT id, title, artist, album, duration, upload_user_id, created_at FROM music WHERE ");
+        List<String> conditions = new ArrayList<>();
+        for (int i = 0; i < variants.size(); i++) {
+            conditions.add("title = ?");
+        }
+        sql.append(String.join(" OR ", conditions));
+        sql.append(" ORDER BY id DESC");
+
+        List<IngestedMusic> rows = new ArrayList<>();
+        try (Connection conn = Main.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql.toString())) {
+            int idx = 1;
+            for (String variant : variants) {
+                stmt.setString(idx++, variant);
+            }
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    String rowTitle = rs.getString("title");
+                    if (rowTitle == null || !normalizeForExact(rowTitle).equals(normalizeForExact(title))) {
+                        continue;
+                    }
+                    int uploadUserId = rs.getInt("upload_user_id");
+                    if (rs.wasNull()) {
+                        uploadUserId = 0;
+                    }
+                    Timestamp createdAt = rs.getTimestamp("created_at");
+                    rows.add(new IngestedMusic(
+                            rs.getInt("id"),
+                            rs.getString("title"),
+                            rs.getString("artist"),
+                            rs.getString("album"),
+                            rs.getInt("duration"),
+                            uploadUserId,
+                            createdAt != null ? createdAt.toString() : ""
+                    ));
+                }
+            }
+        }
+        return rows;
+    }
+
     public Optional<IngestedMusic> findBestLocalMatchForQuery(String query) throws SQLException {
         if (query == null || query.isBlank()) {
             return Optional.empty();

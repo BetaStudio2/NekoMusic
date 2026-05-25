@@ -4,7 +4,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
 import com.neko.music.database.DatabaseManager;
-import com.neko.music.util.MusicAssetLocator;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -166,9 +165,6 @@ public class SearchArtistsHandler extends HttpServlet {
                         music.addProperty("artist", rs.getString("artist"));
                         music.addProperty("album", rs.getString("album"));
                         music.addProperty("duration", rs.getInt("duration"));
-                        int mid = rs.getInt("id");
-                        music.addProperty("coverPath", MusicAssetLocator.coverApiUrl(mid));
-                        music.addProperty("filePath", MusicAssetLocator.fileApiUrl(mid));
                         music.addProperty("fileFormat", rs.getString("file_format"));
                         music.addProperty("language", rs.getString("language"));
                         musicList.add(music);
