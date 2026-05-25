@@ -1,5 +1,7 @@
 package com.neko.music.handlers;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
 import com.neko.music.service.PlaylistService;
@@ -15,6 +17,9 @@ import org.slf4j.LoggerFactory;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 
 @WebServlet("/api/user/playlist/music/add")
 public class AddMusicToPlaylistHandler extends HttpServlet {
@@ -37,7 +42,6 @@ public class AddMusicToPlaylistHandler extends HttpServlet {
 
         logger.info("收到添加音乐到歌单请求");
 
-        // 获取token
         String token = req.getHeader("Authorization");
 
         if (token == null || token.isEmpty()) {
@@ -45,14 +49,12 @@ public class AddMusicToPlaylistHandler extends HttpServlet {
             return;
         }
 
-        // 验证token并获取用户ID
         Integer userId = userAuthService.validateToken(token).orElse(null);
         if (userId == null) {
             sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "无效的认证令牌");
             return;
         }
 
-        // 读取请求体
         StringBuilder requestBody = new StringBuilder();
         try (BufferedReader reader = req.getReader()) {
             String line;
@@ -65,49 +67,86 @@ public class AddMusicToPlaylistHandler extends HttpServlet {
             JsonObject requestData = Main.getGson().fromJson(requestBody.toString(), JsonObject.class);
 
             Integer playlistId = null;
-            Integer musicId = null;
+            List<Integer> musicIds = new ArrayList<>();
 
             if (requestData != null) {
-                if (requestData.has("playlistId")) {
+                if (requestData.has("playlistId") && !requestData.get("playlistId").isJsonNull()) {
                     playlistId = requestData.get("playlistId").getAsInt();
                 }
-                if (requestData.has("musicId")) {
-                    musicId = requestData.get("musicId").getAsInt();
+                if (requestData.has("musicId") && !requestData.get("musicId").isJsonNull()) {
+                    musicIds.add(requestData.get("musicId").getAsInt());
+                }
+                if (requestData.has("musicIds")) {
+                    if (!requestData.get("musicIds").isJsonArray()) {
+                        sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "musicIds 必须是 JSON 数组");
+                        return;
+                    }
+                    JsonArray arr = requestData.getAsJsonArray("musicIds");
+                    for (JsonElement el : arr) {
+                        if (el != null && !el.isJsonNull()) {
+                            musicIds.add(el.getAsInt());
+                        }
+                    }
                 }
             }
 
-            // 验证请求参数
             if (playlistId == null) {
                 sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "歌单ID不能为空");
                 return;
             }
 
-            if (musicId == null) {
-                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "音乐ID不能为空");
+            List<Integer> toAdd = new ArrayList<>(new LinkedHashSet<>(musicIds));
+            if (toAdd.isEmpty()) {
+                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "音乐ID不能为空（可传 musicId 或 musicIds 数组）");
                 return;
             }
 
-            // 检查用户是否是歌单的所有者
             if (!playlistService.isPlaylistOwner(playlistId, userId)) {
                 logger.warn("用户尝试在不属于自己的歌单中添加音乐: userId={}, playlistId={}", userId, playlistId);
                 sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "无权限修改此歌单");
                 return;
             }
 
-            // 添加音乐到歌单
-            boolean success = playlistService.addMusicToPlaylist(playlistId, musicId);
+            List<Integer> failed = new ArrayList<>();
+            for (int mid : toAdd) {
+                if (!playlistService.addMusicToPlaylist(playlistId, mid)) {
+                    failed.add(mid);
+                }
+            }
 
-            if (success) {
-                logger.info("音乐添加到歌单成功: playlistId={}, musicId={}, userId={}", playlistId, musicId, userId);
+            if (failed.isEmpty()) {
+                logger.info("音乐添加到歌单成功: playlistId={}, musicIds={}, userId={}", playlistId, toAdd, userId);
 
                 JsonObject response = new JsonObject();
                 response.addProperty("success", true);
-                response.addProperty("message", "音乐添加到歌单成功");
+                response.addProperty("addedCount", toAdd.size());
+                if (toAdd.size() == 1) {
+                    response.addProperty("message", "音乐添加到歌单成功");
+                } else {
+                    response.addProperty("message", "已向歌单添加 " + toAdd.size() + " 首音乐");
+                }
 
                 sendSuccessResponse(resp, response);
             } else {
-                logger.warn("音乐添加到歌单失败: playlistId={}, musicId={}, userId={}", playlistId, musicId, userId);
-                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "音乐添加到歌单失败或音乐已存在于歌单中");
+                logger.warn("音乐添加到歌单部分或全部失败: playlistId={}, failed={}, userId={}", playlistId, failed, userId);
+
+                int addedCount = toAdd.size() - failed.size();
+                JsonObject response = new JsonObject();
+                response.addProperty("success", false);
+                response.addProperty("addedCount", addedCount);
+                JsonArray failedArr = new JsonArray();
+                for (int f : failed) {
+                    failedArr.add(f);
+                }
+                response.add("failedMusicIds", failedArr);
+                response.addProperty("message", "部分音乐未能添加到歌单（已存在或添加失败），失败数量: " + failed.size());
+
+                resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                resp.setContentType("application/json;charset=UTF-8");
+                try (PrintWriter out = resp.getWriter()) {
+                    out.print(Main.getGson().toJson(response));
+                    out.flush();
+                }
             }
 
         } catch (Exception e) {
@@ -116,9 +155,6 @@ public class AddMusicToPlaylistHandler extends HttpServlet {
         }
     }
 
-    /**
-     * 发送成功响应
-     */
     private void sendSuccessResponse(HttpServletResponse resp, JsonObject response) throws IOException {
         resp.setStatus(HttpServletResponse.SC_OK);
         try (PrintWriter out = resp.getWriter()) {
@@ -127,9 +163,6 @@ public class AddMusicToPlaylistHandler extends HttpServlet {
         }
     }
 
-    /**
-     * 发送错误响应
-     */
     private void sendErrorResponse(HttpServletResponse resp, int statusCode, String message) throws IOException {
         resp.setStatus(statusCode);
         JsonObject response = new JsonObject();
