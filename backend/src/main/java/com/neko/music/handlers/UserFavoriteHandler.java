@@ -1,5 +1,7 @@
 package com.neko.music.handlers;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
 import com.neko.music.util.MusicAssetLocator;
@@ -16,6 +18,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 public class UserFavoriteHandler extends HttpServlet {
@@ -78,17 +81,69 @@ public class UserFavoriteHandler extends HttpServlet {
         }
         
         JsonObject requestBody = Main.getGson().fromJson(sb.toString(), JsonObject.class);
-        int musicId = requestBody.get("musicId").getAsInt();
-        
+
+        List<Integer> musicIds = new ArrayList<>();
+        if (requestBody != null) {
+            if (requestBody.has("musicId") && !requestBody.get("musicId").isJsonNull()) {
+                musicIds.add(requestBody.get("musicId").getAsInt());
+            }
+            if (requestBody.has("musicIds")) {
+                if (!requestBody.get("musicIds").isJsonArray()) {
+                    sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "musicIds 必须是 JSON 数组");
+                    return;
+                }
+                JsonArray arr = requestBody.getAsJsonArray("musicIds");
+                for (JsonElement el : arr) {
+                    if (el != null && !el.isJsonNull()) {
+                        musicIds.add(el.getAsInt());
+                    }
+                }
+            }
+        }
+
+        List<Integer> toAdd = new ArrayList<>(new LinkedHashSet<>(musicIds));
+        if (toAdd.isEmpty()) {
+            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "音乐ID不能为空（可传 musicId 或 musicIds 数组）");
+            return;
+        }
+
         try {
-            boolean success = addFavorite(userId, musicId);
-            if (success) {
+            List<Integer> failed = new ArrayList<>();
+            for (int mid : toAdd) {
+                if (!addFavorite(userId, mid)) {
+                    failed.add(mid);
+                }
+            }
+
+            if (failed.isEmpty()) {
                 JsonObject response = new JsonObject();
                 response.addProperty("success", true);
-                response.addProperty("message", "收藏成功");
+                response.addProperty("addedCount", toAdd.size());
+                if (toAdd.size() == 1) {
+                    response.addProperty("message", "收藏成功");
+                } else {
+                    response.addProperty("message", "已收藏 " + toAdd.size() + " 首音乐");
+                }
                 sendSuccessResponse(resp, response);
             } else {
-                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "收藏失败或已存在");
+                int addedCount = toAdd.size() - failed.size();
+                JsonObject response = new JsonObject();
+                response.addProperty("success", false);
+                response.addProperty("addedCount", addedCount);
+                JsonArray failedArr = new JsonArray();
+                for (int f : failed) {
+                    failedArr.add(f);
+                }
+                response.add("failedMusicIds", failedArr);
+                response.addProperty("message", "部分音乐未能收藏（已存在或收藏失败），失败数量: " + failed.size());
+
+                resp.setContentType("application/json");
+                resp.setCharacterEncoding("UTF-8");
+                resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                try (PrintWriter writer = resp.getWriter()) {
+                    writer.print(response.toString());
+                    writer.flush();
+                }
             }
         } catch (Exception e) {
             logger.error("添加收藏失败: {}", e.getMessage(), e);
