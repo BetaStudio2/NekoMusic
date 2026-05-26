@@ -1207,7 +1207,7 @@ onMounted(() => {
   gap: 8px;
   margin-top: 8px;
   min-height: 42px;
-  padding: 10px 10px 10px 12px;
+  padding: 0 10px 0 12px; /* ← 这里把上下改成 0 啦！ */
   border-radius: 10px;
   border: 1px solid var(--line);
   background: rgba(0, 0, 0, 0.28);
