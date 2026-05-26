@@ -1182,6 +1182,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   margin-top: 8px;
+  min-height: 42px;
   padding: 10px 14px;
   border-radius: 10px;
   font-size: 0.82rem;
@@ -1202,9 +1203,10 @@ onMounted(() => {
 
 .plat__cmd {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: 8px;
   margin-top: 8px;
+  min-height: 42px;
   padding: 10px 10px 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--line);
@@ -1217,7 +1219,9 @@ onMounted(() => {
   font-size: 0.78rem;
   font-family: ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, monospace;
   color: #a7f3d0;
-  word-break: break-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   line-height: 1.45;
 }
 
