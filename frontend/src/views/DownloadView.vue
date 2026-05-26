@@ -110,7 +110,7 @@
               <span class="plat__action">获取</span>
             </a>
 
-            <a :href="linuxDownloadUrl" class="plat" download>
+            <div class="plat plat--linux">
               <div class="plat__icon plat__icon--linux" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="plat__svg plat__svg--stroke">
                   <rect x="3" y="4" width="18" height="12" rx="2" />
@@ -120,10 +120,48 @@
               </div>
               <div class="plat__body">
                 <span class="plat__name">Linux</span>
-                <span class="plat__fmt">Debian 系 · .deb</span>
+                <div class="plat__linux-tabs" role="tablist" aria-label="Linux 发行版">
+                  <button
+                    type="button"
+                    class="plat__linux-tab"
+                    :class="{ 'plat__linux-tab--active': linuxVariant === 'debian' }"
+                    role="tab"
+                    :aria-selected="linuxVariant === 'debian'"
+                    @click="linuxVariant = 'debian'"
+                  >
+                    Debian 系
+                  </button>
+                  <button
+                    type="button"
+                    class="plat__linux-tab"
+                    :class="{ 'plat__linux-tab--active': linuxVariant === 'arch' }"
+                    role="tab"
+                    :aria-selected="linuxVariant === 'arch'"
+                    @click="linuxVariant = 'arch'"
+                  >
+                    Arch 系
+                  </button>
+                </div>
+                <template v-if="linuxVariant === 'debian'">
+                  <span class="plat__fmt">安装包 · .deb</span>
+                  <a :href="linuxDownloadUrl" class="plat__linux-cta" download>下载 .deb</a>
+                </template>
+                <template v-else>
+                  <span class="plat__fmt">AUR · yay / paru</span>
+                  <div class="plat__cmd">
+                    <code class="plat__cmd-text">{{ archInstallCommand }}</code>
+                    <button
+                      type="button"
+                      class="plat__cmd-copy"
+                      :aria-label="archCopied ? '已复制' : '复制安装命令'"
+                      @click="copyArchCommand"
+                    >
+                      {{ archCopied ? '已复制' : '复制' }}
+                    </button>
+                  </div>
+                </template>
               </div>
-              <span class="plat__action">获取</span>
-            </a>
+            </div>
 
             <a :href="macDownloadUrl" class="plat" download>
               <div class="plat__icon plat__icon--mac" aria-hidden="true">
@@ -158,6 +196,9 @@ import axios from 'axios'
 const versionInfo = ref({ ver: '', updateUrl: '' })
 const loading = ref(true)
 const error = ref('')
+const linuxVariant = ref('debian')
+const archCopied = ref(false)
+const archInstallCommand = 'yay -S neko-cloud-music'
 
 const year = new Date().getFullYear()
 
@@ -195,6 +236,20 @@ const macDownloadUrl = computed(() => {
   const url = versionInfo.value.pc?.mac
   return replaceVersion(url)
 })
+
+let archCopyTimer = null
+const copyArchCommand = async () => {
+  try {
+    await navigator.clipboard.writeText(archInstallCommand)
+    archCopied.value = true
+    if (archCopyTimer) clearTimeout(archCopyTimer)
+    archCopyTimer = setTimeout(() => {
+      archCopied.value = false
+    }, 2000)
+  } catch {
+    /* 降级：部分环境无 clipboard API */
+  }
+}
 
 onMounted(() => {
   fetchVersionInfo()
@@ -971,6 +1026,24 @@ onMounted(() => {
   animation: platEnter 0.62s var(--ease) forwards;
 }
 
+.plat--linux {
+  text-decoration: none;
+  cursor: default;
+}
+
+.plat--linux:hover {
+  transform: none;
+  border-color: var(--line);
+  background: var(--card);
+  box-shadow: none;
+}
+
+@media (hover: hover) {
+  .plat--linux:hover .plat__icon {
+    transform: none;
+  }
+}
+
 .plat:nth-child(1) {
   animation-delay: 0.38s;
 }
@@ -1074,6 +1147,105 @@ onMounted(() => {
   transition: letter-spacing 0.35s var(--ease), color 0.25s var(--ease);
 }
 
+.plat__linux-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 4px 0 2px;
+}
+
+.plat__linux-tab {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.2s var(--ease), border-color 0.2s var(--ease), background 0.2s var(--ease);
+}
+
+.plat__linux-tab:hover {
+  color: var(--text);
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
+.plat__linux-tab--active {
+  color: #6ee7b7;
+  border-color: rgba(52, 211, 153, 0.5);
+  background: rgba(52, 211, 153, 0.12);
+}
+
+.plat__linux-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: #0b0b10;
+  background: linear-gradient(135deg, #d1fae5, #6ee7b7);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  transition: transform 0.22s var(--ease), box-shadow 0.22s var(--ease);
+}
+
+.plat__linux-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(52, 211, 153, 0.35);
+}
+
+.plat__cmd {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px 10px 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.plat__cmd-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.78rem;
+  font-family: ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, monospace;
+  color: #a7f3d0;
+  word-break: break-all;
+  line-height: 1.45;
+}
+
+.plat__cmd-copy {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  background: rgba(52, 211, 153, 0.12);
+  color: #6ee7b7;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.plat__cmd-copy:hover {
+  background: rgba(52, 211, 153, 0.22);
+  color: #ecfdf5;
+}
+
+.plat__linux-tab:focus-visible,
+.plat__linux-cta:focus-visible,
+.plat__cmd-copy:focus-visible {
+  outline: 2px solid var(--accent2);
+  outline-offset: 2px;
+}
+
 .foot {
   padding-top: 8px;
   border-top: 1px solid var(--line);
@@ -1094,7 +1266,8 @@ onMounted(() => {
 
 .topbar__back:focus-visible,
 .android__cta:focus-visible,
-.plat:focus-visible {
+.plat:focus-visible,
+.plat__linux-cta:focus-visible {
   outline: 2px solid var(--accent2);
   outline-offset: 3px;
 }
