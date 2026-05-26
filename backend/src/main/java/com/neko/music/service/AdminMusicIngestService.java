@@ -28,8 +28,10 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -74,9 +76,11 @@ public class AdminMusicIngestService {
         String lang = language == null || language.isBlank() ? "未知语言" : language.trim();
         String tagVal = tags == null ? "" : tags.trim();
 
-        if (isDuplicateMusic(title, artist, albumVal)) {
-            logger.info("跳过入库，曲库已有重复: title={} artist={}", title, artist);
-            return java.util.Optional.empty();
+        Optional<IngestedMusic> duplicate = findExistingDuplicate(title, artist, albumVal);
+        if (duplicate.isPresent()) {
+            logger.info("跳过入库，曲库已有重复 id={}: title={} artist={}",
+                    duplicate.get().id(), title, artist);
+            return duplicate;
         }
 
         String ext = extensionFromPath(musicTemp);
@@ -411,25 +415,68 @@ public class AdminMusicIngestService {
     }
 
     public boolean isDuplicateMusic(String title, String artist, String album) throws SQLException {
-        try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT artist, album FROM music WHERE title = ?";
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setString(1, title);
-                try (ResultSet rs = stmt.executeQuery()) {
-                    while (rs.next()) {
-                        String existingArtist = rs.getString("artist");
-                        String existingAlbum = rs.getString("album");
-                        if (artist != null && artist.equals(existingArtist)) {
-                            return true;
-                        }
-                        if (album != null && album.equals(existingAlbum)) {
-                            return true;
-                        }
-                    }
-                }
+        return findExistingDuplicate(title, artist, album).isPresent();
+    }
+
+    /**
+     * 按规范化歌名 + 歌手关联（及同标题同专辑）查找曲库中已存在的同一首。
+     * 用于网易云补全、上传入库等，避免「查询词不同但实为同一曲」重复写入。
+     */
+    public Optional<IngestedMusic> findExistingDuplicate(String title, String artist, String album)
+            throws SQLException {
+        if (title == null || title.isBlank()) {
+            return Optional.empty();
+        }
+        String reqTitle = title.trim();
+        String reqArtist = artist == null ? "" : artist.trim();
+        String reqAlbum = album == null || album.isBlank() ? "" : album.trim();
+
+        Map<Integer, IngestedMusic> candidates = new LinkedHashMap<>();
+        for (IngestedMusic m : loadByTitleVariants(reqTitle)) {
+            candidates.putIfAbsent(m.id(), m);
+        }
+        String coreTitle = BatchMusicMatchUtil.coreTitle(reqTitle);
+        if (!coreTitle.equals(reqTitle)) {
+            for (IngestedMusic m : loadByTitleVariants(coreTitle)) {
+                candidates.putIfAbsent(m.id(), m);
             }
         }
-        return false;
+        if (!reqArtist.isEmpty()) {
+            for (IngestedMusic m : loadBatchSearchCandidates(reqTitle, reqArtist)) {
+                candidates.putIfAbsent(m.id(), m);
+            }
+        }
+
+        for (IngestedMusic m : candidates.values()) {
+            if (!titlesMatchForDuplicate(reqTitle, m.title())) {
+                continue;
+            }
+            if (!reqArtist.isEmpty()) {
+                if (BatchMusicMatchUtil.artistsRelate(reqArtist, m.artist())) {
+                    return Optional.of(m);
+                }
+                if (!reqAlbum.isEmpty() && reqAlbum.equals(m.album())) {
+                    return Optional.of(m);
+                }
+                continue;
+            }
+            if (!reqAlbum.isEmpty() && reqAlbum.equals(m.album())) {
+                return Optional.of(m);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static boolean titlesMatchForDuplicate(String reqTitle, String dbTitle) {
+        if (dbTitle == null || dbTitle.isBlank()) {
+            return false;
+        }
+        String reqCore = normalizeForExact(BatchMusicMatchUtil.coreTitle(reqTitle));
+        String dbCore = normalizeForExact(BatchMusicMatchUtil.coreTitle(dbTitle));
+        if (!reqCore.isEmpty() && reqCore.equals(dbCore)) {
+            return true;
+        }
+        return normalizeForExact(reqTitle).equals(normalizeForExact(dbTitle));
     }
 
     private static int insertMusicToDatabase(

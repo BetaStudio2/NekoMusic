@@ -3,6 +3,7 @@ package com.neko.music.service;
 import com.neko.music.Main;
 import com.neko.music.config.ConfigManager;
 import com.neko.music.util.BatchMusicMatchUtil;
+import com.neko.music.util.ChineseConverter;
 import com.neko.music.util.LrcValidator;
 import com.neko.music.util.RuntimeDiskGuard;
 import com.neko.music.util.SongLanguageInferer;
@@ -37,8 +38,10 @@ public class NeteaseSearchFillService {
     private static final int PEER_WAIT_MAX_MS = 90_000;
     private static final int PEER_WAIT_POLL_MS = 500;
 
-    /** 同一 JVM 内按搜索词串行化补全，避免并发双份入库 */
+    /** 同一 JVM 内按规范化歌名+主歌手串行化补全，避免不同查询词并发双份入库 */
     private static final ConcurrentHashMap<String, ReentrantLock> QUERY_LOCKS = new ConcurrentHashMap<>();
+    /** 同一网易云 songId 串行化下载入库，避免多查询命中同一曲并发写入 */
+    private static final ConcurrentHashMap<Long, ReentrantLock> NETEASE_SONG_LOCKS = new ConcurrentHashMap<>();
 
     private final ConfigManager config;
     private final NeteaseCloudMusicClient neteaseClient;
@@ -103,7 +106,7 @@ public class NeteaseSearchFillService {
             return new FillAttempt(Optional.empty(), FillReason.ERROR);
         }
 
-        String lockKey = lockKeyForTitleArtist(trimmedTitle, trimmedArtist);
+        String lockKey = canonicalIngestLockKey(trimmedTitle, trimmedArtist);
         ReentrantLock localLock = QUERY_LOCKS.computeIfAbsent(lockKey, k -> new ReentrantLock());
 
         localLock.lock();
@@ -167,7 +170,7 @@ public class NeteaseSearchFillService {
                         : candidate.album();
                 if (ingestService.isDuplicateMusic(candidate.title(), candidate.artist(), album)) {
                     Optional<AdminMusicIngestService.IngestedMusic> dup =
-                            findLocalBeforeNetease(reqTitle, reqArtist);
+                            ingestService.findExistingDuplicate(candidate.title(), candidate.artist(), album);
                     if (dup.isPresent()) {
                         return new FillAttempt(dup, FillReason.NONE);
                     }
@@ -216,6 +219,11 @@ public class NeteaseSearchFillService {
 
     private Optional<AdminMusicIngestService.IngestedMusic> findLocalBeforeNetease(String title, String artist)
             throws SQLException {
+        Optional<AdminMusicIngestService.IngestedMusic> dup =
+                ingestService.findExistingDuplicate(title, artist, "");
+        if (dup.isPresent()) {
+            return dup;
+        }
         return ingestService.findBestLocalMatchForBatchItem(title, artist);
     }
 
@@ -261,10 +269,13 @@ public class NeteaseSearchFillService {
         return queries.stream().distinct().toList();
     }
 
-    private static String lockKeyForTitleArtist(String title, String artist) {
-        String t = title == null ? "" : title.trim();
-        String a = artist == null ? "" : artist.trim();
-        return lockKeyForQuery(t + "\0" + a);
+    /** 锁键按核心歌名 + 主歌手，使不同搜索词命中同一曲时互斥 */
+    private static String canonicalIngestLockKey(String title, String artist) {
+        String core = BatchMusicMatchUtil.coreTitle(title == null ? "" : title.trim());
+        String normTitle = ChineseConverter.toSimplified(core).toLowerCase(Locale.ROOT);
+        List<String> tokens = BatchMusicMatchUtil.artistTokens(artist == null ? "" : artist.trim());
+        String primary = tokens.isEmpty() ? "" : tokens.get(0);
+        return lockKeyForQuery(normTitle + "\0" + primary);
     }
 
     private boolean tryAcquireRedisLock(String lockKey) {
@@ -301,6 +312,20 @@ public class NeteaseSearchFillService {
             Path workDir
     ) throws IOException, SQLException {
         long songId = candidate.id();
+        ReentrantLock songLock = NETEASE_SONG_LOCKS.computeIfAbsent(songId, k -> new ReentrantLock());
+        songLock.lock();
+        try {
+            return downloadAndIngestUnderLock(candidate, workDir, songId);
+        } finally {
+            songLock.unlock();
+        }
+    }
+
+    private Optional<AdminMusicIngestService.IngestedMusic> downloadAndIngestUnderLock(
+            NeteaseCloudMusicClient.NeteaseSongCandidate candidate,
+            Path workDir,
+            long songId
+    ) throws IOException, SQLException {
         NeteaseCloudMusicClient.SongDetail detail = neteaseClient.fetchSongDetail(songId)
                 .orElse(new NeteaseCloudMusicClient.SongDetail(
                         candidate.title(),
@@ -317,13 +342,10 @@ public class NeteaseSearchFillService {
             album = "未知专辑";
         }
 
-        if (ingestService.isDuplicateMusic(title, artist, album)) {
-            try {
-                return ingestService.findBestLocalMatchForBatchItem(title, artist);
-            } catch (SQLException e) {
-                logger.warn("重复曲库查询失败 title={}: {}", title, e.getMessage());
-                return Optional.empty();
-            }
+        Optional<AdminMusicIngestService.IngestedMusic> existing =
+                ingestService.findExistingDuplicate(title, artist, album);
+        if (existing.isPresent()) {
+            return existing;
         }
 
         NeteaseCloudMusicClient.SongPlayUrl playUrl = neteaseClient
@@ -371,17 +393,21 @@ public class NeteaseSearchFillService {
                 durationSec,
                 config.getNeteaseFillUploadUserId()
         );
-        if (ingested.isPresent()) {
+        Optional<AdminMusicIngestService.IngestedMusic> result = ingested.isPresent()
+                ? ingested
+                : ingestService.findExistingDuplicate(title, artist, album);
+        if (result.isPresent()) {
+            int ingestedMusicId = result.get().id();
             lyricsPrep.invalidLyricsAlert().ifPresent(alert ->
                     Main.getEmailService().scheduleNeteaseInvalidLyricsAlertToAdmins(
                             alert.neteaseSongId(),
-                            ingested.get().id(),
+                            ingestedMusicId,
                             alert.title(),
                             alert.artist(),
                             alert.fullOriginalLyrics(),
                             alert.reason()));
         }
-        return ingested;
+        return result;
     }
 
     private record InvalidLyricsAlert(
