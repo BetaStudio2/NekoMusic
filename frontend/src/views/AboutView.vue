@@ -40,7 +40,7 @@
         <p class="about-p">本项目遵循 MIT 开源协议，欢迎贡献代码、提出建议和反馈问题。</p>
         <div class="links">
           <a
-            href="https://github.com/NyaNyagulugulu/NekoMusicDocs"
+            href="https://github.com/FantasyNetworkCN/NekoMusicDocs"
             target="_blank"
             rel="noopener noreferrer"
             class="link-btn"

@@ -6,4 +6,4 @@
 	url = git@github.com:FantasyNetworkCN/NekoMusicForAndroid.git
 [submodule "Neko云音乐文档"]
 	path = Neko云音乐文档
-	url = https://github.com/NyaNyagulugulu/NekoMusicDocs
+	url = https://github.com/FantasyNetworkCN/NekoMusicDocs

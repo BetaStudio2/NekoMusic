@@ -17,7 +17,7 @@
           <router-link to="/download" class="intro__chip">下载客户端</router-link>
           <router-link v-if="isLoggedIn" to="/upload" class="intro__chip">上传音乐</router-link>
           <a
-            href="https://github.com/NyaNyagulugulu/NekoMusicDocs"
+            href="https://github.com/FantasyNetworkCN/NekoMusicDocs"
             target="_blank"
             rel="noopener noreferrer"
             class="intro__chip"
