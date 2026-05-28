@@ -110,6 +110,18 @@ public class ConfigManager {
     private String zpayPublicBaseUrl = "";
     private String zpayFrontendReturnUrl = "";
 
+    /** 每日推荐 AI（OpenAI 兼容） */
+    private boolean recommendationAiEnabled = false;
+    private String recommendationAiBaseUrl = "https://api.openai.com/v1";
+    private String recommendationAiApiKey = "";
+    private String recommendationAiModel = "gpt-4o-mini";
+    private double recommendationAiTemperature = 0.3d;
+    private double recommendationAiTopP = 0.9d;
+    private int recommendationAiMaxTokens = 800;
+    private int recommendationAiTimeoutSeconds = 20;
+    private int recommendationAiDailyLimit = 30;
+    private boolean recommendationAiFallbackToRule = true;
+
     private ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
 
     public void loadConfig() {
@@ -325,6 +337,42 @@ public class ConfigManager {
                     if (zpayNode.has("public_base_url")) zpayPublicBaseUrl = zpayNode.get("public_base_url").asText("").trim();
                     if (zpayNode.has("frontend_return_url")) zpayFrontendReturnUrl = zpayNode.get("frontend_return_url").asText("").trim();
                 }
+
+                JsonNode recommendationAiNode = configNode.get("recommendation_ai");
+                if (recommendationAiNode != null) {
+                    if (recommendationAiNode.has("enabled")) {
+                        recommendationAiEnabled = recommendationAiNode.get("enabled").asBoolean();
+                    }
+                    if (recommendationAiNode.has("base_url")) {
+                        recommendationAiBaseUrl = recommendationAiNode.get("base_url")
+                                .asText(recommendationAiBaseUrl).trim();
+                    }
+                    if (recommendationAiNode.has("api_key")) {
+                        recommendationAiApiKey = recommendationAiNode.get("api_key").asText("").trim();
+                    }
+                    if (recommendationAiNode.has("model")) {
+                        recommendationAiModel = recommendationAiNode.get("model")
+                                .asText(recommendationAiModel).trim();
+                    }
+                    if (recommendationAiNode.has("temperature")) {
+                        recommendationAiTemperature = recommendationAiNode.get("temperature").asDouble();
+                    }
+                    if (recommendationAiNode.has("top_p")) {
+                        recommendationAiTopP = recommendationAiNode.get("top_p").asDouble();
+                    }
+                    if (recommendationAiNode.has("max_tokens")) {
+                        recommendationAiMaxTokens = recommendationAiNode.get("max_tokens").asInt();
+                    }
+                    if (recommendationAiNode.has("timeout_seconds")) {
+                        recommendationAiTimeoutSeconds = recommendationAiNode.get("timeout_seconds").asInt();
+                    }
+                    if (recommendationAiNode.has("daily_limit")) {
+                        recommendationAiDailyLimit = recommendationAiNode.get("daily_limit").asInt();
+                    }
+                    if (recommendationAiNode.has("fallback_to_rule")) {
+                        recommendationAiFallbackToRule = recommendationAiNode.get("fallback_to_rule").asBoolean();
+                    }
+                }
             }
 
             clampPerformanceConfig();
@@ -351,6 +399,9 @@ public class ConfigManager {
                     neteaseSearchFillEnabled, neteaseApiBaseUrl, neteaseQuality, !neteaseCookie.isEmpty());
             logger.info("  ZPay 支付: enabled={}, pidConfigured={}, publicBaseUrlConfigured={}",
                     zpayEnabled, !zpayPid.isEmpty(), !zpayPublicBaseUrl.isEmpty());
+            logger.info("  推荐 AI(OpenAI): enabled={}, baseUrl={}, model={}, apiKeyConfigured={}, dailyLimit={}, fallbackToRule={}",
+                    recommendationAiEnabled, recommendationAiBaseUrl, recommendationAiModel,
+                    !recommendationAiApiKey.isEmpty(), recommendationAiDailyLimit, recommendationAiFallbackToRule);
         } catch (Exception e) {
             logger.error("加载配置时出错", e);
             clampPerformanceConfig();
@@ -379,6 +430,17 @@ public class ConfigManager {
         if (neteaseFillLanguage == null) {
             neteaseFillLanguage = "";
         }
+        if (recommendationAiBaseUrl == null || recommendationAiBaseUrl.isBlank()) {
+            recommendationAiBaseUrl = "https://api.openai.com/v1";
+        }
+        if (recommendationAiModel == null || recommendationAiModel.isBlank()) {
+            recommendationAiModel = "gpt-4o-mini";
+        }
+        recommendationAiTemperature = Math.max(0.0d, Math.min(2.0d, recommendationAiTemperature));
+        recommendationAiTopP = Math.max(0.0d, Math.min(1.0d, recommendationAiTopP));
+        recommendationAiMaxTokens = Math.max(64, Math.min(16_384, recommendationAiMaxTokens));
+        recommendationAiTimeoutSeconds = Math.max(3, Math.min(300, recommendationAiTimeoutSeconds));
+        recommendationAiDailyLimit = Math.max(1, Math.min(500, recommendationAiDailyLimit));
         if (videoRenderFfmpegPath == null || videoRenderFfmpegPath.isBlank()) {
             videoRenderFfmpegPath = "auto";
         }
@@ -718,6 +780,46 @@ public class ConfigManager {
             return "";
         }
         return site + "/vip";
+    }
+
+    public boolean isRecommendationAiEnabled() {
+        return recommendationAiEnabled;
+    }
+
+    public String getRecommendationAiBaseUrl() {
+        return trimTrailingSlash(recommendationAiBaseUrl);
+    }
+
+    public String getRecommendationAiApiKey() {
+        return recommendationAiApiKey == null ? "" : recommendationAiApiKey;
+    }
+
+    public String getRecommendationAiModel() {
+        return recommendationAiModel;
+    }
+
+    public double getRecommendationAiTemperature() {
+        return recommendationAiTemperature;
+    }
+
+    public double getRecommendationAiTopP() {
+        return recommendationAiTopP;
+    }
+
+    public int getRecommendationAiMaxTokens() {
+        return recommendationAiMaxTokens;
+    }
+
+    public int getRecommendationAiTimeoutSeconds() {
+        return recommendationAiTimeoutSeconds;
+    }
+
+    public int getRecommendationAiDailyLimit() {
+        return recommendationAiDailyLimit;
+    }
+
+    public boolean isRecommendationAiFallbackToRule() {
+        return recommendationAiFallbackToRule;
     }
 
     /** 从 public_base_url 推出站点根（用于 return_url 默认 /vip） */

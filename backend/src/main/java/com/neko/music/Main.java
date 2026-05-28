@@ -13,6 +13,7 @@ import com.neko.music.handlers.*;
 
 import com.neko.music.service.AdminAuthService;
 import com.neko.music.service.EmailService;
+import com.neko.music.service.DailyRecommendationService;
 import com.neko.music.service.NotificationService;
 import com.neko.music.service.PlaylistService;
 import com.neko.music.service.RedisService;
@@ -43,7 +44,14 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.EnumSet;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class Main {
     static {
@@ -78,6 +86,8 @@ public class Main {
     private static SliderCaptchaService sliderCaptchaService;
     private static AdminMusicIngestService adminMusicIngestService;
     private static NeteaseSearchFillService neteaseSearchFillService;
+    private static DailyRecommendationService dailyRecommendationService;
+    private static ScheduledExecutorService dailyRecommendationScheduler;
 
     public static void main(String[] args) throws Exception {
         // 设置JVM默认时区为中国标准时间（UTC+8）
@@ -139,6 +149,9 @@ public class Main {
                 new NeteaseCloudMusicClient(configManager, objectMapper),
                 adminMusicIngestService,
                 redisService);
+        dailyRecommendationService = new DailyRecommendationService(
+                databaseManager, redisService, configManager, objectMapper);
+        startDailyRecommendationScheduler();
 
         // 初始化歌单服务
         playlistService = new PlaylistService(databaseManager);
@@ -316,6 +329,10 @@ public class Main {
         // 注册用户收藏歌单API处理器
         ServletHolder userFavoritePlaylistHolder = new ServletHolder(new UserFavoritePlaylistHandler());
         context.addServlet(userFavoritePlaylistHolder, "/api/user/favorite-playlists/*");
+
+        // 注册用户每日推荐API处理器
+        ServletHolder userDailyRecoHolder = new ServletHolder(new UserDailyRecommendationHandler());
+        context.addServlet(userDailyRecoHolder, "/api/user/recommendations/daily");
         
         // 注册用户管理API处理器（管理员权限）
         ServletHolder userManagementHolder = new ServletHolder(new UserManagementHandler());
@@ -391,6 +408,7 @@ public class Main {
         logger.info("  POST /api/user/favorite-playlists - 收藏歌单 (需要用户登录)");
         logger.info("  DELETE /api/user/favorite-playlists/{id} - 取消收藏歌单 (需要用户登录)");
         logger.info("  GET /api/user/favorite-playlists/{id} - 获取收藏歌单内音乐 (需要用户登录)");
+        logger.info("  GET /api/user/recommendations/daily - 获取每日推荐 (需要用户登录)");
         logger.info("  GET /api/music/list - 获取音乐列表 (需要管理员登录)");
         logger.info("  GET /api/music/{id} - 获取特定音乐 (需要管理员登录)");
         logger.info("  GET /api/music/info/{id} - 获取音乐信息");
@@ -527,6 +545,10 @@ public class Main {
     public static NeteaseSearchFillService getNeteaseSearchFillService() {
         return neteaseSearchFillService;
     }
+
+    public static DailyRecommendationService getDailyRecommendationService() {
+        return dailyRecommendationService;
+    }
     
     public static EmailService getEmailService() {
         return emailService;
@@ -574,5 +596,32 @@ public class Main {
 
     public static Gson getGson() {
         return gson;
+    }
+
+    private static void startDailyRecommendationScheduler() {
+        ZoneId zone = ZoneId.of("Asia/Shanghai");
+        ZonedDateTime now = ZonedDateTime.now(zone);
+        ZonedDateTime nextMidnight = now.toLocalDate().plusDays(1).atStartOfDay(zone);
+        long initialDelayMs = Duration.between(now, nextMidnight).toMillis();
+        long periodMs = Duration.ofDays(1).toMillis();
+
+        dailyRecommendationScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "daily-reco-scheduler");
+            t.setDaemon(true);
+            return t;
+        });
+
+        dailyRecommendationScheduler.scheduleAtFixedRate(() -> {
+            LocalDate today = LocalDate.now(zone);
+            try {
+                logger.info("开始执行每日推荐任务 date={} timezone=Asia/Shanghai", today);
+                dailyRecommendationService.regenerateForAllUsers(today);
+                logger.info("每日推荐任务完成 date={}", today);
+            } catch (Exception e) {
+                logger.error("每日推荐任务执行失败 date={}", today, e);
+            }
+        }, initialDelayMs, periodMs, TimeUnit.MILLISECONDS);
+
+        logger.info("每日推荐定时任务已启动：Asia/Shanghai 每日00:00执行，首次延迟 {} 秒", initialDelayMs / 1000);
     }
 }
