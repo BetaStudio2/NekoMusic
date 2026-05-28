@@ -130,3 +130,71 @@ curl -s -X POST 'https://music.cnmsb.xin/api/sensitive-word/check' \
 
 - 本接口仅做检测，不写库；实际上传、注册、歌单等接口仍会再次校验。
 - 修改词表后需重新部署后端 jar 后生效。
+
+## 每日推荐（AI + Redis）
+
+后端已接入每日推荐能力，按用户收藏风格生成推荐列表，默认使用 OpenAI 兼容接口做重排。
+
+### 核心行为
+
+- 每天 **UTC+8 00:00** 自动执行全量日更任务（服务启动后注册定时器）。
+- 推荐结果只存 **Redis**（Redis-only），不依赖 MySQL 推荐结果表。
+- 对每个用户都执行**已收藏硬过滤**：推荐列表中不会出现 `user_favorites` 已收藏歌曲。
+- 若当天缓存不存在，接口会按需即时生成并写回 Redis。
+
+### 配置项（`backend/src/main/resources/config.yml`）
+
+`recommendation_ai` 主要字段：
+
+- `enabled`: 是否启用 AI 重排
+- `base_url`: OpenAI 兼容网关地址（例如 `https://api.openai.com/v1`）
+- `api_key`: API Key
+- `model`: 模型名
+- `temperature` / `top_p` / `max_tokens`
+- `timeout_seconds`: 单次调用超时
+- `daily_limit`: 每用户每天返回数量（默认 30）
+- `fallback_to_rule`: AI 失败是否回退规则排序
+
+### 存储设计（Redis）
+
+- Key：`daily_reco:{yyyy-MM-dd}:{userId}`
+- Value：JSON 数组（包含 `rank/musicId/title/artist/album/language/tags/score/source/reason`）
+- TTL：72 小时（跨日容错）
+
+### 接口
+
+- `GET /api/user/recommendations/daily`
+  - 需要用户登录 token（`Authorization`）
+  - 返回当天推荐结果
+- `GET /api/user/recommendations/daily?refresh=true`
+  - 强制重算当前用户当天推荐并覆盖 Redis
+
+### 返回示例
+
+```json
+{
+  "success": true,
+  "date": "2026-05-28",
+  "count": 30,
+  "data": [
+    {
+      "rank": 1,
+      "musicId": 13751,
+      "title": "天使ロード中…^_−☆",
+      "artist": "三Z-STUDIO&HOYO-MiX",
+      "album": "绝区零-天使加载中…^_−☆",
+      "language": "日语",
+      "tags": "二次元，日语，游戏",
+      "score": 4.93,
+      "source": "ai",
+      "reason": "与近期收藏艺人与标签更匹配"
+    }
+  ]
+}
+```
+
+### 运维说明
+
+- Redis 需开启持久化（RDB 或 AOF），避免重启后丢失当日推荐缓存。
+- `daily_limit` 提升会线性增加 token 消耗与响应体大小。
+- 若发现推荐理由异常，可先用 `refresh=true` 观察重算结果，再检查 `base_url/model/prompt` 配置。
