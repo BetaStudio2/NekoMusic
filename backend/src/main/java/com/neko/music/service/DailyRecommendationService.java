@@ -80,15 +80,19 @@ public class DailyRecommendationService {
         }
 
         Set<Integer> favoriteIds = loadUserFavoriteIds(userId);
-        List<SongCandidate> candidates = loadCandidates(userId, favoriteIds, 200);
+        Set<Integer> ownPlaylistMusicIds = loadOwnPlaylistMusicIds(userId);
+        Set<Integer> favoritePlaylistMusicIds = loadFavoritePlaylistMusicIds(userId);
+        int candidateLimit = configManager.getRecommendationAiDailyLimit() * 8;
+        List<SongCandidate> candidates = loadCandidates(userId, favoriteIds, candidateLimit);
         if (candidates.isEmpty()) {
             cacheRecommendations(userId, recDate, List.of(), List.of());
             return;
         }
 
         UserProfile profile = loadUserProfile(userId);
-        List<RecommendationItem> ranked = rankByRule(candidates, profile);
+        List<RecommendationItem> ranked = rankByRule(candidates, profile, ownPlaylistMusicIds, favoritePlaylistMusicIds);
         ranked = applyAiRerankIfEnabled(userId, profile, ranked, candidates);
+        ranked = deprioritizePlaylistMusic(ranked, ownPlaylistMusicIds, favoritePlaylistMusicIds);
         ranked = strictFilterFavorites(ranked, favoriteIds);
 
         int limit = configManager.getRecommendationAiDailyLimit();
@@ -123,6 +127,7 @@ public class DailyRecommendationService {
         return value != null && !value.isBlank() && !"[]".equals(value.trim());
     }
 
+    /** 已收藏曲目：硬排除，不出现在推荐列表。 */
     private Set<Integer> loadUserFavoriteIds(int userId) {
         Set<Integer> ids = new HashSet<>();
         String sql = "SELECT music_id FROM user_favorites WHERE user_id=?";
@@ -136,6 +141,52 @@ public class DailyRecommendationService {
             }
         } catch (Exception e) {
             logger.error("查询用户收藏失败 userId={}", userId, e);
+        }
+        return ids;
+    }
+
+    /** 用户自建歌单内曲目：降权，仍可能进入推荐。 */
+    private Set<Integer> loadOwnPlaylistMusicIds(int userId) {
+        Set<Integer> ids = new HashSet<>();
+        String sql = """
+                SELECT DISTINCT pm.music_id
+                FROM playlist_music pm
+                INNER JOIN playlists p ON p.id = pm.playlist_id
+                WHERE p.user_id = ?
+                """;
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    ids.add(rs.getInt("music_id"));
+                }
+            }
+        } catch (Exception e) {
+            logger.error("查询用户歌单曲目失败 userId={}", userId, e);
+        }
+        return ids;
+    }
+
+    /** 用户收藏歌单内曲目：降权（弱于自建歌单），仍可能进入推荐。 */
+    private Set<Integer> loadFavoritePlaylistMusicIds(int userId) {
+        Set<Integer> ids = new HashSet<>();
+        String sql = """
+                SELECT DISTINCT pm.music_id
+                FROM playlist_music pm
+                INNER JOIN user_favorite_playlists ufp ON ufp.playlist_id = pm.playlist_id
+                WHERE ufp.user_id = ?
+                """;
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    ids.add(rs.getInt("music_id"));
+                }
+            }
+        } catch (Exception e) {
+            logger.error("查询收藏歌单曲目失败 userId={}", userId, e);
         }
         return ids;
     }
@@ -217,7 +268,13 @@ public class DailyRecommendationService {
         return list;
     }
 
-    private List<RecommendationItem> rankByRule(List<SongCandidate> candidates, UserProfile profile) {
+    private static final double PENALTY_OWN_PLAYLIST = 2.5;
+    private static final double PENALTY_FAVORITE_PLAYLIST = 1.2;
+
+    private List<RecommendationItem> rankByRule(List<SongCandidate> candidates,
+                                              UserProfile profile,
+                                              Set<Integer> ownPlaylistMusicIds,
+                                              Set<Integer> favoritePlaylistMusicIds) {
         List<RecommendationItem> list = new ArrayList<>();
         for (SongCandidate c : candidates) {
             double score = 0;
@@ -240,10 +297,36 @@ public class DailyRecommendationService {
                     score += 1.5;
                 }
             }
+            if (ownPlaylistMusicIds.contains(c.id)) {
+                score -= PENALTY_OWN_PLAYLIST;
+            } else if (favoritePlaylistMusicIds.contains(c.id)) {
+                score -= PENALTY_FAVORITE_PLAYLIST;
+            }
             list.add(new RecommendationItem(c.id, score, "rule", "基于收藏风格匹配"));
         }
         list.sort(Comparator.comparingDouble(RecommendationItem::score).reversed());
         return list;
+    }
+
+    /** AI 重排后仍将歌单内曲目靠后排列，避免被顶到前列。 */
+    private List<RecommendationItem> deprioritizePlaylistMusic(List<RecommendationItem> ranked,
+                                                               Set<Integer> ownPlaylistMusicIds,
+                                                               Set<Integer> favoritePlaylistMusicIds) {
+        List<RecommendationItem> primary = new ArrayList<>();
+        List<RecommendationItem> fromFavoritePlaylist = new ArrayList<>();
+        List<RecommendationItem> fromOwnPlaylist = new ArrayList<>();
+        for (RecommendationItem item : ranked) {
+            if (ownPlaylistMusicIds.contains(item.musicId)) {
+                fromOwnPlaylist.add(item);
+            } else if (favoritePlaylistMusicIds.contains(item.musicId)) {
+                fromFavoritePlaylist.add(item);
+            } else {
+                primary.add(item);
+            }
+        }
+        primary.addAll(fromFavoritePlaylist);
+        primary.addAll(fromOwnPlaylist);
+        return primary;
     }
 
     private List<RecommendationItem> applyAiRerankIfEnabled(int userId,
