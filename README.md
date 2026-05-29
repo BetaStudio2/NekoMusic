@@ -139,7 +139,8 @@ curl -s -X POST 'https://music.cnmsb.xin/api/sensitive-word/check' \
 
 - 每天 **UTC+8 00:00** 自动执行全量日更任务（服务启动后注册定时器）。
 - 推荐结果只存 **Redis**（Redis-only），不依赖 MySQL 推荐结果表。
-- 对每个用户都执行**已收藏硬过滤**：推荐列表中不会出现 `user_favorites` 已收藏歌曲。
+- **已收藏歌曲硬过滤**：推荐列表不会出现 `user_favorites` 中的曲目。
+- **歌单内歌曲降权**：用户自建歌单、已收藏歌单中的曲目仍可能入选，但规则打分降低并在排序中靠后。
 - 若当天缓存不存在，接口会按需即时生成并写回 Redis。
 
 ### 配置项（`backend/src/main/resources/config.yml`）
