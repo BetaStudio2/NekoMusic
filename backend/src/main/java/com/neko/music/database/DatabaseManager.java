@@ -26,7 +26,8 @@ public class DatabaseManager {
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl("jdbc:mysql://" + configManager.getMysqlHost() + ":" +
                          configManager.getMysqlPort() + "/" + configManager.getMysqlDatabase() +
-                         "?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true" +
+                         "?useSSL=false&serverTimezone=Asia/Shanghai&connectionTimeZone=Asia/Shanghai" +
+                         "&forceConnectionTimeZoneToSession=true&allowPublicKeyRetrieval=true" +
                          "&cachePrepStmts=true&prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048&useServerPrepStmts=true");
         config.setUsername(configManager.getMysqlUsername());
         config.setPassword(configManager.getMysqlPassword());
@@ -54,7 +55,7 @@ public class DatabaseManager {
                     username VARCHAR(50) NOT NULL,
                     password VARCHAR(255) NOT NULL,
                     email VARCHAR(100) UNIQUE NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """;
             try (PreparedStatement stmt = conn.prepareStatement(createUserTable)) {
@@ -397,6 +398,8 @@ public class DatabaseManager {
                 logger.debug("play_count 字段可能已存在，跳过添加");
             }
 
+            migrateUsersCreatedAtToDatetime(conn);
+
             // 为已存在的 users 表迁移约束（移除username唯一约束，添加email唯一约束）
             try {
                 // 检查是否有username的唯一索引
@@ -584,6 +587,38 @@ public class DatabaseManager {
             logger.info("数据库表初始化完成");
         } catch (SQLException e) {
             logger.error("数据库表初始化失败", e);
+        }
+    }
+
+    /**
+     * users.created_at 使用 DATETIME 存东八区墙钟，避免 TIMESTAMP 在客户端显示为 UTC。
+     */
+    private void migrateUsersCreatedAtToDatetime(Connection conn) {
+        try {
+            String checkType = """
+                SELECT DATA_TYPE FROM information_schema.columns
+                WHERE table_schema = DATABASE()
+                AND table_name = 'users'
+                AND column_name = 'created_at'
+                """;
+            try (PreparedStatement stmt = conn.prepareStatement(checkType);
+                 ResultSet rs = stmt.executeQuery()) {
+                if (rs.next() && "timestamp".equalsIgnoreCase(rs.getString(1))) {
+                    try (var tz = conn.createStatement()) {
+                        tz.execute("SET time_zone = '+08:00'");
+                    }
+                    String alter = """
+                        ALTER TABLE users
+                        MODIFY created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        """;
+                    try (PreparedStatement alterStmt = conn.prepareStatement(alter)) {
+                        alterStmt.execute();
+                        logger.info("已将 users.created_at 从 TIMESTAMP 迁移为 DATETIME（东八区墙钟）");
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            logger.debug("users.created_at 迁移为 DATETIME 跳过或失败: {}", e.getMessage());
         }
     }
 

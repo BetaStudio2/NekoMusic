@@ -3,6 +3,7 @@ package com.neko.music.service;
 import com.neko.music.config.ConfigManager;
 import com.neko.music.database.DatabaseManager;
 import com.neko.music.model.User;
+import com.neko.music.util.DbTimeUtil;
 import de.mkammerer.argon2.Argon2;
 import de.mkammerer.argon2.Argon2Factory;
 import org.slf4j.Logger;
@@ -53,17 +54,34 @@ public class UserAuthService {
 
         String hashedPassword = hashPassword(password);
 
-        String sql = "INSERT INTO users (username, password, email, created_at) VALUES (?, ?, ?, NOW())";
+        String sql = "INSERT INTO users (username, password, email, created_at) VALUES (?, ?, ?, "
+                + DbTimeUtil.SQL_NOW_SHANGHAI + ")";
 
         try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+             PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
             stmt.setString(1, username);
             stmt.setString(2, hashedPassword);
             stmt.setString(3, email);
 
             int affectedRows = stmt.executeUpdate();
-            logger.info("用户注册结果: {}, 用户名: {}", affectedRows > 0, username);
+            String storedCreatedAt = null;
+            try (ResultSet keys = stmt.getGeneratedKeys()) {
+                if (keys.next()) {
+                    int userId = keys.getInt(1);
+                    try (PreparedStatement read = conn.prepareStatement(
+                            "SELECT created_at FROM users WHERE id = ?")) {
+                        read.setInt(1, userId);
+                        try (ResultSet rs = read.executeQuery()) {
+                            if (rs.next()) {
+                                storedCreatedAt = DbTimeUtil.formatStoredWallClock(rs.getString("created_at"));
+                            }
+                        }
+                    }
+                }
+            }
+            logger.info("用户注册结果: {}, 用户名: {}, created_at(+08)={}",
+                    affectedRows > 0, username, storedCreatedAt != null ? storedCreatedAt : DbTimeUtil.nowShanghaiWallClock());
             return affectedRows > 0;
         } catch (SQLException e) {
             logger.error("用户注册失败: {}", e.getMessage(), e);
@@ -95,7 +113,7 @@ public class UserAuthService {
                     user.setId(rs.getInt("id"));
                     user.setUsername(rs.getString("username"));
                     user.setEmail(rs.getString("email"));
-                    user.setCreatedAt(rs.getString("created_at"));
+                    user.setCreatedAt(DbTimeUtil.formatStoredWallClock(rs.getString("created_at")));
                     java.sql.Timestamp vipTs = rs.getTimestamp("vip_expires_at");
                     user.setVipExpiresAt(rs.wasNull() ? null : vipTs);
 
