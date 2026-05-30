@@ -137,6 +137,10 @@ public class MusicLyricsHandler extends HttpServlet {
             response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
+
+        if (Main.getLyricsSearchIndex() != null) {
+            Main.getLyricsSearchIndex().rebuildOne(musicId);
+        }
         
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");

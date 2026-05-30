@@ -140,6 +140,9 @@ public class AdminMusicIngestService {
             Path lyricsDest = MusicAssetLocator.lyricsDir().resolve(musicId + ".lrc");
             Files.createDirectories(lyricsDest.getParent());
             Files.copy(lyricsTemp, lyricsDest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            if (com.neko.music.Main.getLyricsSearchIndex() != null) {
+                com.neko.music.Main.getLyricsSearchIndex().rebuildOne(musicId);
+            }
 
             IngestedMusic row = loadIngestedMusic(musicId);
             logger.info("网易云补全入库成功 id={} title={}", musicId, title);

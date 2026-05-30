@@ -692,6 +692,9 @@ public class MusicManagementHandler extends HttpServlet {
             java.nio.file.Files.write(lyricsFile.toPath(), lyricsContent.getBytes("UTF-8"));
             
             logger.info("歌词文件已保存: {}", lyricsFile.getAbsolutePath());
+            if (Main.getLyricsSearchIndex() != null) {
+                Main.getLyricsSearchIndex().rebuildOne(musicId);
+            }
         } catch (Exception e) {
             logger.error("保存歌词文件失败: {}", e.getMessage(), e);
         }

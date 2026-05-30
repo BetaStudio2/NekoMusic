@@ -984,6 +984,9 @@ public class FileUploadHandler extends HttpServlet {
             }
             
             logger.info("歌词文件已保存到: " + lyricsFile.toAbsolutePath());
+            if (Main.getLyricsSearchIndex() != null) {
+                Main.getLyricsSearchIndex().rebuildOne(musicId);
+            }
         } catch (Exception e) {
             logger.error("保存歌词文件失败", e);
         }

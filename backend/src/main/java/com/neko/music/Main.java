@@ -14,6 +14,7 @@ import com.neko.music.handlers.*;
 import com.neko.music.service.AdminAuthService;
 import com.neko.music.service.EmailService;
 import com.neko.music.service.DailyRecommendationService;
+import com.neko.music.service.LyricsSearchIndex;
 import com.neko.music.service.NotificationService;
 import com.neko.music.service.PlaylistService;
 import com.neko.music.service.RedisService;
@@ -87,6 +88,7 @@ public class Main {
     private static AdminMusicIngestService adminMusicIngestService;
     private static NeteaseSearchFillService neteaseSearchFillService;
     private static DailyRecommendationService dailyRecommendationService;
+    private static LyricsSearchIndex lyricsSearchIndex;
     private static ScheduledExecutorService dailyRecommendationScheduler;
 
     public static void main(String[] args) throws Exception {
@@ -152,6 +154,9 @@ public class Main {
         dailyRecommendationService = new DailyRecommendationService(
                 databaseManager, redisService, configManager, objectMapper);
         startDailyRecommendationScheduler();
+
+        lyricsSearchIndex = new LyricsSearchIndex();
+        lyricsSearchIndex.buildIndexAsync();
 
         // 初始化歌单服务
         playlistService = new PlaylistService(databaseManager);
@@ -548,6 +553,10 @@ public class Main {
 
     public static DailyRecommendationService getDailyRecommendationService() {
         return dailyRecommendationService;
+    }
+
+    public static LyricsSearchIndex getLyricsSearchIndex() {
+        return lyricsSearchIndex;
     }
     
     public static EmailService getEmailService() {

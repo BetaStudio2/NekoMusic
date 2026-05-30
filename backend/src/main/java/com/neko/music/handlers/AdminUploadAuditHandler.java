@@ -340,6 +340,9 @@ public class AdminUploadAuditHandler extends HttpServlet {
                 newLyricsPath = Paths.get(MUSIC_LYRICS_DIR, newLyricsFileName).toString();
                 Files.move(Paths.get(tempLyricsPath), Paths.get(newLyricsPath), StandardCopyOption.REPLACE_EXISTING);
                 logger.info("重命名歌词文件: {} -> {}", tempLyricsPath, newLyricsPath);
+                if (Main.getLyricsSearchIndex() != null) {
+                    Main.getLyricsSearchIndex().rebuildOne(musicId);
+                }
             }
 
             // 在事务内更新user_uploads表状态为approved
