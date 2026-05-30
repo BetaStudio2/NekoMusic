@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.neko.music.Main;
 import com.neko.music.service.AdminMusicIngestService;
 import com.neko.music.service.NeteaseSearchFillService;
@@ -119,9 +120,6 @@ public class MusicSearchHandler extends HttpServlet {
                 }
             }
 
-            if (music != null) {
-                fillLrcFlag(music);
-            }
             results.add(music);
             if (music != null) {
                 foundCount++;
@@ -306,10 +304,10 @@ public class MusicSearchHandler extends HttpServlet {
         }
         var index = Main.getLyricsSearchIndex();
         if (index != null && index.isReady()) {
-            music.setLrc(index.hasIndexedLyrics(music.getId()));
+            music.setLrc(index.hasIndexedLyrics(music.getId()) ? Boolean.TRUE : Boolean.FALSE);
             return;
         }
-        music.setLrc(com.neko.music.util.MusicAssetLocator.findLyricsFile(music.getId())
+        boolean has = com.neko.music.util.MusicAssetLocator.findLyricsFile(music.getId())
                 .map(path -> {
                     try {
                         String plain = com.neko.music.util.LyricsPlainTextExtractor.fromLrc(
@@ -319,7 +317,8 @@ public class MusicSearchHandler extends HttpServlet {
                         return false;
                     }
                 })
-                .orElse(false));
+                .orElse(false);
+        music.setLrc(has ? Boolean.TRUE : Boolean.FALSE);
     }
 
     /**
@@ -479,7 +478,6 @@ public class MusicSearchHandler extends HttpServlet {
         music.setDuration(row.duration());
         music.setUploadUserId(row.uploadUserId());
         music.setCreatedAt(row.createdAt());
-        fillLrcFlag(music);
         return music;
     }
 
@@ -531,8 +529,8 @@ public class MusicSearchHandler extends HttpServlet {
         private String artistPinyinInitials;
         private String artistWordInitials;
         private String albumPinyin;
-        /** 是否有有效歌词文件（非占位）；与本次搜索匹配方式无关 */
-        private boolean lrc;
+        /** 是否有有效歌词（仅单条 query 搜索响应会返回此字段） */
+        private Boolean lrc;
 
         public int getId() { return id; }
         public void setId(int id) { this.id = id; }
@@ -548,8 +546,9 @@ public class MusicSearchHandler extends HttpServlet {
         public void setUploadUserId(int uploadUserId) { this.uploadUserId = uploadUserId; }
         public String getCreatedAt() { return createdAt; }
         public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
-        public boolean isLrc() { return lrc; }
-        public void setLrc(boolean lrc) { this.lrc = lrc; }
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        public Boolean getLrc() { return lrc; }
+        public void setLrc(Boolean lrc) { this.lrc = lrc; }
         @JsonIgnore
         public String getTitlePinyin() { return titlePinyin; }
         public void setTitlePinyin(String titlePinyin) { this.titlePinyin = titlePinyin; }
