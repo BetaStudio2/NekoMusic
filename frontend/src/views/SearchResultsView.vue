@@ -52,7 +52,10 @@
                     @click="goMusicDetail(result)"
                     @keydown.enter.prevent="goMusicDetail(result)"
                   >
-                    <span class="result-title">{{ result.title }}</span>
+                    <span class="result-title">
+                      <span class="result-title__text">{{ result.title }}</span>
+                      <LrcBadge :show="!!result.lrc" />
+                    </span>
                     <span class="result-meta">{{ result.artist }}</span>
                     <span class="result-sub">{{ result.album || '未知专辑' }}</span>
                   </div>
@@ -205,6 +208,7 @@
 import { ref, watch, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
+import LrcBadge from '@/components/LrcBadge.vue'
 import { useToast } from 'vue-toastification'
 const toast = useToast()
 
@@ -935,9 +939,17 @@ onMounted(async () => {
 }
 
 .result-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
   font-weight: 700;
   font-size: 0.95rem;
   color: var(--text);
+}
+
+.result-title__text {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

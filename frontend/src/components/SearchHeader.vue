@@ -32,7 +32,10 @@
               @error="handleImageError"
             />
             <div class="result-info">
-              <div class="result-title">{{ result.title }}</div>
+              <div class="result-title">
+                <span class="result-title__text">{{ result.title }}</span>
+                <LrcBadge :show="!!result.lrc" />
+              </div>
               <div class="result-artist">作曲：{{ result.artist }}</div>
               <div class="result-album">专辑：{{ result.album || '未知专辑' }}</div>
             </div>
@@ -72,6 +75,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
+import LrcBadge from '@/components/LrcBadge.vue'
 import { syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
 
 defineProps({
@@ -710,12 +714,21 @@ onUnmounted(() => {
 }
 
 .result-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
   font-weight: bold;
   color: #5c4b7b;
+  font-size: 0.9rem;
+}
+
+.result-title__text {
+  flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 0.9rem;
 }
 
 .result-artist {
