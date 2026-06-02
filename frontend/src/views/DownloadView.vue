@@ -23,19 +23,43 @@
           <p class="hero__eyebrow">Neko 云音乐</p>
           <h1 id="download-title" class="hero__title">把播放器装进口袋与桌面</h1>
           <p class="hero__lede">
-            同一套免费体验：搜索、播放、收藏与歌单。选择你的平台，一键获取安装包。
+            同一套免费体验：搜索、播放、收藏与歌单。<strong class="hero__lede-strong">Android / PC 支持从网易云迁入歌单</strong>（链接或歌单 ID，自动匹配站内曲库）。选择你的平台，一键获取安装包。
           </p>
           <ul class="hero__facts">
             <li>完全免费</li>
             <li>开源透明</li>
-            <li>多端一致</li>
+            <li>网易云歌单可迁入</li>
           </ul>
+          <p class="hero__anchor-hint">
+            <a href="#netease-migrate" class="hero__anchor-link">查看迁入步骤与说明</a>
+          </p>
         </div>
         <div class="hero__art">
           <div class="hero__frame">
             <img src="/favicon.ico" alt="" class="hero__logo" height="276" width="256" />
           </div>
           <p class="hero__art-caption">Android · Windows · Linux · macOS</p>
+        </div>
+      </section>
+
+      <section id="netease-migrate" class="netease-panel" aria-labelledby="netease-migrate-title" tabindex="-1">
+        <div class="netease-panel__rail" aria-hidden="true" />
+        <div class="netease-panel__inner">
+          <header class="netease-panel__head">
+            <p class="netease-panel__eyebrow">换播放器不用从零攒歌单</p>
+            <h2 id="netease-migrate-title" class="netease-panel__title">从网易云音乐迁入歌单</h2>
+            <p class="netease-panel__lede">
+              在 <strong>Android</strong> 或 <strong>桌面客户端</strong> 内使用「导入网易云歌单」：粘贴歌单分享链接或歌单 ID，客户端会拉取曲目列表，并在 Neko 曲库中按歌名与歌手匹配后，导入到你指定的歌单。
+            </p>
+            <p class="netease-panel__note">
+              本页 Web 播放器暂不支持该流程；迁入后能否全部播放入库，取决于站内是否已有对应版权/上传资源。开源客户端行为可自查源码，无「背地里同步你网易账号密码」那一套。
+            </p>
+          </header>
+          <ol class="netease-panel__steps">
+            <li><span class="netease-panel__step-num">1</span> 在网易云复制歌单链接，或记下歌单 ID。</li>
+            <li><span class="netease-panel__step-num">2</span> 安装并打开本页下方提供的 Android / Windows / Linux / macOS 客户端。</li>
+            <li><span class="netease-panel__step-num">3</span> 在客户端内找到「导入网易云歌单」，粘贴链接或 ID，选择目标歌单并开始匹配导入。</li>
+          </ol>
         </div>
       </section>
 
@@ -190,7 +214,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import axios from 'axios'
 
 const versionInfo = ref({ ver: '', updateUrl: '' })
@@ -253,6 +277,11 @@ const copyArchCommand = async () => {
 
 onMounted(() => {
   fetchVersionInfo()
+  nextTick(() => {
+    if (typeof window !== 'undefined' && window.location.hash === '#netease-migrate') {
+      document.getElementById('netease-migrate')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  })
 })
 </script>
 
@@ -498,9 +527,39 @@ onMounted(() => {
   font-size: clamp(1rem, 2vw, 1.125rem);
   line-height: 1.65;
   color: var(--muted);
-  max-width: 42ch;
+  max-width: 56ch;
   margin: 0 0 22px;
   animation: riseIn 0.8s var(--ease) 0.22s both;
+}
+
+.hero__lede-strong {
+  color: rgba(255, 255, 255, 0.88);
+  font-weight: 700;
+}
+
+.hero__anchor-hint {
+  margin: 14px 0 0;
+  font-size: 0.9rem;
+  animation: riseIn 0.82s var(--ease) 0.28s both;
+}
+
+.hero__anchor-link {
+  color: var(--accent2);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.hero__anchor-link:focus-visible {
+  outline: 2px solid var(--accent2);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+@media (hover: hover) {
+  .hero__anchor-link:hover {
+    color: #a5f3fc;
+  }
 }
 
 .hero__facts {
@@ -544,6 +603,109 @@ onMounted(() => {
     background: rgba(139, 92, 246, 0.12);
     box-shadow: 0 12px 32px rgba(139, 92, 246, 0.2);
   }
+}
+
+/* —— 网易云迁入说明（锚点 #netease-migrate）—— */
+.netease-panel {
+  position: relative;
+  margin-bottom: clamp(22px, 3.5vw, 32px);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(239, 68, 68, 0.22);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(139, 92, 246, 0.1), rgba(255, 255, 255, 0.03));
+  box-shadow: var(--shadow);
+  scroll-margin-top: 88px;
+  overflow: hidden;
+}
+
+.netease-panel__rail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, #ef4444, var(--accent), var(--accent2));
+}
+
+.netease-panel__inner {
+  padding: clamp(20px, 3.5vw, 28px) clamp(20px, 3.5vw, 28px) clamp(20px, 3.5vw, 28px) clamp(22px, 4vw, 32px);
+}
+
+.netease-panel__eyebrow {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(252, 165, 165, 0.95);
+}
+
+.netease-panel__title {
+  margin: 0 0 12px;
+  font-size: clamp(1.2rem, 2.6vw, 1.45rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.netease-panel__lede {
+  margin: 0 0 12px;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--muted);
+  max-width: 68ch;
+}
+
+.netease-panel__lede strong {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.netease-panel__note {
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--faint);
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  max-width: 72ch;
+}
+
+.netease-panel__steps {
+  margin: 0;
+  padding: 0 0 0 0;
+  list-style: none;
+  counter-reset: netease-step;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.netease-panel__steps li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text);
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.netease-panel__step-num {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 800;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.35), rgba(139, 92, 246, 0.4));
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .hero__art {

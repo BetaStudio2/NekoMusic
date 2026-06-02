@@ -49,8 +49,10 @@ const router = createRouter({
       component: () => import('@/views/HomeView.vue'),
       meta: {
         title: '首页 - Neko云音乐 | 完全免费的音乐平台',
-        description: 'Neko云音乐 - 完全免费的在线音乐播放平台，提供海量免费音乐资源，无需付费，永久免费。发现海量音乐资源，享受高品质音乐体验。',
-        keywords: 'Neko云音乐,免费音乐,在线音乐,音乐播放,免费听歌,永久免费,无广告音乐'
+        description:
+          'Neko云音乐 - 完全免费的在线音乐播放平台；Android / PC 客户端支持从网易云迁入歌单（粘贴链接或歌单 ID，匹配站内曲库）。开源、搜索与播放免费使用。',
+        keywords:
+          'Neko云音乐,免费音乐,在线音乐,音乐播放,免费听歌,永久免费,无广告音乐,网易云歌单迁移,开源音乐'
       }
     },
     {
@@ -69,8 +71,9 @@ const router = createRouter({
       component: () => import('@/views/DownloadView.vue'),
       meta: {
         title: '下载客户端 - Neko云音乐 | 免费音乐应用',
-        description: '下载Neko云音乐客户端，享受完全免费的音乐体验。支持移动端和PC端。无需付费，永久免费。',
-        keywords: 'Neko云音乐下载,APP下载,免费音乐APP,移动音乐,PC下载,桌面音乐'
+        description:
+          '下载 Neko 云音乐 Android / PC 客户端；支持从网易云音乐迁入歌单（链接或 ID）。完全免费、开源透明，多端一致体验。',
+        keywords: 'Neko云音乐下载,APP下载,免费音乐APP,移动音乐,PC下载,桌面音乐,网易云导入歌单'
       }
     },
 

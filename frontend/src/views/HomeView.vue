@@ -11,9 +11,10 @@
       <section class="intro" aria-labelledby="home-title">
         <div class="intro__text">
           <h1 id="home-title" class="intro__title">从这里开始听</h1>
-          <p class="intro__lede">用顶栏搜索与播放；下载、上传与文档从下方进入。</p>
+          <p class="intro__lede">用顶栏搜索与播放；在客户端可<strong class="intro__lede-strong">从网易云迁入歌单</strong>，开源免费、无绑架式社交。</p>
         </div>
         <nav class="intro__nav" aria-label="快捷入口">
+          <router-link to="/download#netease-migrate" class="intro__chip intro__chip--accent">网易云歌单迁入</router-link>
           <router-link to="/download" class="intro__chip">下载客户端</router-link>
           <router-link v-if="isLoggedIn" to="/upload" class="intro__chip">上传音乐</router-link>
           <a
@@ -24,6 +25,17 @@
           >开发者文档</a>
           <router-link to="/playlists" class="intro__chip">歌单</router-link>
         </nav>
+      </section>
+
+      <section class="migrate-strip" aria-labelledby="migrate-title">
+        <div class="migrate-strip__inner">
+          <p class="migrate-strip__eyebrow">从网易云过来？</p>
+          <h2 id="migrate-title" class="migrate-strip__title">歌单链接或 ID，客户端里一键匹配入库</h2>
+          <p class="migrate-strip__text">
+            Android 与 PC 客户端支持粘贴网易云歌单链接，自动拉取曲目并在 Neko 曲库中匹配后导入你的歌单。匹配结果取决于站内是否已有对应歌曲。
+          </p>
+          <router-link to="/download#netease-migrate" class="migrate-strip__cta">查看怎么操作</router-link>
+        </div>
       </section>
 
       <section class="browse" aria-labelledby="browse-heading">
@@ -339,7 +351,12 @@ onUnmounted(() => {
   font-size: clamp(0.88rem, 1.75vw, 0.97rem);
   line-height: 1.5;
   color: var(--muted);
-  max-width: 40ch;
+  max-width: 52ch;
+}
+
+.intro__lede-strong {
+  color: rgba(255, 255, 255, 0.82);
+  font-weight: 700;
 }
 
 .intro__nav {
@@ -372,6 +389,82 @@ onUnmounted(() => {
   .intro__chip:hover {
     background: rgba(255, 255, 255, 0.11);
     border-color: rgba(139, 92, 246, 0.35);
+    transform: translateY(-1px);
+  }
+}
+
+.intro__chip--accent {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(139, 92, 246, 0.22));
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+@media (hover: hover) {
+  .intro__chip--accent:hover {
+    border-color: rgba(252, 165, 165, 0.45);
+  }
+}
+
+/* —— 网易云迁入说明条 —— */
+.migrate-strip {
+  margin-bottom: clamp(22px, 3.5vw, 32px);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(239, 68, 68, 0.22);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(139, 92, 246, 0.12), rgba(255, 255, 255, 0.03));
+  box-shadow: var(--shadow);
+}
+
+.migrate-strip__inner {
+  padding: clamp(18px, 3vw, 24px) clamp(18px, 3.5vw, 26px);
+}
+
+.migrate-strip__eyebrow {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(252, 165, 165, 0.95);
+}
+
+.migrate-strip__title {
+  margin: 0 0 10px;
+  font-size: clamp(1.05rem, 2.4vw, 1.25rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--text);
+}
+
+.migrate-strip__text {
+  margin: 0 0 14px;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--muted);
+  max-width: 62ch;
+}
+
+.migrate-strip__cta {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 18px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-decoration: none;
+  color: #fff;
+  background: linear-gradient(135deg, #dc2626, #8b5cf6);
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: transform 0.2s var(--ease), filter 0.2s var(--ease);
+}
+
+.migrate-strip__cta:focus-visible {
+  outline: 2px solid var(--accent2);
+  outline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .migrate-strip__cta:hover {
+    filter: brightness(1.06);
     transform: translateY(-1px);
   }
 }
