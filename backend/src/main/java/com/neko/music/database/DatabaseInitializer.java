@@ -295,6 +295,31 @@ public class DatabaseInitializer {
                 logger.warn("创建 user_daily_recommendations 表失败（可能已存在）: {}", e.getMessage());
             }
 
+            String createAppRelease = """
+                CREATE TABLE IF NOT EXISTS app_release (
+                    id INT NOT NULL PRIMARY KEY,
+                    android_ver VARCHAR(64) NOT NULL,
+                    pc_ver VARCHAR(64) NOT NULL,
+                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """;
+            try {
+                stmt.execute(createAppRelease);
+                logger.info("app_release 表已就绪");
+            } catch (Exception e) {
+                logger.warn("创建 app_release 表失败（可能已存在）: {}", e.getMessage());
+            }
+
+            try {
+                String alterPcVer = """
+                    ALTER TABLE app_release
+                    ADD COLUMN IF NOT EXISTS pc_ver VARCHAR(64) NOT NULL DEFAULT '' AFTER android_ver
+                    """;
+                stmt.execute(alterPcVer);
+            } catch (Exception e) {
+                logger.debug("app_release 添加 pc_ver 列: {}", e.getMessage());
+            }
+
             logger.info("数据库表初始化完成");
             
         } catch (Exception e) {

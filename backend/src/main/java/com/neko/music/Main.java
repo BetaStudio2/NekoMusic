@@ -27,6 +27,7 @@ import com.neko.music.service.VideoRenderArtifactCleanup;
 import com.neko.music.service.VideoRenderQuotaService;
 import com.neko.music.service.AdminMusicIngestService;
 import com.neko.music.service.NeteaseCloudMusicClient;
+import com.neko.music.service.AppReleaseService;
 import com.neko.music.service.NeteaseSearchFillService;
 import com.neko.music.service.VideoRenderService;
 import org.eclipse.jetty.server.Server;
@@ -87,6 +88,7 @@ public class Main {
     private static SliderCaptchaService sliderCaptchaService;
     private static AdminMusicIngestService adminMusicIngestService;
     private static NeteaseSearchFillService neteaseSearchFillService;
+    private static AppReleaseService appReleaseService;
     private static DailyRecommendationService dailyRecommendationService;
     private static LyricsSearchIndex lyricsSearchIndex;
     private static ScheduledExecutorService dailyRecommendationScheduler;
@@ -111,6 +113,8 @@ public class Main {
         
         // 初始化数据库表
         DatabaseInitializer.initializeTables(databaseManager);
+
+        appReleaseService = new AppReleaseService();
 
         vipPricingDatabaseManager = new VipPricingDatabaseManager(databaseManager);
         vipPayOrderDatabaseManager = new VipPayOrderDatabaseManager(databaseManager);
@@ -267,6 +271,9 @@ public class Main {
 
         ServletHolder sitemapHolder = new ServletHolder(new SitemapHandler());
         context.addServlet(sitemapHolder, "/sitemap.xml");
+
+        ServletHolder versionJsonHolder = new ServletHolder(new VersionJsonHandler());
+        context.addServlet(versionJsonHolder, "/version.json");
         
         // 注册音乐文件API处理器（无需管理员权限）
         ServletHolder musicFileHolder = new ServletHolder(new MusicFileHandler());
@@ -549,6 +556,10 @@ public class Main {
 
     public static NeteaseSearchFillService getNeteaseSearchFillService() {
         return neteaseSearchFillService;
+    }
+
+    public static AppReleaseService getAppReleaseService() {
+        return appReleaseService;
     }
 
     public static DailyRecommendationService getDailyRecommendationService() {

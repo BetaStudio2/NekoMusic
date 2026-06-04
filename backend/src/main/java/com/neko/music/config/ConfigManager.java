@@ -373,6 +373,7 @@ public class ConfigManager {
                         recommendationAiFallbackToRule = recommendationAiNode.get("fallback_to_rule").asBoolean();
                     }
                 }
+
             }
 
             clampPerformanceConfig();
