@@ -23,7 +23,7 @@ public class VersionJsonHandler extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
         AppReleaseService releaseService = Main.getAppReleaseService();
-        Optional<AppReleaseService.AppRelease> release = releaseService.getRelease();
+        Optional<AppReleaseService.AppRelease> release = releaseService.getPublishedReleaseForClients();
         if (release.isEmpty()) {
             response.setStatus(HttpStatus.SERVICE_UNAVAILABLE_503);
             response.setContentType("application/json;charset=utf-8");
@@ -55,7 +55,8 @@ public class VersionJsonHandler extends HttpServlet {
         response.setStatus(HttpStatus.OK_200);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType("application/json;charset=utf-8");
-        response.setHeader("Cache-Control", "public, max-age=300");
+        // 延迟生效窗口内可能切换版本，缩短缓存避免 CDN/浏览器长时间返回旧 JSON
+        response.setHeader("Cache-Control", "public, max-age=60, must-revalidate");
         response.getWriter().write(Main.getObjectMapper().writeValueAsString(root));
         logger.debug("version.json ver={} pc_ver={}", r.androidVer(), pcVer);
     }

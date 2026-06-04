@@ -15,11 +15,18 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
 /** 管理员：查询/更新客户端版本号与安装包状态 */
 public class AdminClientReleaseHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(AdminClientReleaseHandler.class);
+    private static final ZoneId CN_ZONE = ZoneId.of("Asia/Shanghai");
+    private static final DateTimeFormatter EFFECTIVE_FMT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -28,14 +35,11 @@ public class AdminClientReleaseHandler extends HttpServlet {
         }
 
         String siteBase = SiteUrlResolver.resolvePublicSiteBase(request);
-        Optional<AppReleaseService.AppRelease> release = Main.getAppReleaseService().getRelease();
+        Optional<AppReleaseService.AppReleaseState> state = Main.getAppReleaseService().getReleaseStateForAdmin();
 
         ObjectNode data = Main.getObjectMapper().createObjectNode();
-        if (release.isPresent()) {
-            AppReleaseService.AppRelease r = release.get();
-            data.put("androidVer", r.androidVer());
-            data.put("pcVer", r.pcVer());
-            data.set("packages", buildPackagesArray(siteBase, r));
+        if (state.isPresent()) {
+            writeStateToJson(data, siteBase, state.get());
         } else {
             data.putNull("androidVer");
             data.putNull("pcVer");
@@ -75,21 +79,55 @@ public class AdminClientReleaseHandler extends HttpServlet {
             return;
         }
 
-        if (!Main.getAppReleaseService().upsertRelease(androidVer, pcVer)) {
+        Optional<AppReleaseService.AppReleaseState> state =
+                Main.getAppReleaseService().scheduleReleaseUpdate(androidVer, pcVer);
+        if (state.isEmpty()) {
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
             writeFailure(response, "保存版本号失败");
             return;
         }
 
         String siteBase = SiteUrlResolver.resolvePublicSiteBase(request);
-        AppReleaseService.AppRelease saved = new AppReleaseService.AppRelease(androidVer, pcVer);
         ObjectNode data = Main.getObjectMapper().createObjectNode();
-        data.put("androidVer", androidVer);
-        data.put("pcVer", pcVer);
-        data.set("packages", buildPackagesArray(siteBase, saved));
+        writeStateToJson(data, siteBase, state.get());
 
-        writeSuccess(response, "版本号已更新", data);
-        logger.info("管理员更新客户端版本 androidVer={} pcVer={}", androidVer, pcVer);
+        String message = state.get().hasPending()
+                ? "版本号已保存，将于 "
+                + formatEffectiveAt(state.get().pendingEffectiveAt())
+                + " 起在 version.json 对外生效（"
+                + AppReleaseService.VERSION_JSON_DELAY_MINUTES
+                + " 分钟内仍为旧版本）"
+                : "版本号已更新并立即对外生效";
+        writeSuccess(response, message, data);
+        logger.info("管理员排期/更新客户端版本 pending={}", state.get().hasPending());
+    }
+
+    private void writeStateToJson(ObjectNode data, String siteBase, AppReleaseService.AppReleaseState state) {
+        AppReleaseService.AppRelease pub = state.published();
+        data.put("androidVer", pub.androidVer());
+        data.put("pcVer", pub.pcVer());
+        data.put("publishedAndroidVer", pub.androidVer());
+        data.put("publishedPcVer", pub.pcVer());
+
+        if (state.hasPending() && state.pending() != null) {
+            data.put("pendingAndroidVer", state.pending().androidVer());
+            data.put("pendingPcVer", state.pending().pcVer());
+            data.put("pendingEffectiveAt", formatEffectiveAt(state.pendingEffectiveAt()));
+            data.put("versionJsonDelayMinutes", AppReleaseService.VERSION_JSON_DELAY_MINUTES);
+            data.set("packages", buildPackagesArray(siteBase, state.pending()));
+        } else {
+            data.putNull("pendingAndroidVer");
+            data.putNull("pendingPcVer");
+            data.putNull("pendingEffectiveAt");
+            data.set("packages", buildPackagesArray(siteBase, pub));
+        }
+    }
+
+    private static String formatEffectiveAt(Instant instant) {
+        if (instant == null) {
+            return "";
+        }
+        return ZonedDateTime.ofInstant(instant, CN_ZONE).format(EFFECTIVE_FMT) + " (UTC+8)";
     }
 
     private ArrayNode buildPackagesArray(String siteBase, AppReleaseService.AppRelease r) {

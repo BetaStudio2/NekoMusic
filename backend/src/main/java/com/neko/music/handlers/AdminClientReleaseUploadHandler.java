@@ -65,7 +65,7 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
             return;
         }
 
-        Optional<AppReleaseService.AppRelease> release = Main.getAppReleaseService().getRelease();
+        Optional<AppReleaseService.AppRelease> release = Main.getAppReleaseService().getTargetReleaseForUpload();
         if (release.isEmpty()) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             writeJson(response, false, "请先在后台保存 Android 与 PC 版本号");

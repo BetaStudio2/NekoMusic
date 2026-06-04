@@ -339,6 +339,23 @@ public class DatabaseInitializer {
             } catch (Exception e) {
                 logger.debug("app_release 添加 pc_ver 列: {}", e.getMessage());
             }
+
+            try {
+                stmt.execute("""
+                    ALTER TABLE app_release
+                    ADD COLUMN IF NOT EXISTS pending_android_ver VARCHAR(64) NULL AFTER pc_ver
+                    """);
+                stmt.execute("""
+                    ALTER TABLE app_release
+                    ADD COLUMN IF NOT EXISTS pending_pc_ver VARCHAR(64) NULL AFTER pending_android_ver
+                    """);
+                stmt.execute("""
+                    ALTER TABLE app_release
+                    ADD COLUMN IF NOT EXISTS pending_effective_at TIMESTAMP NULL AFTER pending_pc_ver
+                    """);
+            } catch (Exception e) {
+                logger.debug("app_release 添加 pending 列: {}", e.getMessage());
+            }
             logger.info("app_release 表已就绪");
         } catch (Exception e) {
             logger.warn("app_release 表迁移失败: {}", e.getMessage());
@@ -350,6 +367,9 @@ public class DatabaseInitializer {
             CREATE TABLE IF NOT EXISTS app_release (
                 android_ver VARCHAR(64) NOT NULL,
                 pc_ver VARCHAR(64) NOT NULL,
+                pending_android_ver VARCHAR(64) NULL,
+                pending_pc_ver VARCHAR(64) NULL,
+                pending_effective_at TIMESTAMP NULL,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             """);
