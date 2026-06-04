@@ -45,7 +45,7 @@ public class VersionJsonHandler extends HttpServlet {
         pc.put("pc_ver", pcVer);
         pc.put("windows", siteBase + "/Neko云音乐 Setup " + pcVer + ".exe");
         pc.put("linux", siteBase + "/NekoMusic_" + pcVer + "_amd64.deb");
-        pc.put("mac", siteBase + "/Neko云音乐" + pcVer + ".dmg");
+        pc.put("mac", siteBase + "/Neko云音乐" + pcVer + ".pkg");
 
         response.setStatus(HttpStatus.OK_200);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
