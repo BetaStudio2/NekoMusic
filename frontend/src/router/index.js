@@ -30,6 +30,10 @@ const adminGuard = (to, from, next) => {
           next('/admin')
           return
         }
+        if (role === 'auditor' && to.path.startsWith('/admin/releases')) {
+          next('/admin')
+          return
+        }
       }
       next(); // 如果已登录且有权限，允许访问
     } else {
@@ -283,6 +287,17 @@ const router = createRouter({
         title: 'VIP 价目 - Neko云音乐',
         description: '管理 VIP 套餐价目表。',
         keywords: 'VIP,价目,管理'
+      }
+    },
+    {
+      path: '/admin/releases',
+      name: 'admin-releases',
+      component: () => import('@/views/admin/AdminReleasesView.vue'),
+      beforeEnter: adminGuard,
+      meta: {
+        title: '客户端更新 - Neko云音乐',
+        description: '管理客户端版本号与安装包上传。',
+        keywords: '客户端,更新,安装包,管理'
       }
     },
     {

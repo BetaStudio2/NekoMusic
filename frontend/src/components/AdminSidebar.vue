@@ -40,6 +40,12 @@
             <span class="nav-text">VIP 价目</span>
           </router-link>
         </li>
+        <li v-if="hasPermission('release_manage')">
+          <router-link to="/admin/releases" class="nav-link" :class="{ 'active': isActiveRoute('/admin/releases') }">
+            <span class="nav-icon">📦</span>
+            <span class="nav-text">客户端更新</span>
+          </router-link>
+        </li>
       </ul>
     </nav>
   </div>
@@ -106,6 +112,7 @@ const hasPermission = (permission) => {
       case 'user_edit':
       case 'user_delete':
       case 'stats_view':
+      case 'release_manage':
         return true
       default:
         return false

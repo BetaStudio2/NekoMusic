@@ -286,7 +286,19 @@ public class Main {
         ServletHolder clientReleaseDownloadHolder = new ServletHolder(new ClientReleaseDownloadHandler());
         context.addServlet(clientReleaseDownloadHolder, "/update/*");
 
+        ServletHolder adminClientReleaseHolder = new ServletHolder(new AdminClientReleaseHandler());
+        context.addServlet(adminClientReleaseHolder, "/api/admin/releases");
+
         ServletHolder adminClientReleaseUploadHolder = new ServletHolder(new AdminClientReleaseUploadHandler());
+        long releaseMaxBytes = ClientReleaseStorage.MAX_UPLOAD_BYTES + 1024 * 1024;
+        jakarta.servlet.MultipartConfigElement releaseMultipartConfig =
+                new jakarta.servlet.MultipartConfigElement(
+                        System.getProperty("java.io.tmpdir"),
+                        releaseMaxBytes,
+                        releaseMaxBytes,
+                        (int) (ClientReleaseStorage.MAX_UPLOAD_BYTES / 2)
+                );
+        adminClientReleaseUploadHolder.getRegistration().setMultipartConfig(releaseMultipartConfig);
         context.addServlet(adminClientReleaseUploadHolder, "/api/admin/releases/upload");
         
         // 注册音乐文件API处理器（无需管理员权限）

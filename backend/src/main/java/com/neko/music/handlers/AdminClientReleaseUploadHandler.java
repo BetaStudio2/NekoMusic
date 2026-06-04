@@ -2,6 +2,7 @@ package com.neko.music.handlers;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neko.music.Main;
+import com.neko.music.service.AppReleaseService;
 import com.neko.music.util.ClientReleaseStorage;
 import com.neko.music.util.SiteUrlResolver;
 import org.eclipse.jetty.http.HttpStatus;
@@ -9,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.ServletException;
-import jakarta.servlet.annotation.MultipartConfig;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -20,13 +20,9 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Optional;
 
-/** 管理员上传客户端安装包到 releases 目录（仅 super_admin / admin） */
-@MultipartConfig(
-        fileSizeThreshold = 1024 * 1024,
-        maxFileSize = ClientReleaseStorage.MAX_UPLOAD_BYTES,
-        maxRequestSize = ClientReleaseStorage.MAX_UPLOAD_BYTES + 1024 * 1024
-)
+/** 管理员上传客户端安装包（按平台校验类型，落盘为 version.json 预期文件名） */
 public class AdminClientReleaseUploadHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(AdminClientReleaseUploadHandler.class);
 
@@ -44,12 +40,24 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
             return;
         }
 
+        String platform = null;
         Part filePart = null;
         for (Part part : request.getParts()) {
-            if ("file".equals(part.getName()) && part.getSize() != 0) {
-                filePart = part;
-                break;
+            String name = part.getName();
+            if ("platform".equals(name)) {
+                platform = readPartText(part);
+            } else if ("file".equals(name) && filePart == null) {
+                String submitted = part.getSubmittedFileName();
+                if (submitted != null && !submitted.isBlank()) {
+                    filePart = part;
+                }
             }
+        }
+
+        if (platform == null || platform.isBlank()) {
+            response.setStatus(HttpStatus.BAD_REQUEST_400);
+            writeJson(response, false, "请提供 platform 字段（android/windows/linux/mac）");
+            return;
         }
         if (filePart == null) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
@@ -57,46 +65,55 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
             return;
         }
 
-        String submitted = filePart.getSubmittedFileName();
-        String fileName = submitted == null ? "" : Path.of(submitted).getFileName().toString();
-        if (fileName.isBlank()) {
+        Optional<AppReleaseService.AppRelease> release = Main.getAppReleaseService().getRelease();
+        if (release.isEmpty()) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            writeJson(response, false, "无法识别文件名");
+            writeJson(response, false, "请先在后台保存 Android 与 PC 版本号");
             return;
         }
 
+        String expectedFileName = ClientReleaseStorage.expectedFileNameForPlatform(platform, release.get());
+        if (expectedFileName == null) {
+            response.setStatus(HttpStatus.BAD_REQUEST_400);
+            writeJson(response, false, "无效的平台");
+            return;
+        }
+
+        String sourceName = Path.of(filePart.getSubmittedFileName()).getFileName().toString();
         long declaredSize = filePart.getSize();
+
         Path target = null;
+        Path temp = null;
         try {
-            target = ClientReleaseStorage.resolveTargetForUpload(fileName);
-            if (declaredSize >= 0) {
-                ClientReleaseStorage.validateUpload(fileName, declaredSize);
-                try (InputStream in = filePart.getInputStream()) {
-                    Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
-                }
-            } else {
-                try (InputStream in = filePart.getInputStream()) {
-                    long written = copyWithSizeLimit(in, target, ClientReleaseStorage.MAX_UPLOAD_BYTES);
-                    ClientReleaseStorage.validateUpload(fileName, written);
-                }
+            target = ClientReleaseStorage.resolveTargetForUpload(expectedFileName);
+            temp = Files.createTempFile("release-upload-", ".part");
+
+            long written;
+            try (InputStream in = filePart.getInputStream()) {
+                written = copyWithSizeLimit(in, temp, ClientReleaseStorage.MAX_UPLOAD_BYTES);
             }
+            if (declaredSize >= 0) {
+                ClientReleaseStorage.validateSourceFileForPlatform(platform, sourceName, declaredSize);
+            } else {
+                ClientReleaseStorage.validateSourceFileForPlatform(platform, sourceName, written);
+            }
+            if (written > ClientReleaseStorage.MAX_UPLOAD_BYTES) {
+                throw new IllegalArgumentException("安装包体积不得超过 50MiB");
+            }
+
+            Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+            temp = null;
 
             long size = Files.size(target);
-            if (size > ClientReleaseStorage.MAX_UPLOAD_BYTES) {
-                Files.deleteIfExists(target);
-                response.setStatus(HttpStatus.BAD_REQUEST_400);
-                writeJson(response, false, "安装包体积不得超过 50MiB");
-                return;
-            }
-
             String downloadUrl = ClientReleaseStorage.publicDownloadUrl(
-                    SiteUrlResolver.resolvePublicSiteBase(request), fileName);
+                    SiteUrlResolver.resolvePublicSiteBase(request), expectedFileName);
 
             ObjectNode data = Main.getObjectMapper().createObjectNode();
-            data.put("fileName", fileName);
+            data.put("platform", platform.trim().toLowerCase());
+            data.put("sourceFileName", sourceName);
+            data.put("fileName", expectedFileName);
             data.put("size", size);
             data.put("downloadUrl", downloadUrl);
-            data.put("storagePath", target.toString());
 
             ObjectNode root = Main.getObjectMapper().createObjectNode();
             root.put("success", true);
@@ -106,21 +123,28 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
             response.setStatus(HttpStatus.OK_200);
             response.setContentType("application/json;charset=utf-8");
             response.getWriter().write(Main.getObjectMapper().writeValueAsString(root));
-            logger.info("管理员上传安装包: {} ({} bytes)", fileName, size);
+            logger.info("管理员上传安装包 platform={} {} -> {} ({} bytes)",
+                    platform, sourceName, expectedFileName, size);
         } catch (IllegalArgumentException e) {
-            if (target != null) {
-                Files.deleteIfExists(target);
-            }
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             writeJson(response, false, e.getMessage());
         } catch (Exception e) {
-            if (target != null) {
-                Files.deleteIfExists(target);
-            }
-            logger.error("上传安装包失败 fileName={}", fileName, e);
+            logger.error("上传安装包失败 platform={} source={}", platform, sourceName, e);
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
             writeJson(response, false, "上传失败: " + e.getMessage());
+        } finally {
+            if (temp != null) {
+                Files.deleteIfExists(temp);
+            }
+            if (target != null && !Files.exists(target)) {
+                // 失败且未成功落盘时 target 可能为空文件，已由 move 处理
+            }
         }
+    }
+
+    private static String readPartText(Part part) throws IOException {
+        byte[] bytes = part.getInputStream().readAllBytes();
+        return new String(bytes, java.nio.charset.StandardCharsets.UTF_8).trim();
     }
 
     private static long copyWithSizeLimit(InputStream in, Path target, long maxBytes) throws IOException {
