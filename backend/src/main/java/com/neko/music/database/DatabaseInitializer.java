@@ -4,6 +4,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.Statement;
 
 public class DatabaseInitializer {
@@ -295,35 +297,87 @@ public class DatabaseInitializer {
                 logger.warn("创建 user_daily_recommendations 表失败（可能已存在）: {}", e.getMessage());
             }
 
-            String createAppRelease = """
-                CREATE TABLE IF NOT EXISTS app_release (
-                    id INT NOT NULL PRIMARY KEY,
-                    android_ver VARCHAR(64) NOT NULL,
-                    pc_ver VARCHAR(64) NOT NULL,
-                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-                """;
-            try {
-                stmt.execute(createAppRelease);
-                logger.info("app_release 表已就绪");
-            } catch (Exception e) {
-                logger.warn("创建 app_release 表失败（可能已存在）: {}", e.getMessage());
-            }
-
-            try {
-                String alterPcVer = """
-                    ALTER TABLE app_release
-                    ADD COLUMN IF NOT EXISTS pc_ver VARCHAR(64) NOT NULL DEFAULT '' AFTER android_ver
-                    """;
-                stmt.execute(alterPcVer);
-            } catch (Exception e) {
-                logger.debug("app_release 添加 pc_ver 列: {}", e.getMessage());
-            }
+            migrateAppReleaseTable(conn, stmt);
 
             logger.info("数据库表初始化完成");
             
         } catch (Exception e) {
             logger.error("初始化数据库表失败: {}", e.getMessage(), e);
         }
+    }
+
+    /** 单行版本表：无 id，仅 android_ver / pc_ver */
+    private static void migrateAppReleaseTable(Connection conn, Statement stmt) {
+        try {
+            boolean tableExists = false;
+            boolean hasIdColumn = false;
+            String listCols = """
+                SELECT column_name FROM information_schema.columns
+                WHERE table_schema = DATABASE() AND table_name = 'app_release'
+                """;
+            try (PreparedStatement ps = conn.prepareStatement(listCols);
+                 ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    tableExists = true;
+                    if ("id".equalsIgnoreCase(rs.getString(1))) {
+                        hasIdColumn = true;
+                    }
+                }
+            }
+
+            if (tableExists && hasIdColumn) {
+                String androidVer = null;
+                String pcVer = null;
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT android_ver, pc_ver FROM app_release ORDER BY id LIMIT 1");
+                     ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        androidVer = rs.getString("android_ver");
+                        pcVer = rs.getString("pc_ver");
+                    }
+                }
+                stmt.execute("DROP TABLE app_release");
+                logger.info("已删除带 id 的旧 app_release 表，准备重建");
+                createAppReleaseTable(stmt);
+                if (androidVer != null && !androidVer.isBlank() && pcVer != null && !pcVer.isBlank()) {
+                    try (PreparedStatement ins = conn.prepareStatement(
+                            "INSERT INTO app_release (android_ver, pc_ver) VALUES (?, ?)")) {
+                        ins.setString(1, androidVer.trim());
+                        ins.setString(2, pcVer.trim());
+                        ins.executeUpdate();
+                        logger.info("已迁移 app_release 版本数据");
+                    }
+                }
+                return;
+            }
+
+            if (!tableExists) {
+                createAppReleaseTable(stmt);
+                logger.info("app_release 表已创建");
+                return;
+            }
+
+            try {
+                stmt.execute("""
+                    ALTER TABLE app_release
+                    ADD COLUMN IF NOT EXISTS pc_ver VARCHAR(64) NOT NULL DEFAULT '' AFTER android_ver
+                    """);
+            } catch (Exception e) {
+                logger.debug("app_release 添加 pc_ver 列: {}", e.getMessage());
+            }
+            logger.info("app_release 表已就绪");
+        } catch (Exception e) {
+            logger.warn("app_release 表迁移失败: {}", e.getMessage());
+        }
+    }
+
+    private static void createAppReleaseTable(Statement stmt) throws Exception {
+        stmt.execute("""
+            CREATE TABLE IF NOT EXISTS app_release (
+                android_ver VARCHAR(64) NOT NULL,
+                pc_ver VARCHAR(64) NOT NULL,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """);
     }
 }

@@ -9,19 +9,17 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.Optional;
 
-/** 客户端发布版本（Android / PC 版本号均存库，供 /version.json 读取） */
+/** 客户端发布版本（单行表 app_release，供 /version.json 读取） */
 public class AppReleaseService {
     private static final Logger logger = LoggerFactory.getLogger(AppReleaseService.class);
-    private static final int RELEASE_ROW_ID = 1;
 
     public record AppRelease(String androidVer, String pcVer) {}
 
     public Optional<AppRelease> getRelease() {
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT android_ver, pc_ver FROM app_release WHERE id = ?";
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setInt(1, RELEASE_ROW_ID);
-                ResultSet rs = stmt.executeQuery();
+            String sql = "SELECT android_ver, pc_ver FROM app_release LIMIT 1";
+            try (PreparedStatement stmt = conn.prepareStatement(sql);
+                 ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     String androidVer = trimOrNull(rs.getString("android_ver"));
                     String pcVer = trimOrNull(rs.getString("pc_ver"));
@@ -43,17 +41,17 @@ public class AppReleaseService {
             return false;
         }
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = """
-                INSERT INTO app_release (id, android_ver, pc_ver)
-                VALUES (?, ?, ?)
-                ON DUPLICATE KEY UPDATE
-                    android_ver = VALUES(android_ver),
-                    pc_ver = VALUES(pc_ver)
-                """;
+            boolean exists;
+            try (PreparedStatement countStmt = conn.prepareStatement("SELECT 1 FROM app_release LIMIT 1");
+                 ResultSet rs = countStmt.executeQuery()) {
+                exists = rs.next();
+            }
+            String sql = exists
+                    ? "UPDATE app_release SET android_ver = ?, pc_ver = ?"
+                    : "INSERT INTO app_release (android_ver, pc_ver) VALUES (?, ?)";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setInt(1, RELEASE_ROW_ID);
-                stmt.setString(2, av);
-                stmt.setString(3, pv);
+                stmt.setString(1, av);
+                stmt.setString(2, pv);
                 return stmt.executeUpdate() > 0;
             }
         } catch (Exception e) {
