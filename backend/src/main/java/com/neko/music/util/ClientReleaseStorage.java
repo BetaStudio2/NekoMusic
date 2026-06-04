@@ -14,8 +14,11 @@ public final class ClientReleaseStorage {
 
     private static final String RELEASES_DIR_NAME = "releases";
 
+    /** 50 MiB（二进制），非 50 MB（十进制） */
+    public static final long MAX_UPLOAD_BYTES = 50L * 1024 * 1024;
+
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
-            ".apk", ".exe", ".deb", ".dmg", ".pkg", ".msi", ".appimage"
+            ".apk", ".exe", ".deb", ".pkg"
     );
 
     private ClientReleaseStorage() {
@@ -68,13 +71,24 @@ public final class ClientReleaseStorage {
         return Optional.of(resolved);
     }
 
-    public static Path resolveTargetForUpload(String fileName) throws IOException {
+    public static void validateFileName(String fileName) {
         if (!isSafeFileName(fileName)) {
             throw new IllegalArgumentException("非法文件名");
         }
         if (!hasAllowedExtension(fileName)) {
-            throw new IllegalArgumentException("不支持的文件类型");
+            throw new IllegalArgumentException("仅允许上传 apk、exe、deb、pkg 安装包");
         }
+    }
+
+    public static void validateUpload(String fileName, long sizeBytes) {
+        validateFileName(fileName);
+        if (sizeBytes < 0 || sizeBytes > MAX_UPLOAD_BYTES) {
+            throw new IllegalArgumentException("安装包体积不得超过 50MiB");
+        }
+    }
+
+    public static Path resolveTargetForUpload(String fileName) throws IOException {
+        validateFileName(fileName);
         ensureStorageDir();
         Path base = storageDir().toAbsolutePath().normalize();
         Path resolved = base.resolve(fileName).normalize();
@@ -89,20 +103,14 @@ public final class ClientReleaseStorage {
         if (lower.endsWith(".apk")) {
             return "application/vnd.android.package-archive";
         }
-        if (lower.endsWith(".exe") || lower.endsWith(".msi")) {
+        if (lower.endsWith(".exe")) {
             return "application/vnd.microsoft.portable-executable";
         }
         if (lower.endsWith(".deb")) {
             return "application/vnd.debian.binary-package";
         }
-        if (lower.endsWith(".dmg")) {
-            return "application/x-apple-diskimage";
-        }
         if (lower.endsWith(".pkg")) {
             return "application/octet-stream";
-        }
-        if (lower.endsWith(".appimage")) {
-            return "application/x-executable";
         }
         return "application/octet-stream";
     }

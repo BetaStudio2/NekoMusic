@@ -81,6 +81,16 @@ public class AdminAuthService {
         return tokenStore.getAdminIdByToken(token).isPresent();
     }
 
+    /** 是否具备上传客户端更新包权限（super_admin / admin；不含 auditor） */
+    public static boolean canUploadClientRelease(String role) {
+        return "super_admin".equals(role) || "admin".equals(role);
+    }
+
+    public boolean canUploadClientReleaseByToken(String token) {
+        Admin admin = getAdminByToken(token);
+        return admin != null && canUploadClientRelease(admin.getRole());
+    }
+
     public Optional<Integer> getAdminIdByToken(String token) {
         return tokenStore.getAdminIdByToken(token);
     }

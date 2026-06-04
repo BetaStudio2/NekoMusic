@@ -16,26 +16,37 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.Part;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
-/** 管理员上传客户端安装包到 releases 目录 */
-@MultipartConfig(fileSizeThreshold = 1024 * 1024, maxFileSize = 2L * 1024 * 1024 * 1024, maxRequestSize = 2L * 1024 * 1024 * 1024)
+/** 管理员上传客户端安装包到 releases 目录（仅 super_admin / admin） */
+@MultipartConfig(
+        fileSizeThreshold = 1024 * 1024,
+        maxFileSize = ClientReleaseStorage.MAX_UPLOAD_BYTES,
+        maxRequestSize = ClientReleaseStorage.MAX_UPLOAD_BYTES + 1024 * 1024
+)
 public class AdminClientReleaseUploadHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(AdminClientReleaseUploadHandler.class);
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        if (!isAdminAuthorized(request)) {
+        String token = request.getHeader("Authorization");
+        if (token == null || token.isBlank()) {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
             writeJson(response, false, "未授权访问");
+            return;
+        }
+        if (!Main.getAdminAuthService().canUploadClientReleaseByToken(token)) {
+            response.setStatus(HttpStatus.FORBIDDEN_403);
+            writeJson(response, false, "需要管理员及以上权限");
             return;
         }
 
         Part filePart = null;
         for (Part part : request.getParts()) {
-            if ("file".equals(part.getName()) && part.getSize() > 0) {
+            if ("file".equals(part.getName()) && part.getSize() != 0) {
                 filePart = part;
                 break;
             }
@@ -54,12 +65,30 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
             return;
         }
 
+        long declaredSize = filePart.getSize();
+        Path target = null;
         try {
-            Path target = ClientReleaseStorage.resolveTargetForUpload(fileName);
-            try (InputStream in = filePart.getInputStream()) {
-                Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+            target = ClientReleaseStorage.resolveTargetForUpload(fileName);
+            if (declaredSize >= 0) {
+                ClientReleaseStorage.validateUpload(fileName, declaredSize);
+                try (InputStream in = filePart.getInputStream()) {
+                    Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } else {
+                try (InputStream in = filePart.getInputStream()) {
+                    long written = copyWithSizeLimit(in, target, ClientReleaseStorage.MAX_UPLOAD_BYTES);
+                    ClientReleaseStorage.validateUpload(fileName, written);
+                }
             }
+
             long size = Files.size(target);
+            if (size > ClientReleaseStorage.MAX_UPLOAD_BYTES) {
+                Files.deleteIfExists(target);
+                response.setStatus(HttpStatus.BAD_REQUEST_400);
+                writeJson(response, false, "安装包体积不得超过 50MiB");
+                return;
+            }
+
             String downloadUrl = ClientReleaseStorage.publicDownloadUrl(
                     SiteUrlResolver.resolvePublicSiteBase(request), fileName);
 
@@ -79,21 +108,37 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
             response.getWriter().write(Main.getObjectMapper().writeValueAsString(root));
             logger.info("管理员上传安装包: {} ({} bytes)", fileName, size);
         } catch (IllegalArgumentException e) {
+            if (target != null) {
+                Files.deleteIfExists(target);
+            }
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             writeJson(response, false, e.getMessage());
         } catch (Exception e) {
+            if (target != null) {
+                Files.deleteIfExists(target);
+            }
             logger.error("上传安装包失败 fileName={}", fileName, e);
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
             writeJson(response, false, "上传失败: " + e.getMessage());
         }
     }
 
-    private boolean isAdminAuthorized(HttpServletRequest request) {
-        String token = request.getHeader("Authorization");
-        if (token == null || token.isBlank()) {
-            return false;
+    private static long copyWithSizeLimit(InputStream in, Path target, long maxBytes) throws IOException {
+        Files.createDirectories(target.getParent());
+        long total = 0;
+        byte[] buffer = new byte[8192];
+        try (OutputStream out = Files.newOutputStream(target)) {
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                total += read;
+                if (total > maxBytes) {
+                    throw new IllegalArgumentException("安装包体积不得超过 50MiB");
+                }
+                out.write(buffer, 0, read);
+            }
+            out.flush();
         }
-        return Main.getAdminAuthService().validateAdminToken(token);
+        return total;
     }
 
     private void writeJson(HttpServletResponse response, boolean success, String message) throws IOException {
