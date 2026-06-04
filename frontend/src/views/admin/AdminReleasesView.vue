@@ -18,17 +18,28 @@
       <div class="admin-content-wrapper">
         <div class="admin-subpage">
           <h2>客户端更新</h2>
-          <p>维护 Android / PC 版本号，并上传对应安装包（apk、exe、deb、pkg，单文件 ≤ 50MiB）。</p>
+          <p>
+            保存版本号后，<strong>version.json 仍对外返回旧版本 30 分钟</strong>，便于上传新安装包；上传目标文件名为待生效版本。
+          </p>
+
+          <section v-if="publishedAndroidVer || publishedPcVer" class="card card-muted">
+            <h3>当前对外（version.json）</h3>
+            <p class="published-line">Android：<code>{{ publishedAndroidVer }}</code></p>
+            <p class="published-line">PC：<code>{{ publishedPcVer }}</code></p>
+          </section>
 
           <section class="card">
-            <h3>版本号</h3>
+            <h3>待发布版本号</h3>
+            <p v-if="pendingEffectiveAt" class="schedule-hint">
+              保存后将于 <strong>{{ pendingEffectiveAt }}</strong> 起在 version.json 生效
+            </p>
             <div class="form-row">
-              <label>Android 版本</label>
-              <input v-model="androidVer" type="text" class="inp" placeholder="如 20260207-35" />
+              <label>Android 版本 (ver)</label>
+              <input v-model="androidVer" type="text" class="inp" placeholder="如 20260207-36" />
             </div>
             <div class="form-row">
-              <label>PC 版本</label>
-              <input v-model="pcVer" type="text" class="inp" placeholder="如 2026.207.5" />
+              <label>PC 版本 (pc_ver)</label>
+              <input v-model="pcVer" type="text" class="inp" placeholder="如 2026.207.6" />
             </div>
             <div class="toolbar">
               <button type="button" class="btn-ghost" :disabled="loading" @click="loadData">重新加载</button>
@@ -74,7 +85,7 @@
               </div>
             </div>
 
-            <p class="hint">上传时仅校验文件类型；保存后会自动重命名为上表中的发布文件名。</p>
+            <p class="hint">请先保存待发布版本号，再上传安装包；仅校验文件类型，落盘文件名与上表一致。</p>
           </section>
         </div>
       </div>
@@ -99,6 +110,9 @@ const sidebarRef = ref(null)
 const adminInfo = ref({})
 const androidVer = ref('')
 const pcVer = ref('')
+const publishedAndroidVer = ref('')
+const publishedPcVer = ref('')
+const pendingEffectiveAt = ref('')
 const packages = ref([])
 const loading = ref(false)
 const savingVersions = ref(false)
@@ -137,14 +151,21 @@ const logout = () => {
   router.push('/admin/login')
 }
 
+const applyReleaseData = (data) => {
+  publishedAndroidVer.value = data.publishedAndroidVer || data.androidVer || ''
+  publishedPcVer.value = data.publishedPcVer || data.pcVer || ''
+  pendingEffectiveAt.value = data.pendingEffectiveAt || ''
+  androidVer.value = data.pendingAndroidVer || data.androidVer || publishedAndroidVer.value
+  pcVer.value = data.pendingPcVer || data.pcVer || publishedPcVer.value
+  packages.value = Array.isArray(data.packages) ? data.packages : []
+}
+
 const loadData = async () => {
   loadError.value = ''
   loading.value = true
   try {
     const data = await fetchAdminClientReleases()
-    androidVer.value = data.androidVer || ''
-    pcVer.value = data.pcVer || ''
-    packages.value = Array.isArray(data.packages) ? data.packages : []
+    applyReleaseData(data)
   } catch (e) {
     loadError.value = e.message || '加载失败'
     toast.error(loadError.value)
@@ -163,10 +184,10 @@ const saveVersions = async () => {
   savingVersions.value = true
   try {
     const data = await saveAdminClientReleaseVersions({ androidVer: av, pcVer: pv })
-    androidVer.value = data.androidVer || av
-    pcVer.value = data.pcVer || pv
-    packages.value = Array.isArray(data.packages) ? data.packages : []
-    toast.success('版本号已保存')
+    applyReleaseData(data)
+    toast.success(data.pendingEffectiveAt
+      ? `已排期，version.json 将于 ${data.pendingEffectiveAt} 生效`
+      : '版本号已保存并立即对外生效')
   } catch (e) {
     toast.error(e.message || '保存失败')
   } finally {
@@ -309,6 +330,29 @@ onMounted(() => {
   margin: 0 0 16px;
   color: #6a5acd;
   font-size: 1.1rem;
+}
+
+.card-muted {
+  background: rgba(106, 90, 205, 0.08);
+}
+
+.published-line {
+  margin: 0 0 8px;
+  color: #555;
+  font-size: 0.95rem;
+}
+
+.published-line code {
+  color: #6a5acd;
+}
+
+.schedule-hint {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  background: rgba(255, 193, 7, 0.15);
+  border-radius: 8px;
+  color: #6d5a00;
+  font-size: 0.9rem;
 }
 
 .form-row {
