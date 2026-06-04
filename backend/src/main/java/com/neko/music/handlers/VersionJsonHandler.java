@@ -3,6 +3,7 @@ package com.neko.music.handlers;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neko.music.Main;
 import com.neko.music.service.AppReleaseService;
+import com.neko.music.util.ClientReleaseStorage;
 import com.neko.music.util.SiteUrlResolver;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -34,18 +35,22 @@ public class VersionJsonHandler extends HttpServlet {
         }
 
         AppReleaseService.AppRelease r = release.get();
-        String siteBase = trimTrailingSlash(SiteUrlResolver.resolvePublicSiteBase(request));
+        String siteBase = SiteUrlResolver.resolvePublicSiteBase(request);
 
         ObjectNode root = Main.getObjectMapper().createObjectNode();
         root.put("ver", r.androidVer());
-        root.put("updateUrl", siteBase + "/" + r.androidVer() + ".apk");
+        root.put("updateUrl", ClientReleaseStorage.publicDownloadUrl(
+                siteBase, ClientReleaseStorage.androidApkFileName(r.androidVer())));
 
         ObjectNode pc = root.putObject("pc");
         String pcVer = r.pcVer();
         pc.put("pc_ver", pcVer);
-        pc.put("windows", siteBase + "/Neko云音乐 Setup " + pcVer + ".exe");
-        pc.put("linux", siteBase + "/NekoMusic_" + pcVer + "_amd64.deb");
-        pc.put("mac", siteBase + "/Neko云音乐" + pcVer + ".pkg");
+        pc.put("windows", ClientReleaseStorage.publicDownloadUrl(
+                siteBase, ClientReleaseStorage.windowsExeFileName(pcVer)));
+        pc.put("linux", ClientReleaseStorage.publicDownloadUrl(
+                siteBase, ClientReleaseStorage.linuxDebFileName(pcVer)));
+        pc.put("mac", ClientReleaseStorage.publicDownloadUrl(
+                siteBase, ClientReleaseStorage.macPkgFileName(pcVer)));
 
         response.setStatus(HttpStatus.OK_200);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
@@ -53,12 +58,5 @@ public class VersionJsonHandler extends HttpServlet {
         response.setHeader("Cache-Control", "public, max-age=300");
         response.getWriter().write(Main.getObjectMapper().writeValueAsString(root));
         logger.debug("version.json ver={} pc_ver={}", r.androidVer(), pcVer);
-    }
-
-    private static String trimTrailingSlash(String base) {
-        if (base == null || base.isEmpty()) {
-            return "";
-        }
-        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
 }

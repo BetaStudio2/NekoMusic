@@ -37,6 +37,7 @@ import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
 import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import com.neko.music.filter.CorsFilter;
 import com.neko.music.filter.IPRateLimitFilter;
+import com.neko.music.util.ClientReleaseStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -106,6 +107,13 @@ public class Main {
         // 初始化配置管理器
         configManager = new ConfigManager();
         configManager.loadConfig();
+
+        try {
+            ClientReleaseStorage.ensureStorageDir();
+            logger.info("客户端安装包目录: {}", ClientReleaseStorage.storageDir().toAbsolutePath());
+        } catch (Exception e) {
+            logger.warn("创建客户端安装包目录失败: {}", e.getMessage());
+        }
         
         // 初始化数据库管理器
         databaseManager = new DatabaseManager(configManager);
@@ -274,6 +282,12 @@ public class Main {
 
         ServletHolder versionJsonHolder = new ServletHolder(new VersionJsonHandler());
         context.addServlet(versionJsonHolder, "/version.json");
+
+        ServletHolder clientReleaseDownloadHolder = new ServletHolder(new ClientReleaseDownloadHandler());
+        context.addServlet(clientReleaseDownloadHolder, "/update/*");
+
+        ServletHolder adminClientReleaseUploadHolder = new ServletHolder(new AdminClientReleaseUploadHandler());
+        context.addServlet(adminClientReleaseUploadHolder, "/api/admin/releases/upload");
         
         // 注册音乐文件API处理器（无需管理员权限）
         ServletHolder musicFileHolder = new ServletHolder(new MusicFileHandler());
