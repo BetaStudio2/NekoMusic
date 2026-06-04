@@ -271,32 +271,6 @@ public class DatabaseInitializer {
                 logger.warn("创建 vip_pay_orders 表失败（可能已存在）: {}", e.getMessage());
             }
 
-            String createUserDailyRecommendations = """
-                CREATE TABLE IF NOT EXISTS user_daily_recommendations (
-                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-                    user_id INT NOT NULL,
-                    rec_date DATE NOT NULL,
-                    rank_no INT NOT NULL,
-                    music_id INT NOT NULL,
-                    score DOUBLE NOT NULL DEFAULT 0,
-                    source VARCHAR(32) NOT NULL DEFAULT 'rule',
-                    reason VARCHAR(512) NULL,
-                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE KEY uk_user_date_rank (user_id, rec_date, rank_no),
-                    UNIQUE KEY uk_user_date_music (user_id, rec_date, music_id),
-                    KEY idx_rec_date_user (rec_date, user_id),
-                    KEY idx_rec_user_date (user_id, rec_date),
-                    CONSTRAINT fk_daily_rec_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                    CONSTRAINT fk_daily_rec_music FOREIGN KEY (music_id) REFERENCES music(id) ON DELETE CASCADE
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-                """;
-            try {
-                stmt.execute(createUserDailyRecommendations);
-                logger.info("user_daily_recommendations 表已就绪");
-            } catch (Exception e) {
-                logger.warn("创建 user_daily_recommendations 表失败（可能已存在）: {}", e.getMessage());
-            }
-
             migrateAppReleaseTable(conn, stmt);
 
             logger.info("数据库表初始化完成");
