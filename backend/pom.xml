@@ -181,6 +181,13 @@
             <artifactId>sensitive-word</artifactId>
             <version>0.21.0</version>
         </dependency>
+
+        <!-- APK 解析：上传安装包时校验包名、版本与签名证书 -->
+        <dependency>
+            <groupId>net.dongliu</groupId>
+            <artifactId>apk-parser</artifactId>
+            <version>2.6.10</version>
+        </dependency>
     </dependencies>
 
     <build>

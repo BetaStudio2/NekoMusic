@@ -3,6 +3,7 @@ package com.neko.music.handlers;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neko.music.Main;
 import com.neko.music.service.AppReleaseService;
+import com.neko.music.util.ApkUploadValidator;
 import com.neko.music.util.ClientReleaseStorage;
 import com.neko.music.util.SiteUrlResolver;
 import org.eclipse.jetty.http.HttpStatus;
@@ -99,6 +100,9 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
             }
             if (written > ClientReleaseStorage.MAX_UPLOAD_BYTES) {
                 throw new IllegalArgumentException("安装包体积不得超过 50MiB");
+            }
+            if ("android".equalsIgnoreCase(platform.trim())) {
+                ApkUploadValidator.validate(temp, release.get().androidVer());
             }
 
             Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
