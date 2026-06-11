@@ -97,7 +97,7 @@ public class ConfigManager {
     private int neteaseHttpTimeoutSeconds = 45;
 
     /** 运行目录所在分区最低可用空间（GB，十进制 1 GB = 10⁹ 字节），不足时禁止音乐上传与网易云补全 */
-    private int storageMinFreeGb = 10;
+    private int storageMinFreeGb = 5;
 
     private static final long STORAGE_BYTES_PER_GB = 1_000_000_000L;
 
