@@ -45,12 +45,13 @@ public final class RuntimeDiskGuard {
 
     public static String uploadBlockedMessage() {
         int gb = Main.getConfigManager().getStorageMinFreeGb();
-        return "磁盘可用空间不足，已暂停音乐上传（运行目录所在分区需保留至少 " + gb + "GB 可用空间）";
+//        return "磁盘可用空间不足，已暂停音乐上传（运行目录所在分区需保留至少 " + gb + "GB 可用空间）";
+        return "服务器硬盘可用空间不足，已暂停相关功能。需预留" + gb + "GB 可用空间";
     }
 
     public static String neteaseFillBlockedMessage() {
         int gb = Main.getConfigManager().getStorageMinFreeGb();
-        return "未找到匹配的音乐（磁盘可用空间不足，已暂停网易云自动补全；需保留至少 " + gb + "GB 可用空间）";
+        return "未找到匹配的音乐（磁盘可用空间不足，需保留至少 " + gb + "GB 可用空间）";
     }
 
     /**
