@@ -23,12 +23,12 @@
           <p class="hero__eyebrow">Neko 云音乐</p>
           <h1 id="download-title" class="hero__title">把播放器装进口袋与桌面</h1>
           <p class="hero__lede">
-            同一套免费体验：搜索、播放、收藏与歌单。<strong class="hero__lede-strong">Android / PC 支持从网易云迁入歌单</strong>（链接或歌单 ID，自动匹配站内曲库）。选择你的平台，一键获取安装包。
+            同一套免费体验：搜索、播放、收藏与歌单。<strong class="hero__lede-strong">Android / PC 支持从网易云和QQ云迁入歌单</strong>（链接或歌单 ID，自动匹配站内曲库）。选择你的平台，一键获取安装包。
           </p>
           <ul class="hero__facts">
             <li>完全免费</li>
             <li>开源透明</li>
-            <li>网易云歌单可迁入</li>
+            <li>网易、QQ云歌单可迁入</li>
           </ul>
           <p class="hero__anchor-hint">
             <a href="#netease-migrate" class="hero__anchor-link">查看迁入步骤与说明</a>
@@ -58,7 +58,7 @@
           <ol class="netease-panel__steps">
             <li><span class="netease-panel__step-num">1</span> 在网易云复制歌单链接，或记下歌单 ID。</li>
             <li><span class="netease-panel__step-num">2</span> 安装并打开本页下方提供的 Android / Windows / Linux / macOS 客户端。</li>
-            <li><span class="netease-panel__step-num">3</span> 在客户端内找到「导入网易云歌单」，粘贴链接或 ID，选择目标歌单并开始匹配导入。</li>
+            <li><span class="netease-panel__step-num">3</span> 在客户端内找到「导入网易、QQ云歌单」，粘贴链接或 ID，选择目标歌单并开始匹配导入。</li>
           </ol>
         </div>
       </section>

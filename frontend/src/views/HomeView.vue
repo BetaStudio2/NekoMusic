@@ -11,10 +11,10 @@
       <section class="intro" aria-labelledby="home-title">
         <div class="intro__text">
           <h1 id="home-title" class="intro__title">从这里开始听</h1>
-          <p class="intro__lede">用顶栏搜索与播放；在客户端可<strong class="intro__lede-strong">从网易云迁入歌单</strong>，开源免费、无绑架式社交。</p>
+          <p class="intro__lede">用顶栏搜索与播放；在客户端可<strong class="intro__lede-strong">从网易、QQ云迁入歌单</strong>，开源免费、无绑架式社交。</p>
         </div>
         <nav class="intro__nav" aria-label="快捷入口">
-          <router-link to="/download#netease-migrate" class="intro__chip intro__chip--accent">网易云歌单迁入</router-link>
+          <router-link to="/download#netease-migrate" class="intro__chip intro__chip--accent">网易、QQ云歌单迁入</router-link>
           <router-link to="/download" class="intro__chip">下载客户端</router-link>
           <router-link v-if="isLoggedIn" to="/upload" class="intro__chip">上传音乐</router-link>
           <a
@@ -23,13 +23,18 @@
             rel="noopener noreferrer"
             class="intro__chip"
           >开发者文档</a>
-          <router-link to="/playlists" class="intro__chip">歌单</router-link>
+          <a
+              href="https://qm.qq.com/q/Q9HkDi6Ewk"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="intro__chip"
+          >加入QQ群</a>
         </nav>
       </section>
 
       <section class="migrate-strip" aria-labelledby="migrate-title">
         <div class="migrate-strip__inner">
-          <p class="migrate-strip__eyebrow">从网易云过来？</p>
+          <p class="migrate-strip__eyebrow">从网易、QQ云过来？</p>
           <h2 id="migrate-title" class="migrate-strip__title">歌单链接或 ID，客户端里一键匹配入库</h2>
           <p class="migrate-strip__text">
             Android 与 PC 客户端支持粘贴网易云歌单链接，自动拉取曲目并在 Neko 曲库中匹配后导入你的歌单。匹配结果取决于站内是否已有对应歌曲。

@@ -38,7 +38,7 @@
 
       <section class="panel about-section">
         <h2 class="about-h2">开源协议</h2>
-        <p class="about-p">本项目遵循 MIT 开源协议，欢迎贡献代码、提出建议和反馈问题。</p>
+        <p class="about-p">本项目遵循 AGPL v3 开源协议，欢迎贡献代码、提出建议和反馈问题。</p>
         <div class="links">
           <a
             href="https://github.com/FantasyNetworkCN/NekoMusicDocs"
@@ -58,6 +58,10 @@
           <li>
             Email:
             <a href="mailto:support@cnmsb.xin" class="inline-link">support@cnmsb.xin</a>
+          </li>
+          <li>
+            QQ群:
+            <a href="https://qm.qq.com/q/Q9HkDi6Ewk" class="inline-link">932258919</a>
           </li>
         </ul>
       </section>

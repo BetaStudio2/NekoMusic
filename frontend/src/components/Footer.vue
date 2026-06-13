@@ -3,12 +3,13 @@
     <div class="footer-content">
       <div class="footer-info">
         <div class="footer-text">
-          <p>备案号：黔ICP备2026007098号</p>
-          <p>组织：<span class="fantasy-network">Fantasy Network「梦幻网络」</span></p>
+          <p>备案号：<a href="https://beian.miit.gov.cn/#/Integrated/recordQuery" >黔ICP备2026007098号</a></p>
+          <p>组织：<a href="https://www.cnmsb.xin/" class="fantasy-network">Fantasy Network「梦幻网络」</a></p>
         </div>
       </div>
       <div class="footer-links">
-        <a href="about" class="footer-link">关于我们</a>
+        <a href="/about" class="footer-link">关于我们</a>
+        <a href="https://qm.qq.com/q/Q9HkDi6Ewk" class="footer-link">QQ群</a>
         <a href="mailto:support@cnmsb.xin" class="footer-link">邮件：support@cnmsb.xin</a>
       </div>
     </div>
