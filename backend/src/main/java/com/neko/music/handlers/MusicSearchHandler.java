@@ -144,7 +144,7 @@ public class MusicSearchHandler extends HttpServlet {
         return switch (reason) {
             case LOGIN_EXPIRED ->
                     "未找到匹配的音乐（网易云登录已失效，无法补全 Hi-Res/无损，请更新 API Cookie 后重试）";
-            case ERROR -> "未找到匹配的音乐（网易云补全服务异常，请查看服务端日志）";
+            case ERROR -> "未找到匹配的音乐";
             case LOW_DISK_SPACE -> com.neko.music.util.RuntimeDiskGuard.neteaseFillBlockedMessage();
             case NOT_FOUND -> "未找到匹配的音乐";
             default -> defaultMessage;
