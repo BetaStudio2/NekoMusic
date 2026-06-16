@@ -1,6 +1,6 @@
 # NekoMusic
 
-在线音乐平台（Web / Android / PC）。完整 API 说明见 [Neko云音乐文档/README.md](Neko云音乐文档/README.md)。
+在线音乐平台（Web / Android / PC）。完整 API 说明见 [Neko歌姬计划文档/README.md](Neko歌姬计划文档/README.md)。
 
 ## 违禁词检测 API
 

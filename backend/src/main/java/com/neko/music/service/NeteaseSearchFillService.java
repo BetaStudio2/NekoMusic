@@ -477,7 +477,7 @@ public class NeteaseSearchFillService {
     private void writePlaceholderLyrics(Path lyricsTemp) throws IOException {
         try (InputStream fallback = getClass().getClassLoader().getResourceAsStream("no_lrc.lrc")) {
             if (fallback == null) {
-                Files.writeString(lyricsTemp, "[00:00.00]Neko云音乐 暂无歌词\n");
+                Files.writeString(lyricsTemp, "[00:00.00]Neko歌姬计划 暂无歌词\n");
             } else {
                 Files.copy(fallback, lyricsTemp, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             }

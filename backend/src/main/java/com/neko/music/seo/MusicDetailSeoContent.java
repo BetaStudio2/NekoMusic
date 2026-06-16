@@ -9,7 +9,7 @@ import java.nio.charset.StandardCharsets;
 
 /** 音乐详情页双语 SEO 文案与 URL */
 public final class MusicDetailSeoContent {
-    public static final String SITE_NAME_ZH = "Neko云音乐";
+    public static final String SITE_NAME_ZH = "Neko歌姬计划";
     public static final String SITE_NAME_EN = "Neko Music";
 
     public final int musicId;
@@ -92,7 +92,7 @@ public final class MusicDetailSeoContent {
 
         String descZh = "免费在线播放《" + title + "》— " + artist + albumZh
                 + (durationZh.isEmpty() ? "" : "，时长 " + durationZh)
-                + "。Neko云音乐提供高品质流媒体、歌词、收藏与分享，永久免费。";
+                + "。Neko歌姬计划提供高品质流媒体、歌词、收藏与分享，永久免费。";
         String descEn = "Stream \"" + title + "\" by " + artist + albumEn
                 + (durationEn.isEmpty() ? "" : ", " + durationEn)
                 + " free in HD on Neko Music — online player, lyrics, favorites, no paywall.";

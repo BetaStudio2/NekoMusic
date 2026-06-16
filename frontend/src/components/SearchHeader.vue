@@ -2,7 +2,7 @@
   <header class="search-header" :class="{ 'search-header--chrome-dark': chromeDark }">
     <div class="header-content">
       <div class="logo-container">
-        <h1 class="logo" @click="goHome">Neko云音乐</h1>
+        <h1 class="logo" @click="goHome">Neko歌姬计划</h1>
       </div>
       <div class="search-container-wrapper">
         <div class="search-container">

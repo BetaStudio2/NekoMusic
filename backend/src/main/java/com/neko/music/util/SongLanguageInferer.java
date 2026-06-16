@@ -82,7 +82,7 @@ public final class SongLanguageInferer {
         if (body.isBlank()) {
             return false;
         }
-        if (body.contains("暂无歌词") || body.contains("Neko云音乐")) {
+        if (body.contains("暂无歌词") || body.contains("Neko歌姬计划")) {
             return INSTRUMENTAL_HINT.matcher(meta).find();
         }
         long lyricLines = body.lines().filter(SongLanguageInferer::looksLikeLyricLine).count();

@@ -8,14 +8,14 @@
     </div>
     <main class="shell">
       <header class="panel about-hero">
-        <h1 class="about-hero__title">关于 Neko云音乐</h1>
+        <h1 class="about-hero__title">关于 Neko歌姬计划</h1>
         <p class="about-hero__sub">完全免费的在线音乐播放平台</p>
       </header>
 
       <section class="panel about-section">
         <h2 class="about-h2">项目介绍</h2>
         <p class="about-p">
-          Neko云音乐是一个完全免费的在线音乐播放平台，致力于为用户提供高品质的音乐体验。
+          Neko歌姬计划是一个完全免费的在线音乐播放平台，致力于为用户提供高品质的音乐体验。
           我们相信音乐应该自由分享，让每个人都能轻松享受音乐的乐趣。
         </p>
         <p class="about-p">
@@ -69,7 +69,7 @@
       <section class="panel about-section about-section--last">
         <h2 class="about-h2">致谢</h2>
         <p class="about-p">
-          感谢所有使用 Neko云音乐的用户，感谢所有为项目做出贡献的开发者。
+          感谢所有使用 Neko歌姬计划的用户，感谢所有为项目做出贡献的开发者。
           您的支持是我们不断前进的动力！
         </p>
       </section>

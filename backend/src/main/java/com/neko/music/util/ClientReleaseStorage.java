@@ -39,7 +39,7 @@ public final class ClientReleaseStorage {
     }
 
     public static String windowsExeFileName(String pcVer) {
-        return "Neko云音乐 Setup " + pcVer + ".exe";
+        return "Neko歌姬计划 Setup " + pcVer + ".exe";
     }
 
     public static String linuxDebFileName(String pcVer) {
@@ -47,7 +47,7 @@ public final class ClientReleaseStorage {
     }
 
     public static String macPkgFileName(String pcVer) {
-        return "Neko云音乐" + pcVer + ".pkg";
+        return "Neko歌姬计划" + pcVer + ".pkg";
     }
 
     public static String expectedFileNameForPlatform(String platform, AppReleaseService.AppRelease release) {

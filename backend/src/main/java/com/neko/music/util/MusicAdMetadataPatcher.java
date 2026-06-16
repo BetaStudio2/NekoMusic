@@ -40,18 +40,18 @@ public final class MusicAdMetadataPatcher {
     private static final Logger logger = LoggerFactory.getLogger(MusicAdMetadataPatcher.class);
 
     public static final String COMMENT =
-            "更多免费无损音乐就来Neko云音乐 https://music.cnmsb.xin "
+            "更多免费无损音乐就来Neko歌姬计划 https://music.cnmsb.xin "
                     + "For more free lossless music, visit Neko Cloud Music: https://music.cnmsb.xin";
 
     public static final String ORGANIZATION = "Neko Music";
     public static final String PUBLISHER = "music.cnmsb.xin";
 
     public static final String LYRICS_BANNER =
-            "[00:00.00]资源来自Neko云音乐 Resources from Neko Cloud Music\n"
+            "[00:00.00]资源来自Neko歌姬计划 Resources from Neko Cloud Music\n"
                     + "[00:00.00]获取更多无损音乐https://music.cnmsb.xin/ Get more lossless music at https://music.cnmsb.xin/";
 
     public static final String LYRICS_BANNER_FIRST =
-            "[00:00.00]资源来自Neko云音乐 Resources from Neko Cloud Music";
+            "[00:00.00]资源来自Neko歌姬计划 Resources from Neko Cloud Music";
 
     private MusicAdMetadataPatcher() {
     }

@@ -43,7 +43,7 @@ public final class MusicDetailPageRenderer {
     <meta name="description" lang="en" content="%s">
     <meta name="keywords" content="%s">
     <meta name="author" content="NekoMusic">
-    <meta name="publisher" content="Neko云音乐 / Neko Music">
+    <meta name="publisher" content="Neko歌姬计划 / Neko Music">
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
     <meta name="googlebot" content="index, follow">
     <meta name="bingbot" content="index, follow">

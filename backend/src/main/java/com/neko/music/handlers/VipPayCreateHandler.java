@@ -161,7 +161,7 @@ public class VipPayCreateHandler extends HttpServlet {
     }
 
     private static String buildProductName(VipPriceItem item) {
-        StringBuilder sb = new StringBuilder("Neko云音乐 VIP");
+        StringBuilder sb = new StringBuilder("Neko歌姬计划 VIP");
         if (item.getMonths() > 0) {
             sb.append(item.getMonths()).append("个月");
         }
