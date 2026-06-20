@@ -52,11 +52,6 @@
             <button class="small-primary-btn" @click="createDraftFile">确定</button>
           </div>
 
-          <div class="tree-tools">
-            <button @click="expandAll">展开</button>
-            <button @click="collapseAll">折叠</button>
-          </div>
-
           <div v-if="isLoadingTree" class="tree-state">正在加载...</div>
           <div v-else-if="visibleNodes.length === 0" class="tree-state">暂无歌词文件</div>
           <div v-else class="file-tree">
@@ -567,7 +562,6 @@ const logout = () => {
 .danger-btn,
 .new-button,
 .small-primary-btn,
-.tree-tools button,
 .icon-button {
   border: none;
   cursor: pointer;
@@ -684,19 +678,6 @@ const logout = () => {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   padding: 0 14px 12px;
-}
-
-.tree-tools {
-  display: flex;
-  gap: 8px;
-  padding: 0 14px 12px;
-}
-
-.tree-tools button {
-  background: rgba(68, 91, 138, 0.08);
-  color: #44516f;
-  border-radius: 6px;
-  padding: 6px 10px;
 }
 
 .file-tree {
