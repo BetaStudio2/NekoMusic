@@ -70,6 +70,16 @@ const router = createRouter({
       }
     },
     {
+      path: '/privacy',
+      name: 'privacy',
+      component: () => import('@/views/PrivacyPolicyView.vue'),
+      meta: {
+        title: '隐私政策 - Neko歌姬计划',
+        description: '了解 Neko歌姬计划如何收集、使用、保存和保护用户信息。',
+        keywords: '隐私政策,个人信息保护,Neko歌姬计划'
+      }
+    },
+    {
       path: '/download',
       name: 'download',
       component: () => import('@/views/DownloadView.vue'),
@@ -340,6 +350,7 @@ router.beforeEach((to, from, next) => {
   // 如果是移动设备访问非下载页面、非播放页面、非歌单详情页面、非管理员页面，重定向到下载页面
   if (isMobileDevice() &&
       to.path !== '/download' &&
+      to.path !== '/privacy' &&
       !to.path.startsWith('/detail/') &&
       !to.path.startsWith('/playlist/') &&
       !to.path.startsWith('/account') &&

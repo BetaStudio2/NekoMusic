@@ -19,6 +19,7 @@ const isFlushMain = computed(
     route.name === 'create-playlist' ||
     route.name === 'playlist-detail' ||
     route.name === 'about' ||
+    route.name === 'privacy' ||
     route.name === 'login' ||
     route.name === 'register' ||
     route.name === 'forgot-password' ||
@@ -43,6 +44,7 @@ const isChromeDarkShell = computed(
     route.name === 'create-playlist' ||
     route.name === 'playlist-detail' ||
     route.name === 'about' ||
+    route.name === 'privacy' ||
     route.name === 'login' ||
     route.name === 'register' ||
     route.name === 'forgot-password' ||

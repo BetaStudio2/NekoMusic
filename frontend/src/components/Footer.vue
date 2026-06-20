@@ -8,7 +8,8 @@
         </div>
       </div>
       <div class="footer-links">
-        <a href="/about" class="footer-link">关于我们</a>
+        <router-link to="/about" class="footer-link">关于我们</router-link>
+        <router-link to="/privacy" class="footer-link">隐私政策</router-link>
         <a href="https://qm.qq.com/q/Q9HkDi6Ewk" class="footer-link">QQ群</a>
         <a href="mailto:support@cnmsb.xin" class="footer-link">邮件：support@cnmsb.xin</a>
       </div>
