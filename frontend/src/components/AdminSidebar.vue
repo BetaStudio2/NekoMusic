@@ -22,6 +22,12 @@
             <span class="nav-text">音乐管理</span>
           </router-link>
         </li>
+        <li v-if="hasPermission('music_view')">
+          <router-link to="/admin/lyrics" class="nav-link" :class="{ 'active': isActiveRoute('/admin/lyrics') }">
+            <span class="nav-icon">📝</span>
+            <span class="nav-text">歌词编辑</span>
+          </router-link>
+        </li>
         <li v-if="hasPermission('audit_view')">
           <router-link to="/admin/audit" class="nav-link" :class="{ 'active': isActiveRoute('/admin/audit') }">
             <span class="nav-icon">✅</span>

@@ -21,8 +21,8 @@ const adminGuard = (to, from, next) => {
         const parsedInfo = JSON.parse(adminInfo)
         const role = parsedInfo.role || 'admin'
 
-        // 审核员不能访问音乐管理页面
-        if (role === 'auditor' && to.path.startsWith('/admin/music')) {
+        // 审核员不能访问音乐/歌词管理页面
+        if (role === 'auditor' && (to.path.startsWith('/admin/music') || to.path.startsWith('/admin/lyrics'))) {
           next('/admin') // 重定向到管理首页
           return
         }
@@ -254,6 +254,17 @@ const router = createRouter({
         title: '音乐管理 - Neko歌姬计划',
         description: '管理平台免费音乐资源，上传、编辑、删除免费音乐。',
         keywords: '音乐管理,音乐上传,免费音乐管理'
+      }
+    },
+    {
+      path: '/admin/lyrics',
+      name: 'admin-lyrics',
+      component: () => import('@/views/admin/AdminLyricsEditorView.vue'),
+      beforeEnter: adminGuard,
+      meta: {
+        title: '歌词编辑 - Neko歌姬计划',
+        description: '以文件管理器方式在线编辑平台歌词文件。',
+        keywords: '歌词编辑,在线编辑,LRC,后台管理'
       }
     },
     {

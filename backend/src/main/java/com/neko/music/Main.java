@@ -256,6 +256,10 @@ public class Main {
         // 注册管理员审核API处理器
         ServletHolder adminUploadAuditHolder = new ServletHolder(new AdminUploadAuditHandler());
         context.addServlet(adminUploadAuditHolder, "/api/admin/audit/*");
+
+        // 注册管理员歌词文件管理API处理器
+        ServletHolder adminLyricsFileHolder = new ServletHolder(new AdminLyricsFileHandler());
+        context.addServlet(adminLyricsFileHolder, "/api/admin/lyrics-files/*");
         
         // 注册用户上传预览API处理器
         ServletHolder userUploadPreviewHolder = new ServletHolder(new UserUploadPreviewHandler());
