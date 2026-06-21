@@ -24,15 +24,17 @@ class MusicSearchHandlerTest {
     }
 
     @Test
-    void allowsFourCjkCharactersOnlyAsNoMetadataFallback() {
+    void skipsCjkQueriesUpToSixCharacters() {
         assertFalse(MusicSearchHandler.shouldSearchLyricsForQuery("只想见你", 50, true));
-        assertTrue(MusicSearchHandler.shouldSearchLyricsForQuery("只想见你", 0, false));
+        assertFalse(MusicSearchHandler.shouldSearchLyricsForQuery("只想见你", 0, false));
+        assertFalse(MusicSearchHandler.shouldSearchLyricsForQuery("我真的想你", 0, false));
     }
 
     @Test
-    void skipsSingleEnglishWordsAndPinyinLikeQueries() {
+    void skipsOneOrTwoEnglishWordsAndPinyinLikeQueries() {
         assertFalse(MusicSearchHandler.shouldSearchLyricsForQuery("love", 0, false));
         assertFalse(MusicSearchHandler.shouldSearchLyricsForQuery("qing tian", 0, false));
+        assertFalse(MusicSearchHandler.shouldSearchLyricsForQuery("love story", 0, false));
     }
 
     @Test
@@ -44,5 +46,14 @@ class MusicSearchHandlerTest {
     @Test
     void skipsNumericOnlyQueries() {
         assertFalse(MusicSearchHandler.shouldSearchLyricsForQuery("2024", 0, false));
+    }
+
+    @Test
+    void externalFillUsesSameShortQueryGuard() {
+        assertFalse(MusicSearchHandler.shouldAllowExternalFillForQuery("哈"));
+        assertFalse(MusicSearchHandler.shouldAllowExternalFillForQuery("只想见你"));
+        assertFalse(MusicSearchHandler.shouldAllowExternalFillForQuery("love story"));
+        assertTrue(MusicSearchHandler.shouldAllowExternalFillForQuery("想见你只想见你"));
+        assertTrue(MusicSearchHandler.shouldAllowExternalFillForQuery("hello from other side"));
     }
 }

@@ -1,7 +1,6 @@
 package com.neko.music.handlers;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.neko.music.Main;
 import com.neko.music.service.AdminMusicIngestService;
 import com.neko.music.service.NeteaseSearchFillService;
@@ -84,8 +83,9 @@ public class MusicSearchHandler extends HttpServlet {
         List<Music> results = searchMusic(query);
 
         String message = "搜索成功";
-        // 站内元数据 + 歌词均无结果时，才走网易云外源补全
-        if (results.isEmpty() && Main.getConfigManager().isNeteaseSearchFillEnabled()) {
+        // 站内元数据 + 歌词均无结果时，才走网易云外源补全；短查询只做站内元数据搜索，避免误补全。
+        if (results.isEmpty() && shouldAllowExternalFillForQuery(query)
+                && Main.getConfigManager().isNeteaseSearchFillEnabled()) {
             NeteaseSearchFillService.FillAttempt fill =
                     Main.getNeteaseSearchFillService().tryFillFromNetease(query);
             if (fill.music().isPresent()) {
@@ -95,8 +95,6 @@ public class MusicSearchHandler extends HttpServlet {
                 message = neteaseFillFailureMessage(message, fill.reason());
             }
         }
-
-        fillLrcFlags(results);
 
         Object responseResults = results.isEmpty() ? null : results;
         if (results.isEmpty() && "搜索成功".equals(message)) {
@@ -344,10 +342,12 @@ public class MusicSearchHandler extends HttpServlet {
             if (existing != null) {
                 existing.score = Math.max(existing.score,
                         Math.min(existing.score + LYRICS_EXISTING_BONUS, LYRICS_EXISTING_SCORE_CAP));
+                existing.music.setLrc(true);
                 continue;
             }
             Music music = lyricMusicById.get(id);
             if (music != null) {
+                music.setLrc(true);
                 scoredResults.add(new ScoredMusic(music, lyricScore));
             }
         }
@@ -406,14 +406,11 @@ public class MusicSearchHandler extends HttpServlet {
         }
 
         if (stats.cjkCount > 0) {
-            if (stats.cjkCount >= 5) {
-                return true;
-            }
-            return !hasMetadataResults && stats.cjkCount >= 4 && stats.letterOrDigitCount >= 4;
+            return stats.cjkCount > 6;
         }
 
         if (stats.latinWordCount > 0) {
-            if (stats.latinWordCount == 1) {
+            if (stats.latinWordCount <= 2) {
                 return false;
             }
             int minLetters = stats.latinWordCount >= 4 ? 10 : 12;
@@ -421,6 +418,23 @@ public class MusicSearchHandler extends HttpServlet {
         }
 
         return stats.wordLikeTokenCount >= 2 && stats.letterOrDigitCount >= 8;
+    }
+
+    static boolean shouldAllowExternalFillForQuery(String query) {
+        if (query == null || query.isBlank()) {
+            return false;
+        }
+        QueryTextStats stats = analyzeQueryText(query);
+        if (stats.letterOrDigitCount == 0 || stats.digitCount == stats.letterOrDigitCount) {
+            return false;
+        }
+        if (stats.cjkCount > 0) {
+            return stats.cjkCount > 6;
+        }
+        if (stats.latinWordCount > 0) {
+            return stats.latinWordCount > 2;
+        }
+        return stats.letterOrDigitCount >= 7;
     }
 
     private static int calculateLyricsMatchScore(String query) {
@@ -526,39 +540,6 @@ public class MusicSearchHandler extends HttpServlet {
                 || script == Character.UnicodeScript.HIRAGANA
                 || script == Character.UnicodeScript.KATAKANA
                 || script == Character.UnicodeScript.HANGUL;
-    }
-
-    /** 为每条结果附加 lrc：该曲是否有有效歌词文件（与匹配方式无关）。 */
-    private static void fillLrcFlags(List<Music> results) {
-        if (results == null) {
-            return;
-        }
-        for (Music m : results) {
-            fillLrcFlag(m);
-        }
-    }
-
-    private static void fillLrcFlag(Music music) {
-        if (music == null) {
-            return;
-        }
-        var index = Main.getLyricsSearchIndex();
-        if (index != null && index.isReady()) {
-            music.setLrc(index.hasIndexedLyrics(music.getId()) ? Boolean.TRUE : Boolean.FALSE);
-            return;
-        }
-        boolean has = com.neko.music.util.MusicAssetLocator.findLyricsFile(music.getId())
-                .map(path -> {
-                    try {
-                        String plain = com.neko.music.util.LyricsPlainTextExtractor.fromLrc(
-                                java.nio.file.Files.readString(path, java.nio.charset.StandardCharsets.UTF_8));
-                        return !com.neko.music.util.LyricsPlainTextExtractor.isPlaceholder(plain);
-                    } catch (Exception e) {
-                        return false;
-                    }
-                })
-                .orElse(false);
-        music.setLrc(has ? Boolean.TRUE : Boolean.FALSE);
     }
 
     /**
@@ -783,8 +764,8 @@ public class MusicSearchHandler extends HttpServlet {
         private String artistPinyinInitials;
         private String artistWordInitials;
         private String albumPinyin;
-        /** 是否有有效歌词（仅单条 query 搜索响应会返回此字段） */
-        private Boolean lrc;
+        /** 是否由本次歌词正文搜索命中。 */
+        private boolean lrc = false;
 
         public int getId() { return id; }
         public void setId(int id) { this.id = id; }
@@ -800,9 +781,8 @@ public class MusicSearchHandler extends HttpServlet {
         public void setUploadUserId(int uploadUserId) { this.uploadUserId = uploadUserId; }
         public String getCreatedAt() { return createdAt; }
         public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        public Boolean getLrc() { return lrc; }
-        public void setLrc(Boolean lrc) { this.lrc = lrc; }
+        public boolean getLrc() { return lrc; }
+        public void setLrc(boolean lrc) { this.lrc = lrc; }
         @JsonIgnore
         public String getTitlePinyin() { return titlePinyin; }
         public void setTitlePinyin(String titlePinyin) { this.titlePinyin = titlePinyin; }

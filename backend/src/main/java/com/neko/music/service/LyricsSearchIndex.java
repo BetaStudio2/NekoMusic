@@ -36,7 +36,7 @@ public class LyricsSearchIndex {
     public static final Path INDEX_ROOT = VideoRenderPaths.NEKO_TMP_ROOT.resolve("lyrics-index");
     public static final Path PLAIN_DIR = INDEX_ROOT.resolve("plain");
 
-    private static final int MIN_QUERY_LEN = 2;
+    private static final int MIN_QUERY_LEN = 7;
     private static final int NGRAM_SIZE = 2;
     private static final int MAX_RESULTS = 200;
     private static final Pattern LRC_FILE = Pattern.compile("(\\d+)\\.lrc");
