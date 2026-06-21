@@ -38,7 +38,7 @@ public class LyricsSearchIndex {
 
     private static final int MIN_QUERY_LEN = 2;
     private static final int NGRAM_SIZE = 2;
-    private static final int MAX_RESULTS = 50;
+    private static final int MAX_RESULTS = 200;
     private static final Pattern LRC_FILE = Pattern.compile("(\\d+)\\.lrc");
 
     private final Map<Integer, String> plainById = new ConcurrentHashMap<>();
@@ -106,49 +106,60 @@ public class LyricsSearchIndex {
         return musicId > 0 && ready.get() && plainById.containsKey(musicId);
     }
 
+    public record SearchOutcome(List<Integer> ids, int candidateCount, boolean saturated) {
+    }
+
     /** 仅返回已入库且歌词正文包含 query 的 musicId。 */
     public List<Integer> search(String query, int limit) {
+        return searchWithStats(query, limit).ids();
+    }
+
+    /** 返回歌词搜索命中，并附带候选规模，供调用方过滤过宽泛的查询。 */
+    public SearchOutcome searchWithStats(String query, int limit) {
         if (!ready.get() || query == null) {
-            return List.of();
+            return new SearchOutcome(List.of(), 0, false);
         }
         String normalized = LyricsPlainTextExtractor.normalize(query);
         if (normalized.length() < MIN_QUERY_LEN) {
-            return List.of();
+            return new SearchOutcome(List.of(), 0, false);
         }
 
         List<String> grams = extractNgrams(normalized);
         if (grams.isEmpty()) {
-            return List.of();
+            return new SearchOutcome(List.of(), 0, false);
         }
 
         Set<Integer> candidates = null;
         for (String gram : grams) {
             Set<Integer> bucket = postings.get(gram);
             if (bucket == null || bucket.isEmpty()) {
-                return List.of();
+                return new SearchOutcome(List.of(), 0, false);
             }
             if (candidates == null) {
                 candidates = new HashSet<>(bucket);
             } else {
                 candidates.retainAll(bucket);
                 if (candidates.isEmpty()) {
-                    return List.of();
+                    return new SearchOutcome(List.of(), 0, false);
                 }
             }
         }
 
         int cap = Math.min(Math.max(1, limit), MAX_RESULTS);
         List<Integer> hits = new ArrayList<>();
+        boolean saturated = false;
         for (Integer id : candidates) {
             String plain = plainById.get(id);
             if (plain != null && plain.contains(normalized)) {
-                hits.add(id);
-                if (hits.size() >= cap) {
+                if (hits.size() < cap) {
+                    hits.add(id);
+                } else {
+                    saturated = true;
                     break;
                 }
             }
         }
-        return hits;
+        return new SearchOutcome(List.copyOf(hits), candidates.size(), saturated);
     }
 
     /** 新入库或歌词更新后增量重建（仅当曲目已在库且 lrc 存在）。 */

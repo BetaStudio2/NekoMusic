@@ -18,10 +18,27 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class MusicSearchHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicSearchHandler.class);
+    private static final int SEARCH_LIMIT = 50;
+    private static final int METADATA_FETCH_LIMIT = SEARCH_LIMIT * 3;
+    private static final int STRONG_METADATA_SCORE = 80;
+    private static final int LYRICS_EXISTING_BONUS = 10;
+    private static final int LYRICS_EXISTING_SCORE_CAP = 70;
+    private static final int MAX_LYRIC_HITS_TO_MERGE = 80;
+    private static final int MAX_LYRIC_CANDIDATES = 500;
+    private static final Set<String> LOW_INFORMATION_ENGLISH_WORDS = Set.of(
+            "a", "an", "and", "are", "be", "do", "for", "i", "in", "is", "it", "its",
+            "la", "me", "my", "na", "of", "oh", "on", "or", "the", "to", "we",
+            "with", "ya", "yeah", "you", "your"
+    );
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -179,8 +196,6 @@ public class MusicSearchHandler extends HttpServlet {
         }
 
         List<Music> results = new ArrayList<>();
-        int limit = 50;
-        int fetchLimit = limit * 3;
         String queryLower = query.toLowerCase().trim();
         boolean containsPinyin = com.neko.music.util.PinyinUtil.isLikelyPinyin(query);
 
@@ -240,7 +255,7 @@ public class MusicSearchHandler extends HttpServlet {
                 for (int i = 0; i < params.size(); i++) {
                     stmt.setString(i + 1, params.get(i));
                 }
-                stmt.setInt(params.size() + 1, fetchLimit);
+                stmt.setInt(params.size() + 1, METADATA_FETCH_LIMIT);
 
                 // SQL已经筛选了候选集，只需在内存中做精细打分排序
                 List<ScoredMusic> scoredResults = new ArrayList<>();
@@ -271,10 +286,12 @@ public class MusicSearchHandler extends HttpServlet {
                     }
                 }
 
+                mergeLyricsSearchResults(conn, query, scoredResults);
+
                 // 按分数排序
                 scoredResults.sort((a, b) -> Integer.compare(b.score, a.score));
 
-                for (int i = 0; i < Math.min(limit, scoredResults.size()); i++) {
+                for (int i = 0; i < Math.min(SEARCH_LIMIT, scoredResults.size()); i++) {
                     results.add(scoredResults.get(i).music);
                 }
             }
@@ -286,6 +303,229 @@ public class MusicSearchHandler extends HttpServlet {
         }
 
         return results;
+    }
+
+    private void mergeLyricsSearchResults(Connection conn, String query, List<ScoredMusic> scoredResults)
+            throws SQLException {
+        var index = Main.getLyricsSearchIndex();
+        if (index == null || !index.isReady()) {
+            return;
+        }
+
+        int topMetadataScore = scoredResults.stream()
+                .mapToInt(scored -> scored.score)
+                .max()
+                .orElse(0);
+        if (!shouldSearchLyricsForQuery(query, topMetadataScore, !scoredResults.isEmpty())) {
+            return;
+        }
+
+        var outcome = index.searchWithStats(query, MAX_LYRIC_HITS_TO_MERGE + 1);
+        List<Integer> lyricIds = outcome.ids();
+        if (lyricIds.isEmpty()) {
+            return;
+        }
+        if (outcome.saturated() || lyricIds.size() > MAX_LYRIC_HITS_TO_MERGE
+                || outcome.candidateCount() > MAX_LYRIC_CANDIDATES) {
+            logger.debug("跳过过宽泛歌词搜索: query='{}', hits={}, candidates={}, saturated={}",
+                    query, lyricIds.size(), outcome.candidateCount(), outcome.saturated());
+            return;
+        }
+
+        Map<Integer, ScoredMusic> existingById = new HashMap<>();
+        for (ScoredMusic scored : scoredResults) {
+            existingById.put(scored.music.getId(), scored);
+        }
+
+        Map<Integer, Music> lyricMusicById = fetchMusicByIds(conn, lyricIds);
+        int lyricScore = calculateLyricsMatchScore(query);
+        for (Integer id : lyricIds) {
+            ScoredMusic existing = existingById.get(id);
+            if (existing != null) {
+                existing.score = Math.max(existing.score,
+                        Math.min(existing.score + LYRICS_EXISTING_BONUS, LYRICS_EXISTING_SCORE_CAP));
+                continue;
+            }
+            Music music = lyricMusicById.get(id);
+            if (music != null) {
+                scoredResults.add(new ScoredMusic(music, lyricScore));
+            }
+        }
+    }
+
+    private Map<Integer, Music> fetchMusicByIds(Connection conn, List<Integer> ids) throws SQLException {
+        if (ids == null || ids.isEmpty()) {
+            return Map.of();
+        }
+
+        StringBuilder placeholders = new StringBuilder();
+        for (int i = 0; i < ids.size(); i++) {
+            if (i > 0) {
+                placeholders.append(',');
+            }
+            placeholders.append('?');
+        }
+
+        String sql = "SELECT id, title, artist, album, duration, upload_user_id, created_at " +
+                "FROM music WHERE id IN (" + placeholders + ")";
+        Map<Integer, Music> byId = new HashMap<>();
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            for (int i = 0; i < ids.size(); i++) {
+                stmt.setInt(i + 1, ids.get(i));
+            }
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    Music music = new Music();
+                    music.setId(rs.getInt("id"));
+                    music.setTitle(rs.getString("title") != null ? rs.getString("title") : "");
+                    music.setArtist(rs.getString("artist") != null ? rs.getString("artist") : "");
+                    music.setAlbum(rs.getString("album") != null ? rs.getString("album") : "");
+                    music.setDuration(rs.getInt("duration"));
+                    music.setUploadUserId(rs.getInt("upload_user_id"));
+                    music.setCreatedAt(rs.getTimestamp("created_at") != null
+                            ? rs.getTimestamp("created_at").toString()
+                            : "");
+                    byId.put(music.getId(), music);
+                }
+            }
+        }
+        return byId;
+    }
+
+    static boolean shouldSearchLyricsForQuery(String query, int topMetadataScore, boolean hasMetadataResults) {
+        if (query == null || query.isBlank()) {
+            return false;
+        }
+        if (topMetadataScore >= STRONG_METADATA_SCORE) {
+            return false;
+        }
+
+        QueryTextStats stats = analyzeQueryText(query);
+        if (stats.letterOrDigitCount == 0 || stats.digitCount == stats.letterOrDigitCount) {
+            return false;
+        }
+
+        if (stats.cjkCount > 0) {
+            if (stats.cjkCount >= 5) {
+                return true;
+            }
+            return !hasMetadataResults && stats.cjkCount >= 4 && stats.letterOrDigitCount >= 4;
+        }
+
+        if (stats.latinWordCount > 0) {
+            if (stats.latinWordCount == 1) {
+                return false;
+            }
+            int minLetters = stats.latinWordCount >= 4 ? 10 : 12;
+            return stats.meaningfulLatinWordCount >= 2 && stats.latinLetterCount >= minLetters;
+        }
+
+        return stats.wordLikeTokenCount >= 2 && stats.letterOrDigitCount >= 8;
+    }
+
+    private static int calculateLyricsMatchScore(String query) {
+        QueryTextStats stats = analyzeQueryText(query);
+        if (stats.cjkCount >= 8 || stats.meaningfulLatinWordCount >= 4) {
+            return 45;
+        }
+        if (stats.cjkCount >= 5 || stats.meaningfulLatinWordCount >= 3) {
+            return 35;
+        }
+        return 25;
+    }
+
+    private static QueryTextStats analyzeQueryText(String query) {
+        String normalized = com.neko.music.util.ChineseConverter.toSimplified(query)
+                .toLowerCase(Locale.ROOT);
+        int cjkCount = 0;
+        int latinLetterCount = 0;
+        int digitCount = 0;
+        int letterOrDigitCount = 0;
+        int wordLikeTokenCount = 0;
+        int latinWordCount = 0;
+        int meaningfulLatinWordCount = 0;
+        Set<String> seenMeaningfulLatinWords = new HashSet<>();
+        StringBuilder token = new StringBuilder();
+        Character.UnicodeScript tokenScript = null;
+
+        for (int i = 0; i < normalized.length(); ) {
+            int cp = normalized.codePointAt(i);
+            if (isCjkCodePoint(cp)) {
+                cjkCount++;
+            }
+            if (Character.isDigit(cp)) {
+                digitCount++;
+            }
+            if (Character.isLetterOrDigit(cp)) {
+                letterOrDigitCount++;
+            }
+
+            Character.UnicodeScript script = Character.UnicodeScript.of(cp);
+            if (Character.isLetter(cp)) {
+                if (script == Character.UnicodeScript.LATIN) {
+                    latinLetterCount++;
+                }
+                if (token.length() > 0 && tokenScript != script) {
+                    TokenStats tokenStats = countToken(token.toString(), tokenScript);
+                    wordLikeTokenCount += tokenStats.wordLikeTokenCount;
+                    latinWordCount += tokenStats.latinWordCount;
+                    meaningfulLatinWordCount += addMeaningfulLatinWord(
+                            tokenStats.meaningfulLatinWord, seenMeaningfulLatinWords);
+                    token.setLength(0);
+                }
+                token.appendCodePoint(cp);
+                tokenScript = script;
+            } else {
+                if (token.length() > 0) {
+                    TokenStats tokenStats = countToken(token.toString(), tokenScript);
+                    wordLikeTokenCount += tokenStats.wordLikeTokenCount;
+                    latinWordCount += tokenStats.latinWordCount;
+                    meaningfulLatinWordCount += addMeaningfulLatinWord(
+                            tokenStats.meaningfulLatinWord, seenMeaningfulLatinWords);
+                    token.setLength(0);
+                    tokenScript = null;
+                }
+            }
+            i += Character.charCount(cp);
+        }
+
+        if (token.length() > 0) {
+            TokenStats tokenStats = countToken(token.toString(), tokenScript);
+            wordLikeTokenCount += tokenStats.wordLikeTokenCount;
+            latinWordCount += tokenStats.latinWordCount;
+            meaningfulLatinWordCount += addMeaningfulLatinWord(
+                    tokenStats.meaningfulLatinWord, seenMeaningfulLatinWords);
+        }
+
+        return new QueryTextStats(cjkCount, latinLetterCount, digitCount, letterOrDigitCount,
+                wordLikeTokenCount, latinWordCount, meaningfulLatinWordCount);
+    }
+
+    private static int addMeaningfulLatinWord(String word, Set<String> seen) {
+        if (word == null || word.isBlank() || !seen.add(word)) {
+            return 0;
+        }
+        return 1;
+    }
+
+    private static TokenStats countToken(String token, Character.UnicodeScript script) {
+        if (token == null || token.isBlank()) {
+            return new TokenStats(0, 0, null);
+        }
+        if (script == Character.UnicodeScript.LATIN) {
+            String lower = token.toLowerCase(Locale.ROOT);
+            boolean meaningful = lower.length() >= 3 && !LOW_INFORMATION_ENGLISH_WORDS.contains(lower);
+            return new TokenStats(1, 1, meaningful ? lower : null);
+        }
+        return new TokenStats(1, 0, null);
+    }
+
+    private static boolean isCjkCodePoint(int cp) {
+        Character.UnicodeScript script = Character.UnicodeScript.of(cp);
+        return script == Character.UnicodeScript.HAN
+                || script == Character.UnicodeScript.HIRAGANA
+                || script == Character.UnicodeScript.KATAKANA
+                || script == Character.UnicodeScript.HANGUL;
     }
 
     /** 为每条结果附加 lrc：该曲是否有有效歌词文件（与匹配方式无关）。 */
@@ -484,11 +724,25 @@ public class MusicSearchHandler extends HttpServlet {
     // 辅助类：带分数的音乐
     private static class ScoredMusic {
         final Music music;
-        final int score;
+        int score;
         ScoredMusic(Music music, int score) {
             this.music = music;
             this.score = score;
         }
+    }
+
+    private record QueryTextStats(
+            int cjkCount,
+            int latinLetterCount,
+            int digitCount,
+            int letterOrDigitCount,
+            int wordLikeTokenCount,
+            int latinWordCount,
+            int meaningfulLatinWordCount
+    ) {
+    }
+
+    private record TokenStats(int wordLikeTokenCount, int latinWordCount, String meaningfulLatinWord) {
     }
 
     // 内部类：搜索请求
