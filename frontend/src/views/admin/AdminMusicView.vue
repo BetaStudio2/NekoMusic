@@ -170,7 +170,6 @@
                       <label>📝 歌词文件 *</label>
                       <input type="file" @change="handleEditLyricsFileChange" accept=".lrc" placeholder="请选择LRC歌词文件" />
                       <div v-if="editingMusic.lyricsFileName" class="file-info">已选择: {{ editingMusic.lyricsFileName }}</div>
-                      <div v-if="editingMusic.lyricsPath && !editingMusic.lyricsFileName" class="file-info">当前文件: {{ editingMusic.lyricsPath.split('\\').pop() }}</div>
                       <div class="form-hint">请上传 .lrc 格式的歌词文件</div>
                     </div>
                   </div>
@@ -1334,7 +1333,7 @@ const closeAddModal = () => {
 
 // 编辑音乐
 const editMusic = async (music) => {
-  editingMusic.value = { ...music, lyricsFile: null, lyricsFileName: '', lyricsPath: `\\Music\\lyrics\\${music.id}.lrc` } // 复制音乐对象以避免直接修改原数据
+  editingMusic.value = { ...music, lyricsFile: null, lyricsFileName: '' } // 复制音乐对象以避免直接修改原数据
 }
 
 // 关闭编辑悬浮窗
