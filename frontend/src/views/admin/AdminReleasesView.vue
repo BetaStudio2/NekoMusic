@@ -294,7 +294,7 @@ onMounted(() => {
 }
 
 .logout-button {
-  background: linear-gradient(135deg, rgba(220, 20, 60, 0.8), rgba(255, 99, 71, 0.8));
+  background: linear-gradient(135deg, rgba(220, 20, 60, 0.8), rgba(105, 200, 223, 0.8));
   color: white;
   border: none;
   border-radius: 20px;
@@ -309,7 +309,7 @@ onMounted(() => {
 }
 
 .admin-subpage h2 {
-  color: #6a5acd;
+  color: #69c8df;
   margin: 0 0 8px;
 }
 
@@ -328,12 +328,12 @@ onMounted(() => {
 
 .card h3 {
   margin: 0 0 16px;
-  color: #6a5acd;
+  color: #69c8df;
   font-size: 1.1rem;
 }
 
 .card-muted {
-  background: rgba(106, 90, 205, 0.08);
+  background: rgba(105, 200, 223, 0.08);
 }
 
 .published-line {
@@ -343,13 +343,13 @@ onMounted(() => {
 }
 
 .published-line code {
-  color: #6a5acd;
+  color: #69c8df;
 }
 
 .schedule-hint {
   margin: 0 0 14px;
   padding: 10px 12px;
-  background: rgba(255, 193, 7, 0.15);
+  background: rgba(105, 200, 223, 0.15);
   border-radius: 8px;
   color: #6d5a00;
   font-size: 0.9rem;
@@ -370,7 +370,7 @@ onMounted(() => {
 .inp {
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid rgba(106, 90, 205, 0.25);
+  border: 1px solid rgba(105, 200, 223, 0.25);
   max-width: 360px;
 }
 
@@ -392,13 +392,13 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #6a5acd, #8a2be2);
+  background: linear-gradient(135deg, #69c8df, #4aa9c0);
   color: #fff;
 }
 
 .btn-ghost {
   background: rgba(255, 255, 255, 0.6);
-  color: #6a5acd;
+  color: #69c8df;
 }
 
 .btn-primary:disabled,
@@ -410,7 +410,7 @@ onMounted(() => {
 
 .pkg-row {
   padding: 14px 0;
-  border-bottom: 1px solid rgba(106, 90, 205, 0.12);
+  border-bottom: 1px solid rgba(105, 200, 223, 0.12);
 }
 
 .pkg-row:last-of-type {
@@ -427,7 +427,7 @@ onMounted(() => {
 
 .pkg-platform {
   font-weight: 600;
-  color: #6a5acd;
+  color: #69c8df;
   min-width: 72px;
 }
 
@@ -467,13 +467,13 @@ onMounted(() => {
 }
 
 .btn-link {
-  color: #6a5acd;
+  color: #69c8df;
   font-size: 0.9rem;
 }
 
 .btn-upload {
-  background: rgba(106, 90, 205, 0.15);
-  color: #6a5acd;
+  background: rgba(105, 200, 223, 0.15);
+  color: #69c8df;
   position: relative;
   overflow: hidden;
 }
@@ -496,7 +496,7 @@ onMounted(() => {
 
 .progress-bar {
   height: 100%;
-  background: #6a5acd;
+  background: #69c8df;
   transition: width 0.15s ease;
 }
 

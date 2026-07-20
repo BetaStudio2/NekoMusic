@@ -1666,7 +1666,7 @@ const logout = () => {
 }
 
 .menu-toggle-btn:hover {
-  color: #6a5acd;
+  color: #69c8df;
 }
 
 .menu-toggle-btn svg {
@@ -1682,7 +1682,7 @@ const logout = () => {
 }
 
 .logout-button {
-  background: linear-gradient(135deg, rgba(220, 20, 60, 0.8), rgba(255, 99, 71, 0.8));
+  background: linear-gradient(135deg, rgba(220, 20, 60, 0.8), rgba(105, 200, 223, 0.8));
   color: white;
   border: none;
   border-radius: 20px;
@@ -1718,7 +1718,7 @@ const logout = () => {
 }
 
 .admin-subpage h2 {
-  color: #6a5acd;
+  color: #69c8df;
   margin: 0 0 20px 0;
   font-size: 1.5rem;
 }
@@ -1730,7 +1730,7 @@ const logout = () => {
 }
 
 .add-btn {
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(138, 43, 226, 0.8));
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.8), rgba(105, 200, 223, 0.8));
   color: white;
   border: none;
   border-radius: 20px;
@@ -1738,13 +1738,13 @@ const logout = () => {
   cursor: pointer;
   font-size: 0.9rem;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 10px rgba(106, 90, 205, 0.3);
+  box-shadow: 0 4px 10px rgba(105, 200, 223, 0.3);
 }
 
 .add-btn:hover {
   background: linear-gradient(135deg, rgba(86, 70, 185, 0.9), rgba(118, 23, 206, 0.9));
   transform: translateY(-2px);
-  box-shadow: 0 6px 15px rgba(106, 90, 205, 0.5);
+  box-shadow: 0 6px 15px rgba(105, 200, 223, 0.5);
 }
 
 .add-music-form {
@@ -1755,7 +1755,7 @@ const logout = () => {
 }
 
 .add-music-form h3 {
-  color: #6a5acd;
+  color: #69c8df;
   margin: 0 0 15px 0;
 }
 
@@ -1773,7 +1773,7 @@ const logout = () => {
 
 .form-group label {
   margin-bottom: 8px;
-  color: #6a5acd;
+  color: #69c8df;
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -1788,7 +1788,7 @@ const logout = () => {
   background: rgba(255, 255, 255, 0.3);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(106, 90, 205, 0.2);
+  border: 1px solid rgba(105, 200, 223, 0.2);
   color: #333;
   font-size: 1rem;
   transition: all 0.3s ease;
@@ -1799,19 +1799,19 @@ const logout = () => {
 .form-group input[type="file"] {
   padding: 10px;
   background: rgba(240, 240, 255, 0.4);
-  border: 2px dashed rgba(106, 90, 205, 0.3);
+  border: 2px dashed rgba(105, 200, 223, 0.3);
   cursor: pointer;
 }
 
 .form-group input[type="file"]:hover {
   background: rgba(230, 230, 250, 0.5);
-  border: 2px dashed rgba(106, 90, 205, 0.5);
+  border: 2px dashed rgba(105, 200, 223, 0.5);
 }
 
 .form-group input:focus {
   outline: none;
-  border: 1px solid rgba(106, 90, 205, 0.5);
-  box-shadow: 0 0 0 3px rgba(106, 90, 205, 0.2);
+  border: 1px solid rgba(105, 200, 223, 0.5);
+  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.2);
   background: rgba(255, 255, 255, 0.4);
 }
 
@@ -1835,7 +1835,7 @@ const logout = () => {
   background: rgba(255, 255, 255, 0.3);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(106, 90, 205, 0.2);
+  border: 1px solid rgba(105, 200, 223, 0.2);
   color: #333;
   font-size: 1rem;
   transition: all 0.3s ease;
@@ -1848,8 +1848,8 @@ const logout = () => {
 
 .form-group textarea:focus {
   outline: none;
-  border: 1px solid rgba(106, 90, 205, 0.5);
-  box-shadow: 0 0 0 3px rgba(106, 90, 205, 0.2);
+  border: 1px solid rgba(105, 200, 223, 0.5);
+  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.2);
   background: rgba(255, 255, 255, 0.4);
 }
 
@@ -1861,7 +1861,7 @@ const logout = () => {
 }
 
 .form-group input::file-selector-button {
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(138, 43, 226, 0.8));
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.8), rgba(105, 200, 223, 0.8));
   color: white;
   padding: 8px 16px;
   border-radius: 6px;
@@ -1878,9 +1878,9 @@ const logout = () => {
 .file-info {
   margin-top: 5px;
   font-size: 0.85rem;
-  color: #6a5acd;
+  color: #69c8df;
   padding: 5px;
-  background: rgba(106, 90, 205, 0.1);
+  background: rgba(105, 200, 223, 0.1);
   border-radius: 5px;
   word-break: break-all;
 }
@@ -1894,7 +1894,7 @@ const logout = () => {
 }
 
 .primary-btn {
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(138, 43, 226, 0.8));
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.8), rgba(105, 200, 223, 0.8));
   color: white;
   border: none;
   border-radius: 20px;
@@ -1902,13 +1902,13 @@ const logout = () => {
   cursor: pointer;
   font-size: 0.9rem;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 10px rgba(106, 90, 205, 0.3);
+  box-shadow: 0 4px 10px rgba(105, 200, 223, 0.3);
 }
 
 .primary-btn:hover {
   background: linear-gradient(135deg, rgba(86, 70, 185, 0.9), rgba(118, 23, 206, 0.9));
   transform: translateY(-2px);
-  box-shadow: 0 6px 15px rgba(106, 90, 205, 0.5);
+  box-shadow: 0 6px 15px rgba(105, 200, 223, 0.5);
 }
 
 .secondary-btn {
@@ -1934,7 +1934,7 @@ const logout = () => {
 }
 
 .music-list-section h3 {
-  color: #6a5acd;
+  color: #69c8df;
   margin: 0 0 15px 0;
   font-size: 1.2rem;
 }
@@ -1960,8 +1960,8 @@ const logout = () => {
 
 .search-input:focus {
   outline: none;
-  border: 1px solid rgba(106, 90, 205, 0.5);
-  box-shadow: 0 0 0 2px rgba(106, 90, 205, 0.2);
+  border: 1px solid rgba(105, 200, 223, 0.5);
+  box-shadow: 0 0 0 2px rgba(105, 200, 223, 0.2);
   background: rgba(255, 255, 255, 0.35);
 }
 
@@ -1991,8 +1991,8 @@ const logout = () => {
 }
 
 .music-table th {
-  background: rgba(106, 90, 205, 0.3);
-  color: #6a5acd;
+  background: rgba(105, 200, 223, 0.3);
+  color: #69c8df;
   font-weight: 600;
 }
 
@@ -2001,7 +2001,7 @@ const logout = () => {
 }
 
 .music-table tr:hover {
-  background: rgba(106, 90, 205, 0.1);
+  background: rgba(105, 200, 223, 0.1);
 }
 
 .action-btn {
@@ -2035,7 +2035,7 @@ const logout = () => {
 .loading {
   text-align: center;
   padding: 20px;
-  color: #6a5acd;
+  color: #69c8df;
   font-size: 1.1rem;
 }
 
@@ -2099,7 +2099,7 @@ const logout = () => {
 }
 
 .left-column {
-  border-right: 1px solid rgba(106, 90, 205, 0.2);
+  border-right: 1px solid rgba(105, 200, 223, 0.2);
   padding-right: 15px;
 }
 
@@ -2141,18 +2141,18 @@ const logout = () => {
 
 .modal-header {
   padding: 20px 25px;
-  border-bottom: 1px solid rgba(106, 90, 205, 0.2);
+  border-bottom: 1px solid rgba(105, 200, 223, 0.2);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.15), rgba(138, 43, 226, 0.15));
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.15), rgba(105, 200, 223, 0.15));
   border-radius: 20px 20px 0 0;
   cursor: default; /* 移除拖动光标 */
 }
 
 .modal-header h3 {
   margin: 0;
-  color: #6a5acd;
+  color: #69c8df;
   font-size: 1.4rem;
   font-weight: 600;
   display: flex;
@@ -2168,7 +2168,7 @@ const logout = () => {
 .close-btn {
   background: rgba(255, 255, 255, 0.3);
   border: none;
-  color: #6a5acd;
+  color: #69c8df;
   font-size: 1.6rem;
   cursor: pointer;
   width: 36px;
@@ -2197,7 +2197,7 @@ const logout = () => {
 
 .modal-actions {
   padding: 20px 25px;
-  border-top: 1px solid rgba(106, 90, 205, 0.15);
+  border-top: 1px solid rgba(105, 200, 223, 0.15);
   display: flex;
   justify-content: flex-end;
   gap: 12px;
@@ -2271,7 +2271,7 @@ const logout = () => {
   background: rgba(255, 255, 255, 0.3);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(106, 90, 205, 0.2);
+  border: 1px solid rgba(105, 200, 223, 0.2);
   color: #333;
   font-size: 1rem;
   transition: all 0.3s ease;
@@ -2282,13 +2282,13 @@ const logout = () => {
 
 .styled-select:hover {
   background: rgba(255, 255, 255, 0.4);
-  border-color: rgba(106, 90, 205, 0.5);
+  border-color: rgba(105, 200, 223, 0.5);
 }
 
 .styled-select:focus {
   outline: none;
-  border: 1px solid rgba(106, 90, 205, 0.5);
-  box-shadow: 0 0 0 3px rgba(106, 90, 205, 0.2);
+  border: 1px solid rgba(105, 200, 223, 0.5);
+  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.2);
   background: rgba(255, 255, 255, 0.4);
 }
 
@@ -2300,7 +2300,7 @@ const logout = () => {
   right: 15px;
   transform: translateY(-50%);
   pointer-events: none; /* 确保箭头不影响点击事件 */
-  color: #6a5acd;
+  color: #69c8df;
   font-size: 0.7rem;
   transition: transform 0.3s ease;
 }
@@ -2353,7 +2353,7 @@ const logout = () => {
 }
 
 .pagination-info {
-  color: #6a5acd;
+  color: #69c8df;
   font-size: 0.9rem;
   font-weight: 500;
 }
@@ -2368,8 +2368,8 @@ const logout = () => {
   padding: 8px 16px;
   border: none;
   border-radius: 8px;
-  background: rgba(106, 90, 205, 0.2);
-  color: #6a5acd;
+  background: rgba(105, 200, 223, 0.2);
+  color: #69c8df;
   cursor: pointer;
   font-size: 0.9rem;
   transition: all 0.3s ease;
@@ -2377,7 +2377,7 @@ const logout = () => {
 }
 
 .pagination-btn:hover:not(:disabled) {
-  background: rgba(106, 90, 205, 0.4);
+  background: rgba(105, 200, 223, 0.4);
   transform: translateY(-2px);
 }
 
@@ -2399,7 +2399,7 @@ const logout = () => {
   border: none;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.3);
-  color: #6a5acd;
+  color: #69c8df;
   cursor: pointer;
   font-size: 0.9rem;
   transition: all 0.3s ease;
@@ -2407,14 +2407,14 @@ const logout = () => {
 }
 
 .pagination-page-btn:hover {
-  background: rgba(106, 90, 205, 0.2);
+  background: rgba(105, 200, 223, 0.2);
   transform: translateY(-2px);
 }
 
 .pagination-page-btn.active {
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(138, 43, 226, 0.8));
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.8), rgba(105, 200, 223, 0.8));
   color: white;
-  box-shadow: 0 4px 10px rgba(106, 90, 205, 0.3);
+  box-shadow: 0 4px 10px rgba(105, 200, 223, 0.3);
 }
 
 .pagination-page-btn.active:hover {

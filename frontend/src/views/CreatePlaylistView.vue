@@ -126,8 +126,8 @@ const goBack = () => {
   --muted: rgba(255, 255, 255, 0.62);
   --faint: rgba(255, 255, 255, 0.42);
   --line: rgba(255, 255, 255, 0.1);
-  --accent: #8b5cf6;
-  --accent2: #22d3ee;
+  --accent: #69c8df;
+  --accent2: #69c8df;
   --radius: 16px;
   --radius-lg: 22px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -157,7 +157,7 @@ const goBack = () => {
 .ambient__blob--a {
   width: 380px;
   height: 380px;
-  background: rgba(139, 92, 246, 0.38);
+  background: rgba(105, 200, 223, 0.38);
   top: -100px;
   right: -60px;
 }
@@ -165,7 +165,7 @@ const goBack = () => {
 .ambient__blob--b {
   width: 300px;
   height: 300px;
-  background: rgba(34, 211, 238, 0.2);
+  background: rgba(105, 200, 223, 0.2);
   bottom: 10%;
   left: -40px;
 }
@@ -210,7 +210,7 @@ const goBack = () => {
 
 .btn-back:hover {
   background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(139, 92, 246, 0.35);
+  border-color: rgba(105, 200, 223, 0.35);
 }
 
 .page-title {
@@ -230,7 +230,7 @@ const goBack = () => {
 .panel {
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(139, 92, 246, 0.14), rgba(255, 255, 255, 0.04));
+  background: linear-gradient(145deg, rgba(105, 200, 223, 0.14), rgba(255, 255, 255, 0.04));
   box-shadow: var(--shadow);
 }
 
@@ -286,8 +286,8 @@ const goBack = () => {
 .form-group input:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: rgba(34, 211, 238, 0.45);
-  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12);
+  border-color: rgba(105, 200, 223, 0.45);
+  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.12);
 }
 
 .char-count {
@@ -331,8 +331,8 @@ const goBack = () => {
   font-size: 0.9rem;
   cursor: pointer;
   color: #0c0a14;
-  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
-  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+  background: linear-gradient(135deg, #9beaff, var(--accent2));
+  box-shadow: 0 8px 24px rgba(105, 200, 223, 0.3);
 }
 
 .btn-submit:hover:not(:disabled) {

@@ -1116,7 +1116,7 @@ const handleSubmit = async () => {
 }
 
 .upload-result-notice--error {
-  background: linear-gradient(135deg, #dc2626, #be123c);
+  background: linear-gradient(135deg, #69c8df, #be123c);
 }
 
 .upload-notice-enter-active,
@@ -1262,13 +1262,13 @@ const handleSubmit = async () => {
 .lyrics-format-guide {
   margin-top: 16px;
   padding: 16px;
-  background: rgba(106, 90, 205, 0.05);
+  background: rgba(105, 200, 223, 0.05);
   border-radius: 12px;
-  border: 1px solid rgba(106, 90, 205, 0.15);
+  border: 1px solid rgba(105, 200, 223, 0.15);
 }
 
 .lyrics-format-guide h4 {
-  color: #6a5acd;
+  color: #69c8df;
   margin: 0 0 8px 0;
   font-size: 15px;
   font-weight: 600;
@@ -1286,11 +1286,11 @@ const handleSubmit = async () => {
   padding: 12px;
   background: rgba(255, 255, 255, 0.8);
   border-radius: 8px;
-  border: 1px solid rgba(106, 90, 205, 0.1);
+  border: 1px solid rgba(105, 200, 223, 0.1);
 }
 
 .example-title {
-  color: #6a5acd;
+  color: #69c8df;
   font-size: 12px;
   font-weight: 600;
   margin-bottom: 8px;
@@ -1312,7 +1312,7 @@ const handleSubmit = async () => {
 .lyrics-tips {
   margin-top: 12px;
   padding: 10px;
-  background: rgba(106, 90, 205, 0.08);
+  background: rgba(105, 200, 223, 0.08);
   border-radius: 8px;
 }
 
@@ -1335,12 +1335,12 @@ const handleSubmit = async () => {
 }
 
 .lyrics-tips code {
-  background: rgba(106, 90, 205, 0.15);
+  background: rgba(105, 200, 223, 0.15);
   padding: 2px 6px;
   border-radius: 4px;
   font-family: 'Courier New', monospace;
   font-size: 11px;
-  color: #6a5acd;
+  color: #69c8df;
 }
 
 /* 右侧表单 */

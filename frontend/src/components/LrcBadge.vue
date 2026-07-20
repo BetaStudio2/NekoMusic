@@ -24,7 +24,7 @@ defineProps({
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: #9370db;
+  color: #8eddec;
   opacity: 0.9;
 }
 

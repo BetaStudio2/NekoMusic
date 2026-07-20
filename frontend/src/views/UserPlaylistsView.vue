@@ -346,7 +346,7 @@ onMounted(() => {
   --muted: rgba(255, 255, 255, 0.62);
   --faint: rgba(255, 255, 255, 0.42);
   --line: rgba(255, 255, 255, 0.1);
-  --accent2: #22d3ee;
+  --accent2: #69c8df;
   --radius: 16px;
   --radius-lg: 22px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -376,7 +376,7 @@ onMounted(() => {
 .ambient__blob--a {
   width: 400px;
   height: 400px;
-  background: rgba(139, 92, 246, 0.38);
+  background: rgba(105, 200, 223, 0.38);
   top: -120px;
   left: -80px;
 }
@@ -384,7 +384,7 @@ onMounted(() => {
 .ambient__blob--b {
   width: 320px;
   height: 320px;
-  background: rgba(34, 211, 238, 0.2);
+  background: rgba(105, 200, 223, 0.2);
   bottom: -40px;
   right: -60px;
 }
@@ -392,7 +392,7 @@ onMounted(() => {
 .ambient__blob--c {
   width: 260px;
   height: 260px;
-  background: rgba(52, 211, 153, 0.14);
+  background: rgba(155, 234, 255, 0.14);
   top: 40%;
   right: 20%;
 }
@@ -453,8 +453,8 @@ onMounted(() => {
   font-weight: 700;
   font-size: 0.88rem;
   color: #0c0a14;
-  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
-  box-shadow: 0 8px 28px rgba(139, 92, 246, 0.35);
+  background: linear-gradient(135deg, #9beaff, var(--accent2));
+  box-shadow: 0 8px 28px rgba(105, 200, 223, 0.35);
   white-space: nowrap;
 }
 
@@ -470,7 +470,7 @@ onMounted(() => {
 .panel {
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(139, 92, 246, 0.14), rgba(255, 255, 255, 0.04));
+  background: linear-gradient(145deg, rgba(105, 200, 223, 0.14), rgba(255, 255, 255, 0.04));
   box-shadow: var(--shadow);
 }
 
@@ -544,7 +544,7 @@ onMounted(() => {
 @media (hover: hover) {
   .pl-card:hover {
     transform: translateY(-3px);
-    border-color: rgba(139, 92, 246, 0.4);
+    border-color: rgba(105, 200, 223, 0.4);
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
   }
 }
@@ -707,7 +707,7 @@ onMounted(() => {
 .form-group input:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: rgba(34, 211, 238, 0.45);
+  border-color: rgba(105, 200, 223, 0.45);
 }
 
 .modal-actions {

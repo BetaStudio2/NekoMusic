@@ -216,7 +216,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* —— 与下载页同一套页面基底（深色、光斑、网格）—— */
+/* -- 与下载页同一套页面基底（深色、光斑、网格）-- */
 .home-page {
   --bg0: #07060d;
   --bg1: #0f1020;
@@ -226,9 +226,9 @@ onUnmounted(() => {
   --faint: rgba(255, 255, 255, 0.42);
   --card: rgba(255, 255, 255, 0.06);
   --card2: rgba(255, 255, 255, 0.09);
-  --accent: #8b5cf6;
-  --accent2: #22d3ee;
-  --accent3: #34d399;
+  --accent: #69c8df;
+  --accent2: #69c8df;
+  --accent3: #9beaff;
   --radius: 18px;
   --radius-lg: 24px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -260,7 +260,7 @@ onUnmounted(() => {
 .ambient__blob--a {
   width: 420px;
   height: 420px;
-  background: rgba(139, 92, 246, 0.45);
+  background: rgba(105, 200, 223, 0.24);
   top: -140px;
   left: -120px;
 }
@@ -268,7 +268,7 @@ onUnmounted(() => {
 .ambient__blob--b {
   width: 360px;
   height: 360px;
-  background: rgba(34, 211, 238, 0.28);
+  background: rgba(155, 234, 255, 0.16);
   bottom: -80px;
   right: -100px;
   animation-delay: -7s;
@@ -277,7 +277,7 @@ onUnmounted(() => {
 .ambient__blob--c {
   width: 280px;
   height: 280px;
-  background: rgba(52, 211, 153, 0.2);
+  background: rgba(105, 200, 223, 0.14);
   top: 42%;
   left: 38%;
   animation-delay: -12s;
@@ -393,28 +393,28 @@ onUnmounted(() => {
 @media (hover: hover) {
   .intro__chip:hover {
     background: rgba(255, 255, 255, 0.11);
-    border-color: rgba(139, 92, 246, 0.35);
+    border-color: rgba(105, 200, 223, 0.35);
     transform: translateY(-1px);
   }
 }
 
 .intro__chip--accent {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(139, 92, 246, 0.22));
-  border-color: rgba(239, 68, 68, 0.35);
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.18), rgba(155, 234, 255, 0.12));
+  border-color: rgba(105, 200, 223, 0.26);
 }
 
 @media (hover: hover) {
   .intro__chip--accent:hover {
-    border-color: rgba(252, 165, 165, 0.45);
+    border-color: rgba(155, 234, 255, 0.42);
   }
 }
 
-/* —— 网易云迁入说明条 —— */
+/* -- 网易云迁入说明条 -- */
 .migrate-strip {
   margin-bottom: clamp(22px, 3.5vw, 32px);
   border-radius: var(--radius-lg);
-  border: 1px solid rgba(239, 68, 68, 0.22);
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(139, 92, 246, 0.12), rgba(255, 255, 255, 0.03));
+  border: 1px solid rgba(105, 200, 223, 0.18);
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.12), rgba(155, 234, 255, 0.08), rgba(255, 255, 255, 0.03));
   box-shadow: var(--shadow);
 }
 
@@ -428,7 +428,7 @@ onUnmounted(() => {
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(252, 165, 165, 0.95);
+  color: var(--accent3);
 }
 
 .migrate-strip__title {
@@ -456,7 +456,7 @@ onUnmounted(() => {
   font-weight: 700;
   text-decoration: none;
   color: #fff;
-  background: linear-gradient(135deg, #dc2626, #8b5cf6);
+  background: linear-gradient(135deg, #69c8df, #69c8df);
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   transition: transform 0.2s var(--ease), filter 0.2s var(--ease);
@@ -485,13 +485,13 @@ onUnmounted(() => {
   }
 }
 
-/* —— 浏览区：左侧彩条 + 与 Android 区块同气质 —— */
+/* -- 浏览区：左侧彩条 + 与 Android 区块同气质 -- */
 .browse {
   position: relative;
   margin-bottom: clamp(24px, 4vw, 36px);
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.18), rgba(255, 255, 255, 0.03));
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.14), rgba(255, 255, 255, 0.03));
   box-shadow: var(--shadow);
   overflow: hidden;
   animation: sectionLift 0.85s var(--ease) 0.2s both;
@@ -504,9 +504,9 @@ onUnmounted(() => {
 }
 
 @media (hover: hover) {
-  .browse:hover {
-    border-color: rgba(139, 92, 246, 0.35);
-    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(139, 92, 246, 0.15);
+.browse:hover {
+    border-color: rgba(105, 200, 223, 0.26);
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(105, 200, 223, 0.15);
   }
 }
 
@@ -582,10 +582,10 @@ onUnmounted(() => {
 @keyframes statePulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
+    box-shadow: 0 0 0 0 rgba(105, 200, 223, 0);
   }
   50% {
-    box-shadow: 0 0 40px 2px rgba(34, 211, 238, 0.08);
+    box-shadow: 0 0 40px 2px rgba(105, 200, 223, 0.08);
   }
 }
 
@@ -613,7 +613,7 @@ onUnmounted(() => {
 @media (prefers-reduced-motion: reduce) {
   .state__spinner {
     animation: none;
-    border-color: rgba(34, 211, 238, 0.35);
+    border-color: rgba(105, 200, 223, 0.35);
   }
 }
 
@@ -639,7 +639,7 @@ onUnmounted(() => {
 }
 
 .browse__tiles::-webkit-scrollbar-thumb {
-  background: rgba(139, 92, 246, 0.45);
+  background: rgba(105, 200, 223, 0.4);
   border-radius: 999px;
 }
 
@@ -684,12 +684,12 @@ onUnmounted(() => {
 }
 
 .b-tile__cover--hot {
-  background: linear-gradient(135deg, #fb7185, #fb923c);
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.26), rgba(143, 174, 198, 0.16));
   padding: 4px;
 }
 
 .b-tile__cover--latest {
-  background: linear-gradient(135deg, #6366f1, #7c3aed);
+  background: linear-gradient(135deg, rgba(155, 234, 255, 0.18), rgba(105, 200, 223, 0.22));
   padding: 4px;
 }
 

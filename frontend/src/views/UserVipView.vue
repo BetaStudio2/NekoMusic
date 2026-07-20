@@ -2,7 +2,7 @@
   <div class="vip-page">
     <div class="vip-shell">
       <div class="vip-shell-inner">
-        <!-- 左：参考 img — 用户信息 + 横向套餐卡 + 权益 -->
+        <!-- 左：参考 img - 用户信息 + 横向套餐卡 + 权益 -->
         <div class="vip-col vip-col--main">
           <div v-if="user" class="vip-userbar">
             <div class="vip-avatar">
@@ -84,7 +84,7 @@
           </div>
         </div>
 
-        <!-- 右：结算条 — 价格 + 支付 / 二维码（同 img 右栏） -->
+        <!-- 右：结算条 - 价格 + 支付 / 二维码（同 img 右栏） -->
         <aside class="vip-col vip-col--checkout" aria-label="结算与支付">
           <template v-if="selectedPlan && pricingRows.length && !pricingLoading">
             <div class="checkout-inner">
@@ -264,7 +264,7 @@ function formatPlanDuration(months, days) {
   const parts = []
   if (m > 0) parts.push(`${m} 个月`)
   if (d > 0) parts.push(`${d} 天`)
-  return parts.length ? parts.join(' · ') : '—'
+  return parts.length ? parts.join(' · ') : '-'
 }
 
 function approxDays(months, days) {
@@ -281,7 +281,7 @@ function pricePerDayLine(row) {
 
 function formatYuan(n) {
   const x = Number(n)
-  if (Number.isNaN(x)) return '—'
+  if (Number.isNaN(x)) return '-'
   return x.toFixed(2)
 }
 
@@ -382,14 +382,20 @@ onUnmounted(() => {
 <style scoped>
 /* 页面不铺底，由站点全局决定 */
 .vip-page {
-  --shell-bg: #fdf8f4;
-  --shell-ink: #1a1a1a;
-  --shell-muted: #8c8c8c;
-  --shell-line: rgba(0, 0, 0, 0.06);
-  --brand-red: #e60026;
-  --brand-orange: #ff5c00;
-  --checkout-bg: linear-gradient(165deg, #fff9f5 0%, #fff0e8 45%, #fffdfb 100%);
-  min-height: calc(100vh - 180px);
+  --text: var(--neko-text);
+  --muted: var(--neko-muted);
+  --faint: var(--neko-faint);
+  --line: var(--neko-line);
+  --accent: var(--neko-accent);
+  --accent3: var(--neko-accent-strong);
+  --shell-bg: rgba(12, 19, 27, 0.96);
+  --shell-ink: var(--text);
+  --shell-muted: var(--muted);
+  --shell-line: var(--line);
+  --brand-red: var(--accent);
+  --brand-orange: var(--accent3);
+  --checkout-bg: linear-gradient(165deg, rgba(14, 22, 31, 0.98) 0%, rgba(10, 16, 23, 0.98) 45%, rgba(7, 11, 16, 0.98) 100%);
+  min-height: calc(100dvh - 180px);
   padding: 20px 14px 32px;
   display: flex;
   justify-content: center;
@@ -400,12 +406,10 @@ onUnmounted(() => {
 .vip-shell {
   width: 100%;
   max-width: min(960px, calc(100vw - 28px));
-  border-radius: 20px;
+  border-radius: 22px;
   background: var(--shell-bg);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.9) inset,
-    0 24px 48px -28px rgba(0, 0, 0, 0.14);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(143, 174, 198, 0.14);
   overflow: hidden;
 }
 
@@ -430,7 +434,7 @@ onUnmounted(() => {
 .vip-col--main {
   flex: 1 1 auto;
   padding: 20px 18px 22px;
-  background: #fffef9;
+  background: rgba(15, 23, 33, 0.94);
 }
 
 @media (min-width: 800px) {
@@ -451,11 +455,11 @@ onUnmounted(() => {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #ffe8dc, #ffd0bf);
-  color: #c2410c;
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.22), rgba(143, 174, 198, 0.14));
+  color: var(--text);
   flex-shrink: 0;
-  border: 2px solid #fff;
-  box-shadow: 0 4px 12px rgba(230, 0, 38, 0.08);
+  border: 1px solid rgba(143, 174, 198, 0.18);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.24);
   overflow: hidden;
   position: relative;
 }
@@ -505,15 +509,15 @@ onUnmounted(() => {
 }
 
 .vip-badge--on {
-  background: linear-gradient(90deg, #ffe4e6, #fff1f2);
-  color: #be123c;
-  border: 1px solid #fecdd3;
+  background: linear-gradient(90deg, rgba(105, 200, 223, 0.28), rgba(155, 234, 255, 0.16));
+  color: #f2f8fb;
+  border: 1px solid rgba(105, 200, 223, 0.3);
 }
 
 .vip-badge--off {
-  background: #f4f4f5;
+  background: rgba(255, 255, 255, 0.05);
   color: var(--shell-muted);
-  border: 1px solid #e4e4e7;
+  border: 1px solid rgba(143, 174, 198, 0.14);
 }
 
 .vip-expires-line {
@@ -526,7 +530,7 @@ onUnmounted(() => {
   margin: 0 0 14px;
   font-size: 0.8rem;
   line-height: 1.5;
-  color: #666;
+  color: var(--muted);
 }
 
 .vip-tier-tabs {
@@ -549,11 +553,11 @@ onUnmounted(() => {
 
 .vip-tier-tab--active {
   color: var(--shell-ink);
-  background: #fff;
-  box-shadow: 0 -1px 0 #fff;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 -1px 0 rgba(143, 174, 198, 0.12);
   margin-bottom: -1px;
   border: 1px solid var(--shell-line);
-  border-bottom-color: #fff;
+  border-bottom-color: rgba(15, 23, 33, 0.94);
 }
 
 .plan-strip-wrap {
@@ -581,30 +585,25 @@ onUnmounted(() => {
   min-height: 128px;
   padding: 12px 12px 10px;
   border-radius: 14px;
-  border: 1.5px solid #e8e8e8;
-  background: #fff;
+  border: 1px solid rgba(143, 174, 198, 0.14);
+  background: rgba(255, 255, 255, 0.04);
   cursor: pointer;
   text-align: left;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  transition:
-    border-color 0.2s,
-    box-shadow 0.2s,
-    transform 0.15s;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
 }
 
 .plan-card:hover {
-  border-color: #ffc9a8;
+  border-color: rgba(105, 200, 223, 0.28);
 }
 
 .plan-card--active {
-  border-color: var(--brand-orange);
-  background: linear-gradient(180deg, #fff 0%, #fff8f4 100%);
-  box-shadow:
-    0 0 0 1px var(--brand-orange),
-    0 10px 24px rgba(255, 92, 0, 0.12);
+  border-color: rgba(105, 200, 223, 0.34);
+  background: linear-gradient(180deg, rgba(105, 200, 223, 0.14) 0%, rgba(255, 255, 255, 0.04) 100%);
+  box-shadow: 0 0 0 1px rgba(105, 200, 223, 0.22), 0 10px 24px rgba(0, 0, 0, 0.18);
   transform: translateY(-1px);
 }
 
@@ -618,7 +617,7 @@ onUnmounted(() => {
 .plan-card-price {
   font-size: 1.35rem;
   font-weight: 800;
-  color: var(--brand-red);
+  color: var(--accent-strong);
   letter-spacing: -0.03em;
   line-height: 1.1;
 }
@@ -634,8 +633,8 @@ onUnmounted(() => {
 }
 
 .plan-card--skel {
-  border-color: #eee;
-  background: linear-gradient(90deg, #f3f3f3 0%, #fafafa 50%, #f3f3f3 100%);
+  border-color: rgba(143, 174, 198, 0.1);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.04) 100%);
   background-size: 200% 100%;
   animation: skel 1s ease-in-out infinite;
   min-height: 128px;
@@ -658,16 +657,16 @@ onUnmounted(() => {
   margin: 0 0 18px;
   font-size: 0.68rem;
   line-height: 1.55;
-  color: #999;
+  color: var(--faint);
 }
 
 .vip-inline-err {
   margin-bottom: 12px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: #fff1f2;
-  border: 1px solid #fecdd3;
-  color: #b91c1c;
+  background: rgba(105, 200, 223, 0.08);
+  border: 1px solid rgba(105, 200, 223, 0.18);
+  color: var(--text);
   font-size: 0.82rem;
 }
 
@@ -675,16 +674,16 @@ onUnmounted(() => {
   padding: 20px;
   text-align: center;
   border-radius: 14px;
-  background: #fafafa;
-  border: 1px dashed #ddd;
-  color: #555;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed rgba(143, 174, 198, 0.18);
+  color: var(--muted);
   font-size: 0.9rem;
 }
 
 .vip-inline-empty-sub {
   margin: 6px 0 0;
   font-size: 0.78rem;
-  color: #999;
+  color: var(--faint);
 }
 
 .vip-perks {
@@ -718,19 +717,19 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   font-size: 0.72rem;
-  color: #555;
+  color: var(--muted);
   padding: 8px 8px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(143, 174, 198, 0.12);
 }
 
 .vip-perk-ic {
   width: 22px;
   height: 22px;
   border-radius: 8px;
-  background: #fff5f0;
-  color: var(--brand-orange);
+  background: rgba(105, 200, 223, 0.1);
+  color: var(--accent-strong);
   font-size: 0.65rem;
   display: flex;
   align-items: center;
@@ -745,13 +744,13 @@ onUnmounted(() => {
 }
 
 .vip-foot-a {
-  color: #666;
+  color: var(--accent-strong);
   text-decoration: none;
   font-weight: 600;
 }
 
 .vip-foot-a:hover {
-  color: var(--brand-red);
+  color: #ffffff;
 }
 
 .vip-foot-dot {
@@ -811,7 +810,7 @@ onUnmounted(() => {
 .checkout-price-yen {
   font-size: 1.1rem;
   font-weight: 800;
-  color: var(--brand-red);
+  color: var(--accent-strong);
   vertical-align: super;
   margin-right: 2px;
 }
@@ -819,14 +818,14 @@ onUnmounted(() => {
 .checkout-price-num {
   font-size: 2.35rem;
   font-weight: 800;
-  color: var(--brand-red);
+  color: var(--accent-strong);
   letter-spacing: -0.04em;
 }
 
 .checkout-pay-hint {
   margin: 0 0 10px;
   font-size: 0.78rem;
-  color: #888;
+  color: var(--faint);
 }
 
 .checkout-pay-row {
@@ -857,13 +856,11 @@ onUnmounted(() => {
 }
 
 .checkout-btn--ali {
-  background: linear-gradient(135deg, #1677ff, #0958d9);
-  box-shadow: 0 6px 14px rgba(22, 119, 255, 0.28);
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.24), rgba(105, 200, 223, 0.12));
 }
 
 .checkout-btn--wx {
-  background: linear-gradient(135deg, #07c160, #06ae56);
-  box-shadow: 0 6px 14px rgba(7, 193, 96, 0.25);
+  background: linear-gradient(135deg, rgba(155, 234, 255, 0.22), rgba(105, 200, 223, 0.14));
 }
 
 .checkout-qr-title {
@@ -877,7 +874,7 @@ onUnmounted(() => {
 .checkout-qr-tip {
   margin: 0 0 12px;
   font-size: 0.72rem;
-  color: #888;
+  color: var(--faint);
   text-align: center;
   line-height: 1.45;
 }
@@ -888,9 +885,9 @@ onUnmounted(() => {
   padding: 12px;
   max-width: 220px;
   border-radius: 14px;
-  background: #fff;
-  border: 2px solid rgba(255, 92, 0, 0.45);
-  box-shadow: 0 8px 24px rgba(255, 92, 0, 0.1);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(105, 200, 223, 0.24);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
   overflow: hidden;
 }
 
@@ -934,7 +931,7 @@ onUnmounted(() => {
   margin-bottom: 12px;
   font-size: 0.76rem;
   font-weight: 600;
-  color: #2563eb;
+  color: var(--accent-strong);
   text-decoration: none;
 }
 
@@ -953,8 +950,8 @@ onUnmounted(() => {
   padding: 11px 14px;
   border-radius: 999px;
   border: none;
-  background: var(--brand-red);
-  color: #fff;
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.24), rgba(105, 200, 223, 0.12));
+  color: var(--text);
   font-size: 0.84rem;
   font-weight: 800;
   cursor: pointer;
@@ -967,9 +964,9 @@ onUnmounted(() => {
 .checkout-back-btn {
   padding: 9px 14px;
   border-radius: 999px;
-  border: 1px solid #e5e5e5;
-  background: #fff;
-  color: #666;
+  border: 1px solid rgba(143, 174, 198, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
@@ -980,7 +977,7 @@ onUnmounted(() => {
   margin-top: 8px;
   font-size: 0.65rem;
   line-height: 1.5;
-  color: #aaa;
+  color: var(--faint);
   text-align: center;
 }
 
@@ -988,11 +985,11 @@ onUnmounted(() => {
   margin: auto 0;
   text-align: center;
   font-size: 0.86rem;
-  color: #999;
+  color: var(--muted);
   padding: 24px 8px;
 }
 
 .checkout-placeholder--err {
-  color: #b91c1c;
+  color: var(--accent-strong);
 }
 </style>

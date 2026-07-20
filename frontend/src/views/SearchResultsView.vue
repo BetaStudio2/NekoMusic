@@ -135,7 +135,7 @@
           <header class="column-head">
             <h2 id="sec-artist" class="column-title">艺人</h2>
             <span v-if="artistPayload.name" class="column-badge">{{ artistTrackCount }} 首</span>
-            <span v-else class="column-badge">—</span>
+            <span v-else class="column-badge">无</span>
           </header>
           <div class="column-body">
             <template v-if="artistPayload.name">
@@ -569,9 +569,9 @@ onMounted(async () => {
   --muted: rgba(255, 255, 255, 0.62);
   --faint: rgba(255, 255, 255, 0.42);
   --line: rgba(255, 255, 255, 0.1);
-  --accent: #8b5cf6;
-  --accent2: #22d3ee;
-  --accent3: #34d399;
+  --accent: #69c8df;
+  --accent2: #69c8df;
+  --accent3: #9beaff;
   --radius: 16px;
   --radius-lg: 22px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -602,7 +602,7 @@ onMounted(async () => {
 .ambient__blob--a {
   width: 400px;
   height: 400px;
-  background: rgba(139, 92, 246, 0.4);
+  background: rgba(105, 200, 223, 0.4);
   top: -120px;
   right: -80px;
 }
@@ -610,7 +610,7 @@ onMounted(async () => {
 .ambient__blob--b {
   width: 340px;
   height: 340px;
-  background: rgba(34, 211, 238, 0.22);
+  background: rgba(105, 200, 223, 0.22);
   bottom: -60px;
   left: -60px;
   animation-delay: -8s;
@@ -619,7 +619,7 @@ onMounted(async () => {
 .ambient__blob--c {
   width: 260px;
   height: 260px;
-  background: rgba(52, 211, 153, 0.16);
+  background: rgba(155, 234, 255, 0.16);
   top: 38%;
   left: 30%;
   animation-delay: -14s;
@@ -730,15 +730,15 @@ onMounted(async () => {
 }
 
 .search-column--tracks {
-  --col-accent: #a78bfa;
+  --col-accent: #69c8df;
 }
 
 .search-column--playlists {
-  --col-accent: #22d3ee;
+  --col-accent: #8eddec;
 }
 
 .search-column--artist {
-  --col-accent: #34d399;
+  --col-accent: #b7f0fb;
 }
 
 .column-head {
@@ -779,7 +779,7 @@ onMounted(async () => {
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
-  scrollbar-color: rgba(139, 92, 246, 0.45) rgba(255, 255, 255, 0.06);
+  scrollbar-color: rgba(105, 200, 223, 0.45) rgba(255, 255, 255, 0.06);
   padding-bottom: 8px;
 }
 
@@ -803,8 +803,8 @@ onMounted(async () => {
   font-weight: 700;
   color: var(--accent2);
   border-radius: var(--radius);
-  border: 1px solid rgba(34, 211, 238, 0.25);
-  background: rgba(34, 211, 238, 0.08);
+  border: 1px solid rgba(105, 200, 223, 0.25);
+  background: rgba(105, 200, 223, 0.08);
 }
 
 .col-empty {
@@ -830,7 +830,7 @@ onMounted(async () => {
 .panel {
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(139, 92, 246, 0.14), rgba(255, 255, 255, 0.04));
+  background: linear-gradient(145deg, rgba(105, 200, 223, 0.14), rgba(255, 255, 255, 0.04));
   box-shadow: var(--shadow);
   overflow: hidden;
 }
@@ -904,7 +904,7 @@ onMounted(async () => {
 @media (hover: hover) {
   .result-row:hover {
     background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(139, 92, 246, 0.35);
+    border-color: rgba(105, 200, 223, 0.35);
     transform: translateY(-1px);
   }
 }
@@ -1002,25 +1002,25 @@ onMounted(async () => {
 @media (hover: hover) {
   .icon-btn:hover {
     background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(139, 92, 246, 0.4);
+    border-color: rgba(105, 200, 223, 0.4);
   }
 }
 
 .icon-btn--play {
   color: #0c0a14;
   border: none;
-  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
+  background: linear-gradient(135deg, #9beaff, var(--accent2));
 }
 
 .icon-btn--on {
-  border-color: rgba(244, 114, 182, 0.45);
-  color: #fbcfe8;
-  background: rgba(244, 114, 182, 0.12);
+  border-color: rgba(105, 200, 223, 0.3);
+  color: #dffbff;
+  background: rgba(105, 200, 223, 0.12);
 }
 
 .icon-btn--dl {
-  border-color: rgba(52, 211, 153, 0.35);
-  color: #a7f3d0;
+  border-color: rgba(105, 200, 223, 0.24);
+  color: #b7f0fb;
 }
 
 .state {
@@ -1054,7 +1054,7 @@ onMounted(async () => {
 @media (prefers-reduced-motion: reduce) {
   .state__spinner {
     animation: none;
-    border-color: rgba(34, 211, 238, 0.35);
+    border-color: rgba(105, 200, 223, 0.35);
   }
 }
 

@@ -259,9 +259,11 @@ const renderTrendChart = (data) => {
         {
           label: '用户注册数',
           data: userCounts,
-          borderColor: 'rgb(75, 192, 192)',
-          backgroundColor: 'rgba(75, 192, 192, 0.2)',
-          tension: 0.1
+          borderColor: '#69c8df',
+          backgroundColor: 'rgba(105, 200, 223, 0.16)',
+          tension: 0.28,
+          pointBackgroundColor: '#9beaff',
+          pointBorderColor: '#08131a'
         }
       ]
     },
@@ -271,18 +273,26 @@ const renderTrendChart = (data) => {
       plugins: {
         title: {
           display: true,
-          text: '平台数据趋势'
+          text: '平台数据趋势',
+          color: '#f2f8fb'
         },
         legend: {
           display: true,
           position: 'top',
+          labels: {
+            color: '#a6b7c4'
+          }
         }
       },
       scales: {
         y: {
           beginAtZero: true,
           max: maxValue,
+          grid: {
+            color: 'rgba(143, 174, 198, 0.12)'
+          },
           ticks: {
+            color: '#a6b7c4',
             // 确保y轴只显示整数
             callback: function(value) {
               if (Number.isInteger(value)) {
@@ -296,6 +306,9 @@ const renderTrendChart = (data) => {
         x: {
           grid: {
             display: false // 隐藏x轴网格线以提高可读性
+          },
+          ticks: {
+            color: '#a6b7c4'
           }
         }
       }
@@ -357,7 +370,7 @@ const logout = () => {
 }
 
 .menu-toggle-btn:hover {
-  color: #6a5acd;
+  color: #69c8df;
 }
 
 .menu-toggle-btn svg {
@@ -373,7 +386,7 @@ const logout = () => {
 }
 
 .logout-button {
-  background: linear-gradient(135deg, rgba(220, 20, 60, 0.8), rgba(255, 99, 71, 0.8));
+  background: linear-gradient(135deg, rgba(220, 20, 60, 0.8), rgba(105, 200, 223, 0.8));
   color: white;
   border: none;
   border-radius: 20px;
@@ -408,11 +421,11 @@ const logout = () => {
 }
 
 .admin-title {
-  color: #6a5acd;
+  color: #69c8df;
   margin: 0 0 10px 0;
   font-size: 1.8rem;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-  background: linear-gradient(45deg, #ff9ec0, #6a5acd, #84ffff);
+  background: linear-gradient(45deg, #9beaff, #69c8df, #9beaff);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -464,7 +477,7 @@ const logout = () => {
 .stat-number {
   font-size: 1.8rem;
   font-weight: bold;
-  color: #6a5acd;
+  color: #69c8df;
   margin-bottom: 5px;
 }
 
@@ -484,7 +497,7 @@ const logout = () => {
 }
 
 .chart-section h3 {
-  color: #6a5acd;
+  color: #69c8df;
   margin: 0 0 20px 0;
   font-size: 1.3rem;
 }
@@ -536,15 +549,112 @@ const logout = () => {
 }
 
 .action-btn.primary {
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(138, 43, 226, 0.8));
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.8), rgba(105, 200, 223, 0.8));
   color: white;
-  box-shadow: 0 4px 10px rgba(106, 90, 205, 0.3);
+  box-shadow: 0 4px 10px rgba(105, 200, 223, 0.3);
 }
 
 .action-btn.primary:hover {
   background: linear-gradient(135deg, rgba(86, 70, 185, 0.9), rgba(118, 23, 206, 0.9));
   transform: translateY(-2px);
-  box-shadow: 0 6px 15px rgba(106, 90, 205, 0.5);
+  box-shadow: 0 6px 15px rgba(105, 200, 223, 0.5);
+}
+
+/* dashboard skin override */
+.admin-layout {
+  background:
+    radial-gradient(900px 520px at 12% -8%, rgba(105, 200, 223, 0.16), transparent 58%),
+    linear-gradient(180deg, #070b10, #0b1118 48%, #06090d 100%);
+  color: var(--neko-text);
+}
+
+.admin-main-content {
+  min-height: 100dvh;
+  padding: 22px 24px 40px;
+}
+
+.admin-header,
+.stat-card,
+.chart-section,
+.chart-placeholder,
+.content-placeholder {
+  background: rgba(14, 22, 31, 0.82);
+  border: 1px solid rgba(143, 174, 198, 0.14);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.admin-header {
+  border-radius: 20px;
+}
+
+.menu-toggle-btn {
+  color: var(--neko-muted);
+}
+
+.menu-toggle-btn:hover {
+  color: var(--neko-accent-strong);
+}
+
+.admin-user-info {
+  color: var(--neko-muted);
+}
+
+.logout-button {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(143, 174, 198, 0.14);
+  color: var(--neko-text);
+  box-shadow: none;
+}
+
+.logout-button:hover {
+  background: rgba(105, 200, 223, 0.08);
+  box-shadow: none;
+}
+
+.admin-title {
+  color: var(--neko-text);
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  text-shadow: none;
+}
+
+.admin-subtitle,
+.stat-label,
+.chart-placeholder,
+.content-placeholder {
+  color: var(--neko-muted);
+}
+
+.stat-card {
+  border-radius: 20px;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(105, 200, 223, 0.24);
+}
+
+.stat-number,
+.chart-section h3 {
+  color: var(--neko-accent-strong);
+}
+
+.chart-section {
+  border-radius: 20px;
+}
+
+.action-btn.primary {
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.22), rgba(105, 200, 223, 0.1));
+  color: var(--neko-text);
+  border: 1px solid rgba(105, 200, 223, 0.22);
+  box-shadow: none;
+}
+
+.action-btn.primary:hover {
+  background: rgba(105, 200, 223, 0.14);
+  box-shadow: none;
 }
 
 /* 响应式设计 */

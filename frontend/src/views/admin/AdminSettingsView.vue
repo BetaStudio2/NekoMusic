@@ -220,7 +220,7 @@ const saveSettings = (tab) => {
 }
 
 .admin-subpage h2 {
-  color: #6a5acd;
+  color: #69c8df;
   margin: 0 0 20px 0;
   font-size: 1.5rem;
 }
@@ -242,14 +242,14 @@ const saveSettings = (tab) => {
 }
 
 .tab-btn.active {
-  color: #6a5acd;
-  border-bottom: 2px solid #6a5acd;
+  color: #69c8df;
+  border-bottom: 2px solid #69c8df;
   font-weight: bold;
 }
 
 .tab-btn:hover:not(.active) {
-  color: #6a5acd;
-  background: rgba(106, 90, 205, 0.1);
+  color: #69c8df;
+  background: rgba(105, 200, 223, 0.1);
   border-radius: 5px 5px 0 0;
 }
 
@@ -260,7 +260,7 @@ const saveSettings = (tab) => {
 }
 
 .tab-panel h3 {
-  color: #6a5acd;
+  color: #69c8df;
   margin: 0 0 20px 0;
   font-size: 1.2rem;
 }
@@ -300,8 +300,8 @@ const saveSettings = (tab) => {
 .form-group input:focus,
 .form-group textarea:focus {
   outline: none;
-  border: 1px solid rgba(106, 90, 205, 0.5);
-  box-shadow: 0 0 0 2px rgba(106, 90, 205, 0.2);
+  border: 1px solid rgba(105, 200, 223, 0.5);
+  box-shadow: 0 0 0 2px rgba(105, 200, 223, 0.2);
   background: rgba(255, 255, 255, 0.35);
 }
 
@@ -350,7 +350,7 @@ const saveSettings = (tab) => {
 }
 
 input:checked + .slider {
-  background-color: #6a5acd;
+  background-color: #69c8df;
 }
 
 input:checked + .slider:before {
@@ -369,7 +369,7 @@ input:checked + .slider:before {
 }
 
 .save-btn {
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(138, 43, 226, 0.8));
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.8), rgba(105, 200, 223, 0.8));
   color: white;
   border: none;
   border-radius: 20px;
@@ -377,13 +377,13 @@ input:checked + .slider:before {
   cursor: pointer;
   font-size: 0.9rem;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 10px rgba(106, 90, 205, 0.3);
+  box-shadow: 0 4px 10px rgba(105, 200, 223, 0.3);
 }
 
 .save-btn:hover {
   background: linear-gradient(135deg, rgba(86, 70, 185, 0.9), rgba(118, 23, 206, 0.9));
   transform: translateY(-2px);
-  box-shadow: 0 6px 15px rgba(106, 90, 205, 0.5);
+  box-shadow: 0 6px 15px rgba(105, 200, 223, 0.5);
 }
 
 /* 响应式设计 */

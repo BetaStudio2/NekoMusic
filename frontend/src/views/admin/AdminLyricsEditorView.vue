@@ -586,10 +586,10 @@ const logout = () => {
 
 .file-panel,
 .editor-panel {
-  background: rgba(255, 255, 255, 0.64);
-  border: 1px solid rgba(205, 215, 230, 0.85);
-  border-radius: 8px;
-  box-shadow: 0 12px 30px rgba(37, 51, 83, 0.12);
+  background: rgba(14, 22, 31, 0.88);
+  border: 1px solid rgba(143, 174, 198, 0.16);
+  border-radius: 16px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
   overflow: hidden;
 }
 
@@ -604,17 +604,17 @@ const logout = () => {
   align-items: center;
   justify-content: space-between;
   padding: 16px;
-  border-bottom: 1px solid rgba(205, 215, 230, 0.85);
+  border-bottom: 1px solid rgba(143, 174, 198, 0.14);
 }
 
 .panel-toolbar h2 {
-  color: #2f3650;
+  color: var(--neko-text);
   margin: 0 0 4px;
   font-size: 1.15rem;
 }
 
 .panel-toolbar span {
-  color: #6d7488;
+  color: var(--neko-muted);
   font-size: 0.82rem;
 }
 
@@ -623,9 +623,9 @@ const logout = () => {
   height: 34px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
-  background: rgba(68, 91, 138, 0.1);
-  color: #445b8a;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--neko-accent-strong);
 }
 
 .icon-button svg {
@@ -643,26 +643,27 @@ const logout = () => {
 .search-input,
 .new-file-input {
   width: 100%;
-  border: 1px solid rgba(184, 195, 215, 0.95);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.88);
-  color: #263044;
+  border: 1px solid rgba(143, 174, 198, 0.16) !important;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.045) !important;
+  color: var(--neko-text) !important;
   padding: 10px 12px;
   outline: none;
 }
 
 .search-input:focus,
 .new-file-input:focus {
-  border-color: #6078b8;
-  box-shadow: 0 0 0 3px rgba(96, 120, 184, 0.16);
+  border-color: rgba(105, 200, 223, 0.45) !important;
+  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.12);
 }
 
 .new-button,
 .small-primary-btn,
 .primary-btn {
-  background: #546fb5;
-  color: white;
-  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.24), rgba(105, 200, 223, 0.1));
+  color: var(--neko-text);
+  border-radius: 999px;
+  border: 1px solid rgba(105, 200, 223, 0.24);
 }
 
 .new-button {
@@ -691,7 +692,7 @@ const logout = () => {
   min-height: 34px;
   border: 0;
   background: transparent;
-  color: #2f3650;
+  color: var(--neko-muted);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -702,12 +703,12 @@ const logout = () => {
 }
 
 .tree-row:hover {
-  background: rgba(84, 111, 181, 0.1);
+  background: rgba(105, 200, 223, 0.08);
 }
 
 .tree-row.active {
-  background: rgba(84, 111, 181, 0.18);
-  color: #243f86;
+  background: rgba(105, 200, 223, 0.13);
+  color: var(--neko-accent-strong);
 }
 
 .tree-row.directory {
@@ -716,7 +717,7 @@ const logout = () => {
 
 .tree-icon {
   flex: 0 0 16px;
-  color: #66728e;
+  color: var(--neko-faint);
   text-align: center;
 }
 
@@ -732,13 +733,13 @@ const logout = () => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #d98932;
+  background: var(--neko-warning);
   flex: 0 0 auto;
 }
 
 .tree-state {
   padding: 24px 16px;
-  color: #6d7488;
+  color: var(--neko-muted);
   text-align: center;
 }
 
@@ -752,7 +753,7 @@ const logout = () => {
   flex: 1;
   display: grid;
   place-items: center;
-  color: #6d7488;
+  color: var(--neko-muted);
 }
 
 .empty-editor h3 {
@@ -766,7 +767,7 @@ const logout = () => {
   justify-content: space-between;
   gap: 16px;
   padding: 16px 18px;
-  border-bottom: 1px solid rgba(205, 215, 230, 0.85);
+  border-bottom: 1px solid rgba(143, 174, 198, 0.14);
 }
 
 .file-heading {
@@ -775,7 +776,7 @@ const logout = () => {
 
 .file-heading h3 {
   margin: 0 0 7px;
-  color: #2f3650;
+  color: var(--neko-text);
   font-size: 1.1rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -786,7 +787,7 @@ const logout = () => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  color: #6d7488;
+  color: var(--neko-muted);
   font-size: 0.82rem;
 }
 
@@ -798,7 +799,7 @@ const logout = () => {
 }
 
 .dirty-label {
-  color: #b45b20;
+  color: var(--neko-warning);
   font-weight: 700;
 }
 
@@ -815,15 +816,17 @@ const logout = () => {
 }
 
 .secondary-btn {
-  background: rgba(95, 107, 132, 0.12);
-  color: #43506b;
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--neko-text);
+  border-radius: 999px;
+  border: 1px solid rgba(143, 174, 198, 0.14);
 }
 
 .danger-btn {
-  background: rgba(207, 72, 88, 0.13);
-  color: #b93748;
-  border-radius: 8px;
+  background: rgba(255, 107, 107, 0.1);
+  color: #ffd7d7;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 107, 107, 0.22);
 }
 
 .primary-btn:disabled,
@@ -838,15 +841,15 @@ const logout = () => {
   min-height: 0;
   display: grid;
   grid-template-columns: 58px minmax(0, 1fr);
-  background: #f9fbff;
+  background: #081018;
 }
 
 .line-gutter {
   overflow: hidden;
   padding: 14px 10px 14px 0;
-  background: #eef3f9;
-  border-right: 1px solid #d8e0ed;
-  color: #8a94a8;
+  background: #0a121b;
+  border-right: 1px solid rgba(143, 174, 198, 0.16);
+  color: #708493;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 13px;
   line-height: 1.62;
@@ -862,8 +865,9 @@ const logout = () => {
   border: 0;
   outline: none;
   padding: 14px 16px;
-  background: #fbfdff;
-  color: #1f2937;
+  background: #081018 !important;
+  color: #eef8fb !important;
+  caret-color: #9beaff;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 14px;
   line-height: 1.62;
@@ -872,8 +876,13 @@ const logout = () => {
 }
 
 .lyrics-editor[readonly] {
-  color: #687386;
-  background: #f5f7fb;
+  color: #a6b7c4 !important;
+  background: #0b141d !important;
+}
+
+.lyrics-editor::selection {
+  color: #061014;
+  background: #9beaff;
 }
 
 @media (max-width: 900px) {

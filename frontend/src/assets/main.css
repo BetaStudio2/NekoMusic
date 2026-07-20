@@ -4,25 +4,70 @@
   box-sizing: border-box;
 }
 
+:root {
+  color-scheme: dark;
+  --neko-bg: #070b10;
+  --neko-bg-soft: #0b1118;
+  --neko-surface: rgba(14, 22, 31, 0.82);
+  --neko-surface-strong: rgba(20, 31, 43, 0.92);
+  --neko-surface-muted: rgba(255, 255, 255, 0.045);
+  --neko-line: rgba(143, 174, 198, 0.16);
+  --neko-line-strong: rgba(143, 174, 198, 0.28);
+  --neko-text: #f2f8fb;
+  --neko-muted: #a6b7c4;
+  --neko-faint: #708493;
+  --neko-accent: #69c8df;
+  --neko-accent-strong: #9beaff;
+  --neko-danger: #ff6b6b;
+  --neko-warning: #f7c66a;
+  --neko-radius: 16px;
+  --neko-radius-lg: 22px;
+  --neko-shadow: 0 26px 80px rgba(0, 0, 0, 0.42);
+  --neko-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html {
+  scroll-behavior: smooth;
+  background: var(--neko-bg);
+}
+
 body {
-  font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
-  background: linear-gradient(135deg, #e0f7fa 0%, #f3e5f5 100%);
-  min-height: 100vh;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei",
+    sans-serif;
+  background:
+    radial-gradient(1100px 680px at 10% -8%, rgba(105, 200, 223, 0.18), transparent 58%),
+    radial-gradient(900px 580px at 92% 4%, rgba(111, 137, 156, 0.14), transparent 58%),
+    linear-gradient(180deg, #070b10 0%, #0b1118 48%, #06090d 100%);
+  color: var(--neko-text);
+  min-height: 100dvh;
   overflow-x: hidden;
   position: relative;
+  font-feature-settings: "tnum" 1, "liga" 1;
+  text-rendering: geometricPrecision;
 }
 
 body::before {
   content: '';
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: radial-gradient(circle at 10% 20%, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 20%),
-              radial-gradient(circle at 90% 80%, rgba(173, 216, 230, 0.1) 0%, rgba(255, 255, 255, 0) 20%);
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 75% 55% at 50% 8%, black, transparent 78%);
   pointer-events: none;
-  z-index: -1;
+  z-index: 0;
 }
 
 #app {
@@ -30,18 +75,60 @@ body::before {
   margin: 0;
   padding: 0;
   font-weight: normal;
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   background: transparent;
+  position: relative;
+  z-index: 1;
 }
 
 a,
 .green {
   text-decoration: none;
-  color: hsla(160, 100%, 37%, 1);
-  transition: 0.4s;
-  padding: 3px;
+  color: var(--neko-accent-strong);
+  transition: color 0.2s var(--neko-ease), background 0.2s var(--neko-ease);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--neko-accent);
+  outline-offset: 3px;
+}
+
+::selection {
+  color: #061014;
+  background: var(--neko-accent-strong);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(105, 200, 223, 0.38);
+  border: 2px solid rgba(7, 11, 16, 0.92);
+  border-radius: 999px;
 }
 
 .Vue-Toastification__container {
@@ -56,6 +143,183 @@ a,
 
 @media (hover: hover) {
   a:hover {
-    background-color: hsla(160, 100%, 37%, 0.2);
+    color: #ffffff;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Shared admin skin for all management routes. */
+.admin-layout {
+  background:
+    radial-gradient(920px 560px at 12% -8%, rgba(105, 200, 223, 0.16), transparent 58%),
+    linear-gradient(180deg, #070b10, #0b1118 48%, #06090d 100%) !important;
+  color: var(--neko-text) !important;
+}
+
+.admin-main-content {
+  min-height: 100dvh !important;
+}
+
+.admin-layout .admin-header,
+.admin-layout .admin-content-wrapper,
+.admin-layout .admin-subpage,
+.admin-layout .admin-header-section,
+.admin-layout .users-list-section,
+.admin-layout .music-list-section,
+.admin-layout .audit-card,
+.admin-layout .release-card,
+.admin-layout .settings-card,
+.admin-layout .pricing-card,
+.admin-layout .table-container,
+.admin-layout .edit-modal,
+.admin-layout .modal-content,
+.admin-layout .panel-toolbar,
+.admin-layout .chart-section,
+.admin-layout .content-placeholder {
+  background: rgba(14, 22, 31, 0.84) !important;
+  border-color: rgba(143, 174, 198, 0.14) !important;
+  color: var(--neko-text) !important;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24) !important;
+}
+
+.admin-layout h1,
+.admin-layout h2,
+.admin-layout h3,
+.admin-layout h4,
+.admin-layout label,
+.admin-layout th {
+  color: var(--neko-text) !important;
+}
+
+.admin-layout p,
+.admin-layout td,
+.admin-layout .admin-subtitle,
+.admin-layout .form-hint,
+.admin-layout .cell-muted,
+.admin-layout .cell-sub,
+.admin-layout .content-placeholder {
+  color: var(--neko-muted) !important;
+}
+
+.admin-layout input,
+.admin-layout select,
+.admin-layout textarea,
+.admin-layout .filter-select,
+.admin-layout .search-input,
+.admin-layout .styled-select {
+  background: rgba(255, 255, 255, 0.045) !important;
+  border: 1px solid rgba(143, 174, 198, 0.16) !important;
+  color: var(--neko-text) !important;
+  border-radius: 12px !important;
+}
+
+.admin-layout input::placeholder,
+.admin-layout textarea::placeholder {
+  color: var(--neko-faint) !important;
+}
+
+.admin-layout table {
+  background: rgba(8, 13, 19, 0.5) !important;
+  color: var(--neko-text) !important;
+}
+
+.admin-layout thead,
+.admin-layout th {
+  background: rgba(105, 200, 223, 0.08) !important;
+}
+
+.admin-layout tr,
+.admin-layout td {
+  border-color: rgba(143, 174, 198, 0.12) !important;
+}
+
+.admin-layout button,
+.admin-layout .action-btn,
+.admin-layout .add-btn,
+.admin-layout .create-btn,
+.admin-layout .save-btn,
+.admin-layout .submit-btn,
+.admin-layout .login-button {
+  border-radius: 999px !important;
+}
+
+.admin-layout .add-btn,
+.admin-layout .create-btn,
+.admin-layout .save-btn,
+.admin-layout .submit-btn,
+.admin-layout .login-button,
+.admin-layout .action-btn.primary {
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.24), rgba(105, 200, 223, 0.1)) !important;
+  border: 1px solid rgba(105, 200, 223, 0.24) !important;
+  color: var(--neko-text) !important;
+  box-shadow: none !important;
+}
+
+.admin-layout .edit-btn,
+.admin-layout .delete-btn,
+.admin-layout .reject-btn,
+.admin-layout .approve-btn,
+.admin-layout .cancel-btn,
+.admin-layout .close-btn {
+  box-shadow: none !important;
+}
+
+/* Upload page skin, kept separate because it has its own local layout. */
+.upload-view {
+  color: var(--neko-text) !important;
+  background: transparent !important;
+}
+
+.upload-view .upload-container,
+.upload-view .cover-side,
+.upload-view .form-side,
+.upload-view .cover-upload,
+.upload-view .lyrics-upload-section,
+.upload-view .form-section,
+.upload-view .preview-card,
+.upload-view .upload-card {
+  background: rgba(14, 22, 31, 0.84) !important;
+  border-color: rgba(143, 174, 198, 0.14) !important;
+  color: var(--neko-text) !important;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24) !important;
+}
+
+.upload-view h1,
+.upload-view h2,
+.upload-view h3,
+.upload-view label,
+.upload-view .side-label {
+  color: var(--neko-text) !important;
+}
+
+.upload-view p,
+.upload-view span,
+.upload-view .form-hint,
+.upload-view .file-placeholder,
+.upload-view .cover-placeholder {
+  color: var(--neko-muted) !important;
+}
+
+.upload-view input,
+.upload-view select,
+.upload-view textarea {
+  background: rgba(255, 255, 255, 0.045) !important;
+  border: 1px solid rgba(143, 174, 198, 0.16) !important;
+  color: var(--neko-text) !important;
+}
+
+.upload-view button,
+.upload-view .submit-btn,
+.upload-view .change-btn {
+  border-radius: 999px !important;
 }

@@ -146,22 +146,22 @@ const hasPermission = (permission) => {
 <style scoped>
 .admin-sidebar {
   width: 250px;
-  background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-right: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(8, 13, 19, 0.96);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-right: 1px solid rgba(143, 174, 198, 0.14);
   display: flex;
   flex-direction: column;
   position: fixed;
   left: 0;
   top: 0;
-  height: 100vh;
+  height: 100dvh;
   z-index: 1000;
 }
 
 .sidebar-header {
   padding: 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  border-bottom: 1px solid rgba(143, 174, 198, 0.14);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -169,23 +169,26 @@ const hasPermission = (permission) => {
 
 .sidebar-header h3 {
   margin: 0;
-  color: #6a5acd;
+  color: var(--neko-text);
   font-size: 1.3rem;
   flex: 1;
+  letter-spacing: -0.03em;
 }
 
 .close-sidebar-btn {
   display: none;
-  background: none;
-  border: none;
-  color: #887bb0;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(143, 174, 198, 0.14);
+  border-radius: 10px;
+  color: var(--neko-muted);
   cursor: pointer;
   padding: 5px;
-  transition: color 0.3s ease;
+  transition: color 0.2s var(--neko-ease), background 0.2s var(--neko-ease);
 }
 
 .close-sidebar-btn:hover {
-  color: #6a5acd;
+  color: var(--neko-text);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .close-sidebar-btn svg {
@@ -212,22 +215,22 @@ const hasPermission = (permission) => {
   display: flex;
   align-items: center;
   padding: 12px 20px;
-  color: #887bb0;
+  color: var(--neko-muted);
   text-decoration: none;
-  transition: all 0.3s ease;
+  transition: color 0.2s var(--neko-ease), background 0.2s var(--neko-ease), border-color 0.2s var(--neko-ease);
   border-left: 3px solid transparent;
 }
 
 .nav-link:hover {
-  background: rgba(106, 90, 205, 0.1);
-  color: #6a5acd;
-  border-left: 3px solid #6a5acd;
+  background: rgba(105, 200, 223, 0.07);
+  color: var(--neko-text);
+  border-left-color: rgba(105, 200, 223, 0.45);
 }
 
 .nav-link.active {
-  background: rgba(106, 90, 205, 0.2);
-  color: #6a5acd;
-  border-left: 3px solid #6a5acd;
+  background: rgba(105, 200, 223, 0.12);
+  color: var(--neko-accent-strong);
+  border-left-color: var(--neko-accent);
 }
 
 .nav-icon {
@@ -239,6 +242,7 @@ const hasPermission = (permission) => {
 
 .nav-text {
   font-size: 0.95rem;
+  font-weight: 650;
 }
 
 /* 响应式设计 */

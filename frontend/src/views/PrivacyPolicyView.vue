@@ -382,7 +382,7 @@ onMounted(() => {
 .panel {
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(139, 92, 246, 0.12), rgba(255, 255, 255, 0.04));
+  background: linear-gradient(145deg, rgba(105, 200, 223, 0.12), rgba(255, 255, 255, 0.04));
   box-shadow: var(--shadow);
   padding: clamp(20px, 3vw, 28px) clamp(18px, 3vw, 28px);
   margin-bottom: 16px;
@@ -482,7 +482,7 @@ onMounted(() => {
 .privacy-section li {
   margin-bottom: 8px;
   padding: 10px 0 10px 12px;
-  border-left: 3px solid rgba(34, 211, 238, 0.55);
+  border-left: 3px solid rgba(105, 200, 223, 0.55);
   color: var(--muted);
   font-size: 0.94rem;
   line-height: 1.55;
@@ -525,8 +525,8 @@ onMounted(() => {
 }
 
 .toc-grid a:hover {
-  border-color: rgba(34, 211, 238, 0.42);
-  background: rgba(34, 211, 238, 0.1);
+  border-color: rgba(105, 200, 223, 0.42);
+  background: rgba(105, 200, 223, 0.1);
   color: #dffbff;
 }
 

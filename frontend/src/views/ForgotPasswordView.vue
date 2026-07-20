@@ -261,7 +261,7 @@ onUnmounted(() => {
 .panel {
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(139, 92, 246, 0.14), rgba(255, 255, 255, 0.04));
+  background: linear-gradient(145deg, rgba(105, 200, 223, 0.14), rgba(255, 255, 255, 0.04));
   box-shadow: var(--shadow);
 }
 
@@ -277,7 +277,7 @@ onUnmounted(() => {
   font-size: clamp(1.35rem, 3vw, 1.65rem);
   font-weight: 800;
   letter-spacing: -0.02em;
-  background: linear-gradient(120deg, #e9d5ff, #a5f3fc, #c4b5fd);
+  background: linear-gradient(120deg, #d7edf5, #c8f7ff, #9beaff);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -313,16 +313,16 @@ onUnmounted(() => {
 }
 
 .step.active .step-number {
-  background: linear-gradient(135deg, #8b5cf6, #22d3ee);
+  background: linear-gradient(135deg, #69c8df, #69c8df);
   border-color: rgba(255, 255, 255, 0.2);
   color: #fff;
   transform: scale(1.06);
-  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.35);
+  box-shadow: 0 6px 20px rgba(105, 200, 223, 0.35);
 }
 
 .step.completed .step-number {
-  background: rgba(52, 211, 153, 0.35);
-  border-color: rgba(52, 211, 153, 0.55);
+  background: rgba(155, 234, 255, 0.35);
+  border-color: rgba(155, 234, 255, 0.55);
   color: #ecfdf5;
 }
 
@@ -372,8 +372,8 @@ onUnmounted(() => {
 
 .form-input:focus {
   outline: none;
-  border-color: rgba(34, 211, 238, 0.45);
-  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12);
+  border-color: rgba(105, 200, 223, 0.45);
+  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.12);
 }
 
 .form-input:disabled {
@@ -408,8 +408,8 @@ onUnmounted(() => {
 }
 
 .resend-btn:hover:not(:disabled) {
-  background: rgba(139, 92, 246, 0.22);
-  border-color: rgba(139, 92, 246, 0.4);
+  background: rgba(105, 200, 223, 0.22);
+  border-color: rgba(105, 200, 223, 0.4);
 }
 
 .resend-btn:disabled {
@@ -428,8 +428,8 @@ onUnmounted(() => {
   font-weight: 700;
   cursor: pointer;
   color: #0c0a14;
-  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
-  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+  background: linear-gradient(135deg, #9beaff, var(--accent2));
+  box-shadow: 0 8px 24px rgba(105, 200, 223, 0.3);
 }
 
 .submit-btn:hover:not(:disabled) {

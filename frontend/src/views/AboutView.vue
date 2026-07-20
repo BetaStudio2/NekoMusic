@@ -89,7 +89,7 @@ onMounted(() => {
 .panel {
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(139, 92, 246, 0.12), rgba(255, 255, 255, 0.04));
+  background: linear-gradient(145deg, rgba(105, 200, 223, 0.12), rgba(255, 255, 255, 0.04));
   box-shadow: var(--shadow);
   padding: clamp(20px, 3vw, 28px) clamp(18px, 3vw, 26px);
   margin-bottom: 16px;
@@ -109,7 +109,7 @@ onMounted(() => {
   font-size: clamp(1.75rem, 4vw, 2.35rem);
   font-weight: 800;
   letter-spacing: -0.03em;
-  background: linear-gradient(120deg, #e9d5ff, #a5f3fc, #c4b5fd);
+  background: linear-gradient(120deg, #d7edf5, #c8f7ff, #9beaff);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -151,7 +151,7 @@ onMounted(() => {
   font-size: 0.92rem;
   color: var(--muted);
   padding: 10px 0 10px 12px;
-  border-left: 3px solid rgba(34, 211, 238, 0.55);
+  border-left: 3px solid rgba(105, 200, 223, 0.55);
   margin-bottom: 8px;
   line-height: 1.5;
 }
@@ -183,8 +183,8 @@ onMounted(() => {
   font-weight: 700;
   text-decoration: none;
   color: #0c0a14;
-  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
-  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.28);
+  background: linear-gradient(135deg, #9beaff, var(--accent2));
+  box-shadow: 0 8px 24px rgba(105, 200, 223, 0.28);
   transition: filter 0.15s var(--ease);
 }
 

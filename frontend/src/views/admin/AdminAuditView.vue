@@ -805,7 +805,7 @@ onMounted(() => {
 }
 
 .menu-toggle-btn:hover {
-  color: #6a5acd;
+  color: #69c8df;
 }
 
 .menu-toggle-btn svg {
@@ -821,7 +821,7 @@ onMounted(() => {
 }
 
 .logout-button {
-  background: linear-gradient(135deg, rgba(220, 20, 60, 0.8), rgba(255, 99, 71, 0.8));
+  background: linear-gradient(135deg, rgba(220, 20, 60, 0.8), rgba(105, 200, 223, 0.8));
   color: white;
   border: none;
   border-radius: 20px;
@@ -850,11 +850,11 @@ onMounted(() => {
 }
 
 .admin-title {
-  color: #6a5acd;
+  color: #69c8df;
   margin: 0 0 10px 0;
   font-size: 1.8rem;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-  background: linear-gradient(45deg, #ff9ec0, #6a5acd, #84ffff);
+  background: linear-gradient(45deg, #9beaff, #69c8df, #9beaff);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -931,7 +931,7 @@ onMounted(() => {
 .audit-cover-placeholder {
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.3), rgba(138, 43, 226, 0.3));
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.3), rgba(105, 200, 223, 0.3));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -945,7 +945,7 @@ onMounted(() => {
 
 .audit-title-section h3 {
   margin: 0 0 5px 0;
-  color: #6a5acd;
+  color: #69c8df;
   font-size: 1.3rem;
   white-space: nowrap;
   overflow: hidden;
@@ -998,7 +998,7 @@ onMounted(() => {
 }
 
 .detail-value {
-  color: #6a5acd;
+  color: #69c8df;
   font-weight: 600;
 }
 
@@ -1039,20 +1039,20 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 15px;
-  background: rgba(106, 90, 205, 0.1);
-  border-bottom: 1px solid rgba(106, 90, 205, 0.2);
+  background: rgba(105, 200, 223, 0.1);
+  border-bottom: 1px solid rgba(105, 200, 223, 0.2);
 }
 
 .lyrics-preview-title {
-  color: #6a5acd;
+  color: #69c8df;
   font-weight: 600;
   font-size: 0.95rem;
 }
 
 .toggle-lyrics-btn {
-  background: rgba(106, 90, 205, 0.2);
-  color: #6a5acd;
-  border: 1px solid rgba(106, 90, 205, 0.3);
+  background: rgba(105, 200, 223, 0.2);
+  color: #69c8df;
+  border: 1px solid rgba(105, 200, 223, 0.3);
   border-radius: 15px;
   padding: 6px 12px;
   cursor: pointer;
@@ -1061,7 +1061,7 @@ onMounted(() => {
 }
 
 .toggle-lyrics-btn:hover {
-  background: rgba(106, 90, 205, 0.3);
+  background: rgba(105, 200, 223, 0.3);
   transform: translateY(-1px);
 }
 
@@ -1075,7 +1075,7 @@ onMounted(() => {
   display: flex;
   height: 300px;
   gap: 1px;
-  background: rgba(106, 90, 205, 0.2);
+  background: rgba(105, 200, 223, 0.2);
 }
 
 .lyrics-panel {
@@ -1088,13 +1088,13 @@ onMounted(() => {
 
 .lyrics-panel-header {
   padding: 10px 15px;
-  background: rgba(106, 90, 205, 0.1);
-  border-bottom: 1px solid rgba(106, 90, 205, 0.2);
+  background: rgba(105, 200, 223, 0.1);
+  border-bottom: 1px solid rgba(105, 200, 223, 0.2);
   flex-shrink: 0;
 }
 
 .panel-title {
-  color: #6a5acd;
+  color: #69c8df;
   font-weight: 600;
   font-size: 0.85rem;
 }
@@ -1111,17 +1111,17 @@ onMounted(() => {
 }
 
 .lyrics-scroll-area::-webkit-scrollbar-track {
-  background: rgba(106, 90, 205, 0.1);
+  background: rgba(105, 200, 223, 0.1);
   border-radius: 3px;
 }
 
 .lyrics-scroll-area::-webkit-scrollbar-thumb {
-  background: rgba(106, 90, 205, 0.3);
+  background: rgba(105, 200, 223, 0.3);
   border-radius: 3px;
 }
 
 .lyrics-scroll-area::-webkit-scrollbar-thumb:hover {
-  background: rgba(106, 90, 205, 0.5);
+  background: rgba(105, 200, 223, 0.5);
 }
 
 .lyrics-text {
@@ -1139,12 +1139,12 @@ onMounted(() => {
 }
 
 .lyric-line:hover {
-  background: rgba(106, 90, 205, 0.1);
-  color: #6a5acd;
+  background: rgba(105, 200, 223, 0.1);
+  color: #69c8df;
 }
 
 .lyric-text {
-  color: #6a5acd;
+  color: #69c8df;
   font-weight: 500;
 }
 
@@ -1208,15 +1208,15 @@ onMounted(() => {
 }
 
 .preview-btn {
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(138, 43, 226, 0.8));
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.8), rgba(105, 200, 223, 0.8));
   color: white;
-  box-shadow: 0 4px 10px rgba(106, 90, 205, 0.3);
+  box-shadow: 0 4px 10px rgba(105, 200, 223, 0.3);
 }
 
 .preview-btn:hover:not(:disabled) {
   background: linear-gradient(135deg, rgba(86, 70, 185, 0.9), rgba(118, 23, 206, 0.9));
   transform: translateY(-2px);
-  box-shadow: 0 6px 15px rgba(106, 90, 205, 0.5);
+  box-shadow: 0 6px 15px rgba(105, 200, 223, 0.5);
 }
 
 .preview-btn:disabled {
@@ -1237,7 +1237,7 @@ onMounted(() => {
 }
 
 .reject-btn {
-  background: linear-gradient(135deg, rgba(245, 34, 45, 0.8), rgba(255, 99, 71, 0.8));
+  background: linear-gradient(135deg, rgba(245, 34, 45, 0.8), rgba(105, 200, 223, 0.8));
   color: white;
   box-shadow: 0 4px 10px rgba(245, 34, 45, 0.3);
 }
@@ -1285,7 +1285,7 @@ onMounted(() => {
 
 .modal-header h3 {
   margin: 0;
-  color: #6a5acd;
+  color: #69c8df;
   font-size: 1.3rem;
 }
 
@@ -1305,8 +1305,8 @@ onMounted(() => {
 }
 
 .close-btn:hover {
-  color: #6a5acd;
-  background: rgba(106, 90, 205, 0.1);
+  color: #69c8df;
+  background: rgba(105, 200, 223, 0.1);
 }
 
 .modal-body {
@@ -1320,14 +1320,14 @@ onMounted(() => {
 .form-group label {
   display: block;
   margin-bottom: 10px;
-  color: #6a5acd;
+  color: #69c8df;
   font-weight: 500;
 }
 
 .form-group textarea {
   width: 100%;
   padding: 12px;
-  border: 1px solid rgba(106, 90, 205, 0.3);
+  border: 1px solid rgba(105, 200, 223, 0.3);
   border-radius: 10px;
   font-family: inherit;
   resize: vertical;
@@ -1338,7 +1338,7 @@ onMounted(() => {
 
 .form-group textarea:focus {
   outline: none;
-  border-color: #6a5acd;
+  border-color: #69c8df;
   background: rgba(255, 255, 255, 0.8);
 }
 
@@ -1352,8 +1352,8 @@ onMounted(() => {
 
 .secondary-btn {
   background: rgba(255, 255, 255, 0.5);
-  color: #6a5acd;
-  border: 1px solid rgba(106, 90, 205, 0.3);
+  color: #69c8df;
+  border: 1px solid rgba(105, 200, 223, 0.3);
 }
 
 .secondary-btn:hover {
@@ -1361,7 +1361,7 @@ onMounted(() => {
 }
 
 .reject-confirm-btn {
-  background: linear-gradient(135deg, rgba(245, 34, 45, 0.8), rgba(255, 99, 71, 0.8));
+  background: linear-gradient(135deg, rgba(245, 34, 45, 0.8), rgba(105, 200, 223, 0.8));
   color: white;
   box-shadow: 0 4px 10px rgba(245, 34, 45, 0.3);
 }

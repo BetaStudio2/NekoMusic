@@ -53,7 +53,7 @@ const goBack = () => {
   padding: clamp(36px, 5vw, 52px) clamp(22px, 4vw, 36px);
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(139, 92, 246, 0.14), rgba(255, 255, 255, 0.05));
+  background: linear-gradient(145deg, rgba(105, 200, 223, 0.14), rgba(255, 255, 255, 0.05));
   box-shadow: var(--shadow);
   animation: err-in 0.5s var(--ease) both;
 }
@@ -74,7 +74,7 @@ const goBack = () => {
   font-weight: 800;
   line-height: 1;
   margin-bottom: 12px;
-  background: linear-gradient(120deg, #fbcfe8, #c4b5fd, #a5f3fc);
+  background: linear-gradient(120deg, #fbcfe8, #9beaff, #c8f7ff);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -118,8 +118,8 @@ const goBack = () => {
 
 .btn-primary {
   color: #0c0a14;
-  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
-  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+  background: linear-gradient(135deg, #9beaff, var(--accent2));
+  box-shadow: 0 8px 24px rgba(105, 200, 223, 0.3);
 }
 
 .btn-primary:hover {
@@ -158,7 +158,7 @@ const goBack = () => {
   left: auto;
   right: 18%;
   top: 6px;
-  color: #c4b5fd;
+  color: #9beaff;
   animation-delay: 0.8s;
 }
 
@@ -166,7 +166,7 @@ const goBack = () => {
   left: 50%;
   transform: translateX(-50%);
   top: 2px;
-  color: #a5f3fc;
+  color: #c8f7ff;
   animation-delay: 1.6s;
 }
 

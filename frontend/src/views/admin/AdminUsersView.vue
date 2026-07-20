@@ -66,10 +66,10 @@
                     <td>
                       <template v-if="user.accountType === 'user'">
                         <span v-if="user.vip" class="vip-tag">VIP</span>
-                        <span v-else class="cell-muted">—</span>
+                        <span v-else class="cell-muted">-</span>
                         <div v-if="user.vipExpiresAt" class="cell-sub">{{ formatVipExpiresAt(user.vipExpiresAt) }}</div>
                       </template>
-                      <span v-else class="cell-muted">—</span>
+                      <span v-else class="cell-muted">-</span>
                     </td>
                     <td>
                       <button 
@@ -816,7 +816,7 @@ const logout = () => {
 }
 
 .menu-toggle-btn:hover {
-  color: #6a5acd;
+  color: #69c8df;
 }
 
 .menu-toggle-btn svg {
@@ -832,7 +832,7 @@ const logout = () => {
 }
 
 .logout-button {
-  background: linear-gradient(135deg, rgba(220, 20, 60, 0.8), rgba(255, 99, 71, 0.8));
+  background: linear-gradient(135deg, rgba(220, 20, 60, 0.8), rgba(105, 200, 223, 0.8));
   color: white;
   border: none;
   border-radius: 20px;
@@ -867,7 +867,7 @@ const logout = () => {
 }
 
 .admin-subpage h2 {
-  color: #6a5acd;
+  color: #69c8df;
   margin: 0 0 20px 0;
   font-size: 1.5rem;
 }
@@ -902,7 +902,7 @@ const logout = () => {
 
 .create-btn {
   padding: 8px 20px;
-  background: linear-gradient(135deg, #6a5acd, #7c6bfa);
+  background: linear-gradient(135deg, #69c8df, #8eddec);
   color: white;
   border: none;
   border-radius: 8px;
@@ -914,7 +914,7 @@ const logout = () => {
 
 .create-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(106, 90, 205, 0.4);
+  box-shadow: 0 4px 12px rgba(105, 200, 223, 0.4);
 }
 
 .create-btn:active {
@@ -923,8 +923,8 @@ const logout = () => {
 
 .filter-select:focus, .search-input:focus {
   outline: none;
-  border: 1px solid rgba(106, 90, 205, 0.5);
-  box-shadow: 0 0 0 2px rgba(106, 90, 205, 0.2);
+  border: 1px solid rgba(105, 200, 223, 0.5);
+  box-shadow: 0 0 0 2px rgba(105, 200, 223, 0.2);
   background: rgba(255, 255, 255, 0.35);
 }
 
@@ -952,8 +952,8 @@ const logout = () => {
 }
 
 .users-table th {
-  background: rgba(106, 90, 205, 0.3);
-  color: #6a5acd;
+  background: rgba(105, 200, 223, 0.3);
+  color: #69c8df;
   font-weight: 600;
 }
 
@@ -962,7 +962,7 @@ const logout = () => {
 }
 
 .users-table tr:hover {
-  background: rgba(106, 90, 205, 0.1);
+  background: rgba(105, 200, 223, 0.1);
 }
 
 .vip-tag {
@@ -971,8 +971,8 @@ const logout = () => {
   border-radius: 4px;
   font-size: 0.75rem;
   font-weight: 600;
-  background: linear-gradient(135deg, #ffd700, #ffb347);
-  color: #5c3d00;
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.22), rgba(155, 234, 255, 0.14));
+  color: var(--neko-text);
 }
 
 .cell-muted {
@@ -1034,14 +1034,14 @@ const logout = () => {
   padding: 8px 15px;
   border: none;
   border-radius: 8px;
-  background: rgba(106, 90, 205, 0.2);
-  color: #6a5acd;
+  background: rgba(105, 200, 223, 0.2);
+  color: #69c8df;
   cursor: pointer;
   transition: all 0.3s ease;
 }
 
 .page-btn:hover:not(:disabled) {
-  background: rgba(106, 90, 205, 0.3);
+  background: rgba(105, 200, 223, 0.3);
   transform: translateY(-2px);
 }
 
@@ -1092,7 +1092,7 @@ const logout = () => {
 
 .modal-header {
   padding: 20px;
-  border-bottom: 1px solid rgba(106, 90, 205, 0.1);
+  border-bottom: 1px solid rgba(105, 200, 223, 0.1);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1100,7 +1100,7 @@ const logout = () => {
 
 .modal-header h3 {
   margin: 0;
-  color: #6a5acd;
+  color: #69c8df;
   font-size: 1.3rem;
 }
 
@@ -1128,14 +1128,14 @@ const logout = () => {
 .form-group label {
   display: block;
   margin-bottom: 8px;
-  color: #6a5acd;
+  color: #69c8df;
   font-weight: 600;
 }
 
 .form-group input {
   width: 100%;
   padding: 10px 15px;
-  border: 1px solid rgba(106, 90, 205, 0.3);
+  border: 1px solid rgba(105, 200, 223, 0.3);
   border-radius: 8px;
   font-size: 1rem;
   transition: all 0.3s ease;
@@ -1143,14 +1143,14 @@ const logout = () => {
 
 .form-group input:focus {
   outline: none;
-  border-color: #6a5acd;
-  box-shadow: 0 0 0 3px rgba(106, 90, 205, 0.1);
+  border-color: #69c8df;
+  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.1);
 }
 
 .form-select {
   width: 100%;
   padding: 10px 15px;
-  border: 1px solid rgba(106, 90, 205, 0.3);
+  border: 1px solid rgba(105, 200, 223, 0.3);
   border-radius: 8px;
   font-size: 1rem;
   transition: all 0.3s ease;
@@ -1159,8 +1159,8 @@ const logout = () => {
 
 .form-select:focus {
   outline: none;
-  border-color: #6a5acd;
-  box-shadow: 0 0 0 3px rgba(106, 90, 205, 0.1);
+  border-color: #69c8df;
+  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.1);
 }
 
 .disabled-input {
@@ -1170,7 +1170,7 @@ const logout = () => {
 
 .modal-actions {
   padding: 20px;
-  border-top: 1px solid rgba(106, 90, 205, 0.1);
+  border-top: 1px solid rgba(105, 200, 223, 0.1);
   display: flex;
   justify-content: flex-end;
   gap: 10px;
@@ -1186,23 +1186,23 @@ const logout = () => {
 }
 
 .primary-btn {
-  background: linear-gradient(135deg, #6a5acd, #8a2be2);
+  background: linear-gradient(135deg, #69c8df, #4aa9c0);
   color: white;
 }
 
 .primary-btn:hover {
   background: linear-gradient(135deg, #5a4ab3, #7a2ad2);
   transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(106, 90, 205, 0.3);
+  box-shadow: 0 5px 15px rgba(105, 200, 223, 0.3);
 }
 
 .secondary-btn {
-  background: rgba(106, 90, 205, 0.1);
-  color: #6a5acd;
+  background: rgba(105, 200, 223, 0.1);
+  color: #69c8df;
 }
 
 .secondary-btn:hover {
-  background: rgba(106, 90, 205, 0.2);
+  background: rgba(105, 200, 223, 0.2);
 }
 
 /* 模态框过渡动画 */

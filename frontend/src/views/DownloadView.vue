@@ -94,7 +94,7 @@
               <dl class="android__meta">
                 <div class="android__meta-row">
                   <dt>当前版本</dt>
-                  <dd>{{ versionInfo.ver || '—' }}</dd>
+                  <dd>{{ versionInfo.ver || '-' }}</dd>
                 </div>
               </dl>
             </div>
@@ -295,9 +295,9 @@ onMounted(() => {
   --faint: rgba(255, 255, 255, 0.42);
   --card: rgba(255, 255, 255, 0.06);
   --card2: rgba(255, 255, 255, 0.09);
-  --accent: #8b5cf6;
-  --accent2: #22d3ee;
-  --accent3: #34d399;
+  --accent: #69c8df;
+  --accent2: #69c8df;
+  --accent3: #9beaff;
   --radius: 18px;
   --radius-lg: 24px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -307,8 +307,8 @@ onMounted(() => {
   min-height: 100vh;
   padding-top: env(safe-area-inset-top, 0px);
   color: var(--text);
-  background: radial-gradient(1200px 700px at 10% -10%, rgba(139, 92, 246, 0.35), transparent 55%),
-    radial-gradient(900px 600px at 95% 10%, rgba(34, 211, 238, 0.18), transparent 50%),
+  background: radial-gradient(1200px 700px at 10% -10%, rgba(105, 200, 223, 0.35), transparent 55%),
+    radial-gradient(900px 600px at 95% 10%, rgba(105, 200, 223, 0.18), transparent 50%),
     linear-gradient(180deg, var(--bg0), var(--bg1) 40%, #0a0a12 100%);
 }
 
@@ -330,7 +330,7 @@ onMounted(() => {
 .ambient__blob--a {
   width: 420px;
   height: 420px;
-  background: rgba(139, 92, 246, 0.45);
+  background: rgba(105, 200, 223, 0.45);
   top: -140px;
   left: -120px;
 }
@@ -338,7 +338,7 @@ onMounted(() => {
 .ambient__blob--b {
   width: 360px;
   height: 360px;
-  background: rgba(34, 211, 238, 0.28);
+  background: rgba(105, 200, 223, 0.28);
   bottom: -80px;
   right: -100px;
   animation-delay: -7s;
@@ -347,7 +347,7 @@ onMounted(() => {
 .ambient__blob--c {
   width: 280px;
   height: 280px;
-  background: rgba(52, 211, 153, 0.2);
+  background: rgba(155, 234, 255, 0.2);
   top: 42%;
   left: 38%;
   animation-delay: -12s;
@@ -558,7 +558,7 @@ onMounted(() => {
 
 @media (hover: hover) {
   .hero__anchor-link:hover {
-    color: #a5f3fc;
+    color: #c8f7ff;
   }
 }
 
@@ -599,19 +599,19 @@ onMounted(() => {
 @media (hover: hover) {
   .hero__facts li:hover {
     transform: translateY(-4px) scale(1.03);
-    border-color: rgba(139, 92, 246, 0.45);
-    background: rgba(139, 92, 246, 0.12);
-    box-shadow: 0 12px 32px rgba(139, 92, 246, 0.2);
+    border-color: rgba(105, 200, 223, 0.45);
+    background: rgba(105, 200, 223, 0.12);
+    box-shadow: 0 12px 32px rgba(105, 200, 223, 0.2);
   }
 }
 
-/* —— 网易云迁入说明（锚点 #netease-migrate）—— */
+/* -- 网易云迁入说明（锚点 #netease-migrate）-- */
 .netease-panel {
   position: relative;
   margin-bottom: clamp(22px, 3.5vw, 32px);
   border-radius: var(--radius-lg);
-  border: 1px solid rgba(239, 68, 68, 0.22);
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(139, 92, 246, 0.1), rgba(255, 255, 255, 0.03));
+  border: 1px solid rgba(105, 200, 223, 0.22);
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.1), rgba(105, 200, 223, 0.1), rgba(255, 255, 255, 0.03));
   box-shadow: var(--shadow);
   scroll-margin-top: 88px;
   overflow: hidden;
@@ -636,7 +636,7 @@ onMounted(() => {
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(252, 165, 165, 0.95);
+  color: rgba(155, 234, 255, 0.95);
 }
 
 .netease-panel__title {
@@ -704,7 +704,7 @@ onMounted(() => {
   font-size: 0.8rem;
   font-weight: 800;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.35), rgba(139, 92, 246, 0.4));
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.35), rgba(105, 200, 223, 0.4));
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
@@ -754,7 +754,7 @@ onMounted(() => {
   content: '';
   position: absolute;
   inset: -40%;
-  background: conic-gradient(from 200deg, rgba(139, 92, 246, 0.35), transparent, rgba(34, 211, 238, 0.25), transparent);
+  background: conic-gradient(from 200deg, rgba(105, 200, 223, 0.35), transparent, rgba(105, 200, 223, 0.25), transparent);
   opacity: 0.65;
   animation: spinSlow 18s linear infinite;
 }
@@ -810,10 +810,10 @@ onMounted(() => {
 @keyframes statePulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
+    box-shadow: 0 0 0 0 rgba(105, 200, 223, 0);
   }
   50% {
-    box-shadow: 0 0 40px 2px rgba(34, 211, 238, 0.08);
+    box-shadow: 0 0 40px 2px rgba(105, 200, 223, 0.08);
   }
 }
 
@@ -854,7 +854,7 @@ onMounted(() => {
   margin-bottom: clamp(24px, 4vw, 36px);
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.18), rgba(255, 255, 255, 0.03));
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.18), rgba(255, 255, 255, 0.03));
   box-shadow: var(--shadow);
   overflow: hidden;
   animation: sectionLift 0.85s var(--ease) 0.12s both;
@@ -873,8 +873,8 @@ onMounted(() => {
 
 @media (hover: hover) {
   .android:hover {
-    border-color: rgba(139, 92, 246, 0.35);
-    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(139, 92, 246, 0.15);
+    border-color: rgba(105, 200, 223, 0.35);
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(105, 200, 223, 0.15);
   }
 }
 
@@ -948,14 +948,14 @@ onMounted(() => {
 @media (hover: hover) {
   .android:hover .android__icon-wrap {
     transform: scale(1.06) rotate(-3deg);
-    box-shadow: 0 12px 28px rgba(139, 92, 246, 0.35);
+    box-shadow: 0 12px 28px rgba(105, 200, 223, 0.35);
   }
 }
 
 .android__icon {
   width: 32px;
   height: 32px;
-  color: #e9d5ff;
+  color: #d7edf5;
 }
 
 .android__main {
@@ -1029,9 +1029,9 @@ onMounted(() => {
   font-size: 0.95rem;
   text-decoration: none;
   color: #0b0b10;
-  background: linear-gradient(135deg, #f5f3ff, #e9d5ff);
+  background: linear-gradient(135deg, #f5f3ff, #d7edf5);
   border: 1px solid rgba(255, 255, 255, 0.35);
-  box-shadow: 0 14px 40px rgba(139, 92, 246, 0.35);
+  box-shadow: 0 14px 40px rgba(105, 200, 223, 0.35);
   transition: transform 0.22s var(--ease), box-shadow 0.22s var(--ease);
   white-space: nowrap;
   overflow: hidden;
@@ -1066,7 +1066,7 @@ onMounted(() => {
 
 .android__cta:hover {
   transform: translateY(-3px) scale(1.03);
-  box-shadow: 0 20px 56px rgba(139, 92, 246, 0.5);
+  box-shadow: 0 20px 56px rgba(105, 200, 223, 0.5);
 }
 
 .android__cta:active {
@@ -1102,7 +1102,7 @@ onMounted(() => {
 
 @media (hover: hover) {
   .desktop:hover {
-    border-color: rgba(34, 211, 238, 0.22);
+    border-color: rgba(105, 200, 223, 0.22);
     box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
   }
 }
@@ -1151,9 +1151,9 @@ onMounted(() => {
   font-variant-numeric: tabular-nums;
   padding: 6px 14px;
   border-radius: 999px;
-  border: 1px solid rgba(34, 211, 238, 0.35);
-  background: rgba(34, 211, 238, 0.1);
-  color: #a5f3fc;
+  border: 1px solid rgba(105, 200, 223, 0.35);
+  background: rgba(105, 200, 223, 0.1);
+  color: #c8f7ff;
 }
 
 .desktop__grid {
@@ -1232,9 +1232,9 @@ onMounted(() => {
 @media (hover: hover) {
   .plat:hover {
     transform: translate3d(0, -10px, 8px) scale(1.03) rotateX(4deg);
-    border-color: rgba(139, 92, 246, 0.5);
+    border-color: rgba(105, 200, 223, 0.5);
     background: var(--card2);
-    box-shadow: 0 24px 56px rgba(0, 0, 0, 0.42), 0 0 40px rgba(139, 92, 246, 0.12);
+    box-shadow: 0 24px 56px rgba(0, 0, 0, 0.42), 0 0 40px rgba(105, 200, 223, 0.12);
   }
 
   .plat:hover .plat__icon {
@@ -1262,7 +1262,7 @@ onMounted(() => {
 }
 
 .plat__icon--linux {
-  background: rgba(52, 211, 153, 0.16);
+  background: rgba(155, 234, 255, 0.16);
   color: #6ee7b7;
 }
 
@@ -1335,13 +1335,13 @@ onMounted(() => {
 
 .plat__linux-tab:hover {
   color: var(--text);
-  border-color: rgba(52, 211, 153, 0.35);
+  border-color: rgba(155, 234, 255, 0.35);
 }
 
 .plat__linux-tab--active {
   color: #6ee7b7;
-  border-color: rgba(52, 211, 153, 0.5);
-  background: rgba(52, 211, 153, 0.12);
+  border-color: rgba(155, 234, 255, 0.5);
+  background: rgba(155, 234, 255, 0.12);
 }
 
 .plat__linux-cta {
@@ -1365,7 +1365,7 @@ onMounted(() => {
 
 .plat__linux-cta:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(52, 211, 153, 0.35);
+  box-shadow: 0 12px 32px rgba(155, 234, 255, 0.35);
 }
 
 .plat__cmd {
@@ -1396,8 +1396,8 @@ onMounted(() => {
   flex-shrink: 0;
   padding: 6px 10px;
   border-radius: 8px;
-  border: 1px solid rgba(52, 211, 153, 0.35);
-  background: rgba(52, 211, 153, 0.12);
+  border: 1px solid rgba(155, 234, 255, 0.35);
+  background: rgba(155, 234, 255, 0.12);
   color: #6ee7b7;
   font-size: 0.72rem;
   font-weight: 700;
@@ -1406,7 +1406,7 @@ onMounted(() => {
 }
 
 .plat__cmd-copy:hover {
-  background: rgba(52, 211, 153, 0.22);
+  background: rgba(155, 234, 255, 0.22);
   color: #ecfdf5;
 }
 

@@ -125,7 +125,7 @@ const handleLogin = async () => {
 }
 
 .login-header h2 {
-  color: #6a5acd;
+  color: #69c8df;
   margin-bottom: 10px;
   font-size: 1.8rem;
 }
@@ -168,13 +168,13 @@ const handleLogin = async () => {
 
 .form-input:focus {
   outline: none;
-  border: 1px solid rgba(106, 90, 205, 0.5);
-  box-shadow: 0 0 0 2px rgba(106, 90, 205, 0.2);
+  border: 1px solid rgba(105, 200, 223, 0.5);
+  box-shadow: 0 0 0 2px rgba(105, 200, 223, 0.2);
   background: rgba(255, 255, 255, 0.35);
 }
 
 .login-button {
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.8), rgba(147, 112, 219, 0.8));
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.8), rgba(105, 200, 223, 0.8));
   color: white;
   border: none;
   border-radius: 10px;
@@ -183,13 +183,13 @@ const handleLogin = async () => {
   font-size: 1rem;
   font-weight: 500;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(106, 90, 205, 0.3);
+  box-shadow: 0 4px 15px rgba(105, 200, 223, 0.3);
 }
 
 .login-button:hover:not(:disabled) {
   background: linear-gradient(135deg, rgba(92, 75, 123, 0.9), rgba(122, 91, 192, 0.9));
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(106, 90, 205, 0.5);
+  box-shadow: 0 6px 20px rgba(105, 200, 223, 0.5);
 }
 
 .login-button:disabled {
@@ -218,5 +218,65 @@ const handleLogin = async () => {
     padding: 30px 20px;
     margin: 10px;
   }
+}
+
+.admin-login-container {
+  min-height: 100dvh;
+  background:
+    radial-gradient(780px 520px at 18% -10%, rgba(105, 200, 223, 0.16), transparent 58%),
+    linear-gradient(180deg, #070b10, #0b1118 48%, #06090d 100%);
+}
+
+.admin-login-card {
+  background: rgba(14, 22, 31, 0.88);
+  border: 1px solid rgba(143, 174, 198, 0.14);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.36);
+  border-radius: 22px;
+}
+
+.login-header h2 {
+  color: var(--neko-text);
+  letter-spacing: -0.03em;
+}
+
+.login-header p,
+.form-group label {
+  color: var(--neko-muted);
+}
+
+.form-input {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(143, 174, 198, 0.16);
+  color: var(--neko-text);
+  border-radius: 14px;
+}
+
+.form-input::placeholder {
+  color: var(--neko-faint);
+}
+
+.form-input:focus {
+  border-color: rgba(105, 200, 223, 0.45);
+  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.12);
+  background: rgba(255, 255, 255, 0.065);
+}
+
+.login-button {
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.22), rgba(105, 200, 223, 0.1));
+  color: var(--neko-text);
+  border: 1px solid rgba(105, 200, 223, 0.24);
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+.login-button:hover:not(:disabled) {
+  background: rgba(105, 200, 223, 0.14);
+  box-shadow: none;
+}
+
+.error-message {
+  color: #ffd7d7;
+  background: rgba(255, 107, 107, 0.1);
+  border-color: rgba(255, 107, 107, 0.22);
 }
 </style>

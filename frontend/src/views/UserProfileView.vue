@@ -222,7 +222,7 @@ const changePassword = async () => {
 .panel {
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(139, 92, 246, 0.14), rgba(255, 255, 255, 0.04));
+  background: linear-gradient(145deg, rgba(105, 200, 223, 0.14), rgba(255, 255, 255, 0.04));
   box-shadow: var(--shadow);
 }
 
@@ -265,14 +265,14 @@ const changePassword = async () => {
 .upload-avatar-btn label {
   display: inline-block;
   padding: 8px 16px;
-  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
+  background: linear-gradient(135deg, #9beaff, var(--accent2));
   color: #0c0a14;
   border-radius: 999px;
   cursor: pointer;
   font-size: 0.86rem;
   font-weight: 700;
   transition: filter 0.15s var(--ease);
-  box-shadow: 0 6px 18px rgba(139, 92, 246, 0.28);
+  box-shadow: 0 6px 18px rgba(105, 200, 223, 0.28);
 }
 
 .upload-avatar-btn label:hover {
@@ -283,7 +283,7 @@ const changePassword = async () => {
   margin: 0;
   font-size: clamp(1.35rem, 3vw, 1.75rem);
   font-weight: 800;
-  background: linear-gradient(120deg, #e9d5ff, #a5f3fc, #c4b5fd);
+  background: linear-gradient(120deg, #d7edf5, #c8f7ff, #9beaff);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -295,14 +295,14 @@ const changePassword = async () => {
 
 .user-info .username .vip-badge {
   -webkit-text-fill-color: initial;
-  background: linear-gradient(135deg, #ffe082, #ffb300);
-  color: #3d2a00;
+  background: linear-gradient(135deg, #9beaff, #69c8df);
+  color: #061014;
   font-size: 0.55rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   padding: 4px 10px;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(255, 179, 0, 0.35);
+  box-shadow: 0 2px 8px rgba(105, 200, 223, 0.35);
   text-decoration: none;
   display: inline-flex;
   align-items: center;
@@ -350,10 +350,10 @@ const changePassword = async () => {
 }
 
 .tab-btn.active {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.45), rgba(34, 211, 238, 0.2));
-  border-color: rgba(139, 92, 246, 0.45);
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.45), rgba(105, 200, 223, 0.2));
+  border-color: rgba(105, 200, 223, 0.45);
   color: var(--text);
-  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.25);
+  box-shadow: 0 6px 20px rgba(105, 200, 223, 0.25);
 }
 
 .tab-content {
@@ -421,22 +421,22 @@ const changePassword = async () => {
 }
 
 .form-group input:focus {
-  border-color: rgba(34, 211, 238, 0.45);
-  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12);
+  border-color: rgba(105, 200, 223, 0.45);
+  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.12);
 }
 
 .save-btn {
   font-family: inherit;
   margin-top: 8px;
   padding: 11px 22px;
-  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
+  background: linear-gradient(135deg, #9beaff, var(--accent2));
   color: #0c0a14;
   border: none;
   border-radius: 999px;
   font-size: 0.9rem;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.28);
+  box-shadow: 0 8px 24px rgba(105, 200, 223, 0.28);
   transition: filter 0.15s var(--ease);
 }
 

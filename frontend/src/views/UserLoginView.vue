@@ -111,7 +111,7 @@ const goToForgotPassword = () => {
 .panel {
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(139, 92, 246, 0.14), rgba(255, 255, 255, 0.04));
+  background: linear-gradient(145deg, rgba(105, 200, 223, 0.14), rgba(255, 255, 255, 0.04));
   box-shadow: var(--shadow);
 }
 
@@ -127,7 +127,7 @@ const goToForgotPassword = () => {
   font-size: clamp(1.35rem, 3vw, 1.65rem);
   font-weight: 800;
   letter-spacing: -0.02em;
-  background: linear-gradient(120deg, #e9d5ff, #a5f3fc, #c4b5fd);
+  background: linear-gradient(120deg, #d7edf5, #c8f7ff, #9beaff);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -162,8 +162,8 @@ const goToForgotPassword = () => {
 
 .form-input:focus {
   outline: none;
-  border-color: rgba(34, 211, 238, 0.45);
-  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12);
+  border-color: rgba(105, 200, 223, 0.45);
+  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.12);
 }
 
 .btn-submit {
@@ -176,8 +176,8 @@ const goToForgotPassword = () => {
   font-size: 0.95rem;
   cursor: pointer;
   color: #0c0a14;
-  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
-  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+  background: linear-gradient(135deg, #9beaff, var(--accent2));
+  box-shadow: 0 8px 24px rgba(105, 200, 223, 0.3);
 }
 
 .btn-submit:hover:not(:disabled) {

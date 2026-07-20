@@ -63,7 +63,7 @@
                 xmlns="http://www.w3.org/2000/svg">
               <path
                   d="M361.5 727.8c-119.1 0-215.9-96.9-215.9-215.9 0-119.1 96.9-215.9 215.9-215.9 2.3 0 4.6-0.2 6.8-0.6v58.3c0 12.3 14 19.4 23.9 12.1l132.6-97.6c8.1-6 8.1-18.2 0-24.2l-132.6-97.6c-9.9-7.3-23.9-0.2-23.9 12.1v58.1c-2.2-0.4-4.5-0.6-6.8-0.6-39.8 0-78.5 7.9-115 23.4-35.2 15-66.8 36.3-94 63.5s-48.6 58.8-63.5 94c-15.5 36.5-23.4 75.2-23.4 115s7.9 78.5 23.4 115c15 35.2 36.3 66.8 63.5 94s58.8 48.6 94 63.5c36.5 15.5 75.2 23.4 115 23.4 22.1 0 40-17.9 40-40s-17.9-40-40-40zM938.2 396.9c-15-35.2-36.3-66.8-63.5-94s-58.8-48.6-94-63.5c-36.5-15.5-75.2-23.4-115-23.4-22.1 0-40 17.9-40 40s17.9 40 40 40c119.1 0 215.9 96.9 215.9 215.9 0 119.1-96.9 215.9-215.9 215.9-4.1 0-8.1 0.6-11.8 1.8v-60.8c0-12.3-14-19.4-23.9-12.1l-132.6 97.6c-8.1 6-8.1 18.2 0 24.2L629.9 876c9.9 7.3 23.9 0.2 23.9-12.1V806c3.7 1.2 7.7 1.8 11.8 1.8 39.8 0 78.5-7.9 115-23.4 35.2-15 66.8-36.3 94-63.5s48.6-58.8 63.5-94c15.5-36.5 23.4-75.2 23.4-115s-7.8-78.5-23.3-115z"
-                  fill="#ffffff"
+                  fill="currentColor"
               />
             </svg>
 
@@ -124,7 +124,7 @@
               <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
             </svg>
             <svg v-else class="btn-icon" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3 4.42 3 2 5.42 2 8.5c0 3.78 3.4 6.86 8.55 11.54L12 21.35l1.45-1.32C18.6 15.36 22 12.28 22 8.5 22 5.42 19.58 3 16.5 3zm-4.4 15.55l-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.89-3.14 5.74-7.9 10.05z" fill="#888888"/>
+              <path d="M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3 4.42 3 2 5.42 2 8.5c0 3.78 3.4 6.86 8.55 11.54L12 21.35l1.45-1.32C18.6 15.36 22 12.28 22 8.5 22 5.42 19.58 3 16.5 3zm-4.4 15.55l-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.89-3.14 5.74-7.9 10.05z" fill="currentColor"/>
             </svg>
           </button>
         </div>
@@ -1930,13 +1930,13 @@ onUnmounted(() => {
 .global-player--chrome-dark .playlist-container {
   background: linear-gradient(165deg, rgba(22, 20, 38, 0.97), rgba(10, 10, 18, 0.98));
   border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(139, 92, 246, 0.12);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(105, 200, 223, 0.12);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
 
 .global-player--chrome-dark .playlist-header {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.22), rgba(34, 211, 238, 0.08));
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.22), rgba(105, 200, 223, 0.08));
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.92);
 }
@@ -1987,12 +1987,12 @@ onUnmounted(() => {
 }
 
 .global-player--chrome-dark .playlist-item:hover {
-  background: rgba(139, 92, 246, 0.14);
-  border-color: rgba(139, 92, 246, 0.28);
+  background: rgba(105, 200, 223, 0.14);
+  border-color: rgba(105, 200, 223, 0.28);
 }
 
 .global-player--chrome-dark .playlist-item.current {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.22), rgba(34, 211, 238, 0.08));
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.22), rgba(105, 200, 223, 0.08));
   border-color: rgba(167, 139, 250, 0.45);
 }
 
@@ -2044,7 +2044,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #6a5acd, #9370db);
+  background: linear-gradient(135deg, #69c8df, #8eddec);
   color: white;
   font-size: 1.2rem;
 }
@@ -2073,7 +2073,7 @@ onUnmounted(() => {
 }
 
 .music-artist {
-  color: #9370db;
+  color: #8eddec;
   font-size: 0.75rem;
   white-space: nowrap;
   overflow: hidden;
@@ -2109,7 +2109,7 @@ onUnmounted(() => {
   flex: 1;
   height: 5px;
   border-radius: 3px;
-  background: rgba(106, 90, 205, 0.2);
+  background: rgba(105, 200, 223, 0.2);
   outline: none;
   -webkit-appearance: none;
 }
@@ -2119,7 +2119,7 @@ onUnmounted(() => {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #6a5acd;
+  background: #69c8df;
   cursor: pointer;
 }
 
@@ -2134,19 +2134,19 @@ onUnmounted(() => {
   height: 32px;
   border-radius: 50%;
   border: none;
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.9), rgba(138, 43, 226, 0.9));
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.9), rgba(105, 200, 223, 0.9));
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 8px rgba(106, 90, 205, 0.4);
+  box-shadow: 0 4px 8px rgba(105, 200, 223, 0.4);
   transition: all 0.3s ease;
   padding: 4px;
 }
 
 .prev-btn:hover, .next-btn:hover, .mode-btn:hover, .playlist-btn:hover, .favorite-btn:hover {
   transform: scale(1.05);
-  box-shadow: 0 6px 12px rgba(106, 90, 205, 0.6);
+  box-shadow: 0 6px 12px rgba(105, 200, 223, 0.6);
 }
 
 .favorite-btn.favorite-active {
@@ -2168,12 +2168,12 @@ onUnmounted(() => {
   height: 40px;
   border-radius: 50%;
   border: none;
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.9), rgba(138, 43, 226, 0.9));
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.9), rgba(105, 200, 223, 0.9));
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(106, 90, 205, 0.4);
+  box-shadow: 0 4px 12px rgba(105, 200, 223, 0.4);
   transition: all 0.3s ease;
   padding: 6px;
 }
@@ -2249,13 +2249,13 @@ onUnmounted(() => {
 }
 
 .lyric-line.active {
-  color: #6a5acd;
+  color: #69c8df;
   font-weight: 600;
   opacity: 1;
 }
 
 .lyric-line.active .lyric-text {
-  color: #6a5acd;
+  color: #69c8df;
   font-size: 0.88rem;
   font-weight: 600;
 }
@@ -2295,7 +2295,7 @@ onUnmounted(() => {
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-radius: var(--pl-radius);
-  box-shadow: 0 16px 48px rgba(15, 16, 32, 0.18), 0 0 0 1px rgba(99, 102, 241, 0.08);
+  box-shadow: 0 16px 48px rgba(15, 16, 32, 0.18), 0 0 0 1px rgba(105, 200, 223, 0.08);
   z-index: 1001;
   display: flex;
   flex-direction: column;
@@ -2308,7 +2308,7 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 14px 16px;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.14), rgba(139, 92, 246, 0.1));
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.14), rgba(105, 200, 223, 0.1));
   border-bottom: 1px solid rgba(15, 16, 32, 0.08);
   color: #1a1628;
 }
@@ -2350,7 +2350,7 @@ onUnmounted(() => {
 
 .clear-playlist-btn:hover:not(:disabled) {
   background: #fff;
-  border-color: rgba(99, 102, 241, 0.35);
+  border-color: rgba(105, 200, 223, 0.35);
 }
 
 .clear-playlist-btn:disabled {
@@ -2376,7 +2376,7 @@ onUnmounted(() => {
 }
 
 .close-playlist:hover {
-  background: rgba(99, 102, 241, 0.12);
+  background: rgba(105, 200, 223, 0.12);
   color: #1a1628;
 }
 
@@ -2411,13 +2411,13 @@ onUnmounted(() => {
 }
 
 .playlist-item:hover {
-  background: rgba(99, 102, 241, 0.08);
-  border-color: rgba(99, 102, 241, 0.2);
+  background: rgba(105, 200, 223, 0.08);
+  border-color: rgba(105, 200, 223, 0.2);
 }
 
 .playlist-item.current {
-  background: rgba(99, 102, 241, 0.14);
-  border-color: rgba(99, 102, 241, 0.35);
+  background: rgba(105, 200, 223, 0.14);
+  border-color: rgba(105, 200, 223, 0.35);
 }
 
 .playlist-idx {
@@ -2456,7 +2456,7 @@ onUnmounted(() => {
 }
 
 .current-indicator {
-  color: #6366f1;
+  color: #4aa9c0;
   font-weight: 700;
   font-size: 0.75rem;
   flex-shrink: 0;
@@ -2560,13 +2560,13 @@ audio {
 }
 
 .confirm-btn.cancel {
-  background: rgba(106, 90, 205, 0.1);
-  color: #6a5acd;
-  border: 1px solid rgba(106, 90, 205, 0.3);
+  background: rgba(105, 200, 223, 0.1);
+  color: #69c8df;
+  border: 1px solid rgba(105, 200, 223, 0.3);
 }
 
 .confirm-btn.cancel:hover {
-  background: rgba(106, 90, 205, 0.2);
+  background: rgba(105, 200, 223, 0.2);
   transform: translateY(-1px);
 }
 
@@ -2582,25 +2582,236 @@ audio {
   box-shadow: 0 6px 16px rgba(255, 69, 58, 0.6);
 }
 
+/* new skin override */
+.global-player {
+  height: 92px;
+  padding: 10px 18px;
+  background: rgba(8, 13, 19, 0.94);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -18px 44px rgba(0, 0, 0, 0.38);
+}
+
+.global-player--chrome-dark {
+  background: rgba(8, 13, 19, 0.96);
+  border-top-color: rgba(143, 174, 198, 0.14);
+}
+
+.player-content {
+  gap: 14px;
+}
+
+.cover-container {
+  width: 64px;
+  height: 64px;
+}
+
+.music-cover {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  border: 1px solid rgba(143, 174, 198, 0.16);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.26);
+}
+
+.placeholder-cover {
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.26), rgba(143, 174, 198, 0.08));
+  color: #e7fbff;
+  font-size: 1.1rem;
+}
+
+.music-info {
+  max-width: 240px;
+}
+
+.music-title {
+  color: var(--text);
+  font-size: 0.92rem;
+}
+
+.music-artist {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.player-controls {
+  gap: 14px;
+  max-width: 720px;
+}
+
+.progress-container {
+  gap: 10px;
+}
+
+.time {
+  color: var(--faint);
+  font-size: 0.77rem;
+}
+
+.progress-bar {
+  height: 6px;
+  background: rgba(143, 174, 198, 0.16);
+  border: 1px solid rgba(143, 174, 198, 0.14);
+}
+
+.progress-bar::-webkit-slider-thumb {
+  background: var(--accent);
+  border: 2px solid #08131a;
+  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.16);
+}
+
+.control-buttons {
+  gap: 10px;
+}
+
+.prev-btn,
+.next-btn,
+.mode-btn,
+.playlist-btn,
+.favorite-btn,
+.play-pause-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(143, 174, 198, 0.14);
+  box-shadow: none;
+  color: var(--text);
+}
+
+.play-pause-btn {
+  width: 42px;
+  height: 42px;
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.24), rgba(105, 200, 223, 0.1));
+  border-color: rgba(105, 200, 223, 0.3);
+}
+
+.prev-btn:hover,
+.next-btn:hover,
+.mode-btn:hover,
+.playlist-btn:hover,
+.favorite-btn:hover,
+.play-pause-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(105, 200, 223, 0.28);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
+}
+
+.btn-icon {
+  color: currentColor;
+  fill: currentColor;
+}
+
+.lyrics-container {
+  min-width: 220px;
+  max-width: 420px;
+  border-left: 1px solid rgba(143, 174, 198, 0.14);
+  padding-left: 18px;
+  margin-left: 6px;
+}
+
+.lyric-line {
+  color: var(--faint);
+}
+
+.lyric-text {
+  color: inherit;
+}
+
+.lyric-translation {
+  color: var(--muted);
+}
+
+.lyric-line.active {
+  color: var(--accent-strong);
+}
+
+.lyric-line.active .lyric-text {
+  color: var(--accent-strong);
+}
+
+.playlist-container {
+  background: rgba(8, 13, 19, 0.98);
+  border: 1px solid rgba(143, 174, 198, 0.16);
+  box-shadow: 0 28px 68px rgba(0, 0, 0, 0.48);
+}
+
+.playlist-header {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  border-bottom: 1px solid rgba(143, 174, 198, 0.12);
+}
+
+.playlist-title,
+.confirm-modal-header h3,
+.confirm-modal-body p {
+  color: var(--text);
+}
+
+.playlist-count,
+.playlist-empty,
+.playlist-idx,
+.playlist-item-artist,
+.confirm-modal-body p {
+  color: var(--muted);
+}
+
+.clear-playlist-btn,
+.close-playlist,
+.confirm-btn.cancel,
+.checkout-back-btn {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  border-color: rgba(143, 174, 198, 0.14);
+}
+
+.playlist-item {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(143, 174, 198, 0.1);
+}
+
+.playlist-item:hover,
+.playlist-item.current {
+  background: rgba(105, 200, 223, 0.08);
+  border-color: rgba(105, 200, 223, 0.22);
+}
+
+.playlist-item-title {
+  color: var(--text);
+}
+
+.current-indicator {
+  color: var(--accent-strong);
+}
+
+.confirm-modal-overlay {
+  background: rgba(2, 6, 10, 0.72);
+}
+
+.confirm-modal {
+  background: rgba(8, 13, 19, 0.98);
+  border: 1px solid rgba(143, 174, 198, 0.16);
+}
+
+.confirm-btn.confirm {
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.28), rgba(105, 200, 223, 0.14));
+  color: var(--text);
+  box-shadow: none;
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
   .global-player {
-    height: 120px;
-    padding: 10px 12px;
+    height: auto;
+    padding: 12px;
     flex-direction: column;
-    justify-content: center;
     gap: 10px;
   }
 
   .player-content {
-    display: flex;
+    width: 100%;
     flex-direction: column;
     gap: 8px;
-    height: auto;
   }
 
   .cover-container {
-    display: none; /* 隐藏封面以节省空间 */
+    display: none;
   }
 
   .music-info {

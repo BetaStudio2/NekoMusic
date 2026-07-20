@@ -1064,7 +1064,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* Appended by refactor script — will be merged into PlayerView.vue */
+/* Appended by refactor script - will be merged into PlayerView.vue */
 .player-page {
   --text: rgba(255, 255, 255, 0.92);
   --muted: rgba(255, 255, 255, 0.62);
@@ -1072,9 +1072,9 @@ onUnmounted(() => {
   --line: rgba(255, 255, 255, 0.1);
   --card: rgba(255, 255, 255, 0.06);
   --card2: rgba(255, 255, 255, 0.09);
-  --accent: #8b5cf6;
-  --accent2: #22d3ee;
-  --accent3: #34d399;
+  --accent: #69c8df;
+  --accent2: #69c8df;
+  --accent3: #9beaff;
   --radius: 18px;
   --radius-lg: 22px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -1105,7 +1105,7 @@ onUnmounted(() => {
 .ambient__blob--a {
   width: 420px;
   height: 420px;
-  background: rgba(139, 92, 246, 0.42);
+  background: rgba(105, 200, 223, 0.42);
   top: -140px;
   left: -120px;
 }
@@ -1113,7 +1113,7 @@ onUnmounted(() => {
 .ambient__blob--b {
   width: 360px;
   height: 360px;
-  background: rgba(34, 211, 238, 0.24);
+  background: rgba(105, 200, 223, 0.24);
   bottom: -80px;
   right: -100px;
   animation-delay: -7s;
@@ -1122,7 +1122,7 @@ onUnmounted(() => {
 .ambient__blob--c {
   width: 280px;
   height: 280px;
-  background: rgba(52, 211, 153, 0.18);
+  background: rgba(155, 234, 255, 0.18);
   top: 42%;
   left: 38%;
   animation-delay: -12s;
@@ -1200,10 +1200,10 @@ onUnmounted(() => {
 @keyframes statePulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
+    box-shadow: 0 0 0 0 rgba(105, 200, 223, 0);
   }
   50% {
-    box-shadow: 0 0 40px 2px rgba(34, 211, 238, 0.08);
+    box-shadow: 0 0 40px 2px rgba(105, 200, 223, 0.08);
   }
 }
 
@@ -1231,7 +1231,7 @@ onUnmounted(() => {
 @media (prefers-reduced-motion: reduce) {
   .state__spinner {
     animation: none;
-    border-color: rgba(34, 211, 238, 0.35);
+    border-color: rgba(105, 200, 223, 0.35);
   }
 }
 
@@ -1255,7 +1255,7 @@ onUnmounted(() => {
   min-height: 0;
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(139, 92, 246, 0.12), rgba(255, 255, 255, 0.04));
+  background: linear-gradient(145deg, rgba(105, 200, 223, 0.12), rgba(255, 255, 255, 0.04));
   box-shadow: var(--shadow);
   overflow: hidden;
 }
@@ -1360,14 +1360,14 @@ onUnmounted(() => {
   font-size: 1rem;
   font-weight: 700;
   color: #0c0a14;
-  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
-  box-shadow: 0 8px 28px rgba(139, 92, 246, 0.35);
+  background: linear-gradient(135deg, #9beaff, var(--accent2));
+  box-shadow: 0 8px 28px rgba(105, 200, 223, 0.35);
 }
 
 @media (hover: hover) {
   .btn--play:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 12px 36px rgba(34, 211, 238, 0.25);
+    box-shadow: 0 12px 36px rgba(105, 200, 223, 0.25);
   }
 }
 
@@ -1384,7 +1384,7 @@ onUnmounted(() => {
 @media (hover: hover) {
   .btn--ghost:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(139, 92, 246, 0.35);
+    border-color: rgba(105, 200, 223, 0.35);
   }
 }
 
@@ -1394,9 +1394,9 @@ onUnmounted(() => {
 }
 
 .btn--on {
-  border-color: rgba(244, 114, 182, 0.45);
+  border-color: rgba(105, 200, 223, 0.45);
   color: #fbcfe8;
-  background: rgba(244, 114, 182, 0.12);
+  background: rgba(105, 200, 223, 0.12);
 }
 
 .clip-hint {
@@ -1436,14 +1436,14 @@ onUnmounted(() => {
 }
 
 .clip-notice--submitted {
-  background: rgba(139, 92, 246, 0.12);
-  border: 1px solid rgba(139, 92, 246, 0.28);
+  background: rgba(105, 200, 223, 0.12);
+  border: 1px solid rgba(105, 200, 223, 0.28);
   color: rgba(255, 255, 255, 0.88);
 }
 
 .clip-notice--ready {
-  background: rgba(52, 211, 153, 0.12);
-  border: 1px solid rgba(52, 211, 153, 0.35);
+  background: rgba(155, 234, 255, 0.12);
+  border: 1px solid rgba(155, 234, 255, 0.35);
   color: rgba(255, 255, 255, 0.9);
   display: flex;
   flex-wrap: wrap;
@@ -1499,7 +1499,7 @@ onUnmounted(() => {
   scroll-behavior: smooth;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: rgba(139, 92, 246, 0.5) rgba(255, 255, 255, 0.06);
+  scrollbar-color: rgba(105, 200, 223, 0.5) rgba(255, 255, 255, 0.06);
   mask-image: linear-gradient(180deg, transparent, black 12px, black calc(100% - 12px), transparent);
 }
 
@@ -1514,14 +1514,14 @@ onUnmounted(() => {
 }
 
 .lyrics-scroll::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(139, 92, 246, 0.55), rgba(34, 211, 238, 0.4));
+  background: linear-gradient(180deg, rgba(105, 200, 223, 0.55), rgba(105, 200, 223, 0.4));
   border-radius: 999px;
   border: 2px solid rgba(12, 10, 20, 0.4);
   background-clip: padding-box;
 }
 
 .lyrics-scroll::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(167, 139, 250, 0.7), rgba(34, 211, 238, 0.55));
+  background: linear-gradient(180deg, rgba(167, 139, 250, 0.7), rgba(105, 200, 223, 0.55));
   background-clip: padding-box;
 }
 
@@ -1584,8 +1584,8 @@ onUnmounted(() => {
   opacity: 1;
   transform: scale(1.02);
   text-shadow:
-    0 0 20px rgba(34, 211, 238, 0.45),
-    0 0 36px rgba(139, 92, 246, 0.35);
+    0 0 20px rgba(105, 200, 223, 0.45),
+    0 0 36px rgba(105, 200, 223, 0.35);
 }
 
 .lyric-line.active .lyric-translation {
@@ -1620,7 +1620,7 @@ onUnmounted(() => {
 }
 
 .banner-btn {
-  background: linear-gradient(135deg, var(--accent), #6366f1);
+  background: linear-gradient(135deg, var(--accent), #4aa9c0);
   color: #fff;
   text-decoration: none;
   padding: 7px 16px;
@@ -1744,7 +1744,7 @@ onUnmounted(() => {
 
 .clip-preview-btn {
   padding: 8px 16px;
-  border: 1px solid rgba(139, 92, 246, 0.4);
+  border: 1px solid rgba(105, 200, 223, 0.4);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--accent2);
@@ -1754,7 +1754,7 @@ onUnmounted(() => {
 }
 
 .clip-preview-btn:hover:not(:disabled) {
-  background: rgba(139, 92, 246, 0.15);
+  background: rgba(105, 200, 223, 0.15);
 }
 
 .clip-preview-btn:disabled {
@@ -1811,7 +1811,7 @@ onUnmounted(() => {
 
 .clip-confirm-btn {
   color: #0c0a14;
-  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
+  background: linear-gradient(135deg, #9beaff, var(--accent2));
 }
 
 .clip-modal-sub {

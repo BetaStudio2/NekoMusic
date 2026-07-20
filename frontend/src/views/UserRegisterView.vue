@@ -570,7 +570,7 @@ const goToLogin = () => {
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.97);
   box-shadow: 0 16px 48px rgba(31, 38, 135, 0.35);
-  border: 1px solid rgba(106, 90, 205, 0.2);
+  border: 1px solid rgba(105, 200, 223, 0.2);
 }
 
 .captcha-modal-close {
@@ -587,12 +587,12 @@ const goToLogin = () => {
   line-height: 1;
   cursor: pointer;
   color: #5c4b7b;
-  background: rgba(106, 90, 205, 0.12);
+  background: rgba(105, 200, 223, 0.12);
   transition: background 0.2s ease, color 0.2s ease;
 }
 
 .captcha-modal-close:hover {
-  background: rgba(106, 90, 205, 0.22);
+  background: rgba(105, 200, 223, 0.22);
   color: #3d2f66;
 }
 
@@ -675,7 +675,7 @@ const goToLogin = () => {
   margin-left: 8px;
   padding: 4px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(106, 90, 205, 0.5);
+  border: 1px solid rgba(105, 200, 223, 0.5);
   background: rgba(255, 255, 255, 0.6);
   cursor: pointer;
 }
@@ -719,7 +719,7 @@ const goToLogin = () => {
   margin-top: 10px;
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(106, 90, 205, 0.22);
+  border: 1px solid rgba(105, 200, 223, 0.22);
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06);
   touch-action: none;
   cursor: pointer;
@@ -756,8 +756,8 @@ const goToLogin = () => {
   color: #fff;
   font-size: 1.1rem;
   line-height: 1;
-  background: linear-gradient(135deg, #6a5acd, #9b7dd4);
-  box-shadow: 0 2px 8px rgba(106, 90, 205, 0.45);
+  background: linear-gradient(135deg, #69c8df, #8eddec);
+  box-shadow: 0 2px 8px rgba(105, 200, 223, 0.45);
   touch-action: none;
   user-select: none;
 }
@@ -805,13 +805,13 @@ const goToLogin = () => {
     box-shadow: 0 4px 16px rgba(31, 38, 135, 0.25);
   }
   50% {
-    box-shadow: 0 4px 22px rgba(106, 90, 205, 0.45);
+    box-shadow: 0 4px 22px rgba(105, 200, 223, 0.45);
   }
 }
 
 .slider-rail--checking {
-  border-color: rgba(106, 90, 205, 0.55);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 2px rgba(106, 90, 205, 0.18);
+  border-color: rgba(105, 200, 223, 0.55);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 2px rgba(105, 200, 223, 0.18);
 }
 
 .slider-rail-scan {
@@ -970,7 +970,7 @@ const goToLogin = () => {
   font-weight: 600;
   cursor: pointer;
   color: #fff;
-  background: linear-gradient(135deg, rgba(106, 90, 205, 0.85), rgba(147, 112, 219, 0.85));
+  background: linear-gradient(135deg, rgba(105, 200, 223, 0.85), rgba(105, 200, 223, 0.85));
 }
 
 .slider-hint {
@@ -981,7 +981,7 @@ const goToLogin = () => {
 .panel {
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(139, 92, 246, 0.14), rgba(255, 255, 255, 0.04));
+  background: linear-gradient(145deg, rgba(105, 200, 223, 0.14), rgba(255, 255, 255, 0.04));
   box-shadow: var(--shadow);
 }
 
@@ -997,7 +997,7 @@ const goToLogin = () => {
   font-size: clamp(1.35rem, 3vw, 1.65rem);
   font-weight: 800;
   letter-spacing: -0.02em;
-  background: linear-gradient(120deg, #e9d5ff, #a5f3fc, #c4b5fd);
+  background: linear-gradient(120deg, #d7edf5, #c8f7ff, #9beaff);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1034,8 +1034,8 @@ const goToLogin = () => {
 
 .form-input:focus {
   outline: none;
-  border-color: rgba(34, 211, 238, 0.45);
-  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12);
+  border-color: rgba(105, 200, 223, 0.45);
+  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.12);
 }
 
 .verification-btn {
@@ -1048,8 +1048,8 @@ const goToLogin = () => {
   font-weight: 700;
   cursor: pointer;
   color: #0c0a14;
-  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
-  box-shadow: 0 6px 18px rgba(139, 92, 246, 0.28);
+  background: linear-gradient(135deg, #9beaff, var(--accent2));
+  box-shadow: 0 6px 18px rgba(105, 200, 223, 0.28);
   white-space: nowrap;
 }
 
@@ -1073,8 +1073,8 @@ const goToLogin = () => {
   font-weight: 700;
   cursor: pointer;
   color: #0c0a14;
-  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
-  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+  background: linear-gradient(135deg, #9beaff, var(--accent2));
+  box-shadow: 0 8px 24px rgba(105, 200, 223, 0.3);
 }
 
 .register-btn:hover:not(:disabled) {

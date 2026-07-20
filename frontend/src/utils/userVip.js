@@ -44,7 +44,7 @@ export async function syncUserVipFromPlaylistsApi() {
 
 /** 东八区格式化展示 */
 export function formatVipExpiresAt(iso) {
-  if (!iso) return '—'
+  if (!iso) return '-'
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return String(iso)
   return d.toLocaleString('zh-CN', {

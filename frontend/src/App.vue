@@ -71,16 +71,17 @@ const isChromeDarkShell = computed(
 
 <style scoped>
 #app {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
 
 /* 深色内容页：三层背景（与 glass-page 页共用） */
 #app.app--home {
-  background: radial-gradient(1200px 700px at 10% -10%, rgba(139, 92, 246, 0.35), transparent 55%),
-    radial-gradient(900px 600px at 95% 10%, rgba(34, 211, 238, 0.18), transparent 50%),
-    linear-gradient(180deg, #07060d, #0f1020 40%, #0a0a12 100%);
+  background:
+    radial-gradient(1200px 700px at 12% -10%, rgba(105, 200, 223, 0.18), transparent 55%),
+    radial-gradient(900px 600px at 92% 8%, rgba(120, 145, 164, 0.12), transparent 50%),
+    linear-gradient(180deg, #070b10, #0b1118 42%, #06090d 100%);
 }
 
 main {
@@ -103,17 +104,16 @@ main.main--flush {
 }
 
 .welcome-card {
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 25px;
+  background: rgba(15, 23, 33, 0.76);
+  border-radius: 24px;
   padding: 40px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.34);
+  border: 1px solid rgba(143, 174, 198, 0.16);
   position: relative;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
   margin: 20px auto;
   max-width: 90%;
-  border: 1px solid rgba(255, 255, 255, 0.2);
   overflow: hidden;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
@@ -125,21 +125,20 @@ main.main--flush {
   left: -10px;
   right: -10px;
   bottom: -10px;
-  background: linear-gradient(45deg, #ff9ec0, #6a5acd, #84ffff, #ff9ec0);
-  background-size: 400%;
+  background: linear-gradient(45deg, rgba(105, 200, 223, 0.22), rgba(111, 137, 156, 0.18), rgba(105, 200, 223, 0.22));
+  background-size: 300%;
   border-radius: 30px;
   z-index: -1;
-  filter: blur(20px);
-  opacity: 0.6;
+  filter: blur(18px);
+  opacity: 0.35;
   animation: gradientShift 10s ease infinite;
 }
 
 .welcome-title {
-  color: #6a5acd;
   margin-bottom: 1rem;
   font-size: 2.2rem;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-  background: linear-gradient(45deg, #ff9ec0, #6a5acd, #84ffff);
+  color: #eff9fc;
+  background: linear-gradient(120deg, #eff9fc, #9beaff, #d7edf5);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -148,7 +147,7 @@ main.main--flush {
 }
 
 .welcome-subtitle {
-  color: #887bb0;
+  color: #a6b7c4;
   font-size: 1.2rem;
   margin-bottom: 30px;
   position: relative;
@@ -173,14 +172,14 @@ main.main--flush {
 .note-1 {
   top: 0;
   left: 30%;
-  color: #ff9ec0;
+  color: #9beaff;
   animation-delay: 0s;
 }
 
 .note-2 {
   top: 10px;
   right: 30%;
-  color: #6a5acd;
+  color: #d7edf5;
   animation-delay: 1.5s;
 }
 

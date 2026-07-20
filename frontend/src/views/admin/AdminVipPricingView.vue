@@ -226,7 +226,7 @@ onMounted(async () => {
 }
 
 .logout-button {
-  background: linear-gradient(135deg, rgba(220, 20, 60, 0.8), rgba(255, 99, 71, 0.8));
+  background: linear-gradient(135deg, rgba(220, 20, 60, 0.8), rgba(105, 200, 223, 0.8));
   color: white;
   border: none;
   border-radius: 20px;
@@ -250,7 +250,7 @@ onMounted(async () => {
 }
 
 .admin-subpage h2 {
-  color: #6a5acd;
+  color: #69c8df;
   margin: 0 0 12px 0;
 }
 
@@ -271,7 +271,7 @@ onMounted(async () => {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #6a5acd, #8b5cf6);
+  background: linear-gradient(135deg, #69c8df, #69c8df);
   color: #fff;
 }
 
@@ -281,7 +281,7 @@ onMounted(async () => {
 }
 
 .btn-ghost {
-  background: rgba(106, 90, 205, 0.12);
+  background: rgba(105, 200, 223, 0.12);
   color: #5c4b7b;
 }
 
@@ -310,11 +310,11 @@ onMounted(async () => {
 .data-table td {
   padding: 10px 12px;
   text-align: left;
-  border-bottom: 1px solid rgba(106, 90, 205, 0.15);
+  border-bottom: 1px solid rgba(105, 200, 223, 0.15);
 }
 
 .data-table th {
-  background: rgba(106, 90, 205, 0.15);
+  background: rgba(105, 200, 223, 0.15);
   color: #5c4b7b;
   font-weight: 600;
 }
@@ -324,7 +324,7 @@ onMounted(async () => {
   max-width: 140px;
   padding: 6px 10px;
   border-radius: 8px;
-  border: 1px solid rgba(106, 90, 205, 0.25);
+  border: 1px solid rgba(105, 200, 223, 0.25);
 }
 
 .btn-del {

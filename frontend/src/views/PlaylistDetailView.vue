@@ -449,7 +449,7 @@ onMounted(() => {
   --muted: rgba(255, 255, 255, 0.62);
   --faint: rgba(255, 255, 255, 0.42);
   --line: rgba(255, 255, 255, 0.1);
-  --accent2: #22d3ee;
+  --accent2: #69c8df;
   --radius: 14px;
   --radius-lg: 20px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -479,7 +479,7 @@ onMounted(() => {
 .ambient__blob--a {
   width: 400px;
   height: 400px;
-  background: rgba(139, 92, 246, 0.36);
+  background: rgba(105, 200, 223, 0.36);
   top: -120px;
   right: -80px;
 }
@@ -487,7 +487,7 @@ onMounted(() => {
 .ambient__blob--b {
   width: 320px;
   height: 320px;
-  background: rgba(34, 211, 238, 0.18);
+  background: rgba(105, 200, 223, 0.18);
   bottom: -40px;
   left: -50px;
 }
@@ -531,7 +531,7 @@ onMounted(() => {
 }
 
 .banner-link {
-  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  background: linear-gradient(135deg, #69c8df, #4aa9c0);
   color: #fff;
   text-decoration: none;
   padding: 7px 16px;
@@ -568,7 +568,7 @@ onMounted(() => {
 .panel {
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(139, 92, 246, 0.12), rgba(255, 255, 255, 0.04));
+  background: linear-gradient(145deg, rgba(105, 200, 223, 0.12), rgba(255, 255, 255, 0.04));
   box-shadow: var(--shadow);
   margin-bottom: 16px;
 }
@@ -662,8 +662,8 @@ onMounted(() => {
   font-size: 0.88rem;
   cursor: pointer;
   color: #0c0a14;
-  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
-  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+  background: linear-gradient(135deg, #9beaff, var(--accent2));
+  box-shadow: 0 8px 24px rgba(105, 200, 223, 0.3);
 }
 
 .play-all-icon {
@@ -888,7 +888,7 @@ onMounted(() => {
 
 .modal-search:focus {
   outline: none;
-  border-color: rgba(34, 211, 238, 0.45);
+  border-color: rgba(105, 200, 223, 0.45);
 }
 
 .modal-results {
@@ -918,7 +918,7 @@ onMounted(() => {
 
 @media (hover: hover) {
   .modal-result-row:hover {
-    border-color: rgba(139, 92, 246, 0.35);
+    border-color: rgba(105, 200, 223, 0.35);
     background: rgba(255, 255, 255, 0.07);
   }
 }

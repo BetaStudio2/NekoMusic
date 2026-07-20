@@ -240,7 +240,7 @@ onMounted(() => {
 .panel {
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(139, 92, 246, 0.12), rgba(255, 255, 255, 0.04));
+  background: linear-gradient(145deg, rgba(105, 200, 223, 0.12), rgba(255, 255, 255, 0.04));
   box-shadow: var(--shadow);
 }
 
@@ -285,8 +285,8 @@ onMounted(() => {
   font-weight: 700;
   cursor: pointer;
   color: #0c0a14;
-  background: linear-gradient(135deg, #c4b5fd, var(--accent2));
-  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+  background: linear-gradient(135deg, #9beaff, var(--accent2));
+  box-shadow: 0 8px 24px rgba(105, 200, 223, 0.3);
 }
 
 .play-all-icon {
@@ -307,7 +307,7 @@ onMounted(() => {
   padding: 14px 16px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(139, 92, 246, 0.08), rgba(255, 255, 255, 0.03));
+  background: linear-gradient(145deg, rgba(105, 200, 223, 0.08), rgba(255, 255, 255, 0.03));
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
   transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
 }
@@ -315,7 +315,7 @@ onMounted(() => {
 @media (hover: hover) {
   .favorite-item:hover {
     background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(139, 92, 246, 0.28);
+    border-color: rgba(105, 200, 223, 0.28);
   }
 }
 
@@ -383,8 +383,8 @@ onMounted(() => {
 }
 
 .text-btn--play:hover {
-  border-color: rgba(139, 92, 246, 0.45);
-  background: rgba(139, 92, 246, 0.2);
+  border-color: rgba(105, 200, 223, 0.45);
+  background: rgba(105, 200, 223, 0.2);
 }
 
 .text-btn--remove {
