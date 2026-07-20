@@ -9,14 +9,10 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 
 public class MusicLyricsHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicLyricsHandler.class);
-    private static final String LYRICS_DIR = "Music/lyrics";
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -125,8 +121,8 @@ public class MusicLyricsHandler extends HttpServlet {
             return;
         }
         
-        // 更新歌词文件
-        boolean success = updateLyricsFile(musicId, lyricsRequest.getLyrics());
+        // 更新数据库歌词
+        boolean success = updateLyrics(musicId, lyricsRequest.getLyrics());
         
         if (!success) {
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
@@ -154,32 +150,14 @@ public class MusicLyricsHandler extends HttpServlet {
         if (stored.isPresent()) {
             return normalizeLrc(stored.get().content());
         }
-
-        try {
-            // 构建歌词文件路径
-            String lyricsFilePath = LYRICS_DIR + File.separator + musicId + ".lrc";
-            File lyricsFile = new File(lyricsFilePath);
-            
-            if (!lyricsFile.exists()) {
-                logger.debug("歌词文件不存在: {}", lyricsFile.getAbsolutePath());
-                return null; // 歌词文件不存在
-            }
-
-            // 将所有 [mm:ss:xx] 格式转换为 [mm:ss.xx] 标准格式
-            String lyricsContent = normalizeLrc(Files.readString(lyricsFile.toPath(), StandardCharsets.UTF_8));
-
-            logger.info("成功读取本地兼容歌词文件: {}", lyricsFile.getAbsolutePath());
-            return lyricsContent;
-        } catch (Exception e) {
-            logger.error("读取歌词文件时出错: {}", e.getMessage(), e);
-            return null;
-        }
+        logger.debug("数据库歌词不存在 musicId={}", musicId);
+        return null;
     }
     
     /**
-     * 更新歌词文件
+     * 更新数据库歌词
      */
-    private boolean updateLyricsFile(int musicId, String lyrics) {
+    private boolean updateLyrics(int musicId, String lyrics) {
         boolean ok = Main.getLyricsDatabaseManager().upsert(musicId, lyrics, "admin");
         if (ok) {
             logger.info("成功更新数据库歌词 musicId={}", musicId);

@@ -455,9 +455,9 @@ public class MusicManagementHandler extends HttpServlet {
                     rowsUpdated = stmt.executeUpdate();
                 }
                 
-                // 保存歌词文件到 \Music\lyrics 目录
+                // 保存歌词到数据库
                 if (rowsUpdated > 0) {
-                    saveLyricsFile(editRequest.getId(), editRequest.getLyrics());
+                    saveLyricsToDatabase(editRequest.getId(), editRequest.getLyrics());
                 }
             }
             
@@ -671,7 +671,7 @@ public class MusicManagementHandler extends HttpServlet {
     }
     
     // 保存歌词到数据库
-    private void saveLyricsFile(Integer musicId, String lyricsContent) {
+    private void saveLyricsToDatabase(Integer musicId, String lyricsContent) {
         try {
             if (!Main.getLyricsDatabaseManager().upsert(musicId, lyricsContent, "admin")) {
                 logger.error("保存数据库歌词失败 musicId={}", musicId);
@@ -682,7 +682,7 @@ public class MusicManagementHandler extends HttpServlet {
                 Main.getLyricsSearchIndex().rebuildOne(musicId);
             }
         } catch (Exception e) {
-            logger.error("保存歌词文件失败: {}", e.getMessage(), e);
+            logger.error("保存数据库歌词失败: {}", e.getMessage(), e);
         }
     }
     

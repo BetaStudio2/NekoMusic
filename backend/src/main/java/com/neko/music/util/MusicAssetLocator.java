@@ -19,7 +19,6 @@ public final class MusicAssetLocator {
 
     public static final String AUDIO_REL_DIR = "Music/music";
     public static final String COVER_REL_DIR = "Music/covers";
-    public static final String LYRICS_REL_DIR = "Music/lyrics";
 
     private static final List<String> AUDIO_EXT_PRIORITY = List.of(
             "flac", "wav", "mp3", "m4a", "aac", "ogg");
@@ -39,10 +38,6 @@ public final class MusicAssetLocator {
 
     public static Path coverDir() {
         return baseDir().resolve(COVER_REL_DIR);
-    }
-
-    public static Path lyricsDir() {
-        return baseDir().resolve(LYRICS_REL_DIR);
     }
 
     public static Optional<Path> findAudioFile(int musicId) {
@@ -67,17 +62,6 @@ public final class MusicAssetLocator {
             log.warn("列出封面目录失败: {}", e.toString());
             return Optional.empty();
         }
-    }
-
-    public static Optional<Path> findLyricsFile(int musicId) {
-        if (musicId <= 0) {
-            return Optional.empty();
-        }
-        Path lrc = lyricsDir().resolve(musicId + ".lrc");
-        if (Files.isRegularFile(lrc)) {
-            return Optional.of(lrc);
-        }
-        return Optional.empty();
     }
 
     public static String fileApiUrl(int musicId) {

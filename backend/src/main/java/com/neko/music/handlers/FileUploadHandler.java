@@ -314,8 +314,8 @@ public class FileUploadHandler extends HttpServlet {
                 }
             }
             
-            // 保存歌词文件
-            saveLyricsFile(musicId, lyricsFilePart);
+            // 保存歌词到数据库
+            saveLyricsToDatabase(musicId, lyricsFilePart);
             
             // 获取完整的音乐信息
             Music music = getMusicById(musicId);
@@ -593,8 +593,8 @@ public class FileUploadHandler extends HttpServlet {
                 }
             }
             
-            // 保存歌词文件
-            saveLyricsFile(id, lyricsFilePart);
+            // 保存歌词到数据库
+            saveLyricsToDatabase(id, lyricsFilePart);
             
             // 更新数据库中的音乐信息
             updateMusicInDatabase(id, title, artist, album, language, tags, duration, uploadUserId);
@@ -968,7 +968,7 @@ public class FileUploadHandler extends HttpServlet {
     }
     
     // 保存歌词到数据库
-    private void saveLyricsFile(int musicId, Part lyricsFilePart) {
+    private void saveLyricsToDatabase(int musicId, Part lyricsFilePart) {
         try {
             String lyricsContent;
             try (InputStream inputStream = lyricsFilePart.getInputStream()) {
@@ -984,7 +984,7 @@ public class FileUploadHandler extends HttpServlet {
                 Main.getLyricsSearchIndex().rebuildOne(musicId);
             }
         } catch (Exception e) {
-            logger.error("保存歌词文件失败", e);
+            logger.error("保存数据库歌词失败", e);
         }
     }
 }
