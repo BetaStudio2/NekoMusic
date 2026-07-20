@@ -3,6 +3,7 @@ package com.neko.music.handlers;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neko.music.Main;
+import com.neko.music.database.LyricsDatabaseManager;
 import com.neko.music.util.AdminPermissionUtil;
 import com.neko.music.util.MusicAssetLocator;
 import com.neko.music.util.PermissionHelper;
@@ -22,19 +23,22 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
- * 管理后台歌词文件管理器：仅允许操作 Music/lyrics 目录下的 .lrc 文件。
+ * 管理后台歌词管理器：API 保持文件树形态，数据库为主存储，本地文件仅作未迁移兼容读取。
  */
 public class AdminLyricsFileHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(AdminLyricsFileHandler.class);
@@ -96,25 +100,27 @@ public class AdminLyricsFileHandler extends HttpServlet {
             return;
         }
 
-        Path file = resolveLyricsFile(pathInfo.substring("/file/".length()));
-        if (file == null) {
+        Integer musicId = musicIdFromEncodedPath(pathInfo.substring("/file/".length()));
+        if (musicId == null) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             writeFailure(response, "无效的歌词文件路径");
             return;
         }
-
-        Files.createDirectories(MusicAssetLocator.lyricsDir());
-        if (!isSafeLyricsPath(file)) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            writeFailure(response, "无效的歌词文件路径");
+        if (!musicMetaById().containsKey(musicId)) {
+            response.setStatus(HttpStatus.NOT_FOUND_404);
+            writeFailure(response, "音乐不存在，无法保存歌词");
             return;
         }
+        if (!Main.getLyricsDatabaseManager().upsert(musicId, saveRequest.content, "admin")) {
+            response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
+            writeFailure(response, "保存歌词失败");
+            return;
+        }
+        if (Main.getLyricsSearchIndex() != null) {
+            Main.getLyricsSearchIndex().rebuildOne(musicId);
+        }
 
-        Files.createDirectories(file.getParent());
-        Files.writeString(file, saveRequest.content, StandardCharsets.UTF_8);
-        rebuildLyricsIndex(file);
-
-        ObjectNode data = buildFileNode(file, musicMetaById());
+        ObjectNode data = buildDbFileNode(musicId, saveRequest.content, musicMetaById());
         writeSuccess(response, "保存成功", data);
     }
 
@@ -131,21 +137,20 @@ public class AdminLyricsFileHandler extends HttpServlet {
             return;
         }
 
-        Path file = resolveLyricsFile(pathInfo.substring("/file/".length()));
-        if (file == null) {
+        Integer musicId = musicIdFromEncodedPath(pathInfo.substring("/file/".length()));
+        if (musicId == null) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             writeFailure(response, "无效的歌词文件路径");
             return;
         }
-        if (!Files.exists(file)) {
+        if (Main.getLyricsDatabaseManager().findByMusicId(musicId).isEmpty()) {
             response.setStatus(HttpStatus.NOT_FOUND_404);
-            writeFailure(response, "歌词文件不存在");
+            writeFailure(response, "数据库歌词不存在");
             return;
         }
 
-        Integer musicId = musicIdFromFile(file.getFileName().toString());
-        Files.delete(file);
-        if (musicId != null && Main.getLyricsSearchIndex() != null) {
+        Main.getLyricsDatabaseManager().delete(musicId);
+        if (Main.getLyricsSearchIndex() != null) {
             Main.getLyricsSearchIndex().rebuildOne(musicId);
         }
 
@@ -157,11 +162,21 @@ public class AdminLyricsFileHandler extends HttpServlet {
         Files.createDirectories(lyricsDir);
 
         List<Path> files = new ArrayList<>();
+        Set<Integer> dbIds = new HashSet<>();
+        Map<Integer, MusicMeta> metaById = musicMetaById();
+        List<LyricsDatabaseManager.AdminLyricsMeta> dbLyrics = Main.getLyricsDatabaseManager().findAllForAdmin();
+        for (LyricsDatabaseManager.AdminLyricsMeta meta : dbLyrics) {
+            dbIds.add(meta.musicId());
+        }
         try (Stream<Path> stream = Files.walk(lyricsDir)) {
             stream
                     .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
                     .filter(this::isLrcFile)
                     .filter(this::isSafeLyricsPath)
+                    .filter(path -> {
+                        Integer musicId = musicIdFromFile(path.getFileName().toString());
+                        return musicId == null || !dbIds.contains(musicId);
+                    })
                     .sorted(Comparator.comparing(path -> relativePath(path).toLowerCase(Locale.ROOT)))
                     .forEach(files::add);
         }
@@ -172,19 +187,32 @@ public class AdminLyricsFileHandler extends HttpServlet {
         root.put("path", "");
         root.set("children", Main.getObjectMapper().createArrayNode());
 
-        Map<Integer, MusicMeta> metaById = musicMetaById();
+        for (LyricsDatabaseManager.AdminLyricsMeta meta : dbLyrics) {
+            appendNode(root, buildDbFileNode(meta, metaById));
+        }
         for (Path file : files) {
             appendFile(root, file, metaById);
         }
 
         ObjectNode data = Main.getObjectMapper().createObjectNode();
         data.set("tree", root);
-        data.put("totalFiles", files.size());
+        data.put("totalFiles", dbLyrics.size() + files.size());
         data.put("basePath", MusicAssetLocator.LYRICS_REL_DIR);
         writeSuccess(response, "查询成功", data);
     }
 
     private void readFile(String encodedPath, HttpServletResponse response) throws IOException {
+        Integer musicId = musicIdFromEncodedPath(encodedPath);
+        if (musicId != null) {
+            var stored = Main.getLyricsDatabaseManager().findByMusicId(musicId);
+            if (stored.isPresent()) {
+                ObjectNode data = buildDbFileNode(musicId, stored.get().content(), musicMetaById());
+                data.put("content", stored.get().content());
+                writeSuccess(response, "读取成功", data);
+                return;
+            }
+        }
+
         Path file = resolveLyricsFile(encodedPath);
         if (file == null) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
@@ -207,6 +235,11 @@ public class AdminLyricsFileHandler extends HttpServlet {
         ObjectNode data = buildFileNode(file, musicMetaById());
         data.put("content", content);
         writeSuccess(response, "读取成功", data);
+    }
+
+    private void appendNode(ObjectNode root, ObjectNode fileNode) {
+        ArrayNode children = (ArrayNode) root.get("children");
+        children.add(fileNode);
     }
 
     private void appendFile(ObjectNode root, Path file, Map<Integer, MusicMeta> metaById) throws IOException {
@@ -263,6 +296,50 @@ public class AdminLyricsFileHandler extends HttpServlet {
         } else {
             node.put("musicId", musicId);
         }
+        if (meta == null) {
+            node.putNull("title");
+            node.putNull("artist");
+            node.put("existsInDb", false);
+            node.put("displayName", fileName);
+        } else {
+            node.put("title", meta.title);
+            node.put("artist", meta.artist);
+            node.put("existsInDb", true);
+            node.put("displayName", musicId + " - " + meta.title);
+        }
+        return node;
+    }
+
+    private ObjectNode buildDbFileNode(int musicId, String content, Map<Integer, MusicMeta> metaById) {
+        int size = content == null ? 0 : content.getBytes(StandardCharsets.UTF_8).length;
+        LyricsDatabaseManager.AdminLyricsMeta meta = new LyricsDatabaseManager.AdminLyricsMeta(
+                musicId,
+                null,
+                null,
+                size,
+                Timestamp.from(Instant.now()),
+                false,
+                metaById.containsKey(musicId)
+        );
+        return buildDbFileNode(meta, metaById);
+    }
+
+    private ObjectNode buildDbFileNode(LyricsDatabaseManager.AdminLyricsMeta lyricsMeta, Map<Integer, MusicMeta> metaById) {
+        int musicId = lyricsMeta.musicId();
+        MusicMeta meta = metaById.get(musicId);
+        String fileName = musicId + ".lrc";
+
+        ObjectNode node = Main.getObjectMapper().createObjectNode();
+        node.put("type", "file");
+        node.put("name", fileName);
+        node.put("path", fileName);
+        node.put("size", lyricsMeta.sizeBytes());
+        node.put("updatedAt", lyricsMeta.updatedAt() == null
+                ? Instant.EPOCH.toString()
+                : lyricsMeta.updatedAt().toInstant().toString());
+        node.put("musicId", musicId);
+        node.put("storage", "database");
+        node.put("placeholder", lyricsMeta.placeholder());
         if (meta == null) {
             node.putNull("title");
             node.putNull("artist");
@@ -374,11 +451,12 @@ public class AdminLyricsFileHandler extends HttpServlet {
         }
     }
 
-    private void rebuildLyricsIndex(Path file) {
-        Integer musicId = musicIdFromFile(file.getFileName().toString());
-        if (musicId != null && Main.getLyricsSearchIndex() != null) {
-            Main.getLyricsSearchIndex().rebuildOne(musicId);
+    private Integer musicIdFromEncodedPath(String encodedPath) {
+        Path file = resolveLyricsFile(encodedPath);
+        if (file == null) {
+            return null;
         }
+        return musicIdFromFile(file.getFileName().toString());
     }
 
     private void writeSuccess(HttpServletResponse response, String message, ObjectNode data) throws IOException {

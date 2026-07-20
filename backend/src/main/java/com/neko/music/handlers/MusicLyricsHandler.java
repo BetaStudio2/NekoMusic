@@ -9,12 +9,10 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.nio.file.Paths;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 
 public class MusicLyricsHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicLyricsHandler.class);
@@ -152,6 +150,11 @@ public class MusicLyricsHandler extends HttpServlet {
      * 根据音乐ID获取歌词
      */
     private String getLyricsById(int musicId) {
+        var stored = Main.getLyricsDatabaseManager().findByMusicId(musicId);
+        if (stored.isPresent()) {
+            return normalizeLrc(stored.get().content());
+        }
+
         try {
             // 构建歌词文件路径
             String lyricsFilePath = LYRICS_DIR + File.separator + musicId + ".lrc";
@@ -161,26 +164,11 @@ public class MusicLyricsHandler extends HttpServlet {
                 logger.debug("歌词文件不存在: {}", lyricsFile.getAbsolutePath());
                 return null; // 歌词文件不存在
             }
-            
-            // 读取歌词文件内容
-            StringBuilder content = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(new FileReader(lyricsFile))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    content.append(line).append("\n");
-                }
-            }
-
-            // 移除最后的换行符
-            if (content.length() > 0) {
-                content.deleteCharAt(content.length() - 1);
-            }
 
             // 将所有 [mm:ss:xx] 格式转换为 [mm:ss.xx] 标准格式
-            String lyricsContent = content.toString();
-            lyricsContent = lyricsContent.replaceAll("\\[(\\d{2}):(\\d{2}):(\\d{2,3})\\]", "[$1:$2.$3]");
+            String lyricsContent = normalizeLrc(Files.readString(lyricsFile.toPath(), StandardCharsets.UTF_8));
 
-            logger.info("成功读取歌词文件: {}", lyricsFile.getAbsolutePath());
+            logger.info("成功读取本地兼容歌词文件: {}", lyricsFile.getAbsolutePath());
             return lyricsContent;
         } catch (Exception e) {
             logger.error("读取歌词文件时出错: {}", e.getMessage(), e);
@@ -192,22 +180,18 @@ public class MusicLyricsHandler extends HttpServlet {
      * 更新歌词文件
      */
     private boolean updateLyricsFile(int musicId, String lyrics) {
-        try {
-            // 构建歌词文件路径
-            String lyricsFilePath = LYRICS_DIR + File.separator + musicId + ".lrc";
-            File lyricsFile = new File(lyricsFilePath);
-            
-            // 写入歌词内容
-            try (FileWriter writer = new FileWriter(lyricsFile)) {
-                writer.write(lyrics);
-            }
-            
-            logger.info("成功更新歌词文件: {}", lyricsFile.getAbsolutePath());
-            return true;
-        } catch (Exception e) {
-            logger.error("更新歌词文件时出错: {}", e.getMessage(), e);
-            return false;
+        boolean ok = Main.getLyricsDatabaseManager().upsert(musicId, lyrics, "admin");
+        if (ok) {
+            logger.info("成功更新数据库歌词 musicId={}", musicId);
         }
+        return ok;
+    }
+
+    private String normalizeLrc(String lyricsContent) {
+        if (lyricsContent == null) {
+            return null;
+        }
+        return lyricsContent.replaceAll("\\[(\\d{2}):(\\d{2}):(\\d{2,3})\\]", "[$1:$2.$3]");
     }
 
     /**

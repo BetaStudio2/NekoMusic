@@ -83,6 +83,28 @@ public class DatabaseManager {
                 stmt.execute();
             }
 
+            String createMusicLyricsTable = """
+                CREATE TABLE IF NOT EXISTS music_lyrics (
+                    music_id INT NOT NULL PRIMARY KEY,
+                    content MEDIUMTEXT NOT NULL,
+                    plain_text MEDIUMTEXT NULL,
+                    content_hash CHAR(64) NOT NULL,
+                    format VARCHAR(16) NOT NULL DEFAULT 'lrc',
+                    source VARCHAR(32) NOT NULL DEFAULT 'manual',
+                    is_placeholder BOOLEAN NOT NULL DEFAULT FALSE,
+                    size_bytes INT UNSIGNED NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    CONSTRAINT fk_music_lyrics_music
+                        FOREIGN KEY (music_id) REFERENCES music(id) ON DELETE CASCADE,
+                    KEY idx_music_lyrics_updated_at (updated_at),
+                    KEY idx_music_lyrics_placeholder (is_placeholder)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """;
+            try (PreparedStatement stmt = conn.prepareStatement(createMusicLyricsTable)) {
+                stmt.execute();
+            }
+
             // 移除旧版 music 表的 file_path / cover_path（一次 ALTER 合并 DROP，减少锁表次数）
             try {
                 List<String> dropParts = new ArrayList<>();

@@ -23,7 +23,6 @@ import java.util.List;
 
 public class MusicManagementHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicManagementHandler.class);
-    private static final String LYRICS_DIR = "Music/lyrics";
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -177,13 +176,9 @@ public class MusicManagementHandler extends HttpServlet {
         MusicAssetLocator.deleteAudioVariants(id);
         MusicAssetLocator.deleteCoverVariants(id);
 
-        // 删除歌词文件（根据音乐ID查找）
-        String lyricsFilePath = "Music/lyrics/" + id + ".lrc";
-        try {
-            java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get(lyricsFilePath));
-            logger.info("已删除歌词文件: {}", lyricsFilePath);
-        } catch (Exception e) {
-            logger.warn("删除歌词文件失败（可能残留孤儿文件） musicId={} path={}: {}", id, lyricsFilePath, e.toString());
+        Main.getLyricsDatabaseManager().delete(id);
+        if (Main.getLyricsSearchIndex() != null) {
+            Main.getLyricsSearchIndex().rebuildOne(id);
         }
 
         response.setStatus(HttpStatus.OK_200);
@@ -675,23 +670,14 @@ public class MusicManagementHandler extends HttpServlet {
         public void setData(Music data) { this.data = data; }
     }
     
-    // 保存歌词文件到 \Music\lyrics 目录
+    // 保存歌词到数据库
     private void saveLyricsFile(Integer musicId, String lyricsContent) {
         try {
-            // 构建歌词文件路径
-            String lyricsFilePath = LYRICS_DIR + File.separator + musicId.toString() + ".lrc";
-            java.io.File lyricsFile = new java.io.File(lyricsFilePath);
-            
-            // 创建歌词目录（如果不存在）
-            java.io.File lyricsDir = lyricsFile.getParentFile();
-            if (!lyricsDir.exists()) {
-                lyricsDir.mkdirs();
+            if (!Main.getLyricsDatabaseManager().upsert(musicId, lyricsContent, "admin")) {
+                logger.error("保存数据库歌词失败 musicId={}", musicId);
+                return;
             }
-            
-            // 写入歌词内容
-            java.nio.file.Files.write(lyricsFile.toPath(), lyricsContent.getBytes("UTF-8"));
-            
-            logger.info("歌词文件已保存: {}", lyricsFile.getAbsolutePath());
+            logger.info("歌词已保存到数据库 musicId={}", musicId);
             if (Main.getLyricsSearchIndex() != null) {
                 Main.getLyricsSearchIndex().rebuildOne(musicId);
             }

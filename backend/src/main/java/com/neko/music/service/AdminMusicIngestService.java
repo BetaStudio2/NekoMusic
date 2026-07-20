@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -137,9 +138,10 @@ public class AdminMusicIngestService {
                 Files.copy(coverTempOrNull, Paths.get(coverRelPath), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             }
 
-            Path lyricsDest = MusicAssetLocator.lyricsDir().resolve(musicId + ".lrc");
-            Files.createDirectories(lyricsDest.getParent());
-            Files.copy(lyricsTemp, lyricsDest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            String lyricsContent = Files.readString(lyricsTemp, StandardCharsets.UTF_8);
+            if (!Main.getLyricsDatabaseManager().upsert(musicId, lyricsContent, "ingest")) {
+                throw new SQLException("保存歌词到数据库失败");
+            }
             if (com.neko.music.Main.getLyricsSearchIndex() != null) {
                 com.neko.music.Main.getLyricsSearchIndex().rebuildOne(musicId);
             }
@@ -154,7 +156,7 @@ public class AdminMusicIngestService {
                     Files.deleteIfExists(Paths.get(musicRelPath));
                 }
                 MusicAssetLocator.deleteCoverVariants(musicId);
-                Files.deleteIfExists(MusicAssetLocator.lyricsDir().resolve(musicId + ".lrc"));
+                Main.getLyricsDatabaseManager().delete(musicId);
             }
             throw e;
         }

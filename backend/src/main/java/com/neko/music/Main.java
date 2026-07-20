@@ -6,6 +6,7 @@ import com.neko.music.config.ConfigManager;
 import com.neko.music.database.AdminDatabaseManager;
 import com.neko.music.database.DatabaseManager;
 import com.neko.music.database.DatabaseInitializer;
+import com.neko.music.database.LyricsDatabaseManager;
 import com.neko.music.service.VideoRenderJobStore;
 import com.neko.music.database.VipPayOrderDatabaseManager;
 import com.neko.music.database.VipPricingDatabaseManager;
@@ -92,6 +93,7 @@ public class Main {
     private static AppReleaseService appReleaseService;
     private static DailyRecommendationService dailyRecommendationService;
     private static LyricsSearchIndex lyricsSearchIndex;
+    private static LyricsDatabaseManager lyricsDatabaseManager;
     private static ScheduledExecutorService dailyRecommendationScheduler;
 
     public static void main(String[] args) throws Exception {
@@ -118,6 +120,7 @@ public class Main {
         // 初始化数据库管理器
         databaseManager = new DatabaseManager(configManager);
         databaseManager.init();
+        lyricsDatabaseManager = new LyricsDatabaseManager(databaseManager);
         
         // 初始化数据库表
         DatabaseInitializer.initializeTables(databaseManager);
@@ -544,6 +547,10 @@ public class Main {
 
     public static LyricsSearchIndex getLyricsSearchIndex() {
         return lyricsSearchIndex;
+    }
+
+    public static LyricsDatabaseManager getLyricsDatabaseManager() {
+        return lyricsDatabaseManager;
     }
     
     public static EmailService getEmailService() {

@@ -1,14 +1,13 @@
 package com.neko.music.service;
 
 import com.neko.music.Main;
+import com.neko.music.database.LyricsDatabaseManager;
 import com.neko.music.util.LyricsPlainTextExtractor;
-import com.neko.music.util.MusicAssetLocator;
 import com.neko.music.util.VideoRenderPaths;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -22,12 +21,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 /**
- * 站内歌词搜索索引：仅索引已入库曲目（{@code music} 表存在且 {@code Music/lyrics/{id}.lrc} 有效）。
+ * 站内歌词搜索索引：仅索引已入库曲目（{@code music} 表存在且 {@code music_lyrics} 有有效歌词）。
  * 纯文本缓存目录：{@code /tmp/.neko/lyrics-index/plain}（tmpfs）。
  */
 public class LyricsSearchIndex {
@@ -39,7 +35,6 @@ public class LyricsSearchIndex {
     private static final int MIN_QUERY_LEN = 7;
     private static final int NGRAM_SIZE = 2;
     private static final int MAX_RESULTS = 200;
-    private static final Pattern LRC_FILE = Pattern.compile("(\\d+)\\.lrc");
 
     private final Map<Integer, String> plainById = new ConcurrentHashMap<>();
     private final Map<Integer, Set<String>> ngramsById = new ConcurrentHashMap<>();
@@ -69,27 +64,10 @@ public class LyricsSearchIndex {
             ngramsById.clear();
             postings.clear();
 
-            Path lyricsDir = MusicAssetLocator.lyricsDir();
-            if (!Files.isDirectory(lyricsDir)) {
-                logger.info("歌词目录不存在，跳过索引: {}", lyricsDir);
-                ready.set(true);
-                return;
-            }
-
             int indexed = 0;
-            try (Stream<Path> stream = Files.list(lyricsDir)) {
-                for (Path lrcFile : stream.filter(Files::isRegularFile).sorted().toList()) {
-                    Matcher m = LRC_FILE.matcher(lrcFile.getFileName().toString());
-                    if (!m.matches()) {
-                        continue;
-                    }
-                    int musicId = Integer.parseInt(m.group(1));
-                    if (!musicExistsInDb(musicId)) {
-                        continue;
-                    }
-                    if (indexOneFile(musicId, lrcFile)) {
-                        indexed++;
-                    }
+            for (LyricsDatabaseManager.StoredLyrics lyrics : Main.getLyricsDatabaseManager().findAllForIndex()) {
+                if (indexOne(lyrics.musicId(), lyrics.content(), lyrics.plainText())) {
+                    indexed++;
                 }
             }
             ready.set(true);
@@ -171,17 +149,18 @@ public class LyricsSearchIndex {
         removeOne(musicId);
         try {
             Files.createDirectories(PLAIN_DIR);
-            Path lrc = MusicAssetLocator.findLyricsFile(musicId).orElse(null);
-            if (lrc != null) {
-                indexOneFile(musicId, lrc);
-            }
+            Main.getLyricsDatabaseManager()
+                    .findByMusicId(musicId)
+                    .ifPresent(lyrics -> indexOne(lyrics.musicId(), lyrics.content(), lyrics.plainText()));
         } catch (Exception e) {
             logger.warn("重建歌词索引失败 musicId={}: {}", musicId, e.toString());
         }
     }
 
-    private boolean indexOneFile(int musicId, Path lrcFile) throws IOException {
-        String plain = LyricsPlainTextExtractor.fromLrc(Files.readString(lrcFile, StandardCharsets.UTF_8));
+    private boolean indexOne(int musicId, String lrcContent, String precomputedPlain) {
+        String plain = precomputedPlain == null || precomputedPlain.isBlank()
+                ? LyricsPlainTextExtractor.fromLrc(lrcContent)
+                : precomputedPlain;
         if (plain.length() < MIN_QUERY_LEN || LyricsPlainTextExtractor.isPlaceholder(plain)) {
             return false;
         }
@@ -191,7 +170,11 @@ public class LyricsSearchIndex {
         for (String gram : grams) {
             postings.computeIfAbsent(gram, k -> ConcurrentHashMap.newKeySet()).add(musicId);
         }
-        Files.writeString(PLAIN_DIR.resolve(musicId + ".txt"), plain, StandardCharsets.UTF_8);
+        try {
+            Files.writeString(PLAIN_DIR.resolve(musicId + ".txt"), plain);
+        } catch (IOException e) {
+            logger.debug("写入歌词纯文本缓存失败 musicId={}: {}", musicId, e.toString());
+        }
         return true;
     }
 

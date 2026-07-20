@@ -69,6 +69,15 @@ public final class LrcParser {
         }
     }
 
+    public static Optional<List<Line>> parseString(String content) {
+        if (content == null || content.isBlank()) {
+            return Optional.empty();
+        }
+        List<String> rawLines = content.lines().toList();
+        List<Line> parsed = parseLines(rawLines);
+        return parsed.isEmpty() ? Optional.empty() : Optional.of(parsed);
+    }
+
     static List<Line> parseLines(List<String> rawLines) {
         List<Line> result = new ArrayList<>();
         double offsetSec = 0;

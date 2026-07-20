@@ -27,6 +27,7 @@ import org.jaudiotagger.tag.TagException;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -42,7 +43,6 @@ public class FileUploadHandler extends HttpServlet {
     // 定义上传目录（相对于JAR运行目录）
     private static final String MUSIC_DIR = "Music/music";
     private static final String COVER_DIR = "Music/covers";
-    private static final String LYRICS_DIR = "Music/lyrics";
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -967,23 +967,19 @@ public class FileUploadHandler extends HttpServlet {
         public void setError(String error) { this.error = error; }
     }
     
-    // 保存歌词文件
+    // 保存歌词到数据库
     private void saveLyricsFile(int musicId, Part lyricsFilePart) {
         try {
-            // 创建歌词目录（如果不存在）
-            Path lyricsPath = Paths.get(LYRICS_DIR);
-            Files.createDirectories(lyricsPath);
-            
-            // 构建歌词文件路径
-            String lyricsFilePath = LYRICS_DIR + File.separator + musicId + ".lrc";
-            Path lyricsFile = Paths.get(lyricsFilePath);
-            
-            // 保存歌词文件
+            String lyricsContent;
             try (InputStream inputStream = lyricsFilePart.getInputStream()) {
-                Files.copy(inputStream, lyricsFile);
+                lyricsContent = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
             }
-            
-            logger.info("歌词文件已保存到: " + lyricsFile.toAbsolutePath());
+
+            if (!Main.getLyricsDatabaseManager().upsert(musicId, lyricsContent, "admin_upload")) {
+                logger.error("保存数据库歌词失败 musicId={}", musicId);
+                return;
+            }
+            logger.info("歌词已保存到数据库 musicId={}", musicId);
             if (Main.getLyricsSearchIndex() != null) {
                 Main.getLyricsSearchIndex().rebuildOne(musicId);
             }

@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -30,7 +31,6 @@ public class AdminUploadAuditHandler extends HttpServlet {
     private static final String MUSIC_DIR = "Music";
     private static final String MUSIC_AUDIO_DIR = "Music/music";
     private static final String MUSIC_COVERS_DIR = "Music/covers";
-    private static final String MUSIC_LYRICS_DIR = "Music/lyrics";
     private static final String UPLOAD_DIR = "user_upload";
 
     @Override
@@ -171,7 +171,6 @@ public class AdminUploadAuditHandler extends HttpServlet {
         int musicId = 0;
         String newMusicPath = null;
         String newCoverPath = null;
-        String newLyricsPath = null;
         
         try {
             // 获取管理员ID
@@ -199,18 +198,14 @@ public class AdminUploadAuditHandler extends HttpServlet {
                 return;
             }
             
-            // 创建Music目录及三个子目录
+            // 创建Music目录及音频/封面子目录
             File audioDir = new File(MUSIC_AUDIO_DIR);
             File coversDir = new File(MUSIC_COVERS_DIR);
-            File lyricsDir = new File(MUSIC_LYRICS_DIR);
             if (!audioDir.exists()) {
                 audioDir.mkdirs();
             }
             if (!coversDir.exists()) {
                 coversDir.mkdirs();
-            }
-            if (!lyricsDir.exists()) {
-                lyricsDir.mkdirs();
             }
 
             // 使用事务确保原子性
@@ -220,11 +215,9 @@ public class AdminUploadAuditHandler extends HttpServlet {
             // 先迁移文件到临时位置，避免并发冲突
             String tempMusicFileName = "temp_" + uploadId + getFileExtension(upload.getMusicFilePath());
             String tempCoverFileName = "temp_" + uploadId + "_cover.jpg";
-            String tempLyricsFileName = "temp_" + uploadId + "_lyrics.lrc";
             
             String tempMusicPath = Paths.get(MUSIC_AUDIO_DIR, tempMusicFileName).toString();
             String tempCoverPath = Paths.get(MUSIC_COVERS_DIR, tempCoverFileName).toString();
-            String tempLyricsPath = Paths.get(MUSIC_LYRICS_DIR, tempLyricsFileName).toString();
             
             // 验证源文件存在并迁移到临时位置
             if (!Files.exists(Paths.get(upload.getMusicFilePath()))) {
@@ -247,14 +240,6 @@ public class AdminUploadAuditHandler extends HttpServlet {
                 }
                 Files.move(Paths.get(upload.getCoverFilePath()), Paths.get(tempCoverPath), StandardCopyOption.REPLACE_EXISTING);
                 logger.info("迁移封面文件到临时位置: {} -> {}", upload.getCoverFilePath(), tempCoverPath);
-            }
-            
-            // 迁移歌词文件到临时位置（如果有）
-            if (upload.getLyricsFilePath() != null && !upload.getLyricsFilePath().isEmpty()) {
-                if (Files.exists(Paths.get(upload.getLyricsFilePath()))) {
-                    Files.move(Paths.get(upload.getLyricsFilePath()), Paths.get(tempLyricsPath), StandardCopyOption.REPLACE_EXISTING);
-                    logger.info("迁移歌词文件到临时位置: {} -> {}", upload.getLyricsFilePath(), tempLyricsPath);
-                }
             }
             
             // 在事务内插入到music表获取音乐ID（与 FileUploadHandler 一致，写入拼音检索列）
@@ -308,9 +293,6 @@ public class AdminUploadAuditHandler extends HttpServlet {
                 if (upload.getCoverFilePath() != null && !upload.getCoverFilePath().isEmpty()) {
                     Files.move(Paths.get(tempCoverPath), Paths.get(upload.getCoverFilePath()), StandardCopyOption.REPLACE_EXISTING);
                 }
-                if (upload.getLyricsFilePath() != null && !upload.getLyricsFilePath().isEmpty()) {
-                    Files.move(Paths.get(tempLyricsPath), Paths.get(upload.getLyricsFilePath()), StandardCopyOption.REPLACE_EXISTING);
-                }
                 sendError(response, 500, "插入音乐记录失败");
                 return;
             }
@@ -320,7 +302,6 @@ public class AdminUploadAuditHandler extends HttpServlet {
             String newCoverFileName = (upload.getCoverFilePath() != null && !upload.getCoverFilePath().isEmpty())
                     ? musicId + getFileExtension(upload.getCoverFilePath())
                     : null;
-            String newLyricsFileName = musicId + ".lrc";
 
             // 将临时文件重命名为最终文件名
             newMusicPath = Paths.get(MUSIC_AUDIO_DIR, newMusicFileName).toString();
@@ -335,11 +316,11 @@ public class AdminUploadAuditHandler extends HttpServlet {
                 logger.info("重命名封面文件: {} -> {}", tempCoverPath, newCoverPath);
             }
 
-            // 重命名歌词文件（如果有）
-            if (upload.getLyricsFilePath() != null && !upload.getLyricsFilePath().isEmpty() && Files.exists(Paths.get(tempLyricsPath))) {
-                newLyricsPath = Paths.get(MUSIC_LYRICS_DIR, newLyricsFileName).toString();
-                Files.move(Paths.get(tempLyricsPath), Paths.get(newLyricsPath), StandardCopyOption.REPLACE_EXISTING);
-                logger.info("重命名歌词文件: {} -> {}", tempLyricsPath, newLyricsPath);
+            if (upload.getLyricsFilePath() != null && !upload.getLyricsFilePath().isEmpty()
+                    && Files.exists(Paths.get(upload.getLyricsFilePath()))) {
+                String lyricsContent = Files.readString(Paths.get(upload.getLyricsFilePath()), StandardCharsets.UTF_8);
+                Main.getLyricsDatabaseManager().upsert(conn, musicId, lyricsContent, "user_upload");
+                logger.info("审核通过歌词已保存到数据库 musicId={}", musicId);
                 if (Main.getLyricsSearchIndex() != null) {
                     Main.getLyricsSearchIndex().rebuildOne(musicId);
                 }
