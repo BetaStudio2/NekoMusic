@@ -1,5 +1,17 @@
 <template>
   <div class="upload-view">
+    <transition name="upload-notice">
+      <div
+        v-if="uploadNotice.visible"
+        class="upload-result-notice"
+        :class="`upload-result-notice--${uploadNotice.type}`"
+        role="status"
+        aria-live="polite"
+      >
+        {{ uploadNotice.message }}
+      </div>
+    </transition>
+
     <div class="upload-container">
       <!-- 左侧封面 -->
       <div class="cover-side">
@@ -277,6 +289,12 @@ const formData = ref({
 const uploading = ref(false)
 const uploadProgress = ref(0)
 const parsingDuration = ref(false)
+const uploadNotice = ref({
+  visible: false,
+  type: 'error',
+  message: ''
+})
+let uploadNoticeTimer = null
 
 const isDragging = ref(false)
 const isCoverDragging = ref(false)
@@ -956,6 +974,41 @@ const handleLyricsFileDrop = (event) => {
   }
 }
 
+const showUploadNotice = (type, message) => {
+  const normalizedType = type === 'success' ? 'success' : 'error'
+  const normalizedMessage = message || (normalizedType === 'success' ? '上传成功' : '上传失败')
+
+  uploadNotice.value = {
+    visible: true,
+    type: normalizedType,
+    message: normalizedMessage
+  }
+
+  if (uploadNoticeTimer) {
+    clearTimeout(uploadNoticeTimer)
+  }
+  uploadNoticeTimer = setTimeout(() => {
+    uploadNotice.value.visible = false
+  }, 5000)
+
+  if (normalizedType === 'success') {
+    toast.success(normalizedMessage)
+  } else {
+    toast.error(normalizedMessage)
+  }
+}
+
+const showUploadResultToast = (result, fallbackMessage) => {
+  const message = result?.message || fallbackMessage || '上传失败'
+  console.log('上传接口解析结果:', result)
+  if (result?.success === true) {
+    showUploadNotice('success', message)
+    return true
+  }
+  showUploadNotice('error', message)
+  return false
+}
+
 const handleSubmit = async () => {
   console.log('========== 开始提交上传 ==========')
   console.log('提交的数据:', JSON.stringify(formData.value, null, 2))
@@ -964,12 +1017,12 @@ const handleSubmit = async () => {
   console.log('歌词文件:', lyricsFile.value ? lyricsFile.value.name : '未选择')
   
   if (!musicFile.value) {
-    toast.error('请选择音乐文件')
+    showUploadNotice('error', '请选择音乐文件')
     return
   }
 
   if (!formData.value.title || !formData.value.artist || !formData.value.language) {
-    toast.error('请填写歌曲标题、歌手和语言')
+    showUploadNotice('error', '请填写歌曲标题、歌手和语言')
     return
   }
 
@@ -995,60 +1048,41 @@ const handleSubmit = async () => {
       form.append('lyricsFile', lyricsFile.value)
     }
 
-    const xhr = new XMLHttpRequest()
-    
-    xhr.upload.addEventListener('progress', (event) => {
-      if (event.lengthComputable) {
-        const progress = Math.round((event.loaded / event.total) * 100)
-        uploadProgress.value = progress
-      }
-    })
-
-    xhr.addEventListener('load', () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        const response = JSON.parse(xhr.responseText)
-        if (response.success) {
-          toast.success('音乐上传成功')
-          setTimeout(() => {
-            router.push('/')
-          }, 1500)
-        } else {
-          toast.error(response.message || '上传失败')
-        }
-      } else {
-        // 尝试解析错误消息
-        let errorMsg = '上传失败，请稍后重试'
-        try {
-          const response = JSON.parse(xhr.responseText)
-          if (response.message) {
-            errorMsg = response.message
-          }
-        } catch (e) {
-          // 无法解析响应，使用默认错误消息
-        }
-        toast.error(errorMsg)
-      }
-      uploading.value = false
-    })
-
-    xhr.addEventListener('error', () => {
-      toast.error('网络错误，请检查连接后重试')
-      uploading.value = false
-    })
-
-    xhr.open('POST', `${API_CONFIG.BASE_URL}/api/user/upload`)
-    
-    // 使用用户token
+    const uploadUrl = `${API_CONFIG.BASE_URL}/api/user/upload`
     const token = localStorage.getItem('userToken')
+    const headers = {}
     if (token) {
-      xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+      headers.Authorization = `Bearer ${token}`
     }
-    
-    xhr.send(form)
+
+    uploadProgress.value = 10
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      headers,
+      body: form
+    })
+    uploadProgress.value = 100
+
+    const responseText = await response.text()
+    let result = {}
+    try {
+      result = responseText ? JSON.parse(responseText) : {}
+    } catch (parseError) {
+      console.error('上传接口返回内容不是JSON:', responseText)
+    }
+
+    const fallbackMessage = result.error || responseText || `上传失败（HTTP ${response.status}）`
+
+    if (showUploadResultToast(result, fallbackMessage)) {
+      setTimeout(() => {
+        router.push('/')
+      }, 1500)
+    }
 
   } catch (error) {
     console.error('上传错误:', error)
-    toast.error('上传失败，请稍后重试')
+    showUploadNotice('error', '上传失败，请稍后重试')
+  } finally {
     uploading.value = false
   }
 }
@@ -1058,6 +1092,42 @@ const handleSubmit = async () => {
 .upload-view {
   min-height: calc(100vh - 80px);
   padding: 40px 20px;
+}
+
+.upload-result-notice {
+  position: fixed;
+  top: 92px;
+  right: 24px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 14px 18px;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.32);
+  z-index: 2147483647;
+  pointer-events: auto;
+  word-break: break-word;
+}
+
+.upload-result-notice--success {
+  background: linear-gradient(135deg, #16a34a, #059669);
+}
+
+.upload-result-notice--error {
+  background: linear-gradient(135deg, #dc2626, #be123c);
+}
+
+.upload-notice-enter-active,
+.upload-notice-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.upload-notice-enter-from,
+.upload-notice-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 
 .upload-container {
