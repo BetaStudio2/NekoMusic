@@ -1,0 +1,292 @@
+# =============================================
+# Neko云音乐后端配置文件
+# =============================================
+
+# =============================================
+# 服务器配置
+# =============================================
+# 运行端口
+# 示例：8080, 9999, 3000
+port: 65535
+
+# 高并发调优（可选；缺省为下列值，请与 MySQL max_connections 等一起规划）
+performance:
+  jetty_max_threads: 800
+  jetty_min_threads: 200
+  jetty_idle_timeout_ms: 10000
+  hikari_maximum_pool_size: 100
+  hikari_minimum_idle: 50
+
+
+# =============================================
+# MySQL 数据库配置
+# =============================================
+mysql:
+  # 数据库主机地址
+  # 示例：127.0.0.1, localhost, 192.168.1.100
+  host: 127.0.0.1
+
+  # 数据库端口
+  # 示例：3306 (MySQL 默认端口)
+  port: 3306
+
+  # 数据库名称
+  # 示例：neko_music, music_db
+  database: neko_music
+
+  # 数据库用户名
+  # 示例：root, admin, neko_user
+  username: root
+
+  # 数据库密码
+  # 注意：生产环境请使用强密码
+  password:
+
+# =============================================
+# Redis 配置
+# =============================================
+redis:
+  # Redis 主机地址
+  # 示例：127.0.0.1, localhost, 192.168.1.100
+  host: 127.0.0.1
+
+  # Redis 端口
+  # 示例：6379 (Redis 默认端口)
+  port: 6379
+
+  # Lettuce 连接池上限（建议不小于 Jetty 峰值并发下会打 Redis 的线程数）
+  pool_max_total: 32
+
+# =============================================
+# Hook 消息配置（可选）
+# =============================================
+# 用于接收系统通知和告警消息
+# 插件地址：https://github.com/MinecraftNekoServer/astrbot_msg_hook
+Msg:
+  # Hook 服务 URL
+  # 示例：http://127.0.0.1:8080, http://192.168.1.100:8080
+  url: 127.0.0.1:8080
+
+  # Hook 服务 Token
+  # 用于验证请求的合法性
+  token:
+
+# =============================================
+# JWT 配置
+# =============================================
+jwt:
+  # JWT 密钥
+  # 注意：生产环境请使用强随机字符串，至少 32 位
+  # 示例：mySuperSecretKey123456789012345
+  secret:
+
+  # Token 过期时间（秒）
+  # 示例：3600 (1小时), 86400 (24小时), 604800 (7天)
+  expiration: 86400  # 24小时
+
+# =============================================
+# 邮件服务器配置
+# =============================================
+smtp:
+  # SMTP 服务器地址
+  # 常用示例：
+  #   - QQ企业邮箱：smtp.exmail.qq.com
+  #   - QQ邮箱：smtp.qq.com
+  #   - Gmail：smtp.gmail.com
+  #   - 163邮箱：smtp.163.com
+  host:
+
+  # SMTP 服务器端口
+  # 常用端口：
+  #   - 465 (SSL)
+  #   - 587 (TLS)
+  #   - 25 (不加密，不推荐)
+  port: 465
+
+  # SMTP 用户名
+  # 通常是完整的邮箱地址
+  # 示例：support@cnmsb.xin, admin@example.com
+  username: support@cnmsb.xin
+
+  # SMTP 密码
+  # 注意：某些邮箱需要使用授权码而非登录密码
+  password:
+
+  # 是否启用 SSL
+  # 示例：true (推荐), false
+  ssl: true
+
+  # 是否启用 TLS
+  # 示例：true, false
+  tls: false
+
+# =============================================
+# 邮箱白名单配置
+# =============================================
+# 只允许这些邮箱域名的用户注册
+# 留空表示允许所有邮箱域名注册
+whitelist_email:
+  - qq.com
+  - gmail.com
+  - 163.com
+  - 139.com
+  - 126.com
+  - outlook.com
+  - hotmail.com
+
+# =============================================
+# IP 频率限制配置（安全防护）
+# =============================================
+# 按 /24 网段进行限制，防止暴力攻击
+# 示例：192.168.1.100 和 192.168.2.50 属于同一网段 192.168.0.0/24
+rate_limit:
+  # 是否启用 IP 频率限制
+  # 示例：true (启用), false (禁用)
+  enabled: true
+
+  # 时间窗口（秒）
+  # 在此时间窗口内统计请求数，超过限制后封锁网段
+  # 示例：60 (1分钟), 300 (5分钟), 3600 (1小时)
+  time_window: 60
+
+  # 最大请求数
+  # 同一 /24 网段在时间窗口内的最大请求次数
+  # 示例：10, 20, 50
+  # 建议：生产环境设置为 10-20，开发环境可设为 100
+  max_requests: 300
+
+  # 封锁时间（秒）
+  # 超过限制后，该网段将被封锁的时间
+  # 示例：3600 (1小时), 7200 (2小时), 86400 (1天)
+  block_duration: 1200
+
+  # 是否静默超时
+  # true: 对超频请求不返回任何响应，让对方自己 timeout（更安全）
+  # false: 返回错误信息给用户
+  # 示例：true (推荐), false
+  silent_timeout: false
+
+# =============================================
+# 验证码发信限流
+# =============================================
+verification_code:
+  # 同一邮箱两次发码之间的最短间隔（秒）
+  email_cooldown_seconds: 60
+
+# =============================================
+# 横屏短视频渲染（FFmpeg，独立线程池异步执行）
+# 用户在播放页发起「生成分享视频」，服务端异步合成 1920×1080 MP4（封面 + 标题/艺术家字幕）。
+# 临时目录（tmpfs）：/tmp/.neko/video-render/{jobId}.mp4、ass/{jobId}.ass；内嵌字体/FFmpeg/水印亦在此树下
+# 公开 API（需登录）：
+#   POST /api/video/render/create   body: { "musicId": 1, "startSec": 0 }
+#   GET  /api/video/render/{jobId}    轮询 pending → processing → done / failed
+#   GET  /api/video/render/{jobId}/download
+# 会员策略：
+#   非 VIP：最长 non_vip_max_duration_sec 秒、带 watermark_text 水印、每日 non_vip_daily_limit 次（Redis 计数）
+#   VIP：整首时长（从 startSec 到曲末）、无水印、不限次数
+# 内嵌 FFmpeg：JAR 内 resources/native/linux-x86_64/ffmpeg（BtbN linux64-gpl 构建，含 NVENC/CUDA；mvn 在 Linux x86_64 上会自动下载）
+video_render:
+  # 是否启用视频生成功能
+  # 示例：true (启用), false (关闭，接口返回 503)
+  enabled: true
+
+  # 渲染管线：
+  #   cuda_native — 与 cpu_legacy 相同滤镜（圆形封面、封面外径向频谱条等），成片固定 h264_nvenc（须 NVIDIA 与 NVENC）。
+  #   cpu_legacy  — 同上滤镜图，video_codec 可选 libx264 或 h264_nvenc。
+  pipeline: cuda_native
+
+  # FFmpeg 可执行文件路径
+  # auto 或 ffmpeg：自动解析（优先 JAR 内嵌 → /usr/bin/ffmpeg 等）
+  # 也可填绝对路径，例如 /usr/bin/ffmpeg
+  ffmpeg_path: auto
+
+  # 为 true 时优先使用 JAR 内嵌 FFmpeg；cuda_native 全 GPU 时须 false，使用带 NVENC 的系统 FFmpeg
+  prefer_bundled_ffmpeg: true
+
+  # 仅 cpu_legacy 生效：libx264（CPU）或 h264_nvenc（GPU 编码但滤镜仍在 CPU）
+  # cuda_native 下固定使用 h264_nvenc，此项被忽略
+  video_codec: h264_nvenc
+
+  # 非 VIP 单次成片最长秒数（VIP 不受此项限制，按歌曲剩余时长）
+  # 示例：15, 30
+  non_vip_max_duration_sec: 30
+
+  # 非 VIP 每自然日（东八区）最多生成次数，依赖 Redis
+  # 示例：10, 20
+  non_vip_daily_limit: 10
+
+  # 后台渲染线程数（队列满时新任务返回 503）
+  # 示例：1, 2, 4
+  worker_threads: 20
+
+  # 成片与 ASS 在 /tmp/.neko 中的保留时间（小时），到期自动删除；Redis 任务元数据 TTL 与此一致
+  artifact_retention_hours: 3
+
+  # 渲染完成邮件中的下载页站点根（不含尾斜杠），如 https://music.cnmsb.xin
+  # 未填则从 zpay.frontend_return_url 推断（去掉 /vip）
+  notify_frontend_base_url: "https://music.cnmsb.xin"
+
+# =============================================
+# ZPay 支付（易支付兼容 API，文档 https://z-pay.cn/doc.html）
+# =============================================
+# return_url：未填 frontend_return_url 时默认为 public_base_url + /vip
+zpay:
+  enabled: true
+  pid: ""
+  key: ""
+  mapi_url: "https://zpayz.cn/mapi.php"
+  public_base_url: ""
+  frontend_return_url: "https://music.cnmsb.xin/vip"
+
+# =============================================
+# 运行目录磁盘保护
+# =============================================
+# 检测 user.dir 所在分区可用空间；低于阈值时禁止音乐上传与网易云自动补全入库
+storage:
+  min_free_gb: 3
+
+# =============================================
+# 单曲搜索网易云补全（本地无结果时）
+# =============================================
+# 仅在 POST /api/music/search 本地曲库返回 0 条时触发：
+# 调用 NeteaseCloudMusicApi 搜索 → 下载到临时目录 → 走管理员入库校验与落盘。
+netease_search_fill:
+  # 是否启用（false 时行为与原来一致）
+  enabled: true
+  # NeteaseCloudMusicApi 根地址，无尾斜杠，如 http://172.18.0.2:3000
+  api_base_url: "http://127.0.0.1:3000"
+  # 可选：请求头 Cookie（Hi-Res/无损需有效网易云登录态；留空则使用 API 服务端默认 cookie）
+  cookie: ""
+  # 优先下载音质（与 /song/url/v1 的 level 一致）；若无该档则自动降档直至可用
+  quality: "hires"
+  # 入库语言：留空或 auto=按歌名/歌手/专辑/歌词自动推断；也可写死如 英文、日语
+  language: ""
+  upload_user_id: null
+  # HTTP 超时（秒）
+  http_timeout_seconds: 45
+
+# =============================================
+# 每日推荐 AI（OpenAI 兼容接口）
+# =============================================
+# 用于“每日推荐”场景下按用户风格做重排/解释生成；兼容 OpenAI Chat Completions 格式。
+# 推荐在服务端离线任务中调用，不建议前端直连。
+recommendation_ai:
+  # 是否启用 AI 推荐（false 时可回退为规则排序）
+  enabled: true
+  # OpenAI 兼容 API Base URL（不要带尾斜杠）
+  # 官方示例: https://api.openai.com/v1
+  base_url: "http://ai.cnmsb.xin/v1"
+  # API Key
+  api_key: ""
+  # 模型名称（可填 gpt-4o-mini / gpt-4.1-mini 等 OpenAI 兼容模型）
+  model: "gemini-3.6-Flash"
+  # 生成参数
+  temperature: 0.3
+  top_p: 0.9
+  max_tokens: 8000
+  # HTTP 超时（秒）
+  timeout_seconds: 60
+  # 每个用户每日产出的推荐条数（最终仍需过滤用户已收藏歌曲）
+  daily_limit: 300
+  # 当 AI 请求失败时，是否自动回退到规则推荐
+  fallback_to_rule: true
