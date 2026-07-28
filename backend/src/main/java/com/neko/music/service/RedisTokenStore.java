@@ -63,6 +63,33 @@ public class RedisTokenStore {
         return Optional.empty();
     }
 
+    public void extendUserTokenIfExpiring(String token, int userId, long renewWindowSeconds, long extensionSeconds) {
+        String normalized = normalizeBearerToken(token);
+        if (normalized.isEmpty() || userId <= 0 || renewWindowSeconds <= 0 || extensionSeconds <= 0) {
+            return;
+        }
+
+        String tokenKey = USER_TOKEN_PREFIX + normalized;
+        try {
+            long ttl = redisService.ttl(tokenKey);
+            if (ttl <= 0 || ttl > renewWindowSeconds) {
+                return;
+            }
+
+            long renewedTtl = ttl + extensionSeconds;
+            redisService.expire(tokenKey, renewedTtl);
+            String indexKey = userTokenIndexKey(userId);
+            redisService.sadd(indexKey, normalized);
+            long indexTtl = redisService.ttl(indexKey);
+            if (indexTtl < 0 || indexTtl < renewedTtl) {
+                redisService.expire(indexKey, renewedTtl);
+            }
+            logger.info("用户 token 临近过期，已延期 userId={} ttl={} renewedTtl={}", userId, ttl, renewedTtl);
+        } catch (Exception e) {
+            logger.error("延期用户 token TTL 失败 userId={}: {}", userId, e.getMessage(), e);
+        }
+    }
+
     public boolean deleteUserToken(String token) {
         String normalized = normalizeBearerToken(token);
         if (normalized.isEmpty()) {

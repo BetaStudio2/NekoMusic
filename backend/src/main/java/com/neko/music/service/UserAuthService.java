@@ -28,6 +28,8 @@ public class UserAuthService {
     private static final int VERIFICATION_CODE_EXPIRY = 300; // 5分钟过期
     private static final int TOKEN_EXPIRY_DAYS = 365; // Token 有效期 1 年
     private static final int TOKEN_EXPIRY_SECONDS = TOKEN_EXPIRY_DAYS * 86400;
+    private static final int TOKEN_RENEW_WINDOW_DAYS = 31;
+    private static final int TOKEN_RENEW_EXTENSION_SECONDS = TOKEN_RENEW_WINDOW_DAYS * 86400;
 
     public UserAuthService(DatabaseManager databaseManager, ConfigManager configManager,
                            EmailService emailService, RedisService redisService,
@@ -364,10 +366,16 @@ public class UserAuthService {
     }
 
     /**
-     * 验证 token 并返回用户 ID（仅查 Redis）。
+     * 验证 token 并返回用户 ID（仅查 Redis）。若 token 剩余有效期不足 31 天，则按活跃会话延期 31 天。
      */
     public Optional<Integer> validateToken(String token) {
-        return tokenStore.getUserIdByToken(token);
+        Optional<Integer> userId = tokenStore.getUserIdByToken(token);
+        userId.ifPresent(id -> tokenStore.extendUserTokenIfExpiring(
+                token,
+                id,
+                TOKEN_RENEW_EXTENSION_SECONDS,
+                TOKEN_RENEW_EXTENSION_SECONDS));
+        return userId;
     }
     
     /**
