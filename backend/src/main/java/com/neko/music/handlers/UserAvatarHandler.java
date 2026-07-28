@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
+import org.eclipse.jetty.io.EofException;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,36 +92,28 @@ public class UserAvatarHandler extends HttpServlet {
      * 发送默认图标
      */
     private void sendDefaultIcon(HttpServletResponse response) throws IOException {
-        try {
-            // 尝试从类路径加载默认图标
-            InputStream defaultIconStream = getClass().getClassLoader().getResourceAsStream("DefaultIcon.png");
-            if (defaultIconStream != null) {
-                response.setContentType("image/png");
-                response.setStatus(HttpStatus.OK_200);
-                
-                try (InputStream inputStream = defaultIconStream;
-                     OutputStream outputStream = response.getOutputStream()) {
-                    
-                    byte[] buffer = new byte[8192]; // 8KB buffer
-                    int bytesRead;
-                    
-                    while ((bytesRead = inputStream.read(buffer)) != -1) {
-                        outputStream.write(buffer, 0, bytesRead);
-                    }
-                    
-                    outputStream.flush();
-                }
-            } else {
-                // 如果类路径也找不到，返回404
-                response.setStatus(HttpStatus.NOT_FOUND_404);
-                response.setContentType("text/plain;charset=utf-8");
-                response.getWriter().println("Default icon not found");
-            }
-        } catch (Exception e) {
-            logger.error("发送默认图标时出错", e);
-            response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
+        // 尝试从类路径加载默认图标
+        InputStream defaultIconStream = getClass().getClassLoader().getResourceAsStream("DefaultIcon.png");
+        if (defaultIconStream == null) {
+            // 如果类路径也找不到，返回404
+            response.setStatus(HttpStatus.NOT_FOUND_404);
             response.setContentType("text/plain;charset=utf-8");
-            response.getWriter().println("Error loading default icon");
+            response.getWriter().println("Default icon not found");
+            return;
+        }
+
+        response.setContentType("image/png");
+        response.setStatus(HttpStatus.OK_200);
+
+        try (InputStream inputStream = defaultIconStream;
+             OutputStream outputStream = response.getOutputStream()) {
+            copyStream(inputStream, outputStream);
+        } catch (IOException e) {
+            if (isClientAbort(e)) {
+                logger.debug("客户端在默认头像发送完成前断开连接");
+                return;
+            }
+            logger.error("发送默认图标时出错", e);
         }
     }
     
@@ -134,16 +127,40 @@ public class UserAvatarHandler extends HttpServlet {
         
         try (InputStream inputStream = Files.newInputStream(imagePath);
              OutputStream outputStream = response.getOutputStream()) {
-            
-            byte[] buffer = new byte[8192]; // 8KB buffer
-            int bytesRead;
-            
-            while ((bytesRead = inputStream.read(buffer)) != -1) {
-                outputStream.write(buffer, 0, bytesRead);
+            copyStream(inputStream, outputStream);
+        } catch (IOException e) {
+            if (isClientAbort(e)) {
+                logger.debug("客户端在头像发送完成前断开连接: {}", imagePath);
+                return;
             }
-            
-            outputStream.flush();
+            throw e;
         }
+    }
+
+    private void copyStream(InputStream inputStream, OutputStream outputStream) throws IOException {
+        byte[] buffer = new byte[8192]; // 8KB buffer
+        int bytesRead;
+
+        while ((bytesRead = inputStream.read(buffer)) != -1) {
+            outputStream.write(buffer, 0, bytesRead);
+        }
+
+        outputStream.flush();
+    }
+
+    private boolean isClientAbort(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof EofException) {
+                return true;
+            }
+            String message = current.getMessage();
+            if (message != null && message.toLowerCase().contains("broken pipe")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
     
     /**

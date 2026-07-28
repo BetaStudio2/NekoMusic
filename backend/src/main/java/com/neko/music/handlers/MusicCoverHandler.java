@@ -4,6 +4,7 @@ import com.neko.music.Main;
 import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.MusicAssetLocator;
 import org.eclipse.jetty.http.HttpStatus;
+import org.eclipse.jetty.io.EofException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,15 +88,13 @@ public class MusicCoverHandler extends HttpServlet {
         
         try (InputStream inputStream = Files.newInputStream(imagePath);
              OutputStream outputStream = response.getOutputStream()) {
-            
-            byte[] buffer = new byte[8192];
-            int bytesRead;
-            
-            while ((bytesRead = inputStream.read(buffer)) != -1) {
-                outputStream.write(buffer, 0, bytesRead);
+            copyStream(inputStream, outputStream);
+        } catch (IOException e) {
+            if (isClientAbort(e)) {
+                logger.debug("客户端在封面发送完成前断开连接: {}", imagePath);
+                return;
             }
-            
-            outputStream.flush();
+            throw e;
         }
     }
     
@@ -104,36 +103,54 @@ public class MusicCoverHandler extends HttpServlet {
             return;
         }
 
-        try {
-            InputStream defaultIconStream = getClass().getClassLoader().getResourceAsStream("DefaultIcon.png");
-            if (defaultIconStream != null) {
-                response.setContentType("image/png");
-                response.setStatus(HttpStatus.OK_200);
-                HttpResourceCache.applyDefaultIconCachingHeaders(response);
-                
-                try (InputStream inputStream = defaultIconStream;
-                     OutputStream outputStream = response.getOutputStream()) {
-                    
-                    byte[] buffer = new byte[8192];
-                    int bytesRead;
-                    
-                    while ((bytesRead = inputStream.read(buffer)) != -1) {
-                        outputStream.write(buffer, 0, bytesRead);
-                    }
-                    
-                    outputStream.flush();
-                }
-            } else {
-                response.setStatus(HttpStatus.NOT_FOUND_404);
-                response.setContentType("text/plain;charset=utf-8");
-                response.getWriter().println("Default icon not found");
-            }
-        } catch (Exception e) {
-            logger.error("发送默认图标时出错", e);
-            response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
+        InputStream defaultIconStream = getClass().getClassLoader().getResourceAsStream("DefaultIcon.png");
+        if (defaultIconStream == null) {
+            response.setStatus(HttpStatus.NOT_FOUND_404);
             response.setContentType("text/plain;charset=utf-8");
-            response.getWriter().println("Error loading default icon");
+            response.getWriter().println("Default icon not found");
+            return;
         }
+
+        response.setContentType("image/png");
+        response.setStatus(HttpStatus.OK_200);
+        HttpResourceCache.applyDefaultIconCachingHeaders(response);
+
+        try (InputStream inputStream = defaultIconStream;
+             OutputStream outputStream = response.getOutputStream()) {
+            copyStream(inputStream, outputStream);
+        } catch (IOException e) {
+            if (isClientAbort(e)) {
+                logger.debug("客户端在默认封面发送完成前断开连接");
+                return;
+            }
+            logger.error("发送默认图标时出错", e);
+        }
+    }
+
+    private void copyStream(InputStream inputStream, OutputStream outputStream) throws IOException {
+        byte[] buffer = new byte[8192];
+        int bytesRead;
+
+        while ((bytesRead = inputStream.read(buffer)) != -1) {
+            outputStream.write(buffer, 0, bytesRead);
+        }
+
+        outputStream.flush();
+    }
+
+    private boolean isClientAbort(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof EofException) {
+                return true;
+            }
+            String message = current.getMessage();
+            if (message != null && message.toLowerCase().contains("broken pipe")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
     
     private String getMimeType(String filePath) {
