@@ -1,5 +1,7 @@
 # NekoMusic
 
+![](https://count.getloli.com/get/@:NekoMusic?theme=moebooru)
+
 在线音乐平台（Web / Android / PC）。完整 API 说明见 [Neko歌姬计划文档/README.md](Neko歌姬计划文档/README.md)。
 
 ## 违禁词检测 API
