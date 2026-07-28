@@ -158,7 +158,7 @@
         <dependency>
             <groupId>com.github.houbb</groupId>
             <artifactId>opencc4j</artifactId>
-            <version>1.8.1</version>
+            <version>1.14.0</version>
         </dependency>
         
         <!-- pinyin4j 用于中文拼音转换 -->
