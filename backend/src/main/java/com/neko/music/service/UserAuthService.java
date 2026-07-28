@@ -25,7 +25,11 @@ public class UserAuthService {
     private static final SecureRandom secureRandom = new SecureRandom();
     
     private static final String VERIFICATION_CODE_PREFIX = "verification_code:";
+    private static final String VERIFICATION_CODE_ATTEMPT_PREFIX = "verification_code_attempts:";
+    private static final String VERIFICATION_PURPOSE_REGISTER = "register";
+    private static final String VERIFICATION_PURPOSE_PASSWORD_RESET = "password_reset";
     private static final int VERIFICATION_CODE_EXPIRY = 300; // 5分钟过期
+    private static final int VERIFICATION_CODE_MAX_ATTEMPTS = 5;
     private static final int TOKEN_EXPIRY_DAYS = 365; // Token 有效期 1 年
     private static final int TOKEN_EXPIRY_SECONDS = TOKEN_EXPIRY_DAYS * 86400;
     private static final int TOKEN_RENEW_WINDOW_DAYS = 31;
@@ -132,9 +136,20 @@ public class UserAuthService {
     }
 
     /**
-     * 发送验证码（注册与重置密码共用；同邮箱有发信冷却）
+     * 发送注册验证码；同邮箱有发信冷却。
      */
     public SendVerificationCodeResult sendVerificationCode(String email, String username) {
+        return sendVerificationCode(email, username, VERIFICATION_PURPOSE_REGISTER);
+    }
+
+    /**
+     * 发送密码重置验证码；与注册验证码隔离，避免跨流程复用。
+     */
+    public SendVerificationCodeResult sendResetPasswordCode(String email, String username) {
+        return sendVerificationCode(email, username, VERIFICATION_PURPOSE_PASSWORD_RESET);
+    }
+
+    private SendVerificationCodeResult sendVerificationCode(String email, String username, String purpose) {
         logger.info("发送验证码至: {}", email);
 
         var cooldown = verificationCodeRateLimitService.tryAcquireSendSlot(email);
@@ -147,9 +162,10 @@ public class UserAuthService {
         boolean emailSent = emailService.sendVerificationCode(email, username, verificationCode);
 
         if (emailSent) {
-            String key = VERIFICATION_CODE_PREFIX + email.trim().toLowerCase();
+            String key = verificationCodeKey(purpose, email);
             redisService.setWithExpiry(key, verificationCode, VERIFICATION_CODE_EXPIRY);
-            logger.info("验证码已生成并存储到Redis: {}", email);
+            redisService.del(verificationCodeAttemptKey(purpose, email));
+            logger.info("验证码已生成并存储到Redis: {}, purpose={}", email, purpose);
             return SendVerificationCodeResult.ok();
         }
 
@@ -181,25 +197,96 @@ public class UserAuthService {
     }
 
     /**
-     * 验证验证码
+     * 验证注册验证码。
      */
     public boolean verifyCode(String email, String code) {
-        String key = VERIFICATION_CODE_PREFIX + email.trim().toLowerCase();
+        return verifyCode(email, code, VERIFICATION_PURPOSE_REGISTER, false);
+    }
+
+    /**
+     * 验证密码重置验证码，并限制同一邮箱短时间内的错误尝试次数。
+     */
+    public boolean verifyResetPasswordCode(String email, String code) {
+        return verifyCode(email, code, VERIFICATION_PURPOSE_PASSWORD_RESET, true);
+    }
+
+    private boolean verifyCode(String email, String code, String purpose, boolean limitAttempts) {
+        if (email == null || code == null) {
+            return false;
+        }
+
+        if (limitAttempts && isVerificationAttemptBlocked(purpose, email)) {
+            logger.warn("验证码错误次数过多，暂时拒绝验证: {}, purpose={}", email, purpose);
+            return false;
+        }
+
+        String key = verificationCodeKey(purpose, email);
         String storedCode = redisService.get(key);
         
         if (storedCode == null) {
-            logger.warn("未找到邮箱对应的验证码: {}", email);
+            if (limitAttempts) {
+                recordFailedVerificationAttempt(purpose, email);
+            }
+            logger.warn("未找到邮箱对应的验证码: {}, purpose={}", email, purpose);
             return false;
         }
         
         if (storedCode.equals(code)) {
             redisService.del(key);
-            logger.info("验证码验证成功: {}", email);
+            redisService.del(verificationCodeAttemptKey(purpose, email));
+            logger.info("验证码验证成功: {}, purpose={}", email, purpose);
             return true;
         } else {
-            logger.warn("验证码不匹配: {}", email);
+            if (limitAttempts) {
+                long attempts = recordFailedVerificationAttempt(purpose, email);
+                if (attempts >= VERIFICATION_CODE_MAX_ATTEMPTS) {
+                    redisService.del(key);
+                    logger.warn("验证码错误次数达到上限，已删除验证码: {}, purpose={}", email, purpose);
+                }
+            }
+            logger.warn("验证码不匹配: {}, purpose={}", email, purpose);
             return false;
         }
+    }
+
+    private String verificationCodeKey(String purpose, String email) {
+        return VERIFICATION_CODE_PREFIX + purpose + ":" + normalizeEmail(email);
+    }
+
+    private String verificationCodeAttemptKey(String purpose, String email) {
+        return VERIFICATION_CODE_ATTEMPT_PREFIX + purpose + ":" + normalizeEmail(email);
+    }
+
+    private static String normalizeEmail(String email) {
+        return email == null ? "" : email.trim().toLowerCase();
+    }
+
+    private boolean isVerificationAttemptBlocked(String purpose, String email) {
+        String attempts = redisService.get(verificationCodeAttemptKey(purpose, email));
+        if (attempts == null || attempts.isBlank()) {
+            return false;
+        }
+        try {
+            return Integer.parseInt(attempts) >= VERIFICATION_CODE_MAX_ATTEMPTS;
+        } catch (NumberFormatException e) {
+            redisService.del(verificationCodeAttemptKey(purpose, email));
+            return false;
+        }
+    }
+
+    private long recordFailedVerificationAttempt(String purpose, String email) {
+        String key = verificationCodeAttemptKey(purpose, email);
+        Object result = redisService.eval(
+                "local count = redis.call('INCR', KEYS[1]) " +
+                        "if count == 1 then redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1])) end " +
+                        "return count",
+                new String[]{key},
+                new String[]{String.valueOf(VERIFICATION_CODE_EXPIRY)}
+        );
+        if (result instanceof Number) {
+            return ((Number) result).longValue();
+        }
+        return 0;
     }
 
     private boolean emailExists(String email) {

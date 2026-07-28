@@ -80,7 +80,7 @@ public class SendResetPasswordCodeHandler extends HttpServlet {
                 return;
             }
 
-            SendVerificationCodeResult result = userAuthService.sendVerificationCode(email, username);
+            SendVerificationCodeResult result = userAuthService.sendResetPasswordCode(email, username);
 
             if (result.rateLimited()) {
                 sendCooldownResponse(response, result.retryAfterSec());

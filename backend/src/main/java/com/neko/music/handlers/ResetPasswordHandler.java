@@ -96,7 +96,7 @@ public class ResetPasswordHandler extends HttpServlet {
             }
 
             // 验证验证码
-            if (!userAuthService.verifyCode(email, code)) {
+            if (!userAuthService.verifyResetPasswordCode(email, code)) {
                 logger.warn("验证码验证失败: {}", email);
                 sendResponse(response, false, "验证码错误或已过期", null);
                 return;
