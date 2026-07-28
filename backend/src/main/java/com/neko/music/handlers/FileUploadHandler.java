@@ -5,6 +5,7 @@ import com.neko.music.util.MusicAssetLocator;
 import com.neko.music.util.RuntimeDiskGuard;
 import com.neko.music.util.AudioFileValidator;
 import com.neko.music.util.AudioIntegrityValidator;
+import com.neko.music.util.ImageUploadValidator;
 import com.neko.music.util.LrcValidator;
 import com.neko.music.util.MusicAdMetadataPatcher;
 import com.neko.music.util.TempAudioSpool;
@@ -76,6 +77,7 @@ public class FileUploadHandler extends HttpServlet {
             Part musicFilePart = null;
             Part coverFilePart = null;
             Part lyricsFilePart = null;
+            ImageUploadValidator.ValidationResult coverImageValidation = null;
             
             // 解析表单字段和文件
             for (Part part : parts) {
@@ -182,20 +184,16 @@ public class FileUploadHandler extends HttpServlet {
             Files.createDirectories(coverPath);
             
             // 检查封面文件类型（如果是上传了的话）
-            String coverFileName = null;
             if (coverFilePart != null) {
-                String coverContentType = coverFilePart.getContentType();
-                String fileName = getFileName(coverFilePart);
-                
-                if (!coverContentType.startsWith("image/")) {
+                coverImageValidation =
+                        ImageUploadValidator.validatePart(coverFilePart, ImageUploadValidator.DEFAULT_MAX_IMAGE_BYTES);
+                if (!coverImageValidation.isValid()) {
                     response.setStatus(HttpStatus.BAD_REQUEST_400);
                     response.setContentType("application/json;charset=utf-8");
-                    ErrorResponse errorResponse = new ErrorResponse("只支持图片格式的封面文件");
+                    ErrorResponse errorResponse = new ErrorResponse(coverImageValidation.getErrorMessage());
                     response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                     return;
                 }
-                
-                coverFileName = fileName;
             }
 
             // 音乐：先写入系统临时目录校验，通过后再入库并落盘（失败无库行、不写 Music/music）
@@ -265,7 +263,7 @@ public class FileUploadHandler extends HttpServlet {
                 musicId = insertMusicToDatabase(title, artist, album, language, tags, duration, uploadUserId, fileFormat);
                 musicFilePath = MUSIC_DIR + File.separator + musicId + "." + fileFormat;
                 if (coverFilePart != null) {
-                    String extension = getFileExtension(coverFileName);
+                    String extension = coverImageValidation.getExtensionWithoutDot();
                     coverFilePath = COVER_DIR + File.separator + musicId + "." + extension;
                 }
                 TempAudioSpool.commitReplace(musicTemp, Paths.get(musicFilePath));
@@ -367,6 +365,7 @@ public class FileUploadHandler extends HttpServlet {
             Part musicFilePart = null;
             Part coverFilePart = null;
             Part lyricsFilePart = null;
+            ImageUploadValidator.ValidationResult coverImageValidation = null;
             
             // 解析表单字段和文件
             for (Part part : parts) {
@@ -568,19 +567,18 @@ public class FileUploadHandler extends HttpServlet {
             
             // 检查是否上传了新的封面文件
             if (coverFilePart != null) {
-                String coverContentType = coverFilePart.getContentType();
-                String fileName = getFileName(coverFilePart);
-                
-                if (!coverContentType.startsWith("image/")) {
+                coverImageValidation =
+                        ImageUploadValidator.validatePart(coverFilePart, ImageUploadValidator.DEFAULT_MAX_IMAGE_BYTES);
+                if (!coverImageValidation.isValid()) {
                     response.setStatus(HttpStatus.BAD_REQUEST_400);
                     response.setContentType("application/json;charset=utf-8");
-                    ErrorResponse errorResponse = new ErrorResponse("只支持图片格式的封面文件");
+                    ErrorResponse errorResponse = new ErrorResponse(coverImageValidation.getErrorMessage());
                     response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                     return;
                 }
                 
                 // 获取文件扩展名
-                String extension = getFileExtension(fileName);
+                String extension = coverImageValidation.getExtensionWithoutDot();
                 String coverFilePath = COVER_DIR + File.separator + id + "." + extension;
 
                 MusicAssetLocator.deleteCoverVariants(id);

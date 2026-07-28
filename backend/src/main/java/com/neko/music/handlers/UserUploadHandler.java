@@ -6,6 +6,7 @@ import com.neko.music.util.RuntimeDiskGuard;
 import com.neko.music.util.AudioIntegrityValidator;
 import com.neko.music.util.TempAudioSpool;
 import com.neko.music.util.LrcValidator;
+import com.neko.music.util.ImageUploadValidator;
 import com.neko.music.util.SensitiveWordUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
@@ -200,7 +201,15 @@ public class UserUploadHandler extends HttpServlet {
             // 保存封面文件（可选）
             String coverFilePath = null;
             if (coverFilePart != null && coverFilePart.getSize() > 0) {
-                String coverFileName = "cover_" + timestamp + getFileExtension(coverFilePart.getSubmittedFileName());
+                ImageUploadValidator.ValidationResult imageValidation =
+                        ImageUploadValidator.validatePart(coverFilePart, ImageUploadValidator.DEFAULT_MAX_IMAGE_BYTES);
+                if (!imageValidation.isValid()) {
+                    sendError(response, 400, imageValidation.getErrorMessage());
+                    deleteFileIfExists(musicFilePath);
+                    return;
+                }
+
+                String coverFileName = "cover_" + timestamp + imageValidation.getExtension();
                 coverFilePath = Paths.get(uploadBaseDir, coverFileName).toString();
                 saveFile(coverFilePart, coverFilePath);
             }

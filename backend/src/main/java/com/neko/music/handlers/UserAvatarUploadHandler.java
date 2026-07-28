@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
+import com.neko.music.util.ImageUploadValidator;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,21 +28,8 @@ public class UserAvatarUploadHandler extends HttpServlet {
     // 定义头像上传目录（相对于JAR运行目录）
     private static final String AVATAR_DIR = "avatars";
     
-    // 允许的图片格式
-    private static final String[] ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"};
-    
-    // 允许的 MIME 类型
-    private static final String[] ALLOWED_MIME_TYPES = {
-        "image/jpeg",
-        "image/jpg",
-        "image/png",
-        "image/gif",
-        "image/webp",
-        "image/bmp"
-    };
-    
     // 最大文件大小 10MiB
-    private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
+    private static final long MAX_FILE_SIZE = ImageUploadValidator.DEFAULT_MAX_IMAGE_BYTES;
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -72,28 +60,13 @@ public class UserAvatarUploadHandler extends HttpServlet {
                 return;
             }
             
-            // 检查文件大小
-            if (avatarPart.getSize() > MAX_FILE_SIZE) {
-                sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "文件大小超过10MiB限制");
+            ImageUploadValidator.ValidationResult imageValidation =
+                    ImageUploadValidator.validatePart(avatarPart, MAX_FILE_SIZE);
+            if (!imageValidation.isValid()) {
+                sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, imageValidation.getErrorMessage());
                 return;
             }
-            
-            // 检查文件类型 - 严格验证 MIME 类型
-            String contentType = avatarPart.getContentType();
-            if (contentType == null || !isAllowedMimeType(contentType)) {
-                sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "只支持图片文件（jpg, jpeg, png, gif, webp, bmp）");
-                return;
-            }
-            
-            // 获取文件名和扩展名
-            String fileName = avatarPart.getSubmittedFileName();
-            String fileExtension = getFileExtension(fileName);
-            
-            // 验证文件扩展名
-            if (!isAllowedExtension(fileExtension)) {
-                sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "不支持的图片格式，只支持: jpg, jpeg, png, gif, webp, bmp");
-                return;
-            }
+            String fileExtension = imageValidation.getExtension();
             
             // 创建上传目录
             Path uploadDir = Paths.get(AVATAR_DIR);
@@ -171,50 +144,6 @@ public class UserAvatarUploadHandler extends HttpServlet {
             logger.error("更新用户头像时出错", e);
             return false;
         }
-    }
-    
-    /**
-     * 获取文件扩展名
-     */
-    private String getFileExtension(String fileName) {
-        if (fileName == null || fileName.isEmpty()) {
-            return "";
-        }
-        int lastDotIndex = fileName.lastIndexOf('.');
-        if (lastDotIndex > 0) {
-            return fileName.substring(lastDotIndex).toLowerCase();
-        }
-        return "";
-    }
-    
-    /**
-     * 检查文件扩展名是否允许
-     */
-    private boolean isAllowedExtension(String extension) {
-        if (extension == null || extension.isEmpty()) {
-            return false;
-        }
-        for (String allowed : ALLOWED_EXTENSIONS) {
-            if (allowed.equalsIgnoreCase(extension)) {
-                return true;
-            }
-        }
-        return false;
-    }
-    
-    /**
-     * 检查 MIME 类型是否允许
-     */
-    private boolean isAllowedMimeType(String mimeType) {
-        if (mimeType == null || mimeType.isEmpty()) {
-            return false;
-        }
-        for (String allowed : ALLOWED_MIME_TYPES) {
-            if (allowed.equalsIgnoreCase(mimeType)) {
-                return true;
-            }
-        }
-        return false;
     }
     
     /**
