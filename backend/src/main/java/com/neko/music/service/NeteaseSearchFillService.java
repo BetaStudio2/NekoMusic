@@ -26,6 +26,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -47,6 +53,7 @@ public class NeteaseSearchFillService {
     private final NeteaseCloudMusicClient neteaseClient;
     private final AdminMusicIngestService ingestService;
     private final RedisService redisService;
+    private final ExecutorService batchFillExecutor;
 
     public NeteaseSearchFillService(
             ConfigManager config,
@@ -58,6 +65,15 @@ public class NeteaseSearchFillService {
         this.neteaseClient = neteaseClient;
         this.ingestService = ingestService;
         this.redisService = redisService;
+        int maxParallelFills = Math.max(1, Math.min(10, config.getNeteaseMaxParallelFills()));
+        AtomicInteger threadNo = new AtomicInteger();
+        ThreadFactory threadFactory = r -> {
+            Thread t = new Thread(r, "netease-fill-" + threadNo.incrementAndGet());
+            t.setDaemon(true);
+            return t;
+        };
+        this.batchFillExecutor = Executors.newFixedThreadPool(maxParallelFills, threadFactory);
+        logger.info("网易云批量补全线程池初始化: maxParallelFills={}", maxParallelFills);
     }
 
     public enum FillReason {
@@ -78,6 +94,8 @@ public class NeteaseSearchFillService {
             return new FillAttempt(Optional.empty(), FillReason.NONE);
         }
     }
+
+    public record FillRequest(String title, String artist) {}
 
     public FillAttempt tryFillFromNetease(String query) {
         if (query == null || query.isBlank()) {
@@ -138,6 +156,54 @@ public class NeteaseSearchFillService {
             return new FillAttempt(Optional.empty(), FillReason.ERROR);
         } finally {
             localLock.unlock();
+        }
+    }
+
+    public List<FillAttempt> tryFillBatchFromNetease(List<FillRequest> requests) {
+        if (requests == null || requests.isEmpty()) {
+            return List.of();
+        }
+        List<Future<FillAttempt>> futures = new ArrayList<>(requests.size());
+        for (FillRequest request : requests) {
+            futures.add(batchFillExecutor.submit(() -> {
+                if (request == null) {
+                    return FillAttempt.skipped();
+                }
+                return tryFillFromNetease(request.title(), request.artist());
+            }));
+        }
+
+        List<FillAttempt> attempts = new ArrayList<>(requests.size());
+        for (int i = 0; i < futures.size(); i++) {
+            Future<FillAttempt> future = futures.get(i);
+            try {
+                attempts.add(future.get());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                for (int j = i; j < futures.size(); j++) {
+                    futures.get(j).cancel(true);
+                }
+                while (attempts.size() < requests.size()) {
+                    attempts.add(FillAttempt.skipped());
+                }
+                break;
+            } catch (Exception e) {
+                logger.error("网易云批量补全任务失败", e);
+                attempts.add(new FillAttempt(Optional.empty(), FillReason.ERROR));
+            }
+        }
+        return attempts;
+    }
+
+    public void shutdown() {
+        batchFillExecutor.shutdown();
+        try {
+            if (!batchFillExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
+                batchFillExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            batchFillExecutor.shutdownNow();
         }
     }
 

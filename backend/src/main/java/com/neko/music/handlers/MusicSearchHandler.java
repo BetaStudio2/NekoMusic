@@ -105,6 +105,7 @@ public class MusicSearchHandler extends HttpServlet {
 
     private void handleBatchSearch(List<SearchItem> items, HttpServletResponse response) throws IOException {
         List<Music> results = new ArrayList<>(items.size());
+        List<PendingNeteaseFill> pendingFills = new ArrayList<>();
         int foundCount = 0;
         int fillCount = 0;
         String lastFillFailure = null;
@@ -125,14 +126,7 @@ public class MusicSearchHandler extends HttpServlet {
             }
 
             if (music == null && Main.getConfigManager().isNeteaseSearchFillEnabled()) {
-                NeteaseSearchFillService.FillAttempt fill =
-                        Main.getNeteaseSearchFillService().tryFillFromNetease(title, artist);
-                if (fill.music().isPresent()) {
-                    music = toSearchMusic(fill.music().get());
-                    fillCount++;
-                } else if (fill.reason() != NeteaseSearchFillService.FillReason.NONE) {
-                    lastFillFailure = neteaseFillFailureMessage("搜索成功", fill.reason());
-                }
+                pendingFills.add(new PendingNeteaseFill(results.size(), title, artist));
             }
 
             results.add(music);
@@ -141,8 +135,38 @@ public class MusicSearchHandler extends HttpServlet {
             }
         }
 
+        if (!pendingFills.isEmpty()) {
+            List<NeteaseSearchFillService.FillRequest> fillRequests = pendingFills.stream()
+                    .map(p -> new NeteaseSearchFillService.FillRequest(p.title(), p.artist()))
+                    .toList();
+            List<NeteaseSearchFillService.FillAttempt> fillAttempts =
+                    Main.getNeteaseSearchFillService().tryFillBatchFromNetease(fillRequests);
+            for (int i = 0; i < pendingFills.size(); i++) {
+                PendingNeteaseFill pending = pendingFills.get(i);
+                NeteaseSearchFillService.FillAttempt fill = i < fillAttempts.size()
+                        ? fillAttempts.get(i)
+                        : FillAttemptErrorHolder.ERROR;
+                if (fill.music().isPresent()) {
+                    results.set(pending.resultIndex(), toSearchMusic(fill.music().get()));
+                    foundCount++;
+                    fillCount++;
+                } else if (fill.reason() != NeteaseSearchFillService.FillReason.NONE) {
+                    lastFillFailure = neteaseFillFailureMessage("搜索成功", fill.reason());
+                }
+            }
+        }
+
         String message = buildBatchMessage(foundCount, items.size(), fillCount, lastFillFailure);
         writeSearchResponse(response, foundCount > 0, message, results);
+    }
+
+    private record PendingNeteaseFill(int resultIndex, String title, String artist) {}
+
+    private static final class FillAttemptErrorHolder {
+        private static final NeteaseSearchFillService.FillAttempt ERROR =
+                new NeteaseSearchFillService.FillAttempt(
+                        java.util.Optional.empty(),
+                        NeteaseSearchFillService.FillReason.ERROR);
     }
 
     private static String buildBatchMessage(int found, int total, int fillCount, String lastFillFailure) {

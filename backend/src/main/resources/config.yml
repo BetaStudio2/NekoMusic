@@ -264,6 +264,8 @@ netease_search_fill:
   upload_user_id: null
   # HTTP 超时（秒）
   http_timeout_seconds: 45
+  # 批量搜索中网易云补全的全局最大并发数，范围 1-10
+  max_parallel_fills: 10
 
 # =============================================
 # 每日推荐 AI（OpenAI 兼容接口）

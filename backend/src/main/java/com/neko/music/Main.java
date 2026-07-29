@@ -166,6 +166,7 @@ public class Main {
                 new NeteaseCloudMusicClient(configManager, objectMapper),
                 adminMusicIngestService,
                 redisService);
+        Runtime.getRuntime().addShutdownHook(new Thread(neteaseSearchFillService::shutdown, "netease-fill-shutdown"));
         dailyRecommendationService = new DailyRecommendationService(
                 databaseManager, redisService, configManager, objectMapper);
         startDailyRecommendationScheduler();
