@@ -48,12 +48,4 @@ class MusicSearchHandlerTest {
         assertFalse(MusicSearchHandler.shouldSearchLyricsForQuery("2024", 0, false));
     }
 
-    @Test
-    void externalFillUsesSameShortQueryGuard() {
-        assertFalse(MusicSearchHandler.shouldAllowExternalFillForQuery("哈"));
-        assertFalse(MusicSearchHandler.shouldAllowExternalFillForQuery("只想见你"));
-        assertFalse(MusicSearchHandler.shouldAllowExternalFillForQuery("love story"));
-        assertTrue(MusicSearchHandler.shouldAllowExternalFillForQuery("想见你只想见你"));
-        assertTrue(MusicSearchHandler.shouldAllowExternalFillForQuery("hello from other side"));
-    }
 }

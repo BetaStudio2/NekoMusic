@@ -83,9 +83,8 @@ public class MusicSearchHandler extends HttpServlet {
         List<Music> results = searchMusic(query);
 
         String message = "搜索成功";
-        // 站内元数据 + 歌词均无结果时，才走网易云外源补全；短查询只做站内元数据搜索，避免误补全。
-        if (results.isEmpty() && shouldAllowExternalFillForQuery(query)
-                && Main.getConfigManager().isNeteaseSearchFillEnabled()) {
+        // 站内元数据 + 歌词均无结果时，先走网易云外源补全，再决定是否返回空结果。
+        if (results.isEmpty() && Main.getConfigManager().isNeteaseSearchFillEnabled()) {
             NeteaseSearchFillService.FillAttempt fill =
                     Main.getNeteaseSearchFillService().tryFillFromNetease(query);
             if (fill.music().isPresent()) {
@@ -442,23 +441,6 @@ public class MusicSearchHandler extends HttpServlet {
         }
 
         return stats.wordLikeTokenCount >= 2 && stats.letterOrDigitCount >= 8;
-    }
-
-    static boolean shouldAllowExternalFillForQuery(String query) {
-        if (query == null || query.isBlank()) {
-            return false;
-        }
-        QueryTextStats stats = analyzeQueryText(query);
-        if (stats.letterOrDigitCount == 0 || stats.digitCount == stats.letterOrDigitCount) {
-            return false;
-        }
-        if (stats.cjkCount > 0) {
-            return stats.cjkCount > 6;
-        }
-        if (stats.latinWordCount > 0) {
-            return stats.latinWordCount > 2;
-        }
-        return stats.letterOrDigitCount >= 7;
     }
 
     private static int calculateLyricsMatchScore(String query) {
