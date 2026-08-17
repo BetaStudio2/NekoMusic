@@ -15,7 +15,7 @@
     "axios": "1.18.1",
     "chart.js": "^4.5.1",
     "qrcode": "^1.5.4",
-    "vue": "^3.5.26",
+    "vue": "^3.5.41",
     "vue-router": "^5.2.0",
     "vue-toastification": "^2.0.0-rc.5"
   },
