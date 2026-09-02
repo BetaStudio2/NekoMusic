@@ -98,7 +98,7 @@
                 </div>
               </dl>
             </div>
-            <a :href="versionInfo.updateUrl" class="android__cta" download>
+            <a :href="androidDownloadUrl" class="android__cta" download>
               <span class="android__cta-shine" aria-hidden="true" />
               <span class="android__cta-label">
                 <svg class="android__cta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -216,6 +216,7 @@
 <script setup>
 import { ref, onMounted, computed, nextTick } from 'vue'
 import axios from 'axios'
+import API_CONFIG from '@/config/apiConfig.js'
 
 const versionInfo = ref({ ver: '', updateUrl: '' })
 const loading = ref(true)
@@ -228,7 +229,7 @@ const year = new Date().getFullYear()
 
 const fetchVersionInfo = async () => {
   try {
-    const response = await axios.get('/version.json', {
+    const response = await axios.get(`${API_CONFIG.BASE_URL}/version.json`, {
       timeout: 5000
     })
     versionInfo.value = response.data
@@ -240,11 +241,36 @@ const fetchVersionInfo = async () => {
   }
 }
 
+// version.json 可能由反向代理后的后端生成 http 链接；下载必须沿用当前 API 请求的协议。
+const getRequestProtocol = () => {
+  if (typeof window === 'undefined') return 'http:'
+  try {
+    return new URL(API_CONFIG.BASE_URL || window.location.origin, window.location.href).protocol
+  } catch {
+    return window.location.protocol
+  }
+}
+
+const resolveDownloadUrl = (url) => {
+  if (!url) return ''
+  try {
+    const resolved = new URL(url, API_CONFIG.BASE_URL || window.location.href)
+    if (resolved.protocol === 'http:' || resolved.protocol === 'https:') {
+      resolved.protocol = getRequestProtocol()
+    }
+    return resolved.toString()
+  } catch {
+    return url
+  }
+}
+
 const replaceVersion = (url) => {
   if (!url) return ''
   const pcVer = versionInfo.value.pc?.pc_ver || versionInfo.value.ver
-  return url.replace('{pc_ver}', pcVer)
+  return resolveDownloadUrl(url.replace('{pc_ver}', pcVer))
 }
+
+const androidDownloadUrl = computed(() => resolveDownloadUrl(versionInfo.value.updateUrl))
 
 const windowsDownloadUrl = computed(() => {
   const url = versionInfo.value.pc?.windows || versionInfo.value.pc?.downloadUrl || versionInfo.value.updateUrl
