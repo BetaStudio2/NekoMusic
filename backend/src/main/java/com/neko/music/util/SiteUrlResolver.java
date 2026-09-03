@@ -13,14 +13,6 @@ public final class SiteUrlResolver {
     );
 
     public static String resolvePublicSiteBase(HttpServletRequest request) {
-        String host = normalizeHost(firstNonBlank(
-                headerFirst(request, "X-Forwarded-Host"),
-                request.getHeader("Host")
-        ));
-        if (host != null) {
-            String proto = normalizeProto(firstNonBlank(request.getHeader("X-Forwarded-Proto"), request.getScheme()));
-            return proto + "://" + host;
-        }
         return Main.getConfigManager().getVideoRenderNotifyFrontendBaseUrl();
     }
 
