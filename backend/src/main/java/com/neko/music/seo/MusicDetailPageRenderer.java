@@ -219,6 +219,7 @@ public final class MusicDetailPageRenderer {
 
     public String renderNotFound(String siteBaseUrl) {
         String base = trimTrailingSlash(siteBaseUrl);
+        String baseEsc = escapeHtml(base);
         return """
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -243,11 +244,23 @@ public final class MusicDetailPageRenderer {
 """.formatted(
                 MusicDetailSeoContent.SITE_NAME_ZH,
                 MusicDetailSeoContent.SITE_NAME_EN,
-                base,
-                base,
-                base,
-                base
+                baseEsc,
+                baseEsc,
+                baseEsc,
+                baseEsc
         );
+    }
+
+    private static String escapeHtml(String value) {
+        if (value == null || value.isEmpty()) {
+            return "";
+        }
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#x27;");
     }
 
     private static String trimTrailingSlash(String url) {
