@@ -28,6 +28,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class UserUploadHandler extends HttpServlet {
@@ -334,11 +335,23 @@ public class UserUploadHandler extends HttpServlet {
         if (fileName == null || fileName.isEmpty()) {
             return "";
         }
+
         int lastDotIndex = fileName.lastIndexOf('.');
         if (lastDotIndex == -1) {
             return "";
         }
-        return fileName.substring(lastDotIndex);
+
+        String extension = fileName.substring(lastDotIndex).toLowerCase(Locale.ROOT);
+
+        // 只允许简单扩展名（单一路径组件），禁止路径分隔符、父目录引用及异常字符
+        if (extension.contains("/") || extension.contains("\\") || extension.contains("..")) {
+            return "";
+        }
+        if (!extension.matches("^\\.[a-z0-9]{1,10}$")) {
+            return "";
+        }
+
+        return extension;
     }
     
     private void saveFile(Part part, String filePath) throws IOException {
