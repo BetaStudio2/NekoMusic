@@ -99,6 +99,20 @@ public class NotificationService {
 //        return sendNotification(message);
 //    }
 
+    private String sanitizeForNotification(String input) {
+        if (input == null) {
+            return "";
+        }
+        String sanitized = input
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
+            .replace("'", "&#x27;");
+        // 移除除换行/制表外的控制字符，避免下游渲染异常
+        return sanitized.replaceAll("[\\p{Cntrl}&&[^\\r\\n\\t]]", "");
+    }
+
     /**
      * 发送音乐上传完成通知
      * @param musicTitle 音乐标题
@@ -107,8 +121,10 @@ public class NotificationService {
      * @return 是否发送成功
      */
     public boolean sendMusicUploadNotification(String musicTitle, String artist, int uploadUserId) {
-        String message = String.format("音乐审核提醒\n标题: %s\n艺术家: %s\n上传用户ID: %d", 
-            musicTitle, artist, uploadUserId);
+        String safeTitle = sanitizeForNotification(musicTitle);
+        String safeArtist = sanitizeForNotification(artist);
+        String message = String.format("音乐审核提醒\n标题: %s\n艺术家: %s\n上传用户ID: %d",
+            safeTitle, safeArtist, uploadUserId);
         return sendNotification(message);
     }
 }
