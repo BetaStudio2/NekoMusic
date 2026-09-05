@@ -305,6 +305,8 @@ public final class MusicRecognitionService implements AutoCloseable {
         Set<Future<FingerprintBuildResult>> pendingTasks = ConcurrentHashMap.newKeySet();
 
         logger.info("开始构建曲库声纹索引，数据库歌曲数={}", catalogTracks.size());
+        long cacheScanStarted = System.currentTimeMillis();
+        long nextCacheProgressLog = cacheScanStarted + TimeUnit.SECONDS.toMillis(30);
         for (Track track : catalogTracks) {
             Path audio = audioFiles.get(track.id());
             if (audio == null) {
@@ -326,6 +328,13 @@ public final class MusicRecognitionService implements AutoCloseable {
                 lastFailure = e;
                 logger.warn("生成歌曲声纹失败，已跳过 musicId={} path={}: {}",
                         track.id(), audio, safeMessage(e));
+            }
+            long now = System.currentTimeMillis();
+            if (audioFileCount % 1_000 == 0 || now >= nextCacheProgressLog) {
+                logger.info("曲库声纹缓存读取进度: scanned={}/{}, cacheHits={}, submitted={}, indexed={}, elapsedMs={}",
+                        audioFileCount, audioFiles.size(), cacheHits, pendingTasks.size(),
+                        indexedTracks.size(), now - cacheScanStarted);
+                nextCacheProgressLog = now + TimeUnit.SECONDS.toMillis(30);
             }
         }
 
