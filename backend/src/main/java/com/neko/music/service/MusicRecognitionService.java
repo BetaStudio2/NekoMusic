@@ -228,6 +228,7 @@ public final class MusicRecognitionService implements AutoCloseable {
                 }
             }, indexExecutor);
             indexBuild = created;
+            logger.info("曲库声纹索引构建任务已提交: generation={}", buildGeneration);
             created.whenComplete((snapshot, error) -> {
                 boolean rebuildRequested;
                 synchronized (buildLock) {
@@ -255,11 +256,19 @@ public final class MusicRecognitionService implements AutoCloseable {
 
     private IndexSnapshot buildIndex() throws Exception {
         long started = System.currentTimeMillis();
+        logger.info("曲库声纹索引构建开始: 正在读取歌曲目录");
         List<Track> catalogTracks = catalog.loadTracks();
+        logger.info("曲库歌曲目录读取完成: tracks={}, elapsedMs={}",
+                catalogTracks.size(), System.currentTimeMillis() - started);
         List<Integer> catalogIds = catalogTracks.stream().map(Track::id).toList();
         Map<Integer, Path> audioFiles = MusicAssetLocator.findAudioFiles(catalogIds);
+        logger.info("曲库音频文件扫描完成: matched={}, elapsedMs={}",
+                audioFiles.size(), System.currentTimeMillis() - started);
         diskCache.prune(new HashSet<>(catalogIds));
+        logger.info("曲库声纹缓存清理完成: elapsedMs={}", System.currentTimeMillis() - started);
         List<CatalogEntry> catalogEntries = describeCatalog(catalogTracks, audioFiles);
+        logger.info("曲库目录元数据准备完成: entries={}, elapsedMs={}",
+                catalogEntries.size(), System.currentTimeMillis() - started);
 
         IndexSnapshot ready = currentIndex;
         if (ready != null && ready.catalogEntries.equals(catalogEntries)) {
