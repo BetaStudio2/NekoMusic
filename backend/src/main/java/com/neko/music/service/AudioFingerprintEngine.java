@@ -23,12 +23,17 @@ public final class AudioFingerprintEngine {
     public static final int SAMPLE_RATE = 11_025;
     public static final int FFT_SIZE = 2_048;
     public static final int HOP_SIZE = 1_024;
-    public static final int ALGORITHM_VERSION = 1;
+    // Bumped after introducing bounded landmark/index storage so older,
+    // potentially multi-gigabyte persistent indexes are never loaded.
+    public static final int ALGORITHM_VERSION = 2;
 
     private static final int TEMPORAL_RADIUS = 2;
     private static final int FREQUENCY_QUANTIZATION_BINS = 4;
     private static final double MIN_FRAME_RMS = 0.000_01d;
     private static final int MAX_VOTE_COMPARISONS = 2_000_000;
+    /** Bounds the in-memory inverted index for very long tracks and large libraries. */
+    private static final int MAX_INDEX_POSTINGS_PER_HASH = 4_096;
+    private static final long MAX_INDEX_TOTAL_POSTINGS = 8_000_000L;
     private static final int[][] TARGET_WINDOWS = {
             {1, 4}, {5, 9}, {10, 17}, {18, 30}
     };
@@ -329,27 +334,56 @@ public final class AudioFingerprintEngine {
             if (fingerprints == null || fingerprints.isEmpty()) {
                 return new Index(Map.of(), 0);
             }
+            Builder builder = new Builder();
+            fingerprints.forEach(builder::add);
+            return builder.build();
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        /** Incrementally builds an index without retaining every track fingerprint. */
+        public static final class Builder {
             Map<Integer, LongList> mutable = new HashMap<>();
             int indexedMusic = 0;
-            for (Map.Entry<Integer, Fingerprint> entry : fingerprints.entrySet()) {
-                int musicId = entry.getKey();
-                if (musicId <= 0 || entry.getValue() == null || entry.getValue().landmarks().isEmpty()) {
-                    continue;
+            long totalPostings = 0L;
+            public void add(int musicId, Fingerprint fingerprint) {
+                if (musicId <= 0 || fingerprint == null || fingerprint.landmarks().isEmpty()) {
+                    return;
                 }
-                indexedMusic++;
+                int postingsBeforeTrack = (int) Math.min(Integer.MAX_VALUE, totalPostings);
                 Set<Long> uniqueForTrack = new HashSet<>();
-                for (Landmark landmark : entry.getValue().landmarks()) {
+                for (Landmark landmark : fingerprint.landmarks()) {
+                    if (totalPostings >= MAX_INDEX_TOTAL_POSTINGS) {
+                        break;
+                    }
                     long duplicateKey = ((long) landmark.hash << 32) | (landmark.timeFrame & 0xffff_ffffL);
                     if (!uniqueForTrack.add(duplicateKey)) {
                         continue;
                     }
                     long posting = ((long) musicId << 32) | (landmark.timeFrame & 0xffff_ffffL);
-                    mutable.computeIfAbsent(landmark.hash, ignored -> new LongList()).add(posting);
+                    LongList postings = mutable.computeIfAbsent(landmark.hash, ignored -> new LongList());
+                    if (postings.size() >= MAX_INDEX_POSTINGS_PER_HASH) {
+                        continue;
+                    }
+                    postings.add(posting);
+                    totalPostings++;
+                }
+                if (totalPostings > postingsBeforeTrack) {
+                    indexedMusic++;
+                }
+                if (totalPostings >= MAX_INDEX_TOTAL_POSTINGS) {
+                    return;
                 }
             }
-            Map<Integer, long[]> immutable = new HashMap<>(mutable.size());
-            mutable.forEach((hash, values) -> immutable.put(hash, values.toArray()));
-            return new Index(Map.copyOf(immutable), indexedMusic);
+
+            public Index build() {
+                Map<Integer, long[]> immutable = new HashMap<>(mutable.size());
+                mutable.forEach((hash, values) -> immutable.put(hash, values.toArray()));
+                mutable.clear();
+                return new Index(Map.copyOf(immutable), indexedMusic);
+            }
         }
 
         public int musicCount() {
@@ -533,6 +567,10 @@ public final class AudioFingerprintEngine {
     private static final class LongList {
         private long[] values = new long[16];
         private int size;
+
+        private int size() {
+            return size;
+        }
 
         private void add(long value) {
             if (size == values.length) {

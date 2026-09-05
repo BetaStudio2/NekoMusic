@@ -174,17 +174,15 @@ public final class MusicAssetLocator {
         }
         String prefix = musicId + ".";
         try (Stream<Path> stream = Files.list(dir)) {
-            List<Path> toDelete = stream
-                    .filter(Files::isRegularFile)
+            stream.filter(Files::isRegularFile)
                     .filter(p -> isSingleSegmentExtension(p.getFileName().toString(), prefix))
-                    .collect(Collectors.toList());
-            for (Path p : toDelete) {
+                    .forEach(p -> {
                 try {
                     Files.deleteIfExists(p);
                 } catch (IOException e) {
                     log.warn("删除{}文件失败 musicId={} path={}: {}", kind, musicId, p, e.toString());
                 }
-            }
+            });
         } catch (IOException e) {
             log.warn("列出{}目录失败 musicId={}: {}", kind, musicId, e.toString());
         }
