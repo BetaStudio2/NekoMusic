@@ -180,6 +180,9 @@ public class MusicManagementHandler extends HttpServlet {
         if (Main.getLyricsSearchIndex() != null) {
             Main.getLyricsSearchIndex().rebuildOne(id);
         }
+        if (Main.getMusicRecognitionService() != null) {
+            Main.getMusicRecognitionService().invalidateIndex();
+        }
 
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
@@ -387,6 +390,10 @@ public class MusicManagementHandler extends HttpServlet {
                     }
                 }
             }
+
+            if (Main.getMusicRecognitionService() != null) {
+                Main.getMusicRecognitionService().invalidateIndex();
+            }
             
             response.setStatus(HttpStatus.OK_200);
             response.setContentType("application/json;charset=utf-8");
@@ -495,6 +502,10 @@ public class MusicManagementHandler extends HttpServlet {
                 }
             }
             
+            if (Main.getMusicRecognitionService() != null) {
+                Main.getMusicRecognitionService().invalidateIndex();
+            }
+
             response.setStatus(HttpStatus.OK_200);
             response.setContentType("application/json;charset=utf-8");
             MusicResponse musicResponse = new MusicResponse(true, "编辑音乐成功", updatedMusic);

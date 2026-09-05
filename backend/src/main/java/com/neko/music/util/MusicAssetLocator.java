@@ -52,6 +52,39 @@ public final class MusicAssetLocator {
         }
     }
 
+    /**
+     * 批量定位音频文件，只遍历一次音乐目录。声纹全量构建使用此方法，避免按歌曲重复扫描目录。
+     */
+    public static Map<Integer, Path> findAudioFiles(Collection<Integer> musicIds) throws IOException {
+        if (musicIds == null || musicIds.isEmpty() || !Files.isDirectory(audioDir())) {
+            return Map.of();
+        }
+        Set<Integer> wanted = new HashSet<>(musicIds);
+        Map<Integer, List<Path>> candidates = new HashMap<>();
+        try (Stream<Path> stream = Files.list(audioDir())) {
+            stream.filter(Files::isRegularFile).forEach(path -> {
+                String name = path.getFileName().toString();
+                int dot = name.indexOf('.');
+                if (dot <= 0 || name.indexOf('.', dot + 1) >= 0) {
+                    return;
+                }
+                int musicId;
+                try {
+                    musicId = Integer.parseInt(name.substring(0, dot));
+                } catch (NumberFormatException ignored) {
+                    return;
+                }
+                if (wanted.contains(musicId)) {
+                    candidates.computeIfAbsent(musicId, ignored -> new ArrayList<>()).add(path);
+                }
+            });
+        }
+        Map<Integer, Path> selected = new HashMap<>();
+        candidates.forEach((musicId, files) -> pickOne(files, AUDIO_EXT_PRIORITY)
+                .ifPresent(path -> selected.put(musicId, path)));
+        return Map.copyOf(selected);
+    }
+
     public static Optional<Path> findCoverFile(int musicId) {
         if (musicId <= 0) {
             return Optional.empty();

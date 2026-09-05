@@ -13,6 +13,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,10 +24,13 @@ import java.sql.ResultSet;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -47,36 +51,50 @@ public final class MusicRecognitionService implements AutoCloseable {
     private final TrackCatalog catalog;
     private final FingerprintDecoder decoder;
     private final FingerprintDiskCache diskCache;
+    private final FullIndexDiskCache fullIndexCache;
     private final ExecutorService indexExecutor;
     private final Semaphore querySlots;
     private final Object buildLock = new Object();
 
     private volatile IndexSnapshot currentIndex;
     private volatile CompletableFuture<IndexSnapshot> indexBuild;
+    private long requestedGeneration;
 
     public MusicRecognitionService(DatabaseManager databaseManager, ConfigManager config) {
         this(
                 config,
                 new DatabaseTrackCatalog(databaseManager),
                 new FfmpegFingerprintDecoder(config, new AudioFingerprintEngine()),
-                new FingerprintDiskCache(MusicAssetLocator.baseDir().resolve("Music/.fingerprints")));
+                new FingerprintDiskCache(MusicAssetLocator.baseDir().resolve("Music/.fingerprints")),
+                new FullIndexDiskCache(MusicAssetLocator.baseDir().resolve("Music/.fingerprints/library.nfi")));
     }
 
     MusicRecognitionService(
             ConfigManager config,
             TrackCatalog catalog,
             FingerprintDecoder decoder,
-            FingerprintDiskCache diskCache) {
+            FingerprintDiskCache diskCache,
+            FullIndexDiskCache fullIndexCache) {
         this.config = config;
         this.catalog = catalog;
         this.decoder = decoder;
         this.diskCache = diskCache;
+        this.fullIndexCache = fullIndexCache;
         this.querySlots = new Semaphore(config.getMusicRecognitionMaxConcurrentRequests(), true);
         this.indexExecutor = Executors.newSingleThreadExecutor(runnable -> {
             Thread thread = new Thread(runnable, "music-fingerprint-index");
             thread.setDaemon(true);
             return thread;
         });
+    }
+
+    /** Starts loading or building the persistent library index before the first recognition request. */
+    public void warmUp() {
+        if (!config.isMusicRecognitionEnabled()) {
+            return;
+        }
+        startBuildIfNeeded();
+        logger.info("听歌识曲索引预热已启动");
     }
 
     public Optional<RecognitionResult> recognize(Path uploadedAudio)
@@ -133,9 +151,12 @@ public final class MusicRecognitionService implements AutoCloseable {
                 snapshot == null ? 0 : snapshot.builtAtMillis);
     }
 
-    /** Useful after an administrative ingest; the next request rebuilds from per-song caches. */
+    /** Keep serving the last good snapshot while an updated index is rebuilt and atomically swapped in. */
     public void invalidateIndex() {
-        currentIndex = null;
+        synchronized (buildLock) {
+            requestedGeneration++;
+        }
+        startBuildIfNeeded();
     }
 
     private IndexSnapshot getUsableIndex() throws IndexUnavailableException {
@@ -172,6 +193,7 @@ public final class MusicRecognitionService implements AutoCloseable {
             if (existing != null && !existing.isDone()) {
                 return existing;
             }
+            long buildGeneration = requestedGeneration;
             CompletableFuture<IndexSnapshot> created = CompletableFuture.supplyAsync(() -> {
                 try {
                     return buildIndex();
@@ -181,16 +203,21 @@ public final class MusicRecognitionService implements AutoCloseable {
             }, indexExecutor);
             indexBuild = created;
             created.whenComplete((snapshot, error) -> {
+                boolean rebuildRequested;
                 synchronized (buildLock) {
-                    if (error == null && snapshot != null) {
+                    if (error == null && snapshot != null && buildGeneration == requestedGeneration) {
                         currentIndex = snapshot;
                     }
                     if (indexBuild == created) {
                         indexBuild = null;
                     }
+                    rebuildRequested = buildGeneration != requestedGeneration;
                 }
                 if (error != null) {
                     logger.error("曲库声纹索引构建失败", unwrapCompletion(error));
+                }
+                if (rebuildRequested) {
+                    startBuildIfNeeded();
                 }
             });
             return created;
@@ -200,21 +227,50 @@ public final class MusicRecognitionService implements AutoCloseable {
     private IndexSnapshot buildIndex() throws Exception {
         long started = System.currentTimeMillis();
         List<Track> catalogTracks = catalog.loadTracks();
+        List<Integer> catalogIds = catalogTracks.stream().map(Track::id).toList();
+        Map<Integer, Path> audioFiles = MusicAssetLocator.findAudioFiles(catalogIds);
+        diskCache.prune(new HashSet<>(catalogIds));
+        List<CatalogEntry> catalogEntries = describeCatalog(catalogTracks, audioFiles);
+
+        IndexSnapshot ready = currentIndex;
+        if (ready != null && ready.catalogEntries.equals(catalogEntries)) {
+            logger.info("曲库未变化，继续使用当前声纹索引: indexedMusic={}, uniqueHashes={}",
+                    ready.index.musicCount(), ready.index.uniqueHashCount());
+            IndexSnapshot refreshed = new IndexSnapshot(
+                    ready.index, ready.tracks, catalogEntries, System.currentTimeMillis());
+            if (!fullIndexCache.exists()) {
+                try {
+                    fullIndexCache.save(refreshed);
+                } catch (IOException e) {
+                    logger.warn("补写曲库声纹总索引失败: {}", safeMessage(e));
+                }
+            }
+            return refreshed;
+        }
+
+        Optional<IndexSnapshot> persisted = fullIndexCache.load(catalogEntries);
+        if (persisted.isPresent()) {
+            IndexSnapshot snapshot = persisted.get();
+            logger.info("已从持久化文件恢复曲库声纹索引: indexedMusic={}, uniqueHashes={}, elapsedMs={}",
+                    snapshot.index.musicCount(), snapshot.index.uniqueHashCount(),
+                    System.currentTimeMillis() - started);
+            return snapshot;
+        }
+
         Map<Integer, Track> indexedTracks = new LinkedHashMap<>();
         Map<Integer, AudioFingerprintEngine.Fingerprint> fingerprints = new HashMap<>();
         int cacheHits = 0;
         int generated = 0;
-        int audioFiles = 0;
+        int audioFileCount = 0;
         Exception lastFailure = null;
 
         logger.info("开始构建曲库声纹索引，数据库歌曲数={}", catalogTracks.size());
         for (Track track : catalogTracks) {
-            Optional<Path> audioFile = MusicAssetLocator.findAudioFile(track.id());
-            if (audioFile.isEmpty()) {
+            Path audio = audioFiles.get(track.id());
+            if (audio == null) {
                 continue;
             }
-            audioFiles++;
-            Path audio = audioFile.get();
+            audioFileCount++;
             try {
                 Optional<AudioFingerprintEngine.Fingerprint> cached = diskCache.load(track.id(), audio);
                 AudioFingerprintEngine.Fingerprint fingerprint;
@@ -241,16 +297,38 @@ public final class MusicRecognitionService implements AutoCloseable {
                         track.id(), audio, safeMessage(e));
             }
         }
-        if (audioFiles > 0 && fingerprints.isEmpty() && lastFailure != null) {
+        if (audioFileCount > 0 && fingerprints.isEmpty() && lastFailure != null) {
             throw new IOException("没有任何曲库音频成功生成声纹", lastFailure);
         }
 
         AudioFingerprintEngine.Index index = AudioFingerprintEngine.Index.build(fingerprints);
-        IndexSnapshot snapshot = new IndexSnapshot(index, Map.copyOf(indexedTracks), System.currentTimeMillis());
+        fingerprints.clear();
+        IndexSnapshot snapshot = new IndexSnapshot(
+                index, Map.copyOf(indexedTracks), catalogEntries, System.currentTimeMillis());
+        try {
+            fullIndexCache.save(snapshot);
+        } catch (IOException e) {
+            logger.warn("持久化曲库声纹总索引失败，本次仍使用内存索引: {}", safeMessage(e));
+        }
         logger.info("曲库声纹索引构建完成: indexedMusic={}, uniqueHashes={}, cacheHits={}, generated={}, elapsedMs={}",
                 index.musicCount(), index.uniqueHashCount(), cacheHits, generated,
                 System.currentTimeMillis() - started);
         return snapshot;
+    }
+
+    private static List<CatalogEntry> describeCatalog(
+            List<Track> catalogTracks,
+            Map<Integer, Path> audioFiles) throws IOException {
+        List<CatalogEntry> entries = new ArrayList<>(catalogTracks.size());
+        for (Track track : catalogTracks) {
+            Path audio = audioFiles.get(track.id());
+            AudioAsset asset = audio == null ? null : new AudioAsset(
+                    audio.getFileName().toString(),
+                    Files.size(audio),
+                    Files.getLastModifiedTime(audio).toMillis());
+            entries.add(new CatalogEntry(track, asset));
+        }
+        return List.copyOf(entries);
     }
 
     @Override
@@ -294,9 +372,16 @@ public final class MusicRecognitionService implements AutoCloseable {
                 throws IOException, InvalidAudioException, AudioTooLongException;
     }
 
-    private record IndexSnapshot(
+    record AudioAsset(String fileName, long size, long modifiedAtMillis) {
+    }
+
+    record CatalogEntry(Track track, AudioAsset audio) {
+    }
+
+    record IndexSnapshot(
             AudioFingerprintEngine.Index index,
             Map<Integer, Track> tracks,
+            List<CatalogEntry> catalogEntries,
             long builtAtMillis) {
     }
 
@@ -408,6 +493,199 @@ public final class MusicRecognitionService implements AutoCloseable {
         }
     }
 
+    /** Persistent, directly loadable inverted index plus a catalog/audio validity manifest. */
+    static final class FullIndexDiskCache {
+        private static final int MAGIC = 0x4e464931; // NFI1
+        private static final int FORMAT_VERSION = 1;
+        private static final int MAX_TRACKS = 1_000_000;
+        private static final int MAX_HASHES = 10_000_000;
+        private static final int MAX_POSTINGS_PER_HASH = 10_000_000;
+        private static final long MAX_TOTAL_POSTINGS = 100_000_000L;
+        private static final int MAX_STRING_BYTES = 1024 * 1024;
+
+        private final Path file;
+
+        FullIndexDiskCache(Path file) {
+            this.file = file;
+        }
+
+        boolean exists() {
+            return Files.isRegularFile(file);
+        }
+
+        Optional<IndexSnapshot> load(List<CatalogEntry> currentCatalog) {
+            if (!Files.isRegularFile(file)) {
+                return Optional.empty();
+            }
+            try (DataInputStream input = new DataInputStream(
+                    new BufferedInputStream(Files.newInputStream(file)))) {
+                if (input.readInt() != MAGIC
+                        || input.readInt() != FORMAT_VERSION
+                        || input.readInt() != AudioFingerprintEngine.ALGORITHM_VERSION) {
+                    return Optional.empty();
+                }
+
+                int catalogCount = readCount(input, MAX_TRACKS, "catalog tracks");
+                if (catalogCount != currentCatalog.size()) {
+                    return Optional.empty();
+                }
+                for (int i = 0; i < catalogCount; i++) {
+                    if (!readCatalogEntry(input).equals(currentCatalog.get(i))) {
+                        return Optional.empty();
+                    }
+                }
+
+                Map<Integer, Track> currentTracks = new HashMap<>(currentCatalog.size());
+                currentCatalog.forEach(entry -> currentTracks.put(entry.track.id(), entry.track));
+                int indexedCount = readCount(input, MAX_TRACKS, "indexed tracks");
+                Map<Integer, Track> indexedTracks = new LinkedHashMap<>(indexedCount);
+                Set<Integer> indexedIds = new HashSet<>(indexedCount);
+                for (int i = 0; i < indexedCount; i++) {
+                    int musicId = input.readInt();
+                    Track track = currentTracks.get(musicId);
+                    if (track == null || !indexedIds.add(musicId)) {
+                        throw new IOException("invalid indexed music id: " + musicId);
+                    }
+                    indexedTracks.put(musicId, track);
+                }
+
+                int hashCount = readCount(input, MAX_HASHES, "unique hashes");
+                Map<Integer, long[]> postings = new HashMap<>(hashCount);
+                long totalPostings = 0;
+                for (int i = 0; i < hashCount; i++) {
+                    int hash = input.readInt();
+                    int postingCount = readCount(input, MAX_POSTINGS_PER_HASH, "hash postings");
+                    if (postingCount == 0 || totalPostings + postingCount > MAX_TOTAL_POSTINGS) {
+                        throw new IOException("invalid total posting count");
+                    }
+                    long[] values = new long[postingCount];
+                    for (int j = 0; j < postingCount; j++) {
+                        long posting = input.readLong();
+                        int musicId = (int) (posting >>> 32);
+                        if (!indexedIds.contains(musicId)) {
+                            throw new IOException("posting references unknown music id: " + musicId);
+                        }
+                        values[j] = posting;
+                    }
+                    if (postings.put(hash, values) != null) {
+                        throw new IOException("duplicate hash in persistent index");
+                    }
+                    totalPostings += postingCount;
+                }
+                if (input.read() != -1) {
+                    throw new IOException("persistent index contains trailing data");
+                }
+                AudioFingerprintEngine.Index index = AudioFingerprintEngine.Index.restore(postings, indexedCount);
+                return Optional.of(new IndexSnapshot(
+                        index, Map.copyOf(indexedTracks), List.copyOf(currentCatalog), System.currentTimeMillis()));
+            } catch (Exception e) {
+                logger.warn("读取持久化曲库声纹总索引失败，将从单曲缓存重建: file={} error={}",
+                        file, safeMessage(e));
+                return Optional.empty();
+            }
+        }
+
+        void save(IndexSnapshot snapshot) throws IOException {
+            Path parent = file.getParent();
+            if (parent == null) {
+                throw new IOException("persistent index has no parent directory");
+            }
+            Files.createDirectories(parent);
+            Path temp = Files.createTempFile(parent, "library-", ".nfi.tmp");
+            try {
+                try (DataOutputStream output = new DataOutputStream(
+                        new BufferedOutputStream(Files.newOutputStream(temp)))) {
+                    output.writeInt(MAGIC);
+                    output.writeInt(FORMAT_VERSION);
+                    output.writeInt(AudioFingerprintEngine.ALGORITHM_VERSION);
+                    output.writeInt(snapshot.catalogEntries.size());
+                    for (CatalogEntry entry : snapshot.catalogEntries) {
+                        writeCatalogEntry(output, entry);
+                    }
+
+                    List<Integer> indexedIds = snapshot.tracks.keySet().stream().sorted().toList();
+                    output.writeInt(indexedIds.size());
+                    for (int musicId : indexedIds) {
+                        output.writeInt(musicId);
+                    }
+
+                    Map<Integer, long[]> postings = new TreeMap<>(snapshot.index.postingsView());
+                    output.writeInt(postings.size());
+                    for (Map.Entry<Integer, long[]> entry : postings.entrySet()) {
+                        output.writeInt(entry.getKey());
+                        output.writeInt(entry.getValue().length);
+                        for (long posting : entry.getValue()) {
+                            output.writeLong(posting);
+                        }
+                    }
+                }
+                moveAtomically(temp, file);
+            } finally {
+                Files.deleteIfExists(temp);
+            }
+        }
+
+        private static void writeCatalogEntry(DataOutputStream output, CatalogEntry entry) throws IOException {
+            Track track = entry.track;
+            output.writeInt(track.id());
+            writeString(output, track.title());
+            writeString(output, track.artist());
+            writeString(output, track.album());
+            output.writeInt(track.duration());
+            writeString(output, track.language());
+            writeString(output, track.tags());
+            writeString(output, track.updatedAt());
+            output.writeBoolean(entry.audio != null);
+            if (entry.audio != null) {
+                writeString(output, entry.audio.fileName());
+                output.writeLong(entry.audio.size());
+                output.writeLong(entry.audio.modifiedAtMillis());
+            }
+        }
+
+        private static CatalogEntry readCatalogEntry(DataInputStream input) throws IOException {
+            Track track = new Track(
+                    input.readInt(), readString(input), readString(input), readString(input), input.readInt(),
+                    readString(input), readString(input), readString(input));
+            AudioAsset audio = input.readBoolean()
+                    ? new AudioAsset(readString(input), input.readLong(), input.readLong())
+                    : null;
+            return new CatalogEntry(track, audio);
+        }
+
+        private static void writeString(DataOutputStream output, String value) throws IOException {
+            byte[] bytes = (value == null ? "" : value).getBytes(StandardCharsets.UTF_8);
+            if (bytes.length > MAX_STRING_BYTES) {
+                throw new IOException("persistent index string is too large");
+            }
+            output.writeInt(bytes.length);
+            output.write(bytes);
+        }
+
+        private static String readString(DataInputStream input) throws IOException {
+            int length = readCount(input, MAX_STRING_BYTES, "string bytes");
+            byte[] bytes = new byte[length];
+            input.readFully(bytes);
+            return new String(bytes, StandardCharsets.UTF_8);
+        }
+
+        private static int readCount(DataInputStream input, int maximum, String label) throws IOException {
+            int count = input.readInt();
+            if (count < 0 || count > maximum) {
+                throw new IOException("invalid " + label + " count: " + count);
+            }
+            return count;
+        }
+
+        private static void moveAtomically(Path source, Path target) throws IOException {
+            try {
+                Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+        }
+    }
+
     static final class FingerprintDiskCache {
         private static final int MAGIC = 0x4e465031; // NFP1
         private static final int MAX_CACHED_LANDMARKS = 2_000_000;
@@ -482,6 +760,35 @@ public final class MusicRecognitionService implements AutoCloseable {
 
         private Path cacheFile(int musicId) {
             return directory.resolve(musicId + ".nfp");
+        }
+
+        void prune(Set<Integer> validMusicIds) {
+            if (!Files.isDirectory(directory)) {
+                return;
+            }
+            try (var files = Files.list(directory)) {
+                files.filter(Files::isRegularFile).forEach(path -> {
+                    String name = path.getFileName().toString();
+                    if (!name.endsWith(".nfp")) {
+                        return;
+                    }
+                    int musicId;
+                    try {
+                        musicId = Integer.parseInt(name.substring(0, name.length() - 4));
+                    } catch (NumberFormatException ignored) {
+                        return;
+                    }
+                    if (!validMusicIds.contains(musicId)) {
+                        try {
+                            Files.deleteIfExists(path);
+                        } catch (IOException e) {
+                            logger.warn("删除过期单曲声纹缓存失败 cache={}: {}", path, safeMessage(e));
+                        }
+                    }
+                });
+            } catch (IOException e) {
+                logger.warn("清理过期单曲声纹缓存失败 directory={}: {}", directory, safeMessage(e));
+            }
         }
     }
 

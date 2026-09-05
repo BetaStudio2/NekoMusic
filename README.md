@@ -6,7 +6,7 @@
 
 ## 本地听歌识曲（后端）
 
-后端提供 `POST /api/music/recognize`，接收 `multipart/form-data` 的 `audio` 字段。服务端使用本地 FFmpeg 将录音转换为 PCM，并用本站 `Music/music/{id}.*` 曲库建立声纹索引；不会调用第三方识曲 API，也不会把音频转发到外部服务。首次请求会按需构建索引，索引缓存位于 `Music/.fingerprints/`，音频文件变更后自动失效。
+后端提供 `POST /api/music/recognize`，接收 `multipart/form-data` 的 `audio` 字段。服务端使用本地 FFmpeg 将录音转换为 PCM，并用本站 `Music/music/{id}.*` 曲库建立声纹索引；不会调用第三方识曲 API，也不会把音频转发到外部服务。服务启动时会主动预热索引；单曲声纹及可直接恢复的全曲库倒排索引持久化在 `Music/.fingerprints/`，音频或曲库元数据变更后会在后台重建并原子切换，重建期间继续使用上一份可用索引。
 
 示例：
 

@@ -25,6 +25,7 @@ buildNumber.properties
 ### Backend specific ###
 backend/target/
 backend/lib/
+Music/.fingerprints/
 !.mvn/wrapper/maven-wrapper.jar
 
 ### Frontend specific ###

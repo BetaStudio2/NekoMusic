@@ -360,6 +360,29 @@ public final class AudioFingerprintEngine {
             return postings.size();
         }
 
+        /** Restores arrays owned by the persistence loader; callers must not mutate them afterwards. */
+        static Index restore(Map<Integer, long[]> persistedPostings, int musicCount) {
+            if (musicCount < 0) {
+                throw new IllegalArgumentException("musicCount cannot be negative");
+            }
+            if (persistedPostings == null || persistedPostings.isEmpty()) {
+                return new Index(Map.of(), musicCount);
+            }
+            Map<Integer, long[]> restored = new HashMap<>(persistedPostings.size());
+            persistedPostings.forEach((hash, values) -> {
+                if (values == null || values.length == 0) {
+                    throw new IllegalArgumentException("posting list cannot be empty");
+                }
+                restored.put(hash, values);
+            });
+            return new Index(Map.copyOf(restored), musicCount);
+        }
+
+        /** Package-private read-only view used only by the atomic persistence writer. */
+        Map<Integer, long[]> postingsView() {
+            return postings;
+        }
+
         public Optional<Match> findBest(Fingerprint query, int minimumAlignedLandmarks, double minimumConfidence) {
             if (query == null || query.landmarks().isEmpty() || postings.isEmpty()) {
                 return Optional.empty();

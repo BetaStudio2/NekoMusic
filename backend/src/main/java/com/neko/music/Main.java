@@ -177,6 +177,7 @@ public class Main {
         lyricsSearchIndex.buildIndexAsync();
 
         musicRecognitionService = new MusicRecognitionService(databaseManager, configManager);
+        musicRecognitionService.warmUp();
         Runtime.getRuntime().addShutdownHook(new Thread(musicRecognitionService::close, "music-recognition-shutdown"));
 
         // 初始化歌单服务
