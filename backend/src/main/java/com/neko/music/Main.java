@@ -30,6 +30,7 @@ import com.neko.music.service.AdminMusicIngestService;
 import com.neko.music.service.NeteaseCloudMusicClient;
 import com.neko.music.service.AppReleaseService;
 import com.neko.music.service.NeteaseSearchFillService;
+import com.neko.music.service.MusicRecognitionService;
 import com.neko.music.service.VideoRenderService;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
@@ -94,6 +95,7 @@ public class Main {
     private static DailyRecommendationService dailyRecommendationService;
     private static LyricsSearchIndex lyricsSearchIndex;
     private static LyricsDatabaseManager lyricsDatabaseManager;
+    private static MusicRecognitionService musicRecognitionService;
     private static ScheduledExecutorService dailyRecommendationScheduler;
 
     public static void main(String[] args) throws Exception {
@@ -174,6 +176,9 @@ public class Main {
         lyricsSearchIndex = new LyricsSearchIndex();
         lyricsSearchIndex.buildIndexAsync();
 
+        musicRecognitionService = new MusicRecognitionService(databaseManager, configManager);
+        Runtime.getRuntime().addShutdownHook(new Thread(musicRecognitionService::close, "music-recognition-shutdown"));
+
         // 初始化歌单服务
         playlistService = new PlaylistService(databaseManager);
         
@@ -216,6 +221,15 @@ public class Main {
         // 注册搜索音乐API处理器
         ServletHolder searchHolder = new ServletHolder(new MusicSearchHandler());
         context.addServlet(searchHolder, "/api/music/search");
+
+        ServletHolder recognitionHolder = new ServletHolder(new MusicRecognitionHandler());
+        jakarta.servlet.MultipartConfigElement recognitionMultipartConfig = new jakarta.servlet.MultipartConfigElement(
+                System.getProperty("java.io.tmpdir"),
+                configManager.getMusicRecognitionMaxUploadBytes(),
+                configManager.getMusicRecognitionMaxUploadBytes() + 1024L * 1024L,
+                64 * 1024);
+        recognitionHolder.getRegistration().setMultipartConfig(recognitionMultipartConfig);
+        context.addServlet(recognitionHolder, "/api/music/recognize");
         
         // 注册音乐管理API处理器 - 使用单一路径处理所有音乐管理请求
         ServletHolder musicManagementHolder = new ServletHolder(new MusicManagementHandler());
@@ -552,6 +566,10 @@ public class Main {
 
     public static LyricsDatabaseManager getLyricsDatabaseManager() {
         return lyricsDatabaseManager;
+    }
+
+    public static MusicRecognitionService getMusicRecognitionService() {
+        return musicRecognitionService;
     }
     
     public static EmailService getEmailService() {

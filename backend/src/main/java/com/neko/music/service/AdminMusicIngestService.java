@@ -147,6 +147,9 @@ public class AdminMusicIngestService {
             }
 
             IngestedMusic row = loadIngestedMusic(musicId);
+            if (Main.getMusicRecognitionService() != null) {
+                Main.getMusicRecognitionService().invalidateIndex();
+            }
             logger.info("网易云补全入库成功 id={} title={}", musicId, title);
             return java.util.Optional.of(row);
         } catch (Exception e) {

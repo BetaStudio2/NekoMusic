@@ -124,6 +124,21 @@ public class ConfigManager {
     private int recommendationAiDailyLimit = 30;
     private boolean recommendationAiFallbackToRule = true;
 
+    /** 本地听歌识曲：服务端声纹索引与短录音保护 */
+    private boolean musicRecognitionEnabled = true;
+    private long musicRecognitionMaxUploadBytes = 8L * 1024L * 1024L;
+    private int musicRecognitionMinSampleDurationSeconds = 3;
+    private int musicRecognitionMaxSampleDurationSeconds = 20;
+    private int musicRecognitionIndexMaxTrackDurationSeconds = 900;
+    private int musicRecognitionMinimumMatchingLandmarks = 6;
+    private double musicRecognitionMinimumConfidence = 0.08d;
+    private int musicRecognitionRateLimitPerMinute = 12;
+    private int musicRecognitionMaxConcurrentRequests = 2;
+    private int musicRecognitionIndexBuildWaitSeconds = 30;
+    private int musicRecognitionIndexRefreshSeconds = 300;
+    private int musicRecognitionFfmpegTimeoutSeconds = 45;
+    private int musicRecognitionIndexFfmpegTimeoutSeconds = 180;
+
     private ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
 
     public void loadConfig() {
@@ -379,6 +394,49 @@ public class ConfigManager {
                     }
                 }
 
+                JsonNode recognitionNode = configNode.get("music_recognition");
+                if (recognitionNode != null) {
+                    if (recognitionNode.has("enabled")) {
+                        musicRecognitionEnabled = recognitionNode.get("enabled").asBoolean();
+                    }
+                    if (recognitionNode.has("max_upload_bytes")) {
+                        musicRecognitionMaxUploadBytes = recognitionNode.get("max_upload_bytes").asLong();
+                    }
+                    if (recognitionNode.has("min_sample_duration_seconds")) {
+                        musicRecognitionMinSampleDurationSeconds = recognitionNode.get("min_sample_duration_seconds").asInt();
+                    }
+                    if (recognitionNode.has("max_sample_duration_seconds")) {
+                        musicRecognitionMaxSampleDurationSeconds = recognitionNode.get("max_sample_duration_seconds").asInt();
+                    }
+                    if (recognitionNode.has("index_max_track_duration_seconds")) {
+                        musicRecognitionIndexMaxTrackDurationSeconds = recognitionNode.get("index_max_track_duration_seconds").asInt();
+                    }
+                    if (recognitionNode.has("minimum_matching_landmarks")) {
+                        musicRecognitionMinimumMatchingLandmarks = recognitionNode.get("minimum_matching_landmarks").asInt();
+                    }
+                    if (recognitionNode.has("minimum_confidence")) {
+                        musicRecognitionMinimumConfidence = recognitionNode.get("minimum_confidence").asDouble();
+                    }
+                    if (recognitionNode.has("rate_limit_per_minute")) {
+                        musicRecognitionRateLimitPerMinute = recognitionNode.get("rate_limit_per_minute").asInt();
+                    }
+                    if (recognitionNode.has("max_concurrent_requests")) {
+                        musicRecognitionMaxConcurrentRequests = recognitionNode.get("max_concurrent_requests").asInt();
+                    }
+                    if (recognitionNode.has("index_build_wait_seconds")) {
+                        musicRecognitionIndexBuildWaitSeconds = recognitionNode.get("index_build_wait_seconds").asInt();
+                    }
+                    if (recognitionNode.has("index_refresh_seconds")) {
+                        musicRecognitionIndexRefreshSeconds = recognitionNode.get("index_refresh_seconds").asInt();
+                    }
+                    if (recognitionNode.has("ffmpeg_timeout_seconds")) {
+                        musicRecognitionFfmpegTimeoutSeconds = recognitionNode.get("ffmpeg_timeout_seconds").asInt();
+                    }
+                    if (recognitionNode.has("index_ffmpeg_timeout_seconds")) {
+                        musicRecognitionIndexFfmpegTimeoutSeconds = recognitionNode.get("index_ffmpeg_timeout_seconds").asInt();
+                    }
+                }
+
             }
 
             clampPerformanceConfig();
@@ -409,6 +467,10 @@ public class ConfigManager {
             logger.info("  推荐 AI(OpenAI): enabled={}, baseUrl={}, model={}, apiKeyConfigured={}, dailyLimit={}, fallbackToRule={}",
                     recommendationAiEnabled, recommendationAiBaseUrl, recommendationAiModel,
                     !recommendationAiApiKey.isEmpty(), recommendationAiDailyLimit, recommendationAiFallbackToRule);
+            logger.info("  听歌识曲: enabled={}, maxUploadBytes={}, sampleDuration={}..{}s, rateLimit={}/min, maxConcurrent={}",
+                    musicRecognitionEnabled, musicRecognitionMaxUploadBytes,
+                    musicRecognitionMinSampleDurationSeconds, musicRecognitionMaxSampleDurationSeconds,
+                    musicRecognitionRateLimitPerMinute, musicRecognitionMaxConcurrentRequests);
         } catch (Exception e) {
             logger.error("加载配置时出错", e);
             clampPerformanceConfig();
@@ -449,6 +511,25 @@ public class ConfigManager {
         recommendationAiMaxTokens = Math.max(64, Math.min(16_384, recommendationAiMaxTokens));
         recommendationAiTimeoutSeconds = Math.max(3, Math.min(300, recommendationAiTimeoutSeconds));
         recommendationAiDailyLimit = Math.max(1, Math.min(500, recommendationAiDailyLimit));
+        musicRecognitionMaxUploadBytes = Math.max(256L * 1024L,
+                Math.min(64L * 1024L * 1024L, musicRecognitionMaxUploadBytes));
+        musicRecognitionMinSampleDurationSeconds = Math.max(1,
+                Math.min(15, musicRecognitionMinSampleDurationSeconds));
+        musicRecognitionMaxSampleDurationSeconds = Math.max(musicRecognitionMinSampleDurationSeconds,
+                Math.min(120, musicRecognitionMaxSampleDurationSeconds));
+        musicRecognitionIndexMaxTrackDurationSeconds = Math.max(musicRecognitionMaxSampleDurationSeconds,
+                Math.min(3_600, musicRecognitionIndexMaxTrackDurationSeconds));
+        musicRecognitionMinimumMatchingLandmarks = Math.max(2,
+                Math.min(100, musicRecognitionMinimumMatchingLandmarks));
+        musicRecognitionMinimumConfidence = Math.max(0.01d,
+                Math.min(0.95d, musicRecognitionMinimumConfidence));
+        musicRecognitionRateLimitPerMinute = Math.max(1, Math.min(600, musicRecognitionRateLimitPerMinute));
+        musicRecognitionMaxConcurrentRequests = Math.max(1, Math.min(16, musicRecognitionMaxConcurrentRequests));
+        musicRecognitionIndexBuildWaitSeconds = Math.max(1, Math.min(300, musicRecognitionIndexBuildWaitSeconds));
+        musicRecognitionIndexRefreshSeconds = Math.max(10, Math.min(86_400, musicRecognitionIndexRefreshSeconds));
+        musicRecognitionFfmpegTimeoutSeconds = Math.max(5, Math.min(300, musicRecognitionFfmpegTimeoutSeconds));
+        musicRecognitionIndexFfmpegTimeoutSeconds = Math.max(musicRecognitionFfmpegTimeoutSeconds,
+                Math.min(900, musicRecognitionIndexFfmpegTimeoutSeconds));
         if (videoRenderFfmpegPath == null || videoRenderFfmpegPath.isBlank()) {
             videoRenderFfmpegPath = "auto";
         }
@@ -833,6 +914,20 @@ public class ConfigManager {
     public boolean isRecommendationAiFallbackToRule() {
         return recommendationAiFallbackToRule;
     }
+
+    public boolean isMusicRecognitionEnabled() { return musicRecognitionEnabled; }
+    public long getMusicRecognitionMaxUploadBytes() { return musicRecognitionMaxUploadBytes; }
+    public int getMusicRecognitionMinSampleDurationSeconds() { return musicRecognitionMinSampleDurationSeconds; }
+    public int getMusicRecognitionMaxSampleDurationSeconds() { return musicRecognitionMaxSampleDurationSeconds; }
+    public int getMusicRecognitionIndexMaxTrackDurationSeconds() { return musicRecognitionIndexMaxTrackDurationSeconds; }
+    public int getMusicRecognitionMinimumMatchingLandmarks() { return musicRecognitionMinimumMatchingLandmarks; }
+    public double getMusicRecognitionMinimumConfidence() { return musicRecognitionMinimumConfidence; }
+    public int getMusicRecognitionRateLimitPerMinute() { return musicRecognitionRateLimitPerMinute; }
+    public int getMusicRecognitionMaxConcurrentRequests() { return musicRecognitionMaxConcurrentRequests; }
+    public int getMusicRecognitionIndexBuildWaitSeconds() { return musicRecognitionIndexBuildWaitSeconds; }
+    public int getMusicRecognitionIndexRefreshSeconds() { return musicRecognitionIndexRefreshSeconds; }
+    public int getMusicRecognitionFfmpegTimeoutSeconds() { return musicRecognitionFfmpegTimeoutSeconds; }
+    public int getMusicRecognitionIndexFfmpegTimeoutSeconds() { return musicRecognitionIndexFfmpegTimeoutSeconds; }
 
     /** 从 public_base_url 推出站点根（用于 return_url 默认 /vip） */
     private static String zpaySiteRootFromPublicBase(String publicTrimmed) {

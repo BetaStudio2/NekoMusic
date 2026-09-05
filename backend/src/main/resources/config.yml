@@ -295,3 +295,22 @@ recommendation_ai:
   daily_limit: 300
   # 当 AI 请求失败时，是否自动回退到规则推荐
   fallback_to_rule: true
+
+# =============================================
+# 本地听歌识曲（仅匹配本站曲库，不调用第三方 API）
+# =============================================
+# 客户端上传 3~20 秒录音到 /api/music/recognize；服务端使用本地 FFmpeg 与 Java 声纹索引匹配。
+music_recognition:
+  enabled: true
+  max_upload_bytes: 8388608
+  min_sample_duration_seconds: 3
+  max_sample_duration_seconds: 20
+  index_max_track_duration_seconds: 900
+  minimum_matching_landmarks: 6
+  minimum_confidence: 0.08
+  rate_limit_per_minute: 12
+  max_concurrent_requests: 2
+  index_build_wait_seconds: 30
+  index_refresh_seconds: 300
+  ffmpeg_timeout_seconds: 45
+  index_ffmpeg_timeout_seconds: 180

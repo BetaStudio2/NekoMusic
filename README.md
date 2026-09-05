@@ -4,6 +4,18 @@
 
 在线音乐平台（Web / Android / PC）。完整 API 说明见 [Neko歌姬计划文档/README.md](Neko歌姬计划文档/README.md)。
 
+## 本地听歌识曲（后端）
+
+后端提供 `POST /api/music/recognize`，接收 `multipart/form-data` 的 `audio` 字段。服务端使用本地 FFmpeg 将录音转换为 PCM，并用本站 `Music/music/{id}.*` 曲库建立声纹索引；不会调用第三方识曲 API，也不会把音频转发到外部服务。首次请求会按需构建索引，索引缓存位于 `Music/.fingerprints/`，音频文件变更后自动失效。
+
+示例：
+
+```bash
+curl -sS -F 'audio=@sample.m4a' https://music.example.com/api/music/recognize
+```
+
+识别结果在 `data` 中返回歌曲 ID、标题、歌手、专辑、置信度和匹配偏移；未匹配本站曲库时返回 `matched: false`。相关大小、时长、并发和限流参数可在 `backend/src/main/resources/config.yml` 的 `music_recognition` 节配置。
+
 ## 违禁词检测 API
 
 将违禁词校验从上传、注册等业务中拆出，供前端在提交前预检标题、用户名、歌单名等文案。词表位于 `backend/src/main/resources/违禁词/`（`主词表.txt`、`英文词表.txt`、`白名单.txt`），与线上一致。

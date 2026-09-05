@@ -317,6 +317,10 @@ public class FileUploadHandler extends HttpServlet {
             
             // 获取完整的音乐信息
             Music music = getMusicById(musicId);
+
+            if (Main.getMusicRecognitionService() != null) {
+                Main.getMusicRecognitionService().invalidateIndex();
+            }
             
             response.setStatus(HttpStatus.OK_200);
             response.setContentType("application/json;charset=utf-8");
@@ -599,6 +603,10 @@ public class FileUploadHandler extends HttpServlet {
             
             // 获取更新后的音乐信息
             Music updatedMusic = getMusicById(id);
+
+            if (Main.getMusicRecognitionService() != null) {
+                Main.getMusicRecognitionService().invalidateIndex();
+            }
             
             response.setStatus(HttpStatus.OK_200);
             response.setContentType("application/json;charset=utf-8");
