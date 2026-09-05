@@ -331,6 +331,11 @@ public class AdminUploadAuditHandler extends HttpServlet {
             
             // 提交事务
             conn.commit();
+
+            // 仅在审核通过并正式进入曲库后，异步生成并发布新的声纹索引。
+            if (Main.getMusicRecognitionService() != null) {
+                Main.getMusicRecognitionService().invalidateIndex();
+            }
             
             // 发送通知
 //            try {
