@@ -343,11 +343,30 @@ public final class AudioFingerprintEngine {
             return new Builder();
         }
 
+        /** Creates a builder that keeps untouched posting arrays from an existing index. */
+        public static Builder builder(Index base) {
+            return new Builder(base);
+        }
+
         /** Incrementally builds an index without retaining every track fingerprint. */
         public static final class Builder {
             Map<Integer, LongList> mutable = new HashMap<>();
+            final Map<Integer, long[]> basePostings;
             int indexedMusic = 0;
             long totalPostings = 0L;
+
+            private Builder() {
+                basePostings = Map.of();
+            }
+
+            private Builder(Index base) {
+                basePostings = base == null ? Map.of() : base.postings;
+                indexedMusic = base == null ? 0 : base.musicCount;
+                for (long[] values : basePostings.values()) {
+                    totalPostings += values.length;
+                }
+            }
+
             public void add(int musicId, Fingerprint fingerprint) {
                 if (musicId <= 0 || fingerprint == null || fingerprint.landmarks().isEmpty()) {
                     return;
@@ -363,7 +382,8 @@ public final class AudioFingerprintEngine {
                         continue;
                     }
                     long posting = ((long) musicId << 32) | (landmark.timeFrame & 0xffff_ffffL);
-                    LongList postings = mutable.computeIfAbsent(landmark.hash, ignored -> new LongList());
+                    LongList postings = mutable.computeIfAbsent(landmark.hash,
+                            hash -> new LongList(basePostings.get(hash)));
                     if (postings.size() >= MAX_INDEX_POSTINGS_PER_HASH) {
                         continue;
                     }
@@ -379,7 +399,7 @@ public final class AudioFingerprintEngine {
             }
 
             public Index build() {
-                Map<Integer, long[]> immutable = new HashMap<>(mutable.size());
+                Map<Integer, long[]> immutable = new HashMap<>(basePostings);
                 mutable.forEach((hash, values) -> immutable.put(hash, values.toArray()));
                 mutable.clear();
                 return new Index(Map.copyOf(immutable), indexedMusic);
@@ -567,6 +587,13 @@ public final class AudioFingerprintEngine {
     private static final class LongList {
         private long[] values = new long[16];
         private int size;
+
+        private LongList(long[] initial) {
+            if (initial != null && initial.length > 0) {
+                values = Arrays.copyOf(initial, Math.max(16, initial.length));
+                size = initial.length;
+            }
+        }
 
         private int size() {
             return size;

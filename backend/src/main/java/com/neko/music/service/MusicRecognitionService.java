@@ -286,13 +286,22 @@ public final class MusicRecognitionService implements AutoCloseable {
             return refreshed;
         }
 
-        Optional<IndexSnapshot> persisted = fullIndexCache.load(catalogEntries);
-        if (persisted.isPresent()) {
-            IndexSnapshot snapshot = persisted.get();
+        IndexSnapshot incrementalBase = currentIndex;
+        if (incrementalBase == null) {
+            incrementalBase = fullIndexCache.load().orElse(null);
+        }
+        if (incrementalBase != null && incrementalBase.catalogEntries.equals(catalogEntries)) {
             logger.info("已从持久化文件恢复曲库声纹索引: indexedMusic={}, uniqueHashes={}, elapsedMs={}",
-                    snapshot.index.musicCount(), snapshot.index.uniqueHashCount(),
+                    incrementalBase.index.musicCount(), incrementalBase.index.uniqueHashCount(),
                     System.currentTimeMillis() - started);
-            return snapshot;
+            return incrementalBase;
+        }
+        if (incrementalBase != null && isAppendOnlyCatalog(incrementalBase.catalogEntries, catalogEntries)) {
+            IndexSnapshot incremental = buildIncrementalIndex(
+                    incrementalBase, catalogTracks, audioFiles, catalogEntries, started);
+            if (incremental != null) {
+                return incremental;
+            }
         }
 
         Map<Integer, Track> indexedTracks = new LinkedHashMap<>();
@@ -420,6 +429,128 @@ public final class MusicRecognitionService implements AutoCloseable {
                 config.getMusicRecognitionIndexBuildThreads(),
                 System.currentTimeMillis() - started);
         return snapshot;
+    }
+
+    private IndexSnapshot buildIncrementalIndex(
+            IndexSnapshot base,
+            List<Track> catalogTracks,
+            Map<Integer, Path> audioFiles,
+            List<CatalogEntry> catalogEntries,
+            long started) throws Exception {
+        Set<Integer> baseIds = new HashSet<>();
+        base.catalogEntries.forEach(entry -> baseIds.add(entry.track.id()));
+        List<Track> addedTracks = catalogTracks.stream()
+                .filter(track -> !baseIds.contains(track.id()))
+                .toList();
+        if (addedTracks.isEmpty()) {
+            return null;
+        }
+
+        logger.info("检测到仅新增歌曲，开始增量构建声纹索引: added={}, baseIndexed={}, baseHashes={}",
+                addedTracks.size(), base.index.musicCount(), base.index.uniqueHashCount());
+        AudioFingerprintEngine.Index.Builder indexBuilder =
+                AudioFingerprintEngine.Index.builder(base.index);
+        Map<Integer, Track> indexedTracks = new LinkedHashMap<>(base.tracks);
+        ExecutorCompletionService<FingerprintBuildResult> completion =
+                new ExecutorCompletionService<>(fingerprintExecutor);
+        Set<Future<FingerprintBuildResult>> pendingTasks = ConcurrentHashMap.newKeySet();
+        int cacheHits = 0;
+        int generated = 0;
+        int failed = 0;
+        Exception lastFailure = null;
+
+        for (Track track : addedTracks) {
+            Path audio = audioFiles.get(track.id());
+            if (audio == null) {
+                continue;
+            }
+            try {
+                Optional<AudioFingerprintEngine.Fingerprint> cached = diskCache.load(track.id(), audio);
+                if (cached.isPresent()) {
+                    cacheHits++;
+                    addFingerprint(track, audio, cached.get(), indexBuilder, indexedTracks);
+                } else {
+                    pendingTasks.add(completion.submit(() -> generateFingerprint(track, audio)));
+                }
+            } catch (Exception e) {
+                failed++;
+                lastFailure = e;
+                logger.warn("读取新增歌曲声纹失败，已跳过 musicId={} path={}: {}",
+                        track.id(), audio, safeMessage(e));
+            }
+        }
+
+        logger.info("增量声纹缓存扫描完成: added={}, cacheHits={}, pending={}, workers={}",
+                addedTracks.size(), cacheHits, pendingTasks.size(),
+                config.getMusicRecognitionIndexBuildThreads());
+        int pendingCount = pendingTasks.size();
+        int progressStep = Math.max(1, (pendingCount + 9) / 10);
+        long progressStarted = System.currentTimeMillis();
+        try {
+            for (int completed = 0; completed < pendingCount;) {
+                Future<FingerprintBuildResult> task = completion.poll(30, TimeUnit.SECONDS);
+                if (task == null) {
+                    logger.info("增量声纹索引进度心跳: completed={}/{}, cacheHits={}, generated={}, failed={}, elapsedMs={}",
+                            completed, pendingCount, cacheHits, generated, failed,
+                            System.currentTimeMillis() - progressStarted);
+                    continue;
+                }
+                completed++;
+                pendingTasks.remove(task);
+                FingerprintBuildResult result = task.get();
+                if (result.failure() == null) {
+                    generated++;
+                    addFingerprint(result.track(), result.audio(), result.fingerprint(),
+                            indexBuilder, indexedTracks);
+                } else {
+                    failed++;
+                    lastFailure = result.failure();
+                    logger.warn("生成新增歌曲声纹失败，已跳过 musicId={} path={}: {}",
+                            result.track().id(), result.audio(), safeMessage(result.failure()));
+                }
+                if (completed == pendingCount || pendingCount < 10 || completed % progressStep == 0) {
+                    logger.info("增量声纹索引进度: completed={}/{}, cacheHits={}, generated={}, failed={}",
+                            completed, pendingCount, cacheHits, generated, failed);
+                }
+            }
+        } catch (InterruptedException e) {
+            pendingTasks.forEach(task -> task.cancel(true));
+            Thread.currentThread().interrupt();
+            throw new IOException("增量曲库声纹索引构建被中断", e);
+        } catch (ExecutionException e) {
+            pendingTasks.forEach(task -> task.cancel(true));
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            throw new IOException("增量曲库声纹并行任务异常: " + safeMessage(cause), cause);
+        }
+        pendingTasks.clear();
+        AudioFingerprintEngine.Index index = indexBuilder.build();
+        IndexSnapshot snapshot = new IndexSnapshot(
+                index, Map.copyOf(indexedTracks), catalogEntries, System.currentTimeMillis());
+        try {
+            fullIndexCache.save(snapshot);
+        } catch (IOException e) {
+            logger.warn("持久化增量曲库声纹总索引失败，本次仍使用内存索引: {}", safeMessage(e));
+        }
+        logger.info("增量曲库声纹索引构建完成: indexedMusic={}, uniqueHashes={}, cacheHits={}, generated={}, failed={}, elapsedMs={}",
+                index.musicCount(), index.uniqueHashCount(), cacheHits, generated, failed,
+                System.currentTimeMillis() - started);
+        return snapshot;
+    }
+
+    private static boolean isAppendOnlyCatalog(
+            List<CatalogEntry> baseCatalog,
+            List<CatalogEntry> currentCatalog) {
+        if (currentCatalog.size() <= baseCatalog.size()) {
+            return false;
+        }
+        Map<Integer, CatalogEntry> currentById = new HashMap<>(currentCatalog.size());
+        currentCatalog.forEach(entry -> currentById.put(entry.track.id(), entry));
+        for (CatalogEntry oldEntry : baseCatalog) {
+            if (!oldEntry.equals(currentById.get(oldEntry.track.id()))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private FingerprintBuildResult generateFingerprint(Track track, Path audio) {
@@ -677,6 +808,14 @@ public final class MusicRecognitionService implements AutoCloseable {
         }
 
         Optional<IndexSnapshot> load(List<CatalogEntry> currentCatalog) {
+            Optional<IndexSnapshot> snapshot = load();
+            if (snapshot.isEmpty() || !snapshot.get().catalogEntries.equals(currentCatalog)) {
+                return Optional.empty();
+            }
+            return snapshot;
+        }
+
+        Optional<IndexSnapshot> load() {
             if (!Files.isRegularFile(file)) {
                 return Optional.empty();
             }
@@ -689,17 +828,13 @@ public final class MusicRecognitionService implements AutoCloseable {
                 }
 
                 int catalogCount = readCount(input, MAX_TRACKS, "catalog tracks");
-                if (catalogCount != currentCatalog.size()) {
-                    return Optional.empty();
-                }
+                List<CatalogEntry> storedCatalog = new ArrayList<>(catalogCount);
                 for (int i = 0; i < catalogCount; i++) {
-                    if (!readCatalogEntry(input).equals(currentCatalog.get(i))) {
-                        return Optional.empty();
-                    }
+                    storedCatalog.add(readCatalogEntry(input));
                 }
 
-                Map<Integer, Track> currentTracks = new HashMap<>(currentCatalog.size());
-                currentCatalog.forEach(entry -> currentTracks.put(entry.track.id(), entry.track));
+                Map<Integer, Track> currentTracks = new HashMap<>(storedCatalog.size());
+                storedCatalog.forEach(entry -> currentTracks.put(entry.track.id(), entry.track));
                 int indexedCount = readCount(input, MAX_TRACKS, "indexed tracks");
                 Map<Integer, Track> indexedTracks = new LinkedHashMap<>(indexedCount);
                 Set<Integer> indexedIds = new HashSet<>(indexedCount);
@@ -740,7 +875,7 @@ public final class MusicRecognitionService implements AutoCloseable {
                 }
                 AudioFingerprintEngine.Index index = AudioFingerprintEngine.Index.restore(postings, indexedCount);
                 return Optional.of(new IndexSnapshot(
-                        index, Map.copyOf(indexedTracks), List.copyOf(currentCatalog), System.currentTimeMillis()));
+                        index, Map.copyOf(indexedTracks), List.copyOf(storedCatalog), System.currentTimeMillis()));
             } catch (Exception e) {
                 logger.warn("读取持久化曲库声纹总索引失败，将从单曲缓存重建: file={} error={}",
                         file, safeMessage(e));

@@ -42,6 +42,21 @@ class AudioFingerprintEngineTest {
     }
 
     @Test
+    void incrementalBuilderRetainsBaseTracksAndAddsNewTrack() {
+        AudioFingerprintEngine engine = new AudioFingerprintEngine();
+        AudioFingerprintEngine.Fingerprint first = engine.fingerprint(waveform(8, 0));
+        AudioFingerprintEngine.Fingerprint second = engine.fingerprint(waveform(8, 1));
+        AudioFingerprintEngine.Index base = AudioFingerprintEngine.Index.build(Map.of(1, first));
+
+        AudioFingerprintEngine.Index.Builder builder = AudioFingerprintEngine.Index.builder(base);
+        builder.add(2, second);
+        AudioFingerprintEngine.Index incremental = builder.build();
+
+        assertEquals(2, incremental.musicCount());
+        assertTrue(incremental.uniqueHashCount() >= base.uniqueHashCount());
+    }
+
+    @Test
     void producesStableFingerprintsWhenSharedAcrossWorkerThreads() throws Exception {
         AudioFingerprintEngine engine = new AudioFingerprintEngine();
         short[] track = waveform(6, 0);
