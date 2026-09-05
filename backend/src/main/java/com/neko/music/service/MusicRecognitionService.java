@@ -326,9 +326,24 @@ public final class MusicRecognitionService implements AutoCloseable {
         logger.info("曲库声纹单曲缓存扫描完成: audioFiles={}, cacheHits={}, pending={}, workers={}",
                 audioFileCount, cacheHits, pendingCount, config.getMusicRecognitionIndexBuildThreads());
         int progressStep = Math.max(1, (pendingCount + 9) / 10);
+        long progressStarted = System.currentTimeMillis();
         try {
-            for (int completed = 1; completed <= pendingCount; completed++) {
-                Future<FingerprintBuildResult> completedTask = completion.take();
+            for (int completed = 0; completed < pendingCount;) {
+                Future<FingerprintBuildResult> completedTask = completion.poll(30, TimeUnit.SECONDS);
+                if (completedTask == null) {
+                    long elapsedSeconds = Math.max(1L,
+                            (System.currentTimeMillis() - progressStarted) / 1_000L);
+                    int processed = cacheHits + completed;
+                    long rate = completed == 0 ? 0L : completed * 1_000L / elapsedSeconds;
+                    long etaSeconds = rate == 0L ? -1L : (pendingCount - completed + rate - 1L) / rate;
+                    logger.info("曲库声纹索引进度心跳: processed={}/{}, percent={}%, cacheHits={}, generated={}, failed={}, pending={}, elapsed={}s, eta={}s",
+                            processed, audioFileCount,
+                            audioFileCount == 0 ? 100 : processed * 100 / audioFileCount,
+                            cacheHits, generated, failed, pendingCount - completed,
+                            elapsedSeconds, etaSeconds < 0 ? "未知" : etaSeconds);
+                    continue;
+                }
+                completed++;
                 // Do not retain completed FutureTask results for the entire
                 // catalog; each result can contain hundreds of landmark objects.
                 pendingTasks.remove(completedTask);
@@ -344,9 +359,17 @@ public final class MusicRecognitionService implements AutoCloseable {
                     logger.warn("生成歌曲声纹失败，已跳过 musicId={} path={}: {}",
                             result.track().id(), result.audio(), safeMessage(result.failure()));
                 }
-                if (completed == pendingCount || (pendingCount >= 10 && completed % progressStep == 0)) {
-                    logger.info("曲库声纹生成进度: completed={}/{}, succeeded={}, failed={}",
-                            completed, pendingCount, generated, failed);
+                if (completed == pendingCount || pendingCount < 10 || completed % progressStep == 0) {
+                    long elapsedSeconds = Math.max(1L,
+                            (System.currentTimeMillis() - progressStarted) / 1_000L);
+                    int processed = cacheHits + completed;
+                    long rate = completed * 1_000L / elapsedSeconds;
+                    long etaSeconds = rate == 0L ? 0L : (pendingCount - completed + rate - 1L) / rate;
+                    logger.info("曲库声纹索引进度: processed={}/{}, percent={}%, cacheHits={}, generated={}, failed={}, pending={}, elapsed={}s, eta={}s",
+                            processed, audioFileCount,
+                            audioFileCount == 0 ? 100 : processed * 100 / audioFileCount,
+                            cacheHits, generated, failed, pendingCount - completed,
+                            elapsedSeconds, etaSeconds);
                 }
             }
         } catch (InterruptedException e) {
