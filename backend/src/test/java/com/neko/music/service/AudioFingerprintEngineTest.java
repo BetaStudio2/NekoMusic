@@ -3,7 +3,12 @@ package com.neko.music.service;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -34,6 +39,30 @@ class AudioFingerprintEngineTest {
         AudioFingerprintEngine.Index index = AudioFingerprintEngine.Index.build(new HashMap<>(Map.of(1, fp, 2, fp)));
         assertEquals(2, index.musicCount());
         assertTrue(index.uniqueHashCount() > 0);
+    }
+
+    @Test
+    void producesStableFingerprintsWhenSharedAcrossWorkerThreads() throws Exception {
+        AudioFingerprintEngine engine = new AudioFingerprintEngine();
+        short[] track = waveform(6, 0);
+        AudioFingerprintEngine.Fingerprint expected = engine.fingerprint(track);
+        ExecutorService workers = Executors.newFixedThreadPool(4);
+        try {
+            List<Callable<AudioFingerprintEngine.Fingerprint>> tasks = List.of(
+                    () -> engine.fingerprint(track),
+                    () -> engine.fingerprint(track),
+                    () -> engine.fingerprint(track),
+                    () -> engine.fingerprint(track),
+                    () -> engine.fingerprint(track),
+                    () -> engine.fingerprint(track),
+                    () -> engine.fingerprint(track),
+                    () -> engine.fingerprint(track));
+            for (Future<AudioFingerprintEngine.Fingerprint> result : workers.invokeAll(tasks)) {
+                assertEquals(expected, result.get());
+            }
+        } finally {
+            workers.shutdownNow();
+        }
     }
 
     private static short[] waveform(int seconds, int variant) {

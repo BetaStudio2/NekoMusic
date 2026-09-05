@@ -33,12 +33,15 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Builds and queries the self-hosted music library's acoustic fingerprint index.
@@ -53,6 +56,7 @@ public final class MusicRecognitionService implements AutoCloseable {
     private final FingerprintDiskCache diskCache;
     private final FullIndexDiskCache fullIndexCache;
     private final ExecutorService indexExecutor;
+    private final ExecutorService fingerprintExecutor;
     private final Semaphore querySlots;
     private final Object buildLock = new Object();
 
@@ -86,6 +90,16 @@ public final class MusicRecognitionService implements AutoCloseable {
             thread.setDaemon(true);
             return thread;
         });
+        AtomicInteger workerNumber = new AtomicInteger();
+        this.fingerprintExecutor = Executors.newFixedThreadPool(
+                config.getMusicRecognitionIndexBuildThreads(),
+                runnable -> {
+                    Thread thread = new Thread(
+                            runnable,
+                            "music-fingerprint-worker-" + workerNumber.incrementAndGet());
+                    thread.setDaemon(true);
+                    return thread;
+                });
     }
 
     /** Starts loading or building the persistent library index before the first recognition request. */
@@ -260,9 +274,11 @@ public final class MusicRecognitionService implements AutoCloseable {
         Map<Integer, Track> indexedTracks = new LinkedHashMap<>();
         Map<Integer, AudioFingerprintEngine.Fingerprint> fingerprints = new HashMap<>();
         int cacheHits = 0;
-        int generated = 0;
         int audioFileCount = 0;
         Exception lastFailure = null;
+        ExecutorCompletionService<FingerprintBuildResult> completion =
+                new ExecutorCompletionService<>(fingerprintExecutor);
+        List<Future<FingerprintBuildResult>> pendingTasks = new ArrayList<>();
 
         logger.info("开始构建曲库声纹索引，数据库歌曲数={}", catalogTracks.size());
         for (Track track : catalogTracks) {
@@ -278,24 +294,50 @@ public final class MusicRecognitionService implements AutoCloseable {
                     fingerprint = cached.get();
                     cacheHits++;
                 } else {
-                    fingerprint = decoder.decode(
-                            audio,
-                            config.getMusicRecognitionIndexMaxTrackDurationSeconds(),
-                            Duration.ofSeconds(config.getMusicRecognitionIndexFfmpegTimeoutSeconds()));
-                    diskCache.save(track.id(), audio, fingerprint);
-                    generated++;
+                    pendingTasks.add(completion.submit(() -> generateFingerprint(track, audio)));
+                    continue;
                 }
-                if (!fingerprint.landmarks().isEmpty()) {
-                    fingerprints.put(track.id(), fingerprint);
-                    indexedTracks.put(track.id(), track);
-                } else {
-                    logger.warn("歌曲无法生成有效声纹，已跳过 musicId={} path={}", track.id(), audio);
-                }
+                addFingerprint(track, audio, fingerprint, fingerprints, indexedTracks);
             } catch (Exception e) {
                 lastFailure = e;
                 logger.warn("生成歌曲声纹失败，已跳过 musicId={} path={}: {}",
                         track.id(), audio, safeMessage(e));
             }
+        }
+
+        int pendingCount = pendingTasks.size();
+        int generated = 0;
+        int failed = 0;
+        logger.info("曲库声纹单曲缓存扫描完成: audioFiles={}, cacheHits={}, pending={}, workers={}",
+                audioFileCount, cacheHits, pendingCount, config.getMusicRecognitionIndexBuildThreads());
+        int progressStep = Math.max(1, (pendingCount + 9) / 10);
+        try {
+            for (int completed = 1; completed <= pendingCount; completed++) {
+                FingerprintBuildResult result = completion.take().get();
+                if (result.failure() == null) {
+                    generated++;
+                    addFingerprint(
+                            result.track(), result.audio(), result.fingerprint(),
+                            fingerprints, indexedTracks);
+                } else {
+                    failed++;
+                    lastFailure = result.failure();
+                    logger.warn("生成歌曲声纹失败，已跳过 musicId={} path={}: {}",
+                            result.track().id(), result.audio(), safeMessage(result.failure()));
+                }
+                if (completed == pendingCount || (pendingCount >= 10 && completed % progressStep == 0)) {
+                    logger.info("曲库声纹生成进度: completed={}/{}, succeeded={}, failed={}",
+                            completed, pendingCount, generated, failed);
+                }
+            }
+        } catch (InterruptedException e) {
+            pendingTasks.forEach(task -> task.cancel(true));
+            Thread.currentThread().interrupt();
+            throw new IOException("曲库声纹索引构建被中断", e);
+        } catch (ExecutionException e) {
+            pendingTasks.forEach(task -> task.cancel(true));
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            throw new IOException("曲库声纹并行任务异常: " + safeMessage(cause), cause);
         }
         if (audioFileCount > 0 && fingerprints.isEmpty() && lastFailure != null) {
             throw new IOException("没有任何曲库音频成功生成声纹", lastFailure);
@@ -310,10 +352,38 @@ public final class MusicRecognitionService implements AutoCloseable {
         } catch (IOException e) {
             logger.warn("持久化曲库声纹总索引失败，本次仍使用内存索引: {}", safeMessage(e));
         }
-        logger.info("曲库声纹索引构建完成: indexedMusic={}, uniqueHashes={}, cacheHits={}, generated={}, elapsedMs={}",
-                index.musicCount(), index.uniqueHashCount(), cacheHits, generated,
+        logger.info("曲库声纹索引构建完成: indexedMusic={}, uniqueHashes={}, cacheHits={}, generated={}, failed={}, workers={}, elapsedMs={}",
+                index.musicCount(), index.uniqueHashCount(), cacheHits, generated, failed,
+                config.getMusicRecognitionIndexBuildThreads(),
                 System.currentTimeMillis() - started);
         return snapshot;
+    }
+
+    private FingerprintBuildResult generateFingerprint(Track track, Path audio) {
+        try {
+            AudioFingerprintEngine.Fingerprint fingerprint = decoder.decode(
+                    audio,
+                    config.getMusicRecognitionIndexMaxTrackDurationSeconds(),
+                    Duration.ofSeconds(config.getMusicRecognitionIndexFfmpegTimeoutSeconds()));
+            diskCache.save(track.id(), audio, fingerprint);
+            return new FingerprintBuildResult(track, audio, fingerprint, null);
+        } catch (Exception e) {
+            return new FingerprintBuildResult(track, audio, null, e);
+        }
+    }
+
+    private static void addFingerprint(
+            Track track,
+            Path audio,
+            AudioFingerprintEngine.Fingerprint fingerprint,
+            Map<Integer, AudioFingerprintEngine.Fingerprint> fingerprints,
+            Map<Integer, Track> indexedTracks) {
+        if (fingerprint.landmarks().isEmpty()) {
+            logger.warn("歌曲无法生成有效声纹，已跳过 musicId={} path={}", track.id(), audio);
+            return;
+        }
+        fingerprints.put(track.id(), fingerprint);
+        indexedTracks.put(track.id(), track);
     }
 
     private static List<CatalogEntry> describeCatalog(
@@ -334,6 +404,7 @@ public final class MusicRecognitionService implements AutoCloseable {
     @Override
     public void close() {
         indexExecutor.shutdownNow();
+        fingerprintExecutor.shutdownNow();
     }
 
     public record Track(
@@ -376,6 +447,13 @@ public final class MusicRecognitionService implements AutoCloseable {
     }
 
     record CatalogEntry(Track track, AudioAsset audio) {
+    }
+
+    private record FingerprintBuildResult(
+            Track track,
+            Path audio,
+            AudioFingerprintEngine.Fingerprint fingerprint,
+            Exception failure) {
     }
 
     record IndexSnapshot(

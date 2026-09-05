@@ -130,6 +130,8 @@ public class ConfigManager {
     private int musicRecognitionMinSampleDurationSeconds = 3;
     private int musicRecognitionMaxSampleDurationSeconds = 20;
     private int musicRecognitionIndexMaxTrackDurationSeconds = 900;
+    private int musicRecognitionIndexBuildThreads = Math.max(1,
+            Math.min(4, Runtime.getRuntime().availableProcessors()));
     private int musicRecognitionMinimumMatchingLandmarks = 6;
     private double musicRecognitionMinimumConfidence = 0.08d;
     private int musicRecognitionRateLimitPerMinute = 12;
@@ -411,6 +413,9 @@ public class ConfigManager {
                     if (recognitionNode.has("index_max_track_duration_seconds")) {
                         musicRecognitionIndexMaxTrackDurationSeconds = recognitionNode.get("index_max_track_duration_seconds").asInt();
                     }
+                    if (recognitionNode.has("index_build_threads")) {
+                        musicRecognitionIndexBuildThreads = recognitionNode.get("index_build_threads").asInt();
+                    }
                     if (recognitionNode.has("minimum_matching_landmarks")) {
                         musicRecognitionMinimumMatchingLandmarks = recognitionNode.get("minimum_matching_landmarks").asInt();
                     }
@@ -467,10 +472,11 @@ public class ConfigManager {
             logger.info("  推荐 AI(OpenAI): enabled={}, baseUrl={}, model={}, apiKeyConfigured={}, dailyLimit={}, fallbackToRule={}",
                     recommendationAiEnabled, recommendationAiBaseUrl, recommendationAiModel,
                     !recommendationAiApiKey.isEmpty(), recommendationAiDailyLimit, recommendationAiFallbackToRule);
-            logger.info("  听歌识曲: enabled={}, maxUploadBytes={}, sampleDuration={}..{}s, rateLimit={}/min, maxConcurrent={}",
+            logger.info("  听歌识曲: enabled={}, maxUploadBytes={}, sampleDuration={}..{}s, rateLimit={}/min, maxConcurrent={}, indexBuildThreads={}",
                     musicRecognitionEnabled, musicRecognitionMaxUploadBytes,
                     musicRecognitionMinSampleDurationSeconds, musicRecognitionMaxSampleDurationSeconds,
-                    musicRecognitionRateLimitPerMinute, musicRecognitionMaxConcurrentRequests);
+                    musicRecognitionRateLimitPerMinute, musicRecognitionMaxConcurrentRequests,
+                    musicRecognitionIndexBuildThreads);
         } catch (Exception e) {
             logger.error("加载配置时出错", e);
             clampPerformanceConfig();
@@ -519,6 +525,7 @@ public class ConfigManager {
                 Math.min(120, musicRecognitionMaxSampleDurationSeconds));
         musicRecognitionIndexMaxTrackDurationSeconds = Math.max(musicRecognitionMaxSampleDurationSeconds,
                 Math.min(3_600, musicRecognitionIndexMaxTrackDurationSeconds));
+        musicRecognitionIndexBuildThreads = Math.max(1, Math.min(16, musicRecognitionIndexBuildThreads));
         musicRecognitionMinimumMatchingLandmarks = Math.max(2,
                 Math.min(100, musicRecognitionMinimumMatchingLandmarks));
         musicRecognitionMinimumConfidence = Math.max(0.01d,
@@ -920,6 +927,7 @@ public class ConfigManager {
     public int getMusicRecognitionMinSampleDurationSeconds() { return musicRecognitionMinSampleDurationSeconds; }
     public int getMusicRecognitionMaxSampleDurationSeconds() { return musicRecognitionMaxSampleDurationSeconds; }
     public int getMusicRecognitionIndexMaxTrackDurationSeconds() { return musicRecognitionIndexMaxTrackDurationSeconds; }
+    public int getMusicRecognitionIndexBuildThreads() { return musicRecognitionIndexBuildThreads; }
     public int getMusicRecognitionMinimumMatchingLandmarks() { return musicRecognitionMinimumMatchingLandmarks; }
     public double getMusicRecognitionMinimumConfidence() { return musicRecognitionMinimumConfidence; }
     public int getMusicRecognitionRateLimitPerMinute() { return musicRecognitionRateLimitPerMinute; }

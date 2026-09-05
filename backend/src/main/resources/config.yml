@@ -306,6 +306,8 @@ music_recognition:
   min_sample_duration_seconds: 3
   max_sample_duration_seconds: 20
   index_max_track_duration_seconds: 900
+  # 首次构建或新增歌曲时并行生成声纹；建议按 CPU 和内存调整，允许 1~16
+  index_build_threads: 8
   minimum_matching_landmarks: 6
   minimum_confidence: 0.08
   rate_limit_per_minute: 12
