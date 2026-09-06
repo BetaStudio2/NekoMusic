@@ -40,6 +40,7 @@ import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import com.neko.music.filter.CorsFilter;
 import com.neko.music.filter.IPRateLimitFilter;
 import com.neko.music.util.ClientReleaseStorage;
+import com.neko.music.util.SiteResourceStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -117,6 +118,13 @@ public class Main {
             logger.info("客户端安装包目录: {}", ClientReleaseStorage.storageDir().toAbsolutePath());
         } catch (Exception e) {
             logger.warn("创建客户端安装包目录失败: {}", e.getMessage());
+        }
+
+        try {
+            SiteResourceStorage.ensureStorageDir();
+            logger.info("前端站点目录: {}", SiteResourceStorage.storageDir());
+        } catch (Exception e) {
+            logger.warn("创建前端站点目录失败: {}", e.getMessage());
         }
         
         // 初始化数据库管理器
@@ -218,6 +226,10 @@ public class Main {
         // IP 限流需在嵌入式 Jetty 中显式注册（@WebFilter 不会生效）
         context.addFilter(IPRateLimitFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
         addCorsFilter(context);
+
+        // 前端静态资源与 Vue History 路由回退；更具体的 API/页面映射会优先匹配。
+        ServletHolder siteResourceHolder = new ServletHolder(new SiteResourceHandler());
+        context.addServlet(siteResourceHolder, "/");
         
         // 注册搜索音乐API处理器
         ServletHolder searchHolder = new ServletHolder(new MusicSearchHandler());
