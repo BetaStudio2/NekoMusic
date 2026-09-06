@@ -230,26 +230,10 @@
                             <goal>exec</goal>
                         </goals>
                         <configuration>
-                            <executable>npm</executable>
-                            <workingDirectory>${project.basedir}/../frontend</workingDirectory>
+                            <executable>bash</executable>
+                            <workingDirectory>${project.basedir}</workingDirectory>
                             <arguments>
-                                <argument>ci</argument>
-                            </arguments>
-                        </configuration>
-                    </execution>
-
-                    <execution>
-                        <id>build-frontend-vite</id>
-                        <phase>generate-resources</phase>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                        <configuration>
-                            <executable>npm</executable>
-                            <workingDirectory>${project.basedir}/../frontend</workingDirectory>
-                            <arguments>
-                                <argument>run</argument>
-                                <argument>build</argument>
+                                <argument>${project.basedir}/scripts/build-frontend.sh</argument>
                             </arguments>
                         </configuration>
                     </execution>
