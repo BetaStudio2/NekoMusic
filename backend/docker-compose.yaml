@@ -1,0 +1,33 @@
+services:
+  neko-music:
+    container_name: NekoMusic
+
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    restart: on-failure:5
+
+    network_mode: host
+
+    gpus: all
+
+    environment:
+      LANG: zh_CN.UTF-8
+      LANGUAGE: zh_CN:zh
+      LC_ALL: zh_CN.UTF-8
+
+    volumes:
+      # config.yml must be created from src/main/resources/config.yml before startup.
+      - type: bind
+        source: ./config.yml
+        target: /app/config.yml
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./Music
+        target: /app/Music
+      - type: bind
+        source: ./releases
+        target: /app/releases

@@ -25,6 +25,9 @@ buildNumber.properties
 ### Backend specific ###
 backend/target/
 backend/lib/
+config.yml
+Music/
+releases/
 Music/.fingerprints/
 !.mvn/wrapper/maven-wrapper.jar
 

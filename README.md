@@ -4,6 +4,34 @@
 
 在线音乐平台（Web / Android / PC）。完整 API 说明见 [Neko歌姬计划文档/README.md](Neko歌姬计划文档/README.md)。
 
+
+## Docker 部署（后端）
+
+后端 Docker 配置位于 `backend/`，默认监听 `65535` 端口。当前 Compose 使用 `network_mode: host` 和 `gpus: all`，适用于安装了 NVIDIA Container Toolkit 的 Linux 主机；非 Linux 或无 NVIDIA GPU 环境请改用 CPU 渲染（见下方说明）。
+
+首次部署：
+
+```bash
+cd backend
+cp src/main/resources/config.yml config.yml
+# 编辑 config.yml，至少填写 mysql、redis、jwt.secret 等生产配置，并修改默认 Redis 密码
+mkdir -p Music/music Music/covers releases
+docker compose build
+docker compose up -d
+docker compose logs -f neko-music
+```
+
+检查服务：
+
+```bash
+curl -fsS http://127.0.0.1:65535/version.json
+```
+
+音乐文件、封面、声纹索引和客户端发布包分别持久化在 `backend/Music/` 与 `backend/releases/`；配置文件为 `backend/config.yml`，不要把包含密码和密钥的配置提交到 Git。升级代码后执行 `docker compose build --pull && docker compose up -d`。
+
+默认配置使用 `video_render.pipeline: cuda_native`，需要 NVIDIA GPU、驱动和容器工具包，并要求 FFmpeg 具备 NVENC/CUDA。没有 GPU 时，将 `video_render.pipeline` 改为 `cpu_legacy`，将 `video_render.video_codec` 改为 `libx264`，并从 `backend/docker-compose.yaml` 删除 `gpus: all`；在 Docker Desktop 上还需将 `network_mode: host` 改为 `ports: ["65535:65535"]`，并按实际地址修改 MySQL/Redis 的 host。
+
+
 ## 本地听歌识曲（后端）
 
 后端提供 `POST /api/music/recognize`，接收 `multipart/form-data` 的 `audio` 字段。服务端使用本地 FFmpeg 将录音转换为 PCM，并用本站 `Music/music/{id}.*` 曲库建立声纹索引；不会调用第三方识曲 API，也不会把音频转发到外部服务。服务启动时会主动预热索引；单曲声纹及可直接恢复的全曲库倒排索引持久化在 `Music/.fingerprints/`，音频或曲库元数据变更后会在后台重建并原子切换，重建期间继续使用上一份可用索引。
