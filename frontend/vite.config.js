@@ -16,6 +16,8 @@ export default defineConfig(({ command }) => ({
     },
   },
   build: {
+    // 构建输出
+    outDir: '../backend/src/main/resources/site',
     // 生产环境构建优化
     minify: 'terser',
     terserOptions: {

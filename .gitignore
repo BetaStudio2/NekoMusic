@@ -132,3 +132,6 @@ pc/dist/*
 pc/dist
 pc/node_modules
 pc/package-lock.json
+
+### 构建
+backend/src/main/resources/site
