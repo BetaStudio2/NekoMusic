@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# 禁止爬取管理后台
+Disallow: /admin/
+Disallow: /api/
+
+Disallow: /search
+
+# 网站地图
+Sitemap: https://music.cnmsb.xin/sitemap.xml

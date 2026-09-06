@@ -134,7 +134,9 @@ pc/node_modules
 pc/package-lock.json
 
 ### 构建
-backend/src/main/resources/site
+backend/src/main/resources/site/index.html
+backend/src/main/resources/site/assets
+backend/src/main/resources/site/icons
 
 ### 运行时释放的前端站点
 /site/
