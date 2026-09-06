@@ -414,9 +414,9 @@ public class EmailService {
         
         // 替换模板变量
         String content = reviewTemplate
-            .replace("{{musicName}}", musicName)
-            .replace("{{artistName}}", artistName)
-            .replace("{{rejectReason}}", rejectReason)
+            .replace("{{musicName}}", escapeHtml(musicName))
+            .replace("{{artistName}}", escapeHtml(artistName))
+            .replace("{{rejectReason}}", escapeHtml(rejectReason))
             .replace("{{auditDate}}", auditDate);
         
         // 如果有拒绝原因则显示，否则隐藏
@@ -442,9 +442,9 @@ public class EmailService {
         String auditDate = now.format(formatter);
         
         // 替换模板变量
-        String content = reviewTemplate
-            .replace("{{musicName}}", musicName)
-            .replace("{{artistName}}", artistName)
+        String content = reviewApprovedTemplate
+            .replace("{{musicName}}", escapeHtml(musicName))
+            .replace("{{artistName}}", escapeHtml(artistName))
             .replace("{{auditDate}}", auditDate);
 
         String subject = "NekoMusic - 审核结果通知";
