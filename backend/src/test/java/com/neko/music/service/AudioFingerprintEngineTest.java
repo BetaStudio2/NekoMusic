@@ -33,6 +33,17 @@ class AudioFingerprintEngineTest {
     }
 
     @Test
+    void acceptsShortQueryWithScaledMinimumMatchCount() {
+        AudioFingerprintEngine engine = new AudioFingerprintEngine();
+        short[] track = waveform(18, 0);
+        AudioFingerprintEngine.Fingerprint trackFingerprint = engine.fingerprint(track);
+        AudioFingerprintEngine.Index index = AudioFingerprintEngine.Index.build(Map.of(11, trackFingerprint));
+
+        AudioFingerprintEngine.Fingerprint query = engine.fingerprint(slice(track, 7, 3));
+        assertTrue(index.findBest(query, 6, 0.05).isPresent());
+    }
+
+    @Test
     void indexDeduplicatesLandmarksPerTrack() {
         AudioFingerprintEngine engine = new AudioFingerprintEngine();
         AudioFingerprintEngine.Fingerprint fp = engine.fingerprint(waveform(8, 0));

@@ -560,8 +560,8 @@ public final class MusicRecognitionService implements AutoCloseable {
                     config.getMusicRecognitionIndexMaxTrackDurationSeconds(),
                     Duration.ofSeconds(config.getMusicRecognitionIndexFfmpegTimeoutSeconds()));
             // Keep the on-disk cache and completion queue bounded as well as the
-            // final inverted index. Long tracks can otherwise retain tens of
-            // thousands of Landmark objects per worker.
+            // final inverted index. The denser cap improves recall for short
+            // clips taken from long tracks while remaining bounded per worker.
             AudioFingerprintEngine.Fingerprint bounded = limitLandmarks(fingerprint);
             diskCache.save(track.id(), audio, bounded);
             return new FingerprintBuildResult(track, audio, bounded, null);
@@ -586,9 +586,9 @@ public final class MusicRecognitionService implements AutoCloseable {
 
     private static AudioFingerprintEngine.Fingerprint limitLandmarks(
             AudioFingerprintEngine.Fingerprint fingerprint) {
-        // 256 landmarks per track are enough for 3-20 second recognition
-        // queries while keeping a 30k-track catalog within a modest heap.
-        final int maxLandmarks = 256;
+        // 512 landmarks per track provide better coverage for 3-20 second
+        // recognition queries while keeping a large catalog bounded.
+        final int maxLandmarks = 512;
         List<AudioFingerprintEngine.Landmark> landmarks = fingerprint.landmarks();
         if (landmarks.size() <= maxLandmarks) {
             return fingerprint;

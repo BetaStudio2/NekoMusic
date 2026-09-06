@@ -23,17 +23,16 @@ public final class AudioFingerprintEngine {
     public static final int SAMPLE_RATE = 11_025;
     public static final int FFT_SIZE = 2_048;
     public static final int HOP_SIZE = 1_024;
-    // Bumped after introducing bounded landmark/index storage so older,
-    // potentially multi-gigabyte persistent indexes are never loaded.
-    public static final int ALGORITHM_VERSION = 2;
+    // Bumped after increasing landmark density for better short-clip recall.
+    public static final int ALGORITHM_VERSION = 3;
 
     private static final int TEMPORAL_RADIUS = 2;
     private static final int FREQUENCY_QUANTIZATION_BINS = 4;
     private static final double MIN_FRAME_RMS = 0.000_01d;
     private static final int MAX_VOTE_COMPARISONS = 2_000_000;
     /** Bounds the in-memory inverted index for very long tracks and large libraries. */
-    private static final int MAX_INDEX_POSTINGS_PER_HASH = 4_096;
-    private static final long MAX_INDEX_TOTAL_POSTINGS = 8_000_000L;
+    private static final int MAX_INDEX_POSTINGS_PER_HASH = 8_192;
+    private static final long MAX_INDEX_TOTAL_POSTINGS = 16_000_000L;
     private static final int[][] TARGET_WINDOWS = {
             {1, 4}, {5, 9}, {10, 17}, {18, 30}
     };
@@ -492,10 +491,14 @@ public final class AudioFingerprintEngine {
             Map.Entry<Integer, VotePeak> best = ranked.getFirst();
             int runnerUp = ranked.size() > 1 ? ranked.get(1).getValue().votes : 0;
             double confidence = Math.min(1d, best.getValue().votes / (double) query.landmarks().size());
+            int effectiveMinimum = Math.min(
+                    minimumAlignedLandmarks,
+                    Math.max(3, (query.landmarks().size() + 4) / 5));
             boolean sufficientlyDistinct = runnerUp == 0
-                    || best.getValue().votes >= runnerUp + 3
-                    || best.getValue().votes >= Math.ceil(runnerUp * 1.15d);
-            if (best.getValue().votes < minimumAlignedLandmarks
+                    || best.getValue().votes >= runnerUp + (query.landmarks().size() < 20 ? 1 : 3)
+                    || best.getValue().votes >= Math.ceil(runnerUp
+                    * (query.landmarks().size() < 20 ? 1.10d : 1.15d));
+            if (best.getValue().votes < effectiveMinimum
                     || confidence < minimumConfidence
                     || !sufficientlyDistinct) {
                 return Optional.empty();
