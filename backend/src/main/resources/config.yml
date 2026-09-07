@@ -252,13 +252,11 @@ storage:
 # 单曲搜索网易云补全（本地无结果时）
 # =============================================
 # 仅在 POST /api/music/search 本地曲库返回 0 条时触发：
-# 调用 NeteaseCloudMusicApi 搜索 → 下载到临时目录 → 走管理员入库校验与落盘。
+# 后端直接请求网易云官方接口搜索 → 下载到临时目录 → 走管理员入库校验与落盘。
 netease_search_fill:
   # 是否启用（false 时行为与原来一致）
   enabled: true
-  # NeteaseCloudMusicApi 根地址，无尾斜杠，如 http://172.18.0.2:3000
-  api_base_url: "http://127.0.0.1:3000"
-  # 可选：请求头 Cookie（Hi-Res/无损需有效网易云登录态；留空则使用 API 服务端默认 cookie）
+  # 可选：网易云 Cookie（Hi-Res/无损需有效登录态；留空则以游客态请求）
   cookie: ""
   # 优先下载音质（与 /song/url/v1 的 level 一致）；若无该档则自动降档直至可用
   quality: "hires"

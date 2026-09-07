@@ -91,6 +91,7 @@ public class Main {
     private static VideoRenderService videoRenderService;
     private static SliderCaptchaService sliderCaptchaService;
     private static AdminMusicIngestService adminMusicIngestService;
+    private static NeteaseCloudMusicClient neteaseCloudMusicClient;
     private static NeteaseSearchFillService neteaseSearchFillService;
     private static AppReleaseService appReleaseService;
     private static DailyRecommendationService dailyRecommendationService;
@@ -171,9 +172,10 @@ public class Main {
         sliderCaptchaService = new SliderCaptchaService();
 
         adminMusicIngestService = new AdminMusicIngestService();
+        neteaseCloudMusicClient = new NeteaseCloudMusicClient(configManager, objectMapper);
         neteaseSearchFillService = new NeteaseSearchFillService(
                 configManager,
-                new NeteaseCloudMusicClient(configManager, objectMapper),
+                neteaseCloudMusicClient,
                 adminMusicIngestService,
                 redisService);
         Runtime.getRuntime().addShutdownHook(new Thread(neteaseSearchFillService::shutdown, "netease-fill-shutdown"));
@@ -442,6 +444,10 @@ public class Main {
         ServletHolder qqMusicSongListDetailHolder = new ServletHolder(new QQMusicSongListDetailHandler());
         context.addServlet(qqMusicSongListDetailHolder, "/loser1/getSongListDetail");
 
+        // 网易云常用只读接口（兼容 NeteaseCloudMusicApi 路径）
+        ServletHolder neteaseCloudMusicHolder = new ServletHolder(new NeteaseCloudMusicHandler());
+        context.addServlet(neteaseCloudMusicHolder, "/loser/*");
+
         // 注册搜索歌单API处理器（无需登录）
         ServletHolder searchPlaylistsHolder = new ServletHolder(new SearchPlaylistsHandler());
         context.addServlet(searchPlaylistsHolder, "/api/playlists/search");
@@ -567,6 +573,10 @@ public class Main {
 
     public static NeteaseSearchFillService getNeteaseSearchFillService() {
         return neteaseSearchFillService;
+    }
+
+    public static NeteaseCloudMusicClient getNeteaseCloudMusicClient() {
+        return neteaseCloudMusicClient;
     }
 
     public static AppReleaseService getAppReleaseService() {

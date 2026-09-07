@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * 本地单曲搜索无结果时：从 NeteaseCloudMusicApi 拉取一首匹配曲并走管理员入库流程。
+ * 本地单曲搜索无结果时：从网易云官方接口拉取一首匹配曲并走管理员入库流程。
  */
 public class NeteaseSearchFillService {
     private static final Logger logger = LoggerFactory.getLogger(NeteaseSearchFillService.class);
@@ -119,11 +119,6 @@ public class NeteaseSearchFillService {
         if (!RuntimeDiskGuard.hasSufficientSpaceForMusicWrites()) {
             return new FillAttempt(Optional.empty(), FillReason.LOW_DISK_SPACE);
         }
-        if (config.getNeteaseApiBaseUrl().isBlank()) {
-            logger.warn("netease_search_fill 已启用但 api_base_url 为空");
-            return new FillAttempt(Optional.empty(), FillReason.ERROR);
-        }
-
         String lockKey = canonicalIngestLockKey(trimmedTitle, trimmedArtist);
         ReentrantLock localLock = QUERY_LOCKS.computeIfAbsent(lockKey, k -> new ReentrantLock());
 

@@ -86,9 +86,8 @@ public class ConfigManager {
     /** 成片与 ASS 在 /tmp/.neko 中的保留小时数，到期自动删除 */
     private int videoRenderArtifactRetentionHours = 3;
 
-    /** 单曲搜索无本地结果时，通过 NeteaseCloudMusicApi 补全入库 */
+    /** 单曲搜索无本地结果时，通过网易云官方接口补全入库 */
     private boolean neteaseSearchFillEnabled = false;
-    private String neteaseApiBaseUrl = "http://127.0.0.1:3000";
     private String neteaseCookie = "";
     private String neteaseQuality = "hires";
     /** 空或 auto 表示按歌曲元数据自动推断 */
@@ -327,9 +326,6 @@ public class ConfigManager {
                     if (neteaseFillNode.has("enabled")) {
                         neteaseSearchFillEnabled = neteaseFillNode.get("enabled").asBoolean();
                     }
-                    if (neteaseFillNode.has("api_base_url")) {
-                        neteaseApiBaseUrl = neteaseFillNode.get("api_base_url").asText(neteaseApiBaseUrl).trim();
-                    }
                     if (neteaseFillNode.has("cookie")) {
                         neteaseCookie = neteaseFillNode.get("cookie").asText("").trim();
                     }
@@ -464,8 +460,8 @@ public class ConfigManager {
                     videoRenderEnabled, videoRenderPipeline, videoRenderFfmpegPath, videoRenderPreferBundledFfmpeg,
                     videoRenderVideoCodec, videoRenderNonVipMaxDurationSec, videoRenderNonVipDailyLimit);
             logger.info("  存储保护: minFreeGb={}（不足时禁止音乐上传与网易云补全）", storageMinFreeGb);
-            logger.info("  网易云搜索补全: enabled={}, apiBaseUrl={}, quality={}, maxParallelFills={}, cookieConfigured={}",
-                    neteaseSearchFillEnabled, neteaseApiBaseUrl, neteaseQuality,
+            logger.info("  网易云搜索补全: enabled={}, quality={}, maxParallelFills={}, cookieConfigured={}",
+                    neteaseSearchFillEnabled, neteaseQuality,
                     neteaseMaxParallelFills, !neteaseCookie.isEmpty());
             logger.info("  ZPay 支付: enabled={}, pidConfigured={}, publicBaseUrlConfigured={}",
                     zpayEnabled, !zpayPid.isEmpty(), !zpayPublicBaseUrl.isEmpty());
@@ -497,9 +493,6 @@ public class ConfigManager {
         storageMinFreeGb = Math.max(1, Math.min(1024, storageMinFreeGb));
         neteaseHttpTimeoutSeconds = Math.max(5, Math.min(300, neteaseHttpTimeoutSeconds));
         neteaseMaxParallelFills = Math.max(1, Math.min(10, neteaseMaxParallelFills));
-        if (neteaseApiBaseUrl == null || neteaseApiBaseUrl.isBlank()) {
-            neteaseApiBaseUrl = "http://127.0.0.1:3000";
-        }
         if (neteaseQuality == null || neteaseQuality.isBlank()) {
             neteaseQuality = "hires";
         }
@@ -804,10 +797,6 @@ public class ConfigManager {
 
     public boolean isNeteaseSearchFillEnabled() {
         return neteaseSearchFillEnabled;
-    }
-
-    public String getNeteaseApiBaseUrl() {
-        return trimTrailingSlash(neteaseApiBaseUrl);
     }
 
     public String getNeteaseCookie() {
