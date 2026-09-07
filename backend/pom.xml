@@ -179,7 +179,7 @@
         <dependency>
             <groupId>com.github.houbb</groupId>
             <artifactId>sensitive-word</artifactId>
-            <version>0.21.0</version>
+            <version>0.29.5</version>
         </dependency>
 
         <!-- APK 解析：上传安装包时校验包名、版本与签名证书 -->
