@@ -438,6 +438,10 @@ public class Main {
         ServletHolder getPlaylistDetailHolder = new ServletHolder(new GetPlaylistDetailHandler());
         context.addServlet(getPlaylistDetailHolder, "/api/playlist/*");
 
+        // QQ 音乐歌单详情代理（兼容 qq-music-api-next 的接口路径）
+        ServletHolder qqMusicSongListDetailHolder = new ServletHolder(new QQMusicSongListDetailHandler());
+        context.addServlet(qqMusicSongListDetailHolder, "/loser1/getSongListDetail");
+
         // 注册搜索歌单API处理器（无需登录）
         ServletHolder searchPlaylistsHolder = new ServletHolder(new SearchPlaylistsHandler());
         context.addServlet(searchPlaylistsHolder, "/api/playlists/search");
