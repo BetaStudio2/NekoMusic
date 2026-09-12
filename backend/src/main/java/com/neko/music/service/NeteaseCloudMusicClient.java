@@ -13,6 +13,7 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -193,14 +194,42 @@ public class NeteaseCloudMusicClient {
         return postApi("/api/v6/playlist/detail", Map.of("id", playlistId, "n", 100000, "s", 8));
     }
 
+    /** 下载进度回调：totalBytes 为 -1 表示上游未返回 Content-Length。 */
+    @FunctionalInterface
+    public interface DownloadProgressListener {
+        void onProgress(long bytesRead, long totalBytes);
+    }
+
     public void downloadToFile(String url, Path destination) throws IOException {
+        downloadToFile(url, destination, null);
+    }
+
+    public void downloadToFile(String url, Path destination, DownloadProgressListener listener) throws IOException {
         HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url))
                 .timeout(Duration.ofSeconds(config.getNeteaseHttpTimeoutSeconds())).header("User-Agent", userAgent()).GET().build();
         try {
             HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
             if (response.statusCode() != 200) throw new IOException("下载失败 HTTP " + response.statusCode());
+            long totalBytes = response.headers().firstValueAsLong("Content-Length").orElse(-1L);
             Path parent = destination.getParent(); if (parent != null) Files.createDirectories(parent);
-            try (InputStream in = response.body()) { Files.copy(in, destination); }
+            try (InputStream in = response.body();
+                 OutputStream out = Files.newOutputStream(destination)) {
+                byte[] buffer = new byte[64 * 1024];
+                long bytesRead = 0;
+                long lastReported = 0;
+                int read;
+                while ((read = in.read(buffer)) != -1) {
+                    out.write(buffer, 0, read);
+                    bytesRead += read;
+                    if (listener != null && (bytesRead - lastReported >= 512 * 1024 || bytesRead == totalBytes)) {
+                        lastReported = bytesRead;
+                        listener.onProgress(bytesRead, totalBytes);
+                    }
+                }
+                if (listener != null && lastReported != bytesRead) {
+                    listener.onProgress(bytesRead, totalBytes);
+                }
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt(); throw new IOException("下载被中断", e);
         }

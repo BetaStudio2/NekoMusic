@@ -3,6 +3,7 @@ package com.neko.music.handlers;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
 import com.neko.music.service.NeteaseCloudMusicClient;
+import com.neko.music.util.RequestAuthUtil;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -11,7 +12,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 兼容 NeteaseCloudMusicApi 常用只读接口的后端入口。 */
+/**
+ * 兼容 NeteaseCloudMusicApi 常用只读接口的后端入口，挂载在 {@code /loser/netease/*}。
+ *
+ * <p>所有请求都需要携带有效的用户令牌（后端使用服务端网易云 Cookie 取数据，不对匿名开放）。</p>
+ */
 public class NeteaseCloudMusicHandler extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -19,6 +24,11 @@ public class NeteaseCloudMusicHandler extends HttpServlet {
         response.setHeader("Access-Control-Allow-Origin", "*");
         response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
         response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+        if (RequestAuthUtil.authenticate(request) == null) {
+            writeError(response, HttpServletResponse.SC_UNAUTHORIZED, "缺少或无效的用户令牌");
+            return;
+        }
 
         String path = request.getPathInfo();
         if (path == null || path.isBlank() || "/".equals(path)) {

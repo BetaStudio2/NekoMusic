@@ -30,6 +30,8 @@ import com.neko.music.service.AdminMusicIngestService;
 import com.neko.music.service.NeteaseCloudMusicClient;
 import com.neko.music.service.AppReleaseService;
 import com.neko.music.service.NeteaseSearchFillService;
+import com.neko.music.service.ExternalImportService;
+import com.neko.music.service.QQMusicClient;
 import com.neko.music.service.MusicRecognitionService;
 import com.neko.music.service.VideoRenderService;
 import org.eclipse.jetty.server.Server;
@@ -93,6 +95,8 @@ public class Main {
     private static AdminMusicIngestService adminMusicIngestService;
     private static NeteaseCloudMusicClient neteaseCloudMusicClient;
     private static NeteaseSearchFillService neteaseSearchFillService;
+    private static ExternalImportService externalImportService;
+    private static QQMusicClient qqMusicClient;
     private static AppReleaseService appReleaseService;
     private static DailyRecommendationService dailyRecommendationService;
     private static LyricsSearchIndex lyricsSearchIndex;
@@ -179,6 +183,7 @@ public class Main {
                 adminMusicIngestService,
                 redisService);
         Runtime.getRuntime().addShutdownHook(new Thread(neteaseSearchFillService::shutdown, "netease-fill-shutdown"));
+        qqMusicClient = new QQMusicClient(objectMapper);
         dailyRecommendationService = new DailyRecommendationService(
                 databaseManager, redisService, configManager, objectMapper);
         startDailyRecommendationScheduler();
@@ -192,6 +197,13 @@ public class Main {
 
         // 初始化歌单服务
         playlistService = new PlaylistService(databaseManager);
+        externalImportService = new ExternalImportService(
+                neteaseCloudMusicClient,
+                neteaseSearchFillService,
+                adminMusicIngestService,
+                playlistService,
+                qqMusicClient);
+        Runtime.getRuntime().addShutdownHook(new Thread(externalImportService::shutdown, "external-import-shutdown"));
         
         // 初始化通知服务
         notificationService = new NotificationService(configManager);
@@ -440,13 +452,20 @@ public class Main {
         ServletHolder getPlaylistDetailHolder = new ServletHolder(new GetPlaylistDetailHandler());
         context.addServlet(getPlaylistDetailHolder, "/api/playlist/*");
 
-        // QQ 音乐歌单详情代理（兼容 qq-music-api-next 的接口路径）
+        // 外部音乐接口统一挂在 /loser 下：QQ 为 /loser/qq/*，网易云为 /loser/netease/*
+        // QQ 音乐歌单详情代理（兼容 qq-music-api-next 的 getSongListDetail 响应）
         ServletHolder qqMusicSongListDetailHolder = new ServletHolder(new QQMusicSongListDetailHandler());
-        context.addServlet(qqMusicSongListDetailHolder, "/loser1/getSongListDetail");
+        context.addServlet(qqMusicSongListDetailHolder, "/loser/qq/getSongListDetail");
 
-        // 网易云常用只读接口（兼容 NeteaseCloudMusicApi 路径）
+        // QQ / 网易云歌单导入并加入指定歌单（SSE 进度），需要用户令牌
+        ServletHolder neteaseImportHolder = new ServletHolder(new ExternalImportHandler());
+        context.addServlet(neteaseImportHolder, "/loser/netease/pull");
+        ServletHolder qqImportHolder = new ServletHolder(new ExternalImportHandler());
+        context.addServlet(qqImportHolder, "/loser/qq/pull");
+
+        // 网易云常用只读接口（兼容 NeteaseCloudMusicApi 路径），需要用户令牌
         ServletHolder neteaseCloudMusicHolder = new ServletHolder(new NeteaseCloudMusicHandler());
-        context.addServlet(neteaseCloudMusicHolder, "/loser/*");
+        context.addServlet(neteaseCloudMusicHolder, "/loser/netease/*");
 
         // 注册搜索歌单API处理器（无需登录）
         ServletHolder searchPlaylistsHolder = new ServletHolder(new SearchPlaylistsHandler());
@@ -573,6 +592,14 @@ public class Main {
 
     public static NeteaseSearchFillService getNeteaseSearchFillService() {
         return neteaseSearchFillService;
+    }
+
+    public static ExternalImportService getExternalImportService() {
+        return externalImportService;
+    }
+
+    public static QQMusicClient getQQMusicClient() {
+        return qqMusicClient;
     }
 
     public static NeteaseCloudMusicClient getNeteaseCloudMusicClient() {

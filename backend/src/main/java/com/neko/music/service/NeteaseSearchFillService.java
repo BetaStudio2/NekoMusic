@@ -190,6 +190,89 @@ public class NeteaseSearchFillService {
         return attempts;
     }
 
+    /** 直接按网易云歌曲 ID 下载入库的结果（不经过站内搜索匹配）。 */
+    public record ExactIngest(
+            long neteaseSongId,
+            String title,
+            String artist,
+            String album,
+            Optional<AdminMusicIngestService.IngestedMusic> music,
+            boolean alreadyExisted,
+            FillReason reason
+    ) {
+        public boolean success() {
+            return music.isPresent();
+        }
+    }
+
+    /**
+     * 按网易云歌曲 ID 直接下载并入库：元数据与音频直链全部取自网易云，
+     * 不对站内曲库做搜索匹配（歌单导入使用）。同一 songId 并发调用会串行化。
+     *
+     * @param uploadUserId     入库归属用户，null 时回退到配置的补全专用账号
+     * @param progressListener 下载进度回调，可为 null
+     */
+    public ExactIngest ingestExactFromNetease(
+            long songId,
+            Integer uploadUserId,
+            NeteaseCloudMusicClient.DownloadProgressListener progressListener
+    ) {
+        NeteaseCloudMusicClient.SongDetail detail;
+        try {
+            detail = neteaseClient.fetchSongDetail(songId).orElse(null);
+        } catch (IOException e) {
+            logger.warn("获取网易云歌曲详情失败 songId={}: {}", songId, e.getMessage());
+            return new ExactIngest(songId, "", "", "", Optional.empty(), false, FillReason.ERROR);
+        }
+        if (detail == null) {
+            logger.info("网易云歌曲不存在 songId={}", songId);
+            return new ExactIngest(songId, "", "", "", Optional.empty(), false, FillReason.NOT_FOUND);
+        }
+        String title = pickNonEmpty(detail.title(), "");
+        String artist = pickNonEmpty(detail.artist(), "");
+        String album = pickNonEmpty(detail.album(), "未知专辑");
+
+        if (!config.isNeteaseSearchFillEnabled()) {
+            logger.warn("网易云下载入库未启用（netease_search_fill.enabled=false）songId={}", songId);
+            return new ExactIngest(songId, title, artist, album, Optional.empty(), false, FillReason.NOT_FOUND);
+        }
+        if (!RuntimeDiskGuard.hasSufficientSpaceForMusicWrites()) {
+            return new ExactIngest(songId, title, artist, album, Optional.empty(), false, FillReason.LOW_DISK_SPACE);
+        }
+
+        Path workDir = null;
+        ReentrantLock songLock = NETEASE_SONG_LOCKS.computeIfAbsent(songId, k -> new ReentrantLock());
+        songLock.lock();
+        try {
+            Optional<AdminMusicIngestService.IngestedMusic> existing =
+                    ingestService.findExistingDuplicate(title, artist, album);
+            if (existing.isPresent()) {
+                return new ExactIngest(songId, title, artist, album, existing, true, FillReason.NONE);
+            }
+
+            RuntimeDiskGuard.logStorageForOperation(
+                    "网易云歌单导入", "songId=" + songId + ", title=" + title);
+            workDir = Files.createTempDirectory("neko-netease-import-");
+            NeteaseCloudMusicClient.NeteaseSongCandidate candidate =
+                    new NeteaseCloudMusicClient.NeteaseSongCandidate(songId, title, artist, album);
+            Optional<AdminMusicIngestService.IngestedMusic> ingested =
+                    downloadAndIngestUnderLock(candidate, workDir, songId, uploadUserId, progressListener);
+            if (ingested.isPresent()) {
+                return new ExactIngest(songId, title, artist, album, ingested, false, FillReason.NONE);
+            }
+            boolean loggedIn = neteaseClient.isLoggedIn();
+            return new ExactIngest(songId, title, artist, album, Optional.empty(), false, failReason(loggedIn).reason());
+        } catch (Exception e) {
+            logger.error("网易云歌曲下载入库失败 songId={} title={}", songId, title, e);
+            return new ExactIngest(songId, title, artist, album, Optional.empty(), false, FillReason.ERROR);
+        } finally {
+            songLock.unlock();
+            if (workDir != null) {
+                deleteRecursively(workDir);
+            }
+        }
+    }
+
     public void shutdown() {
         batchFillExecutor.shutdown();
         try {
@@ -376,7 +459,7 @@ public class NeteaseSearchFillService {
         ReentrantLock songLock = NETEASE_SONG_LOCKS.computeIfAbsent(songId, k -> new ReentrantLock());
         songLock.lock();
         try {
-            return downloadAndIngestUnderLock(candidate, workDir, songId);
+            return downloadAndIngestUnderLock(candidate, workDir, songId, null, null);
         } finally {
             songLock.unlock();
         }
@@ -385,7 +468,9 @@ public class NeteaseSearchFillService {
     private Optional<AdminMusicIngestService.IngestedMusic> downloadAndIngestUnderLock(
             NeteaseCloudMusicClient.NeteaseSongCandidate candidate,
             Path workDir,
-            long songId
+            long songId,
+            Integer uploadUserIdOverride,
+            NeteaseCloudMusicClient.DownloadProgressListener progressListener
     ) throws IOException, SQLException {
         NeteaseCloudMusicClient.SongDetail detail = neteaseClient.fetchSongDetail(songId)
                 .orElse(new NeteaseCloudMusicClient.SongDetail(
@@ -419,7 +504,7 @@ public class NeteaseSearchFillService {
 
         String audioExt = normalizeAudioExt(playUrl.type());
         Path audioTemp = workDir.resolve("audio." + audioExt);
-        neteaseClient.downloadToFile(playUrl.url(), audioTemp);
+        neteaseClient.downloadToFile(playUrl.url(), audioTemp, progressListener);
 
         LyricsPrepareResult lyricsPrep = prepareLyricsFile(workDir, songId, title, artist);
 
@@ -442,6 +527,9 @@ public class NeteaseSearchFillService {
         String language = resolveLanguage(title, artist, album, lyricsPrep.lyricsPath());
         logger.info("网易云补全语种: title={} language={}", title, language);
 
+        Integer effectiveUploadUserId = uploadUserIdOverride != null
+                ? uploadUserIdOverride
+                : config.getNeteaseFillUploadUserId();
         Optional<AdminMusicIngestService.IngestedMusic> ingested = ingestService.ingestFromTempFiles(
                 audioTemp,
                 coverTemp,
@@ -452,7 +540,7 @@ public class NeteaseSearchFillService {
                 language,
                 "",
                 durationSec,
-                config.getNeteaseFillUploadUserId()
+                effectiveUploadUserId
         );
         Optional<AdminMusicIngestService.IngestedMusic> result = ingested.isPresent()
                 ? ingested
