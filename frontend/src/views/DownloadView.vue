@@ -229,7 +229,7 @@ const year = new Date().getFullYear()
 
 const fetchVersionInfo = async () => {
   try {
-    const response = await axios.get(`${API_CONFIG.BASE_URL}/version.json`, {
+    const response = await axios.get(`${API_CONFIG.BASE_URL}/version`, {
       timeout: 5000
     })
     versionInfo.value = response.data
@@ -241,7 +241,7 @@ const fetchVersionInfo = async () => {
   }
 }
 
-// version.json 可能由反向代理后的后端生成 http 链接；下载必须沿用当前 API 请求的协议。
+// /version 可能由反向代理后的后端生成 http 链接；下载必须沿用当前 API 请求的协议。
 const getRequestProtocol = () => {
   if (typeof window === 'undefined') return 'http:'
   try {

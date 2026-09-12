@@ -94,7 +94,7 @@ public class AdminClientReleaseHandler extends HttpServlet {
         String message = state.get().hasPending()
                 ? "版本号已保存，将于 "
                 + formatEffectiveAt(state.get().pendingEffectiveAt())
-                + " 起在 version.json 对外生效（"
+                + " 起在 /version 对外生效（"
                 + AppReleaseService.VERSION_JSON_DELAY_MINUTES
                 + " 分钟内仍为旧版本）"
                 : "版本号已更新并立即对外生效";

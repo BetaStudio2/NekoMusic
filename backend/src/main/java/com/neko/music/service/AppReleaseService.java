@@ -13,11 +13,11 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Optional;
 
-/** 客户端发布版本：对外 version.json 延迟生效，预留安装包上传时间 */
+/** 客户端发布版本：对外 /version 延迟生效，预留安装包上传时间 */
 public class AppReleaseService {
     private static final Logger logger = LoggerFactory.getLogger(AppReleaseService.class);
     private static final ZoneId CN_ZONE = ZoneId.of("Asia/Shanghai");
-    /** version.json 在保存新版本号后延迟生效的分钟数 */
+    /** /version 在保存新版本号后延迟生效的分钟数 */
     public static final int VERSION_JSON_DELAY_MINUTES = 30;
 
     public record AppRelease(String androidVer, String pcVer) {}
@@ -39,7 +39,7 @@ public class AppReleaseService {
         }
     }
 
-    /** 供 /version.json：始终返回当前已对外生效的版本（必要时自动 promote 到期 pending） */
+    /** 供 /version：始终返回当前已对外生效的版本（必要时自动 promote 到期 pending） */
     public Optional<AppRelease> getPublishedReleaseForClients() {
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             promotePendingIfDue(conn);

@@ -19,11 +19,11 @@
         <div class="admin-subpage">
           <h2>客户端更新</h2>
           <p>
-            保存版本号后，<strong>version.json 仍对外返回旧版本 30 分钟</strong>，便于上传新安装包；上传目标文件名为待生效版本。
+            保存版本号后，<strong>/version 仍对外返回旧版本 30 分钟</strong>，便于上传新安装包；上传目标文件名为待生效版本。
           </p>
 
           <section v-if="publishedAndroidVer || publishedPcVer" class="card card-muted">
-            <h3>当前对外（version.json）</h3>
+            <h3>当前对外（/version）</h3>
             <p class="published-line">Android：<code>{{ publishedAndroidVer }}</code></p>
             <p class="published-line">PC：<code>{{ publishedPcVer }}</code></p>
           </section>
@@ -31,7 +31,7 @@
           <section class="card">
             <h3>待发布版本号</h3>
             <p v-if="pendingEffectiveAt" class="schedule-hint">
-              保存后将于 <strong>{{ pendingEffectiveAt }}</strong> 起在 version.json 生效
+              保存后将于 <strong>{{ pendingEffectiveAt }}</strong> 起在 /version 生效
             </p>
             <div class="form-row">
               <label>Android 版本 (ver)</label>
@@ -186,7 +186,7 @@ const saveVersions = async () => {
     const data = await saveAdminClientReleaseVersions({ androidVer: av, pcVer: pv })
     applyReleaseData(data)
     toast.success(data.pendingEffectiveAt
-      ? `已排期，version.json 将于 ${data.pendingEffectiveAt} 生效`
+      ? `已排期，/version 将于 ${data.pendingEffectiveAt} 生效`
       : '版本号已保存并立即对外生效')
   } catch (e) {
     toast.error(e.message || '保存失败')

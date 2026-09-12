@@ -23,7 +23,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Optional;
 
-/** 管理员上传客户端安装包（按平台校验类型，落盘为 version.json 预期文件名） */
+/** 管理员上传客户端安装包（按平台校验类型，落盘为 /version 接口预期的文件名） */
 public class AdminClientReleaseUploadHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(AdminClientReleaseUploadHandler.class);
 

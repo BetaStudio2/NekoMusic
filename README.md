@@ -24,7 +24,7 @@ docker compose logs -f neko-music
 检查服务：
 
 ```bash
-curl -fsS http://127.0.0.1:65535/version.json
+curl -fsS http://127.0.0.1:65535/version
 ```
 
 音乐文件、封面、声纹索引和客户端发布包分别持久化在 `backend/Music/` 与 `backend/releases/`；配置文件为 `backend/config.yml`，不要把包含密码和密钥的配置提交到 Git。升级代码后执行 `docker compose build --pull && docker compose up -d`。

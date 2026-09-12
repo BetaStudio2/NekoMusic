@@ -58,6 +58,6 @@ public class VersionJsonHandler extends HttpServlet {
         // 延迟生效窗口内可能切换版本，缩短缓存避免 CDN/浏览器长时间返回旧 JSON
         response.setHeader("Cache-Control", "public, max-age=60, must-revalidate");
         response.getWriter().write(Main.getObjectMapper().writeValueAsString(root));
-        logger.debug("version.json ver={} pc_ver={}", r.androidVer(), pcVer);
+        logger.debug("/version ver={} pc_ver={}", r.androidVer(), pcVer);
     }
 }

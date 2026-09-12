@@ -329,8 +329,8 @@ public class Main {
         ServletHolder sitemapHolder = new ServletHolder(new SitemapHandler());
         context.addServlet(sitemapHolder, "/sitemap.xml");
 
-        ServletHolder versionJsonHolder = new ServletHolder(new VersionJsonHandler());
-        context.addServlet(versionJsonHolder, "/version.json");
+        ServletHolder versionHolder = new ServletHolder(new VersionJsonHandler());
+        context.addServlet(versionHolder, "/version");
 
         ServletHolder clientReleaseDownloadHolder = new ServletHolder(new ClientReleaseDownloadHandler());
         context.addServlet(clientReleaseDownloadHolder, "/update/*");
