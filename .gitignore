@@ -137,6 +137,7 @@ pc/package-lock.json
 backend/src/main/resources/site/index.html
 backend/src/main/resources/site/assets
 backend/src/main/resources/site/icons
+backend/src/main/resources/site/logo.svg
 
 ### 运行时释放的前端站点
 /site/
