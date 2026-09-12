@@ -11,9 +11,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * 外部歌单导入：把 QQ / 网易云歌单的曲目入库并加入用户指定的歌单，SSE 进度由上层推送。
@@ -34,6 +37,12 @@ public class ExternalImportService {
     public static final String STATUS_EXISTED = "existed";
     public static final String STATUS_FAILED = "failed";
 
+    /** 曲目级并发数：单曲耗时主要在下载，并行处理可显著缩短整个歌单的导入时间。 */
+    private static final int TRACK_CONCURRENCY = 4;
+
+    /** 每个站内歌单一把锁，串行化「加入歌单」的 position 位移，避免并发插入冲突。 */
+    private static final ConcurrentHashMap<Integer, ReentrantLock> PLAYLIST_LOCKS = new ConcurrentHashMap<>();
+
     private final NeteaseCloudMusicClient neteaseClient;
     private final NeteaseSearchFillService fillService;
     private final AdminMusicIngestService ingestService;
@@ -41,6 +50,7 @@ public class ExternalImportService {
     private final QQMusicClient qqMusicClient;
 
     private final ExecutorService executor;
+    private final ExecutorService trackExecutor;
 
     public record Track(String sourceId, String title, String artist) {
     }
@@ -52,7 +62,7 @@ public class ExternalImportService {
     public record Summary(int total, int imported, int existed, int failed) {
     }
 
-    /** 导入过程中的事件回调，全部在同一个导入线程内顺序触发。 */
+    /** 导入过程中的事件回调；并发处理时由 {@link SyncListener} 串行触发，实现无需关心线程安全。 */
     public interface Listener {
         void onStart(String source, int total, int targetPlaylistId, boolean targetPlaylistCreated);
 
@@ -88,6 +98,12 @@ public class ExternalImportService {
             thread.setDaemon(true);
             return thread;
         });
+        AtomicInteger trackNo = new AtomicInteger();
+        this.trackExecutor = Executors.newFixedThreadPool(TRACK_CONCURRENCY, r -> {
+            Thread thread = new Thread(r, "external-import-track-" + trackNo.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
+        });
     }
 
     /** 网易云歌单 / 指定歌曲导入。 */
@@ -106,6 +122,7 @@ public class ExternalImportService {
     }
 
     public void shutdown() {
+        trackExecutor.shutdownNow();
         executor.shutdown();
         try {
             if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
@@ -140,25 +157,17 @@ public class ExternalImportService {
             return;
         }
 
-        listener.onStart(SOURCE_NETEASE, tracks.size(), targetPlaylistId, targetPlaylistCreated);
-        int imported = 0;
-        int existed = 0;
-        int failed = 0;
-        for (int index = 0; index < tracks.size(); index++) {
-            if (Thread.currentThread().isInterrupted()) {
-                logger.warn("网易云导入被中断，已处理 {}/{}", index, tracks.size());
-                break;
-            }
-            Track track = tracks.get(index);
-            int currentIndex = index;
-            listener.onTrackStarted(result(SOURCE_NETEASE, currentIndex, tracks.size(), track,
+        final int total = tracks.size();
+        listener.onStart(SOURCE_NETEASE, total, targetPlaylistId, targetPlaylistCreated);
+        executeTracks(SOURCE_NETEASE, tracks, listener, (index, track, trackListener) -> {
+            trackListener.onTrackStarted(result(SOURCE_NETEASE, index, total, track,
                     "downloading", null, false, null));
 
             long songId = Long.parseLong(track.sourceId());
             NeteaseSearchFillService.ExactIngest ingest = fillService.ingestExactFromNetease(
                     songId, userId,
-                    (bytesRead, totalBytes) -> listener.onTrackProgress(
-                            currentIndex, tracks.size(), track.sourceId(), bytesRead, totalBytes));
+                    (bytesRead, totalBytes) -> trackListener.onTrackProgress(
+                            index, total, track.sourceId(), bytesRead, totalBytes));
 
             String title = firstNonBlank(ingest.title(), track.title());
             String artist = firstNonBlank(ingest.artist(), track.artist());
@@ -166,21 +175,13 @@ public class ExternalImportService {
             if (ingest.success()) {
                 boolean existedAlready = ingest.alreadyExisted();
                 boolean added = addToPlaylist(targetPlaylistId, ingest.music().get().id());
-                listener.onTrackFinished(result(SOURCE_NETEASE, currentIndex, tracks.size(), resolved,
+                return result(SOURCE_NETEASE, index, total, resolved,
                         existedAlready ? STATUS_EXISTED : STATUS_IMPORTED,
-                        ingest.music().get().id(), added, null));
-                if (existedAlready) {
-                    existed++;
-                } else {
-                    imported++;
-                }
-            } else {
-                listener.onTrackFinished(result(SOURCE_NETEASE, currentIndex, tracks.size(), resolved,
-                        STATUS_FAILED, null, false, reasonMessage(ingest.reason())));
-                failed++;
+                        ingest.music().get().id(), added, null);
             }
-        }
-        listener.onComplete(new Summary(tracks.size(), imported, existed, failed));
+            return result(SOURCE_NETEASE, index, total, resolved,
+                    STATUS_FAILED, null, false, reasonMessage(ingest.reason()));
+        });
     }
 
     private void runQqImport(String disstid, int targetPlaylistId, boolean targetPlaylistCreated,
@@ -192,42 +193,131 @@ public class ExternalImportService {
             return;
         }
 
-        listener.onStart(SOURCE_QQ, qqTracks.size(), targetPlaylistId, targetPlaylistCreated);
-        int imported = 0;
-        int existed = 0;
-        int failed = 0;
-        for (int index = 0; index < qqTracks.size(); index++) {
-            if (Thread.currentThread().isInterrupted()) {
-                logger.warn("QQ 导入被中断，已处理 {}/{}", index, qqTracks.size());
-                break;
-            }
-            QQMusicClient.QqTrack qqTrack = qqTracks.get(index);
-            Track track = new Track(qqTrack.mid(), qqTrack.title(), qqTrack.artist());
-            listener.onTrackStarted(result(SOURCE_QQ, index, qqTracks.size(), track,
+        final int total = qqTracks.size();
+        List<Track> tracks = new ArrayList<>(total);
+        for (QQMusicClient.QqTrack qqTrack : qqTracks) {
+            tracks.add(new Track(qqTrack.mid(), qqTrack.title(), qqTrack.artist()));
+        }
+        listener.onStart(SOURCE_QQ, total, targetPlaylistId, targetPlaylistCreated);
+        executeTracks(SOURCE_QQ, tracks, listener, (index, track, trackListener) -> {
+            trackListener.onTrackStarted(result(SOURCE_QQ, index, total, track,
                     "matching", null, false, null));
 
             Optional<AdminMusicIngestService.IngestedMusic> matched = matchLocal(track.title(), track.artist());
             if (matched.isPresent()) {
                 boolean added = addToPlaylist(targetPlaylistId, matched.get().id());
-                listener.onTrackFinished(result(SOURCE_QQ, index, qqTracks.size(), track,
-                        STATUS_EXISTED, matched.get().id(), added, null));
-                existed++;
-                continue;
+                return result(SOURCE_QQ, index, total, track,
+                        STATUS_EXISTED, matched.get().id(), added, null);
             }
 
             NeteaseSearchFillService.FillAttempt attempt = fillService.tryFillFromNetease(track.title(), track.artist());
             if (attempt.music().isPresent()) {
                 boolean added = addToPlaylist(targetPlaylistId, attempt.music().get().id());
-                listener.onTrackFinished(result(SOURCE_QQ, index, qqTracks.size(), track,
-                        STATUS_IMPORTED, attempt.music().get().id(), added, null));
-                imported++;
-            } else {
-                listener.onTrackFinished(result(SOURCE_QQ, index, qqTracks.size(), track,
-                        STATUS_FAILED, null, false, fillReasonMessage(attempt.reason())));
-                failed++;
+                return result(SOURCE_QQ, index, total, track,
+                        STATUS_IMPORTED, attempt.music().get().id(), added, null);
+            }
+            return result(SOURCE_QQ, index, total, track,
+                    STATUS_FAILED, null, false, fillReasonMessage(attempt.reason()));
+        });
+    }
+
+    @FunctionalInterface
+    private interface TrackProcessor {
+        /** 处理单首曲目并返回终态结果（status 为 imported / existed / failed）。 */
+        TrackResult process(int index, Track track, Listener listener) throws Exception;
+    }
+
+    /** 并发处理曲目；事件经 SyncListener 串行回调，全部结束后汇总并通知完成。 */
+    private void executeTracks(String source, List<Track> tracks, Listener listener,
+                               TrackProcessor processor) {
+        final int total = tracks.size();
+        Listener syncListener = new SyncListener(listener);
+        AtomicInteger imported = new AtomicInteger();
+        AtomicInteger existed = new AtomicInteger();
+        AtomicInteger failed = new AtomicInteger();
+        CountDownLatch latch = new CountDownLatch(total);
+
+        for (int index = 0; index < total; index++) {
+            final int currentIndex = index;
+            final Track track = tracks.get(index);
+            try {
+                trackExecutor.execute(() -> {
+                    try {
+                        TrackResult result = processor.process(currentIndex, track, syncListener);
+                        if (result != null) {
+                            switch (result.status()) {
+                                case STATUS_IMPORTED -> imported.incrementAndGet();
+                                case STATUS_EXISTED -> existed.incrementAndGet();
+                                default -> failed.incrementAndGet();
+                            }
+                            syncListener.onTrackFinished(result);
+                        }
+                    } catch (Exception e) {
+                        logger.warn("曲目导入失败 title={} artist={}: {}",
+                                track.title(), track.artist(), rootMessage(e));
+                        failed.incrementAndGet();
+                        syncListener.onTrackFinished(result(source, currentIndex, total, track,
+                                STATUS_FAILED, null, false, rootMessage(e)));
+                    } finally {
+                        latch.countDown();
+                    }
+                });
+            } catch (RejectedExecutionException e) {
+                failed.incrementAndGet();
+                latch.countDown();
+                syncListener.onTrackFinished(result(source, currentIndex, total, track,
+                        STATUS_FAILED, null, false, "导入服务已停止"));
             }
         }
-        listener.onComplete(new Summary(qqTracks.size(), imported, existed, failed));
+
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.warn("{} 导入被中断，剩余曲目可能未处理", source);
+        }
+        syncListener.onComplete(new Summary(total, imported.get(), existed.get(), failed.get()));
+    }
+
+    /** 把回调串行化，保证 SSE 事件按顺序、无交错地写出。 */
+    private static final class SyncListener implements Listener {
+        private final Listener delegate;
+
+        SyncListener(Listener delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public synchronized void onStart(String source, int total, int targetPlaylistId,
+                                         boolean targetPlaylistCreated) {
+            delegate.onStart(source, total, targetPlaylistId, targetPlaylistCreated);
+        }
+
+        @Override
+        public synchronized void onTrackStarted(TrackResult result) {
+            delegate.onTrackStarted(result);
+        }
+
+        @Override
+        public synchronized void onTrackProgress(int index, int total, String sourceId,
+                                                 long bytesRead, long totalBytes) {
+            delegate.onTrackProgress(index, total, sourceId, bytesRead, totalBytes);
+        }
+
+        @Override
+        public synchronized void onTrackFinished(TrackResult result) {
+            delegate.onTrackFinished(result);
+        }
+
+        @Override
+        public synchronized void onComplete(Summary summary) {
+            delegate.onComplete(summary);
+        }
+
+        @Override
+        public synchronized void onError(String message) {
+            delegate.onError(message);
+        }
     }
 
     private Optional<AdminMusicIngestService.IngestedMusic> matchLocal(String title, String artist) {
@@ -245,11 +335,15 @@ public class ExternalImportService {
     }
 
     private boolean addToPlaylist(int targetPlaylistId, int musicId) {
+        ReentrantLock lock = PLAYLIST_LOCKS.computeIfAbsent(targetPlaylistId, k -> new ReentrantLock());
+        lock.lock();
         try {
             return playlistService.addMusicToPlaylist(targetPlaylistId, musicId);
         } catch (Exception e) {
             logger.warn("加入歌单失败 playlistId={} musicId={}: {}", targetPlaylistId, musicId, e.getMessage());
             return false;
+        } finally {
+            lock.unlock();
         }
     }
 
