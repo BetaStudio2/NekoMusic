@@ -16,8 +16,9 @@ import java.io.IOException;
 /**
  * QQ 音乐歌单详情代理，挂载在 {@code /loser/qq/getSongListDetail}。
  *
- * <p>请求参数和响应包装与 qq-music-api-next 的 getSongListDetail 保持一致：
- * 上游响应放在 {@code response} 字段中。该接口只返回元数据，不含可下载直链。</p>
+ * <p>响应包装与 qq-music-api-next 的 getSongListDetail 保持一致：歌单数据放在
+ * {@code response} 字段中，结构为 {@code {code, subcode, msg, cdlist[]}}。
+ * 该接口只返回元数据，不含可下载直链。</p>
  */
 public class QQMusicSongListDetailHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(QQMusicSongListDetailHandler.class);
@@ -28,7 +29,7 @@ public class QQMusicSongListDetailHandler extends HttpServlet {
         setJsonHeaders(response);
 
         String disstid = request.getParameter("disstid");
-        if (disstid == null || !disstid.matches("[0-9]{1,32}")) {
+        if (disstid == null || !disstid.matches("[0-9]{1,19}")) {
             writeError(response, HttpServletResponse.SC_BAD_REQUEST,
                     "缺少有效的 disstid（歌单 ID 必须为数字）");
             return;

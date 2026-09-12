@@ -100,7 +100,7 @@ public class ExternalImportHandler extends HttpServlet {
         List<Long> songIds = List.of();
         if (qq) {
             disstid = request.getParameter("disstid");
-            if (disstid == null || !disstid.matches("[0-9]{1,32}")) {
+            if (disstid == null || !disstid.matches("[0-9]{1,19}")) {
                 writeJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
                         "缺少有效的 disstid（QQ 歌单 ID 必须为数字）");
                 return;
