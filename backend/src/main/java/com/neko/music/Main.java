@@ -33,6 +33,7 @@ import com.neko.music.service.AppReleaseService;
 import com.neko.music.service.NeteaseSearchFillService;
 import com.neko.music.service.ExternalImportService;
 import com.neko.music.service.QQMusicClient;
+import com.neko.music.service.KugouMusicClient;
 import com.neko.music.service.MusicRecognitionService;
 import com.neko.music.service.VideoRenderService;
 import org.eclipse.jetty.server.Server;
@@ -99,6 +100,7 @@ public class Main {
     private static NeteaseSearchFillService neteaseSearchFillService;
     private static ExternalImportService externalImportService;
     private static QQMusicClient qqMusicClient;
+    private static KugouMusicClient kugouMusicClient;
     private static AppReleaseService appReleaseService;
     private static DailyRecommendationService dailyRecommendationService;
     private static LyricsSearchIndex lyricsSearchIndex;
@@ -189,6 +191,7 @@ public class Main {
                 redisService);
         Runtime.getRuntime().addShutdownHook(new Thread(neteaseSearchFillService::shutdown, "netease-fill-shutdown"));
         qqMusicClient = new QQMusicClient(objectMapper);
+        kugouMusicClient = new KugouMusicClient(objectMapper);
         dailyRecommendationService = new DailyRecommendationService(
                 databaseManager, redisService, configManager, objectMapper);
         startDailyRecommendationScheduler();
@@ -207,7 +210,8 @@ public class Main {
                 neteaseSearchFillService,
                 adminMusicIngestService,
                 playlistService,
-                qqMusicClient);
+                qqMusicClient,
+                kugouMusicClient);
         Runtime.getRuntime().addShutdownHook(new Thread(externalImportService::shutdown, "external-import-shutdown"));
         
         // 初始化通知服务
@@ -466,11 +470,17 @@ public class Main {
         ServletHolder qqMusicSongListDetailHolder = new ServletHolder(new QQMusicSongListDetailHandler());
         context.addServlet(qqMusicSongListDetailHolder, "/loser/qq/getSongListDetail");
 
-        // QQ / 网易云歌单导入并加入指定歌单（SSE 进度），需要用户令牌
+        // 酷狗音乐歌单详情代理（返回 {response:{code,listid,name,songnum,songlist[]}}）
+        ServletHolder kugouMusicSongListDetailHolder = new ServletHolder(new KugouMusicSongListDetailHandler());
+        context.addServlet(kugouMusicSongListDetailHolder, "/loser/kugou/getSongListDetail");
+
+        // QQ / 网易云 / 酷狗歌单导入并加入指定歌单（SSE 进度），需要用户令牌
         ServletHolder neteaseImportHolder = new ServletHolder(new ExternalImportHandler());
         context.addServlet(neteaseImportHolder, "/loser/netease/pull");
         ServletHolder qqImportHolder = new ServletHolder(new ExternalImportHandler());
         context.addServlet(qqImportHolder, "/loser/qq/pull");
+        ServletHolder kugouImportHolder = new ServletHolder(new ExternalImportHandler());
+        context.addServlet(kugouImportHolder, "/loser/kugou/pull");
 
         // 网易云常用只读接口（兼容 NeteaseCloudMusicApi 路径），需要用户令牌
         ServletHolder neteaseCloudMusicHolder = new ServletHolder(new NeteaseCloudMusicHandler());
@@ -613,6 +623,10 @@ public class Main {
 
     public static QQMusicClient getQQMusicClient() {
         return qqMusicClient;
+    }
+
+    public static KugouMusicClient getKugouMusicClient() {
+        return kugouMusicClient;
     }
 
     public static NeteaseCloudMusicClient getNeteaseCloudMusicClient() {
