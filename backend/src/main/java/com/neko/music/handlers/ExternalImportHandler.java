@@ -22,11 +22,12 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 外部歌单导入（QQ / 网易云），SSE 推送进度，并把命中曲目加入用户指定的歌单。
+ * 外部歌单导入（QQ / 网易云 / 酷狗），SSE 推送进度，并把命中曲目加入用户指定的歌单。
  *
  * <ul>
  *   <li>{@code /loser/netease/pull?playlistId=|ids=&targetPlaylistId=}</li>
  *   <li>{@code /loser/qq/pull?disstid=&targetPlaylistId=}</li>
+ *   <li>{@code /loser/kugou/pull?listid=&targetPlaylistId=}</li>
  * </ul>
  *
  * <p>均需要用户令牌。曲目入库后可用返回的 {@code musicId} 通过
@@ -53,6 +54,7 @@ public class ExternalImportHandler extends HttpServlet {
         }
 
         boolean qq = request.getServletPath() != null && request.getServletPath().endsWith("/qq/pull");
+        boolean kugou = request.getServletPath() != null && request.getServletPath().endsWith("/kugou/pull");
 
         String targetPlaylistIdParam = request.getParameter("targetPlaylistId");
         Integer targetPlaylistId = parseIntParam(targetPlaylistIdParam);
@@ -96,6 +98,7 @@ public class ExternalImportHandler extends HttpServlet {
         }
 
         String disstid = null;
+        String kugouListId = null;
         Long neteasePlaylistId = null;
         List<Long> songIds = List.of();
         if (qq) {
@@ -105,6 +108,14 @@ public class ExternalImportHandler extends HttpServlet {
                         "缺少有效的 disstid（QQ 歌单 ID 必须为数字）");
                 return;
             }
+        } else if (kugou) {
+            kugouListId = request.getParameter("listid");
+            if (kugouListId == null || kugouListId.isBlank() || kugouListId.length() > 255) {
+                writeJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "缺少有效的 listid（酷狗歌单链接或 ID）");
+                return;
+            }
+            kugouListId = kugouListId.trim();
         } else {
             String playlistParam = request.getParameter("playlistId");
             neteasePlaylistId = parseLongParam(playlistParam);
@@ -157,6 +168,8 @@ public class ExternalImportHandler extends HttpServlet {
         ExternalImportService.Listener listener = new SseListener(asyncContext, writer);
         if (qq) {
             importService.startQqImport(disstid, resolvedPlaylistId, playlistCreated, listener);
+        } else if (kugou) {
+            importService.startKugouImport(kugouListId, resolvedPlaylistId, playlistCreated, listener);
         } else {
             importService.startNeteaseImport(neteasePlaylistId, songIds, resolvedPlaylistId, playlistCreated,
                     listener);
