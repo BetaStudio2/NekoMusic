@@ -23,12 +23,12 @@
           <p class="hero__eyebrow">Neko 云音乐</p>
           <h1 id="download-title" class="hero__title">把播放器装进口袋与桌面</h1>
           <p class="hero__lede">
-            同一套免费体验：搜索、播放、收藏与歌单。<strong class="hero__lede-strong">Android / PC 支持从网易云和QQ云迁入歌单</strong>（链接或歌单 ID，自动匹配站内曲库）。选择你的平台，一键获取安装包。
+            同一套免费体验：搜索、播放、收藏与歌单。<strong class="hero__lede-strong">Android / PC 支持从网易云、QQ 音乐和酷狗迁入歌单</strong>（链接或歌单 ID，自动匹配站内曲库）。选择你的平台，一键获取安装包。
           </p>
           <ul class="hero__facts">
             <li>完全免费</li>
             <li>开源透明</li>
-            <li>网易、QQ云歌单可迁入</li>
+            <li>网易、QQ、酷狗歌单可迁入</li>
           </ul>
           <p class="hero__anchor-hint">
             <a href="#netease-migrate" class="hero__anchor-link">查看迁入步骤与说明</a>
@@ -47,18 +47,18 @@
         <div class="netease-panel__inner">
           <header class="netease-panel__head">
             <p class="netease-panel__eyebrow">换播放器不用从零攒歌单</p>
-            <h2 id="netease-migrate-title" class="netease-panel__title">从网易云音乐迁入歌单</h2>
+            <h2 id="netease-migrate-title" class="netease-panel__title">从网易云 / QQ 音乐 / 酷狗迁入歌单</h2>
             <p class="netease-panel__lede">
-              在 <strong>Android</strong> 或 <strong>桌面客户端</strong> 内使用「导入网易云歌单」：粘贴歌单分享链接或歌单 ID，客户端会拉取曲目列表，并在 Neko 曲库中按歌名与歌手匹配后，导入到你指定的歌单。
+              在 <strong>Android</strong> 或 <strong>桌面客户端</strong> 内使用「导入外部歌单」：粘贴网易云 / QQ 音乐 / 酷狗的歌单分享链接或歌单 ID，客户端会拉取曲目列表，并在 Neko 曲库中按歌名与歌手匹配后，导入到你指定的歌单。
             </p>
             <p class="netease-panel__note">
               本页 Web 播放器暂不支持该流程；迁入后能否全部播放入库，取决于站内是否已有对应上传资源以及曲库。开源客户端行为可自查源码，无「背地里同步你网易账号密码」那一套。
             </p>
           </header>
           <ol class="netease-panel__steps">
-            <li><span class="netease-panel__step-num">1</span> 在网易云复制歌单链接，或记下歌单 ID。</li>
+            <li><span class="netease-panel__step-num">1</span> 在网易云 / QQ 音乐 / 酷狗复制歌单链接，或记下歌单 ID。</li>
             <li><span class="netease-panel__step-num">2</span> 安装并打开本页下方提供的 Android / Windows / Linux / macOS 客户端。</li>
-            <li><span class="netease-panel__step-num">3</span> 在客户端内找到「导入网易、QQ云歌单」，粘贴链接或 ID，选择目标歌单并开始匹配导入。</li>
+            <li><span class="netease-panel__step-num">3</span> 在客户端内找到「导入外部歌单」，粘贴链接或 ID，选择目标歌单并开始匹配导入。</li>
           </ol>
         </div>
       </section>
