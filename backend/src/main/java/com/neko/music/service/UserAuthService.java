@@ -136,6 +136,36 @@ public class UserAuthService {
     }
 
     /**
+     * 按用户 ID 查询用户信息（不含密码字段），用于扫码登录等需要回传用户资料的场景。
+     */
+    public Optional<User> findUserById(int userId) {
+        String sql = "SELECT id, username, email, created_at, vip_expires_at FROM users WHERE id = ?";
+
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, userId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    User user = new User();
+                    user.setId(rs.getInt("id"));
+                    user.setUsername(rs.getString("username"));
+                    user.setEmail(rs.getString("email"));
+                    user.setCreatedAt(DbTimeUtil.formatStoredWallClock(rs.getString("created_at")));
+                    java.sql.Timestamp vipTs = rs.getTimestamp("vip_expires_at");
+                    user.setVipExpiresAt(rs.wasNull() ? null : vipTs);
+                    return Optional.of(user);
+                }
+            }
+        } catch (SQLException e) {
+            logger.error("按ID查询用户失败: {}", e.getMessage(), e);
+        }
+
+        return Optional.empty();
+    }
+
+    /**
      * 发送注册验证码；同邮箱有发信冷却。
      */
     public SendVerificationCodeResult sendVerificationCode(String email, String username) {
