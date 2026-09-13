@@ -34,6 +34,7 @@ import com.neko.music.service.NeteaseSearchFillService;
 import com.neko.music.service.ExternalImportService;
 import com.neko.music.service.QQMusicClient;
 import com.neko.music.service.KugouMusicClient;
+import com.neko.music.service.QishuiMusicClient;
 import com.neko.music.service.MusicRecognitionService;
 import com.neko.music.service.VideoRenderService;
 import org.eclipse.jetty.server.Server;
@@ -101,6 +102,7 @@ public class Main {
     private static ExternalImportService externalImportService;
     private static QQMusicClient qqMusicClient;
     private static KugouMusicClient kugouMusicClient;
+    private static QishuiMusicClient qishuiMusicClient;
     private static AppReleaseService appReleaseService;
     private static DailyRecommendationService dailyRecommendationService;
     private static LyricsSearchIndex lyricsSearchIndex;
@@ -192,6 +194,7 @@ public class Main {
         Runtime.getRuntime().addShutdownHook(new Thread(neteaseSearchFillService::shutdown, "netease-fill-shutdown"));
         qqMusicClient = new QQMusicClient(objectMapper);
         kugouMusicClient = new KugouMusicClient(objectMapper);
+        qishuiMusicClient = new QishuiMusicClient(objectMapper);
         dailyRecommendationService = new DailyRecommendationService(
                 databaseManager, redisService, configManager, objectMapper);
         startDailyRecommendationScheduler();
@@ -482,6 +485,10 @@ public class Main {
         ServletHolder kugouImportHolder = new ServletHolder(new ExternalImportHandler());
         context.addServlet(kugouImportHolder, "/loser/kugou/pull");
 
+        // 汽水音乐（抖音音乐）登录页与账号 Cookie 管理：/loser/qishui/login
+        ServletHolder qishuiMusicHolder = new ServletHolder(new QishuiMusicHandler());
+        context.addServlet(qishuiMusicHolder, "/loser/qishui/*");
+
         // 网易云常用只读接口（兼容 NeteaseCloudMusicApi 路径），需要用户令牌
         ServletHolder neteaseCloudMusicHolder = new ServletHolder(new NeteaseCloudMusicHandler());
         context.addServlet(neteaseCloudMusicHolder, "/loser/netease/*");
@@ -627,6 +634,10 @@ public class Main {
 
     public static KugouMusicClient getKugouMusicClient() {
         return kugouMusicClient;
+    }
+
+    public static QishuiMusicClient getQishuiMusicClient() {
+        return qishuiMusicClient;
     }
 
     public static NeteaseCloudMusicClient getNeteaseCloudMusicClient() {

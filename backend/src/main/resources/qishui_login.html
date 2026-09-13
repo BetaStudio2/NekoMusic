@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>汽水音乐登录 · NekoMusic</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --card: #171a21;
+    --line: #262b36;
+    --text: #e8ebf2;
+    --muted: #8b93a7;
+    --brand: #22d3a6;
+    --brand-dark: #17a883;
+    --danger: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(1200px 600px at 50% -10%, #1d2430 0%, var(--bg) 60%);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 24px;
+  }
+  .card {
+    width: 100%; max-width: 420px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+    padding: 28px 26px 22px; box-shadow: 0 24px 60px rgba(0,0,0,.45);
+  }
+  h1 { margin: 0; font-size: 22px; letter-spacing: .5px; }
+  h1 span { color: var(--brand); }
+  .sub { margin: 8px 0 20px; font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .qr-wrap {
+    position: relative; margin: 0 auto 18px; width: 220px; height: 220px;
+    display: flex; align-items: center; justify-content: center;
+    background: #fff; border-radius: 14px; overflow: hidden;
+  }
+  .qr-wrap img { width: 100%; height: 100%; object-fit: contain; display: none; }
+  .qr-wrap .placeholder { color: #9aa3b2; font-size: 13px; text-align: center; padding: 0 18px; line-height: 1.7; }
+  .qr-wrap.expired::after {
+    content: "二维码已失效"; position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(15,17,21,.78); color: #fff; font-size: 14px;
+  }
+  .status { text-align: center; font-size: 13px; color: var(--muted); min-height: 20px; margin-bottom: 14px; }
+  .status.ok { color: var(--brand); }
+  .status.err { color: var(--danger); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  button {
+    flex: 1; min-width: 120px; padding: 11px 14px; border-radius: 11px; cursor: pointer;
+    border: 1px solid var(--line); background: #202531; color: var(--text);
+    font-size: 14px; transition: .15s ease;
+  }
+  button:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
+  button.primary { background: var(--brand); border-color: var(--brand); color: #06120e; font-weight: 600; }
+  button.primary:hover:not(:disabled) { background: var(--brand-dark); border-color: var(--brand-dark); color: #06120e; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .panel { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 16px; display: none; }
+  .panel.show { display: block; }
+  .panel h2 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
+  .mobile { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+  .mobile b { color: var(--text); }
+  input {
+    width: 100%; padding: 11px 13px; border-radius: 11px; margin-bottom: 10px;
+    border: 1px solid var(--line); background: #10131a; color: var(--text); font-size: 15px;
+    letter-spacing: 3px; text-align: center;
+  }
+  input:focus { outline: none; border-color: var(--brand); }
+  .ep { margin-top: 14px; font-size: 12px; color: var(--muted); word-break: break-all; line-height: 1.6; }
+  .ep code { color: #c9d1e4; }
+  .log { margin: 14px 0 0; padding: 10px 12px; max-height: 120px; overflow: auto;
+    background: #10131a; border: 1px solid var(--line); border-radius: 10px;
+    font-size: 12px; color: var(--muted); white-space: pre-wrap; word-break: break-all; }
+  .log:empty { display: none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>汽水<span>音乐</span>登录</h1>
+  <p class="sub">用手机「抖音 APP」扫码并在手机上确认。后端会自动保存 Cookie，供播放 / 歌单等接口复用。</p>
+
+  <div class="qr-wrap" id="qrWrap">
+    <div class="placeholder" id="qrPlaceholder">点击下方「获取二维码」开始登录</div>
+    <img id="qrImage" alt="登录二维码">
+  </div>
+
+  <div class="status" id="status">等待获取二维码…</div>
+
+  <div class="row">
+    <button class="primary" id="btnQr">获取二维码</button>
+    <button id="btnState">查询登录态</button>
+  </div>
+
+  <div class="panel" id="mfaPanel">
+    <h2>二次验证</h2>
+    <div class="mobile" id="mfaMobile"></div>
+    <div id="mfaWebBlock" hidden>
+      <p class="mobile">抖音要求做一次安全验证：在新标签页完成后再回来点「我已完成」。</p>
+      <div class="row">
+        <button class="primary" id="btnMfaOpen">打开验证页面</button>
+        <button id="btnMfaResend">我已完成，继续</button>
+      </div>
+    </div>
+    <div id="mfaSmsBlock" hidden>
+      <input id="mfaCode" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="短信验证码">
+      <div class="row">
+        <button id="btnMfaSend">发送验证码</button>
+        <button class="primary" id="btnMfaVerify">提交</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button id="btnMfaUpsms">改走上行短信</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="donePanel">
+    <h2>已登录</h2>
+    <div class="ep" id="doneInfo"></div>
+    <div class="row" style="margin-top:12px">
+      <button id="btnLogout">清除后端 Cookie</button>
+    </div>
+  </div>
+
+  <div class="ep" id="scanLink"></div>
+  <pre class="log" id="log"></pre>
+</div>
+
+<script>
+(function () {
+  // 页面本身挂在 /loser/qishui/login，接口根路径是 /loser/qishui
+  const BASE = location.pathname.replace(/\/+$/, "").replace(/\/login$/, "") || "/loser/qishui";
+  const QR_POLL_MS = 2000;
+  const MAX_REFRESH = 5;
+
+  const $ = (id) => document.getElementById(id);
+  const qrWrap = $("qrWrap"), qrImage = $("qrImage"), qrPlaceholder = $("qrPlaceholder");
+  const statusEl = $("status"), scanLink = $("scanLink"), logEl = $("log");
+  const mfaPanel = $("mfaPanel"), mfaMobile = $("mfaMobile"), mfaCode = $("mfaCode");
+  const donePanel = $("donePanel"), doneInfo = $("doneInfo");
+
+  let token = null;
+  let timer = null;
+  let refreshes = 0;
+  let inMfa = false;
+
+  function log(message) {
+    const line = new Date().toLocaleTimeString() + "  " + message;
+    logEl.textContent = (line + "\n" + logEl.textContent).slice(0, 4000);
+  }
+
+  function setStatus(text, kind) {
+    statusEl.textContent = text;
+    statusEl.className = "status" + (kind ? " " + kind : "");
+  }
+
+  function api(path, params) {
+    const url = BASE + path;
+    const options = { method: "GET", headers: { accept: "application/json" } };
+    if (params) {
+      options.method = "POST";
+      options.headers["content-type"] = "application/x-www-form-urlencoded";
+      options.body = new URLSearchParams(params).toString();
+    }
+    return fetch(url, options).then(async (resp) => {
+      const text = await resp.text();
+      let body;
+      try { body = JSON.parse(text); } catch (e) { throw new Error("接口返回异常: " + text.slice(0, 120)); }
+      if (!body.success) { throw new Error(body.message || "请求失败"); }
+      return body.data || {};
+    });
+  }
+
+  function showQr(data) {
+    if (!data || !data.token) { return false; }
+    token = data.token;
+    if (data.qrcode) {
+      qrImage.src = data.qrcode.startsWith("data:") ? data.qrcode : "data:image/png;base64," + data.qrcode;
+      qrImage.style.display = "block";
+      qrPlaceholder.style.display = "none";
+    }
+    qrWrap.classList.remove("expired");
+    scanLink.innerHTML = data.qrcode_index_url
+      ? '扫码链接：<code>' + escapeHtml(data.qrcode_index_url) + "</code>"
+      : "";
+    return true;
+  }
+
+  function stopPolling() {
+    if (timer) { clearInterval(timer); timer = null; }
+  }
+
+  function startPolling() {
+    stopPolling();
+    timer = setInterval(poll, QR_POLL_MS);
+  }
+
+  function handleExpired(data) {
+    if (data && data.token && data.qrcode && refreshes < MAX_REFRESH) {
+      refreshes += 1;
+      showQr(data);
+      setStatus("二维码已过期，已自动刷新（" + refreshes + "/" + MAX_REFRESH + "）", "err");
+      log("二维码过期，自动刷新第 " + refreshes + " 次");
+      return true;
+    }
+    qrWrap.classList.add("expired");
+    stopPolling();
+    setStatus("二维码已失效，请重新获取", "err");
+    log("二维码失效");
+    return false;
+  }
+
+  let mfaUrl = "";
+  let mfaSig = "";
+
+  function showMfa(mfa) {
+    inMfa = true;
+    mfaPanel.classList.add("show");
+    const hasWeb = !!(mfa && mfa.url);
+    const hasSms = !!(mfa && mfa.can_send_sms);
+    mfaUrl = hasWeb ? mfa.url : "";
+    $("mfaWebBlock").hidden = !hasWeb;
+    $("mfaSmsBlock").hidden = !hasSms;
+    $("mfaMobile").innerHTML = mfa && mfa.mobile
+      ? "短信将发送到 <b>" + escapeHtml(mfa.mobile) + "</b>"
+      : "";
+    if (hasSms) {
+      mfaCode.value = "";
+      mfaCode.focus();
+    }
+  }
+
+  function poll() {
+    if (!token) { return; }
+    api("/login/check", { token: token }).then(handleStatus).catch((err) => {
+      setStatus(err.message, "err");
+      log("轮询失败：" + err.message);
+    });
+  }
+
+  function handleStatus(data) {
+    {
+      switch (data.status) {
+        case "new":
+          setStatus("等待扫码…");
+          break;
+        case "scanned":
+          setStatus("已扫码" + (data.scan_device ? "（" + data.scan_device + "）" : "") + "，请在手机上确认", "ok");
+          break;
+        case "verify": {
+          setStatus("需要二次验证", "err");
+          const mfa = data.mfa || {};
+          const sig = (mfa.mode || "") + "|" + (mfa.url || "") + "|" + (mfa.mobile || "")
+            + "|" + (mfa.can_send_sms === true);
+          if (sig !== mfaSig) { mfaSig = sig; inMfa = true; showMfa(mfa); }
+          break;
+        }
+        case "confirmed":
+          stopPolling();
+          mfaSig = "";
+          setStatus("登录成功，Cookie 已保存", "ok");
+          log("登录成功，session=" + (data.session === true));
+          mfaPanel.classList.remove("show");
+          donePanel.classList.add("show");
+          doneInfo.innerHTML = data.login
+            ? "user_id: <code>" + escapeHtml(String(data.login.user_id || "")) + "</code><br>nickname: <code>"
+              + escapeHtml(String(data.login.nickname || "")) + "</code>"
+            : "";
+          qrWrap.classList.add("expired");
+          break;
+        case "expired":
+          handleExpired(data);
+          break;
+        default:
+          setStatus("状态：" + (data.status || "未知"));
+      }
+    }
+  }
+
+  function requestQrcode() {
+    refreshes = 0;
+    inMfa = false;
+    mfaSig = "";
+    mfaPanel.classList.remove("show");
+    donePanel.classList.remove("show");
+    qrWrap.classList.remove("expired");
+    setStatus("正在获取二维码…");
+    api("/login/qrcode").then((data) => {
+      if (!showQr(data)) { throw new Error("服务端未返回二维码"); }
+      setStatus("请用「抖音 APP」扫码");
+      log("已获取二维码");
+      startPolling();
+    }).catch((err) => {
+      setStatus("获取二维码失败：" + err.message, "err");
+      log("获取二维码失败：" + err.message);
+    });
+  }
+
+  function mfaAction(path, params, okMsg) {
+    api(path, Object.assign({ token: token }, params || {})).then((data) => {
+      if (data.description) { log(okMsg + "：" + data.description); }
+      else { log(okMsg); }
+      // 重放接口直接返回轮询结果
+      if (data.status) { handleStatus(data); return; }
+      if (data.error_code && data.error_code !== 0) {
+        setStatus(okMsg + "失败：" + (data.description || ("error_code " + data.error_code)), "err");
+        return;
+      }
+      setStatus(okMsg + "成功，请稍候…");
+      if (data.check) { handleStatus(data.check); }
+      else if (!timer) { startPolling(); }
+    }).catch((err) => {
+      setStatus(err.message, "err");
+      log("请求失败：" + err.message);
+    });
+  }
+
+  function queryState() {
+    api("/login/state").then((data) => {
+      donePanel.classList.add("show");
+      const login = data.login || {};
+      doneInfo.innerHTML = "logged_in: <code>" + (data.logged_in === true) + "</code><br>"
+        + "cookie_file: <code>" + escapeHtml(data.cookie_file || "") + "</code><br>"
+        + "error_code: <code>" + escapeHtml(String(login.error_code)) + "</code><br>"
+        + "nickname: <code>" + escapeHtml(String(login.nickname || "")) + "</code>";
+      setStatus(data.logged_in ? "已登录" : "未登录", data.logged_in ? "ok" : "err");
+    }).catch((err) => {
+      setStatus(err.message, "err");
+    });
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  $("btnQr").addEventListener("click", requestQrcode);
+  $("btnState").addEventListener("click", queryState);
+  $("btnMfaSend").addEventListener("click", function () {
+    mfaAction("/login/mfa/send", null, "发送验证码");
+  });
+  $("btnMfaVerify").addEventListener("click", function () {
+    const code = mfaCode.value.trim();
+    if (!/^[0-9]{4,8}$/.test(code)) { setStatus("请输入短信验证码", "err"); return; }
+    mfaAction("/login/mfa/verify", { code: code }, "提交验证码");
+  });
+  $("btnMfaUpsms").addEventListener("click", function () {
+    mfaAction("/login/mfa/upsms", null, "上行短信确认");
+  });
+  $("btnMfaOpen").addEventListener("click", function () {
+    if (mfaUrl) { window.open(mfaUrl, "_blank", "noopener"); }
+  });
+  $("btnMfaResend").addEventListener("click", function () {
+    mfaAction("/login/mfa/resend", null, "已完成安全验证");
+  });
+  $("btnLogout").addEventListener("click", function () {
+    api("/login/logout", {}).then(() => {
+      stopPolling();
+      token = null;
+      donePanel.classList.remove("show");
+      qrImage.style.display = "none";
+      qrPlaceholder.style.display = "block";
+      qrWrap.classList.remove("expired");
+      setStatus("已清除 Cookie", "ok");
+      log("已清除后端保存的 Cookie");
+    }).catch((err) => setStatus(err.message, "err"));
+  });
+
+  queryState();
+})();
+</script>
+</body>
+</html>

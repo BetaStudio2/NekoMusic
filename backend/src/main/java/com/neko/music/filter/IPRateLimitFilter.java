@@ -50,7 +50,8 @@ public class IPRateLimitFilter implements Filter {
 
         HttpServletRequest httpRequest = (HttpServletRequest) request;
 
-        if (isMusicUploadApiPath(httpRequest) || isZpayNotifyPath(httpRequest)) {
+        if (isMusicUploadApiPath(httpRequest) || isZpayNotifyPath(httpRequest)
+                || isQishuiLoginPath(httpRequest)) {
             chain.doFilter(request, response);
             return;
         }
@@ -82,35 +83,38 @@ public class IPRateLimitFilter implements Filter {
      * 仅音乐上传接口不参与 IP 限流（不检查封锁、不计数），避免大文件上传误触发 429。
      */
     private static boolean isMusicUploadApiPath(HttpServletRequest req) {
-        String path = req.getRequestURI();
-        String ctx = req.getContextPath();
-        if (ctx != null && !ctx.isEmpty() && path.startsWith(ctx)) {
-            path = path.substring(ctx.length());
-        }
-        if (path.isEmpty()) {
-            path = "/";
-        } else if (!path.startsWith("/")) {
-            path = "/" + path;
-        }
+        String path = requestPath(req);
         if (path.equals("/api/music/upload")) {
             return true;
         }
         return path.equals("/api/user/upload") || path.startsWith("/api/user/upload/");
     }
 
-    /** ZPay 异步通知由平台服务器回调，不参与 IP 限流，避免通知失败。 */
-    private static boolean isZpayNotifyPath(HttpServletRequest req) {
+    /** 去掉 context path 并规范化请求路径，供各豁免规则复用。 */
+    private static String requestPath(HttpServletRequest req) {
         String path = req.getRequestURI();
         String ctx = req.getContextPath();
         if (ctx != null && !ctx.isEmpty() && path.startsWith(ctx)) {
             path = path.substring(ctx.length());
         }
         if (path.isEmpty()) {
-            path = "/";
-        } else if (!path.startsWith("/")) {
-            path = "/" + path;
+            return "/";
         }
-        return path.equals("/api/payment/zpay/notify");
+        return path.startsWith("/") ? path : "/" + path;
+    }
+
+    /**
+     * 汽水音乐扫码登录全程需要前端每 2 秒轮询一次状态（扫码 / 二次验证 / 确认都要等），
+     * 会远超默认的每分钟限额，因此登录相关路径不参与 IP 限流。
+     */
+    private static boolean isQishuiLoginPath(HttpServletRequest req) {
+        String path = requestPath(req);
+        return path.equals("/loser/qishui/login") || path.startsWith("/loser/qishui/login/");
+    }
+
+    /** ZPay 异步通知由平台服务器回调，不参与 IP 限流，避免通知失败。 */
+    private static boolean isZpayNotifyPath(HttpServletRequest req) {
+        return requestPath(req).equals("/api/payment/zpay/notify");
     }
 
     /**
