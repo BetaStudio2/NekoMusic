@@ -19,6 +19,7 @@ import com.neko.music.service.LyricsSearchIndex;
 import com.neko.music.service.NotificationService;
 import com.neko.music.service.PlaylistService;
 import com.neko.music.service.RedisService;
+import com.neko.music.service.QrLoginService;
 import com.neko.music.service.RedisTokenStore;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.service.VerificationCodeRateLimitService;
@@ -81,6 +82,7 @@ public class Main {
     private static AdminDatabaseManager adminDatabaseManager;
     private static AdminAuthService adminAuthService;
     private static UserAuthService userAuthService;
+    private static QrLoginService qrLoginService;
     private static EmailService emailService;
     private static RedisService redisService;
     private static PlaylistService playlistService;
@@ -172,6 +174,9 @@ public class Main {
         userAuthService = new UserAuthService(
                 databaseManager, configManager, emailService, redisService, tokenStore,
                 verificationCodeRateLimitService);
+
+        // 扫码登录会话（Redis 短 TTL，PC 轮询取 token）
+        qrLoginService = new QrLoginService(redisService, objectMapper);
 
         sliderCaptchaService = new SliderCaptchaService();
 
@@ -373,6 +378,10 @@ public class Main {
         ServletHolder userLoginHolder = new ServletHolder(new UserLoginHandler());
         context.addServlet(userLoginHolder, "/api/user/login");
         
+        // 注册扫码登录API处理器（PC 生成二维码，手机端 NekoMusic App 扫码确认）
+        ServletHolder userQrLoginHolder = new ServletHolder(new UserQrLoginHandler());
+        context.addServlet(userQrLoginHolder, "/api/user/qrlogin/*");
+
         // 注册用户注册API处理器
         ServletHolder userRegisterHolder = new ServletHolder(new UserRegisterHandler());
         context.addServlet(userRegisterHolder, "/api/user/register");
@@ -580,6 +589,10 @@ public class Main {
     
     public static UserAuthService getUserAuthService() {
         return userAuthService;
+    }
+
+    public static QrLoginService getQrLoginService() {
+        return qrLoginService;
     }
 
     public static SliderCaptchaService getSliderCaptchaService() {
