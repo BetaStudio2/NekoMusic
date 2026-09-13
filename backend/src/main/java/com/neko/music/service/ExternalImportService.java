@@ -108,16 +108,16 @@ public class ExternalImportService {
 
     /** 网易云歌单 / 指定歌曲导入。 */
     public void startNeteaseImport(Long neteasePlaylistId, List<Long> songIds, int targetPlaylistId,
-                                   boolean targetPlaylistCreated, int userId, Listener listener) {
+                                   boolean targetPlaylistCreated, Listener listener) {
         submit(() -> runNeteaseImport(neteasePlaylistId, songIds, targetPlaylistId, targetPlaylistCreated,
-                        userId, listener),
+                        listener),
                 listener);
     }
 
     /** QQ 歌单导入。 */
     public void startQqImport(String disstid, int targetPlaylistId, boolean targetPlaylistCreated,
-                              int userId, Listener listener) {
-        submit(() -> runQqImport(disstid, targetPlaylistId, targetPlaylistCreated, userId, listener),
+                              Listener listener) {
+        submit(() -> runQqImport(disstid, targetPlaylistId, targetPlaylistCreated, listener),
                 listener);
     }
 
@@ -150,7 +150,7 @@ public class ExternalImportService {
     }
 
     private void runNeteaseImport(Long neteasePlaylistId, List<Long> songIds, int targetPlaylistId,
-                                  boolean targetPlaylistCreated, int userId, Listener listener) throws IOException {
+                                  boolean targetPlaylistCreated, Listener listener) throws IOException {
         List<Track> tracks = resolveNeteaseTracks(neteasePlaylistId, songIds);
         if (tracks.isEmpty()) {
             listener.onError(neteasePlaylistId != null ? "网易云歌单为空或不可访问" : "没有可导入的歌曲 ID");
@@ -165,7 +165,7 @@ public class ExternalImportService {
 
             long songId = Long.parseLong(track.sourceId());
             NeteaseSearchFillService.ExactIngest ingest = fillService.ingestExactFromNetease(
-                    songId, userId,
+                    songId,
                     (bytesRead, totalBytes) -> trackListener.onTrackProgress(
                             index, total, track.sourceId(), bytesRead, totalBytes));
 
@@ -185,7 +185,7 @@ public class ExternalImportService {
     }
 
     private void runQqImport(String disstid, int targetPlaylistId, boolean targetPlaylistCreated,
-                             int userId, Listener listener) throws IOException {
+                             Listener listener) throws IOException {
         QQMusicClient.QqPlaylist playlist = qqMusicClient.fetchPlaylist(disstid);
         List<QQMusicClient.QqTrack> qqTracks = playlist.tracks();
         if (qqTracks.isEmpty()) {

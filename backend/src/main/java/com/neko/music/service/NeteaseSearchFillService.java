@@ -209,12 +209,12 @@ public class NeteaseSearchFillService {
      * 按网易云歌曲 ID 直接下载并入库：元数据与音频直链全部取自网易云，
      * 不对站内曲库做搜索匹配（歌单导入使用）。同一 songId 并发调用会串行化。
      *
-     * @param uploadUserId     入库归属用户，null 时回退到配置的补全专用账号
+     * <p>入库归属固定为配置的补全专用账号，不会记到触发导入的用户名下。
+     *
      * @param progressListener 下载进度回调，可为 null
      */
     public ExactIngest ingestExactFromNetease(
             long songId,
-            Integer uploadUserId,
             NeteaseCloudMusicClient.DownloadProgressListener progressListener
     ) {
         NeteaseCloudMusicClient.SongDetail detail;
@@ -256,7 +256,7 @@ public class NeteaseSearchFillService {
             NeteaseCloudMusicClient.NeteaseSongCandidate candidate =
                     new NeteaseCloudMusicClient.NeteaseSongCandidate(songId, title, artist, album);
             Optional<AdminMusicIngestService.IngestedMusic> ingested =
-                    downloadAndIngestUnderLock(candidate, workDir, songId, uploadUserId, progressListener);
+                    downloadAndIngestUnderLock(candidate, workDir, songId, progressListener);
             if (ingested.isPresent()) {
                 return new ExactIngest(songId, title, artist, album, ingested, false, FillReason.NONE);
             }
@@ -459,7 +459,7 @@ public class NeteaseSearchFillService {
         ReentrantLock songLock = NETEASE_SONG_LOCKS.computeIfAbsent(songId, k -> new ReentrantLock());
         songLock.lock();
         try {
-            return downloadAndIngestUnderLock(candidate, workDir, songId, null, null);
+            return downloadAndIngestUnderLock(candidate, workDir, songId, null);
         } finally {
             songLock.unlock();
         }
@@ -469,7 +469,6 @@ public class NeteaseSearchFillService {
             NeteaseCloudMusicClient.NeteaseSongCandidate candidate,
             Path workDir,
             long songId,
-            Integer uploadUserIdOverride,
             NeteaseCloudMusicClient.DownloadProgressListener progressListener
     ) throws IOException, SQLException {
         NeteaseCloudMusicClient.SongDetail detail = neteaseClient.fetchSongDetail(songId)
@@ -527,9 +526,6 @@ public class NeteaseSearchFillService {
         String language = resolveLanguage(title, artist, album, lyricsPrep.lyricsPath());
         logger.info("网易云补全语种: title={} language={}", title, language);
 
-        Integer effectiveUploadUserId = uploadUserIdOverride != null
-                ? uploadUserIdOverride
-                : config.getNeteaseFillUploadUserId();
         Optional<AdminMusicIngestService.IngestedMusic> ingested = ingestService.ingestFromTempFiles(
                 audioTemp,
                 coverTemp,
@@ -540,7 +536,7 @@ public class NeteaseSearchFillService {
                 language,
                 "",
                 durationSec,
-                effectiveUploadUserId
+                config.getNeteaseFillUploadUserId()
         );
         Optional<AdminMusicIngestService.IngestedMusic> result = ingested.isPresent()
                 ? ingested

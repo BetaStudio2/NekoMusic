@@ -156,10 +156,10 @@ public class ExternalImportHandler extends HttpServlet {
 
         ExternalImportService.Listener listener = new SseListener(asyncContext, writer);
         if (qq) {
-            importService.startQqImport(disstid, resolvedPlaylistId, playlistCreated, userId, listener);
+            importService.startQqImport(disstid, resolvedPlaylistId, playlistCreated, listener);
         } else {
             importService.startNeteaseImport(neteasePlaylistId, songIds, resolvedPlaylistId, playlistCreated,
-                    userId, listener);
+                    listener);
         }
     }
 
