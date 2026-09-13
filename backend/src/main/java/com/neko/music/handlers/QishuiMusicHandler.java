@@ -181,8 +181,10 @@ public class QishuiMusicHandler extends HttpServlet {
         }
         if (QishuiMusicClient.STATUS_CONFIRMED.equals(status)) {
             pendingMfa.remove(token);
+            // 本次 check_qrconnect 响应里的 Set-Cookie（sessionid / sessionid_ss）已由客户端收下
             client().saveCookies();
             payload.put("session", client().hasSession());
+            payload.put("cookies", client().cookieNames());
             payload.put("login", loginState());
         }
         return payload;
@@ -262,6 +264,7 @@ public class QishuiMusicHandler extends HttpServlet {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("logged_in", client().hasSession());
         payload.put("cookie_file", client().getCookieFile().toString());
+        payload.put("cookies", client().cookieNames());
         payload.put("login", loginState());
         sendSuccess(response, "ok", payload);
     }
