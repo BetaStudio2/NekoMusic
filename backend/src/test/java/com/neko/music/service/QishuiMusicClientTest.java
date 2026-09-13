@@ -8,10 +8,12 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class QishuiMusicClientTest {
@@ -96,6 +98,60 @@ class QishuiMusicClientTest {
 
         QishuiMusicClient reloaded = new QishuiMusicClient(objectMapper, cookieFile.toString());
         assertFalse(reloaded.hasSession());
+    }
+
+    @Test
+    void absorbsRealPassportSetCookies(@TempDir Path dir) {
+        // 线上真实响应头：Domain 不带前导点 + Max-Age + SameSite=None
+        // 用 java.net.CookieManager 会因为这三点一条都存不下来（默认策略 ACCEPT_ORIGINAL_SERVER）
+        QishuiMusicClient client = new QishuiMusicClient(objectMapper, dir.resolve("c.json").toString());
+        client.absorbSetCookieHeaders(List.of(
+                "passport_csrf_token=7ca7c9c9; Path=/; Domain=qishui.com; Max-Age=5184000; Secure; SameSite=None",
+                "passport_csrf_token_default=7ca7c9c9; Path=/; Domain=qishui.com; Max-Age=5184000",
+                "reg-store-region=; Path=/; Domain=qishui.com; Max-Age=0; HttpOnly; Secure"));
+
+        assertEquals(List.of("passport_csrf_token", "passport_csrf_token_default"), client.cookieNames());
+        assertTrue(client.cookieHeader().contains("passport_csrf_token=7ca7c9c9"));
+        assertTrue(client.cookieHeader().contains("passport_csrf_token_default=7ca7c9c9"));
+    }
+
+    @Test
+    void keepsSessionIdForSubdomainWithDottedAndPlainDomain(@TempDir Path dir) {
+        QishuiMusicClient client = new QishuiMusicClient(objectMapper, dir.resolve("c.json").toString());
+        client.absorbSetCookieHeaders(List.of("sessionid=sess-abc; Path=/; Domain=.qishui.com; HttpOnly; Secure"));
+        assertTrue(client.hasSession());
+        assertTrue(client.cookieHeader().contains("sessionid=sess-abc"));
+
+        QishuiMusicClient plain = new QishuiMusicClient(objectMapper, dir.resolve("c2.json").toString());
+        plain.absorbSetCookieHeaders(List.of("sessionid=sess-xyz; Path=/; Domain=qishui.com; HttpOnly"));
+        assertTrue(plain.hasSession());
+        assertTrue(plain.cookieHeader().contains("sessionid=sess-xyz"));
+    }
+
+    @Test
+    void toleratesBrokenExpiresAndDropsExpiredCookies(@TempDir Path dir) {
+        QishuiMusicClient client = new QishuiMusicClient(objectMapper, dir.resolve("c.json").toString());
+        // 星期与日期对不上 / ISO 8601：解析不出来就当会话 Cookie 留着，绝不整条丢弃
+        client.absorbSetCookieHeaders(List.of(
+                "sessionid=sess-1; Path=/; Domain=qishui.com; Expires=Wed, 01 Jan 2030 00:00:00 GMT",
+                "sid_tt=t1; Path=/; Domain=qishui.com; Expires=2030-01-01T00:00:00Z"));
+        assertTrue(client.hasSession());
+        assertTrue(client.cookieHeader().contains("sid_tt=t1"));
+
+        // 真正过期的 cookie 要清掉
+        client.absorbSetCookieHeaders(List.of(
+                "sid_tt=; Path=/; Domain=qishui.com; Expires=Thu, 01 Jan 1970 00:00:00 GMT"));
+        assertFalse(client.cookieHeader().contains("sid_tt"));
+        assertTrue(client.hasSession());
+    }
+
+    @Test
+    void parsesCookieDatesUsedByPassport() {
+        assertTrue(QishuiMusicClient.parseCookieDate("Tue, 01 Jan 2030 00:00:00 GMT") > 0);
+        // 星期写错也要能解析（java.net.HttpCookie 在这里会直接放弃整条）
+        assertTrue(QishuiMusicClient.parseCookieDate("Wed, 01 Jan 2030 00:00:00 GMT") > 0);
+        assertTrue(QishuiMusicClient.parseCookieDate("Tue Jan  1 00:00:00 2030") > 0);
+        assertNull(QishuiMusicClient.parseCookieDate("not-a-date"));
     }
 
     private QishuiMusicClient client() {

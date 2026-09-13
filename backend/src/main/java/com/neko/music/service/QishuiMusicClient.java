@@ -9,8 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.net.CookieManager;
-import java.net.HttpCookie;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -21,6 +19,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -44,9 +49,12 @@ import java.util.Set;
  *   <li>登录态查询：{@code /passport/account/info/v2/}（未登录返回 {@code error_code 13}）</li>
  * </ul>
  *
- * <p>登录成功后服务器下发 {@code sessionid} / {@code sessionid_ss}（域 {@code .qishui.com}），
- * 本类用 {@link CookieManager} 统一收拢，并持久化到 {@code qishui_cookies.json}，
- * 供重启后或其它汽水接口复用。</p>
+ * <p>登录成功后服务器下发 {@code sessionid} / {@code sessionid_ss}（域 {@code qishui.com}），
+ * 本类自己解析 {@code Set-Cookie} 并持久化到 {@code qishui_cookies.json}，供重启后或其它汽水接口复用。
+ * <b>不能用 {@link java.net.CookieManager}</b>：它的默认策略 {@code ACCEPT_ORIGINAL_SERVER} 走的是
+ * {@link java.net.HttpCookie#domainMatches}，而后者不认 {@code Domain=qishui.com} 这种不带前导点的域
+ * （对请求主机 {@code api.qishui.com} 判定为不匹配），抖音 passport 恰好就是这么下发的，
+ * 于是 {@code passport_csrf_token}/{@code sessionid} 会被静默丢掉，表现为「手机已确认登录但后端仍是未登录」。</p>
  */
 public class QishuiMusicClient {
 
@@ -117,11 +125,12 @@ public class QishuiMusicClient {
     }
 
     private final ObjectMapper objectMapper;
-    private final CookieManager cookieManager = new CookieManager();
     private final HttpClient httpClient;
     private final Path cookieFile;
     private final String deviceId;
     private final String installId;
+    /** 自己维护的 Cookie 表（键为 cookie 名，同名以最后一次为准）。 */
+    private final Map<String, StoredCookie> cookies = new LinkedHashMap<>();
 
     public QishuiMusicClient(ObjectMapper objectMapper) {
         this(objectMapper, resolve("qishui.cookie_file", "QISHUI_COOKIE_FILE", DEFAULT_COOKIE_FILE));
@@ -133,7 +142,6 @@ public class QishuiMusicClient {
         this.installId = resolve("qishui.install_id", "QISHUI_INSTALL_ID", DEFAULT_INSTALL_ID);
         this.cookieFile = Path.of(cookieFilePath).toAbsolutePath();
         this.httpClient = HttpClient.newBuilder()
-                .cookieHandler(cookieManager)
                 .connectTimeout(Duration.ofSeconds(10))
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .build();
@@ -223,37 +231,181 @@ public class QishuiMusicClient {
 
     // ------------------------------------------------------------------ 状态与 Cookie
 
+    /**
+     * 一条 Cookie。只保留转发需要的字段，不碰 JDK 的解析器：
+     * <ul>
+     *   <li>{@code Domain=qishui.com}（无前导点）也要能用于 {@code api.qishui.com}；</li>
+     *   <li>{@code Expires} 解析失败时按会话 Cookie 保留，绝不因为日期格式丢掉整条；</li>
+     *   <li>{@code Max-Age<=0} / 过期时间已过 => 删除同名 Cookie。</li>
+     * </ul>
+     *
+     * @param expiresAt 过期时间（epoch 毫秒），{@code -1} 表示会话 Cookie
+     */
+    record StoredCookie(String name, String value, String domain, String path,
+                        boolean secure, boolean httpOnly, long expiresAt) {
+
+        boolean expired(long nowMillis) {
+            return expiresAt > 0 && expiresAt <= nowMillis;
+        }
+    }
+
     /** 是否已经持有 sessionid（登录态的判据）。 */
-    public boolean hasSession() {
-        for (HttpCookie cookie : cookieManager.getCookieStore().getCookies()) {
-            String name = cookie.getName();
-            if (("sessionid".equals(name) || "sessionid_ss".equals(name))
-                    && cookie.getValue() != null && !cookie.getValue().isEmpty()) {
+    public synchronized boolean hasSession() {
+        long now = System.currentTimeMillis();
+        for (StoredCookie cookie : cookies.values()) {
+            if (("sessionid".equals(cookie.name()) || "sessionid_ss".equals(cookie.name()))
+                    && !cookie.value().isEmpty() && !cookie.expired(now)) {
                 return true;
             }
         }
         return false;
     }
 
-    /** 供其它汽水接口复用的 Cookie 串（只取 qishui / douyin 域）。 */
-    public String cookieHeader() {
+    /** 当前保存的 Cookie 名（含过期信息概要），用于接口排查，不含值。 */
+    public synchronized List<String> cookieNames() {
+        long now = System.currentTimeMillis();
+        List<String> names = new ArrayList<>();
+        for (StoredCookie cookie : cookies.values()) {
+            names.add(cookie.name() + (cookie.expired(now) ? "(已过期)" : ""));
+        }
+        return names;
+    }
+
+    /** 供其它汽水接口复用的 Cookie 串（{@code name=value; name2=value2}）。 */
+    public synchronized String cookieHeader() {
+        return cookieHeaderFor(URI.create(HOST).getHost());
+    }
+
+    /** 按域匹配拼 Cookie 头：{@code Domain=qishui.com} 可以发给 {@code api.qishui.com}。 */
+    synchronized String cookieHeaderFor(String host) {
+        long now = System.currentTimeMillis();
         StringBuilder result = new StringBuilder();
-        for (HttpCookie cookie : cookieManager.getCookieStore().getCookies()) {
-            String domain = cookie.getDomain() == null ? "" : cookie.getDomain().toLowerCase(Locale.ROOT);
-            if (!domain.contains("qishui") && !domain.contains("douyin")) {
+        for (StoredCookie cookie : cookies.values()) {
+            if (cookie.value().isEmpty() || cookie.expired(now) || !domainMatches(cookie.domain(), host)) {
                 continue;
             }
             if (!result.isEmpty()) {
                 result.append("; ");
             }
-            result.append(cookie.getName()).append('=').append(cookie.getValue());
+            result.append(cookie.name()).append('=').append(cookie.value());
         }
         return result.toString();
     }
 
+    /** RFC 6265 语义的域匹配：主机名相同，或是域名的子域。 */
+    static boolean domainMatches(String domain, String host) {
+        if (domain == null || domain.isEmpty() || host == null || host.isEmpty()) {
+            return true;
+        }
+        String cookieDomain = domain.startsWith(".") ? domain.substring(1) : domain;
+        if (host.equalsIgnoreCase(cookieDomain)) {
+            return true;
+        }
+        return host.toLowerCase(Locale.ROOT).endsWith("." + cookieDomain.toLowerCase(Locale.ROOT));
+    }
+
+    /** 收下响应里的 Set-Cookie（HTTP/2 下同名头会有多条）。 */
+    public synchronized void absorbCookies(HttpResponse<?> response) {
+        if (response == null) {
+            return;
+        }
+        String host = response.uri().getHost();
+        absorbSetCookieHeaders(response.headers().allValues("set-cookie"), host == null ? "" : host);
+    }
+
+    /**
+     * 解析 Set-Cookie 原文并写入 Cookie 表。
+     *
+     * <p>容错优先：只跳过单条解析不了的 Cookie，不影响其它条，也不因为未知属性（SameSite、
+     * Partitioned…）或日期格式异常而丢弃。</p>
+     */
+    synchronized void absorbSetCookieHeaders(List<String> headers) {
+        absorbSetCookieHeaders(headers, "");
+    }
+
+    /**
+     * @param defaultDomain 没有 {@code Domain} 属性的 host-only Cookie 归属（调用方传请求主机名）
+     */
+    synchronized void absorbSetCookieHeaders(List<String> headers, String defaultDomain) {
+        if (headers == null || headers.isEmpty()) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        for (String header : headers) {
+            if (header == null || header.isBlank()) {
+                continue;
+            }
+            String[] parts = header.split(";");
+            int eq = parts[0].indexOf('=');
+            if (eq <= 0) {
+                continue;
+            }
+            String name = parts[0].substring(0, eq).trim();
+            String value = parts[0].substring(eq + 1).trim();
+            if (name.isEmpty() || name.startsWith("$")) {
+                continue;
+            }
+            String domain = defaultDomain == null ? "" : defaultDomain;
+            String path = "/";
+            boolean secure = false;
+            boolean httpOnly = false;
+            boolean remove = false;
+            long expiresAt = -1;
+            for (int i = 1; i < parts.length; i++) {
+                String part = parts[i].trim();
+                int sep = part.indexOf('=');
+                String key = (sep < 0 ? part : part.substring(0, sep)).trim().toLowerCase(Locale.ROOT);
+                String attribute = sep < 0 ? "" : part.substring(sep + 1).trim();
+                switch (key) {
+                    case "domain" -> domain = attribute;
+                    case "path" -> {
+                        if (!attribute.isEmpty()) {
+                            path = attribute;
+                        }
+                    }
+                    case "max-age" -> {
+                        Long seconds = parseLongOrNull(attribute);
+                        if (seconds != null) {
+                            if (seconds <= 0) {
+                                remove = true;
+                            } else {
+                                expiresAt = now + seconds * 1000L;
+                            }
+                        }
+                    }
+                    case "expires" -> {
+                        Long expires = parseCookieDate(attribute);
+                        if (expires != null) {
+                            if (expires <= now) {
+                                remove = true;
+                            } else {
+                                expiresAt = expires;
+                            }
+                        }
+                    }
+                    case "secure" -> secure = true;
+                    case "httponly" -> httpOnly = true;
+                    default -> {
+                        // SameSite / Partitioned / Priority 等未知属性直接忽略
+                    }
+                }
+            }
+            if (remove) {
+                cookies.remove(name);
+                logger.info("汽水 Set-Cookie 要求删除: {}", name);
+                continue;
+            }
+            cookies.put(name, new StoredCookie(name, value, domain, path, secure, httpOnly, expiresAt));
+            logger.info("收到汽水 Set-Cookie: {}（domain={}, {}{}）", name,
+                    domain.isEmpty() ? "host" : domain,
+                    expiresAt < 0 ? "会话 Cookie" : "过期时间 " + Instant.ofEpochMilli(expiresAt),
+                    secure ? ", Secure" : "");
+        }
+    }
+
     /** 清空本地 Cookie（登出 / 换号）。 */
     public synchronized void clearCookies() {
-        cookieManager.getCookieStore().removeAll();
+        cookies.clear();
         saveCookies();
     }
 
@@ -267,47 +419,54 @@ public class QishuiMusicClient {
             if (root == null || !root.isArray()) {
                 return;
             }
+            long now = System.currentTimeMillis();
             int loaded = 0;
             for (JsonNode node : root) {
-                String name = node.path("name").asText("");
+                String name = node.path("name").asText("").trim();
                 String value = node.path("value").asText("");
                 if (name.isEmpty()) {
                     continue;
                 }
-                HttpCookie cookie = new HttpCookie(name, value);
-                String domain = node.path("domain").asText("");
-                if (!domain.isEmpty()) {
-                    cookie.setDomain(domain);
+                long expiresAt = node.has("expiresAt") ? node.path("expiresAt").asLong(-1)
+                        : legacyMaxAgeExpiry(node.path("maxAge").asLong(-1), now);
+                if (expiresAt > 0 && expiresAt <= now) {
+                    continue;
                 }
-                cookie.setPath(node.path("path").asText("/"));
-                cookie.setMaxAge(node.path("maxAge").asLong(-1));
-                cookie.setSecure(node.path("secure").asBoolean(false));
-                cookie.setHttpOnly(node.path("httpOnly").asBoolean(false));
-                cookie.setVersion(node.path("version").asInt(0));
-                cookieManager.getCookieStore().add(URI.create("https://api.qishui.com/"), cookie);
+                cookies.put(name, new StoredCookie(name, value, node.path("domain").asText(""),
+                        node.path("path").asText("/"), node.path("secure").asBoolean(false),
+                        node.path("httpOnly").asBoolean(false), expiresAt));
                 loaded++;
             }
-            logger.info("已载入汽水音乐 Cookie {} 条（session={}）", loaded, hasSession());
+            logger.info("已载入汽水音乐 Cookie {} 条：{}（session={}）", loaded, cookieNames(), hasSession());
         } catch (Exception e) {
             logger.warn("载入汽水音乐 Cookie 失败: {}", e.getMessage());
         }
     }
 
+    /** 老版本落盘用的是 maxAge 字段（秒，-1 为会话），这里换算成绝对过期时间。 */
+    private static long legacyMaxAgeExpiry(long maxAge, long nowMillis) {
+        if (maxAge == 0) {
+            return nowMillis - 1;
+        }
+        return maxAge < 0 ? -1 : nowMillis + maxAge * 1000L;
+    }
+
     /** 把当前 Cookie 落盘，供重启后复用。 */
     public final synchronized void saveCookies() {
         ArrayNode array = objectMapper.createArrayNode();
-        for (HttpCookie cookie : cookieManager.getCookieStore().getCookies()) {
-            ObjectNode node = array.addObject();
-            node.put("name", cookie.getName());
-            node.put("value", cookie.getValue() == null ? "" : cookie.getValue());
-            if (cookie.getDomain() != null) {
-                node.put("domain", cookie.getDomain());
+        long now = System.currentTimeMillis();
+        for (StoredCookie cookie : cookies.values()) {
+            if (cookie.expired(now)) {
+                continue;
             }
-            node.put("path", cookie.getPath() == null ? "/" : cookie.getPath());
-            node.put("maxAge", cookie.getMaxAge());
-            node.put("secure", cookie.getSecure());
-            node.put("httpOnly", cookie.isHttpOnly());
-            node.put("version", cookie.getVersion());
+            ObjectNode node = array.addObject();
+            node.put("name", cookie.name());
+            node.put("value", cookie.value());
+            node.put("domain", cookie.domain());
+            node.put("path", cookie.path());
+            node.put("secure", cookie.secure());
+            node.put("httpOnly", cookie.httpOnly());
+            node.put("expiresAt", cookie.expiresAt());
         }
         try {
             Path parent = cookieFile.getParent();
@@ -322,6 +481,88 @@ public class QishuiMusicClient {
 
     public Path getCookieFile() {
         return cookieFile;
+    }
+
+    private static Long parseLongOrNull(String value) {
+        try {
+            return Long.parseLong(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 解析 Cookie 日期（{@code Expires=...}）。
+     *
+     * <p>{@code java.net.HttpCookie} 遇到「星期与日期对不上」的写法会整条丢弃，浏览器却照收；
+     * 这里把星期前缀去掉再试，仍然解析不出来就当会话 Cookie（返回 {@code null}，不删 cookie）。</p>
+     */
+    static Long parseCookieDate(String raw) {
+        String value = raw == null ? "" : raw.trim();
+        if (value.isEmpty()) {
+            return null;
+        }
+        for (String candidate : cookieDateCandidates(value)) {
+            for (DateTimeFormatter format : COOKIE_DATE_FORMATS) {
+                Long parsed = parseDateWith(format, candidate);
+                if (parsed != null) {
+                    return parsed;
+                }
+            }
+            try {
+                return OffsetDateTime.parse(candidate).toInstant().toEpochMilli();
+            } catch (DateTimeParseException ignored) {
+                // 继续试 ISO 本地时间
+            }
+            try {
+                return LocalDateTime.parse(candidate.replace(' ', 'T'))
+                        .toInstant(ZoneOffset.UTC).toEpochMilli();
+            } catch (DateTimeParseException ignored) {
+                // 都不匹配：当会话 Cookie 处理（返回 null，不删 cookie）
+            }
+        }
+        return null;
+    }
+
+    /** Cookie 日期常见形态：RFC 1123、Netscape/RFC 850、asctime（可能有/没有星期）。 */
+    private static final List<DateTimeFormatter> COOKIE_DATE_FORMATS = List.of(
+            DateTimeFormatter.RFC_1123_DATE_TIME,
+            DateTimeFormatter.ofPattern("d MMM yyyy HH:mm:ss z", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("d-MMM-yyyy HH:mm:ss z", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("d MMM yyyy HH:mm:ss", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("EEE MMM d HH:mm:ss yyyy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("MMM d HH:mm:ss yyyy", Locale.ENGLISH));
+
+    /** 原文 + 去掉星期前缀的两个变体，空白统一成单空格。 */
+    private static List<String> cookieDateCandidates(String value) {
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        candidates.add(value);
+        int comma = value.indexOf(',');
+        if (comma > 0 && comma <= 4) {
+            candidates.add(value.substring(comma + 1).trim());
+        }
+        int space = value.indexOf(' ');
+        if (space > 0 && space <= 4) {
+            candidates.add(value.substring(space + 1).trim());
+        }
+        List<String> normalized = new ArrayList<>();
+        for (String candidate : candidates) {
+            normalized.add(candidate.trim().replaceAll("\\s+", " "));
+        }
+        return normalized;
+    }
+
+    private static Long parseDateWith(DateTimeFormatter format, String candidate) {
+        try {
+            return ZonedDateTime.parse(candidate, format).toInstant().toEpochMilli();
+        } catch (DateTimeParseException ignored) {
+            // 无时区信息时按 UTC 解析
+        }
+        try {
+            return LocalDateTime.parse(candidate, format).toInstant(ZoneOffset.UTC).toEpochMilli();
+        } catch (DateTimeParseException ignored) {
+            return null;
+        }
     }
 
     // ------------------------------------------------------------------ 参数与 MFA 解析
@@ -547,6 +788,11 @@ public class QishuiMusicClient {
         if (!csrf.isEmpty()) {
             builder.header("x-tt-passport-csrf-token", csrf);
         }
+        String cookie = cookieHeader();
+        if (!cookie.isEmpty()) {
+            // 自己拼 Cookie 头：JDK 的 CookieHandler 会因为 Domain 判定规则把抖音的 cookie 丢掉
+            builder.header("Cookie", cookie);
+        }
         if (form == null) {
             builder.GET();
         } else {
@@ -560,9 +806,9 @@ public class QishuiMusicClient {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("请求汽水音乐接口被中断: " + path, e);
-        } finally {
-            saveCookies();
         }
+        absorbCookies(response);
+        saveCookies();
 
         String body = response.body();
         if (body == null || body.isBlank()) {
@@ -589,13 +835,13 @@ public class QishuiMusicClient {
     }
 
     private String csrfToken() {
-        for (HttpCookie cookie : cookieManager.getCookieStore().getCookies()) {
-            String name = cookie.getName();
-            if ("passport_csrf_token".equals(name) || "passport_csrf_token_default".equals(name)) {
-                return cookie.getValue() == null ? "" : cookie.getValue();
+        synchronized (this) {
+            StoredCookie cookie = cookies.get("passport_csrf_token");
+            if (cookie == null) {
+                cookie = cookies.get("passport_csrf_token_default");
             }
+            return cookie == null || cookie.expired(System.currentTimeMillis()) ? "" : cookie.value();
         }
-        return "";
     }
 
     private static String encodeForm(Map<String, String> values) {

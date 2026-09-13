@@ -259,14 +259,18 @@
         case "confirmed":
           stopPolling();
           mfaSig = "";
-          setStatus("登录成功，Cookie 已保存", "ok");
-          log("登录成功，session=" + (data.session === true));
+          setStatus(data.session ? "登录成功，Cookie 已保存" : "已确认，但服务端没收到 sessionid", data.session ? "ok" : "err");
+          log("登录成功，session=" + (data.session === true)
+            + (data.cookies ? "，cookies=" + data.cookies.join(",") : ""));
           mfaPanel.classList.remove("show");
           donePanel.classList.add("show");
           doneInfo.innerHTML = data.login
             ? "user_id: <code>" + escapeHtml(String(data.login.user_id || "")) + "</code><br>nickname: <code>"
               + escapeHtml(String(data.login.nickname || "")) + "</code>"
             : "";
+          if (data.cookies && data.cookies.length) {
+            doneInfo.innerHTML += "<br>cookies: <code>" + escapeHtml(data.cookies.join(", ")) + "</code>";
+          }
           qrWrap.classList.add("expired");
           break;
         case "expired":
