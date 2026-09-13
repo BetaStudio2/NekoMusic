@@ -32,6 +32,7 @@ public class ExternalImportService {
 
     public static final String SOURCE_NETEASE = "netease";
     public static final String SOURCE_QQ = "qq";
+    public static final String SOURCE_KUGOU = "kugou";
 
     public static final String STATUS_IMPORTED = "imported";
     public static final String STATUS_EXISTED = "existed";
@@ -48,6 +49,7 @@ public class ExternalImportService {
     private final AdminMusicIngestService ingestService;
     private final PlaylistService playlistService;
     private final QQMusicClient qqMusicClient;
+    private final KugouMusicClient kugouMusicClient;
 
     private final ExecutorService executor;
     private final ExecutorService trackExecutor;
@@ -86,12 +88,14 @@ public class ExternalImportService {
                                  NeteaseSearchFillService fillService,
                                  AdminMusicIngestService ingestService,
                                  PlaylistService playlistService,
-                                 QQMusicClient qqMusicClient) {
+                                 QQMusicClient qqMusicClient,
+                                 KugouMusicClient kugouMusicClient) {
         this.neteaseClient = neteaseClient;
         this.fillService = fillService;
         this.ingestService = ingestService;
         this.playlistService = playlistService;
         this.qqMusicClient = qqMusicClient;
+        this.kugouMusicClient = kugouMusicClient;
         AtomicInteger threadNo = new AtomicInteger();
         this.executor = Executors.newCachedThreadPool(r -> {
             Thread thread = new Thread(r, "external-import-" + threadNo.incrementAndGet());
@@ -118,6 +122,13 @@ public class ExternalImportService {
     public void startQqImport(String disstid, int targetPlaylistId, boolean targetPlaylistCreated,
                               Listener listener) {
         submit(() -> runQqImport(disstid, targetPlaylistId, targetPlaylistCreated, listener),
+                listener);
+    }
+
+    /** 酷狗歌单导入。 */
+    public void startKugouImport(String listId, int targetPlaylistId, boolean targetPlaylistCreated,
+                                 Listener listener) {
+        submit(() -> runKugouImport(listId, targetPlaylistId, targetPlaylistCreated, listener),
                 listener);
     }
 
@@ -217,6 +228,43 @@ public class ExternalImportService {
                         STATUS_IMPORTED, attempt.music().get().id(), added, null);
             }
             return result(SOURCE_QQ, index, total, track,
+                    STATUS_FAILED, null, false, fillReasonMessage(attempt.reason()));
+        });
+    }
+
+    private void runKugouImport(String listId, int targetPlaylistId, boolean targetPlaylistCreated,
+                                Listener listener) throws IOException {
+        KugouMusicClient.KugouPlaylist playlist = kugouMusicClient.fetchPlaylist(listId);
+        List<KugouMusicClient.KugouTrack> kugouTracks = playlist.tracks();
+        if (kugouTracks.isEmpty()) {
+            listener.onError("酷狗歌单为空或不可访问");
+            return;
+        }
+
+        final int total = kugouTracks.size();
+        List<Track> tracks = new ArrayList<>(total);
+        for (KugouMusicClient.KugouTrack kugouTrack : kugouTracks) {
+            tracks.add(new Track(kugouTrack.hash(), kugouTrack.title(), kugouTrack.artist()));
+        }
+        listener.onStart(SOURCE_KUGOU, total, targetPlaylistId, targetPlaylistCreated);
+        executeTracks(SOURCE_KUGOU, tracks, listener, (index, track, trackListener) -> {
+            trackListener.onTrackStarted(result(SOURCE_KUGOU, index, total, track,
+                    "matching", null, false, null));
+
+            Optional<AdminMusicIngestService.IngestedMusic> matched = matchLocal(track.title(), track.artist());
+            if (matched.isPresent()) {
+                boolean added = addToPlaylist(targetPlaylistId, matched.get().id());
+                return result(SOURCE_KUGOU, index, total, track,
+                        STATUS_EXISTED, matched.get().id(), added, null);
+            }
+
+            NeteaseSearchFillService.FillAttempt attempt = fillService.tryFillFromNetease(track.title(), track.artist());
+            if (attempt.music().isPresent()) {
+                boolean added = addToPlaylist(targetPlaylistId, attempt.music().get().id());
+                return result(SOURCE_KUGOU, index, total, track,
+                        STATUS_IMPORTED, attempt.music().get().id(), added, null);
+            }
+            return result(SOURCE_KUGOU, index, total, track,
                     STATUS_FAILED, null, false, fillReasonMessage(attempt.reason()));
         });
     }
