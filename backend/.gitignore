@@ -117,3 +117,7 @@ ehthumbs.db
 Thumbs.db
 .DS_Store
 .ktlin
+
+# 汽水音乐登录 Cookie（运行时生成）
+qishui_cookies.json
+backend/qishui_cookies.json
