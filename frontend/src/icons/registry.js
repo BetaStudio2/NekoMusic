@@ -40,6 +40,7 @@ import {
   // 其他
   Home, Headphones, HeadphoneOff, Headset, Speaker, Cast, Wifi, WifiOff,
   Smartphone, MonitorSmartphone, HardDrive, Cloud, CloudUpload, CloudDownload,
+  Package,
   ScanLine, QrCode, Send, Inbox, MessageSquare, CirclePlay, CirclePause,
   Baby, Cat, Bug, Code, Terminal, Database, Server,
   Trash, Ban, Crosshair, Move, ZoomIn, ZoomOut, RotateCcw, RotateCw,
@@ -222,6 +223,7 @@ export const icons = {
   smartphone: Smartphone,
   'monitor-smartphone': MonitorSmartphone,
   'hard-drive': HardDrive,
+  package: Package,
   cloud: Cloud,
   'cloud-upload': CloudUpload,
   'cloud-download': CloudDownload,
