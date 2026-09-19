@@ -1,77 +1,113 @@
 <template>
-  <div class="admin-subpage">
-    <h2>客户端更新</h2>
-    <p>
-      保存版本号后，<strong>/version 仍对外返回旧版本 30 分钟</strong>，便于上传新安装包；上传目标文件名为待生效版本。
-    </p>
-    <section v-if="publishedAndroidVer || publishedPcVer" class="card card-muted">
-      <h3>当前对外（/version）</h3>
-      <p class="published-line">Android：<code>{{ publishedAndroidVer }}</code></p>
-      <p class="published-line">PC：<code>{{ publishedPcVer }}</code></p>
-    </section>
-    <section class="card">
-      <h3>待发布版本号</h3>
-      <p v-if="pendingEffectiveAt" class="schedule-hint">
+  <div class="subpage">
+    <header class="subpage__head">
+      <div>
+        <h1 class="subpage__title">客户端更新</h1>
+        <p class="subpage__desc">
+          保存版本号后，<strong>/version 仍对外返回旧版本 30 分钟</strong>，便于上传新安装包；上传目标文件名为待生效版本。
+        </p>
+      </div>
+    </header>
+
+    <NCard v-if="publishedAndroidVer || publishedPcVer" pad="lg" class="card">
+      <h2 class="card__title">当前对外（/version）</h2>
+      <p class="line">Android：<code class="code">{{ publishedAndroidVer }}</code></p>
+      <p class="line">PC：<code class="code">{{ publishedPcVer }}</code></p>
+    </NCard>
+
+    <NCard pad="lg" class="card">
+      <h2 class="card__title">待发布版本号</h2>
+      <p v-if="pendingEffectiveAt" class="hint">
         保存后将于 <strong>{{ pendingEffectiveAt }}</strong> 起在 /version 生效
       </p>
-      <div class="form-row">
-        <label>Android 版本 (ver)</label>
-        <input v-model="androidVer" type="text" class="inp" placeholder="如 20260207-36" />
+
+      <div class="field">
+        <label class="field__label" for="rel-android">Android 版本 (ver)</label>
+        <NInput id="rel-android" v-model="androidVer" placeholder="如 20260207-36" />
       </div>
-      <div class="form-row">
-        <label>PC 版本 (pc_ver)</label>
-        <input v-model="pcVer" type="text" class="inp" placeholder="如 2026.207.6" />
+      <div class="field">
+        <label class="field__label" for="rel-pc">PC 版本 (pc_ver)</label>
+        <NInput id="rel-pc" v-model="pcVer" placeholder="如 2026.207.6" />
       </div>
+
       <div class="toolbar">
-        <button type="button" class="btn-ghost" :disabled="loading" @click="loadData">重新加载</button>
-        <button type="button" class="btn-primary" :disabled="savingVersions || loading" @click="saveVersions">
-          {{ savingVersions ? '保存中…' : '保存版本号' }}
-        </button>
+        <NButton variant="secondary" icon="refresh" :disabled="loading" @click="loadData">重新加载</NButton>
+        <NButton
+          variant="primary"
+          icon="check"
+          :disabled="savingVersions || loading"
+          :loading="savingVersions"
+          @click="saveVersions"
+        >
+          保存版本号
+        </NButton>
       </div>
-    </section>
-    <section class="card">
-      <h3>安装包</h3>
-      <p v-if="loadError" class="err">{{ loadError }}</p>
-      <div v-for="pkg in packages" :key="pkg.platform" class="pkg-row">
-        <div class="pkg-meta">
-          <span class="pkg-platform">{{ platformLabel(pkg.platform) }}</span>
-          <span class="pkg-name" :title="pkg.fileName">{{ pkg.fileName }}</span>
-          <span v-if="pkg.uploaded" class="badge ok">已上传</span>
-          <span v-else class="badge warn">未上传</span>
-          <span v-if="pkg.uploaded && pkg.size != null" class="pkg-size">{{ formatSize(pkg.size) }}</span>
+    </NCard>
+
+    <NCard pad="lg" class="card card--last">
+      <h2 class="card__title">安装包</h2>
+
+      <p v-if="loadError" class="err">
+        <NIcon name="triangle-alert" :size="16" />
+        {{ loadError }}
+      </p>
+
+      <div v-for="pkg in packages" :key="pkg.platform" class="pkg">
+        <div class="pkg__meta">
+          <span class="pkg__platform">{{ platformLabel(pkg.platform) }}</span>
+          <span class="pkg__name" :title="pkg.fileName">{{ pkg.fileName }}</span>
+          <NTag :variant="pkg.uploaded ? 'success' : 'warning'" size="sm">
+            {{ pkg.uploaded ? '已上传' : '未上传' }}
+          </NTag>
+          <span v-if="pkg.uploaded && pkg.size != null" class="pkg__size">{{ formatSize(pkg.size) }}</span>
         </div>
-        <div class="pkg-actions">
-          <a
+
+        <div class="pkg__actions">
+          <NButton
             v-if="pkg.uploaded && pkg.downloadUrl"
+            size="sm"
+            variant="secondary"
+            icon="external-link"
             :href="pkg.downloadUrl"
-            class="btn-link"
             target="_blank"
             rel="noopener"
-          >直链</a>
-          <label class="btn-upload">
+          >
+            直链
+          </NButton>
+
+          <label
+            class="upload"
+            :class="{ 'upload--busy': uploadingPlatform === pkg.platform }"
+          >
             <input
               type="file"
               :accept="acceptForPlatform(pkg.platform)"
-              class="file-inp"
+              class="upload__input"
               :disabled="uploadingPlatform === pkg.platform"
               @change="(e) => onFilePick(e, pkg)"
             />
+            <NIcon name="upload" :size="14" />
             {{ uploadingPlatform === pkg.platform ? '上传中…' : '上传' }}
           </label>
-          <div v-if="uploadingPlatform === pkg.platform && uploadProgress >= 0" class="progress-wrap">
-            <div class="progress-bar" :style="{ width: uploadProgress + '%' }" />
-          </div>
+        </div>
+
+        <div v-if="uploadingPlatform === pkg.platform && uploadProgress >= 0" class="progress">
+          <div class="progress__bar" :style="{ width: uploadProgress + '%' }" />
         </div>
       </div>
+
       <p class="hint">请先保存待发布版本号，再上传安装包；仅校验文件类型，落盘文件名与上表一致。</p>
-    </section>
+    </NCard>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useToast } from 'vue-toastification'
+import { useToast } from '@/composables/useToast'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NCard, NInput, NModal, NSpinner, NTag } from '@/ui'
+import { PageShell, AmbientBackdrop } from '@/layouts'
 import {
   fetchAdminClientReleases,
   saveAdminClientReleaseVersions,
@@ -212,277 +248,206 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.admin-layout {
-  display: flex;
-  min-height: 100vh;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
+.subpage {
+  width: 100%;
+  max-width: 900px;
 }
 
-.admin-main-content {
-  flex: 1;
-  margin-left: 250px;
-  padding: 20px;
-  min-height: calc(100vh - 40px);
-  display: flex;
-  flex-direction: column;
+.subpage__head {
+  margin-bottom: var(--n-space-6);
 }
 
-.admin-header {
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 15px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
-  backdrop-filter: blur(10px);
-  margin-bottom: 20px;
-  display: flex;
-  align-items: center;
-  gap: 15px;
+.subpage__title {
+  margin: 0 0 var(--n-space-1);
+  font-size: clamp(1.25rem, 2.6vw, 1.6rem);
+  font-weight: var(--n-weight-bold);
+  letter-spacing: -0.02em;
+  color: var(--n-text);
 }
 
-.menu-toggle-btn {
-  display: none;
-  background: none;
-  border: none;
-  color: #887bb0;
-  cursor: pointer;
+.subpage__desc {
+  margin: 0;
+  max-width: 72ch;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  line-height: var(--n-leading-normal);
 }
 
-.menu-toggle-btn svg {
-  width: 28px;
-  height: 28px;
+.subpage__desc strong {
+  color: var(--n-text);
+  font-weight: var(--n-weight-semibold);
 }
 
-.admin-user-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex: 1;
-}
-
-.logout-button {
-  background: linear-gradient(135deg, rgba(220, 20, 60, 0.8), rgba(105, 200, 223, 0.8));
-  color: white;
-  border: none;
-  border-radius: 20px;
-  padding: 8px 16px;
-  cursor: pointer;
-}
-
-.admin-content-wrapper {
-  flex: 1;
-  padding: 0 20px;
-  overflow: auto;
-}
-
-.admin-subpage h2 {
-  color: #69c8df;
-  margin: 0 0 8px;
-}
-
-.admin-subpage > p {
-  color: #887bb0;
-  margin: 0 0 20px;
-}
-
+/* ==================== 卡片 ==================== */
 .card {
-  background: rgba(255, 255, 255, 0.35);
-  border-radius: 15px;
-  padding: 20px;
-  margin-bottom: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  margin-bottom: var(--n-space-5);
 }
 
-.card h3 {
-  margin: 0 0 16px;
-  color: #69c8df;
-  font-size: 1.1rem;
+.card--last {
+  margin-bottom: 0;
 }
 
-.card-muted {
-  background: rgba(105, 200, 223, 0.08);
+.card__title {
+  margin: 0 0 var(--n-space-4);
+  font-size: var(--n-text-md);
+  font-weight: var(--n-weight-semibold);
+  color: var(--n-text);
 }
 
-.published-line {
-  margin: 0 0 8px;
-  color: #555;
-  font-size: 0.95rem;
+.line {
+  margin: 0 0 var(--n-space-2);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
 }
 
-.published-line code {
-  color: #69c8df;
+.line:last-child {
+  margin-bottom: 0;
 }
 
-.schedule-hint {
-  margin: 0 0 14px;
-  padding: 10px 12px;
-  background: rgba(105, 200, 223, 0.15);
-  border-radius: 8px;
-  color: #6d5a00;
-  font-size: 0.9rem;
+.code {
+  padding: 2px 8px;
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-xs);
+  background: var(--n-surface-sunken);
+  color: var(--n-accent-strong);
+  font-family: var(--n-font-mono);
+  font-size: var(--n-text-sm);
 }
 
-.form-row {
+.hint {
+  margin: var(--n-space-3) 0 0;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+  line-height: var(--n-leading-normal);
+}
+
+.hint strong {
+  color: var(--n-accent-strong);
+}
+
+.err {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 14px;
+  align-items: center;
+  gap: var(--n-space-2);
+  margin: 0 0 var(--n-space-4);
+  padding: var(--n-space-3) var(--n-space-4);
+  border: 1px solid rgba(255, 107, 107, 0.28);
+  border-radius: var(--n-radius-control);
+  background: var(--n-danger-soft);
+  color: #ffb3b3;
+  font-size: var(--n-text-sm);
 }
 
-.form-row label {
-  font-size: 0.9rem;
-  color: #887bb0;
+/* ==================== 表单 ==================== */
+.field {
+  margin-bottom: var(--n-space-4);
 }
 
-.inp {
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(105, 200, 223, 0.25);
-  max-width: 360px;
+.field__label {
+  display: block;
+  margin-bottom: var(--n-space-2);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-medium);
 }
 
 .toolbar {
   display: flex;
-  gap: 10px;
   flex-wrap: wrap;
-  margin-top: 8px;
+  gap: var(--n-space-3);
+  margin-top: var(--n-space-5);
 }
 
-.btn-primary,
-.btn-ghost,
-.btn-upload {
-  padding: 8px 16px;
-  border-radius: 20px;
-  border: none;
-  cursor: pointer;
-  font-size: 0.9rem;
+/* ==================== 安装包行 ==================== */
+.pkg {
+  padding: var(--n-space-4) 0;
+  border-bottom: 1px solid var(--n-line-subtle);
 }
 
-.btn-primary {
-  background: linear-gradient(135deg, #69c8df, #4aa9c0);
-  color: #fff;
-}
-
-.btn-ghost {
-  background: rgba(255, 255, 255, 0.6);
-  color: #69c8df;
-}
-
-.btn-primary:disabled,
-.btn-ghost:disabled,
-.btn-upload:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.pkg-row {
-  padding: 14px 0;
-  border-bottom: 1px solid rgba(105, 200, 223, 0.12);
-}
-
-.pkg-row:last-of-type {
+.pkg:last-of-type {
   border-bottom: none;
 }
 
-.pkg-meta {
+.pkg__meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: var(--n-space-3);
 }
 
-.pkg-platform {
-  font-weight: 600;
-  color: #69c8df;
-  min-width: 72px;
+.pkg__platform {
+  color: var(--n-text);
+  font-size: var(--n-text-md);
+  font-weight: var(--n-weight-semibold);
 }
 
-.pkg-name {
-  font-family: ui-monospace, monospace;
-  font-size: 0.85rem;
-  color: #555;
-  word-break: break-all;
+.pkg__name {
+  color: var(--n-text-muted);
+  font-family: var(--n-font-mono);
+  font-size: var(--n-text-xs);
+  overflow-wrap: anywhere;
 }
 
-.badge {
-  font-size: 0.75rem;
-  padding: 2px 8px;
-  border-radius: 10px;
+.pkg__size {
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+  font-variant-numeric: tabular-nums;
 }
 
-.badge.ok {
-  background: rgba(76, 175, 80, 0.2);
-  color: #2e7d32;
-}
-
-.badge.warn {
-  background: rgba(255, 152, 0, 0.2);
-  color: #e65100;
-}
-
-.pkg-size {
-  font-size: 0.8rem;
-  color: #888;
-}
-
-.pkg-actions {
+.pkg__actions {
   display: flex;
-  align-items: center;
-  gap: 12px;
   flex-wrap: wrap;
+  align-items: center;
+  gap: var(--n-space-3);
+  margin-top: var(--n-space-3);
 }
 
-.btn-link {
-  color: #69c8df;
-  font-size: 0.9rem;
-}
-
-.btn-upload {
-  background: rgba(105, 200, 223, 0.15);
-  color: #69c8df;
-  position: relative;
-  overflow: hidden;
-}
-
-.file-inp {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
+/* 上传按钮（label 包隐藏 file input，保证点击可用） */
+.upload {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--n-space-2);
+  height: 30px;
+  padding: 0 var(--n-space-3);
+  border: 1px solid var(--n-accent-line);
+  border-radius: var(--n-radius-control);
+  background: var(--n-gradient-accent);
+  color: var(--n-accent-strong);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-medium);
   cursor: pointer;
+  transition: background var(--n-duration-fast) var(--n-ease), border-color var(--n-duration-fast) var(--n-ease);
 }
 
-.progress-wrap {
-  flex: 1;
-  min-width: 120px;
+@media (hover: hover) {
+  .upload:not(.upload--busy):hover {
+    background: var(--n-accent-soft);
+    border-color: var(--n-accent);
+  }
+}
+
+.upload--busy {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.upload__input {
+  display: none;
+}
+
+/* ==================== 进度 ==================== */
+.progress {
   height: 6px;
-  background: rgba(0, 0, 0, 0.08);
-  border-radius: 3px;
+  margin-top: var(--n-space-3);
+  border-radius: var(--n-radius-pill);
+  background: var(--n-surface-soft);
   overflow: hidden;
 }
 
-.progress-bar {
+.progress__bar {
   height: 100%;
-  background: #69c8df;
-  transition: width 0.15s ease;
-}
-
-.hint {
-  margin: 16px 0 0;
-  font-size: 0.85rem;
-  color: #887bb0;
-}
-
-.err {
-  color: #c62828;
-  margin-bottom: 12px;
-}
-
-@media (max-width: 768px) {
-  .admin-main-content {
-    margin-left: 0;
-  }
-  .menu-toggle-btn {
-    display: block;
-  }
+  border-radius: var(--n-radius-pill);
+  background: var(--n-accent);
+  transition: width 0.15s var(--n-ease);
 }
 </style>
