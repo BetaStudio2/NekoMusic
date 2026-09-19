@@ -343,71 +343,61 @@ home-page（自建 ambient + 自建变量集）
 4. 两枚卡片是唯一内容，信息密度低，首页显得空。
 5. 页面自建 ambient 与变量，未复用框架。
 
-### 7.3 区块级重构建议
+### 7.3 最终排布（参考主流音乐 App）
 
-**① Hero（原 `intro`）**
+参考 ArchoeraMusic 首页范式（`页头 → Hero 横幅 → 动作卡 → 横向封面栏`），最终实现：
 
-- 去掉底边框，改用上下留白分组。
-- 标题用渐变文字，副标题收窄 `max-width`。
-- 胶囊入口改为「一组次级按钮」：首项 `NButton variant="primary"`（唯一强调点），其余 `variant="secondary"`；「开发者文档 / QQ 群」这类外链可用 `variant="ghost"` + 图标。
-- 增加一处轻量「数据条」（如曲库总数），用弱色文字，不用色块。
+**① 页头**
 
-```html
-<section class="hero">
-  <h1 class="hero__title">从这里开始听</h1>
-  <p class="hero__lede">用顶栏搜索与播放；在客户端可从网易、QQ、酷狗迁入歌单，开源免费、无绑架式社交。</p>
-  <nav class="hero__actions">
-    <NButton variant="primary" icon="list-music" to="/download#netease-migrate">歌单迁入</NButton>
-    <NButton variant="secondary" icon="download" to="/download">下载客户端</NButton>
-    <NButton v-if="isLoggedIn" variant="secondary" icon="upload" to="/upload">上传音乐</NButton>
-    <NButton variant="ghost" icon="book" href="…">开发者文档</NButton>
-  </nav>
-</section>
-```
+- `首页` 标题 + 按时段问候（早上好 / 下午好 / 晚上好 / 夜深了），登录后带昵称。
 
-**② 迁入说明（原 `migrate-strip`）**
+**② Hero 横幅**
 
-- 改为一张 `NCard variant="glass"`，左侧放 `NIcon name="link-2"`（或 `arrow-right`）作为视觉锚点，**不用色条也不用整块渐变**。
-- 文案层次：`NTag variant="accent"` 标「歌单迁入」→ 标题 → 说明 → `NButton variant="outline"` CTA。
-- 若希望有轻微品牌感，用 `NCard` 的 `--n-gradient-surface` 顶边微光，而非整卡青色。
+- 一张圆角横幅卡片：**热门第一首封面的模糊底** + 压暗渐变，保证文字可读。
+- 左侧：强调标签 → 渐变标题 → 说明 → CTA（`播放热门` 为唯一主强调，`歌单迁入` 为次级）。
+- 右侧：主打封面（悬停放大）+ 热度标签 + 播放键 + 底部曲名/歌手。
 
-**③ 浏览区（原 `browse`）**
+**③ 动作卡**
 
-- **删除 `browse__rail` 与 `railFlow` 动画**，删除区块级的动画渐变底。
-- 改为标准 section：标题 + 副标题 + 两枚大卡片（`NCard hoverable`）。
-- 卡片结构：4 格封面 mosaic（保留）+ 底部渐变遮罩 + 数量 `NTag` + 标题 + 提示文字。悬停只做「上浮 + 边框提亮」，不做发光描边。
-- 建议**扩充内容**以填充首页：在两张卡片下方追加「最新上架」横向滚动列表（复用封面小卡），让首页从「两枚卡片」变成「发现流」。
+- 4 张：热门排行 / 最新上架 / 歌单迁入 / 我的收藏（未登录）或 上传音乐（已登录）。
+- 图标（青调圆角方块）+ 标题 + 副标题 + `chevron-right`。
 
-**④ 页壳**
+**④ 横向封面栏 ×2**
 
-- 用 `AppShell` + `PageShell` 替换自建 `.home-page` / `.ambient` / `.shell`，删除本地变量集与重复关键帧。
+- `热门音乐`（带序号角标）与 `最新上架`，均为**横向滑动栏**（`scroll-snap`），各 12 张。
+- 区块头采用「标题 + 副标题 + `更多 ›`」范式。
+- 封面悬停：图片微放大 + 边框提亮 + 播放键浮现（触屏常显）。
 
-### 7.4 重构后结构
+**⑤ 约定**
+
+- 播放复用 `#play` / `#playlist` 契约，与列表页一致。
+- 全局仅 `播放热门` 一处主强调；无侧边高亮条、无区块级动画渐变。
+- 页壳使用 `PageShell` + `AmbientBackdrop`，不自建变量与关键帧。
+
+### 7.4 最终结构
 
 ```html
-<AppShell :has-player="true">
-  <template #header><SiteHeader /></template>
-  <PageShell width="default" flush-top>
-    <section class="hero"> … </section>
-    <NCard class="migrate"> … </NCard>
-    <section class="section">
-      <header class="section__head">
-        <h2 class="section__title">热门与最新</h2>
-        <p class="section__sub">排行榜与最新上架封面预览</p>
-      </header>
-      <div class="tiles">
-        <NCard hoverable class="tile"> … 热门 … </NCard>
-        <NCard hoverable class="tile"> … 最新 … </NCard>
-      </div>
-    </section>
-    <section class="section"> 最新上架横向列表 … </section>
-  </PageShell>
-  <template #player><GlobalPlayer /></template>
-  <template #footer><SiteFooter /></template>
-</AppShell>
+<PageShell width="default">
+  <header class="home-head">标题 + 问候</header>
+
+  <section class="hero">
+    <div class="hero__bg" />            <!-- 模糊封面底 -->
+    <div class="hero__scrim" />          <!-- 压暗渐变 -->
+    <div class="hero__copy"> 标签 / 标题 / 说明 / CTA </div>
+    <button class="hero__feature"> 主打封面 + 播放 </button>
+  </section>
+
+  <section class="quick"> 4 × NCard 动作卡 </section>
+
+  <section class="section">
+    <header class="section__head">标题 + 副标题 + 更多 ›</header>
+    <div class="rail"> 12 × 封面卡 </div>
+  </section>
+  <section class="section"> … 最新上架 rail … </section>
+</PageShell>
 ```
 
-> 注意：`AppShell` 的 `#header`/`#player`/`#footer` 需要传入现有 `SearchHeader`/`GlobalPlayer`/`Footer`。迁移初期可原样嵌入，待框架稳定后再逐个组件化重构。
+> 说明：顶栏 / 播放条 / 页脚由 `App.vue` 统一提供（见批次 1），页面自身不渲染 chrome。
 
 ---
 
