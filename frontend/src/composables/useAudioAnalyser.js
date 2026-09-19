@@ -107,5 +107,24 @@ export function useAudioAnalyser() {
       for (let i = 0; i < n; i++) target[i] = state.freq[i]
       return true
     },
+    /**
+     * 读取指定频率区间的平均能量（0..1）。
+     * 常用于「低频鼓点」驱动背景/封面起伏（如 AMLL 的 lowFreqVolume 需要 80–120Hz）。
+     * @param {number} minHz
+     * @param {number} maxHz
+     * @returns {number} 0..1；未就绪时返回 0
+     */
+    readBand(minHz, maxHz) {
+      if (!state.analyser || !state.freq) return 0
+      state.analyser.getByteFrequencyData(state.freq)
+      const sampleRate = state.ctx?.sampleRate || 44100
+      const binHz = sampleRate / state.analyser.fftSize
+      const from = Math.max(0, Math.floor(minHz / binHz))
+      const to = Math.min(state.freq.length - 1, Math.ceil(maxHz / binHz))
+      if (to < from) return 0
+      let sum = 0
+      for (let i = from; i <= to; i++) sum += state.freq[i]
+      return sum / (to - from + 1) / 255
+    },
   }
 }
