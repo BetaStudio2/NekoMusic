@@ -1,208 +1,305 @@
 <template>
-  <div class="np-page">
-    <!-- 专辑流动背景（AMLL BackgroundRender，随低频起伏） -->
-    <AlbumBackground
-      v-if="currentMusic"
-      :album="getCoverUrl(currentMusic.id)"
-      :playing="isPlaying"
-      :has-lyric="parsedLyrics.length > 0"
-    />
-    <div class="np-scrim" aria-hidden="true" />
+  <Teleport to="body">
+    <!-- 全屏播放页：自底部滑入 / 滑出（关闭前先播完退出动效再换路由） -->
+    <Transition name="np" appear @after-leave="onAfterLeave">
+      <div v-show="!closing" class="np" role="dialog" aria-modal="true" aria-label="正在播放">
+        <!-- 专辑流动背景（AMLL BackgroundRender，随低频起伏） -->
+        <AlbumBackground
+          v-if="currentMusic"
+          :album="getCoverUrl(currentMusic.id)"
+          :playing="isPlaying"
+          :has-lyric="parsedLyrics.length > 0"
+        />
+        <div class="np__scrim" aria-hidden="true" />
 
-    <!-- 移动设备下载提示 -->
-    <div v-if="isMobile && showBanner" class="np-banner">
-      <span>下载 APP 体验更好</span>
-      <RouterLink to="/download" class="np-banner__btn">立即下载</RouterLink>
-      <button type="button" class="np-banner__close" aria-label="关闭" @click="closeBanner">
-        <NIcon name="close" :size="16" />
-      </button>
-    </div>
+        <!-- 顶栏：收起 + 曲名 + 次级操作 -->
+        <header class="np__top">
+          <button type="button" class="np-icon" aria-label="收起播放页" @click="close">
+            <NIcon name="chevron-down" :size="22" />
+          </button>
 
-    <PageShell width="default">
-      <!-- 加载 -->
-      <div v-if="!currentMusic" class="np-state">
-        <NSpinner :size="28" />
-        <p>加载曲目中…</p>
-      </div>
+          <div class="np__top-title">
+            <span class="np__top-name">{{ currentMusic ? currentMusic.title : '加载中…' }}</span>
+            <span v-if="currentMusic" class="np__top-artist">{{ currentMusic.artist }}</span>
+          </div>
 
-      <div v-else class="np" aria-labelledby="track-title">
-        <!-- 左：封面 + 信息 + 操作 -->
-        <section class="np__aside">
-          <div class="np__cover">
-            <img
-              :src="getCoverUrl(currentMusic.id)"
-              :alt="currentMusic.title"
-              @error="handleImageError"
-            />
+          <div class="np__top-actions">
             <button
               type="button"
-              class="np__play"
-              :aria-label="`播放 ${currentMusic.title}`"
-              @click="playMusic"
-            >
-              <NIcon name="play" :size="26" />
-            </button>
-          </div>
-
-          <!-- 实时频谱（数据来自 GlobalPlayer 的音频元素） -->
-          <SpectrumCanvas
-            class="np__spectrum"
-            :bars="40"
-            :height="64"
-            :active="isPlaying"
-          />
-
-          <div class="np__meta">
-            <h1 id="track-title" class="np__title">{{ currentMusic.title }}</h1>
-            <p class="np__artist">{{ currentMusic.artist }}</p>
-            <p v-if="currentMusic.album" class="np__album">{{ currentMusic.album }}</p>
-            <p v-if="currentMusic.duration" class="np__dur">
-              <NIcon name="clock" :size="14" />
-              {{ formatDuration(currentMusic.duration) }}
-            </p>
-          </div>
-
-          <div class="np__actions">
-            <NButton variant="primary" icon="play" @click="playMusic">播放</NButton>
-            <NButton
-              :variant="isFavorite(currentMusic?.id) ? 'primary' : 'secondary'"
-              icon="heart"
+              class="np-icon"
+              :class="{ 'is-on': currentMusic && isFavorite(currentMusic.id) }"
+              :disabled="!currentMusic"
+              :aria-label="currentMusic && isFavorite(currentMusic.id) ? '取消收藏' : '收藏'"
+              :title="currentMusic && isFavorite(currentMusic.id) ? '取消收藏' : '收藏'"
               @click="toggleFavorite"
             >
-              {{ isFavorite(currentMusic?.id) ? '已收藏' : '收藏' }}
-            </NButton>
-            <NButton variant="secondary" icon="download" @click="downloadMusic">下载</NButton>
-            <NButton
-              variant="outline"
-              icon="video"
-              :disabled="videoRenderBusy"
+              <NIcon :name="currentMusic && isFavorite(currentMusic.id) ? 'heart' : 'heart-off'" :size="18" />
+            </button>
+            <button
+              type="button"
+              class="np-icon"
+              :disabled="!currentMusic"
+              aria-label="下载"
+              title="下载"
+              @click="downloadMusic"
+            >
+              <NIcon name="download" :size="18" />
+            </button>
+            <button
+              type="button"
+              class="np-icon"
+              :disabled="!currentMusic || videoRenderBusy"
+              aria-label="生成分享视频"
+              :title="videoRenderBusy ? '生成中…' : '生成分享视频'"
               @click="openVideoRenderDialog"
             >
-              {{ videoRenderBusy ? '生成中…' : '分享视频' }}
-            </NButton>
+              <NIcon name="video" :size="18" />
+            </button>
           </div>
+        </header>
 
-          <p v-if="isLoggedIn()" class="np__hint">
-            <NIcon name="sparkles" :size="14" />
-            <template v-if="userIsVip">会员：整首横屏成片，无水印、不限次数</template>
-            <template v-else>
-              免费：30 秒横屏成片（含水印），每日 10 次 ·
-              <RouterLink to="/vip">开通会员</RouterLink>
-            </template>
-          </p>
-
-          <div v-if="videoRenderSubmitted" class="np__notice">
-            <NIcon name="circle-check" :size="16" />
-            <div>
-              <p>已提交渲染，完成后将向注册邮箱发送通知并附下载链接。</p>
-              <p v-if="videoRenderRemainingToday != null && !userIsVip" class="np__notice-meta">
-                今日剩余免费次数：{{ videoRenderRemainingToday }}
-              </p>
-            </div>
-          </div>
-
-          <div v-if="videoRenderReady" class="np__notice np__notice--ready">
-            <NIcon name="circle-check" :size="16" />
-            <div class="np__notice-body">
-              <p>分享视频已生成，可下载 MP4。</p>
-              <NButton size="sm" variant="primary" icon="download" @click="downloadRenderedVideo">
-                下载 MP4
-              </NButton>
-            </div>
-          </div>
-        </section>
-
-        <!-- 右：歌词 -->
-        <section class="np__lyrics" aria-label="歌词">
-          <header class="np__lyrics-head">
-            <h2 class="np__lyrics-title">歌词</h2>
-            <span v-if="parsedLyrics.length" class="np__lyrics-count">{{ parsedLyrics.length }} 行</span>
-          </header>
-
-          <LyricsWall
-            v-if="parsedLyrics.length > 0"
-            class="np__wall"
-            :lines="parsedLyrics"
-            :current-time="currentTime"
-            :playing="isPlaying"
-          />
-
-          <div v-else class="np__lyrics-empty">
-            <NIcon name="file-text" :size="26" />
-            <p>暂无歌词</p>
-            <p class="np__lyrics-empty-hint">播放时可在底栏播放器查看音频进度</p>
-          </div>
-        </section>
-      </div>
-    </PageShell>
-
-    <!-- 分享视频弹窗 -->
-    <NModal
-      v-model="videoModalOpen"
-      title="生成分享视频"
-      size="md"
-      @close="closeVideoModal"
-    >
-      <p v-if="currentMusic" class="clip-song">{{ currentMusic.title }} · {{ currentMusic.artist }}</p>
-
-      <label class="clip-option" :class="{ 'clip-option--locked': !userIsVip }">
-        <input v-model="videoWatermarkChoice" type="checkbox" :disabled="!userIsVip" />
-        <span>添加平台水印</span>
-      </label>
-
-      <div class="clip-range">
-        <div class="clip-range__head">
-          <span>成片起始</span>
-          <span class="clip-range__value">
-            {{ formatClipTime(clipStartSec) }} → {{ formatClipTime(clipEndSec) }}
-          </span>
+        <!-- 移动设备下载提示 -->
+        <div v-if="isMobile && showBanner" class="np__banner">
+          <span>下载 APP 体验更好</span>
+          <RouterLink to="/download" class="np__banner-btn">立即下载</RouterLink>
+          <button type="button" class="np-icon np-icon--sm" aria-label="关闭" @click="closeBanner">
+            <NIcon name="close" :size="15" />
+          </button>
         </div>
-        <input
-          v-model.number="clipStartSec"
-          type="range"
-          class="clip-range__slider"
-          :min="0"
-          :max="maxClipStartSec"
-          :step="1"
-          :disabled="trackDurationSec <= 0"
-          @input="onClipRangeChange"
-        />
-        <p class="clip-sub">
-          <template v-if="userIsVip">
-            会员：从所选位置渲染至歌曲结束（约 {{ formatClipTime(clipPreviewDurationSec) }}）
-          </template>
-          <template v-else>免费：所选范围内固定 30 秒成片（每日 10 次）</template>
-        </p>
-        <NButton
-          size="sm"
-          variant="secondary"
-          icon="play"
-          :disabled="trackDurationSec <= 0 || clipPreviewDurationSec <= 0"
-          @click="toggleClipPreview"
-        >
-          {{ clipPreviewPlaying ? '停止试听' : '试听所选片段' }}
-        </NButton>
+
+        <!-- 主体 -->
+        <div class="np__body">
+          <!-- 左：封面 + 信息 + 操作 -->
+          <section class="np__aside">
+            <div v-if="!currentMusic" class="np__loading">
+              <NSpinner :size="30" />
+              <p>加载曲目中…</p>
+            </div>
+
+            <template v-else>
+              <div class="np__cover">
+                <img
+                  :src="getCoverUrl(currentMusic.id)"
+                  :alt="currentMusic.title"
+                  @error="handleImageError"
+                />
+                <div class="np__cover-sheen" aria-hidden="true" />
+              </div>
+
+              <div class="np__meta">
+                <h1 class="np__title">{{ currentMusic.title }}</h1>
+                <p class="np__artist">{{ currentMusic.artist }}</p>
+                <p v-if="currentMusic.album" class="np__album">{{ currentMusic.album }}</p>
+                <p v-if="currentMusic.duration" class="np__dur">
+                  <NIcon name="clock" :size="13" />
+                  {{ formatDuration(currentMusic.duration) }}
+                </p>
+              </div>
+
+              <SpectrumCanvas
+                class="np__spectrum"
+                :bars="44"
+                :height="56"
+                :active="isPlaying"
+              />
+
+              <div class="np__aside-actions">
+                <NButton variant="primary" icon="play" @click="playMusic">播放</NButton>
+                <NButton
+                  :variant="isFavorite(currentMusic.id) ? 'primary' : 'secondary'"
+                  icon="heart"
+                  @click="toggleFavorite"
+                >
+                  {{ isFavorite(currentMusic.id) ? '已收藏' : '收藏' }}
+                </NButton>
+              </div>
+
+              <p v-if="isLoggedIn()" class="np__hint">
+                <NIcon name="sparkles" :size="14" />
+                <template v-if="userIsVip">会员：整首横屏成片，无水印、不限次数</template>
+                <template v-else>
+                  免费：30 秒横屏成片（含水印），每日 10 次 ·
+                  <RouterLink to="/vip">开通会员</RouterLink>
+                </template>
+              </p>
+
+              <div v-if="videoRenderSubmitted" class="np__notice">
+                <NIcon name="circle-check" :size="16" />
+                <div>
+                  <p>已提交渲染，完成后将向注册邮箱发送通知并附下载链接。</p>
+                  <p
+                    v-if="videoRenderRemainingToday != null && !userIsVip"
+                    class="np__notice-meta"
+                  >
+                    今日剩余免费次数：{{ videoRenderRemainingToday }}
+                  </p>
+                </div>
+              </div>
+
+              <div v-if="videoRenderReady" class="np__notice np__notice--ready">
+                <NIcon name="circle-check" :size="16" />
+                <div class="np__notice-body">
+                  <p>分享视频已生成，可下载 MP4。</p>
+                  <NButton size="sm" variant="primary" icon="download" @click="downloadRenderedVideo">
+                    下载 MP4
+                  </NButton>
+                </div>
+              </div>
+            </template>
+          </section>
+
+          <!-- 右：歌词墙 -->
+          <section class="np__lyrics" aria-label="歌词">
+            <LyricsWall
+              v-if="parsedLyrics.length > 0"
+              class="np__wall"
+              :lines="parsedLyrics"
+              :current-time="displayTime"
+              :playing="isPlaying"
+            />
+
+            <div v-else class="np__lyrics-empty">
+              <NIcon name="file-text" :size="28" />
+              <p>暂无歌词</p>
+            </div>
+          </section>
+        </div>
+
+        <!-- 底栏：进度 + 播放控制 -->
+        <footer class="np__bottom">
+          <div class="np__seek">
+            <span class="np__time">{{ formatDuration(displayTime) }}</span>
+            <div class="np__seek-track">
+              <div class="np__seek-rail" aria-hidden="true">
+                <div class="np__seek-fill" :style="{ width: progressPercent + '%' }" />
+              </div>
+              <input
+                type="range"
+                class="np__seek-input"
+                :value="displayTime"
+                :max="duration || 0"
+                min="0"
+                step="0.1"
+                aria-label="播放进度"
+                @input="onSeekInput"
+                @change="onSeekCommit"
+              />
+            </div>
+            <span class="np__time">{{ formatDuration(duration) }}</span>
+          </div>
+
+          <div class="np__controls">
+            <button
+              type="button"
+              class="np-icon np-icon--lg"
+              :title="modeTitle"
+              :aria-label="modeTitle"
+              @click="sendPlayerCommand('cycleMode')"
+            >
+              <NIcon :name="modeIcon" :size="20" />
+            </button>
+
+            <button
+              type="button"
+              class="np-icon np-icon--lg"
+              title="上一曲"
+              aria-label="上一曲"
+              :disabled="!currentMusic"
+              @click="sendPlayerCommand('prev')"
+            >
+              <NIcon name="skip-back" :size="22" />
+            </button>
+
+            <button
+              type="button"
+              class="np-play"
+              :disabled="!currentMusic"
+              :aria-label="isPlaying ? '暂停' : '播放'"
+              :aria-pressed="isPlaying"
+              @click="sendPlayerCommand('toggle')"
+            >
+              <NIcon :name="isPlaying ? 'pause' : 'play'" :size="26" />
+            </button>
+
+            <button
+              type="button"
+              class="np-icon np-icon--lg"
+              title="下一曲"
+              aria-label="下一曲"
+              :disabled="!currentMusic"
+              @click="sendPlayerCommand('next')"
+            >
+              <NIcon name="skip-forward" :size="22" />
+            </button>
+
+            <span class="np__controls-spacer" aria-hidden="true" />
+          </div>
+        </footer>
       </div>
+    </Transition>
+  </Teleport>
 
+  <!-- 分享视频弹窗 -->
+  <NModal v-model="videoModalOpen" title="生成分享视频" size="md" @close="closeVideoModal">
+    <p v-if="currentMusic" class="clip-song">{{ currentMusic.title }} · {{ currentMusic.artist }}</p>
+
+    <label class="clip-option" :class="{ 'clip-option--locked': !userIsVip }">
+      <input v-model="videoWatermarkChoice" type="checkbox" :disabled="!userIsVip" />
+      <span>添加平台水印</span>
+    </label>
+
+    <div class="clip-range">
+      <div class="clip-range__head">
+        <span>成片起始</span>
+        <span class="clip-range__value">
+          {{ formatClipTime(clipStartSec) }} → {{ formatClipTime(clipEndSec) }}
+        </span>
+      </div>
+      <input
+        v-model.number="clipStartSec"
+        type="range"
+        class="clip-range__slider"
+        :min="0"
+        :max="maxClipStartSec"
+        :step="1"
+        :disabled="trackDurationSec <= 0"
+        @input="onClipRangeChange"
+      />
       <p class="clip-sub">
-        <template v-if="userIsVip">会员可选是否添加水印，默认无水印</template>
-        <template v-else>免费用户须开启水印</template>
+        <template v-if="userIsVip">
+          会员：从所选位置渲染至歌曲结束（约 {{ formatClipTime(clipPreviewDurationSec) }}）
+        </template>
+        <template v-else>免费：所选范围内固定 30 秒成片（每日 10 次）</template>
       </p>
-      <p class="clip-sub">提交后在后台渲染，完成后将邮件通知并附下载链接</p>
+      <NButton
+        size="sm"
+        variant="secondary"
+        icon="play"
+        :disabled="trackDurationSec <= 0 || clipPreviewDurationSec <= 0"
+        @click="toggleClipPreview"
+      >
+        {{ clipPreviewPlaying ? '停止试听' : '试听所选片段' }}
+      </NButton>
+    </div>
 
-      <template #footer>
-        <NButton variant="ghost" @click="closeVideoModal">取消</NButton>
-        <NButton variant="primary" :loading="videoRenderBusy" @click="confirmVideoRender">
-          开始生成
-        </NButton>
-      </template>
-    </NModal>
-  </div>
+    <p class="clip-sub">
+      <template v-if="userIsVip">会员可选是否添加水印，默认无水印</template>
+      <template v-else>免费用户须开启水印</template>
+    </p>
+    <p class="clip-sub">提交后在后台渲染，完成后将邮件通知并附下载链接</p>
+
+    <template #footer>
+      <NButton variant="ghost" @click="closeVideoModal">取消</NButton>
+      <NButton variant="primary" :loading="videoRenderBusy" @click="confirmVideoRender">
+        开始生成
+      </NButton>
+    </template>
+  </NModal>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import { createVideoRenderJob, fetchVideoRenderStatus, downloadVideoRenderFile } from '@/api/videoRender.js'
 import { syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
@@ -210,13 +307,21 @@ import { tryOpenMusicDetailInApp } from '@/utils/nativeAppOpen.js'
 import { useToast } from '@/composables/useToast'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NModal, NSpinner } from '@/ui'
-import { PageShell, AmbientBackdrop } from '@/layouts'
 import SpectrumCanvas from '@/components/SpectrumCanvas.vue'
 import LyricsWall from '@/components/LyricsWall.vue'
 import AlbumBackground from '@/components/AlbumBackground.vue'
+import { usePlaybackBridge } from '@/composables/usePlaybackBridge'
+
 const toast = useToast()
 
 const route = useRoute()
+const router = useRouter()
+
+/**
+ * 播放状态桥：本页不持有播放引擎，所有播放动作都以指令形式发给 GlobalPlayer，
+ * 状态则从它广播的 playerStateChange / localStorage 回流。
+ */
+const { playback, sendPlayerCommand } = usePlaybackBridge()
 
 const currentMusic = ref(null)
 const isPlaying = ref(false)
@@ -224,7 +329,6 @@ const currentTime = ref(0)
 const duration = ref(0)
 const lyrics = ref('')
 const parsedLyrics = ref([])
-const lyricsContent = ref(null)
 const favoriteMusicIds = ref(new Set()) // 存储收藏的音乐ID
 const isMobile = ref(false)
 const showBanner = ref(true)
@@ -239,6 +343,14 @@ const videoRenderRemainingToday = ref(null)
 const videoWatermarkChoice = ref(true)
 const clipStartSec = ref(0)
 const clipPreviewPlaying = ref(false)
+
+/** 全屏页关闭中：先播退出动效，动效结束再切换路由 */
+const closing = ref(false)
+/** 拖动进度条期间使用本地预览值，避免状态回流把滑块拽回去 */
+const seeking = ref(false)
+const seekPreview = ref(0)
+/** 进入前 body 的 overflow，卸载时还原 */
+let previousBodyOverflow = ''
 
 const NON_VIP_CLIP_SEC = 30
 
@@ -403,87 +515,10 @@ const handlePlayerStateChange = (e) => {
     isPlaying.value = state.isPlaying
     currentTime.value = state.currentTime
     duration.value = state.duration
-    updateActiveLyric()
   } else {
     isPlaying.value = false
   }
 }
-
-// 获取当前歌词索引
-const getCurrentLyricIndex = () => {
-  if (parsedLyrics.value.length === 0) return -1
-
-  for (let i = parsedLyrics.value.length - 1; i >= 0; i--) {
-    const lyric = parsedLyrics.value[i]
-    if (currentTime.value >= lyric.time) {
-      return i
-    }
-  }
-
-  return -1
-}
-
-// 判断当前歌词行是否应该高亮
-const isActiveLyric = (index) => {
-  const currentIndex = getCurrentLyricIndex()
-  return currentIndex === index
-}
-
-// 更新当前高亮歌词
-const updateActiveLyric = async () => {
-  // 确保DOM已更新后再执行滚动
-  await nextTick();
-  scrollToActiveLyric();
-}
-
-// 获取歌词行类型（active, before, after）
-const getLyricLineClass = (index) => {
-  const currentIndex = getCurrentLyricIndex()
-  if (currentIndex === index) {
-    return 'active'
-  } else if (currentIndex - 1 === index || currentIndex + 1 === index) {
-    // 相邻的歌词行
-    return 'before'
-  } else {
-    // 其他歌词行
-    return ''
-  }
-}
-
-// 由于现在使用flex布局，移除原来的绝对定位计算函数
-// 现在主要依赖CSS和滚动来定位歌词
-
-// 滚动到当前歌词位置
-const scrollToActiveLyric = () => {
-  if (!lyricsContent.value) return
-  
-  // 查找当前激活的歌词元素
-  const activeIndex = parsedLyrics.value.findIndex((_, index) => isActiveLyric(index))
-  if (activeIndex === -1) return
-  
-  // 获取所有歌词行元素
-  const lyricElements = lyricsContent.value.children
-  if (activeIndex >= 0 && activeIndex < lyricElements.length) {
-    const activeElement = lyricElements[activeIndex]
-    
-    // 计算滚动位置，使当前歌词居中
-    const container = lyricsContent.value;
-    const containerHeight = container.clientHeight;
-    const elementHeight = activeElement.offsetHeight;
-    
-    // 计算容器的滚动高度，使元素居中显示
-    // 需要将容器滚动到一个位置，使得当前元素位于容器的垂直中心
-    const targetScrollTop = activeElement.offsetTop - (containerHeight / 2) + (elementHeight / 2);
-    
-    // 平滑滚动到目标位置
-    container.scrollTo({
-      top: targetScrollTop,
-      behavior: 'smooth'
-    })
-  }
-}
-
-
 
 // 播放音乐 - 通过全局播放器播放
 const playMusic = () => {
@@ -1025,16 +1060,10 @@ const startTimer = () => {
       // 检查当前播放的音乐是否是本页面的音乐
       const currentPlayingMusic = JSON.parse(localStorage.getItem('currentPlayingMusic') || 'null');
       if (currentPlayingMusic && currentMusic.value && currentPlayingMusic.id === currentMusic.value.id) {
-        // 更新播放时间
-        const previousTime = currentTime.value;
+        // 与全局播放器对齐时间/时长/播放态（歌词墙自行按时间插值）
         currentTime.value = state.currentTime;
         duration.value = state.duration;
         isPlaying.value = state.isPlaying;
-        
-        // 如果时间发生变化，则更新歌词高亮
-        if (Math.abs(currentTime.value - previousTime) > 0.1) { // 防止过于频繁的更新
-          updateActiveLyric();
-        }
       } else if (currentMusic.value) {
         isPlaying.value = false
       }
@@ -1042,10 +1071,70 @@ const startTimer = () => {
   }, 300); // 每300毫秒更新一次，平衡性能和流畅度
 };
 
+/* ============================================================================
+   全屏播放页：进度、模式、开合
+   -------------------------------------------------------------------------- */
+
+/** 显示用时间：拖动中优先用本地预览值 */
+const displayTime = computed(() => (seeking.value ? seekPreview.value : currentTime.value))
+
+/** 进度百分比 */
+const progressPercent = computed(() => {
+  const total = duration.value
+  if (!total || !Number.isFinite(total) || total <= 0) return 0
+  return Math.max(0, Math.min(100, (displayTime.value / total) * 100))
+})
+
+/** 拖动中：只更新本地预览，不发指令 */
+const onSeekInput = (event) => {
+  seeking.value = true
+  seekPreview.value = Number(event.target.value) || 0
+}
+
+/** 松手：提交 seek 指令 */
+const onSeekCommit = (event) => {
+  const time = Number(event.target.value) || 0
+  seekPreview.value = time
+  seeking.value = false
+  sendPlayerCommand('seek', { time })
+}
+
+/** 播放模式图标与标题（状态来自桥接层；playback 是 reactive 对象，不是 ref） */
+const modeIcon = computed(() => {
+  if (playback.playbackMode === 'single_repeat') return 'repeat-1'
+  if (playback.playbackMode === 'shuffle') return 'shuffle'
+  return 'repeat'
+})
+
+const modeTitle = computed(() => {
+  if (playback.playbackMode === 'single_repeat') return '单曲循环'
+  if (playback.playbackMode === 'shuffle') return '随机播放'
+  return '列表循环'
+})
+
+/** 收起播放页：先播退出动效，动效结束再离开路由 */
+const close = () => {
+  if (closing.value) return
+  closing.value = true
+}
+
+const onAfterLeave = () => {
+  const back = typeof window !== 'undefined' ? window.history.state?.back : null
+  if (back && back !== route.fullPath) {
+    router.back()
+  } else {
+    router.push('/')
+  }
+}
+
 // 初始化
 onMounted(async () => {
   // 检测是否是移动设备
   isMobile.value = checkMobile()
+
+  // 全屏播放页期间锁定页面滚动（背景仍在，但不该被滚动）
+  previousBodyOverflow = document.body.style.overflow
+  document.body.style.overflow = 'hidden'
 
   // 监听自定义事件，以响应全局播放器的状态变化
   window.addEventListener('playerStateChange', handlePlayerStateChange)
@@ -1079,6 +1168,7 @@ onMounted(async () => {
 onUnmounted(() => {
   stopClipPreview()
   revokeClipPreviewBlobs()
+  document.body.style.overflow = previousBodyOverflow
   window.removeEventListener('playerStateChange', handlePlayerStateChange)
   window.removeEventListener(USER_VIP_SYNC_EVENT, handleVipSync)
   if (timeUpdateInterval) {
@@ -1089,99 +1179,214 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* ==================== 页面 & 背景 ==================== */
-.np-page {
-  position: relative;
-  min-height: 100dvh;
-}
-
-.np-bg {
-  position: fixed;
-  inset: -12%;
-  background-size: cover;
-  background-position: center;
-  filter: blur(72px) saturate(1.35);
-  opacity: 0.24;
-  z-index: 0;
-  pointer-events: none;
-}
-
-.np-scrim {
+/* ============================================================================
+   全屏播放页
+   ----------------------------------------------------------------------------
+   结构与参考实现一致：整屏覆盖，自底部滑入/滑出。
+   背景层（AlbumBackground）→ 压暗层 → 顶栏 / 主体 / 底栏。
+   形状统一圆角矩形，黑偏青，全部走 --n-* 令牌。
+   ========================================================================== */
+.np {
   position: fixed;
   inset: 0;
-  background: linear-gradient(180deg, rgba(4, 9, 11, 0.72), rgba(4, 9, 11, 0.88));
-  z-index: 0;
-  pointer-events: none;
+  z-index: var(--n-z-player);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--n-text);
+  background: var(--n-bg);
 }
 
-/* ==================== 移动下载横幅 ==================== */
-.np-banner {
+/* 层叠：背景 0 · 压暗 1 · 内容 2 */
+.np__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(4, 9, 11, 0.68), rgba(4, 9, 11, 0.9));
+}
+
+/* ===== 进出场：自底部滑入 / 滑出 ===== */
+.np-enter-active,
+.np-leave-active {
+  transition: transform 460ms var(--n-ease-out), opacity 460ms var(--n-ease-out);
+}
+
+.np-enter-from,
+.np-leave-to {
+  transform: translateY(100%);
+  opacity: 0.55;
+}
+
+/* ===== 顶栏 ===== */
+.np__top {
   position: relative;
-  z-index: var(--n-z-sticky);
+  z-index: 2;
+  flex: none;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--n-space-4);
+  padding: var(--n-space-4) clamp(20px, 4vw, 56px) var(--n-space-2);
+}
+
+.np__top-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  text-align: center;
+}
+
+.np__top-name {
+  font-size: var(--n-text-base);
+  font-weight: var(--n-weight-semibold);
+  color: var(--n-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.np__top-artist {
+  font-size: var(--n-text-xs);
+  color: var(--n-text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.np__top-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-1);
+}
+
+/* ===== 图标按钮（圆角矩形，非圆形） ===== */
+.np-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--n-radius-control);
+  background: transparent;
+  color: var(--n-text-muted);
+  cursor: pointer;
+  transition: background var(--n-duration-fast) var(--n-ease),
+    color var(--n-duration-fast) var(--n-ease),
+    border-color var(--n-duration-fast) var(--n-ease);
+}
+
+.np-icon--lg {
+  width: 48px;
+  height: 48px;
+}
+
+.np-icon--sm {
+  width: 30px;
+  height: 30px;
+}
+
+.np-icon:hover:not(:disabled) {
+  background: var(--n-surface-hover);
+  color: var(--n-text);
+  border-color: var(--n-line);
+}
+
+.np-icon:active:not(:disabled) {
+  background: var(--n-surface-active);
+}
+
+.np-icon:disabled {
+  opacity: 0.36;
+  cursor: default;
+}
+
+.np-icon.is-on {
+  color: var(--n-accent);
+}
+
+.np-icon:focus-visible,
+.np-play:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--n-accent-soft);
+}
+
+/* ===== 移动端下载提示 ===== */
+.np__banner {
+  position: relative;
+  z-index: 2;
+  flex: none;
   display: flex;
   align-items: center;
   gap: var(--n-space-3);
-  padding: var(--n-space-3) var(--n-content-gutter);
-  background: var(--n-accent-soft);
-  border-bottom: 1px solid var(--n-accent-line);
-  color: var(--n-text);
-  font-size: var(--n-text-sm);
-}
-
-.np-banner__btn {
-  margin-left: auto;
-  padding: 6px 14px;
+  margin: 0 clamp(20px, 4vw, 56px);
+  padding: var(--n-space-3) var(--n-space-4);
+  border: 1px solid var(--n-line);
   border-radius: var(--n-radius-control);
-  background: var(--n-accent);
-  color: var(--n-text-inverse);
-  font-weight: var(--n-weight-semibold);
+  background: var(--n-surface);
   font-size: var(--n-text-sm);
-}
-
-.np-banner__close {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--n-radius-xs);
   color: var(--n-text-muted);
 }
 
-/* ==================== 加载 ==================== */
-.np-state {
+.np__banner-btn {
+  margin-left: auto;
+  color: var(--n-accent);
+  font-weight: var(--n-weight-semibold);
+  text-decoration: none;
+}
+
+.np__banner-btn:hover {
+  color: var(--n-accent-strong);
+}
+
+/* ===== 主体 ===== */
+.np__body {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(280px, 32%) minmax(0, 1fr);
+  gap: clamp(20px, 3.4vw, 56px);
+  padding: 0 clamp(20px, 4vw, 56px);
+}
+
+/* ===== 左：封面 / 信息 / 操作 ===== */
+.np__aside {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: var(--n-space-4);
-  min-height: min(60vh, 520px);
-  color: var(--n-text-muted);
+  min-width: 0;
+  padding: var(--n-space-4) 0;
+  overflow-y: auto;
 }
 
-/* ==================== 主体两栏 ==================== */
-.np {
-  display: grid;
-  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
-  gap: clamp(28px, 4vw, 56px);
-  align-items: start;
-}
-
-/* ---- 左：封面 + 信息 + 操作 ---- */
-.np__aside {
+.np__loading {
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  align-items: center;
+  gap: var(--n-space-3);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+}
+
+.np__loading p {
+  margin: 0;
 }
 
 .np__cover {
   position: relative;
-  width: 100%;
-  aspect-ratio: 1;
+  width: min(100%, 38vh);
+  aspect-ratio: 1 / 1;
   border-radius: var(--n-radius-xl);
   overflow: hidden;
-  border: 1px solid var(--n-line-strong);
-  background: var(--n-surface-soft);
-  box-shadow: var(--n-shadow-lg);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.55);
+  background: var(--n-surface-sunken);
 }
 
 .np__cover img {
@@ -1191,246 +1396,323 @@ onUnmounted(() => {
   display: block;
 }
 
-.np__play {
+/* 封面顶部高光，避免在深色里显得死板 */
+.np__cover-sheen {
   position: absolute;
-  right: var(--n-space-4);
-  bottom: var(--n-space-4);
-  display: grid;
-  place-items: center;
-  width: 56px;
-  height: 56px;
-  border-radius: var(--n-radius-lg);
-  background: var(--n-accent);
-  color: var(--n-text-inverse);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-  transition: transform var(--n-duration-fast) var(--n-ease), background var(--n-duration-fast) var(--n-ease);
-}
-
-@media (hover: hover) {
-  .np__play:hover {
-    transform: translateY(-2px) scale(1.04);
-    background: var(--n-accent-strong);
-  }
-}
-
-.np__spectrum {
-  margin-top: var(--n-space-5);
-}
-
-.np__wall {
-  min-height: min(62vh, 620px);
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.14), transparent 46%);
 }
 
 .np__meta {
-  margin-top: var(--n-space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  text-align: center;
 }
 
 .np__title {
   margin: 0;
-  font-size: clamp(1.4rem, 2.6vw, 1.9rem);
-  font-weight: var(--n-weight-bold);
-  letter-spacing: -0.03em;
-  line-height: 1.15;
-  overflow-wrap: anywhere;
+  font-size: clamp(1.15rem, 1.9vw, 1.6rem);
+  font-weight: var(--n-weight-semibold);
+  line-height: var(--n-leading-tight);
+  color: var(--n-text);
 }
 
 .np__artist {
-  margin: var(--n-space-2) 0 0;
-  color: var(--n-accent-strong);
-  font-size: var(--n-text-md);
-  font-weight: var(--n-weight-medium);
+  margin: 0;
+  font-size: var(--n-text-base);
+  color: var(--n-text-muted);
 }
 
 .np__album {
-  margin: var(--n-space-1) 0 0;
-  color: var(--n-text-muted);
+  margin: 0;
   font-size: var(--n-text-sm);
+  color: var(--n-text-faint);
 }
 
 .np__dur {
+  margin: 3px 0 0;
   display: inline-flex;
   align-items: center;
-  gap: var(--n-space-2);
-  margin: var(--n-space-3) 0 0;
+  gap: 5px;
+  font-size: var(--n-text-xs);
   color: var(--n-text-faint);
-  font-size: var(--n-text-sm);
   font-variant-numeric: tabular-nums;
 }
 
-.np__actions {
+.np__spectrum {
+  width: min(100%, 38vh);
+}
+
+.np__aside-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--n-space-3);
-  margin-top: var(--n-space-6);
+  justify-content: center;
+  gap: var(--n-space-2);
 }
 
 .np__hint {
+  margin: 0;
   display: flex;
-  align-items: flex-start;
-  gap: var(--n-space-2);
-  margin: var(--n-space-5) 0 0;
-  padding: var(--n-space-3) var(--n-space-4);
-  border: 1px solid var(--n-line);
-  border-radius: var(--n-radius);
-  background: var(--n-surface-soft);
-  color: var(--n-text-muted);
-  font-size: var(--n-text-sm);
-  line-height: var(--n-leading-normal);
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  font-size: var(--n-text-xs);
+  color: var(--n-text-faint);
+  text-align: center;
 }
 
-.np__hint :deep(.n-icon) {
-  margin-top: 2px;
+.np__hint a {
   color: var(--n-accent);
 }
 
 .np__notice {
   display: flex;
   align-items: flex-start;
-  gap: var(--n-space-3);
-  margin-top: var(--n-space-4);
-  padding: var(--n-space-4);
-  border: 1px solid var(--n-accent-line);
-  border-radius: var(--n-radius);
-  background: var(--n-accent-soft);
-  color: var(--n-text);
-  font-size: var(--n-text-sm);
-  line-height: var(--n-leading-normal);
-}
-
-.np__notice :deep(.n-icon) {
-  flex: none;
-  margin-top: 1px;
-  color: var(--n-accent-strong);
+  gap: var(--n-space-2);
+  width: 100%;
+  padding: var(--n-space-3);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-control);
+  background: var(--n-surface-soft);
+  font-size: var(--n-text-xs);
+  color: var(--n-text-muted);
 }
 
 .np__notice p {
   margin: 0;
 }
 
+.np__notice--ready {
+  border-color: var(--n-success);
+  background: var(--n-success-soft);
+}
+
 .np__notice-body {
   display: flex;
   flex-direction: column;
+  gap: var(--n-space-2);
   align-items: flex-start;
-  gap: var(--n-space-3);
 }
 
 .np__notice-meta {
-  margin-top: var(--n-space-1) !important;
-  color: var(--n-text-muted);
-  font-size: var(--n-text-xs);
-}
-
-/* ---- 右：歌词 ---- */
-.np__lyrics {
-  min-width: 0;
-  border: 1px solid var(--n-line);
-  border-radius: var(--n-radius-xl);
-  background: var(--n-surface);
-  padding: var(--n-space-6);
-}
-
-.np__lyrics-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--n-space-4);
-  padding-bottom: var(--n-space-4);
-  margin-bottom: var(--n-space-4);
-  border-bottom: 1px solid var(--n-line-subtle);
-}
-
-.np__lyrics-title {
-  margin: 0;
-  font-size: var(--n-text-lg);
-  font-weight: var(--n-weight-semibold);
-}
-
-.np__lyrics-count {
   color: var(--n-text-faint);
-  font-size: var(--n-text-xs);
 }
 
-.np__lyrics-scroll {
-  max-height: min(62vh, 620px);
-  overflow-y: auto;
-  padding-right: var(--n-space-2);
-  scroll-behavior: smooth;
+/* ===== 右：歌词墙 ===== */
+.np__lyrics {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--n-space-4) 0;
 }
 
-.np__lyrics-scroll::-webkit-scrollbar {
-  width: 8px;
-}
-
-.np__lyrics-scroll::-webkit-scrollbar-thumb {
-  background: rgba(95, 208, 224, 0.24);
-  border-radius: var(--n-radius-pill);
-}
-
-@media (hover: hover) {
-  .np__lyrics-scroll::-webkit-scrollbar-thumb:hover {
-    background: rgba(95, 208, 224, 0.4);
-  }
+/* LyricsWall 根元素默认给的是固定高度（服务普通页面）；
+   全屏页里改为填满容器 */
+.np__lyrics :deep(.wall) {
+  height: 100%;
+  min-height: 0;
 }
 
 .np__lyrics-empty {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: var(--n-space-2);
-  min-height: 240px;
-  color: var(--n-text-muted);
-  text-align: center;
-}
-
-.np__lyrics-empty :deep(.n-icon) {
   color: var(--n-text-faint);
+  font-size: var(--n-text-sm);
 }
 
 .np__lyrics-empty p {
   margin: 0;
 }
 
-.np__lyrics-empty-hint {
-  color: var(--n-text-faint);
-  font-size: var(--n-text-sm);
+/* ===== 底栏：进度 + 控制 ===== */
+.np__bottom {
+  position: relative;
+  z-index: 2;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--n-space-2);
+  padding: var(--n-space-3) clamp(20px, 4vw, 56px) clamp(14px, 2.4vh, 26px);
 }
 
-/* ==================== 歌词行 ==================== */
-.lyric-line {
-  padding: var(--n-space-2) var(--n-space-3);
-  border-radius: var(--n-radius-xs);
-  color: var(--n-text-faint);
-  font-size: var(--n-text-base);
-  line-height: var(--n-leading-normal);
-  transition: color var(--n-duration) var(--n-ease), background var(--n-duration) var(--n-ease);
+.np__seek {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-3);
+  width: min(100%, 720px);
 }
 
-.lyric-line.before {
+.np__time {
+  flex: none;
+  min-width: 42px;
+  text-align: center;
+  font-size: var(--n-text-xs);
+  font-variant-numeric: tabular-nums;
   color: var(--n-text-muted);
 }
 
-.lyric-line.active {
-  background: var(--n-accent-soft);
-  color: var(--n-accent-strong);
-  font-weight: var(--n-weight-semibold);
+.np__seek-track {
+  position: relative;
+  flex: 1;
+  height: 18px;
+  display: flex;
+  align-items: center;
 }
 
-.lyric-text {
-  overflow-wrap: anywhere;
+.np__seek-rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: var(--n-radius-pill);
+  background: rgba(120, 205, 218, 0.2);
+  overflow: hidden;
 }
 
-.lyric-translation {
-  margin-top: 2px;
-  color: var(--n-text-muted);
-  font-size: var(--n-text-sm);
+.np__seek-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--n-accent-deep), var(--n-accent));
 }
 
-.lyric-line.active .lyric-translation {
-  color: var(--n-accent);
+.np__seek-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
 }
 
-/* ==================== 分享视频弹窗 ==================== */
+.np__seek-track:hover .np__seek-rail {
+  height: 6px;
+}
+
+.np__seek-track:focus-within .np__seek-rail {
+  box-shadow: 0 0 0 3px var(--n-accent-soft);
+}
+
+.np__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-2);
+}
+
+/* 主播放键：圆角矩形实底 */
+.np-play {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  margin: 0 var(--n-space-2);
+  padding: 0;
+  border: 1px solid var(--n-accent-line);
+  border-radius: var(--n-radius-lg);
+  background: linear-gradient(160deg, var(--n-accent), var(--n-accent-deep));
+  color: var(--n-text-inverse);
+  cursor: pointer;
+  box-shadow: 0 10px 28px rgba(47, 159, 178, 0.34);
+  transition: transform var(--n-duration-fast) var(--n-ease),
+    box-shadow var(--n-duration-fast) var(--n-ease), filter var(--n-duration-fast) var(--n-ease);
+}
+
+.np-play:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+  box-shadow: 0 14px 34px rgba(47, 159, 178, 0.44);
+}
+
+.np-play:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
+}
+
+.np-play:disabled {
+  background: var(--n-surface-active);
+  border-color: var(--n-line);
+  color: var(--n-text-faint);
+  box-shadow: none;
+  cursor: default;
+}
+
+.np__controls-spacer {
+  width: 48px;
+}
+
+/* ===== 响应式 ===== */
+@media (max-width: 900px) {
+  .np__body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: var(--n-space-4);
+    overflow-y: auto;
+  }
+
+  .np__aside {
+    padding: 0;
+    overflow: visible;
+  }
+
+  .np__cover {
+    width: min(48%, 200px);
+  }
+
+  .np__spectrum {
+    display: none;
+  }
+
+  .np__lyrics {
+    padding: 0 0 var(--n-space-4);
+    min-height: 240px;
+  }
+}
+
+@media (max-width: 620px) {
+  .np__top-title {
+    text-align: left;
+  }
+
+  .np__aside-actions :deep(.n-btn) {
+    flex: 1;
+  }
+
+  .np-icon--lg {
+    width: 42px;
+    height: 42px;
+  }
+
+  .np-play {
+    width: 52px;
+    height: 52px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .np-enter-active,
+  .np-leave-active {
+    transition: none;
+  }
+}
+
+/* ============================================================================
+   分享视频弹窗（NModal 内容）
+   ========================================================================== */
 .clip-song {
   margin: 0 0 var(--n-space-4);
   color: var(--n-text-muted);
@@ -1489,30 +1771,5 @@ onUnmounted(() => {
   color: var(--n-text-faint);
   font-size: var(--n-text-sm);
   line-height: var(--n-leading-normal);
-}
-
-/* ==================== 响应式 ==================== */
-@media (max-width: 900px) {
-  .np {
-    grid-template-columns: 1fr;
-    gap: var(--n-space-8);
-  }
-
-  .np__aside {
-    max-width: 420px;
-    margin: 0 auto;
-    width: 100%;
-  }
-
-  .np__lyrics-scroll {
-    max-height: min(50vh, 460px);
-  }
-}
-
-@media (max-width: 560px) {
-  .np__actions :deep(.n-btn) {
-    flex: 1 1 calc(50% - var(--n-space-3));
-    justify-content: center;
-  }
 }
 </style>

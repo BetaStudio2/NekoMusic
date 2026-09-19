@@ -21,6 +21,12 @@ const route = useRoute()
 /** 下载页独立布局：不显示顶栏、底栏与全局播放器 */
 const isDownloadPage = computed(() => route.name === 'download')
 
+/**
+ * 全屏播放页（/detail/:id）自带整屏 UI 与播放控制，
+ * 此时底部停靠播放条必须让位——两者层级相同，否则会把全屏页压在下面。
+ */
+const isPlayerPage = computed(() => route.name === 'detail')
+
 /** 内容区全幅（去掉 main 内边距，由页面自行控制） */
 const isFlushMain = computed(() => !String(route.name || '').startsWith('admin'))
 
@@ -98,7 +104,10 @@ onUnmounted(() => {
       <SiteFooter v-if="!isDownloadPage" />
     </div>
 
-    <div class="app-player" :class="{ 'app-player--hidden': !hasTrack || isDownloadPage }">
+    <div
+      class="app-player"
+      :class="{ 'app-player--hidden': !hasTrack || isDownloadPage || isPlayerPage }"
+    >
       <GlobalPlayer v-if="!isDownloadPage" :chrome-dark="isChromeDarkShell" />
     </div>
   </div>
