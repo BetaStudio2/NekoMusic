@@ -1,210 +1,150 @@
 <template>
-  <div class="upload-view">
-    <transition name="upload-notice">
+  <AmbientBackdrop />
+
+  <PageShell width="wide">
+    <Transition name="notice">
       <div
         v-if="uploadNotice.visible"
-        class="upload-result-notice"
-        :class="`upload-result-notice--${uploadNotice.type}`"
+        class="notice"
+        :class="`notice--${uploadNotice.type}`"
         role="status"
         aria-live="polite"
       >
+        <NIcon :name="uploadNotice.type === 'error' ? 'triangle-alert' : 'circle-check'" :size="16" />
         {{ uploadNotice.message }}
       </div>
-    </transition>
+    </Transition>
 
-    <div class="upload-container">
-      <!-- 左侧封面 -->
-      <div class="cover-side">
-        <div 
-              class="cover-upload" 
-              :class="{ 'has-cover': coverFile, 'drag-over': isCoverDragging }"
-              @click="selectCoverFile"
-              @dragover.prevent="isCoverDragging = true"
-              @dragleave.prevent="isCoverDragging = false"
-              @drop.prevent="handleCoverDrop"
-            >
-          <input
-            ref="coverFileInput"
-            type="file"
-            accept="image/*"
-            @change="handleCoverFileChange"
-            style="display: none"
-          />
-          <div v-if="!coverFile" class="cover-placeholder">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-              <circle cx="8.5" cy="8.5" r="1.5"></circle>
-              <polyline points="21 15 16 10 5 21"></polyline>
-            </svg>
-            <p>上传封面</p>
-            <span>建议 800x800</span>
+    <div class="upload">
+      <!-- 左：封面 + 歌词 -->
+      <div class="upload__aside">
+        <NCard pad="lg" class="cover-card">
+          <h2 class="side-title">封面</h2>
+          <div
+            class="dropzone dropzone--cover"
+            :class="{ 'dropzone--filled': coverFile, 'dropzone--over': isCoverDragging }"
+            role="button"
+            tabindex="0"
+            @click="selectCoverFile"
+            @keydown.enter.prevent="selectCoverFile"
+            @dragover.prevent="isCoverDragging = true"
+            @dragleave.prevent="isCoverDragging = false"
+            @drop.prevent="handleCoverDrop"
+          >
+            <input ref="coverFileInput" type="file" accept="image/*" class="dropzone__input" @change="handleCoverFileChange" />
+            <template v-if="!coverFile">
+              <NIcon name="image" :size="44" class="dropzone__icon" />
+              <p class="dropzone__title">上传封面</p>
+              <span class="dropzone__hint">点击或拖拽 · 建议 800×800</span>
+            </template>
+            <template v-else>
+              <img :src="coverPreview" alt="封面预览" class="cover-preview" />
+              <NButton class="cover-change" size="sm" variant="secondary" @click.stop="removeCoverFile">
+                移除封面
+              </NButton>
+            </template>
           </div>
-          <div v-else class="cover-preview">
-            <img :src="coverPreview" alt="封面" />
-            <div class="cover-overlay">
-              <button type="button" @click.stop="removeCoverFile" class="change-btn">更换</button>
-            </div>
-          </div>
-        </div>
+        </NCard>
 
-        <!-- 歌词文件 -->
-        <div class="lyrics-upload-section">
-          <label class="side-label">歌词文件</label>
-          <div 
-            class="file-upload lyrics-upload" 
-            :class="{ 'has-file': lyricsFile, 'drag-over': isLyricsDragging }"
+        <NCard pad="lg" class="lyrics-card">
+          <h2 class="side-title">歌词文件</h2>
+          <div
+            class="dropzone dropzone--file"
+            :class="{ 'dropzone--filled': lyricsFile, 'dropzone--over': isLyricsDragging }"
+            role="button"
+            tabindex="0"
             @click="selectLyricsFile"
+            @keydown.enter.prevent="selectLyricsFile"
             @dragover.prevent="isLyricsDragging = true"
             @dragleave.prevent="isLyricsDragging = false"
             @drop.prevent="handleLyricsFileDrop"
           >
-            <input
-              ref="lyricsFileInput"
-              type="file"
-              accept=".lrc"
-              @change="handleLyricsFileChange"
-              style="display: none"
-            />
-            <div v-if="!lyricsFile" class="file-placeholder">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-                <line x1="16" y1="13" x2="8" y2="13"></line>
-                <line x1="16" y1="17" x2="8" y2="17"></line>
-                <polyline points="10 9 9 9 8 9"></polyline>
-              </svg>
-              <span>选择歌词文件</span>
-            </div>
-            <div v-else class="file-info">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-              </svg>
-              <span>{{ lyricsFile.name }}</span>
-              <button type="button" @click.stop="removeLyricsFile" class="remove-btn"></button>
-            </div>
+            <input ref="lyricsFileInput" type="file" accept=".lrc" class="dropzone__input" @change="handleLyricsFileChange" />
+            <template v-if="!lyricsFile">
+              <NIcon name="file-text" :size="22" class="dropzone__icon" />
+              <span class="dropzone__hint">选择 .lrc 歌词文件</span>
+            </template>
+            <template v-else>
+              <NIcon name="file-text" :size="18" class="dropzone__icon" />
+              <span class="dropzone__filename">{{ lyricsFile.name }}</span>
+              <button type="button" class="icon-x" aria-label="移除歌词" @click.stop="removeLyricsFile">
+                <NIcon name="close" :size="14" />
+              </button>
+            </template>
           </div>
 
-          <!-- 双语歌词格式说明 -->
-          <div class="lyrics-format-guide">
-            <h4>双语歌词格式说明</h4>
-            <p>系统支持双语歌词，格式如下：</p>
-            <div class="lyrics-example">
-              <div class="example-title">示例：</div>
-              <pre class="example-code">[00:00.389] ざこざこざこざこ くだらない存在 あわれだね
+          <details class="guide">
+            <summary class="guide__summary">双语歌词格式说明</summary>
+            <p class="guide__text">第一行为「时间戳 + 原文」，第二行为 JSON 翻译；没有翻译时只保留原文行。</p>
+            <pre class="guide__code">[00:00.389] ざこざこざこざこ くだらない存在 あわれだね
 {"杂鱼杂鱼杂鱼杂鱼 无聊的存在 真可怜呢"}
 
 [00:07.546] ざこざこざこざこ ざこのざこ攻撃 効かないよ
-{"杂鱼杂鱼杂鱼杂鱼 杂鱼的杂鱼攻击 根本没用喔"}
-
-[00:14.225] ざぁこ
-{"杂~鱼~"}</pre>
-            </div>
-            <div class="lyrics-tips">
-              <p><strong>格式规则：</strong></p>
-              <ul>
-                <li>第一行：时间戳 + 原文歌词</li>
-                <li>第二行：JSON格式的翻译 <code>{"翻译内容"}</code></li>
-                <li>如果没有翻译，可以只保留原文行</li>
-                <li>时间戳格式：<code>[分:秒.毫秒]</code></li>
-              </ul>
-            </div>
-          </div>
-        </div>
+{"杂鱼杂鱼杂鱼杂鱼 杂鱼的杂鱼攻击 根本没用喔"}</pre>
+            <ul class="guide__list">
+              <li>时间戳格式：<code>[分:秒.毫秒]</code></li>
+              <li>翻译使用 <code>{"翻译内容"}</code></li>
+              <li>没有翻译可以只保留原文行</li>
+            </ul>
+          </details>
+        </NCard>
       </div>
 
-      <!-- 右侧表单 -->
-      <div class="form-side">
-        <h2 class="page-title">上传音乐</h2>
+      <!-- 右：表单 -->
+      <div class="upload__form">
+        <h1 class="page-title">上传音乐</h1>
+        <p class="page-sub">填写曲目信息并选择音频文件后发布。</p>
 
-        <form @submit.prevent="handleSubmit" class="upload-form">
-          <!-- 音乐文件 -->
-          <div class="form-group">
-            <div 
-              class="file-upload" 
-              :class="{ 'has-file': musicFile, 'drag-over': isDragging }"
-              @click="selectMusicFile"
-              @dragover.prevent="isDragging = true"
-              @dragleave.prevent="isDragging = false"
-              @drop.prevent="handleDrop"
-            >
-              <input
-                ref="musicFileInput"
-                type="file"
-                accept="audio/*"
-                @change="handleMusicFileChange"
-                style="display: none"
-              />
-              <div v-if="!musicFile" class="file-placeholder">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="17 8 12 3 7 8"></polyline>
-                  <line x1="12" y1="3" x2="12" y2="15"></line>
-                </svg>
-                <span>选择音频文件</span>
-              </div>
-              <div v-else class="file-info">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M9 18V5l12-2v13"></path>
-                  <circle cx="6" cy="18" r="3"></circle>
-                  <circle cx="18" cy="16" r="3"></circle>
-                </svg>
-                <span>{{ musicFile.name }}</span>
-                <button type="button" @click.stop="removeMusicFile" class="remove-btn"></button>
-              </div>
-            </div>
+        <form class="form" @submit.prevent="handleSubmit">
+          <div
+            class="dropzone dropzone--audio"
+            :class="{ 'dropzone--filled': musicFile, 'dropzone--over': isDragging }"
+            role="button"
+            tabindex="0"
+            @click="selectMusicFile"
+            @keydown.enter.prevent="selectMusicFile"
+            @dragover.prevent="isDragging = true"
+            @dragleave.prevent="isDragging = false"
+            @drop.prevent="handleDrop"
+          >
+            <input ref="musicFileInput" type="file" accept="audio/*" class="dropzone__input" @change="handleMusicFileChange" />
+            <template v-if="!musicFile">
+              <NIcon name="upload" :size="28" class="dropzone__icon" />
+              <span class="dropzone__title">选择音频文件</span>
+              <span class="dropzone__hint">点击或拖拽音频到此处</span>
+            </template>
+            <template v-else>
+              <NIcon name="file-music" :size="22" class="dropzone__icon" />
+              <span class="dropzone__filename">{{ musicFile.name }}</span>
+              <button type="button" class="icon-x" aria-label="移除音频" @click.stop="removeMusicFile">
+                <NIcon name="close" :size="14" />
+              </button>
+            </template>
           </div>
 
-          <!-- 歌曲标题 -->
-          <div class="form-group">
-            <label class="label">歌曲标题 <span class="required">*</span></label>
-            <input
-              v-model="formData.title"
-              type="text"
-              class="input"
-              placeholder="输入歌曲标题"
-              required
-            />
+          <div class="field">
+            <label class="field__label" for="up-title">歌曲标题 <span class="req">*</span></label>
+            <NInput id="up-title" v-model="formData.title" placeholder="输入歌曲标题" required />
           </div>
 
-          <!-- 歌手 -->
-          <div class="form-group">
-            <label class="label">歌手 <span class="required">*</span></label>
-            <input
-              v-model="formData.artist"
-              type="text"
-              class="input"
-              placeholder="输入歌手名称"
-              required
-            />
+          <div class="field">
+            <label class="field__label" for="up-artist">歌手 <span class="req">*</span></label>
+            <NInput id="up-artist" v-model="formData.artist" placeholder="输入歌手名称" required />
           </div>
 
-          <!-- 专辑 -->
-          <div class="form-group">
-            <label class="label">专辑</label>
-            <input
-              v-model="formData.album"
-              type="text"
-              class="input"
-              placeholder="输入专辑名称"
-            />
+          <div class="field">
+            <label class="field__label" for="up-album">专辑</label>
+            <NInput id="up-album" v-model="formData.album" placeholder="输入专辑名称" />
           </div>
 
-          <!-- 标签 -->
-          <div class="form-group">
-            <label class="label">标签</label>
-            <input
-              v-model="formData.tags"
-              type="text"
-              class="input"
-              placeholder="输入标签，多个标签用逗号分隔"
-            />
+          <div class="field">
+            <label class="field__label" for="up-tags">标签</label>
+            <NInput id="up-tags" v-model="formData.tags" placeholder="多个标签用逗号分隔" />
           </div>
 
-          <!-- 语言 -->
-          <div class="form-group">
-            <label class="label">语言 <span class="required">*</span></label>
-            <select v-model="formData.language" class="input" required>
+          <div class="field">
+            <label class="field__label" for="up-lang">语言 <span class="req">*</span></label>
+            <select id="up-lang" v-model="formData.language" class="select" required>
               <option value="" disabled>请选择语言</option>
               <option value="中文">中文</option>
               <option value="粤语">粤语</option>
@@ -219,51 +159,53 @@
             </select>
           </div>
 
-          <!-- 时长（可编辑，支持自动/手动解析） -->
-          <div class="form-group">
-            <label class="label">音乐时长（秒）</label>
-            <div class="duration-input-group">
-              <input
+          <div class="field">
+            <label class="field__label" for="up-duration">音乐时长（秒）</label>
+            <div class="duration">
+              <NInput
+                id="up-duration"
                 v-model.number="formData.duration"
                 type="number"
-                class="input duration-input"
                 min="0"
                 step="1"
                 placeholder="输入时长或点击解析"
                 :disabled="parsingDuration"
               />
-              <button
-                type="button"
-                class="parse-duration-btn"
-                @click="parseDuration"
+              <NButton
+                variant="secondary"
+                icon="timer"
                 :disabled="!musicFile || parsingDuration"
                 :title="!musicFile ? '请先选择音乐文件' : '解析音频时长'"
+                @click="parseDuration"
               >
-                {{ parsingDuration ? '解析中...' : '解析时长' }}
-              </button>
+                解析
+              </NButton>
             </div>
-            <div class="input-hint">
-              当前时长: {{ formatDuration(formData.duration) }}
-              <span v-if="formData.duration === 0" class="warning-text">⚠️ 请填写音乐时长</span>
-            </div>
+            <p class="field__hint">
+              当前时长：{{ formatDuration(formData.duration) }}
+              <span v-if="formData.duration === 0" class="field__warn">
+                <NIcon name="triangle-alert" :size="13" /> 请填写音乐时长
+              </span>
+            </p>
           </div>
 
-          <!-- 提交按钮 -->
-          <button type="submit" class="submit-btn" :disabled="uploading">
-            <span v-if="!uploading">发布音乐</span>
-            <span v-else>上传中 {{ uploadProgress }}%</span>
-          </button>
+          <NButton type="submit" variant="primary" size="lg" block :loading="uploading">
+            {{ uploading ? `上传中 ${uploadProgress}%` : '发布音乐' }}
+          </NButton>
         </form>
       </div>
     </div>
-  </div>
+  </PageShell>
 </template>
 
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
-import { useToast } from 'vue-toastification'
+import { useToast } from '@/composables/useToast'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NCard, NInput, NModal, NSpinner } from '@/ui'
+import { PageShell, AmbientBackdrop } from '@/layouts'
 
 const toast = useToast()
 const router = useRouter()
@@ -1089,531 +1031,328 @@ const handleSubmit = async () => {
 </script>
 
 <style scoped>
-.upload-view {
-  min-height: calc(100vh - 80px);
-  padding: 40px 20px;
+/* ==================== 提示条 ==================== */
+.notice {
+  position: sticky;
+  top: calc(var(--n-header-height) + var(--n-space-3));
+  z-index: var(--n-z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-2);
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto var(--n-space-5);
+  padding: var(--n-space-3) var(--n-space-5);
+  border: 1px solid var(--n-success-soft);
+  border-radius: var(--n-radius-control);
+  background: var(--n-surface-strong);
+  backdrop-filter: var(--n-blur);
+  -webkit-backdrop-filter: var(--n-blur);
+  box-shadow: var(--n-shadow);
+  color: var(--n-text);
+  font-size: var(--n-text-sm);
 }
 
-.upload-result-notice {
-  position: fixed;
-  top: 92px;
-  right: 24px;
-  max-width: min(420px, calc(100vw - 32px));
-  padding: 14px 18px;
-  border-radius: 12px;
-  color: #fff;
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.5;
-  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.32);
-  z-index: 2147483647;
-  pointer-events: auto;
-  word-break: break-word;
+.notice--error {
+  border-color: rgba(255, 107, 107, 0.32);
+  color: #ffb3b3;
 }
 
-.upload-result-notice--success {
-  background: linear-gradient(135deg, #16a34a, #059669);
+.notice-enter-active,
+.notice-leave-active {
+  transition: opacity var(--n-duration) var(--n-ease), transform var(--n-duration) var(--n-ease);
 }
 
-.upload-result-notice--error {
-  background: linear-gradient(135deg, #69c8df, #be123c);
-}
-
-.upload-notice-enter-active,
-.upload-notice-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.upload-notice-enter-from,
-.upload-notice-leave-to {
+.notice-enter-from,
+.notice-leave-to {
   opacity: 0;
   transform: translateY(-8px);
 }
 
-.upload-container {
-  max-width: 1000px;
-  margin: 0 auto;
+/* ==================== 布局 ==================== */
+.upload {
   display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: 50px;
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  gap: clamp(20px, 3vw, 32px);
   align-items: start;
 }
 
-/* 左侧封面 */
-.cover-side {
-  position: sticky;
-  top: 20px;
+.upload__aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--n-space-5);
 }
 
-.cover-upload {
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: 20px;
-  overflow: hidden;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  background: rgba(255, 255, 255, 0.3);
-  border: 2px dashed rgba(102, 126, 234, 0.3);
+.side-title {
+  margin: 0 0 var(--n-space-4);
+  font-size: var(--n-text-md);
+  font-weight: var(--n-weight-semibold);
 }
 
-.cover-upload:hover,
-.cover-upload.drag-over {
-  border-color: #667eea;
-  transform: scale(1.02);
-  background: rgba(102, 126, 234, 0.1);
+.page-title {
+  margin: 0 0 var(--n-space-1);
+  font-size: clamp(1.45rem, 3vw, 1.85rem);
+  font-weight: var(--n-weight-bold);
+  letter-spacing: -0.03em;
 }
 
-.cover-upload.has-cover {
-  border-style: solid;
-  border-color: rgba(102, 126, 234, 0.5);
+.page-sub {
+  margin: 0 0 var(--n-space-6);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
 }
 
-.cover-placeholder {
-  height: 100%;
+/* ==================== 拖放区 ==================== */
+.dropzone {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  color: #667eea;
+  gap: var(--n-space-2);
+  padding: var(--n-space-5);
+  border: 1px dashed var(--n-line-strong);
+  border-radius: var(--n-radius-lg);
+  background: var(--n-surface-soft);
+  color: var(--n-text-muted);
   text-align: center;
-  padding: 20px;
+  cursor: pointer;
+  transition:
+    border-color var(--n-duration-fast) var(--n-ease),
+    background var(--n-duration-fast) var(--n-ease);
 }
 
-.cover-placeholder svg {
-  opacity: 0.8;
+@media (hover: hover) {
+  .dropzone:hover {
+    border-color: var(--n-accent-line);
+    background: var(--n-surface-hover);
+  }
 }
 
-.cover-placeholder p {
-  font-size: 16px;
-  font-weight: 600;
-  margin: 0;
+.dropzone--over {
+  border-color: var(--n-accent);
+  background: var(--n-accent-soft);
 }
 
-.cover-placeholder span {
-  font-size: 14px;
-  opacity: 0.7;
+.dropzone--filled {
+  border-style: solid;
+  border-color: var(--n-line);
+}
+
+.dropzone--cover {
+  aspect-ratio: 1;
+  padding: 0;
+  overflow: hidden;
+}
+
+.dropzone--audio {
+  padding: var(--n-space-8) var(--n-space-5);
+  margin-bottom: var(--n-space-6);
+}
+
+.dropzone__input {
+  display: none;
+}
+
+.dropzone__icon {
+  color: var(--n-text-faint);
+}
+
+.dropzone__title {
+  color: var(--n-text);
+  font-size: var(--n-text-base);
+  font-weight: var(--n-weight-semibold);
+}
+
+.dropzone__hint {
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+}
+
+.dropzone__filename {
+  color: var(--n-text);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-medium);
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .cover-preview {
   width: 100%;
   height: 100%;
-  position: relative;
-}
-
-.cover-preview img {
-  width: 100%;
-  height: 100%;
   object-fit: cover;
-}
-
-.cover-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.cover-preview:hover .cover-overlay {
-  opacity: 1;
-}
-
-.change-btn {
-  padding: 10px 24px;
-  background: white;
-  color: #333;
-  border: none;
-  border-radius: 20px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.change-btn:hover {
-  transform: scale(1.05);
-}
-
-/* 左侧歌词上传 */
-.lyrics-upload-section {
-  margin-top: 24px;
-}
-
-.side-label {
-  color: #333;
-  font-size: 14px;
-  font-weight: 600;
   display: block;
-  margin-bottom: 8px;
 }
 
-.lyrics-upload {
-  padding: 20px;
+.cover-change {
+  position: absolute;
+  right: var(--n-space-3);
+  bottom: var(--n-space-3);
 }
 
-/* 双语歌词格式说明 */
-.lyrics-format-guide {
-  margin-top: 16px;
-  padding: 16px;
-  background: rgba(105, 200, 223, 0.05);
-  border-radius: 12px;
-  border: 1px solid rgba(105, 200, 223, 0.15);
-}
-
-.lyrics-format-guide h4 {
-  color: #69c8df;
-  margin: 0 0 8px 0;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.lyrics-format-guide p {
-  color: #666;
-  margin: 0 0 12px 0;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.lyrics-example {
-  margin: 12px 0;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.8);
-  border-radius: 8px;
-  border: 1px solid rgba(105, 200, 223, 0.1);
-}
-
-.example-title {
-  color: #69c8df;
-  font-size: 12px;
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-
-.example-code {
-  margin: 0;
-  padding: 10px;
-  background: #f8f7ff;
-  border-radius: 6px;
-  font-size: 11px;
-  line-height: 1.6;
-  color: #555;
-  overflow-x: auto;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-}
-
-.lyrics-tips {
-  margin-top: 12px;
-  padding: 10px;
-  background: rgba(105, 200, 223, 0.08);
-  border-radius: 8px;
-}
-
-.lyrics-tips p {
-  color: #555;
-  margin: 0 0 8px 0;
-  font-size: 13px;
-}
-
-.lyrics-tips ul {
-  margin: 0;
-  padding-left: 18px;
-  color: #666;
-  font-size: 12px;
-  line-height: 1.8;
-}
-
-.lyrics-tips li {
-  margin-bottom: 4px;
-}
-
-.lyrics-tips code {
-  background: rgba(105, 200, 223, 0.15);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: 'Courier New', monospace;
-  font-size: 11px;
-  color: #69c8df;
-}
-
-/* 右侧表单 */
-.form-side {
-  background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 40px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.page-title {
-  color: #333;
-  font-size: 28px;
-  font-weight: 600;
-  margin: 0 0 30px 0;
-}
-
-.upload-form {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.label {
-  color: #333;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.required {
-  color: #ef4444;
-  margin-left: 2px;
-}
-
-.info-hint {
-  color: #999;
-  font-size: 12px;
-  font-weight: normal;
-  margin-left: 4px;
-}
-
-.input:read-only,
-.input:disabled {
-  background: rgba(240, 240, 240, 0.5);
-  cursor: not-allowed;
-  color: #666;
-}
-
-.input:read-only::placeholder,
-.input:disabled::placeholder {
-  color: #aaa;
-}
-
-.input-hint {
-  margin-top: 6px;
-  font-size: 12px;
-  color: #666;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.warning-text {
-  color: #f59e0b;
-  font-weight: 500;
-}
-
-.duration-input-group {
-  display: flex;
-  gap: 10px;
-}
-
-.duration-input {
-  flex: 1;
-}
-
-.parse-duration-btn {
-  padding: 12px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-}
-
-.parse-duration-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-}
-
-.parse-duration-btn:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.parse-duration-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  background: #ccc;
-  box-shadow: none;
-}
-
-.file-upload {
-  border: 2px dashed rgba(102, 126, 234, 0.3);
-  border-radius: 16px;
-  padding: 30px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.file-upload:hover,
-.file-upload.drag-over {
-  border-color: #667eea;
-  background: rgba(102, 126, 234, 0.1);
-}
-
-.file-upload.has-file {
-  border-style: solid;
-  border-color: #667eea;
-  padding: 20px;
-  text-align: left;
-}
-
-.file-placeholder {
-  color: #667eea;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-}
-
-.file-placeholder span {
-  font-size: 15px;
-  font-weight: 500;
-}
-
-.file-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.file-info svg {
-  color: #667eea;
-  flex-shrink: 0;
-}
-
-.file-info span {
-  flex: 1;
-  font-size: 15px;
-  color: #333;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.remove-btn {
+.icon-x {
+  position: absolute;
+  right: var(--n-space-2);
+  top: var(--n-space-2);
+  display: grid;
+  place-items: center;
   width: 24px;
   height: 24px;
-  border: none;
-  background: #ef4444;
-  color: white;
-  border-radius: 50%;
+  border-radius: var(--n-radius-xs);
+  background: var(--n-surface-strong);
+  color: var(--n-text-muted);
+  transition: color var(--n-duration-fast) var(--n-ease);
+}
+
+@media (hover: hover) {
+  .icon-x:hover {
+    color: var(--n-danger);
+  }
+}
+
+/* ==================== 歌词格式说明 ==================== */
+.guide {
+  margin-top: var(--n-space-4);
+}
+
+.guide__summary {
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-medium);
   cursor: pointer;
-  position: relative;
-  flex-shrink: 0;
 }
 
-.remove-btn::before,
-.remove-btn::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 10px;
-  height: 2px;
-  background: white;
-  transform: translate(-50%, -50%) rotate(45deg);
+.guide__text {
+  margin: var(--n-space-3) 0;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+  line-height: var(--n-leading-normal);
 }
 
-.remove-btn::after {
-  transform: translate(-50%, -50%) rotate(-45deg);
+.guide__code {
+  margin: 0 0 var(--n-space-3);
+  padding: var(--n-space-3);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-sm);
+  background: var(--n-surface-sunken);
+  color: var(--n-text-muted);
+  font-family: var(--n-font-mono);
+  font-size: var(--n-text-xs);
+  line-height: var(--n-leading-normal);
+  overflow-x: auto;
+  white-space: pre;
 }
 
-.input,
-.textarea {
-  padding: 14px 18px;
-  border: 2px solid rgba(255, 255, 255, 0.5);
-  border-radius: 14px;
-  font-size: 15px;
-  background: rgba(255, 255, 255, 0.5);
-  backdrop-filter: blur(5px);
-  transition: all 0.3s ease;
+.guide__list {
+  margin: 0;
+  padding-left: var(--n-space-5);
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+  line-height: var(--n-leading-loose);
 }
 
-.input::placeholder,
-.textarea::placeholder {
-  color: #999;
+.guide__list code {
+  font-family: var(--n-font-mono);
+  color: var(--n-accent-strong);
 }
 
-.input:focus,
-.textarea:focus {
+/* ==================== 表单 ==================== */
+.form {
+  display: flex;
+  flex-direction: column;
+}
+
+.field {
+  margin-bottom: var(--n-space-5);
+}
+
+.field__label {
+  display: block;
+  margin-bottom: var(--n-space-2);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-medium);
+}
+
+.req {
+  color: var(--n-danger);
+}
+
+.select {
+  width: 100%;
+  height: 40px;
+  padding: 0 var(--n-space-4);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-control);
+  background: var(--n-surface-soft);
+  color: var(--n-text);
+  font-size: var(--n-text-base);
   outline: none;
-  border-color: #667eea;
-  background: rgba(255, 255, 255, 0.7);
+  transition: border-color var(--n-duration-fast) var(--n-ease), box-shadow var(--n-duration-fast) var(--n-ease);
 }
 
-.textarea {
-  resize: vertical;
-  min-height: 100px;
-  font-family: inherit;
+.select:focus {
+  border-color: var(--n-accent-line);
+  box-shadow: var(--n-shadow-glow);
 }
 
-.submit-btn {
-  padding: 16px 48px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  border-radius: 14px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  margin-top: 10px;
+.select option {
+  background: var(--n-bg-elevated);
+  color: var(--n-text);
 }
 
-.submit-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+.duration {
+  display: flex;
+  gap: var(--n-space-3);
 }
 
-.submit-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.duration :deep(.n-input) {
+  flex: 1;
+  min-width: 0;
 }
 
+.duration :deep(.n-btn) {
+  flex: none;
+}
+
+.field__hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--n-space-2);
+  margin: var(--n-space-2) 0 0;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+}
+
+.field__warn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--n-warning);
+}
+
+/* ==================== 响应式 ==================== */
 @media (max-width: 900px) {
-  .upload-container {
+  .upload {
     grid-template-columns: 1fr;
-    gap: 30px;
   }
 
-  .cover-side {
-    position: static;
-    display: flex;
-    justify-content: center;
-  }
-
-  .cover-upload {
-    max-width: 300px;
+  .dropzone--cover {
+    max-width: 320px;
+    margin: 0 auto;
+    width: 100%;
   }
 }
 
-@media (max-width: 600px) {
-  .form-side {
-    padding: 30px 20px;
+@media (max-width: 560px) {
+  .duration {
+    flex-direction: column;
   }
 
-  .page-title {
-    font-size: 24px;
+  .duration :deep(.n-btn) {
+    width: 100%;
+    justify-content: center;
   }
 }
 </style>
