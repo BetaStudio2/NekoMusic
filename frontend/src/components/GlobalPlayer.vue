@@ -737,25 +737,45 @@ const clearPlaylist = () => {
 }
 
 // 确认清空播放列表
+/**
+ * 清空播放列表 —— 连同当前曲目一起清掉（「全部停止」语义）。
+ * 注意：底部播放条的显隐由 App 依据 localStorage.currentPlayingMusic 决定，
+ * 因此这里必须把它也一并清除，否则列表空了、播放条却仍停在那里。
+ */
 const confirmClearPlaylist = () => {
-  // 清空播放列表
+  // 先停掉正在播放的音频（<audio> 会在 currentMusic 置空后随之卸载）
+  if (audioPlayer.value) audioPlayer.value.pause()
+
   playlist.value = []
-  // 清空localStorage中的播放列表
   localStorage.setItem('globalPlaylist', JSON.stringify([]))
-  // 如果当前有正在播放的音乐，保留当前音乐在列表中
-  if (currentMusic.value) {
-    playlist.value = [currentMusic.value]
-    localStorage.setItem('globalPlaylist', JSON.stringify(playlist.value))
+
+  // 清空当前曲目与所有派生状态
+  currentMusic.value = null
+  isPlaying.value = false
+  currentTime.value = 0
+  progress.value = 0
+  duration.value = 0
+  parsedLyrics.value = []
+  lyrics.value = ''
+  isFavorite.value = false
+  showPlaylist.value = false
+
+  localStorage.removeItem('currentPlayingMusic')
+  updateGlobalPlayerState()
+
+  // 广播：currentMusic 为 null，播放页与 App 外壳据此收回播放条
+  broadcastPlayerStateChange()
+  window.dispatchEvent(
+    new CustomEvent('playlistUpdated', { detail: { playlist: [] } })
+  )
+
+  // 媒体会话
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.metadata = null
+    navigator.mediaSession.playbackState = 'none'
   }
-  // 广播播放列表更新事件
-  const playlistEvent = new CustomEvent('playlistUpdated', {
-    detail: {
-      playlist: playlist.value
-    }
-  })
-  window.dispatchEvent(playlistEvent)
+
   toast.success('播放列表已清空')
-  // 关闭模态框
   showClearConfirm.value = false
 }
 

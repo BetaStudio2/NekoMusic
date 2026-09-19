@@ -53,7 +53,14 @@ function refreshTrackPresence() {
 
 /** GlobalPlayer 的状态广播里带 currentMusic，一旦出现即视为有曲目 */
 function onPlayerState(event) {
-  if (event?.detail?.currentMusic) hasTrack.value = true
+  const music = event?.detail?.currentMusic
+  if (music) {
+    hasTrack.value = true
+    return
+  }
+  // 广播里明确带了 currentMusic 却为空 → 曲目已被清空（如「清空播放列表」），
+  // 重新读一次存储，让播放条收回
+  if (event?.detail && 'currentMusic' in event.detail) refreshTrackPresence()
 }
 
 onMounted(() => {
