@@ -53,7 +53,7 @@ public class SendResetPasswordCodeHandler extends HttpServlet {
             JsonNode requestData = Main.getObjectMapper().readTree(requestBody.toString());
 
             String email = null;
-            String username = "用户"; // 默认用户名
+            String username = "用户"; // 默认昵称
 
             if (requestData != null) {
                 if (requestData.has("email")) {

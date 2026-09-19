@@ -48,7 +48,7 @@ public class UserAuthService {
     }
 
     /**
-     * 用户注册（仅邮箱必须唯一，用户名可重复）
+     * 用户注册（仅邮箱必须唯一，昵称可重复）
      */
     public boolean registerUser(String username, String password, String email) {
         logger.info("开始注册用户: {}", username);
@@ -86,7 +86,7 @@ public class UserAuthService {
                     }
                 }
             }
-            logger.info("用户注册结果: {}, 用户名: {}, created_at(+08)={}",
+            logger.info("用户注册结果: {}, 昵称: {}, created_at(+08)={}",
                     affectedRows > 0, username, storedCreatedAt != null ? storedCreatedAt : DbTimeUtil.nowShanghaiWallClock());
             return affectedRows > 0;
         } catch (SQLException e) {
