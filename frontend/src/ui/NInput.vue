@@ -136,7 +136,7 @@ function onEnter(e) {
   gap: var(--n-space-2);
   background: var(--n-surface-soft);
   border: 1px solid var(--n-line);
-  border-radius: var(--n-radius-sm);
+  border-radius: var(--n-radius-control);
   color: var(--n-text);
   transition:
     border-color var(--n-duration-fast) var(--n-ease),

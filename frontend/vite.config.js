@@ -18,6 +18,8 @@ export default defineConfig(({ command }) => ({
   build: {
     // 构建输出
     outDir: '../backend/src/main/resources/site',
+    // 输出目录在项目根之外，需显式开启清理，避免旧哈希产物堆积
+    emptyOutDir: true,
     // 生产环境构建优化
     minify: 'terser',
     terserOptions: {

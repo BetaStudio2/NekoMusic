@@ -30,8 +30,8 @@ body {
   overflow-x: hidden;
   position: relative;
   background:
-    radial-gradient(1100px 680px at 10% -8%, rgba(105, 200, 223, 0.18), transparent 58%),
-    radial-gradient(900px 580px at 92% 4%, rgba(111, 137, 156, 0.14), transparent 58%),
+    radial-gradient(1100px 680px at 10% -8%, rgba(95, 208, 224, 0.16), transparent 58%),
+    radial-gradient(900px 580px at 92% 4%, rgba(96, 140, 150, 0.12), transparent 58%),
     linear-gradient(180deg, var(--n-bg) 0%, var(--n-bg-soft) 48%, var(--n-bg-deep) 100%);
   font-feature-settings: "tnum" 1, "liga" 1;
   text-rendering: geometricPrecision;
@@ -110,17 +110,17 @@ a {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(120, 220, 232, 0.04);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(105, 200, 223, 0.38);
-  border: 2px solid rgba(7, 11, 16, 0.92);
+  background: rgba(95, 208, 224, 0.34);
+  border: 2px solid rgba(4, 9, 11, 0.92);
   border-radius: var(--n-radius-pill);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(105, 200, 223, 0.55);
+  background: rgba(95, 208, 224, 0.52);
 }
 
 /* ===== 可见性工具类 ===== */
