@@ -1,29 +1,40 @@
 <template>
-  <div class="admin-subpage">
-    <h2>VIP 价目表</h2>
-    <p>全量维护套餐时长（月 + 天）与价格（元）。保存后会立即对前台「会员中心」生效。</p>
-    <div class="toolbar">
-      <button type="button" class="btn-ghost" :disabled="loading" @click="loadRows">重新加载</button>
-      <button type="button" class="btn-ghost" @click="addRow">添加一行</button>
-      <button type="button" class="btn-primary" :disabled="saving || loading" @click="saveRows">保存价目</button>
-    </div>
-    <p v-if="loadError" class="err">{{ loadError }}</p>
+  <div class="subpage">
+    <header class="subpage__head">
+      <div>
+        <h1 class="subpage__title">VIP 价目表</h1>
+        <p class="subpage__desc">全量维护套餐时长（月 + 天）与价格（元）。保存后会立即对前台「会员中心」生效。</p>
+      </div>
+      <div class="subpage__actions">
+        <NButton variant="secondary" icon="refresh" :disabled="loading" @click="loadRows">重新加载</NButton>
+        <NButton variant="secondary" icon="plus" @click="addRow">添加一行</NButton>
+        <NButton variant="primary" icon="check" :disabled="saving || loading" @click="saveRows">保存价目</NButton>
+      </div>
+    </header>
+
+    <p v-if="loadError" class="err">
+      <NIcon name="triangle-alert" :size="16" />
+      {{ loadError }}
+    </p>
+
     <div class="table-wrap">
-      <table class="data-table">
+      <table class="table">
         <thead>
           <tr>
             <th>月</th>
             <th>天</th>
             <th>价格（元）</th>
-            <th />
+            <th aria-label="操作" />
           </tr>
         </thead>
         <tbody>
           <tr v-for="(row, idx) in rows" :key="idx">
-            <td><input v-model.number="row.months" type="number" min="0" class="cell-inp" /></td>
-            <td><input v-model.number="row.days" type="number" min="0" class="cell-inp" /></td>
-            <td><input v-model.number="row.priceYuan" type="number" min="0" step="0.01" class="cell-inp" /></td>
-            <td><button type="button" class="btn-del" @click="removeRow(idx)">删除</button></td>
+            <td><NInput v-model.number="row.months" type="number" min="0" class="cell" /></td>
+            <td><NInput v-model.number="row.days" type="number" min="0" class="cell" /></td>
+            <td><NInput v-model.number="row.priceYuan" type="number" min="0" step="0.01" class="cell" /></td>
+            <td class="cell-actions">
+              <NButton size="sm" variant="danger" icon="trash-2" title="删除该行" @click="removeRow(idx)" />
+            </td>
           </tr>
         </tbody>
       </table>
@@ -34,7 +45,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useToast } from 'vue-toastification'
+import { useToast } from '@/composables/useToast'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NCard, NInput, NModal, NSpinner } from '@/ui'
+import { PageShell, AmbientBackdrop } from '@/layouts'
 import { fetchVipPricing, replaceVipPricing } from '@/api/vipPricing.js'
 
 const router = useRouter()
@@ -143,175 +157,94 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.admin-layout {
-  display: flex;
-  min-height: 100vh;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
+.subpage {
+  width: 100%;
 }
 
-.admin-main-content {
-  flex: 1;
-  margin-left: 250px;
-  padding: 20px;
-  transition: margin-left 0.3s ease;
-  min-height: calc(100vh - 40px);
-  display: flex;
-  flex-direction: column;
-}
-
-.admin-header {
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 15px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  margin-bottom: 20px;
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.menu-toggle-btn {
-  display: none;
-  background: none;
-  border: none;
-  color: #887bb0;
-  cursor: pointer;
-  padding: 5px;
-}
-
-.menu-toggle-btn svg {
-  width: 28px;
-  height: 28px;
-}
-
-.admin-user-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex: 1;
-}
-
-.logout-button {
-  background: linear-gradient(135deg, rgba(220, 20, 60, 0.8), rgba(105, 200, 223, 0.8));
-  color: white;
-  border: none;
-  border-radius: 20px;
-  padding: 8px 16px;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-
-.admin-content-wrapper {
-  flex: 1;
-  padding: 0 20px;
-  overflow: auto;
-}
-
-.admin-subpage {
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 15px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-}
-
-.admin-subpage h2 {
-  color: #69c8df;
-  margin: 0 0 12px 0;
-}
-
-.toolbar {
+.subpage__head {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin: 16px 0;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--n-space-4);
+  margin-bottom: var(--n-space-6);
 }
 
-.btn-primary,
-.btn-ghost {
-  padding: 8px 16px;
-  border-radius: 10px;
-  border: none;
-  cursor: pointer;
-  font-size: 0.9rem;
+.subpage__title {
+  margin: 0 0 var(--n-space-1);
+  font-size: clamp(1.25rem, 2.6vw, 1.6rem);
+  font-weight: var(--n-weight-bold);
+  letter-spacing: -0.02em;
+  color: var(--n-text);
 }
 
-.btn-primary {
-  background: linear-gradient(135deg, #69c8df, #69c8df);
-  color: #fff;
+.subpage__desc {
+  margin: 0;
+  max-width: 68ch;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  line-height: var(--n-leading-normal);
 }
 
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-ghost {
-  background: rgba(105, 200, 223, 0.12);
-  color: #5c4b7b;
-}
-
-.btn-ghost:disabled {
-  opacity: 0.5;
+.subpage__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--n-space-3);
 }
 
 .err {
-  color: #c0392b;
-  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-2);
+  margin: 0 0 var(--n-space-5);
+  padding: var(--n-space-3) var(--n-space-4);
+  border: 1px solid rgba(255, 107, 107, 0.28);
+  border-radius: var(--n-radius-control);
+  background: var(--n-danger-soft);
+  color: #ffb3b3;
+  font-size: var(--n-text-sm);
 }
 
 .table-wrap {
   overflow-x: auto;
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-lg);
+  background: var(--n-surface);
 }
 
-.data-table {
+.table {
   width: 100%;
   border-collapse: collapse;
-  background: rgba(255, 255, 255, 0.4);
-  border-radius: 10px;
-  overflow: hidden;
+  color: var(--n-text);
+  font-size: var(--n-text-sm);
 }
 
-.data-table th,
-.data-table td {
-  padding: 10px 12px;
+.table th,
+.table td {
+  padding: var(--n-space-3) var(--n-space-4);
   text-align: left;
-  border-bottom: 1px solid rgba(105, 200, 223, 0.15);
+  border-bottom: 1px solid var(--n-line-subtle);
+  vertical-align: middle;
 }
 
-.data-table th {
-  background: rgba(105, 200, 223, 0.15);
-  color: #5c4b7b;
-  font-weight: 600;
+.table th {
+  background: var(--n-accent-soft);
+  color: var(--n-text);
+  font-weight: var(--n-weight-semibold);
+  white-space: nowrap;
 }
 
-.cell-inp {
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.cell {
   width: 100%;
-  max-width: 140px;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(105, 200, 223, 0.25);
+  max-width: 180px;
 }
 
-.btn-del {
-  background: rgba(231, 76, 60, 0.15);
-  color: #c0392b;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.85rem;
-}
-
-@media (max-width: 900px) {
-  .admin-main-content {
-    margin-left: 0;
-    padding-bottom: 100px;
-  }
-  .menu-toggle-btn {
-    display: block;
-  }
+.cell-actions {
+  width: 1%;
+  white-space: nowrap;
 }
 </style>
