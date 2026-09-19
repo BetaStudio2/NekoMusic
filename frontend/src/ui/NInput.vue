@@ -41,6 +41,16 @@ const emit = defineEmits(['clear', 'enter'])
 
 const attrs = useAttrs()
 const passwordVisible = ref(false)
+const inputRef = ref(null)
+
+/** 透出原生控件方法，便于父组件在编辑场景聚焦/全选 */
+function focus() {
+  inputRef.value?.focus?.()
+}
+function select() {
+  inputRef.value?.select?.()
+}
+defineExpose({ focus, select })
 
 const isPassword = computed(() => props.type === 'password')
 
@@ -87,6 +97,7 @@ function onEnter(e) {
 
     <textarea
       v-if="textarea"
+      ref="inputRef"
       v-model="model"
       class="n-input__control"
       :placeholder="placeholder"
@@ -96,6 +107,7 @@ function onEnter(e) {
     />
     <input
       v-else
+      ref="inputRef"
       v-model="model"
       class="n-input__control"
       :type="actualType"
