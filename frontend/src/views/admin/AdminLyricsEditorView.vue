@@ -1,140 +1,116 @@
 <template>
-  <div class="admin-layout">
-    <AdminSidebar ref="sidebarRef" />
-
-    <div class="admin-main-content">
-      <div class="admin-header">
-        <button class="menu-toggle-btn" @click="toggleSidebar" aria-label="打开菜单">
+  <div class="lyrics-workspace">
+    <aside class="file-panel">
+      <div class="panel-toolbar">
+        <div>
+          <h2>歌词编辑</h2>
+          <span>{{ treeStats.totalFiles }} 个文件</span>
+        </div>
+        <button class="icon-button" @click="fetchTree" title="刷新">
           <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+            <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h8V3l-3.35 3.35z"/>
           </svg>
         </button>
-        <div class="admin-user-info">
-          <span>欢迎，{{ adminInfo.username || '管理员' }}!</span>
-          <button @click="logout" class="logout-button">退出登录</button>
-        </div>
       </div>
-
-      <div class="lyrics-workspace">
-        <aside class="file-panel">
-          <div class="panel-toolbar">
-            <div>
-              <h2>歌词编辑</h2>
-              <span>{{ treeStats.totalFiles }} 个文件</span>
+      <div class="file-actions">
+        <input
+          v-model="searchQuery"
+          class="search-input"
+          type="text"
+          placeholder="搜索歌词、ID、歌名或歌手"
+        />
+        <button v-if="canEditLyrics" class="new-button" @click="showNewFile = !showNewFile">
+          新建
+        </button>
+      </div>
+      <div v-if="showNewFile" class="new-file-box">
+        <input
+          v-model="newFilePath"
+          class="new-file-input"
+          type="text"
+          placeholder="例如 123.lrc"
+          @keydown.enter="createDraftFile"
+        />
+        <button class="small-primary-btn" @click="createDraftFile">确定</button>
+      </div>
+      <div v-if="isLoadingTree" class="tree-state">正在加载...</div>
+      <div v-else-if="visibleNodes.length === 0" class="tree-state">暂无歌词文件</div>
+      <div v-else class="file-tree">
+        <button
+          v-for="item in visibleNodes"
+          :key="`${item.node.type}:${item.node.path}`"
+          class="tree-row"
+          :class="{
+            active: selectedFile && selectedFile.path === item.node.path,
+            directory: item.node.type === 'directory'
+          }"
+          :style="{ paddingLeft: `${12 + item.level * 18}px` }"
+          @click="handleNodeClick(item.node)"
+        >
+          <span class="tree-icon">
+            <template v-if="item.node.type === 'directory'">
+              {{ isExpanded(item.node.path) ? '▾' : '▸' }}
+            </template>
+            <template v-else>♪</template>
+          </span>
+          <span class="tree-label">{{ fileLabel(item.node) }}</span>
+          <span v-if="item.node.type === 'file' && !item.node.existsInDb" class="orphan-dot" title="未匹配到曲库"></span>
+        </button>
+      </div>
+    </aside>
+    <main class="editor-panel">
+      <div v-if="!selectedFile" class="empty-editor">
+        <h3>选择一个歌词文件</h3>
+      </div>
+      <template v-else>
+        <div class="editor-topbar">
+          <div class="file-heading">
+            <h3>{{ selectedFile.displayName || selectedFile.name }}</h3>
+            <div class="file-meta">
+              <span>{{ selectedFile.path }}</span>
+              <span v-if="selectedFile.musicId">ID {{ selectedFile.musicId }}</span>
+              <span v-if="selectedFile.artist">{{ selectedFile.artist }}</span>
+              <span>{{ formatBytes(selectedFile.size || 0) }}</span>
+              <span v-if="hasUnsavedChanges" class="dirty-label">未保存</span>
             </div>
-            <button class="icon-button" @click="fetchTree" title="刷新">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h8V3l-3.35 3.35z"/>
-              </svg>
+          </div>
+          <div class="editor-actions">
+            <button class="secondary-btn" @click="reloadSelectedFile" :disabled="isLoadingFile || isDraftFile">
+              重新加载
             </button>
-          </div>
-
-          <div class="file-actions">
-            <input
-              v-model="searchQuery"
-              class="search-input"
-              type="text"
-              placeholder="搜索歌词、ID、歌名或歌手"
-            />
-            <button v-if="canEditLyrics" class="new-button" @click="showNewFile = !showNewFile">
-              新建
-            </button>
-          </div>
-
-          <div v-if="showNewFile" class="new-file-box">
-            <input
-              v-model="newFilePath"
-              class="new-file-input"
-              type="text"
-              placeholder="例如 123.lrc"
-              @keydown.enter="createDraftFile"
-            />
-            <button class="small-primary-btn" @click="createDraftFile">确定</button>
-          </div>
-
-          <div v-if="isLoadingTree" class="tree-state">正在加载...</div>
-          <div v-else-if="visibleNodes.length === 0" class="tree-state">暂无歌词文件</div>
-          <div v-else class="file-tree">
             <button
-              v-for="item in visibleNodes"
-              :key="`${item.node.type}:${item.node.path}`"
-              class="tree-row"
-              :class="{
-                active: selectedFile && selectedFile.path === item.node.path,
-                directory: item.node.type === 'directory'
-              }"
-              :style="{ paddingLeft: `${12 + item.level * 18}px` }"
-              @click="handleNodeClick(item.node)"
+              v-if="canEditLyrics"
+              class="danger-btn"
+              @click="deleteSelectedFile"
+              :disabled="isDeleting || isDraftFile"
             >
-              <span class="tree-icon">
-                <template v-if="item.node.type === 'directory'">
-                  {{ isExpanded(item.node.path) ? '▾' : '▸' }}
-                </template>
-                <template v-else>♪</template>
-              </span>
-              <span class="tree-label">{{ fileLabel(item.node) }}</span>
-              <span v-if="item.node.type === 'file' && !item.node.existsInDb" class="orphan-dot" title="未匹配到曲库"></span>
+              删除
+            </button>
+            <button
+              v-if="canEditLyrics"
+              class="primary-btn"
+              @click="saveSelectedFile"
+              :disabled="isSaving || !hasUnsavedChanges"
+            >
+              {{ isSaving ? '保存中...' : '保存' }}
             </button>
           </div>
-        </aside>
-
-        <main class="editor-panel">
-          <div v-if="!selectedFile" class="empty-editor">
-            <h3>选择一个歌词文件</h3>
+        </div>
+        <div class="editor-body">
+          <div class="line-gutter" ref="lineGutterRef">
+            <div v-for="line in lineNumbers" :key="line">{{ line }}</div>
           </div>
-
-          <template v-else>
-            <div class="editor-topbar">
-              <div class="file-heading">
-                <h3>{{ selectedFile.displayName || selectedFile.name }}</h3>
-                <div class="file-meta">
-                  <span>{{ selectedFile.path }}</span>
-                  <span v-if="selectedFile.musicId">ID {{ selectedFile.musicId }}</span>
-                  <span v-if="selectedFile.artist">{{ selectedFile.artist }}</span>
-                  <span>{{ formatBytes(selectedFile.size || 0) }}</span>
-                  <span v-if="hasUnsavedChanges" class="dirty-label">未保存</span>
-                </div>
-              </div>
-              <div class="editor-actions">
-                <button class="secondary-btn" @click="reloadSelectedFile" :disabled="isLoadingFile || isDraftFile">
-                  重新加载
-                </button>
-                <button
-                  v-if="canEditLyrics"
-                  class="danger-btn"
-                  @click="deleteSelectedFile"
-                  :disabled="isDeleting || isDraftFile"
-                >
-                  删除
-                </button>
-                <button
-                  v-if="canEditLyrics"
-                  class="primary-btn"
-                  @click="saveSelectedFile"
-                  :disabled="isSaving || !hasUnsavedChanges"
-                >
-                  {{ isSaving ? '保存中...' : '保存' }}
-                </button>
-              </div>
-            </div>
-
-            <div class="editor-body">
-              <div class="line-gutter" ref="lineGutterRef">
-                <div v-for="line in lineNumbers" :key="line">{{ line }}</div>
-              </div>
-              <textarea
-                ref="editorRef"
-                v-model="lyricsContent"
-                class="lyrics-editor"
-                spellcheck="false"
-                :readonly="!canEditLyrics || isLoadingFile"
-                @scroll="syncEditorScroll"
-              ></textarea>
-            </div>
-          </template>
-        </main>
-      </div>
-    </div>
+          <textarea
+            ref="editorRef"
+            v-model="lyricsContent"
+            class="lyrics-editor"
+            spellcheck="false"
+            :readonly="!canEditLyrics || isLoadingFile"
+            @scroll="syncEditorScroll"
+          ></textarea>
+        </div>
+      </template>
+    </main>
   </div>
 </template>
 
@@ -142,12 +118,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
-import AdminSidebar from '@/components/AdminSidebar.vue'
 import API_CONFIG from '@/config/apiConfig.js'
 
 const router = useRouter()
 const toast = useToast()
-const sidebarRef = ref(null)
 const adminInfo = ref({})
 
 const tree = ref(null)
@@ -214,9 +188,6 @@ onMounted(() => {
   fetchTree()
 })
 
-const toggleSidebar = () => {
-  sidebarRef.value?.toggleSidebar()
-}
 
 const fetchTree = async () => {
   isLoadingTree.value = true
@@ -500,11 +471,6 @@ const syncEditorScroll = () => {
   }
 }
 
-const logout = () => {
-  localStorage.removeItem('adminToken')
-  localStorage.removeItem('isAdminLoggedIn')
-  router.push('/admin/login')
-}
 </script>
 
 <style scoped>

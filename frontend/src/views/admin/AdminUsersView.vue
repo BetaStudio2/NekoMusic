@@ -1,25 +1,7 @@
 <template>
-  <div class="admin-layout">
-    <AdminSidebar ref="sidebarRef" />
-    
-    <div class="admin-main-content">
-      <div class="admin-header">
-        <button class="menu-toggle-btn" @click="toggleSidebar">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
-          </svg>
-        </button>
-        <div class="admin-user-info">
-          <span>欢迎，{{ adminInfo.username || '管理员' }}!</span>
-          <button @click="logout" class="logout-button">退出登录</button>
-        </div>
-      </div>
-      
-      <div class="admin-content-wrapper">
         <div class="admin-subpage">
           <h2>用户管理</h2>
           <p>管理平台用户信息，包括查看用户列表、编辑用户权限等操作。</p>
-          
           <div class="admin-controls">
             <div class="filter-section">
               <select v-model="accountType" class="filter-select">
@@ -41,7 +23,6 @@
                               + 创建账号
                             </button>            </div>
           </div>
-          
           <div class="users-list-section">
             <div class="table-container">
               <table class="users-table">
@@ -92,7 +73,6 @@
               </table>
             </div>
           </div>
-          
           <div class="pagination">
             <button 
               :disabled="currentPage === 1" 
@@ -111,9 +91,6 @@
             </button>
           </div>
         </div>
-      </div>
-    </div>
-    
     <!-- 创建账号模态框 -->
     <Transition name="modal">
       <div v-if="creatingUser" class="edit-modal-overlay" @click="closeCreateModal">
@@ -155,7 +132,6 @@
         </div>
       </div>
     </Transition>
-    
     <!-- 编辑用户模态框 -->
     <Transition name="modal">
       <div v-if="editingUser" class="edit-modal-overlay" @click="closeEditModal">
@@ -204,13 +180,11 @@
         </div>
       </div>
     </Transition>
-  </div>
 </template>
 
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import AdminSidebar from '@/components/AdminSidebar.vue'
 import { useToast } from 'vue-toastification'
 import API_CONFIG from '@/config/apiConfig.js'
 import {
@@ -222,17 +196,11 @@ import {
 const toast = useToast()
 
 const router = useRouter()
-const sidebarRef = ref(null)
 
 // 管理员信息
 const adminInfo = ref({})
 
 // 切换侧边栏
-const toggleSidebar = () => {
-  if (sidebarRef.value) {
-    sidebarRef.value.toggleSidebar()
-  }
-}
 const searchQuery = ref('')
 const accountType = ref('')
 const currentPage = ref(1)
@@ -765,12 +733,6 @@ watch(currentPage, (newPage) => {
   }
 })
 
-const logout = () => {
-  localStorage.removeItem('adminToken')
-  localStorage.removeItem('adminInfo')
-  localStorage.removeItem('isAdminLoggedIn')
-  router.push('/admin/login')
-}
 </script>
 
 <style scoped>

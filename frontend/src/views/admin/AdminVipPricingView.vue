@@ -1,55 +1,32 @@
 <template>
-  <div class="admin-layout">
-    <AdminSidebar ref="sidebarRef" />
-
-    <div class="admin-main-content">
-      <div class="admin-header">
-        <button type="button" class="menu-toggle-btn" @click="toggleSidebar">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
-          </svg>
-        </button>
-        <div class="admin-user-info">
-          <span>欢迎，{{ adminInfo.username || '管理员' }}!</span>
-          <button type="button" class="logout-button" @click="logout">退出登录</button>
-        </div>
-      </div>
-
-      <div class="admin-content-wrapper">
-        <div class="admin-subpage">
-          <h2>VIP 价目表</h2>
-          <p>全量维护套餐时长（月 + 天）与价格（元）。保存后会立即对前台「会员中心」生效。</p>
-
-          <div class="toolbar">
-            <button type="button" class="btn-ghost" :disabled="loading" @click="loadRows">重新加载</button>
-            <button type="button" class="btn-ghost" @click="addRow">添加一行</button>
-            <button type="button" class="btn-primary" :disabled="saving || loading" @click="saveRows">保存价目</button>
-          </div>
-
-          <p v-if="loadError" class="err">{{ loadError }}</p>
-
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>月</th>
-                  <th>天</th>
-                  <th>价格（元）</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(row, idx) in rows" :key="idx">
-                  <td><input v-model.number="row.months" type="number" min="0" class="cell-inp" /></td>
-                  <td><input v-model.number="row.days" type="number" min="0" class="cell-inp" /></td>
-                  <td><input v-model.number="row.priceYuan" type="number" min="0" step="0.01" class="cell-inp" /></td>
-                  <td><button type="button" class="btn-del" @click="removeRow(idx)">删除</button></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+  <div class="admin-subpage">
+    <h2>VIP 价目表</h2>
+    <p>全量维护套餐时长（月 + 天）与价格（元）。保存后会立即对前台「会员中心」生效。</p>
+    <div class="toolbar">
+      <button type="button" class="btn-ghost" :disabled="loading" @click="loadRows">重新加载</button>
+      <button type="button" class="btn-ghost" @click="addRow">添加一行</button>
+      <button type="button" class="btn-primary" :disabled="saving || loading" @click="saveRows">保存价目</button>
+    </div>
+    <p v-if="loadError" class="err">{{ loadError }}</p>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>月</th>
+            <th>天</th>
+            <th>价格（元）</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(row, idx) in rows" :key="idx">
+            <td><input v-model.number="row.months" type="number" min="0" class="cell-inp" /></td>
+            <td><input v-model.number="row.days" type="number" min="0" class="cell-inp" /></td>
+            <td><input v-model.number="row.priceYuan" type="number" min="0" step="0.01" class="cell-inp" /></td>
+            <td><button type="button" class="btn-del" @click="removeRow(idx)">删除</button></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </template>
@@ -58,26 +35,17 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
-import AdminSidebar from '@/components/AdminSidebar.vue'
 import { fetchVipPricing, replaceVipPricing } from '@/api/vipPricing.js'
 
 const router = useRouter()
 const toast = useToast()
-const sidebarRef = ref(null)
 const adminInfo = ref({})
 const rows = ref([])
 const loading = ref(false)
 const saving = ref(false)
 const loadError = ref('')
 
-const toggleSidebar = () => sidebarRef.value?.toggleSidebar()
 
-const logout = () => {
-  localStorage.removeItem('adminToken')
-  localStorage.removeItem('adminInfo')
-  localStorage.removeItem('isAdminLoggedIn')
-  router.push('/admin/login')
-}
 
 const loadRows = async () => {
   loadError.value = ''

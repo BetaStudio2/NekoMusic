@@ -1,55 +1,31 @@
 <template>
-  <div class="admin-layout">
-    <AdminSidebar ref="sidebarRef" />
-    
-    <div class="admin-main-content">
-      <div class="admin-header">
-        <button class="menu-toggle-btn" @click="toggleSidebar">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
-          </svg>
-        </button>
-        <div class="admin-user-info">
-          <span>欢迎，{{ adminInfo.username || '管理员' }}!</span>
-          <button @click="logout" class="logout-button">退出登录</button>
-        </div>
-      </div>
-      
-      <div class="admin-content-wrapper">
-        <div class="admin-dashboard">
-          <div class="admin-header-section">
-            <h2 class="admin-title">管理中心</h2>
-            <p class="admin-subtitle">平台数据统计与管理</p>
-          </div>
-          
-
-            <!-- 统计概览 -->
-            <div v-if="activeTab === 'stats'" class="tab-panel">
-              <div class="stats-summary">
-                <div class="stat-card">
-                  <div class="stat-icon">🎵</div>
-                  <div class="stat-info">
-                    <div class="stat-number">{{ stats.totalMusic }}</div>
-                    <div class="stat-label">总音乐数</div>
-                  </div>
-                </div>
-                
-                <div class="stat-card">
-                  <div class="stat-icon">👥</div>
-                  <div class="stat-info">
-                    <div class="stat-number">{{ stats.totalUsers }}</div>
-                    <div class="stat-label">总用户数</div>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="chart-section">
-                <h3>数据趋势图</h3>
-                <div class="chart-container">
-                  <canvas ref="trendChartCanvas"></canvas>
-                </div>
-              </div>
+  <div class="admin-dashboard">
+    <div class="admin-header-section">
+      <h2 class="admin-title">管理中心</h2>
+      <p class="admin-subtitle">平台数据统计与管理</p>
+    </div>
+      <!-- 统计概览 -->
+      <div v-if="activeTab === 'stats'" class="tab-panel">
+        <div class="stats-summary">
+          <div class="stat-card">
+            <div class="stat-icon">🎵</div>
+            <div class="stat-info">
+              <div class="stat-number">{{ stats.totalMusic }}</div>
+              <div class="stat-label">总音乐数</div>
             </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">👥</div>
+            <div class="stat-info">
+              <div class="stat-number">{{ stats.totalUsers }}</div>
+              <div class="stat-label">总用户数</div>
+            </div>
+          </div>
+        </div>
+        <div class="chart-section">
+          <h3>数据趋势图</h3>
+          <div class="chart-container">
+            <canvas ref="trendChartCanvas"></canvas>
           </div>
         </div>
       </div>
@@ -60,7 +36,6 @@
 import { ref, onMounted, onActivated, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
-import AdminSidebar from '@/components/AdminSidebar.vue'
 import {
   Chart as ChartJS,
   LineController,
@@ -88,7 +63,6 @@ ChartJS.register(
 )
 
 const router = useRouter()
-const sidebarRef = ref(null)
 const stats = ref({
   totalMusic: 0,
   totalUsers: 0
@@ -101,11 +75,6 @@ const trendChartCanvas = ref(null)
 let trendChart = null
 
 // 切换侧边栏
-const toggleSidebar = () => {
-  if (sidebarRef.value) {
-    sidebarRef.value.toggleSidebar()
-  }
-}
 
 // 初始化管理员信息
 onMounted(() => {
@@ -320,11 +289,6 @@ const goTo = (path) => {
   router.push(path)
 }
 
-const logout = () => {
-  localStorage.removeItem('adminToken')
-  localStorage.removeItem('isAdminLoggedIn')
-  router.push('/admin/login')
-}
 </script>
 
 <style scoped>
