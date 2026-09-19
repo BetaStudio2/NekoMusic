@@ -1,90 +1,60 @@
 <template>
-
   <div class="auth" :class="{ 'auth--ready': animReady }">
     <span class="auth__glow" aria-hidden="true" />
 
     <div class="auth__card">
-      <!-- Logo（切换时重放入场动画） -->
-      <header class="auth__head">
-        <div :key="activeTab" class="auth__logo">
-          <NIcon :name="activeTab === 'login' ? 'cat' : 'user-plus'" :size="26" />
-        </div>
-      </header>
-
-      <!-- 切换标签 -->
-      <div class="auth__tabs" role="tablist" aria-label="登录或注册">
-        <span
-          class="auth__tabs-pill"
-          :class="{ 'auth__tabs-pill--right': activeTab === 'register' }"
-          aria-hidden="true"
-        />
-        <button
-          type="button"
-          role="tab"
-          class="auth__tab"
-          :class="{ 'auth__tab--active': activeTab === 'login' }"
-          :aria-selected="activeTab === 'login'"
-          @click="switchTab('login')"
-        >
-          登录
-        </button>
-        <button
-          type="button"
-          role="tab"
-          class="auth__tab"
-          :class="{ 'auth__tab--active': activeTab === 'register' }"
-          :aria-selected="activeTab === 'register'"
-          @click="switchTab('register')"
-        >
-          注册
-        </button>
-      </div>
-
-      <!-- 面板容器：高度过渡 + 淡入淡出 -->
       <div
         class="auth__panels"
         :class="{ 'auth__panels--transitioning': transitioning }"
         :style="{ height: panelHeight }"
       >
-        <!-- 登录 -->
-        <div
-          ref="loginPanel"
-          class="auth__panel"
-          :class="{ 'auth__panel--hidden': activeTab !== 'login' }"
-          :inert="activeTab !== 'login'"
-        >
-          <h1 class="auth__title">登录 Neko歌姬计划</h1>
-          <p class="auth__subtitle">请输入您的凭据</p>
-
-          <form class="auth__form" @submit.prevent="handleLogin">
-            <div class="auth__field">
-              <label class="auth__label" for="login-email">邮箱</label>
-              <NInput
-                id="login-email"
-                v-model="loginEmail"
-                icon="mail"
-                placeholder="输入邮箱"
-                autocomplete="username"
-              />
+        <!-- 登录面板 -->
+        <div v-if="activeTab === 'login'" ref="loginPanel" class="auth__panel">
+          <header class="auth__head">
+            <div class="auth__head-top">
+              <div class="auth__logo">
+                <NIcon name="cat" :size="26" />
+              </div>
+              <button type="button" class="auth__mode" @click="switchTab('register')">
+                <NIcon name="user-plus" :size="14" />
+                注册
+              </button>
             </div>
-            <div class="auth__field">
-              <label class="auth__label" for="login-password">密码</label>
-              <NInput
-                id="login-password"
-                v-model="loginPassword"
-                type="password"
-                icon="lock"
-                placeholder="输入密码"
-                autocomplete="current-password"
-              />
-            </div>
+            <h1 class="auth__title">登录 Neko歌姬计划</h1>
+            <p class="auth__subtitle">请输入您的凭据</p>
+          </header>
 
-            <p class="auth__error" role="alert">{{ loginError || '\u00A0' }}</p>
+          <div class="auth__body">
+            <form class="auth__form" @submit.prevent="handleLogin">
+              <div class="auth__field">
+                <label class="auth__label" for="login-email">邮箱</label>
+                <NInput
+                  id="login-email"
+                  v-model="loginEmail"
+                  icon="mail"
+                  placeholder="输入邮箱"
+                  autocomplete="username"
+                />
+              </div>
+              <div class="auth__field">
+                <label class="auth__label" for="login-password">密码</label>
+                <NInput
+                  id="login-password"
+                  v-model="loginPassword"
+                  type="password"
+                  icon="lock"
+                  placeholder="输入密码"
+                  autocomplete="current-password"
+                />
+              </div>
 
-            <NButton type="submit" variant="primary" size="lg" block :loading="loginLoading">
-              登录
-            </NButton>
-          </form>
+              <p class="auth__error" role="alert">{{ loginError || '\u00A0' }}</p>
+
+              <NButton type="submit" variant="primary" size="lg" block :loading="loginLoading">
+                登录
+              </NButton>
+            </form>
+          </div>
 
           <p class="auth__link-row">
             <RouterLink to="/forgot-password" class="auth__link">
@@ -94,86 +64,94 @@
           </p>
         </div>
 
-        <!-- 注册 -->
-        <div
-          ref="registerPanel"
-          class="auth__panel"
-          :class="{ 'auth__panel--hidden': activeTab !== 'register' }"
-          :inert="activeTab !== 'register'"
-        >
-          <h1 class="auth__title">注册 Neko歌姬计划</h1>
-          <p class="auth__subtitle">创建账户，开始收藏与整理你的音乐</p>
-
-          <form class="auth__form" @submit.prevent="handleRegister">
-            <div class="auth__field">
-              <label class="auth__label" for="reg-username">用户名</label>
-              <NInput
-                id="reg-username"
-                v-model="username"
-                icon="user"
-                placeholder="用户名"
-                autocomplete="username"
-              />
-            </div>
-            <div class="auth__field">
-              <label class="auth__label" for="reg-email">邮箱</label>
-              <NInput
-                id="reg-email"
-                v-model="email"
-                type="email"
-                icon="mail"
-                placeholder="邮箱"
-                autocomplete="email"
-              />
-            </div>
-            <div class="auth__field">
-              <label class="auth__label" for="reg-code">邮箱验证码</label>
-              <div class="auth__code">
-                <NInput
-                  id="reg-code"
-                  v-model="verificationCode"
-                  icon="shield-check"
-                  placeholder="验证码"
-                  maxlength="6"
-                />
-                <NButton
-                  variant="secondary"
-                  :disabled="codeSending || countdown > 0 || captchaModalOpen"
-                  @click="sendVerificationCode"
-                >
-                  {{ codeBtnText }}
-                </NButton>
+        <!-- 注册面板 -->
+        <div v-else ref="registerPanel" class="auth__panel">
+          <header class="auth__head">
+            <div class="auth__head-top">
+              <div class="auth__logo">
+                <NIcon name="user-plus" :size="26" />
               </div>
+              <button type="button" class="auth__mode" @click="switchTab('login')">
+                <NIcon name="login" :size="14" />
+                登录
+              </button>
             </div>
-            <div class="auth__field">
-              <label class="auth__label" for="reg-password">密码</label>
-              <NInput
-                id="reg-password"
-                v-model="password"
-                type="password"
-                icon="lock"
-                placeholder="至少 6 位"
-                autocomplete="new-password"
-              />
-            </div>
-            <div class="auth__field">
-              <label class="auth__label" for="reg-confirm">确认密码</label>
-              <NInput
-                id="reg-confirm"
-                v-model="confirmPassword"
-                type="password"
-                icon="lock"
-                placeholder="再次输入密码"
-                autocomplete="new-password"
-              />
-            </div>
+            <h1 class="auth__title">注册 Neko歌姬计划</h1>
+            <p class="auth__subtitle">创建账户，开始收藏与整理你的音乐</p>
+          </header>
 
-            <p class="auth__error" role="alert">{{ regError || '\u00A0' }}</p>
+          <div class="auth__body">
+            <form class="auth__form" @submit.prevent="handleRegister">
+              <div class="auth__field">
+                <label class="auth__label" for="reg-username">用户名</label>
+                <NInput
+                  id="reg-username"
+                  v-model="username"
+                  icon="user"
+                  placeholder="用户名"
+                  autocomplete="username"
+                />
+              </div>
+              <div class="auth__field">
+                <label class="auth__label" for="reg-email">邮箱</label>
+                <NInput
+                  id="reg-email"
+                  v-model="email"
+                  type="email"
+                  icon="mail"
+                  placeholder="邮箱"
+                  autocomplete="email"
+                />
+              </div>
+              <div class="auth__field">
+                <label class="auth__label" for="reg-code">邮箱验证码</label>
+                <div class="auth__code">
+                  <NInput
+                    id="reg-code"
+                    v-model="verificationCode"
+                    icon="shield-check"
+                    placeholder="验证码"
+                    maxlength="6"
+                  />
+                  <NButton
+                    variant="secondary"
+                    :disabled="codeSending || countdown > 0 || captchaModalOpen"
+                    @click="sendVerificationCode"
+                  >
+                    {{ codeBtnText }}
+                  </NButton>
+                </div>
+              </div>
+              <div class="auth__field">
+                <label class="auth__label" for="reg-password">密码</label>
+                <NInput
+                  id="reg-password"
+                  v-model="password"
+                  type="password"
+                  icon="lock"
+                  placeholder="至少 6 位"
+                  autocomplete="new-password"
+                />
+              </div>
+              <div class="auth__field">
+                <label class="auth__label" for="reg-confirm">确认密码</label>
+                <NInput
+                  id="reg-confirm"
+                  v-model="confirmPassword"
+                  type="password"
+                  icon="lock"
+                  placeholder="再次输入密码"
+                  autocomplete="new-password"
+                />
+              </div>
 
-            <NButton type="submit" variant="primary" size="lg" block :loading="loading">
-              注册
-            </NButton>
-          </form>
+              <p class="auth__error" role="alert">{{ regError || '\u00A0' }}</p>
+
+              <NButton type="submit" variant="primary" size="lg" block :loading="loading">
+                注册
+              </NButton>
+            </form>
+          </div>
         </div>
       </div>
     </div>
@@ -261,6 +239,7 @@
     </Transition>
   </Teleport>
 </template>
+
 <script setup>
 /**
  * AuthPanel —— 登录 / 注册合一卡片
@@ -818,11 +797,37 @@ onUnmounted(() => {
   background: linear-gradient(90deg, transparent, var(--n-accent-line), transparent);
 }
 
-/* ==================== Logo ==================== */
+/* ==================== 面板容器（高度过渡 + 淡入淡出） ==================== */
+.auth__panels {
+  position: relative;
+  overflow: hidden;
+}
+
+.auth--ready .auth__panels {
+  transition: height 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.auth__panel {
+  opacity: 1;
+  transition: opacity 0.2s var(--n-ease);
+}
+
+/* 切换中：整个面板（含头部）淡出，切换后再淡入 */
+.auth__panels--transitioning .auth__panel {
+  opacity: 0;
+}
+
+/* ==================== 头部 ==================== */
 .auth__head {
+  padding: var(--n-space-8) var(--n-space-8) 0;
+  text-align: center;
+}
+
+.auth__head-top {
+  position: relative;
   display: flex;
   justify-content: center;
-  padding: var(--n-space-8) var(--n-space-8) 0;
+  margin-bottom: var(--n-space-4);
 }
 
 .auth__logo {
@@ -834,106 +839,40 @@ onUnmounted(() => {
   background: linear-gradient(135deg, var(--n-accent-strong), var(--n-accent));
   color: var(--n-text-inverse);
   box-shadow: 0 8px 26px rgba(95, 208, 224, 0.3);
-  animation: authLogoIn 0.45s var(--n-ease) both;
 }
 
-@keyframes authLogoIn {
-  from {
-    opacity: 0;
-    transform: scale(0.82) rotate(-6deg);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/* ==================== 切换标签 ==================== */
-.auth__tabs {
-  position: relative;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0;
-  margin: var(--n-space-5) var(--n-space-8) 0;
-  padding: 4px;
-  border: 1px solid var(--n-line);
-  border-radius: var(--n-radius-control);
-  background: var(--n-surface-soft);
-}
-
-.auth__tabs-pill {
+/* 右上角「切换模式」按钮 */
+.auth__mode {
   position: absolute;
-  top: 4px;
-  bottom: 4px;
-  left: 4px;
-  width: calc(50% - 4px);
+  right: 0;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border: 1px solid var(--n-line-strong);
   border-radius: var(--n-radius-xs);
-  background: var(--n-accent-soft);
-  border: 1px solid var(--n-accent-line);
-  transition: transform var(--n-duration) var(--n-ease);
-}
-
-.auth__tabs-pill--right {
-  transform: translateX(100%);
-}
-
-.auth__tab {
-  position: relative;
-  z-index: 1;
-  padding: 9px var(--n-space-4);
-  border-radius: var(--n-radius-xs);
+  background: transparent;
   color: var(--n-text-muted);
-  font-size: var(--n-text-sm);
-  font-weight: var(--n-weight-semibold);
-  transition: color var(--n-duration-fast) var(--n-ease);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-medium);
+  white-space: nowrap;
+  transition:
+    color var(--n-duration-fast) var(--n-ease),
+    border-color var(--n-duration-fast) var(--n-ease),
+    background var(--n-duration-fast) var(--n-ease);
 }
 
 @media (hover: hover) {
-  .auth__tab:not(.auth__tab--active):hover {
-    color: var(--n-text);
+  .auth__mode:hover {
+    color: var(--n-accent-strong);
+    border-color: var(--n-accent-line);
+    background: var(--n-accent-soft);
   }
 }
 
-.auth__tab--active {
-  color: var(--n-accent-strong);
-}
-
-/* ==================== 面板容器（高度过渡） ==================== */
-.auth__panels {
-  position: relative;
-  overflow: hidden;
-}
-
-.auth--ready .auth__panels {
-  transition: height 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.auth__panel {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  padding: var(--n-space-6) var(--n-space-8) var(--n-space-8);
-  opacity: 1;
-  transform: none;
-  transition: opacity 0.22s var(--n-ease), transform 0.22s var(--n-ease);
-}
-
-.auth__panel--hidden {
-  opacity: 0;
-  transform: translateY(6px);
-  pointer-events: none;
-}
-
-/* 切换中：先整体淡出，再切面板并淡入（与高度过渡错开） */
-.auth__panels--transitioning .auth__panel {
-  opacity: 0;
-}
-
-/* ==================== 面板内容 ==================== */
 .auth__title {
   margin: 0 0 var(--n-space-1);
-  text-align: center;
   font-size: var(--n-text-lg);
   font-weight: var(--n-weight-bold);
   letter-spacing: -0.02em;
@@ -944,10 +883,14 @@ onUnmounted(() => {
 }
 
 .auth__subtitle {
-  margin: 0 0 var(--n-space-6);
-  text-align: center;
+  margin: 0;
   color: var(--n-text-muted);
   font-size: var(--n-text-sm);
+}
+
+/* ==================== 表单 ==================== */
+.auth__body {
+  padding: var(--n-space-6) var(--n-space-8) 0;
 }
 
 .auth__form {
@@ -992,7 +935,8 @@ onUnmounted(() => {
 }
 
 .auth__link-row {
-  margin: var(--n-space-5) 0 0;
+  margin: 0;
+  padding: var(--n-space-5) var(--n-space-8) var(--n-space-8);
   text-align: center;
 }
 
@@ -1028,13 +972,11 @@ onUnmounted(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .auth__card,
-  .auth__logo,
   .auth__glow {
     animation: none;
   }
 
   .auth--ready .auth__panels,
-  .auth__tabs-pill,
   .auth__panel {
     transition: none;
   }
