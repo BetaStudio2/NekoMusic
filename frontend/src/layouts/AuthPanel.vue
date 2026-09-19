@@ -808,6 +808,7 @@ onUnmounted(() => {
 }
 
 .auth__panel {
+  padding-bottom: var(--n-space-8);
   opacity: 1;
   transition: opacity 0.2s var(--n-ease);
 }
@@ -936,7 +937,7 @@ onUnmounted(() => {
 
 .auth__link-row {
   margin: 0;
-  padding: var(--n-space-5) var(--n-space-8) var(--n-space-8);
+  padding: var(--n-space-5) var(--n-space-8) 0;
   text-align: center;
 }
 
