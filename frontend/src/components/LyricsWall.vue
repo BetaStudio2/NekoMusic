@@ -73,7 +73,9 @@ const currentMs = computed(() => toMs(props.currentTime))
 .wall {
   position: relative;
   width: 100%;
-  height: 100%;
+  /* 必须给出【确定高度】：AMLL 的 LyricPlayer 依赖容器尺寸做布局，
+     若父级为 auto，子元素 height:100% 无法解析 → 渲染为 0 高度（无歌词显示）。 */
+  height: min(62vh, 620px);
   min-height: 320px;
   overflow: hidden;
 }
