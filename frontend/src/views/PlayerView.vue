@@ -1,183 +1,198 @@
 <template>
-  <div class="player-page" :class="{ 'player-page--has-banner': isMobile && showBanner }">
-    <div class="ambient" aria-hidden="true">
-      <div class="ambient__blob ambient__blob--a" />
-      <div class="ambient__blob ambient__blob--b" />
-      <div class="ambient__blob ambient__blob--c" />
-      <div class="ambient__grid" />
+  <div class="np-page">
+    <!-- 模糊封面底 -->
+    <div
+      v-if="currentMusic"
+      class="np-bg"
+      :style="{ backgroundImage: `url(${getCoverUrl(currentMusic.id)})` }"
+      aria-hidden="true"
+    />
+    <div class="np-scrim" aria-hidden="true" />
+
+    <!-- 移动设备下载提示 -->
+    <div v-if="isMobile && showBanner" class="np-banner">
+      <span>下载 APP 体验更好</span>
+      <RouterLink to="/download" class="np-banner__btn">立即下载</RouterLink>
+      <button type="button" class="np-banner__close" aria-label="关闭" @click="closeBanner">
+        <NIcon name="close" :size="16" />
+      </button>
     </div>
 
-    <!-- 移动设备下载提示横幅 -->
-    <div v-if="isMobile && showBanner" class="mobile-download-banner">
-      <div class="banner-content">
-        <span class="banner-text">下载 APP 体验更好</span>
-        <a href="/download" class="banner-btn">立即下载</a>
-        <button type="button" class="banner-close" aria-label="关闭" @click="closeBanner">×</button>
+    <PageShell width="default">
+      <!-- 加载 -->
+      <div v-if="!currentMusic" class="np-state">
+        <NSpinner :size="28" />
+        <p>加载曲目中…</p>
       </div>
-    </div>
 
-    <div v-if="!currentMusic" class="shell shell--state" aria-busy="true">
-      <div class="state state--loading">
-        <div class="state__spinner" aria-hidden="true" />
-        <p class="state__text">加载曲目中…</p>
-      </div>
-    </div>
+      <div v-else class="np" aria-labelledby="track-title">
+        <!-- 左：封面 + 信息 + 操作 -->
+        <section class="np__aside">
+          <div class="np__cover">
+            <img
+              :src="getCoverUrl(currentMusic.id)"
+              :alt="currentMusic.title"
+              @error="handleImageError"
+            />
+            <button
+              type="button"
+              class="np__play"
+              :aria-label="`播放 ${currentMusic.title}`"
+              @click="playMusic"
+            >
+              <NIcon name="play" :size="26" />
+            </button>
+          </div>
 
-    <main v-else class="shell" aria-labelledby="track-title">
-      <div class="layout">
-        <section class="panel panel--meta" aria-label="曲目信息">
-          <div class="meta-card">
-            <div class="cover-wrap">
-              <img
-                :src="getCoverUrl(currentMusic.id)"
-                :alt="currentMusic.title"
-                class="cover"
-                width="320"
-                height="320"
-                @error="handleImageError"
-              />
-            </div>
-
-            <div class="track-head">
-              <h1 id="track-title" class="track-title">{{ currentMusic.title }}</h1>
-              <p class="track-artist">{{ currentMusic.artist }}</p>
-              <p v-if="currentMusic.album" class="track-album">{{ currentMusic.album }}</p>
-              <p v-if="currentMusic.duration" class="track-duration">
-                时长 {{ formatDuration(currentMusic.duration) }}
-              </p>
-            </div>
-
-            <div class="actions-primary">
-              <button type="button" class="btn btn--play" @click="playMusic">
-                播放
-              </button>
-            </div>
-
-            <div class="actions-row">
-              <button
-                type="button"
-                class="btn btn--ghost btn--hide-sm"
-                :class="{ 'btn--on': isFavorite(currentMusic?.id) }"
-                @click="toggleFavorite"
-              >
-                {{ isFavorite(currentMusic?.id) ? '已收藏' : '收藏' }}
-              </button>
-              <button type="button" class="btn btn--ghost btn--hide-sm" @click="downloadMusic">下载</button>
-              <button
-                type="button"
-                class="btn btn--ghost btn--accent"
-                :disabled="videoRenderBusy"
-                @click="openVideoRenderDialog"
-              >
-                {{ videoRenderBusy ? '生成中…' : '分享视频' }}
-              </button>
-            </div>
-
-            <p v-if="isLoggedIn()" class="clip-hint">
-              <template v-if="userIsVip">会员：整首横屏成片，无水印、不限次数</template>
-              <template v-else>
-                免费：30 秒横屏成片（含水印），每日 10 次 ·
-                <router-link to="/vip">开通会员</router-link>
-              </template>
+          <div class="np__meta">
+            <h1 id="track-title" class="np__title">{{ currentMusic.title }}</h1>
+            <p class="np__artist">{{ currentMusic.artist }}</p>
+            <p v-if="currentMusic.album" class="np__album">{{ currentMusic.album }}</p>
+            <p v-if="currentMusic.duration" class="np__dur">
+              <NIcon name="clock" :size="14" />
+              {{ formatDuration(currentMusic.duration) }}
             </p>
-            <div v-if="videoRenderSubmitted" class="clip-notice clip-notice--submitted">
+          </div>
+
+          <div class="np__actions">
+            <NButton variant="primary" icon="play" @click="playMusic">播放</NButton>
+            <NButton
+              :variant="isFavorite(currentMusic?.id) ? 'primary' : 'secondary'"
+              icon="heart"
+              @click="toggleFavorite"
+            >
+              {{ isFavorite(currentMusic?.id) ? '已收藏' : '收藏' }}
+            </NButton>
+            <NButton variant="secondary" icon="download" @click="downloadMusic">下载</NButton>
+            <NButton
+              variant="outline"
+              icon="video"
+              :disabled="videoRenderBusy"
+              @click="openVideoRenderDialog"
+            >
+              {{ videoRenderBusy ? '生成中…' : '分享视频' }}
+            </NButton>
+          </div>
+
+          <p v-if="isLoggedIn()" class="np__hint">
+            <NIcon name="sparkles" :size="14" />
+            <template v-if="userIsVip">会员：整首横屏成片，无水印、不限次数</template>
+            <template v-else>
+              免费：30 秒横屏成片（含水印），每日 10 次 ·
+              <RouterLink to="/vip">开通会员</RouterLink>
+            </template>
+          </p>
+
+          <div v-if="videoRenderSubmitted" class="np__notice">
+            <NIcon name="circle-check" :size="16" />
+            <div>
               <p>已提交渲染，完成后将向注册邮箱发送通知并附下载链接。</p>
-              <p v-if="videoRenderRemainingToday != null && !userIsVip" class="clip-notice-meta">
+              <p v-if="videoRenderRemainingToday != null && !userIsVip" class="np__notice-meta">
                 今日剩余免费次数：{{ videoRenderRemainingToday }}
               </p>
             </div>
-            <div v-if="videoRenderReady" class="clip-notice clip-notice--ready">
+          </div>
+
+          <div v-if="videoRenderReady" class="np__notice np__notice--ready">
+            <NIcon name="circle-check" :size="16" />
+            <div class="np__notice-body">
               <p>分享视频已生成，可下载 MP4。</p>
-              <button type="button" class="clip-download-inline" @click="downloadRenderedVideo">下载 MP4</button>
+              <NButton size="sm" variant="primary" icon="download" @click="downloadRenderedVideo">
+                下载 MP4
+              </NButton>
             </div>
           </div>
         </section>
 
-        <section class="panel panel--lyrics" aria-label="歌词">
-          <header class="lyrics-head">
-            <h2 class="lyrics-title">歌词</h2>
-            <p v-if="parsedLyrics.length" class="lyrics-sub">{{ parsedLyrics.length }} 行</p>
+        <!-- 右：歌词 -->
+        <section class="np__lyrics" aria-label="歌词">
+          <header class="np__lyrics-head">
+            <h2 class="np__lyrics-title">歌词</h2>
+            <span v-if="parsedLyrics.length" class="np__lyrics-count">{{ parsedLyrics.length }} 行</span>
           </header>
 
-          <div v-if="parsedLyrics.length > 0" class="lyrics-shell">
-            <div class="lyrics-scroll" ref="lyricsContent">
-              <div
-                v-for="(line, index) in parsedLyrics"
-                :key="index"
-                class="lyric-line"
-                :class="getLyricLineClass(index)"
-              >
-                <div class="lyric-text">{{ line.text }}</div>
-                <div v-if="line.translation" class="lyric-translation">{{ line.translation }}</div>
-              </div>
+          <div v-if="parsedLyrics.length > 0" ref="lyricsContent" class="np__lyrics-scroll">
+            <div
+              v-for="(line, index) in parsedLyrics"
+              :key="index"
+              class="lyric-line"
+              :class="getLyricLineClass(index)"
+            >
+              <div class="lyric-text">{{ line.text }}</div>
+              <div v-if="line.translation" class="lyric-translation">{{ line.translation }}</div>
             </div>
           </div>
-          <div v-else class="lyrics-empty">
+
+          <div v-else class="np__lyrics-empty">
+            <NIcon name="file-text" :size="26" />
             <p>暂无歌词</p>
-            <p class="lyrics-empty-hint">播放时可在底栏播放器查看音频进度</p>
+            <p class="np__lyrics-empty-hint">播放时可在底栏播放器查看音频进度</p>
           </div>
         </section>
       </div>
-    </main>
+    </PageShell>
 
-    <!-- 水印确认弹窗（提交后关闭，不占据整页进度） -->
-    <div v-if="videoModalOpen" class="clip-modal-backdrop" @click.self="closeVideoModal">
-      <div class="clip-modal" role="dialog" aria-labelledby="clip-modal-title">
-        <button type="button" class="clip-modal-close" aria-label="关闭" @click="closeVideoModal">×</button>
-        <h3 id="clip-modal-title">生成分享视频</h3>
-        <p class="clip-modal-song" v-if="currentMusic">{{ currentMusic.title }} · {{ currentMusic.artist }}</p>
+    <!-- 分享视频弹窗 -->
+    <NModal
+      v-model="videoModalOpen"
+      title="生成分享视频"
+      size="md"
+      @close="closeVideoModal"
+    >
+      <p v-if="currentMusic" class="clip-song">{{ currentMusic.title }} · {{ currentMusic.artist }}</p>
 
-        <div class="clip-modal-confirm">
-          <label class="clip-watermark-option" :class="{ 'clip-watermark-option--locked': !userIsVip }">
-            <input
-              v-model="videoWatermarkChoice"
-              type="checkbox"
-              :disabled="!userIsVip"
-            />
-            <span>添加平台水印</span>
-          </label>
-          <div class="clip-range-block">
-            <div class="clip-range-head">
-              <span>成片起始</span>
-              <span class="clip-range-value">{{ formatClipTime(clipStartSec) }} → {{ formatClipTime(clipEndSec) }}</span>
-            </div>
-            <input
-              v-model.number="clipStartSec"
-              type="range"
-              class="clip-range-slider"
-              :min="0"
-              :max="maxClipStartSec"
-              :step="1"
-              :disabled="trackDurationSec <= 0"
-              @input="onClipRangeChange"
-            />
-            <p class="clip-modal-sub clip-range-hint">
-              <template v-if="userIsVip">会员：从所选位置渲染至歌曲结束（约 {{ formatClipTime(clipPreviewDurationSec) }}）</template>
-              <template v-else>免费：所选范围内固定 30 秒成片（每日 10 次）</template>
-            </p>
-            <div class="clip-preview-actions">
-              <button
-                type="button"
-                class="clip-preview-btn"
-                :disabled="trackDurationSec <= 0 || clipPreviewDurationSec <= 0"
-                @click="toggleClipPreview"
-              >
-                {{ clipPreviewPlaying ? '停止试听' : '试听所选片段' }}
-              </button>
-            </div>
-          </div>
-          <p v-if="userIsVip" class="clip-modal-sub">会员可选是否添加水印，默认无水印</p>
-          <p v-else class="clip-modal-sub">免费用户须开启水印</p>
-          <p class="clip-modal-sub">提交后在后台渲染，完成后将邮件通知并附下载链接</p>
-          <div class="clip-modal-actions">
-            <button type="button" class="clip-cancel-btn" @click="closeVideoModal">取消</button>
-            <button type="button" class="clip-confirm-btn" :disabled="videoRenderBusy" @click="confirmVideoRender">
-              {{ videoRenderBusy ? '提交中…' : '开始生成' }}
-            </button>
-          </div>
+      <label class="clip-option" :class="{ 'clip-option--locked': !userIsVip }">
+        <input v-model="videoWatermarkChoice" type="checkbox" :disabled="!userIsVip" />
+        <span>添加平台水印</span>
+      </label>
+
+      <div class="clip-range">
+        <div class="clip-range__head">
+          <span>成片起始</span>
+          <span class="clip-range__value">
+            {{ formatClipTime(clipStartSec) }} → {{ formatClipTime(clipEndSec) }}
+          </span>
         </div>
+        <input
+          v-model.number="clipStartSec"
+          type="range"
+          class="clip-range__slider"
+          :min="0"
+          :max="maxClipStartSec"
+          :step="1"
+          :disabled="trackDurationSec <= 0"
+          @input="onClipRangeChange"
+        />
+        <p class="clip-sub">
+          <template v-if="userIsVip">
+            会员：从所选位置渲染至歌曲结束（约 {{ formatClipTime(clipPreviewDurationSec) }}）
+          </template>
+          <template v-else>免费：所选范围内固定 30 秒成片（每日 10 次）</template>
+        </p>
+        <NButton
+          size="sm"
+          variant="secondary"
+          icon="play"
+          :disabled="trackDurationSec <= 0 || clipPreviewDurationSec <= 0"
+          @click="toggleClipPreview"
+        >
+          {{ clipPreviewPlaying ? '停止试听' : '试听所选片段' }}
+        </NButton>
       </div>
-    </div>
+
+      <p class="clip-sub">
+        <template v-if="userIsVip">会员可选是否添加水印，默认无水印</template>
+        <template v-else>免费用户须开启水印</template>
+      </p>
+      <p class="clip-sub">提交后在后台渲染，完成后将邮件通知并附下载链接</p>
+
+      <template #footer>
+        <NButton variant="ghost" @click="closeVideoModal">取消</NButton>
+        <NButton variant="primary" :loading="videoRenderBusy" @click="confirmVideoRender">
+          开始生成
+        </NButton>
+      </template>
+    </NModal>
   </div>
 </template>
 
@@ -188,7 +203,10 @@ import API_CONFIG from '@/config/apiConfig.js'
 import { createVideoRenderJob, fetchVideoRenderStatus, downloadVideoRenderFile } from '@/api/videoRender.js'
 import { syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
 import { tryOpenMusicDetailInApp } from '@/utils/nativeAppOpen.js'
-import { useToast } from 'vue-toastification'
+import { useToast } from '@/composables/useToast'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NModal, NSpinner } from '@/ui'
+import { PageShell, AmbientBackdrop } from '@/layouts'
 const toast = useToast()
 
 const route = useRoute()
@@ -1064,801 +1082,422 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* Appended by refactor script - will be merged into PlayerView.vue */
-.player-page {
-  --text: rgba(255, 255, 255, 0.92);
-  --muted: rgba(255, 255, 255, 0.62);
-  --faint: rgba(255, 255, 255, 0.42);
-  --line: rgba(255, 255, 255, 0.1);
-  --card: rgba(255, 255, 255, 0.06);
-  --card2: rgba(255, 255, 255, 0.09);
-  --accent: #69c8df;
-  --accent2: #69c8df;
-  --accent3: #9beaff;
-  --radius: 18px;
-  --radius-lg: 22px;
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
-
+/* ==================== 页面 & 背景 ==================== */
+.np-page {
   position: relative;
-  min-height: 100vh;
-  padding-top: env(safe-area-inset-top, 0px);
-  color: var(--text);
-  background: transparent;
+  min-height: 100dvh;
 }
 
-.ambient {
+.np-bg {
+  position: fixed;
+  inset: -12%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(72px) saturate(1.35);
+  opacity: 0.24;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.np-scrim {
   position: fixed;
   inset: 0;
-  pointer-events: none;
+  background: linear-gradient(180deg, rgba(4, 9, 11, 0.72), rgba(4, 9, 11, 0.88));
   z-index: 0;
+  pointer-events: none;
 }
 
-.ambient__blob {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(72px);
-  opacity: 0.5;
-  animation: blobFloat 22s var(--ease) infinite;
-}
-
-.ambient__blob--a {
-  width: 420px;
-  height: 420px;
-  background: rgba(105, 200, 223, 0.42);
-  top: -140px;
-  left: -120px;
-}
-
-.ambient__blob--b {
-  width: 360px;
-  height: 360px;
-  background: rgba(105, 200, 223, 0.24);
-  bottom: -80px;
-  right: -100px;
-  animation-delay: -7s;
-}
-
-.ambient__blob--c {
-  width: 280px;
-  height: 280px;
-  background: rgba(155, 234, 255, 0.18);
-  top: 42%;
-  left: 38%;
-  animation-delay: -12s;
-}
-
-.ambient__grid {
-  position: absolute;
-  inset: 0;
-  opacity: 0.32;
-  background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: radial-gradient(ellipse 80% 60% at 50% 20%, black, transparent);
-  animation: gridBreathe 10s ease-in-out infinite;
-}
-
-@keyframes gridBreathe {
-  0%,
-  100% {
-    opacity: 0.26;
-  }
-  50% {
-    opacity: 0.4;
-  }
-}
-
-@keyframes blobFloat {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(20px, -14px) scale(1.04);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ambient__blob,
-  .ambient__grid {
-    animation: none;
-  }
-}
-
-.shell {
+/* ==================== 移动下载横幅 ==================== */
+.np-banner {
   position: relative;
-  z-index: 1;
-  width: min(1180px, 100%);
-  margin: 0 auto;
-  padding: clamp(16px, 3vw, 28px) clamp(14px, 3.5vw, 28px) clamp(28px, 5vw, 56px);
-}
-
-.shell--state {
+  z-index: var(--n-z-sticky);
   display: flex;
   align-items: center;
-  justify-content: center;
-  min-height: 50vh;
+  gap: var(--n-space-3);
+  padding: var(--n-space-3) var(--n-content-gutter);
+  background: var(--n-accent-soft);
+  border-bottom: 1px solid var(--n-accent-line);
+  color: var(--n-text);
+  font-size: var(--n-text-sm);
 }
 
-.state {
+.np-banner__btn {
+  margin-left: auto;
+  padding: 6px 14px;
+  border-radius: var(--n-radius-control);
+  background: var(--n-accent);
+  color: var(--n-text-inverse);
+  font-weight: var(--n-weight-semibold);
+  font-size: var(--n-text-sm);
+}
+
+.np-banner__close {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--n-radius-xs);
+  color: var(--n-text-muted);
+}
+
+/* ==================== 加载 ==================== */
+.np-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
-  padding: 36px 28px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--line);
-  background: var(--card);
-  box-shadow: var(--shadow);
+  justify-content: center;
+  gap: var(--n-space-4);
+  min-height: min(60vh, 520px);
+  color: var(--n-text-muted);
 }
 
-.state--loading {
-  animation: statePulse 2.4s ease-in-out infinite;
-}
-
-@keyframes statePulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(105, 200, 223, 0);
-  }
-  50% {
-    box-shadow: 0 0 40px 2px rgba(105, 200, 223, 0.08);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .state--loading {
-    animation: none;
-  }
-}
-
-.state__spinner {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 3px solid rgba(255, 255, 255, 0.12);
-  border-top-color: var(--accent2);
-  animation: spin 0.85s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .state__spinner {
-    animation: none;
-    border-color: rgba(105, 200, 223, 0.35);
-  }
-}
-
-.state__text {
-  margin: 0;
-  font-size: 0.95rem;
-  color: var(--muted);
-}
-
-.layout {
+/* ==================== 主体两栏 ==================== */
+.np {
   display: grid;
-  grid-template-columns: minmax(280px, 400px) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
-  gap: clamp(18px, 3vw, 28px);
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+  gap: clamp(28px, 4vw, 56px);
   align-items: start;
 }
 
-.panel {
+/* ---- 左：封面 + 信息 + 操作 ---- */
+.np__aside {
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(105, 200, 223, 0.12), rgba(255, 255, 255, 0.04));
-  box-shadow: var(--shadow);
-  overflow: hidden;
+  min-width: 0;
 }
 
-.panel--lyrics {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.panel--meta {
-  min-height: 0;
-}
-
-.meta-card {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow-y: auto;
-  padding: clamp(20px, 3vw, 28px);
-}
-
-.cover-wrap {
+.np__cover {
   position: relative;
-  width: fit-content;
-  max-width: 100%;
-  margin: 0 auto 20px;
-}
-
-.cover {
-  display: block;
-  width: min(280px, 100%);
-  height: auto;
-  aspect-ratio: 1;
-  object-fit: cover;
-  border-radius: var(--radius);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
-}
-
-.track-head {
-  text-align: center;
-  margin-bottom: 20px;
-}
-
-.track-title {
-  margin: 0 0 8px;
-  font-size: clamp(1.35rem, 3vw, 1.75rem);
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 1.2;
-  color: var(--text);
-}
-
-.track-artist {
-  margin: 0;
-  font-size: 1rem;
-  color: var(--accent2);
-  font-weight: 600;
-}
-
-.track-album,
-.track-duration {
-  margin: 8px 0 0;
-  font-size: 0.88rem;
-  color: var(--muted);
-}
-
-.actions-primary {
-  margin-bottom: 14px;
-}
-
-.actions-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
-}
-
-.btn {
-  font-family: inherit;
-  border: none;
-  cursor: pointer;
-  transition:
-    transform 0.2s var(--ease),
-    box-shadow 0.2s var(--ease),
-    background 0.2s var(--ease),
-    border-color 0.2s var(--ease);
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.btn--play {
   width: 100%;
-  padding: 14px 22px;
-  border-radius: 999px;
-  font-size: 1rem;
-  font-weight: 700;
-  color: #0c0a14;
-  background: linear-gradient(135deg, #9beaff, var(--accent2));
-  box-shadow: 0 8px 28px rgba(105, 200, 223, 0.35);
+  aspect-ratio: 1;
+  border-radius: var(--n-radius-xl);
+  overflow: hidden;
+  border: 1px solid var(--n-line-strong);
+  background: var(--n-surface-soft);
+  box-shadow: var(--n-shadow-lg);
+}
+
+.np__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.np__play {
+  position: absolute;
+  right: var(--n-space-4);
+  bottom: var(--n-space-4);
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--n-radius-lg);
+  background: var(--n-accent);
+  color: var(--n-text-inverse);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  transition: transform var(--n-duration-fast) var(--n-ease), background var(--n-duration-fast) var(--n-ease);
 }
 
 @media (hover: hover) {
-  .btn--play:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 36px rgba(105, 200, 223, 0.25);
+  .np__play:hover {
+    transform: translateY(-2px) scale(1.04);
+    background: var(--n-accent-strong);
   }
 }
 
-.btn--ghost {
-  padding: 10px 16px;
-  border-radius: 999px;
-  font-size: 0.86rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.88);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+.np__meta {
+  margin-top: var(--n-space-6);
 }
 
-@media (hover: hover) {
-  .btn--ghost:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(105, 200, 223, 0.35);
-  }
+.np__title {
+  margin: 0;
+  font-size: clamp(1.4rem, 2.6vw, 1.9rem);
+  font-weight: var(--n-weight-bold);
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 
-.btn--accent {
-  border-color: rgba(251, 191, 36, 0.35);
-  color: #fde68a;
+.np__artist {
+  margin: var(--n-space-2) 0 0;
+  color: var(--n-accent-strong);
+  font-size: var(--n-text-md);
+  font-weight: var(--n-weight-medium);
 }
 
-.btn--on {
-  border-color: rgba(105, 200, 223, 0.45);
-  color: #fbcfe8;
-  background: rgba(105, 200, 223, 0.12);
+.np__album {
+  margin: var(--n-space-1) 0 0;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
 }
 
-.clip-hint {
-  margin: 16px 0 0;
-  text-align: center;
-  font-size: 0.82rem;
-  line-height: 1.55;
-  color: var(--faint);
+.np__dur {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--n-space-2);
+  margin: var(--n-space-3) 0 0;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-sm);
+  font-variant-numeric: tabular-nums;
 }
 
-.clip-hint a {
-  color: var(--accent2);
-  text-decoration: none;
-  font-weight: 600;
+.np__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--n-space-3);
+  margin-top: var(--n-space-6);
 }
 
-.clip-hint a:hover {
-  text-decoration: underline;
+.np__hint {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--n-space-2);
+  margin: var(--n-space-5) 0 0;
+  padding: var(--n-space-3) var(--n-space-4);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius);
+  background: var(--n-surface-soft);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  line-height: var(--n-leading-normal);
 }
 
-.clip-notice {
-  margin-top: 14px;
-  padding: 12px 14px;
-  border-radius: var(--radius);
-  font-size: 0.85rem;
-  line-height: 1.5;
+.np__hint :deep(.n-icon) {
+  margin-top: 2px;
+  color: var(--n-accent);
 }
 
-.clip-notice p {
+.np__notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--n-space-3);
+  margin-top: var(--n-space-4);
+  padding: var(--n-space-4);
+  border: 1px solid var(--n-accent-line);
+  border-radius: var(--n-radius);
+  background: var(--n-accent-soft);
+  color: var(--n-text);
+  font-size: var(--n-text-sm);
+  line-height: var(--n-leading-normal);
+}
+
+.np__notice :deep(.n-icon) {
+  flex: none;
+  margin-top: 1px;
+  color: var(--n-accent-strong);
+}
+
+.np__notice p {
   margin: 0;
 }
 
-.clip-notice-meta {
-  margin-top: 6px !important;
-  font-size: 0.8rem;
-  opacity: 0.9;
-}
-
-.clip-notice--submitted {
-  background: rgba(105, 200, 223, 0.12);
-  border: 1px solid rgba(105, 200, 223, 0.28);
-  color: rgba(255, 255, 255, 0.88);
-}
-
-.clip-notice--ready {
-  background: rgba(155, 234, 255, 0.12);
-  border: 1px solid rgba(155, 234, 255, 0.35);
-  color: rgba(255, 255, 255, 0.9);
+.np__notice-body {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--n-space-3);
 }
 
-.clip-download-inline {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 999px;
-  font-weight: 600;
-  font-size: 0.82rem;
-  cursor: pointer;
-  color: #0c0a14;
-  background: linear-gradient(135deg, var(--accent2), var(--accent3));
+.np__notice-meta {
+  margin-top: var(--n-space-1) !important;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-xs);
 }
 
-.lyrics-head {
+/* ---- 右：歌词 ---- */
+.np__lyrics {
+  min-width: 0;
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-xl);
+  background: var(--n-surface);
+  padding: var(--n-space-6);
+}
+
+.np__lyrics-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
-  padding: 18px 20px 12px;
-  border-bottom: 1px solid var(--line);
+  gap: var(--n-space-4);
+  padding-bottom: var(--n-space-4);
+  margin-bottom: var(--n-space-4);
+  border-bottom: 1px solid var(--n-line-subtle);
 }
 
-.lyrics-title {
+.np__lyrics-title {
   margin: 0;
-  font-size: 1.05rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-size: var(--n-text-lg);
+  font-weight: var(--n-weight-semibold);
 }
 
-.lyrics-sub {
-  margin: 0;
-  font-size: 0.78rem;
-  color: var(--faint);
-  font-variant-numeric: tabular-nums;
+.np__lyrics-count {
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
 }
 
-.lyrics-shell {
-  flex: 1;
-  min-height: 0;
-  padding: 8px 12px 16px;
-}
-
-.lyrics-scroll {
-  height: min(630vh, 560px);
+.np__lyrics-scroll {
+  max-height: min(62vh, 620px);
   overflow-y: auto;
-  overflow-x: hidden;
-  padding: 16px 12px 24px;
+  padding-right: var(--n-space-2);
   scroll-behavior: smooth;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(105, 200, 223, 0.5) rgba(255, 255, 255, 0.06);
-  mask-image: linear-gradient(180deg, transparent, black 12px, black calc(100% - 12px), transparent);
 }
 
-.lyrics-scroll::-webkit-scrollbar {
+.np__lyrics-scroll::-webkit-scrollbar {
   width: 8px;
 }
 
-.lyrics-scroll::-webkit-scrollbar-track {
-  margin: 10px 0;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 999px;
+.np__lyrics-scroll::-webkit-scrollbar-thumb {
+  background: rgba(95, 208, 224, 0.24);
+  border-radius: var(--n-radius-pill);
 }
 
-.lyrics-scroll::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(105, 200, 223, 0.55), rgba(105, 200, 223, 0.4));
-  border-radius: 999px;
-  border: 2px solid rgba(12, 10, 20, 0.4);
-  background-clip: padding-box;
+@media (hover: hover) {
+  .np__lyrics-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(95, 208, 224, 0.4);
+  }
 }
 
-.lyrics-scroll::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(167, 139, 250, 0.7), rgba(105, 200, 223, 0.55));
-  background-clip: padding-box;
-}
-
-
-.lyrics-empty {
-  flex: 1;
+.np__lyrics-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 40px 24px;
-  color: var(--muted);
+  gap: var(--n-space-2);
+  min-height: 240px;
+  color: var(--n-text-muted);
   text-align: center;
 }
 
-.lyrics-empty p {
+.np__lyrics-empty :deep(.n-icon) {
+  color: var(--n-text-faint);
+}
+
+.np__lyrics-empty p {
   margin: 0;
 }
 
-.lyrics-empty-hint {
-  font-size: 0.82rem;
-  color: var(--faint);
+.np__lyrics-empty-hint {
+  color: var(--n-text-faint);
+  font-size: var(--n-text-sm);
 }
 
+/* ==================== 歌词行 ==================== */
 .lyric-line {
-  color: rgba(255, 255, 255, 0.38);
-  font-size: 0.82rem;
-  padding: 10px 8px;
-  text-align: center;
-  transition:
-    color 0.25s var(--ease),
-    transform 0.25s var(--ease),
-    opacity 0.25s var(--ease);
-  line-height: 1.55;
-  max-width: 42rem;
-  margin: 0 auto;
-}
-
-.lyric-text {
-  display: block;
-}
-
-.lyric-translation {
-  display: block;
-  margin-top: 4px;
-  font-size: 0.78em;
-  opacity: 0.85;
+  padding: var(--n-space-2) var(--n-space-3);
+  border-radius: var(--n-radius-xs);
+  color: var(--n-text-faint);
+  font-size: var(--n-text-base);
+  line-height: var(--n-leading-normal);
+  transition: color var(--n-duration) var(--n-ease), background var(--n-duration) var(--n-ease);
 }
 
 .lyric-line.before {
-  opacity: 0.55;
-  transform: scale(0.98);
+  color: var(--n-text-muted);
 }
 
 .lyric-line.active {
-  color: #fff;
-  font-weight: 700;
-  font-size: 1.15rem;
-  opacity: 1;
-  transform: scale(1.02);
-  text-shadow:
-    0 0 20px rgba(105, 200, 223, 0.45),
-    0 0 36px rgba(105, 200, 223, 0.35);
+  background: var(--n-accent-soft);
+  color: var(--n-accent-strong);
+  font-weight: var(--n-weight-semibold);
+}
+
+.lyric-text {
+  overflow-wrap: anywhere;
+}
+
+.lyric-translation {
+  margin-top: 2px;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
 }
 
 .lyric-line.active .lyric-translation {
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--n-accent);
 }
 
-.mobile-download-banner {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1000;
-  background: linear-gradient(135deg, rgba(30, 27, 50, 0.95), rgba(15, 16, 32, 0.98));
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+/* ==================== 分享视频弹窗 ==================== */
+.clip-song {
+  margin: 0 0 var(--n-space-4);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
 }
 
-.banner-content {
+.clip-option {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 11px 16px;
-  max-width: 1180px;
-  margin: 0 auto;
-  gap: 10px;
-}
-
-.banner-text {
-  color: rgba(255, 255, 255, 0.88);
-  font-weight: 600;
-  font-size: 0.88rem;
-}
-
-.banner-btn {
-  background: linear-gradient(135deg, var(--accent), #4aa9c0);
-  color: #fff;
-  text-decoration: none;
-  padding: 7px 16px;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 0.82rem;
-  white-space: nowrap;
-}
-
-.banner-close {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.75);
-  font-size: 1.25rem;
-  line-height: 1;
+  gap: var(--n-space-3);
+  padding: var(--n-space-3) var(--n-space-4);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-control);
+  background: var(--n-surface-soft);
   cursor: pointer;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  font-size: var(--n-text-base);
+}
+
+.clip-option--locked {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.clip-range {
+  margin-top: var(--n-space-5);
+  padding: var(--n-space-4);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius);
+  background: var(--n-surface-soft);
+}
+
+.clip-range__head {
   display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.clip-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 2000;
-  background: rgba(6, 5, 12, 0.72);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.clip-modal {
-  position: relative;
-  width: min(440px, 100%);
-  background: linear-gradient(165deg, rgba(30, 28, 48, 0.98), rgba(18, 17, 28, 0.99));
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-lg);
-  padding: 26px 22px 22px;
-  box-shadow: var(--shadow);
-  color: var(--text);
-}
-
-.clip-modal-close {
-  position: absolute;
-  top: 10px;
-  right: 12px;
-  border: none;
-  background: none;
-  font-size: 1.5rem;
-  line-height: 1;
-  color: var(--faint);
-  cursor: pointer;
-}
-
-.clip-modal h3 {
-  margin: 0 0 8px;
-  color: var(--text);
-  font-size: 1.15rem;
-  text-align: center;
-}
-
-.clip-modal-song {
-  margin: 0 0 18px;
-  color: var(--muted);
-  font-size: 0.88rem;
-  text-align: center;
-}
-
-.clip-modal-confirm {
-  text-align: left;
-}
-
-.clip-range-block {
-  margin-bottom: 14px;
-  padding: 14px;
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--line);
-}
-
-.clip-range-head {
-  display: flex;
+  align-items: baseline;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-  font-size: 0.88rem;
-  color: var(--muted);
-  font-weight: 600;
+  gap: var(--n-space-3);
+  margin-bottom: var(--n-space-3);
+  font-size: var(--n-text-sm);
+  color: var(--n-text-muted);
 }
 
-.clip-range-value {
-  font-weight: 500;
-  color: var(--accent2);
+.clip-range__value {
+  color: var(--n-accent-strong);
   font-variant-numeric: tabular-nums;
+  font-weight: var(--n-weight-semibold);
 }
 
-.clip-range-slider {
+.clip-range__slider {
   width: 100%;
-  accent-color: var(--accent);
+  accent-color: var(--n-accent);
   cursor: pointer;
 }
 
-.clip-range-slider:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+.clip-sub {
+  margin: var(--n-space-3) 0 0;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-sm);
+  line-height: var(--n-leading-normal);
 }
 
-.clip-range-hint {
-  margin-top: 8px !important;
-  margin-bottom: 0 !important;
-}
-
-.clip-preview-actions {
-  margin-top: 12px;
-}
-
-.clip-preview-btn {
-  padding: 8px 16px;
-  border: 1px solid rgba(105, 200, 223, 0.4);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--accent2);
-  font-size: 0.84rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.clip-preview-btn:hover:not(:disabled) {
-  background: rgba(105, 200, 223, 0.15);
-}
-
-.clip-preview-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.clip-watermark-option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
-  padding: 12px 14px;
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 0.9rem;
-  cursor: pointer;
-}
-
-.clip-watermark-option--locked {
-  cursor: not-allowed;
-  opacity: 0.85;
-}
-
-.clip-watermark-option input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--accent);
-}
-
-.clip-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 20px;
-}
-
-.clip-cancel-btn,
-.clip-confirm-btn {
-  padding: 10px 18px;
-  border: none;
-  border-radius: 999px;
-  font-weight: 600;
-  cursor: pointer;
-  font-size: 0.88rem;
-}
-
-.clip-cancel-btn {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--muted);
-}
-
-.clip-confirm-btn {
-  color: #0c0a14;
-  background: linear-gradient(135deg, #9beaff, var(--accent2));
-}
-
-.clip-modal-sub {
-  font-size: 0.82rem !important;
-  color: var(--faint) !important;
-}
-
-audio {
-  display: none;
-}
-
+/* ==================== 响应式 ==================== */
 @media (max-width: 900px) {
-  .layout {
+  .np {
     grid-template-columns: 1fr;
-    grid-template-rows: auto;
-    height: auto;
-    max-height: none;
+    gap: var(--n-space-8);
   }
 
-  .panel--lyrics {
-    min-height: min(48vh, 420px);
-    max-height: min(58vh, 520px);
-    overflow: hidden;
-  }
-}
-
-@media (max-width: 768px) {
-  .player-page--has-banner .shell {
-    padding-top: 52px;
-  }
-
-  .btn--hide-sm {
-    display: none !important;
-  }
-
-  .btn--play {
-    padding: 16px 22px;
-    font-size: 1.05rem;
-  }
-
-  .actions-row {
-    flex-direction: column;
-  }
-
-  .actions-row .btn--accent {
+  .np__aside {
+    max-width: 420px;
+    margin: 0 auto;
     width: 100%;
   }
+
+  .np__lyrics-scroll {
+    max-height: min(50vh, 460px);
+  }
 }
 
+@media (max-width: 560px) {
+  .np__actions :deep(.n-btn) {
+    flex: 1 1 calc(50% - var(--n-space-3));
+    justify-content: center;
+  }
+}
 </style>
