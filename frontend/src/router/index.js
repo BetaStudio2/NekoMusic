@@ -329,7 +329,9 @@ const router = createRouter({
       path: '/detail/:id',
       name: 'detail',
       component: () => import('@/views/PlayerView.vue'),
-      props: true,
+      // 注意：不要开 props: true —— 播放页整屏 Teleport 到 body，根是片段，
+      // 无法继承非 prop 属性，多传的 id 只会触发 Vue 的 "Extraneous
+      // non-props attributes" 警告。页面自己读 route.params.id。
       meta: {
         title: '音乐详情 - Neko歌姬计划 | 免费音乐播放',
         description: '查看免费音乐详细信息，免费播放高品质音乐。Neko歌姬计划提供完全免费的音乐播放服务。',
