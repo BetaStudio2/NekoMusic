@@ -200,7 +200,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, nextTick } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import axios from 'axios'
 import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
@@ -292,11 +292,8 @@ const copyArchCommand = async () => {
 
 onMounted(() => {
   fetchVersionInfo()
-  nextTick(() => {
-    if (typeof window !== 'undefined' && window.location.hash === '#netease-migrate') {
-      document.getElementById('netease-migrate')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
-  })
+  // 下载页始终从顶部开始：不跟随上一页的滚动位置，也不再跳转到迁入区块
+  window.scrollTo(0, 0)
 })
 </script>
 
