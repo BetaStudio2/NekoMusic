@@ -219,7 +219,7 @@ import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import { useToast } from 'vue-toastification'
-import { attachAudioElement } from '@/composables/useAudioAnalyser'
+import { attachAudioElement, unlockAudioAnalyser } from '@/composables/useAudioAnalyser'
 import SpectrumCanvas from '@/components/SpectrumCanvas.vue'
 
 defineProps({
@@ -345,6 +345,9 @@ const checkFavoriteStatus = async () => {
 
 // 播放/暂停控制
 const togglePlayPause = () => {
+  // 播放是明确的手势路径：在此解锁音频分析（建立 AudioContext 并 resume）
+  if (!isPlaying.value) unlockAudioAnalyser()
+
   if (audioPlayer.value && currentMusic.value) {
     if (isPlaying.value) {
       // 暂停：直接暂停，避免重音

@@ -4,13 +4,21 @@
  * 架构说明：
  *   全站唯一承载音频的 <audio> 元素在 GlobalPlayer 内。Web Audio 的
  *   AnalyserNode 必须挂在同一个元素上，因此这里做成「模块级单例」：
- *   GlobalPlayer 挂载后调用 attachAudioElement(el) 注册，
- *   其它组件通过 useAudioAnalyser() 读取频谱数据（不重复创建 AudioContext）。
+ *   GlobalPlayer 注册元素，其它组件通过 useAudioAnalyser() 读取频谱。
  *
- * 注意：
- *  - createMediaElementSource 对同一元素只能调用一次，重复调用会抛错，故只连一次。
- *  - AudioContext 需在用户手势后才能 resume()，这里挂了「首次交互自动恢复」。
- *  - 若浏览器不支持 / 初始化失败，failed 置为 true，调用方应降级为静态展示。
+ * ★ 关键：必须等用户手势后才建立 AudioContext ★
+ *   1) 浏览器禁止在无用户手势时启动 AudioContext（会警告并保持 suspended）；
+ *   2) 更严重的是——一旦 createMediaElementSource 把元素接进「挂起的」
+ *      AudioContext，音频会被路由进这个不输出的图，表现为【整条静音】。
+ *   因此这里把「建 context / 接 source」整体延迟到首次用户手势（或显式
+ *   unlock()，例如播放按钮回调）之后再执行。未就绪时 read() 返回 false，
+ *   调用方降级为静态展示。
+ *
+ * 其它注意事项：
+ *  - createMediaElementSource 对同一元素只能调用一次；元素被重建（v-if）
+ *    时必须断开旧链路并重建。
+ *  - 跨域音频需要 <audio crossorigin="anonymous"> 且服务端返回
+ *    Access-Control-Allow-Origin，否则同样会被判为「污染」而静音。
  */
 import { ref } from 'vue'
 
@@ -20,27 +28,29 @@ const state = {
   analyser: null,
   freq: null,
   attachedEl: null,
+  builtEl: null,
+  unlocked: false,
   gestureBound: false,
   ready: false,
   failed: false,
 }
 
-/** 是否已就绪（可读到频谱） */
+/** 已就绪（可读到频谱） */
 export const analyserReady = ref(false)
-/** 是否初始化失败（不支持 / 被阻止） */
+/** 初始化失败（不支持 / 被阻止） */
 export const analyserFailed = ref(false)
 
 function resumeContext() {
   if (state.ctx && state.ctx.state === 'suspended') {
-    state.ctx.resume().catch(() => {})
+    return state.ctx.resume().catch(() => {})
   }
+  return Promise.resolve()
 }
 
-/** 由 GlobalPlayer 在挂载后调用，注册承载音频的元素 */
-export function attachAudioElement(el) {
-  if (typeof window === 'undefined' || !el) return
-  // 同一个元素重复注册直接忽略
-  if (state.attachedEl === el) return
+/** 建立 context / source / analyser 并接通链路 */
+function build(el) {
+  if (!el) return
+  if (state.builtEl === el && state.ready) return
 
   const AudioCtx = window.AudioContext || window.webkitAudioContext
   if (!AudioCtx) {
@@ -52,9 +62,8 @@ export function attachAudioElement(el) {
   try {
     if (!state.ctx) state.ctx = new AudioCtx()
 
-    // 元素被重建（如 v-if 切换）时，旧链路必须断开并重建：
-    // createMediaElementSource 对每个元素只能调用一次，旧元素无法复用。
-    if (state.source) {
+    // 元素被重建：旧链路无法复用，断开后重建
+    if (state.source && state.builtEl !== el) {
       try {
         state.source.disconnect()
       } catch {
@@ -67,27 +76,27 @@ export function attachAudioElement(el) {
       analyserReady.value = false
     }
 
-    state.source = state.ctx.createMediaElementSource(el)
-    state.analyser = state.ctx.createAnalyser()
-    state.analyser.fftSize = 1024
-    state.analyser.smoothingTimeConstant = 0.78
-    state.freq = new Uint8Array(state.analyser.frequencyBinCount)
+    if (!state.source) {
+      state.source = state.ctx.createMediaElementSource(el)
+      state.analyser = state.ctx.createAnalyser()
+      state.analyser.fftSize = 1024
+      state.analyser.smoothingTimeConstant = 0.78
+      state.freq = new Uint8Array(state.analyser.frequencyBinCount)
+    }
 
-    // 串联：source → analyser → destination（否则听不到声音）
+    // 串联：source → analyser → destination（不接 destination 会没声音）
+    try {
+      state.source.disconnect()
+    } catch {
+      /* 首次未连接时会抛，忽略 */
+    }
     state.source.connect(state.analyser)
     state.analyser.connect(state.ctx.destination)
 
+    state.builtEl = el
     state.attachedEl = el
     state.ready = true
     analyserReady.value = true
-
-    // 浏览器要求用户手势后才能 resume；挂一次性监听自动恢复
-    if (!state.gestureBound) {
-      state.gestureBound = true
-      const onGesture = () => resumeContext()
-      window.addEventListener('pointerdown', onGesture, { once: true, passive: true })
-      window.addEventListener('keydown', onGesture, { once: true, passive: true })
-    }
   } catch (err) {
     console.error('[Neko] 音频频谱初始化失败：', err)
     state.failed = true
@@ -95,20 +104,63 @@ export function attachAudioElement(el) {
   }
 }
 
+/** 用户手势解锁：建立链路并恢复 context */
+function unlock() {
+  state.unlocked = true
+  if (state.attachedEl) build(state.attachedEl)
+  resumeContext()
+}
+
+/** 绑定一次性手势解锁（capture 阶段，确保早于其它处理） */
+function bindGestureUnlock() {
+  if (state.gestureBound) return
+  state.gestureBound = true
+  const onGesture = () => {
+    window.removeEventListener('pointerdown', onGesture, true)
+    window.removeEventListener('keydown', onGesture, true)
+    unlock()
+  }
+  window.addEventListener('pointerdown', onGesture, true)
+  window.addEventListener('keydown', onGesture, true)
+}
+
+/** 由 GlobalPlayer 注册承载音频的元素 */
+export function attachAudioElement(el) {
+  if (typeof window === 'undefined' || !el) return
+
+  state.attachedEl = el
+
+  // 已解锁过（或已有运行中的 context）→ 立即建立
+  if (state.unlocked || state.ctx?.state === 'running') {
+    build(el)
+    return
+  }
+
+  // 否则等用户手势；此时不创建 AudioContext，避免自动播放限制与静音
+  bindGestureUnlock()
+}
+
+/** 供播放等明确的手势路径主动调用 */
+export function unlockAudioAnalyser() {
+  if (typeof window === 'undefined') return
+  unlock()
+}
+
 export function useAudioAnalyser() {
   return {
     ready: analyserReady,
     failed: analyserFailed,
-    /** 采样点数（频率 bin 数） */
+    /** 采样点数 */
     get binCount() {
       return state.freq ? state.freq.length : 0
     },
-    /** 手动恢复（用于 play 等手势路径） */
+    /** 主动解锁（可在播放按钮回调里调用） */
+    unlock: unlockAudioAnalyser,
     resume: resumeContext,
     /**
-     * 把当前频谱写入 target（长度可小于 binCount，会自动截取低频段）。
+     * 把当前频谱写入 target。
      * @param {Uint8Array} target
-     * @returns {boolean} 是否成功读取
+     * @returns {boolean}
      */
     read(target) {
       if (!state.analyser || !state.freq || !target) return false
@@ -119,10 +171,9 @@ export function useAudioAnalyser() {
     },
     /**
      * 读取指定频率区间的平均能量（0..1）。
-     * 常用于「低频鼓点」驱动背景/封面起伏（如 AMLL 的 lowFreqVolume 需要 80–120Hz）。
      * @param {number} minHz
      * @param {number} maxHz
-     * @returns {number} 0..1；未就绪时返回 0
+     * @returns {number}
      */
     readBand(minHz, maxHz) {
       if (!state.analyser || !state.freq) return 0
