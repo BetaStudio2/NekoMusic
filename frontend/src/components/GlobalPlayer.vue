@@ -103,6 +103,31 @@
         >
           <NIcon name="skip-forward" :size="20" />
         </button>
+      </div>
+
+      <!-- 右：时间 + 此刻（歌词优先，否则频谱）+ 播放列表
+           对齐 ArchoeraMusic 的 _buildRightSection / _BarInfoArea：
+           固定宽度列，时间在上，下方 120×12 一块「有歌词显示歌词，
+           没歌词显示迷你频谱」。两块都是确定宽度，不会挤压同排控件。 -->
+      <div class="gp-right">
+        <div class="gp-now">
+          <span class="gp-now__time">
+            <b>{{ formatTime(currentTime) }}</b>
+            <i>/</i>{{ formatTime(duration) }}
+          </span>
+          <div class="gp-now__viz">
+            <span v-if="barLyric" class="gp-now__lyric" :title="barLyric.full">
+              {{ barLyric.display }}
+            </span>
+            <SpectrumCanvas
+              v-else-if="currentMusic"
+              class="gp-now__spectrum"
+              :bars="22"
+              :height="12"
+              :active="isPlaying"
+            />
+          </div>
+        </div>
 
         <button
           type="button"
@@ -113,21 +138,6 @@
         >
           <NIcon name="list-music" :size="20" />
         </button>
-      </div>
-
-      <!-- 右：时间 + 迷你频谱 -->
-      <div class="gp-aux">
-        <span class="gp-aux__time">
-          <b>{{ formatTime(currentTime) }}</b>
-          <i>/</i>{{ formatTime(duration) }}
-        </span>
-        <SpectrumCanvas
-          v-if="currentMusic"
-          class="gp-aux__spectrum"
-          :bars="18"
-          :height="22"
-          :active="isPlaying"
-        />
       </div>
     </div>
 
@@ -241,7 +251,6 @@ const progress = ref(0)
 const lyrics = ref('')
 const parsedLyrics = ref([])
 const lyricsContent = ref(null)
-const currentAnimationIndex = ref(-1)
 
 // 播放模式相关状态
 const playbackMode = ref('list_repeat') // 'list_repeat', 'single_repeat', 'shuffle'
@@ -264,7 +273,6 @@ const progressPercent = computed(() => {
 })
 
 // 记录上一个歌词索引
-let previousLyricIndex = -1
 
 // 获取用户token
 const getToken = () => {
@@ -450,27 +458,7 @@ const onTimeUpdate = () => {
     // 更新媒体会话播放位置
     updateMediaSessionPositionState()
     
-    // 检测当前歌词是否发生变化，如果是，则触发动画
-    if (parsedLyrics.value.length > 0) {
-      let currentLyricIndex = -1
-      for (let i = parsedLyrics.value.length - 1; i >= 0; i--) {
-        const lyric = parsedLyrics.value[i]
-        if (currentTime.value >= lyric.time) {
-          currentLyricIndex = i
-          break
-        }
-      }
-      
-      // 如果当前歌词索引发生变化，则触发动画
-      if (previousLyricIndex !== currentLyricIndex && currentLyricIndex !== -1) {
-        currentAnimationIndex.value = 0 // 为当前歌词行触发动画
-        previousLyricIndex = currentLyricIndex
-        // 动画结束后清除动画索引
-        setTimeout(() => {
-          currentAnimationIndex.value = -1
-        }, 600)
-      }
-    }
+    // 歌词高亮由 activeLyricIndex / barLyric 两个 computed 派生，此处无需处理
   }
 }
 
@@ -482,8 +470,6 @@ const onLoadedMetadata = () => {
     // 广播播放状态变化
     broadcastPlayerStateChange()
     
-    // 重置歌词索引
-    previousLyricIndex = -1
     
     // 加载歌词
     if (currentMusic.value) {
@@ -701,102 +687,38 @@ const parseLrcLyrics = (lrcText) => {
 }
 
 // 获取指定索引的歌词行文本
-const getLyricLine = (offset) => {
-  if (!currentMusic.value || parsedLyrics.value.length === 0) {
-    return currentMusic.value ? (offset === 0 ? '暂无歌词' : '') : '请选择音乐播放'
+/**
+ * 当前时间对应的歌词行下标（-1 = 前奏，还没到第一句）。
+ * 播放条右侧「此刻」区域与全屏播放页共用同一份 parsedLyrics。
+ */
+const activeLyricIndex = computed(() => {
+  const lines = parsedLyrics.value
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (currentTime.value >= lines[i].time) return i
   }
-  
-  // 查找当前时间点对应的歌词索引
-  let currentLyricIndex = -1
-  for (let i = parsedLyrics.value.length - 1; i >= 0; i--) {
-    const lyric = parsedLyrics.value[i]
-    if (currentTime.value >= lyric.time) {
-      currentLyricIndex = i
-      break
-    }
-  }
-  
-  // 根据偏移量返回对应的歌词
-  const targetIndex = currentLyricIndex + offset
-  if (targetIndex >= 0 && targetIndex < parsedLyrics.value.length) {
-    return parsedLyrics.value[targetIndex].text || ''
-  }
-  
-  // 如果超出范围但不是第一行，返回空字符串
-  if (offset > 0) {
-    return ''
-  }
-  
-  // 如果还没到第一句歌词的时间，显示提示信息
-  if (currentLyricIndex === -1 && parsedLyrics.value.length > 0) {
-    return '即将开始...'
-  }
-  
-  return '...'
-}
+  return -1
+})
 
-// 获取指定索引的歌词翻译
-const getLyricTranslation = (offset) => {
-  if (!currentMusic.value || parsedLyrics.value.length === 0) {
-    return ''
+/**
+ * 播放条右侧「此刻」区域要显示的歌词。
+ * 对齐 ArchoeraMusic 的 _BarInfoArea：有歌词就优先显示歌词，返回 null
+ * 时调用方降级为迷你频谱。前奏与空行都返回 null，避免出现一块空白。
+ */
+const barLyric = computed(() => {
+  const idx = activeLyricIndex.value
+  if (idx < 0) return null
+  const line = parsedLyrics.value[idx]
+  const text = (line?.text || '').trim()
+  if (!text) return null
+  const translation = (line?.translation || '').trim()
+  return {
+    text,
+    translation,
+    // 只有 12px 高的一行：正文与翻译并排显示，超出省略；完整内容挂 title
+    display: translation ? `${text} · ${translation}` : text,
+    full: translation ? `${text} — ${translation}` : text,
   }
-  
-  // 查找当前时间点对应的歌词索引
-  let currentLyricIndex = -1
-  for (let i = parsedLyrics.value.length - 1; i >= 0; i--) {
-    const lyric = parsedLyrics.value[i]
-    if (currentTime.value >= lyric.time) {
-      currentLyricIndex = i
-      break
-    }
-  }
-  
-  // 根据偏移量返回对应的歌词翻译
-  const targetIndex = currentLyricIndex + offset
-  if (targetIndex >= 0 && targetIndex < parsedLyrics.value.length) {
-    return parsedLyrics.value[targetIndex].translation || ''
-  }
-  
-  return ''
-}
-
-// 判断指定偏移量的歌词行是否是当前歌词
-const isCurrentLyric = (offset) => {
-  if (!currentMusic.value || parsedLyrics.value.length === 0) {
-    return offset === 0 && !currentMusic.value // 只有在没有选择音乐时，第一行才"活跃"
-  }
-  
-  // 查找当前时间点对应的歌词索引
-  let currentLyricIndex = -1
-  for (let i = parsedLyrics.value.length - 1; i >= 0; i--) {
-    const lyric = parsedLyrics.value[i]
-    if (currentTime.value >= lyric.time) {
-      currentLyricIndex = i
-      break
-    }
-  }
-  
-  // 检查指定偏移量的行是否是当前行
-  return (currentLyricIndex + offset) >= 0 && (currentLyricIndex + offset) < parsedLyrics.value.length
-}
-
-// 获取当前应该显示的歌词文本 (保留此函数以备后续可能需要)
-const getCurrentLyricText = () => {
-  if (parsedLyrics.value.length === 0) {
-    return '暂无歌词'
-  }
-  
-  // 查找当前时间点对应的歌词
-  for (let i = parsedLyrics.value.length - 1; i >= 0; i--) {
-    const lyric = parsedLyrics.value[i]
-    if (currentTime.value >= lyric.time) {
-      return lyric.text || '...'
-    }
-  }
-  
-  // 如果还没到第一句歌词的时间，显示提示信息
-  return '即将开始...'
-}
+})
 
 // 处理封面图片加载错误
 const handleImageError = (event) => {
@@ -2223,40 +2145,72 @@ onUnmounted(() => {
   cursor: default;
 }
 
-/* ===== 右：时间 + 迷你频谱 ===== */
-.gp-aux {
+/* ===== 右：时间 + 此刻（歌词优先，否则迷你频谱）+ 播放列表 ===== */
+.gp-right {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--n-space-4);
+  gap: var(--n-space-3);
   min-width: 0;
 }
 
-.gp-aux__time {
+/* 固定宽度列：时间在上，「此刻」在下（对齐 ArchoeraMusic 的 150px 列） */
+.gp-now {
+  flex: none;
+  width: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.gp-now__time {
   font-size: var(--n-text-xs);
   font-variant-numeric: tabular-nums;
   color: var(--n-text-faint);
   white-space: nowrap;
-  flex: 0 1 auto;
-  min-width: 0;
 }
 
-.gp-aux__time b {
+.gp-now__time b {
   font-weight: var(--n-weight-medium);
   color: var(--n-text-muted);
 }
 
-.gp-aux__time i {
+.gp-now__time i {
   font-style: normal;
   margin: 0 4px;
   opacity: 0.5;
 }
 
-/* ★ 必须给确定宽度：此前只有 flex: none，尺寸会落到 canvas 的固有宽度上
-   （默认 300px，且随 canvas.width 变化），把整条播放条挤爆 */
-.gp-aux__spectrum {
+/* 120×12 的「此刻」槽位：有歌词显示歌词，否则显示频谱。
+   ★ 两个子项都必须是确定宽度，否则尺寸会落到 <canvas> 的固有宽度上，
+     把整条播放条挤爆（见 SpectrumCanvas 内的说明）。 */
+.gp-now__viz {
   flex: none;
-  width: 96px;
+  width: 120px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+.gp-now__lyric {
+  max-width: 100%;
+  font-size: var(--n-text-xs);
+  line-height: 1.1;
+  color: var(--n-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+.gp-now__spectrum {
+  flex: none;
+  width: 120px;
 }
 
 /* ===== 播放列表弹层 ===== */
@@ -2432,8 +2386,13 @@ onUnmounted(() => {
 
 /* ===== 响应式 ===== */
 @media (max-width: 1080px) {
-  .gp-aux__time {
-    display: none;
+  .gp-now {
+    width: 112px;
+  }
+
+  .gp-now__viz,
+  .gp-now__spectrum {
+    width: 92px;
   }
 }
 
@@ -2443,8 +2402,8 @@ onUnmounted(() => {
     padding: 0 var(--n-space-3);
   }
 
-  .gp-aux__spectrum,
-  .gp-track__artist {
+  .gp-track__artist,
+  .gp-now {
     display: none;
   }
 }
@@ -2459,7 +2418,7 @@ onUnmounted(() => {
     height: 44px;
   }
 
-  .gp-aux {
+  .gp-right {
     gap: var(--n-space-2);
   }
 }
