@@ -93,6 +93,12 @@ function onPlayerState(event) {
       lastMusicId = detail.currentMusic.id
       syncPlaylist()
     }
+  } else if ('currentMusic' in detail) {
+    // 明确广播为「无曲目」（如清空播放列表）→ 跟着收回
+    state.currentMusic = null
+    state.hasTrack = false
+    lastMusicId = null
+    syncPlaylist()
   }
 
   if (typeof detail.isPlaying === 'boolean') state.isPlaying = detail.isPlaying
