@@ -2237,6 +2237,8 @@ onUnmounted(() => {
   font-variant-numeric: tabular-nums;
   color: var(--n-text-faint);
   white-space: nowrap;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .gp-aux__time b {
@@ -2250,8 +2252,11 @@ onUnmounted(() => {
   opacity: 0.5;
 }
 
+/* ★ 必须给确定宽度：此前只有 flex: none，尺寸会落到 canvas 的固有宽度上
+   （默认 300px，且随 canvas.width 变化），把整条播放条挤爆 */
 .gp-aux__spectrum {
   flex: none;
+  width: 96px;
 }
 
 /* ===== 播放列表弹层 ===== */
