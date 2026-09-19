@@ -423,12 +423,12 @@ home-page（自建 ambient + 自建变量集）
 
 | 批次 | 内容 | 说明 |
 |---|---|---|
-| 0 | ✅ 框架 + HomeView 样板 | 本文档 + 框架已就绪；HomeView 作为风格基准 |
-| 1 | 布局壳落地 | 抽出 `SiteHeader`（由 SearchHeader 改造）、`SiteFooter`；**播放条改为「停靠式 + 空闲隐藏」**（见下）；管理端抽 `AdminLayout`（含嵌套 `<router-view>`） |
+| 0 | ✅ 框架 + HomeView 样板 | 框架与首页已完成（`design/` `icons/` `ui/` `composables/` `layouts/`） |
+| 1 | ✅ 布局壳落地 | 已抽出 `SiteHeader`/`SiteFooter`/`AdminLayout`（含嵌套路由）；播放条已改为「停靠式 + 空闲隐藏」 |
 | 2 | 简单页 | About / Privacy / Error / CreatePlaylist / UserLogin / ForgotPassword / UserFavorites |
 | 3 | 列表页 | Latest / Ranking / SearchResults / PlaylistDetail / UserPlaylists |
 | 4 | 复杂页 | PlayerView / UploadMusicView / UserRegister / UserVip / UserProfile |
-| 5 | 管理端 | 9 个页面在 `AdminLayout` 下重建，替换 `.admin-layout !important` 皮肤 |
+| 5 | 管理端 | 在既有 `AdminLayout` 下重制 9 个页面外观；替换/删除 `assets/main.css` 的 `.admin-layout !important` 皮肤与各页遗留的浅色 scoped 样式 |
 | 6 | 播放器 | GlobalPlayer 重构 + 抽出 `usePlayer`/`useLyrics`/`useMediaSession`；收敛全局契约 |
 | 7 | 清理 | 删除 `main.css`/`glassShell.css` 废弃段与旧组件；**此时**移除 `/__kit` 与 `KitView.vue`（迁移期间一直保留） |
 
