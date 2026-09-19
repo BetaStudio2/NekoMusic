@@ -1,95 +1,70 @@
 <template>
-  <div class="admin-layout">
-    <AdminSidebar ref="sidebarRef" />
-
-    <div class="admin-main-content">
-      <div class="admin-header">
-        <button type="button" class="menu-toggle-btn" @click="toggleSidebar">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
-          </svg>
+  <div class="admin-subpage">
+    <h2>客户端更新</h2>
+    <p>
+      保存版本号后，<strong>/version 仍对外返回旧版本 30 分钟</strong>，便于上传新安装包；上传目标文件名为待生效版本。
+    </p>
+    <section v-if="publishedAndroidVer || publishedPcVer" class="card card-muted">
+      <h3>当前对外（/version）</h3>
+      <p class="published-line">Android：<code>{{ publishedAndroidVer }}</code></p>
+      <p class="published-line">PC：<code>{{ publishedPcVer }}</code></p>
+    </section>
+    <section class="card">
+      <h3>待发布版本号</h3>
+      <p v-if="pendingEffectiveAt" class="schedule-hint">
+        保存后将于 <strong>{{ pendingEffectiveAt }}</strong> 起在 /version 生效
+      </p>
+      <div class="form-row">
+        <label>Android 版本 (ver)</label>
+        <input v-model="androidVer" type="text" class="inp" placeholder="如 20260207-36" />
+      </div>
+      <div class="form-row">
+        <label>PC 版本 (pc_ver)</label>
+        <input v-model="pcVer" type="text" class="inp" placeholder="如 2026.207.6" />
+      </div>
+      <div class="toolbar">
+        <button type="button" class="btn-ghost" :disabled="loading" @click="loadData">重新加载</button>
+        <button type="button" class="btn-primary" :disabled="savingVersions || loading" @click="saveVersions">
+          {{ savingVersions ? '保存中…' : '保存版本号' }}
         </button>
-        <div class="admin-user-info">
-          <span>欢迎，{{ adminInfo.username || '管理员' }}!</span>
-          <button type="button" class="logout-button" @click="logout">退出登录</button>
+      </div>
+    </section>
+    <section class="card">
+      <h3>安装包</h3>
+      <p v-if="loadError" class="err">{{ loadError }}</p>
+      <div v-for="pkg in packages" :key="pkg.platform" class="pkg-row">
+        <div class="pkg-meta">
+          <span class="pkg-platform">{{ platformLabel(pkg.platform) }}</span>
+          <span class="pkg-name" :title="pkg.fileName">{{ pkg.fileName }}</span>
+          <span v-if="pkg.uploaded" class="badge ok">已上传</span>
+          <span v-else class="badge warn">未上传</span>
+          <span v-if="pkg.uploaded && pkg.size != null" class="pkg-size">{{ formatSize(pkg.size) }}</span>
+        </div>
+        <div class="pkg-actions">
+          <a
+            v-if="pkg.uploaded && pkg.downloadUrl"
+            :href="pkg.downloadUrl"
+            class="btn-link"
+            target="_blank"
+            rel="noopener"
+          >直链</a>
+          <label class="btn-upload">
+            <input
+              type="file"
+              :accept="acceptForPlatform(pkg.platform)"
+              class="file-inp"
+              :disabled="uploadingPlatform === pkg.platform"
+              @change="(e) => onFilePick(e, pkg)"
+            />
+            {{ uploadingPlatform === pkg.platform ? '上传中…' : '上传' }}
+          </label>
+          <div v-if="uploadingPlatform === pkg.platform && uploadProgress >= 0" class="progress-wrap">
+            <div class="progress-bar" :style="{ width: uploadProgress + '%' }" />
+          </div>
         </div>
       </div>
-
-      <div class="admin-content-wrapper">
-        <div class="admin-subpage">
-          <h2>客户端更新</h2>
-          <p>
-            保存版本号后，<strong>/version 仍对外返回旧版本 30 分钟</strong>，便于上传新安装包；上传目标文件名为待生效版本。
-          </p>
-
-          <section v-if="publishedAndroidVer || publishedPcVer" class="card card-muted">
-            <h3>当前对外（/version）</h3>
-            <p class="published-line">Android：<code>{{ publishedAndroidVer }}</code></p>
-            <p class="published-line">PC：<code>{{ publishedPcVer }}</code></p>
-          </section>
-
-          <section class="card">
-            <h3>待发布版本号</h3>
-            <p v-if="pendingEffectiveAt" class="schedule-hint">
-              保存后将于 <strong>{{ pendingEffectiveAt }}</strong> 起在 /version 生效
-            </p>
-            <div class="form-row">
-              <label>Android 版本 (ver)</label>
-              <input v-model="androidVer" type="text" class="inp" placeholder="如 20260207-36" />
-            </div>
-            <div class="form-row">
-              <label>PC 版本 (pc_ver)</label>
-              <input v-model="pcVer" type="text" class="inp" placeholder="如 2026.207.6" />
-            </div>
-            <div class="toolbar">
-              <button type="button" class="btn-ghost" :disabled="loading" @click="loadData">重新加载</button>
-              <button type="button" class="btn-primary" :disabled="savingVersions || loading" @click="saveVersions">
-                {{ savingVersions ? '保存中…' : '保存版本号' }}
-              </button>
-            </div>
-          </section>
-
-          <section class="card">
-            <h3>安装包</h3>
-            <p v-if="loadError" class="err">{{ loadError }}</p>
-
-            <div v-for="pkg in packages" :key="pkg.platform" class="pkg-row">
-              <div class="pkg-meta">
-                <span class="pkg-platform">{{ platformLabel(pkg.platform) }}</span>
-                <span class="pkg-name" :title="pkg.fileName">{{ pkg.fileName }}</span>
-                <span v-if="pkg.uploaded" class="badge ok">已上传</span>
-                <span v-else class="badge warn">未上传</span>
-                <span v-if="pkg.uploaded && pkg.size != null" class="pkg-size">{{ formatSize(pkg.size) }}</span>
-              </div>
-              <div class="pkg-actions">
-                <a
-                  v-if="pkg.uploaded && pkg.downloadUrl"
-                  :href="pkg.downloadUrl"
-                  class="btn-link"
-                  target="_blank"
-                  rel="noopener"
-                >直链</a>
-                <label class="btn-upload">
-                  <input
-                    type="file"
-                    :accept="acceptForPlatform(pkg.platform)"
-                    class="file-inp"
-                    :disabled="uploadingPlatform === pkg.platform"
-                    @change="(e) => onFilePick(e, pkg)"
-                  />
-                  {{ uploadingPlatform === pkg.platform ? '上传中…' : '上传' }}
-                </label>
-                <div v-if="uploadingPlatform === pkg.platform && uploadProgress >= 0" class="progress-wrap">
-                  <div class="progress-bar" :style="{ width: uploadProgress + '%' }" />
-                </div>
-              </div>
-            </div>
-
-            <p class="hint">请先保存待发布版本号，再上传安装包；仅校验文件类型，落盘文件名与上表一致。</p>
-          </section>
-        </div>
-      </div>
-    </div>
+      <p class="hint">请先保存待发布版本号，再上传安装包；仅校验文件类型，落盘文件名与上表一致。</p>
+    </section>
   </div>
 </template>
 
@@ -97,7 +72,6 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
-import AdminSidebar from '@/components/AdminSidebar.vue'
 import {
   fetchAdminClientReleases,
   saveAdminClientReleaseVersions,
@@ -106,7 +80,6 @@ import {
 
 const router = useRouter()
 const toast = useToast()
-const sidebarRef = ref(null)
 const adminInfo = ref({})
 const androidVer = ref('')
 const pcVer = ref('')
@@ -142,14 +115,7 @@ const formatSize = (bytes) => {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MiB`
 }
 
-const toggleSidebar = () => sidebarRef.value?.toggleSidebar()
 
-const logout = () => {
-  localStorage.removeItem('adminToken')
-  localStorage.removeItem('adminInfo')
-  localStorage.removeItem('isAdminLoggedIn')
-  router.push('/admin/login')
-}
 
 const applyReleaseData = (data) => {
   publishedAndroidVer.value = data.publishedAndroidVer || data.androidVer || ''

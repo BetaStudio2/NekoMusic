@@ -1,34 +1,14 @@
 <template>
-  <div class="admin-layout">
-    <AdminSidebar ref="sidebarRef" />
-    
-    <div class="admin-main-content">
-      <div class="admin-header">
-        <button class="menu-toggle-btn" @click="toggleSidebar">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
-          </svg>
-        </button>
-        <div class="admin-user-info">
-          <span>欢迎，{{ adminInfo.username || '管理员' }}!</span>
-          <button @click="logout" class="logout-button">退出登录</button>
-        </div>
-      </div>
-      
-      <div class="admin-content-wrapper">
         <div class="admin-header-section">
           <h2 class="admin-title">审核管理</h2>
           <p class="admin-subtitle">审核用户上传的音乐，通过审核后将自动添加到音乐库中</p>
         </div>
-        
         <div v-if="isLoading" class="content-placeholder">
           <p>正在加载待审核列表...</p>
         </div>
-        
         <div v-else-if="pendingUploads.length === 0" class="content-placeholder">
           <p>暂无待审核的音乐</p>
         </div>
-        
         <div v-else class="audit-list">
           <div v-for="upload in pendingUploads" :key="upload.id" class="audit-card">
             <div class="audit-card-header">
@@ -54,7 +34,6 @@
                 <span class="audit-user">用户ID: {{ upload.userId }}</span>
               </div>
             </div>
-            
             <div class="audit-card-body">
               <div class="audit-details-grid">
                 <div class="audit-detail-item">
@@ -74,7 +53,6 @@
                   <span class="detail-value">{{ upload.tags || '无' }}</span>
                 </div>
               </div>
-              
 <!--              <div class="audit-files-section">-->
 <!--                <div class="file-item">-->
 <!--                  <span class="file-icon">🎵</span>-->
@@ -89,7 +67,6 @@
 <!--                  <span class="file-name">{{ getFileName(upload.lyricsFilePath) }}</span>-->
 <!--                </div>-->
 <!--              </div>-->
-              
               <!-- 歌词预览区域 -->
               <div class="lyrics-preview-section">
                 <div class="lyrics-preview-header">
@@ -147,7 +124,6 @@
                 </div>
               </div>
             </div>
-            
             <div class="audit-card-footer">
               <div class="player-section" v-if="currentPlayingId === upload.id">
                 <audio 
@@ -158,7 +134,6 @@
                   @error="handleAudioError"
                 ></audio>
               </div>
-              
               <div class="audit-actions">
                 <button class="action-btn preview-btn" @click="playPreview(upload.id, upload.musicFilePath)" :disabled="currentPlayingId === upload.id || loadingAudios[upload.id]">
                   {{ loadingAudios[upload.id] ? '加载中...' : (currentPlayingId === upload.id ? '播放中...' : '试听') }}
@@ -169,9 +144,6 @@
             </div>
           </div>
         </div>
-      </div>
-    </div>
-    
     <!-- 拒绝确认模态框 -->
     <Transition name="modal">
       <div v-if="showRejectConfirm" class="modal-overlay" @click="closeRejectModal">
@@ -193,28 +165,20 @@
         </div>
       </div>
     </Transition>
-  </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import AdminSidebar from '@/components/AdminSidebar.vue'
 import API_CONFIG from '@/config/apiConfig.js'
 import { useToast } from 'vue-toastification'
 
 const toast = useToast()
 const router = useRouter()
-const sidebarRef = ref(null)
 
 const adminInfo = ref({ username: '' })
 
 // 切换侧边栏
-const toggleSidebar = () => {
-  if (sidebarRef.value) {
-    sidebarRef.value.toggleSidebar()
-  }
-}
 const pendingUploads = ref([])
 const isLoading = ref(true)
 const currentPlayingId = ref(null)
@@ -750,11 +714,6 @@ const handleLyricsScroll = (uploadId, sourceSide, event) => {
 }
 
 // 退出登录
-const logout = () => {
-  localStorage.removeItem('adminToken')
-  localStorage.removeItem('adminInfo')
-  router.push('/admin/login')
-}
 
 onMounted(() => {
   getAdminInfo()

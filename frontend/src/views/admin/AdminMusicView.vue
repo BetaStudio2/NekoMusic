@@ -1,294 +1,266 @@
 <template>
-  <div class="admin-layout">
-    <AdminSidebar ref="sidebarRef" />
-    
-    <div class="admin-main-content">
-      <div class="admin-header">
-        <button class="menu-toggle-btn" @click="toggleSidebar">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
-          </svg>
-        </button>
-        <div class="admin-user-info">
-          <span>欢迎，{{ adminInfo.username || '管理员' }}!</span>
-          <button @click="logout" class="logout-button">退出登录</button>
+  <div class="admin-subpage">
+    <h2>音乐管理</h2>
+    <p>管理平台音乐资源，包括添加、编辑、删除音乐等操作。</p>
+    <div class="admin-controls">
+      <button class="add-btn" @click="showAddForm = true">
+        添加音乐
+      </button>
+    </div>
+    <!-- 添加音乐模态框 -->
+    <Transition name="modal">
+      <div v-if="showAddForm" class="edit-modal-overlay" @click="closeAddModal">
+        <div class="edit-modal edit-modal-wide" @click.stop ref="addModalRef">
+          <div class="modal-header">
+            <h3>添加音乐</h3>
+            <button class="close-btn" @click="closeAddModal">&times;</button>
+          </div>
+          <div class="modal-content horizontal-layout">
+            <div class="form-column left-column">
+              <div class="form-group">
+                <label>🎵 音乐文件 *</label>
+                <input type="file" @change="handleMusicFileChange" accept=".mp3,.flac,.wav" placeholder="请选择音乐文件（MP3/FLAC/WAV）" />
+                <div v-if="newMusic.fileName" class="file-info">已选择: {{ newMusic.fileName }}</div>
+                <div class="form-hint">支持 MP3、FLAC、WAV 格式。上传 MP3 文件后将自动解析封面、音乐名称、艺术家和专辑信息</div>
+              </div>
+              <div class="form-group">
+                <label>🎵 音乐图标</label>
+                <input type="file" @change="handleCoverFileChange" accept="image/*" placeholder="请选择音乐图标文件（可选）" />
+                <div v-if="newMusic.coverFileName" class="file-info">已选择: {{ newMusic.coverFileName }}</div>
+                <div class="form-hint">如果不选择，将使用MP3文件中的封面图</div>
+              </div>
+              <div class="form-group">
+                <label>⏱️ 时长(秒)</label>
+                <input type="number" v-model="newMusic.duration" placeholder="音乐时长(秒)" readonly />
+                <div class="form-hint">自动从MP3文件中读取</div>
+              </div>
+              <div class="form-group">
+                <label>🌐 语言 *</label>
+                <div class="select-wrapper">
+                  <select v-model="newMusic.language" class="styled-select">
+                    <option value="" disabled>请选择语言</option>
+                    <option value="中文">中文</option>
+                    <option value="粤语">粤语</option>
+                    <option value="上海语">上海语</option>
+                    <option value="英文">英文</option>
+                    <option value="日语">日语</option>
+                    <option value="韩语">韩语</option>
+                    <option value="法语">法语</option>
+                    <option value="德语">德语</option>
+                    <option value="俄语">俄语</option>
+                    <option value="纯音乐">纯音乐</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="form-column right-column">
+              <div class="form-group">
+                <label>🎵 音乐名称 *</label>
+                <input type="text" v-model="newMusic.title" placeholder="请输入音乐名称" />
+                <div class="form-hint">自动从MP3文件中读取</div>
+              </div>
+              <div class="form-group">
+                <label>🎤 艺术家 *</label>
+                <input type="text" v-model="newMusic.artist" placeholder="请输入艺术家" />
+                <div class="form-hint">自动从MP3文件中读取</div>
+              </div>
+              <div class="form-group">
+                <label>🏷️ 标签</label>
+                <input type="text" v-model="newMusic.tags" placeholder="请输入标签，多个标签用逗号分隔" />
+              </div>
+              <div class="form-group">
+                <label>💿 专辑</label>
+                <input type="text" v-model="newMusic.album" placeholder="请输入专辑" />
+                <div class="form-hint">自动从MP3文件中读取</div>
+              </div>
+              <div class="form-group">
+                <label>📝 歌词文件 *</label>
+                <input type="file" @change="handleLyricsFileChange" accept=".lrc" placeholder="请选择LRC歌词文件" />
+                <div v-if="newMusic.lyricsFileName" class="file-info">已选择: {{ newMusic.lyricsFileName }}</div>
+                <div class="form-hint">请上传 .lrc 格式的歌词文件</div>
+              </div>
+            </div>
+          </div>
+          <div class="form-actions modal-actions">
+            <button class="secondary-btn" @click="closeAddModal">取消</button>
+            <button class="primary-btn" @click="addMusic">添加音乐</button>
+          </div>
         </div>
       </div>
-      
-      <div class="admin-content-wrapper">
-        <div class="admin-subpage">
-          <h2>音乐管理</h2>
-          <p>管理平台音乐资源，包括添加、编辑、删除音乐等操作。</p>
-          
-          <div class="admin-controls">
-            <button class="add-btn" @click="showAddForm = true">
-              添加音乐
+    </Transition>
+    <!-- 编辑音乐悬浮窗 -->
+    <Transition name="modal">
+      <div v-if="editingMusic" class="edit-modal-overlay" @click="closeEditModal">
+        <div class="edit-modal edit-modal-wide" @click.stop ref="editModalRef">
+          <div class="modal-header">
+            <h3>编辑音乐</h3>
+            <button class="close-btn" @click="cancelEdit">&times;</button>
+          </div>
+          <div class="modal-content horizontal-layout">
+            <div class="form-column left-column">
+              <div class="form-group">
+                <label>🎵 音乐图标</label>
+                <input type="file" @change="handleEditCoverFileChange" accept="image/*" placeholder="请选择音乐图标文件" />
+                <div v-if="editingMusic.coverFileName" class="file-info">已选择: {{ editingMusic.coverFileName }}</div>
+                <div v-if="editingMusic.coverUrl && !editingMusic.coverFileName && !editingMusic.coverUrl.startsWith('data:image')" class="file-info">当前图标: {{ editingMusic.coverUrl.split('/').pop() }}</div>
+              </div>
+              <div class="form-group">
+                <label>🎵 音乐文件</label>
+                <input type="file" @change="handleEditMusicFileChange" accept=".mp3,.flac,.wav" placeholder="请选择音乐文件（MP3/FLAC/WAV）" />
+                <div v-if="editingMusic.fileName" class="file-info">已选择: {{ editingMusic.fileName }}</div>
+                <div v-if="editingMusic.filePath && !editingMusic.fileName" class="file-info">当前文件: {{ editingMusic.filePath.split('/').pop() }}</div>
+              </div>
+              <div class="form-group">
+                <label>🌐 语言 *</label>
+                <div class="select-wrapper">
+                  <select v-model="editingMusic.language" class="styled-select">
+                    <option value="" disabled>请选择语言</option>
+                    <option value="中文">中文</option>
+                    <option value="粤语">粤语</option>
+                    <option value="上海语">上海语</option>
+                    <option value="英文">英文</option>
+                    <option value="日语">日语</option>
+                    <option value="韩语">韩语</option>
+                    <option value="法语">法语</option>
+                    <option value="德语">德语</option>
+                    <option value="俄语">俄语</option>
+                    <option value="纯音乐">纯音乐</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="form-column right-column">
+              <div class="form-group">
+                <label>🎵 音乐名称 *</label>
+                <input type="text" v-model="editingMusic.title" placeholder="请输入音乐名称" />
+              </div>
+              <div class="form-group">
+                <label>🎤 艺术家 *</label>
+                <input type="text" v-model="editingMusic.artist" placeholder="请输入艺术家" />
+              </div>
+              <div class="form-group">
+                <label>🏷️ 标签</label>
+                <input type="text" v-model="editingMusic.tags" placeholder="请输入标签，多个标签用逗号分隔" />
+              </div>
+              <div class="form-group">
+                <label>💿 专辑</label>
+                <input type="text" v-model="editingMusic.album" placeholder="请输入专辑" />
+              </div>
+              <div class="form-group">
+                <label>📝 歌词文件 *</label>
+                <input type="file" @change="handleEditLyricsFileChange" accept=".lrc" placeholder="请选择LRC歌词文件" />
+                <div v-if="editingMusic.lyricsFileName" class="file-info">已选择: {{ editingMusic.lyricsFileName }}</div>
+                <div class="form-hint">请上传 .lrc 格式的歌词文件</div>
+              </div>
+            </div>
+          </div>
+          <div class="form-actions modal-actions">
+            <button class="secondary-btn" @click="cancelEdit">取消</button>
+            <button class="primary-btn" @click="saveEdit">保存更改</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+    <div class="music-list-section">
+      <h3>音乐列表</h3>
+      <div class="search-filter">
+        <input 
+          type="text" 
+          v-model="searchQuery" 
+          @input="updateSearchResults"
+          placeholder="搜索音乐或艺术家..." 
+          class="search-input"
+        />
+      </div>
+      <div v-if="isLoading" class="loading">
+        <p>正在加载音乐列表...</p>
+      </div>
+      <div v-else class="table-container">
+        <table class="music-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>封面</th>
+              <th>音乐名称</th>
+              <th>艺术家</th>
+              <th>专辑</th>
+              <th>时长</th>
+              <th>上传时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="music in paginatedMusicList()" :key="music.id">
+              <td>{{ music.id }}</td>
+              <td>
+                <div class="cover-cell">
+                  <img 
+                    :src="getCoverUrl(music.id)" 
+                    :alt="music.title"
+                    class="music-cover-table"
+                    @error="handleImageError"
+                  />
+                </div>
+              </td>
+              <td>{{ music.title }}</td>
+              <td>{{ music.artist }}</td>
+              <td>{{ music.album }}</td>
+              <td>{{ formatDuration(music.duration) }}</td>
+              <td>{{ formatDate(music.createdAt) }}</td>
+              <td>
+                <button 
+                  class="action-btn edit-btn" 
+                  @click="editMusic(music)"
+                  v-if="canEditMusic"
+                >
+                  编辑
+                </button>
+                <button 
+                  class="action-btn delete-btn" 
+                  @click="deleteMusic(music.id)"
+                  v-if="canDeleteMusic"
+                >
+                  删除
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div v-if="!isLoading && filteredMusicList.length === 0" class="no-data">
+        <p>暂无音乐数据</p>
+      </div>
+      <!-- 分页控件 -->
+      <div v-if="!isLoading && filteredMusicList.length > 0" class="pagination-container">
+        <div class="pagination-info">
+          显示第 {{ (currentPage - 1) * pageSize + 1 }} - {{ Math.min(currentPage * pageSize, filteredMusicList.length) }} 条，共 {{ filteredMusicList.length }} 条
+        </div>
+        <div class="pagination-controls">
+          <button
+            class="pagination-btn"
+            @click="prevPage"
+            :disabled="currentPage === 1"
+          >
+            上一页
+          </button>
+          <div class="pagination-pages">
+            <button
+              v-for="page in Math.min(totalPages, 5)"
+              :key="page"
+              class="pagination-page-btn"
+              :class="{ active: currentPage === getDisplayPage(page) }"
+              @click="goToPage(getDisplayPage(page))"
+            >
+              {{ getDisplayPage(page) }}
             </button>
           </div>
-          
-          <!-- 添加音乐模态框 -->
-          <Transition name="modal">
-            <div v-if="showAddForm" class="edit-modal-overlay" @click="closeAddModal">
-              <div class="edit-modal edit-modal-wide" @click.stop ref="addModalRef">
-                <div class="modal-header">
-                  <h3>添加音乐</h3>
-                  <button class="close-btn" @click="closeAddModal">&times;</button>
-                </div>
-                <div class="modal-content horizontal-layout">
-                  <div class="form-column left-column">
-                    <div class="form-group">
-                      <label>🎵 音乐文件 *</label>
-                      <input type="file" @change="handleMusicFileChange" accept=".mp3,.flac,.wav" placeholder="请选择音乐文件（MP3/FLAC/WAV）" />
-                      <div v-if="newMusic.fileName" class="file-info">已选择: {{ newMusic.fileName }}</div>
-                      <div class="form-hint">支持 MP3、FLAC、WAV 格式。上传 MP3 文件后将自动解析封面、音乐名称、艺术家和专辑信息</div>
-                    </div>
-                    <div class="form-group">
-                      <label>🎵 音乐图标</label>
-                      <input type="file" @change="handleCoverFileChange" accept="image/*" placeholder="请选择音乐图标文件（可选）" />
-                      <div v-if="newMusic.coverFileName" class="file-info">已选择: {{ newMusic.coverFileName }}</div>
-                      <div class="form-hint">如果不选择，将使用MP3文件中的封面图</div>
-                    </div>
-                    <div class="form-group">
-                      <label>⏱️ 时长(秒)</label>
-                      <input type="number" v-model="newMusic.duration" placeholder="音乐时长(秒)" readonly />
-                      <div class="form-hint">自动从MP3文件中读取</div>
-                    </div>
-                    <div class="form-group">
-                      <label>🌐 语言 *</label>
-                      <div class="select-wrapper">
-                        <select v-model="newMusic.language" class="styled-select">
-                          <option value="" disabled>请选择语言</option>
-                          <option value="中文">中文</option>
-                          <option value="粤语">粤语</option>
-                          <option value="上海语">上海语</option>
-                          <option value="英文">英文</option>
-                          <option value="日语">日语</option>
-                          <option value="韩语">韩语</option>
-                          <option value="法语">法语</option>
-                          <option value="德语">德语</option>
-                          <option value="俄语">俄语</option>
-                          <option value="纯音乐">纯音乐</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="form-column right-column">
-                    <div class="form-group">
-                      <label>🎵 音乐名称 *</label>
-                      <input type="text" v-model="newMusic.title" placeholder="请输入音乐名称" />
-                      <div class="form-hint">自动从MP3文件中读取</div>
-                    </div>
-                    <div class="form-group">
-                      <label>🎤 艺术家 *</label>
-                      <input type="text" v-model="newMusic.artist" placeholder="请输入艺术家" />
-                      <div class="form-hint">自动从MP3文件中读取</div>
-                    </div>
-                    <div class="form-group">
-                      <label>🏷️ 标签</label>
-                      <input type="text" v-model="newMusic.tags" placeholder="请输入标签，多个标签用逗号分隔" />
-                    </div>
-                    <div class="form-group">
-                      <label>💿 专辑</label>
-                      <input type="text" v-model="newMusic.album" placeholder="请输入专辑" />
-                      <div class="form-hint">自动从MP3文件中读取</div>
-                    </div>
-                    <div class="form-group">
-                      <label>📝 歌词文件 *</label>
-                      <input type="file" @change="handleLyricsFileChange" accept=".lrc" placeholder="请选择LRC歌词文件" />
-                      <div v-if="newMusic.lyricsFileName" class="file-info">已选择: {{ newMusic.lyricsFileName }}</div>
-                      <div class="form-hint">请上传 .lrc 格式的歌词文件</div>
-                    </div>
-                  </div>
-                </div>
-                <div class="form-actions modal-actions">
-                  <button class="secondary-btn" @click="closeAddModal">取消</button>
-                  <button class="primary-btn" @click="addMusic">添加音乐</button>
-                </div>
-              </div>
-            </div>
-          </Transition>
-          
-          <!-- 编辑音乐悬浮窗 -->
-          <Transition name="modal">
-            <div v-if="editingMusic" class="edit-modal-overlay" @click="closeEditModal">
-              <div class="edit-modal edit-modal-wide" @click.stop ref="editModalRef">
-                <div class="modal-header">
-                  <h3>编辑音乐</h3>
-                  <button class="close-btn" @click="cancelEdit">&times;</button>
-                </div>
-                <div class="modal-content horizontal-layout">
-                  <div class="form-column left-column">
-                    <div class="form-group">
-                      <label>🎵 音乐图标</label>
-                      <input type="file" @change="handleEditCoverFileChange" accept="image/*" placeholder="请选择音乐图标文件" />
-                      <div v-if="editingMusic.coverFileName" class="file-info">已选择: {{ editingMusic.coverFileName }}</div>
-                      <div v-if="editingMusic.coverUrl && !editingMusic.coverFileName && !editingMusic.coverUrl.startsWith('data:image')" class="file-info">当前图标: {{ editingMusic.coverUrl.split('/').pop() }}</div>
-                    </div>
-                    <div class="form-group">
-                      <label>🎵 音乐文件</label>
-                      <input type="file" @change="handleEditMusicFileChange" accept=".mp3,.flac,.wav" placeholder="请选择音乐文件（MP3/FLAC/WAV）" />
-                      <div v-if="editingMusic.fileName" class="file-info">已选择: {{ editingMusic.fileName }}</div>
-                      <div v-if="editingMusic.filePath && !editingMusic.fileName" class="file-info">当前文件: {{ editingMusic.filePath.split('/').pop() }}</div>
-                    </div>
-                    <div class="form-group">
-                      <label>🌐 语言 *</label>
-                      <div class="select-wrapper">
-                        <select v-model="editingMusic.language" class="styled-select">
-                          <option value="" disabled>请选择语言</option>
-                          <option value="中文">中文</option>
-                          <option value="粤语">粤语</option>
-                          <option value="上海语">上海语</option>
-                          <option value="英文">英文</option>
-                          <option value="日语">日语</option>
-                          <option value="韩语">韩语</option>
-                          <option value="法语">法语</option>
-                          <option value="德语">德语</option>
-                          <option value="俄语">俄语</option>
-                          <option value="纯音乐">纯音乐</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="form-column right-column">
-                    <div class="form-group">
-                      <label>🎵 音乐名称 *</label>
-                      <input type="text" v-model="editingMusic.title" placeholder="请输入音乐名称" />
-                    </div>
-                    <div class="form-group">
-                      <label>🎤 艺术家 *</label>
-                      <input type="text" v-model="editingMusic.artist" placeholder="请输入艺术家" />
-                    </div>
-                    <div class="form-group">
-                      <label>🏷️ 标签</label>
-                      <input type="text" v-model="editingMusic.tags" placeholder="请输入标签，多个标签用逗号分隔" />
-                    </div>
-                    <div class="form-group">
-                      <label>💿 专辑</label>
-                      <input type="text" v-model="editingMusic.album" placeholder="请输入专辑" />
-                    </div>
-                    <div class="form-group">
-                      <label>📝 歌词文件 *</label>
-                      <input type="file" @change="handleEditLyricsFileChange" accept=".lrc" placeholder="请选择LRC歌词文件" />
-                      <div v-if="editingMusic.lyricsFileName" class="file-info">已选择: {{ editingMusic.lyricsFileName }}</div>
-                      <div class="form-hint">请上传 .lrc 格式的歌词文件</div>
-                    </div>
-                  </div>
-                </div>
-                <div class="form-actions modal-actions">
-                  <button class="secondary-btn" @click="cancelEdit">取消</button>
-                  <button class="primary-btn" @click="saveEdit">保存更改</button>
-                </div>
-              </div>
-            </div>
-          </Transition>
-          
-          <div class="music-list-section">
-            <h3>音乐列表</h3>
-            <div class="search-filter">
-              <input 
-                type="text" 
-                v-model="searchQuery" 
-                @input="updateSearchResults"
-                placeholder="搜索音乐或艺术家..." 
-                class="search-input"
-              />
-            </div>
-            
-            <div v-if="isLoading" class="loading">
-              <p>正在加载音乐列表...</p>
-            </div>
-            
-            <div v-else class="table-container">
-              <table class="music-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>封面</th>
-                    <th>音乐名称</th>
-                    <th>艺术家</th>
-                    <th>专辑</th>
-                    <th>时长</th>
-                    <th>上传时间</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="music in paginatedMusicList()" :key="music.id">
-                    <td>{{ music.id }}</td>
-                    <td>
-                      <div class="cover-cell">
-                        <img 
-                          :src="getCoverUrl(music.id)" 
-                          :alt="music.title"
-                          class="music-cover-table"
-                          @error="handleImageError"
-                        />
-                      </div>
-                    </td>
-                    <td>{{ music.title }}</td>
-                    <td>{{ music.artist }}</td>
-                    <td>{{ music.album }}</td>
-                    <td>{{ formatDuration(music.duration) }}</td>
-                    <td>{{ formatDate(music.createdAt) }}</td>
-                    <td>
-                      <button 
-                        class="action-btn edit-btn" 
-                        @click="editMusic(music)"
-                        v-if="canEditMusic"
-                      >
-                        编辑
-                      </button>
-                      <button 
-                        class="action-btn delete-btn" 
-                        @click="deleteMusic(music.id)"
-                        v-if="canDeleteMusic"
-                      >
-                        删除
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            
-            <div v-if="!isLoading && filteredMusicList.length === 0" class="no-data">
-              <p>暂无音乐数据</p>
-            </div>
-
-            <!-- 分页控件 -->
-            <div v-if="!isLoading && filteredMusicList.length > 0" class="pagination-container">
-              <div class="pagination-info">
-                显示第 {{ (currentPage - 1) * pageSize + 1 }} - {{ Math.min(currentPage * pageSize, filteredMusicList.length) }} 条，共 {{ filteredMusicList.length }} 条
-              </div>
-              <div class="pagination-controls">
-                <button
-                  class="pagination-btn"
-                  @click="prevPage"
-                  :disabled="currentPage === 1"
-                >
-                  上一页
-                </button>
-                <div class="pagination-pages">
-                  <button
-                    v-for="page in Math.min(totalPages, 5)"
-                    :key="page"
-                    class="pagination-page-btn"
-                    :class="{ active: currentPage === getDisplayPage(page) }"
-                    @click="goToPage(getDisplayPage(page))"
-                  >
-                    {{ getDisplayPage(page) }}
-                  </button>
-                </div>
-                <button
-                  class="pagination-btn"
-                  @click="nextPage"
-                  :disabled="currentPage === totalPages"
-                >
-                  下一页
-                </button>
-              </div>
-            </div>
-          </div>
+          <button
+            class="pagination-btn"
+            @click="nextPage"
+            :disabled="currentPage === totalPages"
+          >
+            下一页
+          </button>
         </div>
       </div>
     </div>
@@ -298,21 +270,14 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import AdminSidebar from '@/components/AdminSidebar.vue'
 import API_CONFIG from '@/config/apiConfig.js'
 import { useToast } from 'vue-toastification'
 
 const toast = useToast()
 
 const router = useRouter()
-const sidebarRef = ref(null)
 
 // 切换侧边栏
-const toggleSidebar = () => {
-  if (sidebarRef.value) {
-    sidebarRef.value.toggleSidebar()
-  }
-}
 
 // 添加文件处理函数
 const handleMusicFileChange = async (event) => {
@@ -1616,11 +1581,6 @@ const handleImageError = (event) => {
   event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/`;
 }
 
-const logout = () => {
-  localStorage.removeItem('adminToken')
-  localStorage.removeItem('isAdminLoggedIn')
-  router.push('/admin/login')
-}
 </script>
 
 <style scoped>

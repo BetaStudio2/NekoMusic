@@ -252,80 +252,86 @@ const router = createRouter({
     },
     {
       path: '/admin',
-      name: 'admin',
-      component: () => import('@/views/admin/AdminView.vue'),
-      beforeEnter: adminGuard,
-      meta: {
-        title: '管理后台 - Neko歌姬计划',
-        description: '管理后台首页，管理免费音乐平台各项功能。',
-        keywords: '管理后台,后台管理'
-      }
-    },
-    {
-      path: '/admin/music',
-      name: 'admin-music',
-      component: () => import('@/views/admin/AdminMusicView.vue'),
-      beforeEnter: adminGuard,
-      meta: {
-        title: '音乐管理 - Neko歌姬计划',
-        description: '管理平台免费音乐资源，上传、编辑、删除免费音乐。',
-        keywords: '音乐管理,音乐上传,免费音乐管理'
-      }
-    },
-    {
-      path: '/admin/lyrics',
-      name: 'admin-lyrics',
-      component: () => import('@/views/admin/AdminLyricsEditorView.vue'),
-      beforeEnter: adminGuard,
-      meta: {
-        title: '歌词编辑 - Neko歌姬计划',
-        description: '以文件管理器方式在线编辑平台歌词文件。',
-        keywords: '歌词编辑,在线编辑,LRC,后台管理'
-      }
-    },
-    {
-      path: '/admin/audit',
-      name: 'admin-audit',
-      component: () => import('@/views/admin/AdminAuditView.vue'),
-      beforeEnter: adminGuard,
-      meta: {
-        title: '审核管理 - Neko歌姬计划',
-        description: '审核用户上传的音乐，管理待审核的免费音乐内容。',
-        keywords: '审核管理,音乐审核,待审核,免费音乐审核'
-      }
-    },
-    {
-      path: '/admin/users',
-      name: 'admin-users',
-      component: () => import('@/views/admin/AdminUsersView.vue'),
-      beforeEnter: adminGuard,
-      meta: {
-        title: '用户管理 - Neko歌姬计划',
-        description: '管理平台免费音乐用户，查看用户信息和统计数据。',
-        keywords: '用户管理,用户统计,免费音乐用户'
-      }
-    },
-    {
-      path: '/admin/vip-pricing',
-      name: 'admin-vip-pricing',
-      component: () => import('@/views/admin/AdminVipPricingView.vue'),
-      beforeEnter: adminGuard,
-      meta: {
-        title: 'VIP 价目 - Neko歌姬计划',
-        description: '管理 VIP 套餐价目表。',
-        keywords: 'VIP,价目,管理'
-      }
-    },
-    {
-      path: '/admin/releases',
-      name: 'admin-releases',
-      component: () => import('@/views/admin/AdminReleasesView.vue'),
-      beforeEnter: adminGuard,
-      meta: {
-        title: '客户端更新 - Neko歌姬计划',
-        description: '管理客户端版本号与安装包上传。',
-        keywords: '客户端,更新,安装包,管理'
-      }
+      component: () => import('@/layouts/AdminLayout.vue'),
+      children: [
+        {
+          path: '',
+          name: 'admin',
+          component: () => import('@/views/admin/AdminView.vue'),
+          beforeEnter: adminGuard,
+          meta: {
+            title: '管理后台 - Neko歌姬计划',
+            description: '管理后台首页，管理免费音乐平台各项功能。',
+            keywords: '管理后台,后台管理'
+          }
+        },
+        {
+          path: 'music',
+          name: 'admin-music',
+          component: () => import('@/views/admin/AdminMusicView.vue'),
+          beforeEnter: adminGuard,
+          meta: {
+            title: '音乐管理 - Neko歌姬计划',
+            description: '管理平台免费音乐资源，上传、编辑、删除免费音乐。',
+            keywords: '音乐管理,音乐上传,免费音乐管理'
+          }
+        },
+        {
+          path: 'lyrics',
+          name: 'admin-lyrics',
+          component: () => import('@/views/admin/AdminLyricsEditorView.vue'),
+          beforeEnter: adminGuard,
+          meta: {
+            title: '歌词编辑 - Neko歌姬计划',
+            description: '以文件管理器方式在线编辑平台歌词文件。',
+            keywords: '歌词编辑,在线编辑,LRC,后台管理'
+          }
+        },
+        {
+          path: 'audit',
+          name: 'admin-audit',
+          component: () => import('@/views/admin/AdminAuditView.vue'),
+          beforeEnter: adminGuard,
+          meta: {
+            title: '审核管理 - Neko歌姬计划',
+            description: '审核用户上传的音乐，管理待审核的免费音乐内容。',
+            keywords: '审核管理,音乐审核,待审核,免费音乐审核'
+          }
+        },
+        {
+          path: 'users',
+          name: 'admin-users',
+          component: () => import('@/views/admin/AdminUsersView.vue'),
+          beforeEnter: adminGuard,
+          meta: {
+            title: '用户管理 - Neko歌姬计划',
+            description: '管理平台免费音乐用户，查看用户信息和统计数据。',
+            keywords: '用户管理,用户统计,免费音乐用户'
+          }
+        },
+        {
+          path: 'vip-pricing',
+          name: 'admin-vip-pricing',
+          component: () => import('@/views/admin/AdminVipPricingView.vue'),
+          beforeEnter: adminGuard,
+          meta: {
+            title: 'VIP 价目 - Neko歌姬计划',
+            description: '管理 VIP 套餐价目表。',
+            keywords: 'VIP,价目,管理'
+          }
+        },
+        {
+          path: 'releases',
+          name: 'admin-releases',
+          component: () => import('@/views/admin/AdminReleasesView.vue'),
+          beforeEnter: adminGuard,
+          meta: {
+            title: '客户端更新 - Neko歌姬计划',
+            description: '管理客户端版本号与安装包上传。',
+            keywords: '客户端,更新,安装包,管理'
+          }
+        },
+      ]
     },
     {
       path: '/detail/:id',
