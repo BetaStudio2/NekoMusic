@@ -1,182 +1,198 @@
 <template>
-  <div class="admin-subpage">
-    <h2>音乐管理</h2>
-    <p>管理平台音乐资源，包括添加、编辑、删除音乐等操作。</p>
-    <div class="admin-controls">
-      <button class="add-btn" @click="showAddForm = true">
-        添加音乐
-      </button>
-    </div>
-    <!-- 添加音乐模态框 -->
-    <Transition name="modal">
-      <div v-if="showAddForm" class="edit-modal-overlay" @click="closeAddModal">
-        <div class="edit-modal edit-modal-wide" @click.stop ref="addModalRef">
-          <div class="modal-header">
-            <h3>添加音乐</h3>
-            <button class="close-btn" @click="closeAddModal">&times;</button>
+  <div class="subpage">
+    <header class="subpage__head">
+      <div>
+        <h1 class="subpage__title">音乐管理</h1>
+        <p class="subpage__desc">管理平台音乐资源，包括添加、编辑、删除音乐等操作。</p>
+      </div>
+      <NButton variant="primary" icon="plus" @click="showAddForm = true">添加音乐</NButton>
+    </header>
+
+    <!-- ==================== 添加音乐 ==================== -->
+    <NModal v-model="showAddForm" title="添加音乐" size="lg" @close="closeAddModal">
+      <div class="grid2">
+        <div class="col">
+          <div class="field">
+            <label class="field__label">音乐文件 <span class="req">*</span></label>
+            <input type="file" class="file" accept=".mp3,.flac,.wav" @change="handleMusicFileChange" />
+            <p v-if="newMusic.fileName" class="field__file">已选择：{{ newMusic.fileName }}</p>
+            <p class="field__hint">支持 MP3 / FLAC / WAV；上传 MP3 会自动解析封面、名称、艺术家与专辑。</p>
           </div>
-          <div class="modal-content horizontal-layout">
-            <div class="form-column left-column">
-              <div class="form-group">
-                <label>🎵 音乐文件 *</label>
-                <input type="file" @change="handleMusicFileChange" accept=".mp3,.flac,.wav" placeholder="请选择音乐文件（MP3/FLAC/WAV）" />
-                <div v-if="newMusic.fileName" class="file-info">已选择: {{ newMusic.fileName }}</div>
-                <div class="form-hint">支持 MP3、FLAC、WAV 格式。上传 MP3 文件后将自动解析封面、音乐名称、艺术家和专辑信息</div>
-              </div>
-              <div class="form-group">
-                <label>🎵 音乐图标</label>
-                <input type="file" @change="handleCoverFileChange" accept="image/*" placeholder="请选择音乐图标文件（可选）" />
-                <div v-if="newMusic.coverFileName" class="file-info">已选择: {{ newMusic.coverFileName }}</div>
-                <div class="form-hint">如果不选择，将使用MP3文件中的封面图</div>
-              </div>
-              <div class="form-group">
-                <label>⏱️ 时长(秒)</label>
-                <input type="number" v-model="newMusic.duration" placeholder="音乐时长(秒)" readonly />
-                <div class="form-hint">自动从MP3文件中读取</div>
-              </div>
-              <div class="form-group">
-                <label>🌐 语言 *</label>
-                <div class="select-wrapper">
-                  <select v-model="newMusic.language" class="styled-select">
-                    <option value="" disabled>请选择语言</option>
-                    <option value="中文">中文</option>
-                    <option value="粤语">粤语</option>
-                    <option value="上海语">上海语</option>
-                    <option value="英文">英文</option>
-                    <option value="日语">日语</option>
-                    <option value="韩语">韩语</option>
-                    <option value="法语">法语</option>
-                    <option value="德语">德语</option>
-                    <option value="俄语">俄语</option>
-                    <option value="纯音乐">纯音乐</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-            <div class="form-column right-column">
-              <div class="form-group">
-                <label>🎵 音乐名称 *</label>
-                <input type="text" v-model="newMusic.title" placeholder="请输入音乐名称" />
-                <div class="form-hint">自动从MP3文件中读取</div>
-              </div>
-              <div class="form-group">
-                <label>🎤 艺术家 *</label>
-                <input type="text" v-model="newMusic.artist" placeholder="请输入艺术家" />
-                <div class="form-hint">自动从MP3文件中读取</div>
-              </div>
-              <div class="form-group">
-                <label>🏷️ 标签</label>
-                <input type="text" v-model="newMusic.tags" placeholder="请输入标签，多个标签用逗号分隔" />
-              </div>
-              <div class="form-group">
-                <label>💿 专辑</label>
-                <input type="text" v-model="newMusic.album" placeholder="请输入专辑" />
-                <div class="form-hint">自动从MP3文件中读取</div>
-              </div>
-              <div class="form-group">
-                <label>📝 歌词文件 *</label>
-                <input type="file" @change="handleLyricsFileChange" accept=".lrc" placeholder="请选择LRC歌词文件" />
-                <div v-if="newMusic.lyricsFileName" class="file-info">已选择: {{ newMusic.lyricsFileName }}</div>
-                <div class="form-hint">请上传 .lrc 格式的歌词文件</div>
-              </div>
-            </div>
+
+          <div class="field">
+            <label class="field__label">音乐图标</label>
+            <input type="file" class="file" accept="image/*" @change="handleCoverFileChange" />
+            <p v-if="newMusic.coverFileName" class="field__file">已选择：{{ newMusic.coverFileName }}</p>
+            <p class="field__hint">不选择时使用音频内嵌封面。</p>
           </div>
-          <div class="form-actions modal-actions">
-            <button class="secondary-btn" @click="closeAddModal">取消</button>
-            <button class="primary-btn" @click="addMusic">添加音乐</button>
+
+          <div class="field">
+            <label class="field__label" for="add-duration">时长（秒）</label>
+            <NInput id="add-duration" v-model="newMusic.duration" type="number" placeholder="音乐时长" readonly />
+            <p class="field__hint">自动从音频文件中读取。</p>
+          </div>
+
+          <div class="field field--last">
+            <label class="field__label" for="add-lang">语言 <span class="req">*</span></label>
+            <select id="add-lang" v-model="newMusic.language" class="select">
+              <option value="" disabled>请选择语言</option>
+              <option value="中文">中文</option>
+              <option value="粤语">粤语</option>
+              <option value="上海语">上海语</option>
+              <option value="英文">英文</option>
+              <option value="日语">日语</option>
+              <option value="韩语">韩语</option>
+              <option value="法语">法语</option>
+              <option value="德语">德语</option>
+              <option value="俄语">俄语</option>
+              <option value="纯音乐">纯音乐</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="col">
+          <div class="field">
+            <label class="field__label" for="add-title">音乐名称 <span class="req">*</span></label>
+            <NInput id="add-title" v-model="newMusic.title" placeholder="请输入音乐名称" />
+            <p class="field__hint">自动从音频文件中读取。</p>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="add-artist">艺术家 <span class="req">*</span></label>
+            <NInput id="add-artist" v-model="newMusic.artist" placeholder="请输入艺术家" />
+            <p class="field__hint">自动从音频文件中读取。</p>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="add-tags">标签</label>
+            <NInput id="add-tags" v-model="newMusic.tags" placeholder="多个标签用逗号分隔" />
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="add-album">专辑</label>
+            <NInput id="add-album" v-model="newMusic.album" placeholder="请输入专辑" />
+            <p class="field__hint">自动从音频文件中读取。</p>
+          </div>
+
+          <div class="field field--last">
+            <label class="field__label">歌词文件 <span class="req">*</span></label>
+            <input type="file" class="file" accept=".lrc" @change="handleLyricsFileChange" />
+            <p v-if="newMusic.lyricsFileName" class="field__file">已选择：{{ newMusic.lyricsFileName }}</p>
+            <p class="field__hint">请上传 .lrc 格式的歌词文件。</p>
           </div>
         </div>
       </div>
-    </Transition>
-    <!-- 编辑音乐悬浮窗 -->
-    <Transition name="modal">
-      <div v-if="editingMusic" class="edit-modal-overlay" @click="closeEditModal">
-        <div class="edit-modal edit-modal-wide" @click.stop ref="editModalRef">
-          <div class="modal-header">
-            <h3>编辑音乐</h3>
-            <button class="close-btn" @click="cancelEdit">&times;</button>
+
+      <template #footer>
+        <NButton variant="ghost" @click="closeAddModal">取消</NButton>
+        <NButton variant="primary" icon="check" @click="addMusic">添加音乐</NButton>
+      </template>
+    </NModal>
+
+    <!-- ==================== 编辑音乐 ==================== -->
+    <NModal
+      :model-value="!!editingMusic"
+      title="编辑音乐"
+      size="lg"
+      @close="closeEditModal"
+    >
+      <div v-if="editingMusic" class="grid2">
+        <div class="col">
+          <div class="field">
+            <label class="field__label">音乐图标</label>
+            <input type="file" class="file" accept="image/*" @change="handleEditCoverFileChange" />
+            <p v-if="editingMusic.coverFileName" class="field__file">已选择：{{ editingMusic.coverFileName }}</p>
+            <p
+              v-else-if="editingMusic.coverUrl && !editingMusic.coverUrl.startsWith('data:image')"
+              class="field__file"
+            >
+              当前图标：{{ editingMusic.coverUrl.split('/').pop() }}
+            </p>
           </div>
-          <div class="modal-content horizontal-layout">
-            <div class="form-column left-column">
-              <div class="form-group">
-                <label>🎵 音乐图标</label>
-                <input type="file" @change="handleEditCoverFileChange" accept="image/*" placeholder="请选择音乐图标文件" />
-                <div v-if="editingMusic.coverFileName" class="file-info">已选择: {{ editingMusic.coverFileName }}</div>
-                <div v-if="editingMusic.coverUrl && !editingMusic.coverFileName && !editingMusic.coverUrl.startsWith('data:image')" class="file-info">当前图标: {{ editingMusic.coverUrl.split('/').pop() }}</div>
-              </div>
-              <div class="form-group">
-                <label>🎵 音乐文件</label>
-                <input type="file" @change="handleEditMusicFileChange" accept=".mp3,.flac,.wav" placeholder="请选择音乐文件（MP3/FLAC/WAV）" />
-                <div v-if="editingMusic.fileName" class="file-info">已选择: {{ editingMusic.fileName }}</div>
-                <div v-if="editingMusic.filePath && !editingMusic.fileName" class="file-info">当前文件: {{ editingMusic.filePath.split('/').pop() }}</div>
-              </div>
-              <div class="form-group">
-                <label>🌐 语言 *</label>
-                <div class="select-wrapper">
-                  <select v-model="editingMusic.language" class="styled-select">
-                    <option value="" disabled>请选择语言</option>
-                    <option value="中文">中文</option>
-                    <option value="粤语">粤语</option>
-                    <option value="上海语">上海语</option>
-                    <option value="英文">英文</option>
-                    <option value="日语">日语</option>
-                    <option value="韩语">韩语</option>
-                    <option value="法语">法语</option>
-                    <option value="德语">德语</option>
-                    <option value="俄语">俄语</option>
-                    <option value="纯音乐">纯音乐</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-            <div class="form-column right-column">
-              <div class="form-group">
-                <label>🎵 音乐名称 *</label>
-                <input type="text" v-model="editingMusic.title" placeholder="请输入音乐名称" />
-              </div>
-              <div class="form-group">
-                <label>🎤 艺术家 *</label>
-                <input type="text" v-model="editingMusic.artist" placeholder="请输入艺术家" />
-              </div>
-              <div class="form-group">
-                <label>🏷️ 标签</label>
-                <input type="text" v-model="editingMusic.tags" placeholder="请输入标签，多个标签用逗号分隔" />
-              </div>
-              <div class="form-group">
-                <label>💿 专辑</label>
-                <input type="text" v-model="editingMusic.album" placeholder="请输入专辑" />
-              </div>
-              <div class="form-group">
-                <label>📝 歌词文件 *</label>
-                <input type="file" @change="handleEditLyricsFileChange" accept=".lrc" placeholder="请选择LRC歌词文件" />
-                <div v-if="editingMusic.lyricsFileName" class="file-info">已选择: {{ editingMusic.lyricsFileName }}</div>
-                <div class="form-hint">请上传 .lrc 格式的歌词文件</div>
-              </div>
-            </div>
+
+          <div class="field">
+            <label class="field__label">音乐文件</label>
+            <input type="file" class="file" accept=".mp3,.flac,.wav" @change="handleEditMusicFileChange" />
+            <p v-if="editingMusic.fileName" class="field__file">已选择：{{ editingMusic.fileName }}</p>
+            <p v-else-if="editingMusic.filePath" class="field__file">
+              当前文件：{{ editingMusic.filePath.split('/').pop() }}
+            </p>
           </div>
-          <div class="form-actions modal-actions">
-            <button class="secondary-btn" @click="cancelEdit">取消</button>
-            <button class="primary-btn" @click="saveEdit">保存更改</button>
+
+          <div class="field field--last">
+            <label class="field__label" for="edit-lang">语言 <span class="req">*</span></label>
+            <select id="edit-lang" v-model="editingMusic.language" class="select">
+              <option value="" disabled>请选择语言</option>
+              <option value="中文">中文</option>
+              <option value="粤语">粤语</option>
+              <option value="上海语">上海语</option>
+              <option value="英文">英文</option>
+              <option value="日语">日语</option>
+              <option value="韩语">韩语</option>
+              <option value="法语">法语</option>
+              <option value="德语">德语</option>
+              <option value="俄语">俄语</option>
+              <option value="纯音乐">纯音乐</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="col">
+          <div class="field">
+            <label class="field__label" for="edit-title">音乐名称 <span class="req">*</span></label>
+            <NInput id="edit-title" v-model="editingMusic.title" placeholder="请输入音乐名称" />
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="edit-artist">艺术家 <span class="req">*</span></label>
+            <NInput id="edit-artist" v-model="editingMusic.artist" placeholder="请输入艺术家" />
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="edit-tags">标签</label>
+            <NInput id="edit-tags" v-model="editingMusic.tags" placeholder="多个标签用逗号分隔" />
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="edit-album">专辑</label>
+            <NInput id="edit-album" v-model="editingMusic.album" placeholder="请输入专辑" />
+          </div>
+
+          <div class="field field--last">
+            <label class="field__label">歌词文件 <span class="req">*</span></label>
+            <input type="file" class="file" accept=".lrc" @change="handleEditLyricsFileChange" />
+            <p v-if="editingMusic.lyricsFileName" class="field__file">已选择：{{ editingMusic.lyricsFileName }}</p>
+            <p class="field__hint">请上传 .lrc 格式的歌词文件。</p>
           </div>
         </div>
       </div>
-    </Transition>
-    <div class="music-list-section">
-      <h3>音乐列表</h3>
-      <div class="search-filter">
-        <input 
-          type="text" 
-          v-model="searchQuery" 
-          @input="updateSearchResults"
-          placeholder="搜索音乐或艺术家..." 
-          class="search-input"
+
+      <template #footer>
+        <NButton variant="ghost" @click="cancelEdit">取消</NButton>
+        <NButton variant="primary" icon="check" @click="saveEdit">保存更改</NButton>
+      </template>
+    </NModal>
+
+    <!-- ==================== 列表 ==================== -->
+    <NCard pad="lg" class="card">
+      <header class="card__head">
+        <h2 class="card__title">音乐列表</h2>
+        <NInput
+          v-model="searchQuery"
+          icon="search"
+          placeholder="搜索音乐或艺术家…"
+          clearable
+          class="card__search"
+          @update:model-value="updateSearchResults"
         />
+      </header>
+
+      <div v-if="isLoading" class="state">
+        <NSpinner :size="26" />
       </div>
-      <div v-if="isLoading" class="loading">
-        <p>正在加载音乐列表...</p>
-      </div>
-      <div v-else class="table-container">
-        <table class="music-table">
+
+      <div v-else class="table-wrap">
+        <table class="table">
           <thead>
             <tr>
               <th>ID</th>
@@ -186,84 +202,89 @@
               <th>专辑</th>
               <th>时长</th>
               <th>上传时间</th>
-              <th>操作</th>
+              <th aria-label="操作" />
             </tr>
           </thead>
           <tbody>
             <tr v-for="music in paginatedMusicList()" :key="music.id">
-              <td>{{ music.id }}</td>
+              <td class="cell-dim">{{ music.id }}</td>
               <td>
-                <div class="cover-cell">
-                  <img 
-                    :src="getCoverUrl(music.id)" 
-                    :alt="music.title"
-                    class="music-cover-table"
-                    @error="handleImageError"
-                  />
-                </div>
+                <img
+                  :src="getCoverUrl(music.id)"
+                  :alt="music.title"
+                  class="cell-cover"
+                  loading="lazy"
+                  @error="handleImageError"
+                />
               </td>
-              <td>{{ music.title }}</td>
+              <td class="cell-strong">{{ music.title }}</td>
               <td>{{ music.artist }}</td>
-              <td>{{ music.album }}</td>
-              <td>{{ formatDuration(music.duration) }}</td>
-              <td>{{ formatDate(music.createdAt) }}</td>
-              <td>
-                <button 
-                  class="action-btn edit-btn" 
-                  @click="editMusic(music)"
+              <td class="cell-dim">{{ music.album }}</td>
+              <td class="cell-dim">{{ formatDuration(music.duration) }}</td>
+              <td class="cell-dim">{{ formatDate(music.createdAt) }}</td>
+              <td class="cell-actions">
+                <NButton
                   v-if="canEditMusic"
+                  size="sm"
+                  variant="secondary"
+                  icon="pencil"
+                  @click="editMusic(music)"
                 >
                   编辑
-                </button>
-                <button 
-                  class="action-btn delete-btn" 
-                  @click="deleteMusic(music.id)"
+                </NButton>
+                <NButton
                   v-if="canDeleteMusic"
+                  size="sm"
+                  variant="danger"
+                  icon="trash-2"
+                  @click="deleteMusic(music.id)"
                 >
                   删除
-                </button>
+                </NButton>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
-      <div v-if="!isLoading && filteredMusicList.length === 0" class="no-data">
-        <p>暂无音乐数据</p>
-      </div>
-      <!-- 分页控件 -->
-      <div v-if="!isLoading && filteredMusicList.length > 0" class="pagination-container">
-        <div class="pagination-info">
-          显示第 {{ (currentPage - 1) * pageSize + 1 }} - {{ Math.min(currentPage * pageSize, filteredMusicList.length) }} 条，共 {{ filteredMusicList.length }} 条
-        </div>
-        <div class="pagination-controls">
-          <button
-            class="pagination-btn"
-            @click="prevPage"
-            :disabled="currentPage === 1"
-          >
+
+      <p v-if="!isLoading && filteredMusicList.length === 0" class="state-empty">
+        <NIcon name="music" :size="22" />
+        暂无音乐数据
+      </p>
+
+      <div v-if="!isLoading && filteredMusicList.length > 0" class="pager">
+        <p class="pager__info">
+          显示第 {{ (currentPage - 1) * pageSize + 1 }} -
+          {{ Math.min(currentPage * pageSize, filteredMusicList.length) }} 条，共
+          {{ filteredMusicList.length }} 条
+        </p>
+        <div class="pager__controls">
+          <NButton size="sm" variant="secondary" :disabled="currentPage === 1" @click="prevPage">
             上一页
-          </button>
-          <div class="pagination-pages">
+          </NButton>
+          <div class="pager__pages">
             <button
               v-for="page in Math.min(totalPages, 5)"
               :key="page"
-              class="pagination-page-btn"
-              :class="{ active: currentPage === getDisplayPage(page) }"
+              type="button"
+              class="pager__page"
+              :class="{ 'pager__page--active': currentPage === getDisplayPage(page) }"
               @click="goToPage(getDisplayPage(page))"
             >
               {{ getDisplayPage(page) }}
             </button>
           </div>
-          <button
-            class="pagination-btn"
-            @click="nextPage"
+          <NButton
+            size="sm"
+            variant="secondary"
             :disabled="currentPage === totalPages"
+            @click="nextPage"
           >
             下一页
-          </button>
+          </NButton>
         </div>
       </div>
-    </div>
+    </NCard>
   </div>
 </template>
 
@@ -271,7 +292,10 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
-import { useToast } from 'vue-toastification'
+import { useToast } from '@/composables/useToast'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NCard, NInput, NModal, NSpinner, NTag } from '@/ui'
+import { PageShell, AmbientBackdrop } from '@/layouts'
 
 const toast = useToast()
 
@@ -1584,818 +1608,283 @@ const handleImageError = (event) => {
 </script>
 
 <style scoped>
-.admin-layout {
+.subpage {
+  width: 100%;
+}
+
+.subpage__head {
   display: flex;
-  min-height: 100vh;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
-}
-
-.admin-main-content {
-  flex: 1;
-  margin-left: 250px; /* 侧边栏宽度 */
-  padding: 20px;
-  transition: margin-left 0.3s ease;
-  min-height: calc(100vh - 40px);
-  display: flex;
-  flex-direction: column;
-}
-
-.admin-header {
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 15px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  margin-bottom: 20px;
-  flex-shrink: 0; /* 防止头部被压缩 */
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.menu-toggle-btn {
-  display: none;
-  background: none;
-  border: none;
-  color: #887bb0;
-  cursor: pointer;
-  padding: 5px;
-  transition: color 0.3s ease;
-}
-
-.menu-toggle-btn:hover {
-  color: #69c8df;
-}
-
-.menu-toggle-btn svg {
-  width: 28px;
-  height: 28px;
-}
-
-.admin-user-info {
-  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
   justify-content: space-between;
-  align-items: center;
-  flex: 1;
+  gap: var(--n-space-4);
+  margin-bottom: var(--n-space-6);
 }
 
-.logout-button {
-  background: linear-gradient(135deg, rgba(220, 20, 60, 0.8), rgba(105, 200, 223, 0.8));
-  color: white;
-  border: none;
-  border-radius: 20px;
-  padding: 8px 16px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 10px rgba(220, 20, 60, 0.3);
+.subpage__title {
+  margin: 0 0 var(--n-space-1);
+  font-size: clamp(1.25rem, 2.6vw, 1.6rem);
+  font-weight: var(--n-weight-bold);
+  letter-spacing: -0.02em;
+  color: var(--n-text);
 }
 
-.logout-button:hover {
-  background: linear-gradient(135deg, rgba(190, 10, 50, 0.9), rgba(235, 79, 51, 0.9));
-  transform: translateY(-2px);
-  box-shadow: 0 6px 15px rgba(220, 20, 60, 0.5);
+.subpage__desc {
+  margin: 0;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
 }
 
-.admin-content-wrapper {
-  flex: 1; /* 让内容区域占据剩余空间 */
-  padding: 0 20px;
-  min-height: calc(100vh - 140px); /* 增加最小高度，考虑头部和边距 */
-  height: auto; /* 允许自适应高度 */
-  overflow: auto; /* 如果内容过多，允许滚动 */
-}
-
-.admin-subpage {
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 15px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-}
-
-.admin-subpage h2 {
-  color: #69c8df;
-  margin: 0 0 20px 0;
-  font-size: 1.5rem;
-}
-
-.admin-controls {
-  margin-bottom: 20px;
+/* ==================== 卡片 ==================== */
+.card__head {
   display: flex;
-  justify-content: flex-end;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--n-space-4);
+  margin-bottom: var(--n-space-5);
 }
 
-.add-btn {
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.8), rgba(105, 200, 223, 0.8));
-  color: white;
-  border: none;
-  border-radius: 20px;
-  padding: 10px 20px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 10px rgba(105, 200, 223, 0.3);
+.card__title {
+  margin: 0;
+  font-size: var(--n-text-md);
+  font-weight: var(--n-weight-semibold);
+  color: var(--n-text);
 }
 
-.add-btn:hover {
-  background: linear-gradient(135deg, rgba(86, 70, 185, 0.9), rgba(118, 23, 206, 0.9));
-  transform: translateY(-2px);
-  box-shadow: 0 6px 15px rgba(105, 200, 223, 0.5);
+.card__search {
+  flex: 1 1 240px;
+  max-width: 340px;
+  min-width: 0;
 }
 
-.add-music-form {
-  background: rgba(255, 255, 255, 0.2);
-  padding: 20px;
-  border-radius: 10px;
-  margin-bottom: 30px;
+.state {
+  display: flex;
+  justify-content: center;
+  padding: var(--n-space-12) 0;
 }
 
-.add-music-form h3 {
-  color: #69c8df;
-  margin: 0 0 15px 0;
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 15px;
-  margin-bottom: 15px;
-}
-
-.form-group {
+.state-empty {
   display: flex;
   flex-direction: column;
-}
-
-.form-group label {
-  margin-bottom: 8px;
-  color: #69c8df;
-  font-weight: 600;
-  display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.95rem;
+  gap: var(--n-space-2);
+  padding: var(--n-space-12) 0;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-sm);
 }
 
-.form-group input {
-  padding: 12px 15px;
-  border: none;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(105, 200, 223, 0.2);
-  color: #333;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.form-group input[type="file"] {
-  padding: 10px;
-  background: rgba(240, 240, 255, 0.4);
-  border: 2px dashed rgba(105, 200, 223, 0.3);
-  cursor: pointer;
-}
-
-.form-group input[type="file"]:hover {
-  background: rgba(230, 230, 250, 0.5);
-  border: 2px dashed rgba(105, 200, 223, 0.5);
-}
-
-.form-group input:focus {
-  outline: none;
-  border: 1px solid rgba(105, 200, 223, 0.5);
-  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.2);
-  background: rgba(255, 255, 255, 0.4);
-}
-
-.form-group input[readonly] {
-  background: rgba(240, 240, 240, 0.5);
-  cursor: not-allowed;
-  color: #666;
-}
-
-.form-group input[readonly]:focus {
-  outline: none;
-  border: 1px solid rgba(200, 200, 200, 0.3);
-  box-shadow: none;
-  background: rgba(240, 240, 240, 0.5);
-}
-
-.form-group textarea {
-  padding: 12px 15px;
-  border: none;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(105, 200, 223, 0.2);
-  color: #333;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  width: 100%;
-  box-sizing: border-box;
-  font-family: inherit;
-  resize: vertical;
-  min-height: 120px;
-}
-
-.form-group textarea:focus {
-  outline: none;
-  border: 1px solid rgba(105, 200, 223, 0.5);
-  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.2);
-  background: rgba(255, 255, 255, 0.4);
-}
-
-.form-hint {
-  font-size: 0.8rem;
-  color: #888;
-  margin-top: 5px;
-  font-style: italic;
-}
-
-.form-group input::file-selector-button {
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.8), rgba(105, 200, 223, 0.8));
-  color: white;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.form-group input::file-selector-button:hover {
-  background: linear-gradient(135deg, rgba(92, 75, 123, 0.9), rgba(122, 91, 192, 0.9));
-  transform: scale(1.05);
-}
-
-.file-info {
-  margin-top: 5px;
-  font-size: 0.85rem;
-  color: #69c8df;
-  padding: 5px;
-  background: rgba(105, 200, 223, 0.1);
-  border-radius: 5px;
-  word-break: break-all;
-}
-
-
-
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.primary-btn {
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.8), rgba(105, 200, 223, 0.8));
-  color: white;
-  border: none;
-  border-radius: 20px;
-  padding: 10px 20px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 10px rgba(105, 200, 223, 0.3);
-}
-
-.primary-btn:hover {
-  background: linear-gradient(135deg, rgba(86, 70, 185, 0.9), rgba(118, 23, 206, 0.9));
-  transform: translateY(-2px);
-  box-shadow: 0 6px 15px rgba(105, 200, 223, 0.5);
-}
-
-.secondary-btn {
-  background: rgba(149, 165, 166, 0.2);
-  color: #7f8c8d;
-  border: none;
-  border-radius: 20px;
-  padding: 10px 20px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 10px rgba(149, 165, 166, 0.3);
-}
-
-.secondary-btn:hover {
-  background: rgba(127, 140, 141, 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 15px rgba(149, 165, 166, 0.5);
-}
-
-.music-list-section {
-  margin-top: 20px;
-}
-
-.music-list-section h3 {
-  color: #69c8df;
-  margin: 0 0 15px 0;
-  font-size: 1.2rem;
-}
-
-.search-filter {
-  margin-bottom: 20px;
-}
-
-.search-input {
-  width: 100%;
-  max-width: 400px;
-  padding: 10px 15px;
-  border: none;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: #333;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-}
-
-.search-input:focus {
-  outline: none;
-  border: 1px solid rgba(105, 200, 223, 0.5);
-  box-shadow: 0 0 0 2px rgba(105, 200, 223, 0.2);
-  background: rgba(255, 255, 255, 0.35);
-}
-
-.table-container {
+/* ==================== 表格 ==================== */
+.table-wrap {
   overflow-x: auto;
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-lg);
+  background: var(--n-surface-sunken);
 }
 
-.music-table {
+.table {
   width: 100%;
   border-collapse: collapse;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-  overflow: hidden;
+  color: var(--n-text);
+  font-size: var(--n-text-sm);
 }
 
-.music-table th,
-.music-table td {
-  padding: 12px 15px;
+.table th,
+.table td {
+  padding: var(--n-space-3) var(--n-space-4);
   text-align: left;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--n-line-subtle);
+  vertical-align: middle;
+  white-space: nowrap;
 }
 
-.music-table th:first-child,
-.music-table td:first-child {
-  text-align: center;
-  width: 80px;
+.table th {
+  background: var(--n-accent-soft);
+  font-weight: var(--n-weight-semibold);
 }
 
-.music-table th {
-  background: rgba(105, 200, 223, 0.3);
-  color: #69c8df;
-  font-weight: 600;
-}
-
-.music-table tr:last-child td {
+.table tbody tr:last-child td {
   border-bottom: none;
 }
 
-.music-table tr:hover {
-  background: rgba(105, 200, 223, 0.1);
-}
-
-.action-btn {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 0.8rem;
-  margin-right: 5px;
-  transition: all 0.3s ease;
-}
-
-.edit-btn {
-  background: rgba(46, 204, 113, 0.2);
-  color: #2ecc71;
-}
-
-.edit-btn:hover {
-  background: rgba(46, 204, 113, 0.3);
-}
-
-.delete-btn {
-  background: rgba(231, 76, 60, 0.2);
-  color: #e74c3c;
-}
-
-.delete-btn:hover {
-  background: rgba(231, 76, 60, 0.3);
-}
-
-.loading {
-  text-align: center;
-  padding: 20px;
-  color: #69c8df;
-  font-size: 1.1rem;
-}
-
-.no-data {
-  text-align: center;
-  padding: 40px;
-  color: #7f8c8d;
-  font-size: 1.1rem;
-}
-
-/* 编辑悬浮窗样式 */
-.edit-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;  /* 改为flex-start，并配合padding-top定位 */
-  padding-top: 5vh;  /* 继续往上移动，从8vh减少到5vh */
-  z-index: 9999;
-}
-
-.edit-modal {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(240, 240, 255, 0.95));
-  border-radius: 20px;
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  min-width: 700px;
-  min-height: 450px;
-  display: flex;
-  flex-direction: column;
-  position: relative; /* 使用相对定位，让其在overlay中居中 */
-  cursor: default;
-  z-index: 10000;
-  overflow: hidden;
-  animation: modalSlideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.edit-modal-wide {
-  width: 750px;
-  max-width: 90vw;
-}
-
-.modal-content.horizontal-layout {
-  display: flex;
-  flex-direction: row;
-  gap: 20px;
-  padding: 25px;
-}
-
-.form-column {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.left-column {
-  border-right: 1px solid rgba(105, 200, 223, 0.2);
-  padding-right: 15px;
-}
-
-.right-column {
-  padding-left: 15px;
-}
-
-@keyframes modalSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-40px) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
+@media (hover: hover) {
+  .table tbody tr:hover td {
+    background: var(--n-surface-soft);
   }
 }
 
-/* Vue过渡动画 */
-.modal-enter-active, .modal-leave-active {
-  transition: opacity 0.3s ease;
+.cell-dim {
+  color: var(--n-text-muted);
 }
 
-.modal-enter-from, .modal-leave-to {
-  opacity: 0;
+.cell-strong {
+  color: var(--n-text);
+  font-weight: var(--n-weight-medium);
 }
 
-.modal-enter-active .edit-modal, .modal-leave-active .edit-modal {
-  transition: transform 0.3s ease;
+.cell-cover {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--n-radius-xs);
+  object-fit: cover;
+  border: 1px solid var(--n-line-subtle);
+  display: block;
 }
 
-.modal-enter-from .edit-modal {
-  transform: scale(0.8);
-}
-
-.modal-leave-to .edit-modal {
-  transform: scale(0.8);
-}
-
-.modal-header {
-  padding: 20px 25px;
-  border-bottom: 1px solid rgba(105, 200, 223, 0.2);
+.cell-actions {
   display: flex;
+  gap: var(--n-space-2);
+}
+
+/* ==================== 分页 ==================== */
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.15), rgba(105, 200, 223, 0.15));
-  border-radius: 20px 20px 0 0;
-  cursor: default; /* 移除拖动光标 */
+  gap: var(--n-space-4);
+  margin-top: var(--n-space-5);
 }
 
-.modal-header h3 {
+.pager__info {
   margin: 0;
-  color: #69c8df;
-  font-size: 1.4rem;
-  font-weight: 600;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.pager__controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--n-space-3);
 }
 
-.modal-header h3::before {
-  content: "🎵";
-  font-size: 1.2rem;
-}
-
-.close-btn {
-  background: rgba(255, 255, 255, 0.3);
-  border: none;
-  color: #69c8df;
-  font-size: 1.6rem;
-  cursor: pointer;
-  width: 36px;
-  height: 36px;
+.pager__pages {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(5px);
+  gap: var(--n-space-1);
 }
 
-.close-btn:hover {
-  background: rgba(231, 76, 60, 0.2);
-  color: #e74c3c;
-  transform: rotate(90deg);
+.pager__page {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: var(--n-radius-xs);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  font-variant-numeric: tabular-nums;
+  transition: background var(--n-duration-fast) var(--n-ease), color var(--n-duration-fast) var(--n-ease);
 }
 
-.modal-content {
-  flex: 1;
+@media (hover: hover) {
+  .pager__page:not(.pager__page--active):hover {
+    background: var(--n-surface-soft);
+    color: var(--n-text);
+  }
 }
 
-.modal-content .form-group {
+.pager__page--active {
+  background: var(--n-accent-soft);
+  color: var(--n-accent-strong);
+  font-weight: var(--n-weight-semibold);
+}
+
+/* ==================== 弹窗表单 ==================== */
+.grid2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0 var(--n-space-6);
+}
+
+.col {
+  min-width: 0;
+}
+
+.field {
+  margin-bottom: var(--n-space-5);
+}
+
+.field--last {
   margin-bottom: 0;
 }
 
-.modal-actions {
-  padding: 20px 25px;
-  border-top: 1px solid rgba(105, 200, 223, 0.15);
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  background: linear-gradient(135deg, rgba(240, 240, 255, 0.3), rgba(230, 230, 250, 0.3));
-  border-radius: 0 0 20px 20px;
+.field__label {
+  display: block;
+  margin-bottom: var(--n-space-2);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-medium);
 }
 
-/* Vue过渡动画 */
-.modal-enter-active, .modal-leave-active {
-  transition: opacity 0.3s ease;
+.req {
+  color: var(--n-danger);
 }
 
-.modal-enter-from, .modal-leave-to {
-  opacity: 0;
+.field__hint {
+  margin: var(--n-space-2) 0 0;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+  line-height: var(--n-leading-normal);
 }
 
-.modal-enter-active .edit-modal, .modal-leave-active .edit-modal {
-  transition: transform 0.3s ease;
+.field__file {
+  margin: var(--n-space-2) 0 0;
+  color: var(--n-accent-strong);
+  font-size: var(--n-text-xs);
+  overflow-wrap: anywhere;
 }
 
-.modal-enter-from .edit-modal {
-  transform: scale(0.8);
-}
-
-.modal-leave-to .edit-modal {
-  transform: scale(0.8);
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .admin-main-content {
-    margin-left: 0;
-    padding: 10px 10px 130px 10px;
-  }
-  
-  .admin-layout {
-    flex-direction: column;
-  }
-  
-  .menu-toggle-btn {
-    display: block;
-  }
-  
-  .admin-header {
-    padding: 15px;
-  }
-  
-  .admin-user-info span {
-    font-size: 0.9rem;
-  }
-  
-  .edit-modal {
-    min-width: 300px;
-    margin: 10px;
-    max-width: calc(100% - 20px);
-  }
-}
-
-/* 美化选择框样式 */
-.select-wrapper {
-  position: relative;
+/* 原生文件选择：统一为圆角一致的容器 */
+.file {
   width: 100%;
-}
-
-.styled-select {
-  width: 100%;
-  padding: 12px 15px;
-  padding-right: 40px; /* 为自定义下拉箭头留出空间 */
-  border: none;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(105, 200, 223, 0.2);
-  color: #333;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  appearance: none; /* 隐藏默认下拉箭头 */
+  padding: var(--n-space-2) var(--n-space-3);
+  border: 1px dashed var(--n-line-strong);
+  border-radius: var(--n-radius-control);
+  background: var(--n-surface-soft);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
   cursor: pointer;
-  box-sizing: border-box;
+  transition: border-color var(--n-duration-fast) var(--n-ease), background var(--n-duration-fast) var(--n-ease);
 }
 
-.styled-select:hover {
-  background: rgba(255, 255, 255, 0.4);
-  border-color: rgba(105, 200, 223, 0.5);
+@media (hover: hover) {
+  .file:hover {
+    border-color: var(--n-accent-line);
+    background: var(--n-surface-hover);
+  }
 }
 
-.styled-select:focus {
+.file::file-selector-button {
+  margin-right: var(--n-space-3);
+  padding: 5px 12px;
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-xs);
+  background: var(--n-surface-hover);
+  color: var(--n-text);
+  font: inherit;
+  font-size: var(--n-text-sm);
+  cursor: pointer;
+}
+
+.select {
+  width: 100%;
+  height: 40px;
+  padding: 0 var(--n-space-4);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-control);
+  background: var(--n-surface-soft);
+  color: var(--n-text);
+  font-size: var(--n-text-base);
   outline: none;
-  border: 1px solid rgba(105, 200, 223, 0.5);
-  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.2);
-  background: rgba(255, 255, 255, 0.4);
+  transition: border-color var(--n-duration-fast) var(--n-ease), box-shadow var(--n-duration-fast) var(--n-ease);
 }
 
-/* 自定义下拉箭头 */
-.select-wrapper::after {
-  content: "▼";
-  position: absolute;
-  top: 50%;
-  right: 15px;
-  transform: translateY(-50%);
-  pointer-events: none; /* 确保箭头不影响点击事件 */
-  color: #69c8df;
-  font-size: 0.7rem;
-  transition: transform 0.3s ease;
+.select:focus {
+  border-color: var(--n-accent-line);
+  box-shadow: var(--n-shadow-glow);
 }
 
-/* 当选择框获得焦点时旋转箭头 */
-.styled-select:focus + .select-wrapper::after {
-  transform: translateY(-50%) rotate(180deg);
-}
-
-/* 封面单元格样式 */
-.cover-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 50px;
-}
-
-.music-cover-table {
-  width: 40px;
-  height: 40px;
-  object-fit: cover;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.no-cover-table {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f0f0f0;
-  border-radius: 4px;
-  color: #999;
-  font-size: 1.2rem;
-}
-
-/* 分页控件样式 */
-.pagination-container {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 20px;
-  padding: 15px 20px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-}
-
-.pagination-info {
-  color: #69c8df;
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-
-.pagination-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.pagination-btn {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 8px;
-  background: rgba(105, 200, 223, 0.2);
-  color: #69c8df;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.3s ease;
-  font-weight: 500;
-}
-
-.pagination-btn:hover:not(:disabled) {
-  background: rgba(105, 200, 223, 0.4);
-  transform: translateY(-2px);
-}
-
-.pagination-btn:disabled {
-  background: rgba(200, 200, 200, 0.2);
-  color: #999;
-  cursor: not-allowed;
-}
-
-.pagination-pages {
-  display: flex;
-  gap: 5px;
-}
-
-.pagination-page-btn {
-  min-width: 36px;
-  height: 36px;
-  padding: 0 12px;
-  border: none;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.3);
-  color: #69c8df;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.3s ease;
-  font-weight: 500;
-}
-
-.pagination-page-btn:hover {
-  background: rgba(105, 200, 223, 0.2);
-  transform: translateY(-2px);
-}
-
-.pagination-page-btn.active {
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.8), rgba(105, 200, 223, 0.8));
-  color: white;
-  box-shadow: 0 4px 10px rgba(105, 200, 223, 0.3);
-}
-
-.pagination-page-btn.active:hover {
-  background: linear-gradient(135deg, rgba(86, 70, 185, 0.9), rgba(118, 23, 206, 0.9));
-  transform: translateY(-2px);
-}
-
-/* 响应式分页 */
-@media (max-width: 768px) {
-  .pagination-container {
-    flex-direction: column;
-    gap: 15px;
-  }
-
-  .pagination-controls {
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  .pagination-info {
-    text-align: center;
-  }
+.select option {
+  background: var(--n-bg-elevated);
+  color: var(--n-text);
 }
 </style>
