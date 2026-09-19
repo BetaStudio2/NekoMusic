@@ -4,13 +4,18 @@
  * ------------------------------------------------------------
  * 排布参考主流音乐 App（ArchoeraMusic 首页范式）：
  *   页头（标题 + 问候） → Hero 横幅 → 动作卡 → 横向封面栏 ×2
+ *
+ * Hero 双态：
+ *  - 已登录且取到每日推荐 → 展示「每日推荐」（2×2 封面拼图 + 播放推荐）
+ *  - 否则 → 展示品牌文案（热门第一首 + 播放热门）
+ *
  * 设计：黑偏青 + 圆角矩形；不使用侧边高亮条与区块级动画渐变。
  * 全局契约：播放经 hash #play / #playlist 驱动 GlobalPlayer（与列表页一致）。
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
-import { NButton, NCard, NTag, NSpinner } from '@/ui'
+import { NButton, NCard, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
 
@@ -23,6 +28,11 @@ const latestLoading = ref(true)
 
 const isLoggedIn = ref(false)
 const username = ref('')
+
+/** 每日推荐（需登录） */
+const dailyList = ref([])
+const dailyDate = ref('')
+
 const syncLoginState = () => {
   isLoggedIn.value = !!localStorage.getItem('userToken')
   try {
@@ -43,11 +53,18 @@ const greeting = computed(() => {
   return '晚上好'
 })
 
+const hasDaily = computed(() => isLoggedIn.value && dailyList.value.length > 0)
+
+/** Hero：优先每日推荐，否则热门第一首 */
+const heroList = computed(() => (hasDaily.value ? dailyList.value : rankingList.value))
+const heroFeature = computed(() => heroList.value[0] || null)
+const heroBackdrop = computed(() => heroFeature.value?.coverUrl || '')
+const dailyMosaic = computed(() => dailyList.value.slice(0, 4))
+
 /** 横向封面栏取前 12 首 */
 const hotList = computed(() => rankingList.value.slice(0, 12))
 const latestGrid = computed(() => latestList.value.slice(0, 12))
-/** Hero 主视觉：热门第一首 */
-const featured = computed(() => rankingList.value[0] || null)
+
 const loadingAll = computed(
   () => (rankingLoading.value || latestLoading.value) && !rankingList.value.length && !latestList.value.length
 )
@@ -101,6 +118,41 @@ const fetchLatest = async () => {
   }
 }
 
+/**
+ * 每日推荐：失败/未登录时静默回退到品牌 Hero，不打扰用户。
+ * 契约：Authorization 传裸 userToken（与其它用户接口一致）。
+ */
+const fetchDaily = async () => {
+  const token = localStorage.getItem('userToken')
+  if (!token) {
+    dailyList.value = []
+    return
+  }
+  try {
+    const res = await fetch(`${API_CONFIG.BASE_URL}/api/user/recommendations/daily`, {
+      headers: { Authorization: token },
+    })
+    if (!res.ok) {
+      dailyList.value = []
+      return
+    }
+    const data = await res.json()
+    if (data.success && Array.isArray(data.data)) {
+      dailyList.value = data.data.map((it) => ({
+        ...it,
+        id: it.musicId,
+        coverUrl: `${API_CONFIG.BASE_URL}/api/music/cover/${it.musicId}`,
+      }))
+      dailyDate.value = data.date || ''
+    } else {
+      dailyList.value = []
+    }
+  } catch (error) {
+    console.error('每日推荐请求失败:', error)
+    dailyList.value = []
+  }
+}
+
 const handleImageError = (event) => {
   event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/0`
 }
@@ -118,22 +170,38 @@ const playMusic = (m) => {
   toast.success(`开始播放：${m.title}`)
 }
 
-const playList = (list) => {
+const playList = (list, label) => {
   if (!list.length) return
   const payload = encodeURIComponent(JSON.stringify(list.map(toTrack)))
   window.location.hash = `#playlist=${payload}&index=0`
-  toast.success(`开始播放 ${list.length} 首`)
+  toast.success(`开始播放${label ? '：' + label : ''} ${list.length} 首`)
+}
+
+const playHero = () => {
+  if (heroFeature.value) playMusic(heroFeature.value)
+}
+
+const playHeroList = () => {
+  playList(heroList.value, hasDaily.value ? '每日推荐' : '热门')
+}
+
+function onStorage() {
+  const wasLoggedIn = isLoggedIn.value
+  syncLoginState()
+  if (isLoggedIn.value && !wasLoggedIn) fetchDaily()
+  if (!isLoggedIn.value) dailyList.value = []
 }
 
 onMounted(() => {
   syncLoginState()
-  window.addEventListener('storage', syncLoginState)
+  window.addEventListener('storage', onStorage)
   fetchRanking()
   fetchLatest()
+  fetchDaily()
 })
 
 onUnmounted(() => {
-  window.removeEventListener('storage', syncLoginState)
+  window.removeEventListener('storage', onStorage)
 })
 </script>
 
@@ -152,9 +220,9 @@ onUnmounted(() => {
     <!-- ==================== Hero 横幅 ==================== -->
     <section class="hero">
       <div
-        v-if="featured"
+        v-if="heroBackdrop"
         class="hero__bg"
-        :style="{ backgroundImage: `url(${featured.coverUrl})` }"
+        :style="{ backgroundImage: `url(${heroBackdrop})` }"
         aria-hidden="true"
       />
       <div class="hero__scrim" aria-hidden="true" />
@@ -162,20 +230,34 @@ onUnmounted(() => {
       <div class="hero__copy">
         <span class="hero__eyebrow">
           <NIcon name="sparkles" :size="14" />
-          开源 · 免费 · 无广告
+          {{ hasDaily ? '每日推荐' : '开源 · 免费 · 无广告' }}
         </span>
-        <h2 class="hero__title">从这里开始听</h2>
-        <p class="hero__lede">
+
+        <h2 class="hero__title">{{ hasDaily ? '今日为你推荐' : '从这里开始听' }}</h2>
+
+        <p v-if="hasDaily" class="hero__lede">
+          根据你的收藏与口味生成，每天 00:00 更新<template v-if="dailyList.length">，共 {{ dailyList.length }} 首</template>。
+        </p>
+        <p v-else class="hero__lede">
           搜索、播放、收藏全站音乐；在客户端还能从
           <strong>网易、QQ、酷狗</strong>
           一键迁入歌单。
         </p>
+
         <div class="hero__actions">
           <NButton
-            v-if="rankingList.length"
+            v-if="hasDaily"
             variant="primary"
             icon="play"
-            @click="playList(rankingList)"
+            @click="playHeroList"
+          >
+            播放推荐
+          </NButton>
+          <NButton
+            v-else-if="rankingList.length"
+            variant="primary"
+            icon="play"
+            @click="playHeroList"
           >
             播放热门
           </NButton>
@@ -186,18 +268,39 @@ onUnmounted(() => {
       </div>
 
       <button
-        v-if="featured"
+        v-if="heroFeature"
         type="button"
         class="hero__feature"
-        :aria-label="`播放 ${featured.title}`"
-        @click="playMusic(featured)"
+        :class="{ 'hero__feature--mosaic': hasDaily }"
+        :aria-label="hasDaily ? '播放每日推荐' : `播放 ${heroFeature.title}`"
+        @click="playHero"
       >
-        <img :src="featured.coverUrl" :alt="featured.title" decoding="async" @error="handleImageError" />
-        <span class="hero__badge"><NIcon name="flame" :size="12" />热度第 1</span>
+        <span v-if="hasDaily" class="hero__mosaic">
+          <img
+            v-for="m in dailyMosaic"
+            :key="m.id"
+            :src="m.coverUrl"
+            :alt="m.title"
+            decoding="async"
+            @error="handleImageError"
+          />
+        </span>
+        <img
+          v-else
+          :src="heroFeature.coverUrl"
+          :alt="heroFeature.title"
+          decoding="async"
+          @error="handleImageError"
+        />
+
+        <span class="hero__badge">
+          <NIcon name="sparkles" :size="12" />
+          {{ hasDaily ? '每日推荐' : '热度第 1' }}
+        </span>
         <span class="hero__play"><NIcon name="play" :size="22" /></span>
         <span class="hero__feature-meta">
-          <span class="hero__feature-title">{{ featured.title }}</span>
-          <span class="hero__feature-artist">{{ featured.artist }}</span>
+          <span class="hero__feature-title">{{ heroFeature.title }}</span>
+          <span class="hero__feature-artist">{{ heroFeature.artist }}</span>
         </span>
       </button>
     </section>
@@ -410,7 +513,7 @@ onUnmounted(() => {
   margin-top: var(--n-space-5);
 }
 
-/* Hero 右侧：热门第一首 */
+/* ==================== Hero 右侧视觉 ==================== */
 .hero__feature {
   position: relative;
   z-index: var(--n-z-content);
@@ -425,7 +528,25 @@ onUnmounted(() => {
   padding: 0;
 }
 
-.hero__feature img {
+.hero__feature > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform var(--n-duration-slow) var(--n-ease);
+}
+
+/* 每日推荐：2×2 拼图 */
+.hero__mosaic {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+}
+
+.hero__mosaic img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -434,8 +555,9 @@ onUnmounted(() => {
 }
 
 @media (hover: hover) {
-  .hero__feature:hover img {
-    transform: scale(1.06);
+  .hero__feature:hover > img,
+  .hero__feature:hover .hero__mosaic img {
+    transform: scale(1.05);
   }
 }
 
