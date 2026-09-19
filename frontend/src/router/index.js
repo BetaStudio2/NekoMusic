@@ -132,7 +132,7 @@ const router = createRouter({
     {
       path: '/login',
       name: 'login',
-      component: () => import('@/views/UserLoginView.vue'),
+      component: () => import('@/views/UserAuthView.vue'),
       meta: {
         title: '用户登录 - Neko歌姬计划 | 免费音乐平台',
         description: '登录您的Neko歌姬计划账户，享受完全免费的个性化音乐服务。无需付费，永久免费。',
@@ -142,7 +142,7 @@ const router = createRouter({
     {
       path: '/register',
       name: 'register',
-      component: () => import('@/views/UserRegisterView.vue'),
+      component: () => import('@/views/UserAuthView.vue'),
       meta: {
         title: '用户注册 - Neko歌姬计划 | 免费音乐平台',
         description: '注册Neko歌姬计划账户，开启您的免费音乐之旅。完全免费，无需付费，永久免费。',

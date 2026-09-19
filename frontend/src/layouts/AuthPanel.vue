@@ -1,108 +1,185 @@
 <template>
-  <AmbientBackdrop />
 
-  <PageShell width="narrow" centered>
-    <div class="auth">
-      <span class="auth__glow" aria-hidden="true" />
+  <div class="auth" :class="{ 'auth--ready': animReady }">
+    <span class="auth__glow" aria-hidden="true" />
 
-      <div class="auth__card">
-        <header class="auth__head">
-          <div class="auth__logo">
-            <NIcon name="user-plus" :size="26" />
-          </div>
+    <div class="auth__card">
+      <!-- Logo（切换时重放入场动画） -->
+      <header class="auth__head">
+        <div :key="activeTab" class="auth__logo">
+          <NIcon :name="activeTab === 'login' ? 'cat' : 'user-plus'" :size="26" />
+        </div>
+      </header>
+
+      <!-- 切换标签 -->
+      <div class="auth__tabs" role="tablist" aria-label="登录或注册">
+        <span
+          class="auth__tabs-pill"
+          :class="{ 'auth__tabs-pill--right': activeTab === 'register' }"
+          aria-hidden="true"
+        />
+        <button
+          type="button"
+          role="tab"
+          class="auth__tab"
+          :class="{ 'auth__tab--active': activeTab === 'login' }"
+          :aria-selected="activeTab === 'login'"
+          @click="switchTab('login')"
+        >
+          登录
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="auth__tab"
+          :class="{ 'auth__tab--active': activeTab === 'register' }"
+          :aria-selected="activeTab === 'register'"
+          @click="switchTab('register')"
+        >
+          注册
+        </button>
+      </div>
+
+      <!-- 面板容器：高度过渡 + 淡入淡出 -->
+      <div
+        class="auth__panels"
+        :class="{ 'auth__panels--transitioning': transitioning }"
+        :style="{ height: panelHeight }"
+      >
+        <!-- 登录 -->
+        <div
+          ref="loginPanel"
+          class="auth__panel"
+          :class="{ 'auth__panel--hidden': activeTab !== 'login' }"
+          :inert="activeTab !== 'login'"
+        >
+          <h1 class="auth__title">登录 Neko歌姬计划</h1>
+          <p class="auth__subtitle">请输入您的凭据</p>
+
+          <form class="auth__form" @submit.prevent="handleLogin">
+            <div class="auth__field">
+              <label class="auth__label" for="login-email">邮箱</label>
+              <NInput
+                id="login-email"
+                v-model="loginEmail"
+                icon="mail"
+                placeholder="输入邮箱"
+                autocomplete="username"
+              />
+            </div>
+            <div class="auth__field">
+              <label class="auth__label" for="login-password">密码</label>
+              <NInput
+                id="login-password"
+                v-model="loginPassword"
+                type="password"
+                icon="lock"
+                placeholder="输入密码"
+                autocomplete="current-password"
+              />
+            </div>
+
+            <p class="auth__error" role="alert">{{ loginError || '\u00A0' }}</p>
+
+            <NButton type="submit" variant="primary" size="lg" block :loading="loginLoading">
+              登录
+            </NButton>
+          </form>
+
+          <p class="auth__link-row">
+            <RouterLink to="/forgot-password" class="auth__link">
+              <NIcon name="key" :size="14" />
+              忘记密码？
+            </RouterLink>
+          </p>
+        </div>
+
+        <!-- 注册 -->
+        <div
+          ref="registerPanel"
+          class="auth__panel"
+          :class="{ 'auth__panel--hidden': activeTab !== 'register' }"
+          :inert="activeTab !== 'register'"
+        >
           <h1 class="auth__title">注册 Neko歌姬计划</h1>
           <p class="auth__subtitle">创建账户，开始收藏与整理你的音乐</p>
-        </header>
 
-        <form class="auth__body" @submit.prevent="handleRegister">
-          <div class="auth__field">
-            <label class="auth__label" for="regUsername">用户名</label>
-            <NInput
-              id="regUsername"
-              v-model="username"
-              icon="user"
-              placeholder="用户名"
-              autocomplete="username"
-              required
-            />
-          </div>
-
-          <div class="auth__field">
-            <label class="auth__label" for="regEmail">邮箱</label>
-            <NInput
-              id="regEmail"
-              v-model="email"
-              type="email"
-              icon="mail"
-              placeholder="邮箱"
-              autocomplete="email"
-              required
-            />
-          </div>
-
-          <div class="auth__field">
-            <label class="auth__label" for="regCode">邮箱验证码</label>
-            <div class="auth__code">
+          <form class="auth__form" @submit.prevent="handleRegister">
+            <div class="auth__field">
+              <label class="auth__label" for="reg-username">用户名</label>
               <NInput
-                id="regCode"
-                v-model="verificationCode"
-                icon="shield-check"
-                placeholder="验证码"
-                maxlength="6"
-                required
+                id="reg-username"
+                v-model="username"
+                icon="user"
+                placeholder="用户名"
+                autocomplete="username"
               />
-              <NButton
-                variant="secondary"
-                :disabled="codeSending || countdown > 0 || captchaModalOpen"
-                @click="sendVerificationCode"
-              >
-                {{ codeBtnText }}
-              </NButton>
             </div>
-          </div>
+            <div class="auth__field">
+              <label class="auth__label" for="reg-email">邮箱</label>
+              <NInput
+                id="reg-email"
+                v-model="email"
+                type="email"
+                icon="mail"
+                placeholder="邮箱"
+                autocomplete="email"
+              />
+            </div>
+            <div class="auth__field">
+              <label class="auth__label" for="reg-code">邮箱验证码</label>
+              <div class="auth__code">
+                <NInput
+                  id="reg-code"
+                  v-model="verificationCode"
+                  icon="shield-check"
+                  placeholder="验证码"
+                  maxlength="6"
+                />
+                <NButton
+                  variant="secondary"
+                  :disabled="codeSending || countdown > 0 || captchaModalOpen"
+                  @click="sendVerificationCode"
+                >
+                  {{ codeBtnText }}
+                </NButton>
+              </div>
+            </div>
+            <div class="auth__field">
+              <label class="auth__label" for="reg-password">密码</label>
+              <NInput
+                id="reg-password"
+                v-model="password"
+                type="password"
+                icon="lock"
+                placeholder="至少 6 位"
+                autocomplete="new-password"
+              />
+            </div>
+            <div class="auth__field">
+              <label class="auth__label" for="reg-confirm">确认密码</label>
+              <NInput
+                id="reg-confirm"
+                v-model="confirmPassword"
+                type="password"
+                icon="lock"
+                placeholder="再次输入密码"
+                autocomplete="new-password"
+              />
+            </div>
 
-          <div class="auth__field">
-            <label class="auth__label" for="regPassword">密码</label>
-            <NInput
-              id="regPassword"
-              v-model="password"
-              type="password"
-              icon="lock"
-              placeholder="密码"
-              autocomplete="new-password"
-              required
-            />
-          </div>
+            <p class="auth__error" role="alert">{{ regError || '\u00A0' }}</p>
 
-          <div class="auth__field">
-            <label class="auth__label" for="regConfirm">确认密码</label>
-            <NInput
-              id="regConfirm"
-              v-model="confirmPassword"
-              type="password"
-              icon="lock"
-              placeholder="确认密码"
-              autocomplete="new-password"
-              required
-            />
-          </div>
-
-          <NButton type="submit" variant="primary" size="lg" block :loading="loading">
-            注册
-          </NButton>
-        </form>
-
-        <div class="auth__divider"><span>或</span></div>
-
-        <footer class="auth__foot">
-          <NButton variant="secondary" size="lg" block icon="login" to="/login">
-            已有账户，去登录
-          </NButton>
-        </footer>
+            <NButton type="submit" variant="primary" size="lg" block :loading="loading">
+              注册
+            </NButton>
+          </form>
+        </div>
       </div>
     </div>
-  </PageShell>
+  </div>
 
+  <!-- 滑块验证码（仅注册流程使用） -->
   <Teleport to="body">
     <Transition name="captcha-modal">
       <div
@@ -111,7 +188,9 @@
         @click.self="closeCaptchaModal"
       >
         <div class="captcha-modal-card" role="dialog" aria-modal="true" aria-labelledby="captcha-modal-title" @click.stop>
-          <button type="button" class="captcha-modal-close" aria-label="关闭" @click="closeCaptchaModal">×</button>
+          <button type="button" class="captcha-modal-close" aria-label="关闭" @click="closeCaptchaModal">
+            <NIcon name="close" :size="18" />
+          </button>
           <h3 id="captcha-modal-title" class="captcha-modal-title">安全验证</h3>
           <p class="captcha-modal-desc">请拖动下方滑轨对齐拼图，验证通过后将向你的邮箱发送验证码。</p>
           <div class="form-group slider-block captcha-modal-slider">
@@ -122,10 +201,7 @@
             </div>
             <template v-else>
               <div class="slider-challenge-panel">
-                <div
-                  class="slider-captcha-wrap"
-                  :class="{ 'slider-captcha-wrap--shake': shakeActive }"
-                >
+                <div class="slider-captcha-wrap" :class="{ 'slider-captcha-wrap--shake': shakeActive }">
                   <div
                     class="slider-stage"
                     :class="{ 'slider-stage--checking': slideState === 'checking' }"
@@ -137,11 +213,7 @@
                       alt=""
                       class="slider-piece-img"
                       draggable="false"
-                      :style="{
-                        width: sliderW + 'px',
-                        left: sliderX + 'px',
-                        top: puzzleY + 'px'
-                      }"
+                      :style="{ width: sliderW + 'px', left: sliderX + 'px', top: puzzleY + 'px' }"
                     />
                   </div>
                   <div
@@ -189,19 +261,146 @@
     </Transition>
   </Teleport>
 </template>
-
 <script setup>
-import { ref, computed, nextTick, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+/**
+ * AuthPanel —— 登录 / 注册合一卡片
+ * ------------------------------------------------------------
+ * 交互参考 WebWord：同一张卡片内切换，容器高度过渡 + 面板淡入淡出。
+ * 使用自己的设计语言（黑偏青 + 圆角矩形 + 令牌）。
+ *
+ * 路由：/login 与 /register 共用同一个视图组件，切换时只更新 URL 不重挂，
+ * 因此过渡动画不会被路由切换打断。
+ *
+ * 契约（与拆分版一致）：
+ *  登录 POST /api/user/login
+ *  注册 POST /api/user/register
+ *  验证码 GET /api/captcha/slider、POST /api/captcha/slider/verify、POST /api/user/send-verification
+ */
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
-import { useToast } from '@/composables/useToast'
+import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NInput } from '@/ui'
-import { PageShell, AmbientBackdrop } from '@/layouts'
-import API_CONFIG from "@/config/apiConfig.js";
+import { useToast } from '@/composables/useToast'
+
+const props = defineProps({
+  /** 初始面板：login | register（由路由决定） */
+  initialTab: {
+    type: String,
+    default: 'login',
+    validator: (v) => ['login', 'register'].includes(v),
+  },
+})
 
 const toast = useToast()
+const route = useRoute()
 const router = useRouter()
+
+/* ==================================================================
+   面板切换（高度过渡 + 淡入淡出）
+   ================================================================== */
+const activeTab = ref(props.initialTab)
+const transitioning = ref(false)
+const animReady = ref(false)
+const panelHeight = ref('auto')
+const loginPanel = ref(null)
+const registerPanel = ref(null)
+
+function measurePanel() {
+  nextTick(() => {
+    const el = activeTab.value === 'login' ? loginPanel.value : registerPanel.value
+    if (el) panelHeight.value = `${el.offsetHeight}px`
+  })
+}
+
+function switchTab(tab) {
+  if (tab === activeTab.value || transitioning.value) return
+  loginError.value = ''
+  regError.value = ''
+  transitioning.value = true
+  window.setTimeout(() => {
+    activeTab.value = tab
+    const target = tab === 'login' ? '/login' : '/register'
+    if (route.path !== target) router.replace(target)
+    measurePanel()
+    window.setTimeout(() => {
+      transitioning.value = false
+    }, 60)
+  }, 180)
+}
+
+// 浏览器前进/后退时同步面板
+watch(
+  () => props.initialTab,
+  (tab) => {
+    if (tab !== activeTab.value && !transitioning.value) {
+      activeTab.value = tab
+      measurePanel()
+    }
+  }
+)
+
+/* ==================================================================
+   登录
+   ================================================================== */
+const loginEmail = ref('')
+const loginPassword = ref('')
+const loginLoading = ref(false)
+const loginError = ref('')
+
+async function handleLogin() {
+  if (loginLoading.value) return
+  loginError.value = ''
+
+  if (!loginEmail.value.trim()) {
+    loginError.value = '请输入邮箱'
+    return
+  }
+  if (!loginPassword.value) {
+    loginError.value = '请输入密码'
+    return
+  }
+
+  loginLoading.value = true
+  try {
+    const response = await axios.post(`${API_CONFIG.BASE_URL}/api/user/login`, {
+      username: loginEmail.value,
+      password: loginPassword.value,
+    })
+
+    if (response.data.success) {
+      toast.success('登录成功')
+      const previousToken = localStorage.getItem('userToken')
+      localStorage.setItem('userToken', response.data.data.token)
+      localStorage.setItem('user', JSON.stringify(response.data.data.user))
+
+      if (!previousToken) {
+        window.dispatchEvent(
+          new StorageEvent('storage', {
+            key: 'userToken',
+            oldValue: null,
+            newValue: response.data.data.token,
+          })
+        )
+      }
+      router.push('/')
+    } else {
+      loginError.value = response.data.message || '登录失败'
+      toast.error(loginError.value)
+    }
+  } catch (err) {
+    console.error('登录失败:', err)
+    loginError.value = err.response ? err.response.data.message || '登录失败' : '网络错误，请检查服务器连接'
+    toast.error(loginError.value)
+  } finally {
+    loginLoading.value = false
+  }
+}
+
+/* ==================================================================
+   注册
+   ================================================================== */
 const username = ref('')
 const email = ref('')
 const password = ref('')
@@ -212,14 +411,14 @@ const codeSending = ref(false)
 const countdown = ref(0)
 const countdownInterval = ref(null)
 const captchaModalOpen = ref(false)
+const regError = ref('')
 
-/** 滑块：弹窗内 GET 挑战 → 松手 POST /api/captcha/slider/verify → captchaPassToken → 发送邮箱验证码时消费 */
+/* --- 滑块验证码 --- */
 const captchaLoading = ref(true)
 const captchaError = ref('')
 const captchaToken = ref('')
 const captchaPassToken = ref('')
-/** idle | dragging | checking | fail */
-const slideState = ref('idle')
+const slideState = ref('idle') // idle | dragging | checking | fail
 const shakeActive = ref(false)
 const bgImageUrl = ref('')
 const sliderImageUrl = ref('')
@@ -236,17 +435,10 @@ const railRef = ref(null)
 let dragPointerOffset = 0
 let railDragging = false
 let verifyAbort = null
-/** 点击轨道后等待松手校验的一次性监听，关闭弹窗时必须移除 */
 let railTrackReleaseHandler = null
 
-const maxSliderX = computed(() =>
-  Math.max(0, bgWidth.value - sliderW.value)
-)
-
-const thumbMaxTravel = computed(() =>
-  Math.max(0, bgWidth.value - railThumbW)
-)
-
+const maxSliderX = computed(() => Math.max(0, bgWidth.value - sliderW.value))
+const thumbMaxTravel = computed(() => Math.max(0, bgWidth.value - railThumbW))
 const thumbDisplayX = computed(() => {
   if (maxSliderX.value <= 0) return 0
   return Math.round((sliderX.value / maxSliderX.value) * thumbMaxTravel.value)
@@ -264,6 +456,8 @@ const slideStatusText = computed(() => {
       return '拖动下方滑轨对齐拼图，松开即可完成校验'
   }
 })
+
+const codeBtnText = computed(() => (countdown.value > 0 ? `${countdown.value}秒后重发` : '获取验证码'))
 
 function setSliderXFromThumbLeft(leftPx) {
   const tm = thumbMaxTravel.value
@@ -290,10 +484,7 @@ async function scheduleSlideVerify() {
   try {
     const { data } = await axios.post(
       `${API_CONFIG.BASE_URL}/api/captcha/slider/verify`,
-      {
-        captchaToken: captchaToken.value,
-        captchaOffsetX: sliderX.value
-      },
+      { captchaToken: captchaToken.value, captchaOffsetX: sliderX.value },
       { signal: ac.signal }
     )
     if (ac.signal.aborted) return
@@ -329,7 +520,7 @@ async function scheduleSlideVerify() {
   }
 }
 
-const onThumbPointerMove = (e) => {
+function onThumbPointerMove(e) {
   if (!railDragging) return
   if (slideState.value === 'checking') return
   const rail = railRef.value?.getBoundingClientRect()
@@ -345,14 +536,14 @@ function detachThumbRailListeners() {
   railDragging = false
 }
 
-const onThumbPointerUp = () => {
+function onThumbPointerUp() {
   if (!railDragging) return
   detachThumbRailListeners()
   slideState.value = 'idle'
   scheduleSlideVerify()
 }
 
-const onThumbPointerDown = (e) => {
+function onThumbPointerDown(e) {
   if (slideState.value === 'checking') return
   if (e.button != null && e.button !== 0) return
   invalidateSlidePass()
@@ -371,15 +562,14 @@ const onThumbPointerDown = (e) => {
   window.addEventListener('pointercancel', onThumbPointerUp)
 }
 
-const onRailTrackPointerDown = (e) => {
+function onRailTrackPointerDown(e) {
   if (slideState.value === 'checking') return
   if (e.target.closest('.slider-rail-thumb')) return
   invalidateSlidePass()
   const rail = railRef.value?.getBoundingClientRect()
   if (!rail) return
   const x = e.clientX - rail.left
-  const leftPx = x - railThumbW / 2
-  setSliderXFromThumbLeft(leftPx)
+  setSliderXFromThumbLeft(x - railThumbW / 2)
   if (railTrackReleaseHandler) {
     window.removeEventListener('pointerup', railTrackReleaseHandler)
     window.removeEventListener('pointercancel', railTrackReleaseHandler)
@@ -395,7 +585,7 @@ const onRailTrackPointerDown = (e) => {
   window.addEventListener('pointercancel', railTrackReleaseHandler)
 }
 
-const loadSliderCaptcha = async () => {
+async function loadSliderCaptcha() {
   verifyAbort?.abort()
   verifyAbort = null
   captchaLoading.value = true
@@ -454,7 +644,7 @@ async function sendVerificationWithCaptcha() {
     const response = await axios.post(`${API_CONFIG.BASE_URL}/api/user/send-verification`, {
       email: email.value,
       username: username.value || '用户',
-      captchaPassToken: token
+      captchaPassToken: token,
     })
     if (response.data.success) {
       toast.success('验证码已发送至您的邮箱')
@@ -466,37 +656,15 @@ async function sendVerificationWithCaptcha() {
     }
   } catch (error) {
     console.error('发送验证码失败:', error)
-    if (error.response) {
-      toast.error(error.response.data?.message || '发送验证码失败')
-    } else {
-      toast.error('网络错误，请检查服务器连接')
-    }
+    toast.error(error.response ? error.response.data?.message || '发送验证码失败' : '网络错误，请检查服务器连接')
     await loadSliderCaptcha()
   } finally {
     codeSending.value = false
-    if (captchaModalOpen.value) {
-      slideState.value = 'idle'
-    }
+    if (captchaModalOpen.value) slideState.value = 'idle'
   }
 }
 
-onUnmounted(() => {
-  detachThumbRailListeners()
-  if (railTrackReleaseHandler) {
-    window.removeEventListener('pointerup', railTrackReleaseHandler)
-    window.removeEventListener('pointercancel', railTrackReleaseHandler)
-    railTrackReleaseHandler = null
-  }
-  verifyAbort?.abort()
-})
-
-// 验证码按钮文字
-const codeBtnText = computed(() => {
-  return countdown.value > 0 ? `${countdown.value}秒后重发` : '获取验证码'
-})
-
-// 发送验证码：先打开弹窗完成滑块，再请求邮件
-const sendVerificationCode = () => {
+function sendVerificationCode() {
   if (!email.value) {
     toast.error('请先输入邮箱地址')
     return
@@ -508,26 +676,39 @@ const sendVerificationCode = () => {
   }
   if (countdown.value > 0 || codeSending.value) return
   captchaModalOpen.value = true
-  nextTick(() => {
-    loadSliderCaptcha()
-  })
+  nextTick(loadSliderCaptcha)
 }
 
-// 开始倒计时
-const startCountdown = () => {
+function startCountdown() {
   countdown.value = 60
   countdownInterval.value = setInterval(() => {
     countdown.value--
-    if (countdown.value <= 0) {
-      clearInterval(countdownInterval.value)
-    }
+    if (countdown.value <= 0) clearInterval(countdownInterval.value)
   }, 1000)
 }
 
-// 处理注册逻辑
-const handleRegister = async () => {
+async function handleRegister() {
+  regError.value = ''
+
+  if (!username.value.trim()) {
+    regError.value = '请输入用户名'
+    return
+  }
+  if (!email.value.trim()) {
+    regError.value = '请输入邮箱'
+    return
+  }
+  if (!verificationCode.value.trim()) {
+    regError.value = '请输入验证码'
+    return
+  }
+  if (password.value.length < 6) {
+    regError.value = '密码至少 6 位'
+    return
+  }
   if (password.value !== confirmPassword.value) {
-    toast.error('两次输入的密码不一致')
+    regError.value = '两次输入的密码不一致'
+    toast.error(regError.value)
     return
   }
 
@@ -537,34 +718,329 @@ const handleRegister = async () => {
       username: username.value,
       email: email.value,
       password: password.value,
-      verificationCode: verificationCode.value
+      verificationCode: verificationCode.value,
     })
 
     if (response.data.success) {
       toast.success('注册成功！请登录您的账户。')
-      router.push('/login')
+      loginEmail.value = email.value
+      switchTab('login')
     } else {
-      toast.error(response.data.message || '注册失败')
+      regError.value = response.data.message || '注册失败'
+      toast.error(regError.value)
     }
   } catch (error) {
     console.error('注册失败:', error)
-    if (error.response) {
-      toast.error(error.response.data.message || '注册失败')
-    } else {
-      toast.error('网络错误，请检查服务器连接')
-    }
+    regError.value = error.response ? error.response.data.message || '注册失败' : '网络错误，请检查服务器连接'
+    toast.error(regError.value)
   } finally {
     loading.value = false
   }
 }
 
-// 跳转到登录页面
-const goToLogin = () => {
-  router.push('/login')
-}
+/* ==================================================================
+   生命周期
+   ================================================================== */
+onMounted(() => {
+  measurePanel()
+  window.setTimeout(() => {
+    animReady.value = true
+  }, 60)
+  window.addEventListener('resize', measurePanel)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', measurePanel)
+  if (countdownInterval.value) clearInterval(countdownInterval.value)
+  detachThumbRailListeners()
+  if (railTrackReleaseHandler) {
+    window.removeEventListener('pointerup', railTrackReleaseHandler)
+    window.removeEventListener('pointercancel', railTrackReleaseHandler)
+    railTrackReleaseHandler = null
+  }
+  verifyAbort?.abort()
+})
 </script>
 
 <style scoped>
+/* ==================== 容器 ==================== */
+.auth {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+}
+
+.auth__glow {
+  position: absolute;
+  inset: -14% -10%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, rgba(95, 208, 224, 0.22), transparent 62%);
+  filter: blur(48px);
+  pointer-events: none;
+  z-index: -1;
+  animation: authGlow 8s var(--n-ease-in-out) infinite;
+}
+
+@keyframes authGlow {
+  0%,
+  100% { opacity: 0.75; }
+  50% { opacity: 1; }
+}
+
+.auth__card {
+  position: relative;
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-xl);
+  background: var(--n-surface-strong);
+  backdrop-filter: var(--n-blur);
+  -webkit-backdrop-filter: var(--n-blur);
+  box-shadow: var(--n-shadow-lg);
+  overflow: hidden;
+  animation: authCardIn 0.5s var(--n-ease) both;
+}
+
+@keyframes authCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.auth__card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--n-accent-line), transparent);
+}
+
+/* ==================== Logo ==================== */
+.auth__head {
+  display: flex;
+  justify-content: center;
+  padding: var(--n-space-8) var(--n-space-8) 0;
+}
+
+.auth__logo {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--n-radius);
+  background: linear-gradient(135deg, var(--n-accent-strong), var(--n-accent));
+  color: var(--n-text-inverse);
+  box-shadow: 0 8px 26px rgba(95, 208, 224, 0.3);
+  animation: authLogoIn 0.45s var(--n-ease) both;
+}
+
+@keyframes authLogoIn {
+  from {
+    opacity: 0;
+    transform: scale(0.82) rotate(-6deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ==================== 切换标签 ==================== */
+.auth__tabs {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  margin: var(--n-space-5) var(--n-space-8) 0;
+  padding: 4px;
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-control);
+  background: var(--n-surface-soft);
+}
+
+.auth__tabs-pill {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  border-radius: var(--n-radius-xs);
+  background: var(--n-accent-soft);
+  border: 1px solid var(--n-accent-line);
+  transition: transform var(--n-duration) var(--n-ease);
+}
+
+.auth__tabs-pill--right {
+  transform: translateX(100%);
+}
+
+.auth__tab {
+  position: relative;
+  z-index: 1;
+  padding: 9px var(--n-space-4);
+  border-radius: var(--n-radius-xs);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-semibold);
+  transition: color var(--n-duration-fast) var(--n-ease);
+}
+
+@media (hover: hover) {
+  .auth__tab:not(.auth__tab--active):hover {
+    color: var(--n-text);
+  }
+}
+
+.auth__tab--active {
+  color: var(--n-accent-strong);
+}
+
+/* ==================== 面板容器（高度过渡） ==================== */
+.auth__panels {
+  position: relative;
+  overflow: hidden;
+}
+
+.auth--ready .auth__panels {
+  transition: height 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.auth__panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: var(--n-space-6) var(--n-space-8) var(--n-space-8);
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.22s var(--n-ease), transform 0.22s var(--n-ease);
+}
+
+.auth__panel--hidden {
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+}
+
+/* 切换中：先整体淡出，再切面板并淡入（与高度过渡错开） */
+.auth__panels--transitioning .auth__panel {
+  opacity: 0;
+}
+
+/* ==================== 面板内容 ==================== */
+.auth__title {
+  margin: 0 0 var(--n-space-1);
+  text-align: center;
+  font-size: var(--n-text-lg);
+  font-weight: var(--n-weight-bold);
+  letter-spacing: -0.02em;
+  background: var(--n-gradient-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.auth__subtitle {
+  margin: 0 0 var(--n-space-6);
+  text-align: center;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+}
+
+.auth__form {
+  display: flex;
+  flex-direction: column;
+}
+
+.auth__field {
+  margin-bottom: var(--n-space-4);
+}
+
+.auth__label {
+  display: block;
+  margin-bottom: var(--n-space-2);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-medium);
+}
+
+/* 固定高度，避免出错时卡片高度跳动 */
+.auth__error {
+  min-height: 18px;
+  margin: 0 0 var(--n-space-3);
+  color: var(--n-danger);
+  font-size: var(--n-text-xs);
+  text-align: center;
+}
+
+.auth__code {
+  display: flex;
+  gap: var(--n-space-3);
+}
+
+.auth__code :deep(.n-input) {
+  flex: 1;
+  min-width: 0;
+}
+
+.auth__code :deep(.n-btn) {
+  flex: none;
+  white-space: nowrap;
+}
+
+.auth__link-row {
+  margin: var(--n-space-5) 0 0;
+  text-align: center;
+}
+
+.auth__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-medium);
+}
+
+@media (hover: hover) {
+  .auth__link:hover {
+    color: var(--n-accent-strong);
+  }
+}
+
+/* 验证码弹窗内的 form-group 仅作占位 */
+.form-group {
+  margin: 0;
+}
+
+@media (max-width: 560px) {
+  .auth__code {
+    flex-direction: column;
+  }
+
+  .auth__code :deep(.n-btn) {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth__card,
+  .auth__logo,
+  .auth__glow {
+    animation: none;
+  }
+
+  .auth--ready .auth__panels,
+  .auth__tabs-pill,
+  .auth__panel {
+    transition: none;
+  }
+}
+
+/* ==================== 滑块验证码（沿用原实现，仅配色改为令牌版） ==================== */
 .captcha-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -1002,178 +1478,4 @@ const goToLogin = () => {
 
 
 /* ==================== 页面卡片（与登录页一致） ==================== */
-.auth {
-  position: relative;
-  width: 100%;
-  max-width: 420px;
-}
-
-.auth__glow {
-  position: absolute;
-  inset: -14% -10%;
-  border-radius: 50%;
-  background: radial-gradient(circle at 50% 40%, rgba(95, 208, 224, 0.22), transparent 62%);
-  filter: blur(48px);
-  pointer-events: none;
-  z-index: -1;
-  animation: authGlow 8s var(--n-ease-in-out) infinite;
-}
-
-@keyframes authGlow {
-  0%,
-  100% { opacity: 0.75; }
-  50% { opacity: 1; }
-}
-
-.auth__card {
-  position: relative;
-  border: 1px solid var(--n-line);
-  border-radius: var(--n-radius-xl);
-  background: var(--n-surface-strong);
-  backdrop-filter: var(--n-blur);
-  -webkit-backdrop-filter: var(--n-blur);
-  box-shadow: var(--n-shadow-lg);
-  overflow: hidden;
-  animation: authCardIn 0.5s var(--n-ease) both;
-}
-
-@keyframes authCardIn {
-  from {
-    opacity: 0;
-    transform: translateY(14px) scale(0.985);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-.auth__card::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--n-accent-line), transparent);
-}
-
-.auth__head {
-  padding: var(--n-space-8) var(--n-space-8) 0;
-  text-align: center;
-}
-
-.auth__logo {
-  display: grid;
-  place-items: center;
-  width: 56px;
-  height: 56px;
-  margin: 0 auto var(--n-space-4);
-  border-radius: var(--n-radius);
-  background: linear-gradient(135deg, var(--n-accent-strong), var(--n-accent));
-  color: var(--n-text-inverse);
-  box-shadow: 0 8px 26px rgba(95, 208, 224, 0.3);
-  animation: authLogoIn 0.6s var(--n-ease) 0.08s both;
-}
-
-@keyframes authLogoIn {
-  from {
-    opacity: 0;
-    transform: scale(0.82);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-.auth__title {
-  margin: 0 0 var(--n-space-1);
-  font-size: var(--n-text-lg);
-  font-weight: var(--n-weight-bold);
-  letter-spacing: -0.02em;
-  background: var(--n-gradient-text);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.auth__subtitle {
-  margin: 0;
-  color: var(--n-text-muted);
-  font-size: var(--n-text-sm);
-}
-
-.auth__body {
-  padding: var(--n-space-6) var(--n-space-8) var(--n-space-5);
-}
-
-.auth__field {
-  margin-bottom: var(--n-space-4);
-}
-
-.auth__label {
-  display: block;
-  margin-bottom: var(--n-space-2);
-  color: var(--n-text-muted);
-  font-size: var(--n-text-xs);
-  font-weight: var(--n-weight-medium);
-}
-
-.auth__code {
-  display: flex;
-  gap: var(--n-space-3);
-}
-
-.auth__code :deep(.n-input) {
-  flex: 1;
-  min-width: 0;
-}
-
-.auth__code :deep(.n-btn) {
-  flex: none;
-  white-space: nowrap;
-}
-
-.auth__divider {
-  display: flex;
-  align-items: center;
-  gap: var(--n-space-3);
-  padding: 0 var(--n-space-8);
-  color: var(--n-text-faint);
-  font-size: var(--n-text-xs);
-}
-
-.auth__divider::before,
-.auth__divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--n-line);
-}
-
-.auth__foot {
-  padding: var(--n-space-5) var(--n-space-8) var(--n-space-8);
-}
-
-/* 验证码弹窗内的 form-group 仅作占位，不引入表单页的间距 */
-.form-group {
-  margin: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .auth__card,
-  .auth__logo,
-  .auth__glow {
-    animation: none;
-  }
-}
-
-@media (max-width: 560px) {
-  .auth__code {
-    flex-direction: column;
-  }
-
-  .auth__code :deep(.n-btn) {
-    width: 100%;
-  }
-}
 </style>
