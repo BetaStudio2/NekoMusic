@@ -2,9 +2,9 @@
 /**
  * HomeView —— 首页
  * ------------------------------------------------------------
- * 完整重排：Hero + 快捷入口 + 歌单迁入 + 热门 + 最新。
- * 设计约定：黑偏青基调 + 圆角矩形语言（去胶囊）；不使用侧边高亮条与
- * 区块级动画渐变；层次由排版与留白建立，全页仅保留一处主强调。
+ * 排布参考主流音乐 App（ArchoeraMusic 首页范式）：
+ *   页头（标题 + 问候） → Hero 横幅 → 动作卡 → 横向封面栏 ×2
+ * 设计：黑偏青 + 圆角矩形；不使用侧边高亮条与区块级动画渐变。
  * 全局契约：播放经 hash #play / #playlist 驱动 GlobalPlayer（与列表页一致）。
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
@@ -22,17 +22,33 @@ const rankingLoading = ref(true)
 const latestLoading = ref(true)
 
 const isLoggedIn = ref(false)
+const username = ref('')
 const syncLoginState = () => {
-  const t = localStorage.getItem('userToken')
-  isLoggedIn.value = t != null && t !== ''
+  isLoggedIn.value = !!localStorage.getItem('userToken')
+  try {
+    const u = JSON.parse(localStorage.getItem('user') || 'null')
+    username.value = u?.username || ''
+  } catch {
+    username.value = ''
+  }
 }
 
-/** 封面墙：热门取前 6，最新取前 12 */
-const hotList = computed(() => rankingList.value.slice(0, 6))
+/** 按时段问候 */
+const greeting = computed(() => {
+  const h = new Date().getHours()
+  if (h < 6) return '夜深了'
+  if (h < 12) return '早上好'
+  if (h < 14) return '中午好'
+  if (h < 18) return '下午好'
+  return '晚上好'
+})
+
+/** 横向封面栏取前 12 首 */
+const hotList = computed(() => rankingList.value.slice(0, 12))
 const latestGrid = computed(() => latestList.value.slice(0, 12))
 /** Hero 主视觉：热门第一首 */
 const featured = computed(() => rankingList.value[0] || null)
-const loadingGrids = computed(
+const loadingAll = computed(
   () => (rankingLoading.value || latestLoading.value) && !rankingList.value.length && !latestList.value.length
 )
 
@@ -106,7 +122,7 @@ const playList = (list) => {
   if (!list.length) return
   const payload = encodeURIComponent(JSON.stringify(list.map(toTrack)))
   window.location.hash = `#playlist=${payload}&index=0`
-  toast.success(`开始播放热门 ${list.length} 首`)
+  toast.success(`开始播放 ${list.length} 首`)
 }
 
 onMounted(() => {
@@ -125,22 +141,38 @@ onUnmounted(() => {
   <AmbientBackdrop />
 
   <PageShell width="default">
-    <!-- ==================== Hero ==================== -->
+    <!-- ==================== 页头 ==================== -->
+    <header class="home-head">
+      <h1 class="home-head__title">首页</h1>
+      <p class="home-head__greeting">
+        {{ greeting }}<template v-if="isLoggedIn && username">，{{ username }}</template>，欢迎来到 Neko歌姬计划
+      </p>
+    </header>
+
+    <!-- ==================== Hero 横幅 ==================== -->
     <section class="hero">
+      <div
+        v-if="featured"
+        class="hero__bg"
+        :style="{ backgroundImage: `url(${featured.coverUrl})` }"
+        aria-hidden="true"
+      />
+      <div class="hero__scrim" aria-hidden="true" />
+
       <div class="hero__copy">
         <span class="hero__eyebrow">
           <NIcon name="sparkles" :size="14" />
           开源 · 免费 · 无广告
         </span>
-        <h1 class="hero__title">从这里开始听</h1>
+        <h2 class="hero__title">从这里开始听</h2>
         <p class="hero__lede">
           搜索、播放、收藏全站音乐；在客户端还能从
-          <strong class="hero__strong">网易、QQ、酷狗</strong>
-          一键迁入歌单。开源免费，无绑架式社交。
+          <strong>网易、QQ、酷狗</strong>
+          一键迁入歌单。
         </p>
         <div class="hero__actions">
           <NButton
-            v-if="hotList.length"
+            v-if="rankingList.length"
             variant="primary"
             icon="play"
             @click="playList(rankingList)"
@@ -150,48 +182,27 @@ onUnmounted(() => {
           <NButton variant="secondary" icon="list-music" to="/download#netease-migrate">
             歌单迁入
           </NButton>
-          <NButton variant="ghost" icon="download" to="/download">下载客户端</NButton>
         </div>
       </div>
 
-      <div class="hero__art" :class="{ 'hero__art--empty': !featured }">
-        <div
-          v-if="featured"
-          class="hero__glow"
-          :style="{ backgroundImage: `url(${featured.coverUrl})` }"
-          aria-hidden="true"
-        />
-        <div class="hero__frame">
-          <img
-            v-if="featured"
-            :src="featured.coverUrl"
-            :alt="featured.title"
-            decoding="async"
-            @error="handleImageError"
-          />
-          <div v-else class="hero__placeholder">
-            <NIcon name="music" :size="44" />
-          </div>
-
-          <button
-            v-if="featured"
-            type="button"
-            class="hero__play"
-            :aria-label="`播放 ${featured.title}`"
-            @click="playMusic(featured)"
-          >
-            <NIcon name="play" :size="24" />
-          </button>
-
-          <NTag v-if="featured" class="hero__tag" variant="accent" size="sm">
-            <NIcon name="flame" :size="12" />
-            热度第 1
-          </NTag>
-        </div>
-      </div>
+      <button
+        v-if="featured"
+        type="button"
+        class="hero__feature"
+        :aria-label="`播放 ${featured.title}`"
+        @click="playMusic(featured)"
+      >
+        <img :src="featured.coverUrl" :alt="featured.title" decoding="async" @error="handleImageError" />
+        <span class="hero__badge"><NIcon name="flame" :size="12" />热度第 1</span>
+        <span class="hero__play"><NIcon name="play" :size="22" /></span>
+        <span class="hero__feature-meta">
+          <span class="hero__feature-title">{{ featured.title }}</span>
+          <span class="hero__feature-artist">{{ featured.artist }}</span>
+        </span>
+      </button>
     </section>
 
-    <!-- ==================== 快捷入口 ==================== -->
+    <!-- ==================== 动作卡 ==================== -->
     <section class="quick" aria-label="快捷入口">
       <NCard
         v-for="q in quickLinks"
@@ -207,50 +218,28 @@ onUnmounted(() => {
           <span class="quick__title">{{ q.title }}</span>
           <span class="quick__desc">{{ q.desc }}</span>
         </span>
-        <NIcon name="arrow-right" :size="16" class="quick__arrow" />
+        <NIcon name="chevron-right" :size="16" class="quick__arrow" />
       </NCard>
     </section>
 
-    <!-- ==================== 歌单迁入 ==================== -->
-    <NCard pad="lg" class="migrate">
-      <span class="migrate__icon"><NIcon name="list-music" :size="24" /></span>
-      <div class="migrate__body">
-        <NTag variant="accent" size="sm">歌单迁入</NTag>
-        <h2 class="migrate__title">从网易、QQ、酷狗过来？</h2>
-        <p class="migrate__text">
-          在 Android / PC 客户端粘贴歌单链接或 ID，自动拉取曲目并在站内曲库中匹配后导入你的歌单。
-        </p>
-      </div>
-      <NButton
-        class="migrate__cta"
-        variant="outline"
-        icon-after="arrow-right"
-        to="/download#netease-migrate"
-      >
-        查看怎么操作
-      </NButton>
-    </NCard>
-
     <!-- ==================== 加载态 ==================== -->
-    <div v-if="loadingGrids" class="loading">
+    <div v-if="loadingAll" class="loading">
       <NSpinner :size="28" />
       <p>正在加载音乐…</p>
     </div>
 
     <template v-else>
-      <!-- ==================== 热门音乐 ==================== -->
+      <!-- ==================== 热门音乐（横向栏） ==================== -->
       <section v-if="hotList.length" class="section">
         <header class="section__head">
           <div class="section__heading">
             <h2 class="section__title">热门音乐</h2>
-            <p class="section__sub">按播放量排序的热门曲目</p>
+            <p class="section__sub">按播放量排序</p>
           </div>
-          <NButton variant="ghost" size="sm" icon-after="arrow-right" to="/ranking">
-            查看全部
-          </NButton>
+          <NButton variant="ghost" size="sm" icon-after="chevron-right" to="/ranking">更多</NButton>
         </header>
 
-        <div class="grid">
+        <div class="rail">
           <article
             v-for="(m, i) in hotList"
             :key="m.id"
@@ -278,19 +267,17 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <!-- ==================== 最新上架 ==================== -->
+      <!-- ==================== 最新上架（横向栏） ==================== -->
       <section v-if="latestGrid.length" class="section">
         <header class="section__head">
           <div class="section__heading">
             <h2 class="section__title">最新上架</h2>
             <p class="section__sub">刚刚入库的新歌</p>
           </div>
-          <NButton variant="ghost" size="sm" icon-after="arrow-right" to="/latest">
-            查看全部
-          </NButton>
+          <NButton variant="ghost" size="sm" icon-after="chevron-right" to="/latest">更多</NButton>
         </header>
 
-        <div class="grid">
+        <div class="rail">
           <article
             v-for="m in latestGrid"
             :key="m.id"
@@ -321,16 +308,60 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* ==================== Hero ==================== */
+/* ==================== 页头 ==================== */
+.home-head {
+  margin-bottom: var(--n-space-6);
+}
+
+.home-head__title {
+  font-size: clamp(1.5rem, 3vw, 1.9rem);
+  font-weight: var(--n-weight-bold);
+  letter-spacing: -0.03em;
+}
+
+.home-head__greeting {
+  margin-top: var(--n-space-1);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+}
+
+/* ==================== Hero 横幅 ==================== */
 .hero {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: clamp(24px, 5vw, 56px);
-  padding: clamp(12px, 3vw, 32px) 0 clamp(32px, 5vw, 56px);
+  gap: clamp(20px, 4vw, 44px);
+  min-height: 208px;
+  padding: clamp(20px, 3.5vw, 32px);
+  margin-bottom: clamp(24px, 3.5vw, 36px);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-xl);
+  overflow: hidden;
+  background: var(--n-surface);
+}
+
+/* 模糊封面底 */
+.hero__bg {
+  position: absolute;
+  inset: -20%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(64px) saturate(1.3);
+  opacity: 0.28;
+  transform: scale(1.1);
+}
+
+.hero__scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(100deg, rgba(4, 9, 11, 0.94) 22%, rgba(4, 9, 11, 0.6) 62%, rgba(4, 9, 11, 0.32) 100%);
 }
 
 .hero__copy {
+  position: relative;
+  z-index: var(--n-z-content);
   min-width: 0;
 }
 
@@ -349,10 +380,10 @@ onUnmounted(() => {
 }
 
 .hero__title {
-  margin: var(--n-space-5) 0 var(--n-space-3);
-  font-size: clamp(2rem, 5vw, 3.2rem);
+  margin: var(--n-space-4) 0 var(--n-space-2);
+  font-size: clamp(1.7rem, 4vw, 2.6rem);
   font-weight: var(--n-weight-bold);
-  line-height: 1.08;
+  line-height: 1.1;
   letter-spacing: -0.03em;
   background: var(--n-gradient-text);
   -webkit-background-clip: text;
@@ -361,13 +392,13 @@ onUnmounted(() => {
 }
 
 .hero__lede {
-  max-width: 44ch;
+  max-width: 42ch;
   color: var(--n-text-muted);
-  font-size: clamp(0.95rem, 1.6vw, 1.05rem);
+  font-size: var(--n-text-base);
   line-height: var(--n-leading-normal);
 }
 
-.hero__strong {
+.hero__lede strong {
   color: var(--n-text);
   font-weight: var(--n-weight-semibold);
 }
@@ -376,89 +407,111 @@ onUnmounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: var(--n-space-3);
-  margin-top: var(--n-space-6);
+  margin-top: var(--n-space-5);
 }
 
-/* Hero 主视觉：热门第一首封面 */
-.hero__art {
+/* Hero 右侧：热门第一首 */
+.hero__feature {
   position: relative;
-  justify-self: center;
-  width: min(320px, 70vw);
+  z-index: var(--n-z-content);
+  width: clamp(150px, 22vw, 200px);
   aspect-ratio: 1;
-}
-
-.hero__glow {
-  position: absolute;
-  inset: 8%;
-  border-radius: var(--n-radius-xl);
-  background-size: cover;
-  background-position: center;
-  filter: blur(42px) saturate(1.25);
-  opacity: 0.38;
-  transform: scale(0.9);
-}
-
-.hero__frame {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  border-radius: var(--n-radius-xl);
+  border-radius: var(--n-radius-lg);
   overflow: hidden;
   border: 1px solid var(--n-line-strong);
   background: var(--n-surface-soft);
   box-shadow: var(--n-shadow-lg);
+  cursor: pointer;
+  padding: 0;
 }
 
-.hero__frame img {
+.hero__feature img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform var(--n-duration-slow) var(--n-ease);
 }
 
-.hero__placeholder {
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 100%;
-  color: var(--n-text-faint);
+@media (hover: hover) {
+  .hero__feature:hover img {
+    transform: scale(1.06);
+  }
+}
+
+.hero__badge {
+  position: absolute;
+  top: var(--n-space-3);
+  left: var(--n-space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--n-radius-xs);
+  background: rgba(4, 9, 11, 0.72);
+  backdrop-filter: var(--n-blur-sm);
+  -webkit-backdrop-filter: var(--n-blur-sm);
+  color: var(--n-accent-strong);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-semibold);
 }
 
 .hero__play {
   position: absolute;
-  right: var(--n-space-4);
-  bottom: var(--n-space-4);
+  right: var(--n-space-3);
+  top: var(--n-space-3);
   display: grid;
   place-items: center;
-  width: 52px;
-  height: 52px;
-  border-radius: var(--n-radius-lg);
+  width: 42px;
+  height: 42px;
+  border-radius: var(--n-radius-control);
   background: var(--n-accent);
   color: var(--n-text-inverse);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
   transition: transform var(--n-duration-fast) var(--n-ease), background var(--n-duration-fast) var(--n-ease);
 }
 
 @media (hover: hover) {
-  .hero__play:hover {
-    transform: translateY(-2px);
+  .hero__feature:hover .hero__play {
+    transform: scale(1.08);
     background: var(--n-accent-strong);
   }
 }
 
-.hero__tag {
+.hero__feature-meta {
   position: absolute;
-  top: var(--n-space-4);
-  left: var(--n-space-4);
-  background: rgba(4, 9, 11, 0.72);
-  backdrop-filter: var(--n-blur-sm);
-  -webkit-backdrop-filter: var(--n-blur-sm);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 26px var(--n-space-3) var(--n-space-3);
+  text-align: left;
+  background: linear-gradient(to top, rgba(4, 9, 11, 0.9), transparent);
 }
 
-/* ==================== 快捷入口 ==================== */
+.hero__feature-title {
+  color: var(--n-text);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hero__feature-artist {
+  color: var(--n-text-muted);
+  font-size: var(--n-text-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==================== 动作卡 ==================== */
 .quick {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: var(--n-space-4);
   margin-bottom: clamp(28px, 4vw, 44px);
 }
@@ -513,48 +566,6 @@ onUnmounted(() => {
   }
 }
 
-/* ==================== 歌单迁入 ==================== */
-.migrate {
-  display: flex;
-  align-items: center;
-  gap: var(--n-space-6);
-  margin-bottom: clamp(32px, 5vw, 56px);
-}
-
-.migrate__icon {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 56px;
-  height: 56px;
-  border-radius: var(--n-radius);
-  background: var(--n-surface-soft);
-  border: 1px solid var(--n-line);
-  color: var(--n-accent-strong);
-}
-
-.migrate__body {
-  flex: 1;
-  min-width: 0;
-}
-
-.migrate__title {
-  margin: var(--n-space-2) 0 var(--n-space-1);
-  font-size: var(--n-text-lg);
-  font-weight: var(--n-weight-semibold);
-  letter-spacing: -0.01em;
-}
-
-.migrate__text {
-  color: var(--n-text-muted);
-  font-size: var(--n-text-base);
-  max-width: 64ch;
-}
-
-.migrate__cta {
-  flex: none;
-}
-
 /* ==================== 加载态 ==================== */
 .loading {
   display: flex;
@@ -567,7 +578,7 @@ onUnmounted(() => {
 
 /* ==================== 区块 ==================== */
 .section {
-  margin-bottom: clamp(32px, 5vw, 56px);
+  margin-bottom: clamp(28px, 4vw, 44px);
 }
 
 .section:last-child {
@@ -579,7 +590,7 @@ onUnmounted(() => {
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--n-space-4);
-  margin-bottom: var(--n-space-6);
+  margin-bottom: var(--n-space-4);
 }
 
 .section__heading {
@@ -587,25 +598,51 @@ onUnmounted(() => {
 }
 
 .section__title {
-  font-size: clamp(1.2rem, 2.4vw, 1.5rem);
+  font-size: 1.1rem;
   font-weight: var(--n-weight-semibold);
   letter-spacing: -0.02em;
 }
 
 .section__sub {
-  margin-top: var(--n-space-1);
-  color: var(--n-text-muted);
-  font-size: var(--n-text-sm);
+  margin-top: 2px;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
 }
 
-/* ==================== 封面墙 ==================== */
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-  gap: var(--n-space-5) var(--n-space-4);
+/* ==================== 横向封面栏 ==================== */
+.rail {
+  display: flex;
+  gap: var(--n-space-4);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: var(--n-space-1);
+  padding: var(--n-space-1) var(--n-space-1) var(--n-space-4);
+  -webkit-overflow-scrolling: touch;
+}
+
+.rail::-webkit-scrollbar {
+  height: 6px;
+}
+
+.rail::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.rail::-webkit-scrollbar-thumb {
+  background: rgba(95, 208, 224, 0.28);
+  border-radius: var(--n-radius-pill);
+}
+
+@media (hover: hover) {
+  .rail::-webkit-scrollbar-thumb:hover {
+    background: rgba(95, 208, 224, 0.45);
+  }
 }
 
 .cover-card {
+  flex: 0 0 auto;
+  width: 152px;
+  scroll-snap-align: start;
   cursor: pointer;
   min-width: 0;
 }
@@ -686,7 +723,6 @@ onUnmounted(() => {
   }
 }
 
-/* 触屏设备常显播放键 */
 @media (hover: none) {
   .cover-card__play {
     opacity: 1;
@@ -696,7 +732,7 @@ onUnmounted(() => {
 
 .cover-card__title {
   margin-top: var(--n-space-3);
-  font-size: var(--n-text-base);
+  font-size: var(--n-text-sm);
   font-weight: var(--n-weight-medium);
   white-space: nowrap;
   overflow: hidden;
@@ -704,47 +740,30 @@ onUnmounted(() => {
 }
 
 .cover-card__artist {
-  margin-top: 2px;
+  margin-top: 1px;
   color: var(--n-text-muted);
-  font-size: var(--n-text-sm);
+  font-size: var(--n-text-xs);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 /* ==================== 响应式 ==================== */
-@media (max-width: 900px) {
+@media (max-width: 760px) {
   .hero {
     grid-template-columns: 1fr;
-    gap: var(--n-space-8);
+    gap: var(--n-space-6);
   }
 
-  .hero__art {
+  .hero__feature {
+    width: 100%;
+    max-width: 220px;
     justify-self: start;
-    width: min(260px, 60vw);
-    order: -1;
   }
 
-  .migrate {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--n-space-4);
-  }
-
-  .migrate__cta {
-    align-self: stretch;
-    justify-content: center;
-  }
-}
-
-@media (max-width: 560px) {
   .hero__actions :deep(.n-btn) {
     flex: 1 1 auto;
     justify-content: center;
-  }
-
-  .grid {
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   }
 }
 </style>
