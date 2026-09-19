@@ -80,7 +80,7 @@ onUnmounted(() => {
 <template>
   <AmbientBackdrop />
 
-  <PageShell width="wide">
+  <PageShell width="default">
     <div class="doc">
       <!-- 目录：桌面端 sticky 侧栏，窄屏置顶 -->
       <aside class="doc__toc" aria-label="隐私政策目录">
@@ -580,24 +580,23 @@ onUnmounted(() => {
 
 /* ===== 布局：正文 + 目录侧栏 ===== */
 .doc {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: var(--n-space-5);
-  align-items: start;
 }
 
-.doc__main {
-  min-width: 0;
-  order: 1;
-}
-
-/* 目录：窄屏置顶 */
+/* 窄屏：目录置顶 */
 .doc__toc {
   order: -1;
   padding: var(--n-space-4) var(--n-space-5);
   border: 1px solid var(--n-line);
   border-radius: var(--n-radius-lg);
   background: var(--n-surface);
+}
+
+.doc__main {
+  order: 1;
+  min-width: 0;
 }
 
 .doc__toc-title {
@@ -639,18 +638,26 @@ onUnmounted(() => {
   background: var(--n-accent-soft);
 }
 
-/* 桌面端：目录固定在右侧，随内容滚动保持可见 */
+/* 桌面端：正文限宽在左，目录在右并随滚动常驻 */
 @media (min-width: 1024px) {
   .doc {
-    grid-template-columns: minmax(0, 1fr) 240px;
+    flex-direction: row;
+    justify-content: center;
+    align-items: flex-start;
+    gap: clamp(32px, 4vw, 56px);
   }
 
   .doc__main {
-    order: 0;
+    order: 1;
+    flex: 1 1 auto;
+    /* 长文限宽，避免每行过长难以阅读 */
+    max-width: 760px;
   }
 
+  /* 目录必须在正文之后（order 2），否则会排到左侧 */
   .doc__toc {
-    order: 0;
+    order: 2;
+    flex: 0 0 240px;
     position: sticky;
     top: calc(var(--n-header-height) + var(--n-space-5));
     max-height: calc(100dvh - var(--n-header-height) - var(--n-space-10));
