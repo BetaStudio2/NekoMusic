@@ -116,7 +116,7 @@ function onClick(e) {
   align-items: center;
   justify-content: center;
   gap: var(--n-space-2);
-  border-radius: var(--n-radius-pill);
+  border-radius: var(--n-radius-control);
   font-weight: var(--n-weight-medium);
   line-height: 1;
   white-space: nowrap;
@@ -176,13 +176,13 @@ function onClick(e) {
   background: var(--n-gradient-accent);
   border-color: var(--n-accent-line);
   color: var(--n-text);
-  box-shadow: 0 8px 24px rgba(105, 200, 223, 0.16);
+  box-shadow: 0 8px 24px rgba(95, 208, 224, 0.14);
 }
 @media (hover: hover) {
   .n-btn--primary:not(:disabled):not(.n-btn--disabled):hover {
-    background: linear-gradient(135deg, rgba(105, 200, 223, 0.36), rgba(105, 200, 223, 0.16));
-    border-color: rgba(105, 200, 223, 0.42);
-    box-shadow: 0 10px 30px rgba(105, 200, 223, 0.24);
+    background: linear-gradient(135deg, rgba(95, 208, 224, 0.34), rgba(95, 208, 224, 0.14));
+    border-color: rgba(95, 208, 224, 0.42);
+    box-shadow: 0 10px 30px rgba(95, 208, 224, 0.22);
   }
 }
 
@@ -235,7 +235,7 @@ function onClick(e) {
 @media (hover: hover) {
   .n-btn--outline:not(:disabled):not(.n-btn--disabled):hover {
     background: var(--n-accent-soft);
-    border-color: rgba(105, 200, 223, 0.42);
+    border-color: rgba(95, 208, 224, 0.42);
   }
 }
 

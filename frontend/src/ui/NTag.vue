@@ -42,7 +42,7 @@ const classes = computed(() => ['n-tag', `n-tag--${props.variant}`, `n-tag--${pr
   display: inline-flex;
   align-items: center;
   gap: var(--n-space-1);
-  border-radius: var(--n-radius-pill);
+  border-radius: var(--n-radius-xs);
   border: 1px solid transparent;
   font-weight: var(--n-weight-medium);
   line-height: 1;

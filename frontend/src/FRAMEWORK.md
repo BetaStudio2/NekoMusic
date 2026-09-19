@@ -50,7 +50,7 @@ src/
 | 强调 | `--n-accent` `--n-accent-strong` `--n-accent-soft` |
 | 状态 | `--n-danger` `--n-warning` `--n-success` |
 | 间距 | `--n-space-1`…`--n-space-16`（4px 基准） |
-| 圆角 | `--n-radius-sm` `--n-radius` `--n-radius-lg` `--n-radius-pill` |
+| 圆角 | `--n-radius-xs` `--n-radius-sm` `--n-radius-control`(按钮/输入) `--n-radius` `--n-radius-lg`(卡片) `--n-radius-xl` |
 | 字号 | `--n-text-xs`…`--n-text-3xl` |
 | 阴影 | `--n-shadow-sm` `--n-shadow` `--n-shadow-lg` `--n-shadow-glow` |
 | 动效 | `--n-ease` `--n-duration-fast` `--n-duration` |

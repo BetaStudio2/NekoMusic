@@ -3,8 +3,8 @@
  * HomeView —— 首页
  * ------------------------------------------------------------
  * 完整重排：Hero + 快捷入口 + 歌单迁入 + 热门 + 最新。
- * 设计约定：不使用侧边高亮条 / 区块级动画渐变；层次由排版与留白建立，
- * 全页仅保留「播放热门」一处主强调，其余按钮降级为次级/幽灵。
+ * 设计约定：黑偏青基调 + 圆角矩形语言（去胶囊）；不使用侧边高亮条与
+ * 区块级动画渐变；层次由排版与留白建立，全页仅保留一处主强调。
  * 全局契约：播放经 hash #play / #playlist 驱动 GlobalPlayer（与列表页一致）。
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
@@ -241,11 +241,13 @@ onUnmounted(() => {
       <!-- ==================== 热门音乐 ==================== -->
       <section v-if="hotList.length" class="section">
         <header class="section__head">
-          <div>
+          <div class="section__heading">
             <h2 class="section__title">热门音乐</h2>
             <p class="section__sub">按播放量排序的热门曲目</p>
           </div>
-          <NButton variant="ghost" icon-after="arrow-right" to="/ranking">查看全部</NButton>
+          <NButton variant="ghost" size="sm" icon-after="arrow-right" to="/ranking">
+            查看全部
+          </NButton>
         </header>
 
         <div class="grid">
@@ -268,7 +270,7 @@ onUnmounted(() => {
                 @error="handleImageError"
               />
               <span class="cover-card__rank">{{ i + 1 }}</span>
-              <span class="cover-card__play"><NIcon name="play" :size="18" /></span>
+              <span class="cover-card__play"><NIcon name="play" :size="16" /></span>
             </div>
             <h3 class="cover-card__title">{{ m.title }}</h3>
             <p class="cover-card__artist">{{ m.artist }}</p>
@@ -279,11 +281,13 @@ onUnmounted(() => {
       <!-- ==================== 最新上架 ==================== -->
       <section v-if="latestGrid.length" class="section">
         <header class="section__head">
-          <div>
+          <div class="section__heading">
             <h2 class="section__title">最新上架</h2>
             <p class="section__sub">刚刚入库的新歌</p>
           </div>
-          <NButton variant="ghost" icon-after="arrow-right" to="/latest">查看全部</NButton>
+          <NButton variant="ghost" size="sm" icon-after="arrow-right" to="/latest">
+            查看全部
+          </NButton>
         </header>
 
         <div class="grid">
@@ -305,7 +309,7 @@ onUnmounted(() => {
                 decoding="async"
                 @error="handleImageError"
               />
-              <span class="cover-card__play"><NIcon name="play" :size="18" /></span>
+              <span class="cover-card__play"><NIcon name="play" :size="16" /></span>
             </div>
             <h3 class="cover-card__title">{{ m.title }}</h3>
             <p class="cover-card__artist">{{ m.artist }}</p>
@@ -334,9 +338,10 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: var(--n-space-2);
-  padding: 5px 12px;
-  border-radius: var(--n-radius-pill);
+  padding: 5px 11px;
+  border-radius: var(--n-radius-xs);
   background: var(--n-accent-soft);
+  border: 1px solid var(--n-accent-line);
   color: var(--n-accent-strong);
   font-size: var(--n-text-xs);
   font-weight: var(--n-weight-semibold);
@@ -384,13 +389,13 @@ onUnmounted(() => {
 
 .hero__glow {
   position: absolute;
-  inset: 6%;
+  inset: 8%;
   border-radius: var(--n-radius-xl);
   background-size: cover;
   background-position: center;
-  filter: blur(38px) saturate(1.3);
-  opacity: 0.5;
-  transform: scale(0.92);
+  filter: blur(42px) saturate(1.25);
+  opacity: 0.38;
+  transform: scale(0.9);
 }
 
 .hero__frame {
@@ -427,16 +432,16 @@ onUnmounted(() => {
   place-items: center;
   width: 52px;
   height: 52px;
-  border-radius: var(--n-radius-circle);
+  border-radius: var(--n-radius-lg);
   background: var(--n-accent);
   color: var(--n-text-inverse);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
   transition: transform var(--n-duration-fast) var(--n-ease), background var(--n-duration-fast) var(--n-ease);
 }
 
 @media (hover: hover) {
   .hero__play:hover {
-    transform: scale(1.08);
+    transform: translateY(-2px);
     background: var(--n-accent-strong);
   }
 }
@@ -445,7 +450,7 @@ onUnmounted(() => {
   position: absolute;
   top: var(--n-space-4);
   left: var(--n-space-4);
-  background: rgba(6, 16, 20, 0.72);
+  background: rgba(4, 9, 11, 0.72);
   backdrop-filter: var(--n-blur-sm);
   -webkit-backdrop-filter: var(--n-blur-sm);
 }
@@ -577,6 +582,10 @@ onUnmounted(() => {
   margin-bottom: var(--n-space-6);
 }
 
+.section__heading {
+  min-width: 0;
+}
+
 .section__title {
   font-size: clamp(1.2rem, 2.4vw, 1.5rem);
   font-weight: var(--n-weight-semibold);
@@ -614,6 +623,7 @@ onUnmounted(() => {
   overflow: hidden;
   border: 1px solid var(--n-line);
   background: var(--n-surface-soft);
+  transition: border-color var(--n-duration-fast) var(--n-ease);
 }
 
 .cover-card__art img {
@@ -625,6 +635,10 @@ onUnmounted(() => {
 }
 
 @media (hover: hover) {
+  .cover-card:hover .cover-card__art {
+    border-color: var(--n-line-strong);
+  }
+
   .cover-card:hover .cover-card__art img {
     transform: scale(1.05);
   }
@@ -640,7 +654,7 @@ onUnmounted(() => {
   height: 24px;
   padding: 0 6px;
   border-radius: var(--n-radius-xs);
-  background: rgba(6, 16, 20, 0.72);
+  background: rgba(4, 9, 11, 0.72);
   backdrop-filter: var(--n-blur-sm);
   -webkit-backdrop-filter: var(--n-blur-sm);
   color: var(--n-text);
@@ -655,9 +669,9 @@ onUnmounted(() => {
   bottom: var(--n-space-2);
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--n-radius-circle);
+  width: 34px;
+  height: 34px;
+  border-radius: var(--n-radius-sm);
   background: var(--n-accent);
   color: var(--n-text-inverse);
   opacity: 0;

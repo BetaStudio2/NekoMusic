@@ -5,56 +5,56 @@
  * 不允许在组件内硬编码颜色 / 间距 / 圆角 / 时长。
  *
  * 命名约定：--n-<类别>-<语义>[-<变体>]
- * 视觉基调沿用旧版：深色玻璃拟态 + 青色强调 (#69c8df)。
+ * 视觉基调：黑偏青 —— 近黑为底、青为唯一强调；形状语言为圆角矩形（去胶囊）。
  */
 
 :root {
-  /* ===== 颜色 · 背景层次 ===== */
-  --n-bg: #070b10;
-  --n-bg-soft: #0b1118;
-  --n-bg-deep: #06090d;
-  --n-bg-elevated: #0e1620;
+  /* ===== 颜色 · 背景（黑偏青：极深、低饱和、青相 ~190°） ===== */
+  --n-bg: #04090b;
+  --n-bg-soft: #071115;
+  --n-bg-deep: #010506;
+  --n-bg-elevated: #0a161a;
 
-  /* ===== 颜色 · 表面（玻璃层） ===== */
-  --n-surface: rgba(14, 22, 31, 0.82);
-  --n-surface-strong: rgba(20, 31, 43, 0.92);
-  --n-surface-soft: rgba(255, 255, 255, 0.045);
-  --n-surface-hover: rgba(255, 255, 255, 0.075);
-  --n-surface-active: rgba(255, 255, 255, 0.11);
-  --n-surface-sunken: rgba(8, 13, 19, 0.5);
+  /* ===== 颜色 · 表面（青调深玻璃） ===== */
+  --n-surface: rgba(9, 24, 29, 0.82);
+  --n-surface-strong: rgba(13, 33, 39, 0.92);
+  --n-surface-soft: rgba(120, 220, 232, 0.05);
+  --n-surface-hover: rgba(120, 220, 232, 0.09);
+  --n-surface-active: rgba(120, 220, 232, 0.14);
+  --n-surface-sunken: rgba(2, 11, 14, 0.55);
 
-  /* ===== 颜色 · 描边 ===== */
-  --n-line: rgba(143, 174, 198, 0.16);
-  --n-line-strong: rgba(143, 174, 198, 0.28);
-  --n-line-subtle: rgba(143, 174, 198, 0.1);
+  /* ===== 颜色 · 描边（青调） ===== */
+  --n-line: rgba(120, 205, 218, 0.14);
+  --n-line-strong: rgba(120, 205, 218, 0.28);
+  --n-line-subtle: rgba(120, 205, 218, 0.08);
 
   /* ===== 颜色 · 文本 ===== */
-  --n-text: #f2f8fb;
-  --n-text-muted: #a6b7c4;
-  --n-text-faint: #708493;
-  --n-text-inverse: #061014;
+  --n-text: #eaf8fb;
+  --n-text-muted: #9ab6be;
+  --n-text-faint: #617d85;
+  --n-text-inverse: #04191d;
 
-  /* ===== 颜色 · 强调 ===== */
-  --n-accent: #69c8df;
-  --n-accent-soft: rgba(105, 200, 223, 0.16);
-  --n-accent-line: rgba(105, 200, 223, 0.24);
-  --n-accent-strong: #9beaff;
-  --n-accent-deep: #3d9fb8;
+  /* ===== 颜色 · 强调（青） ===== */
+  --n-accent: #5fd0e0;
+  --n-accent-soft: rgba(95, 208, 224, 0.14);
+  --n-accent-line: rgba(95, 208, 224, 0.24);
+  --n-accent-strong: #9ceefb;
+  --n-accent-deep: #2f9fb2;
 
   /* ===== 颜色 · 语义状态 ===== */
   --n-danger: #ff6b6b;
-  --n-danger-soft: rgba(255, 107, 107, 0.14);
+  --n-danger-soft: rgba(255, 107, 107, 0.13);
   --n-warning: #f7c66a;
-  --n-warning-soft: rgba(247, 198, 106, 0.14);
-  --n-success: #66d9a0;
-  --n-success-soft: rgba(102, 217, 160, 0.14);
+  --n-warning-soft: rgba(247, 198, 106, 0.13);
+  --n-success: #5fd6a6;
+  --n-success-soft: rgba(95, 214, 166, 0.13);
   --n-info: var(--n-accent);
   --n-info-soft: var(--n-accent-soft);
 
   /* ===== 渐变 ===== */
-  --n-gradient-accent: linear-gradient(135deg, rgba(105, 200, 223, 0.24), rgba(105, 200, 223, 0.1));
-  --n-gradient-text: linear-gradient(120deg, #eff9fc, #9beaff, #d7edf5);
-  --n-gradient-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent);
+  --n-gradient-accent: linear-gradient(135deg, rgba(95, 208, 224, 0.20), rgba(95, 208, 224, 0.07));
+  --n-gradient-text: linear-gradient(120deg, #eafcfe, #9ceefb, #cfedf2);
+  --n-gradient-surface: linear-gradient(180deg, rgba(120, 220, 232, 0.035), transparent);
 
   /* ===== 间距标尺（4px 基准） ===== */
   --n-space-1: 4px;
@@ -68,13 +68,14 @@
   --n-space-12: 48px;
   --n-space-16: 64px;
 
-  /* ===== 圆角 ===== */
+  /* ===== 圆角（圆角矩形语言，去胶囊） ===== */
   --n-radius-xs: 8px;
-  --n-radius-sm: 12px;
-  --n-radius: 16px;
-  --n-radius-lg: 22px;
-  --n-radius-xl: 28px;
-  --n-radius-pill: 999px;
+  --n-radius-sm: 10px;
+  --n-radius-control: 12px;  /* 按钮 / 输入框 / 分段控件 */
+  --n-radius: 14px;
+  --n-radius-lg: 18px;       /* 卡片 */
+  --n-radius-xl: 24px;       /* 大面板 / Hero */
+  --n-radius-pill: 999px;    /* 仅用于确实需要胶囊的场景（如进度条） */
   --n-radius-circle: 50%;
 
   /* ===== 字体 ===== */
@@ -104,11 +105,11 @@
   --n-weight-semibold: 600;
   --n-weight-bold: 700;
 
-  /* ===== 阴影 ===== */
-  --n-shadow-sm: 0 4px 14px rgba(0, 0, 0, 0.22);
-  --n-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
-  --n-shadow-lg: 0 26px 80px rgba(0, 0, 0, 0.42);
-  --n-shadow-glow: 0 0 0 4px rgba(105, 200, 223, 0.16);
+  /* ===== 阴影（黑偏青：冷调、克制） ===== */
+  --n-shadow-sm: 0 4px 14px rgba(0, 0, 0, 0.3);
+  --n-shadow: 0 16px 44px rgba(0, 0, 0, 0.34);
+  --n-shadow-lg: 0 26px 70px rgba(0, 0, 0, 0.46);
+  --n-shadow-glow: 0 0 0 4px rgba(95, 208, 224, 0.16);
 
   /* ===== 模糊 ===== */
   --n-blur-sm: blur(8px);

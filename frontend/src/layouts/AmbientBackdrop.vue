@@ -36,7 +36,7 @@
 .n-ambient__blob--a {
   width: 400px;
   height: 400px;
-  background: rgba(105, 200, 223, 0.34);
+  background: rgba(95, 208, 224, 0.3);
   top: -120px;
   right: -80px;
 }
@@ -44,7 +44,7 @@
 .n-ambient__blob--b {
   width: 340px;
   height: 340px;
-  background: rgba(120, 145, 164, 0.22);
+  background: rgba(96, 150, 160, 0.2);
   bottom: -60px;
   left: -60px;
   animation-delay: -8s;
@@ -53,7 +53,7 @@
 .n-ambient__blob--c {
   width: 260px;
   height: 260px;
-  background: rgba(105, 200, 223, 0.16);
+  background: rgba(95, 208, 224, 0.14);
   top: 38%;
   left: 30%;
   animation-delay: -14s;
@@ -64,8 +64,8 @@
   inset: 0;
   opacity: 0.24;
   background-image:
-    linear-gradient(rgba(143, 174, 198, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(143, 174, 198, 0.05) 1px, transparent 1px);
+    linear-gradient(rgba(120, 205, 218, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 205, 218, 0.05) 1px, transparent 1px);
   background-size: 64px 64px;
   mask-image: radial-gradient(ellipse 80% 55% at 50% 15%, black, transparent);
 }

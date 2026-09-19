@@ -76,12 +76,12 @@ const isChromeDarkShell = computed(
   flex-direction: column;
 }
 
-/* 深色内容页：三层背景（与 glass-page 页共用） */
+/* 深色内容页：三层背景（黑偏青，与玻璃页共用） */
 #app.app--home {
   background:
-    radial-gradient(1200px 700px at 12% -10%, rgba(105, 200, 223, 0.18), transparent 55%),
-    radial-gradient(900px 600px at 92% 8%, rgba(120, 145, 164, 0.12), transparent 50%),
-    linear-gradient(180deg, #070b10, #0b1118 42%, #06090d 100%);
+    radial-gradient(1200px 700px at 12% -10%, rgba(95, 208, 224, 0.15), transparent 55%),
+    radial-gradient(900px 600px at 92% 8%, rgba(96, 140, 150, 0.1), transparent 50%),
+    linear-gradient(180deg, #04090b, #071115 42%, #010506 100%);
 }
 
 main {
