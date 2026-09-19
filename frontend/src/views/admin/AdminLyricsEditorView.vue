@@ -1,113 +1,131 @@
 <template>
-  <div class="lyrics-workspace">
-    <aside class="file-panel">
-      <div class="panel-toolbar">
+  <div class="workspace">
+    <!-- 左：文件树 -->
+    <aside class="files">
+      <header class="files__head">
         <div>
-          <h2>歌词编辑</h2>
-          <span>{{ treeStats.totalFiles }} 个文件</span>
+          <h1 class="files__title">歌词编辑</h1>
+          <p class="files__count">{{ treeStats.totalFiles }} 个文件</p>
         </div>
-        <button class="icon-button" @click="fetchTree" title="刷新">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h8V3l-3.35 3.35z"/>
-          </svg>
-        </button>
-      </div>
-      <div class="file-actions">
-        <input
-          v-model="searchQuery"
-          class="search-input"
-          type="text"
-          placeholder="搜索歌词、ID、歌名或歌手"
-        />
-        <button v-if="canEditLyrics" class="new-button" @click="showNewFile = !showNewFile">
+        <NButton size="sm" variant="ghost" icon="refresh" title="刷新" @click="fetchTree" />
+      </header>
+
+      <div class="files__tools">
+        <NInput v-model="searchQuery" icon="search" placeholder="搜索歌词、ID、歌名或歌手" clearable />
+        <NButton v-if="canEditLyrics" size="sm" variant="secondary" icon="plus" @click="showNewFile = !showNewFile">
           新建
-        </button>
+        </NButton>
       </div>
-      <div v-if="showNewFile" class="new-file-box">
-        <input
+
+      <div v-if="showNewFile" class="files__new">
+        <NInput
           v-model="newFilePath"
-          class="new-file-input"
-          type="text"
           placeholder="例如 123.lrc"
           @keydown.enter="createDraftFile"
         />
-        <button class="small-primary-btn" @click="createDraftFile">确定</button>
+        <NButton size="sm" variant="primary" @click="createDraftFile">确定</NButton>
       </div>
-      <div v-if="isLoadingTree" class="tree-state">正在加载...</div>
-      <div v-else-if="visibleNodes.length === 0" class="tree-state">暂无歌词文件</div>
-      <div v-else class="file-tree">
+
+      <div v-if="isLoadingTree" class="files__state">正在加载…</div>
+      <div v-else-if="visibleNodes.length === 0" class="files__state">暂无歌词文件</div>
+      <nav v-else class="tree" aria-label="歌词文件树">
         <button
           v-for="item in visibleNodes"
           :key="`${item.node.type}:${item.node.path}`"
-          class="tree-row"
+          type="button"
+          class="tree__row"
           :class="{
-            active: selectedFile && selectedFile.path === item.node.path,
-            directory: item.node.type === 'directory'
+            'tree__row--active': selectedFile && selectedFile.path === item.node.path,
+            'tree__row--dir': item.node.type === 'directory',
           }"
           :style="{ paddingLeft: `${12 + item.level * 18}px` }"
           @click="handleNodeClick(item.node)"
         >
-          <span class="tree-icon">
-            <template v-if="item.node.type === 'directory'">
-              {{ isExpanded(item.node.path) ? '▾' : '▸' }}
-            </template>
-            <template v-else>♪</template>
-          </span>
-          <span class="tree-label">{{ fileLabel(item.node) }}</span>
-          <span v-if="item.node.type === 'file' && !item.node.existsInDb" class="orphan-dot" title="未匹配到曲库"></span>
+          <NIcon
+            v-if="item.node.type === 'directory'"
+            :name="isExpanded(item.node.path) ? 'chevron-down' : 'chevron-right'"
+            :size="14"
+            class="tree__icon"
+          />
+          <NIcon v-else name="file-text" :size="14" class="tree__icon" />
+          <span class="tree__label">{{ fileLabel(item.node) }}</span>
+          <NIcon
+            v-if="item.node.type === 'file' && !item.node.existsInDb"
+            name="circle-alert"
+            :size="13"
+            class="tree__orphan"
+            title="未匹配到曲库"
+          />
         </button>
-      </div>
+      </nav>
     </aside>
-    <main class="editor-panel">
-      <div v-if="!selectedFile" class="empty-editor">
-        <h3>选择一个歌词文件</h3>
+
+    <!-- 右：编辑器 -->
+    <main class="editor">
+      <div v-if="!selectedFile" class="editor__empty">
+        <NIcon name="file-text" :size="30" />
+        <p>从左侧选择一个歌词文件</p>
       </div>
+
       <template v-else>
-        <div class="editor-topbar">
-          <div class="file-heading">
-            <h3>{{ selectedFile.displayName || selectedFile.name }}</h3>
-            <div class="file-meta">
+        <header class="editor__head">
+          <div class="editor__heading">
+            <h2 class="editor__name">{{ selectedFile.displayName || selectedFile.name }}</h2>
+            <div class="editor__meta">
               <span>{{ selectedFile.path }}</span>
               <span v-if="selectedFile.musicId">ID {{ selectedFile.musicId }}</span>
               <span v-if="selectedFile.artist">{{ selectedFile.artist }}</span>
               <span>{{ formatBytes(selectedFile.size || 0) }}</span>
-              <span v-if="hasUnsavedChanges" class="dirty-label">未保存</span>
+              <NTag v-if="hasUnsavedChanges" variant="warning" size="sm">未保存</NTag>
             </div>
           </div>
-          <div class="editor-actions">
-            <button class="secondary-btn" @click="reloadSelectedFile" :disabled="isLoadingFile || isDraftFile">
+
+          <div class="editor__actions">
+            <NButton
+              size="sm"
+              variant="secondary"
+              icon="refresh"
+              :disabled="isLoadingFile || isDraftFile"
+              @click="reloadSelectedFile"
+            >
               重新加载
-            </button>
-            <button
+            </NButton>
+            <NButton
               v-if="canEditLyrics"
-              class="danger-btn"
-              @click="deleteSelectedFile"
+              size="sm"
+              variant="danger"
+              icon="trash-2"
               :disabled="isDeleting || isDraftFile"
+              @click="deleteSelectedFile"
             >
               删除
-            </button>
-            <button
+            </NButton>
+            <NButton
               v-if="canEditLyrics"
-              class="primary-btn"
-              @click="saveSelectedFile"
+              size="sm"
+              variant="primary"
+              icon="check"
               :disabled="isSaving || !hasUnsavedChanges"
+              :loading="isSaving"
+              @click="saveSelectedFile"
             >
-              {{ isSaving ? '保存中...' : '保存' }}
-            </button>
+              保存
+            </NButton>
           </div>
-        </div>
-        <div class="editor-body">
-          <div class="line-gutter" ref="lineGutterRef">
+        </header>
+
+        <div class="editor__body">
+          <div ref="lineGutterRef" class="gutter">
             <div v-for="line in lineNumbers" :key="line">{{ line }}</div>
           </div>
           <textarea
             ref="editorRef"
             v-model="lyricsContent"
-            class="lyrics-editor"
+            class="code"
             spellcheck="false"
             :readonly="!canEditLyrics || isLoadingFile"
             @scroll="syncEditorScroll"
-          ></textarea>
+          />
         </div>
       </template>
     </main>
@@ -117,7 +135,10 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useToast } from 'vue-toastification'
+import { useToast } from '@/composables/useToast'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NCard, NInput, NModal, NSpinner, NTag } from '@/ui'
+import { PageShell, AmbientBackdrop } from '@/layouts'
 import API_CONFIG from '@/config/apiConfig.js'
 
 const router = useRouter()
@@ -474,414 +495,256 @@ const syncEditorScroll = () => {
 </script>
 
 <style scoped>
-.admin-layout {
-  display: flex;
-  min-height: 100vh;
-  background: linear-gradient(135deg, #f4f7fb 0%, #e8eef6 100%);
-}
-
-.admin-main-content {
-  flex: 1;
-  margin-left: 250px;
-  padding: 20px;
-  min-width: 0;
-}
-
-.admin-header {
-  padding: 18px 20px;
-  background: rgba(255, 255, 255, 0.58);
-  border-radius: 12px;
-  box-shadow: 0 8px 28px rgba(35, 48, 80, 0.14);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  margin-bottom: 18px;
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.menu-toggle-btn {
-  display: none;
-  background: none;
-  border: none;
-  color: #5d6680;
-  cursor: pointer;
-  padding: 5px;
-}
-
-.menu-toggle-btn svg {
-  width: 28px;
-  height: 28px;
-}
-
-.admin-user-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex: 1;
-  min-width: 0;
-}
-
-.logout-button,
-.primary-btn,
-.secondary-btn,
-.danger-btn,
-.new-button,
-.small-primary-btn,
-.icon-button {
-  border: none;
-  cursor: pointer;
-  transition: all 0.18s ease;
-  font-size: 0.9rem;
-}
-
-.logout-button {
-  background: #d94b5f;
-  color: white;
-  border-radius: 18px;
-  padding: 8px 16px;
-}
-
-.lyrics-workspace {
+.workspace {
   display: grid;
-  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
-  gap: 18px;
-  height: calc(100vh - 118px);
-  min-height: 560px;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: var(--n-space-5);
+  align-items: stretch;
+  min-height: calc(100dvh - 200px);
 }
 
-.file-panel,
-.editor-panel {
-  background: rgba(14, 22, 31, 0.88);
-  border: 1px solid rgba(143, 174, 198, 0.16);
-  border-radius: 16px;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
-  overflow: hidden;
-}
-
-.file-panel {
+/* ==================== 左侧文件树 ==================== */
+.files {
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  padding: var(--n-space-4);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-lg);
+  background: var(--n-surface);
+}
+
+.files__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--n-space-3);
+  margin-bottom: var(--n-space-4);
+}
+
+.files__title {
+  margin: 0;
+  font-size: var(--n-text-md);
+  font-weight: var(--n-weight-semibold);
+  color: var(--n-text);
+}
+
+.files__count {
+  margin: 2px 0 0;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+}
+
+.files__tools {
+  display: flex;
+  gap: var(--n-space-2);
+  margin-bottom: var(--n-space-3);
+}
+
+.files__tools :deep(.n-input) {
+  flex: 1;
   min-width: 0;
 }
 
-.panel-toolbar {
+.files__new {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px;
-  border-bottom: 1px solid rgba(143, 174, 198, 0.14);
+  gap: var(--n-space-2);
+  margin-bottom: var(--n-space-3);
 }
 
-.panel-toolbar h2 {
-  color: var(--neko-text);
-  margin: 0 0 4px;
-  font-size: 1.15rem;
-}
-
-.panel-toolbar span {
-  color: var(--neko-muted);
-  font-size: 0.82rem;
-}
-
-.icon-button {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--neko-accent-strong);
-}
-
-.icon-button svg {
-  width: 20px;
-  height: 20px;
-}
-
-.file-actions {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  padding: 12px 14px;
-}
-
-.search-input,
-.new-file-input {
-  width: 100%;
-  border: 1px solid rgba(143, 174, 198, 0.16) !important;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.045) !important;
-  color: var(--neko-text) !important;
-  padding: 10px 12px;
-  outline: none;
-}
-
-.search-input:focus,
-.new-file-input:focus {
-  border-color: rgba(105, 200, 223, 0.45) !important;
-  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.12);
-}
-
-.new-button,
-.small-primary-btn,
-.primary-btn {
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.24), rgba(105, 200, 223, 0.1));
-  color: var(--neko-text);
-  border-radius: 999px;
-  border: 1px solid rgba(105, 200, 223, 0.24);
-}
-
-.new-button {
-  padding: 0 14px;
-}
-
-.small-primary-btn {
-  padding: 9px 12px;
-}
-
-.new-file-box {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  padding: 0 14px 12px;
-}
-
-.file-tree {
+.files__new :deep(.n-input) {
   flex: 1;
-  overflow: auto;
-  padding: 6px 0 12px;
+  min-width: 0;
 }
 
-.tree-row {
-  width: 100%;
-  min-height: 34px;
-  border: 0;
-  background: transparent;
-  color: var(--neko-muted);
+.files__state {
+  padding: var(--n-space-8) 0;
+  text-align: center;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-sm);
+}
+
+/* ==================== 文件树 ==================== */
+.tree {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+}
+
+.tree__row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding-top: 6px;
-  padding-right: 10px;
-  padding-bottom: 6px;
+  gap: var(--n-space-2);
+  width: 100%;
+  padding: var(--n-space-2) var(--n-space-3);
+  border-radius: var(--n-radius-xs);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
   text-align: left;
+  transition: background var(--n-duration-fast) var(--n-ease), color var(--n-duration-fast) var(--n-ease);
 }
 
-.tree-row:hover {
-  background: rgba(105, 200, 223, 0.08);
+@media (hover: hover) {
+  .tree__row:hover {
+    background: var(--n-surface-soft);
+    color: var(--n-text);
+  }
 }
 
-.tree-row.active {
-  background: rgba(105, 200, 223, 0.13);
-  color: var(--neko-accent-strong);
+.tree__row--active {
+  background: var(--n-accent-soft);
+  color: var(--n-accent-strong);
+  font-weight: var(--n-weight-medium);
 }
 
-.tree-row.directory {
-  font-weight: 600;
+.tree__row--dir {
+  color: var(--n-text-faint);
 }
 
-.tree-icon {
-  flex: 0 0 16px;
-  color: var(--neko-faint);
-  text-align: center;
+.tree__icon {
+  flex: none;
 }
 
-.tree-label {
+.tree__label {
   flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.9rem;
 }
 
-.orphan-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--neko-warning);
-  flex: 0 0 auto;
+.tree__orphan {
+  flex: none;
+  color: var(--n-warning);
 }
 
-.tree-state {
-  padding: 24px 16px;
-  color: var(--neko-muted);
-  text-align: center;
-}
-
-.editor-panel {
+/* ==================== 右侧编辑器 ==================== */
+.editor {
   display: flex;
   flex-direction: column;
   min-width: 0;
-}
-
-.empty-editor {
-  flex: 1;
-  display: grid;
-  place-items: center;
-  color: var(--neko-muted);
-}
-
-.empty-editor h3 {
-  font-size: 1.2rem;
-  font-weight: 500;
-}
-
-.editor-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 18px;
-  border-bottom: 1px solid rgba(143, 174, 198, 0.14);
-}
-
-.file-heading {
-  min-width: 0;
-}
-
-.file-heading h3 {
-  margin: 0 0 7px;
-  color: var(--neko-text);
-  font-size: 1.1rem;
+  min-height: 0;
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-lg);
+  background: var(--n-surface);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.file-meta {
+.editor__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--n-space-3);
+  flex: 1;
+  min-height: 320px;
+  color: var(--n-text-faint);
+}
+
+.editor__empty p {
+  margin: 0;
+  font-size: var(--n-text-sm);
+}
+
+.editor__head {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  color: var(--neko-muted);
-  font-size: 0.82rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--n-space-4);
+  padding: var(--n-space-4) var(--n-space-5);
+  border-bottom: 1px solid var(--n-line-subtle);
 }
 
-.file-meta span {
-  max-width: 240px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.editor__heading {
+  min-width: 0;
 }
 
-.dirty-label {
-  color: var(--neko-warning);
-  font-weight: 700;
+.editor__name {
+  margin: 0;
+  font-size: var(--n-text-md);
+  font-weight: var(--n-weight-semibold);
+  color: var(--n-text);
+  overflow-wrap: anywhere;
 }
 
-.editor-actions {
+.editor__meta {
   display: flex;
-  gap: 8px;
-  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--n-space-2) var(--n-space-4);
+  margin-top: var(--n-space-1);
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
 }
 
-.primary-btn,
-.secondary-btn,
-.danger-btn {
-  padding: 9px 14px;
+.editor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--n-space-2);
+  flex: none;
 }
 
-.secondary-btn {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--neko-text);
-  border-radius: 999px;
-  border: 1px solid rgba(143, 174, 198, 0.14);
-}
-
-.danger-btn {
-  background: rgba(255, 107, 107, 0.1);
-  color: #ffd7d7;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 107, 107, 0.22);
-}
-
-.primary-btn:disabled,
-.secondary-btn:disabled,
-.danger-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.editor-body {
+.editor__body {
+  position: relative;
+  display: flex;
   flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
-  background: #081018;
+  min-height: 320px;
+  overflow: hidden;
 }
 
-.line-gutter {
-  overflow: hidden;
-  padding: 14px 10px 14px 0;
-  background: #0a121b;
-  border-right: 1px solid rgba(143, 174, 198, 0.16);
-  color: #708493;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 13px;
-  line-height: 1.62;
+.gutter {
+  flex: none;
+  width: 56px;
+  padding: var(--n-space-4) var(--n-space-3) var(--n-space-4) 0;
+  border-right: 1px solid var(--n-line-subtle);
+  background: var(--n-surface-sunken);
+  color: var(--n-text-faint);
+  font-family: var(--n-font-mono);
+  font-size: var(--n-text-xs);
+  line-height: var(--n-leading-loose);
   text-align: right;
+  overflow: hidden;
   user-select: none;
 }
 
-.lyrics-editor {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  resize: none;
-  border: 0;
+.code {
+  flex: 1;
+  min-width: 0;
+  padding: var(--n-space-4) var(--n-space-5);
+  border: none;
   outline: none;
-  padding: 14px 16px;
-  background: #081018 !important;
-  color: #eef8fb !important;
-  caret-color: #9beaff;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 14px;
-  line-height: 1.62;
+  background: transparent;
+  color: var(--n-text);
+  caret-color: var(--n-accent-strong);
+  font-family: var(--n-font-mono);
+  font-size: var(--n-text-sm);
+  line-height: var(--n-leading-loose);
+  resize: none;
   white-space: pre;
   overflow: auto;
 }
 
-.lyrics-editor[readonly] {
-  color: #a6b7c4 !important;
-  background: #0b141d !important;
+.code:read-only {
+  color: var(--n-text-muted);
 }
 
-.lyrics-editor::selection {
-  color: #061014;
-  background: #9beaff;
-}
-
+/* ==================== 响应式 ==================== */
 @media (max-width: 900px) {
-  .admin-main-content {
-    margin-left: 0;
-    padding: 10px 10px 120px;
-  }
-
-  .menu-toggle-btn {
-    display: block;
-  }
-
-  .lyrics-workspace {
+  .workspace {
     grid-template-columns: 1fr;
-    height: auto;
+    min-height: 0;
   }
 
-  .file-panel {
-    height: 360px;
+  .files {
+    max-height: 360px;
   }
 
-  .editor-panel {
-    height: 620px;
-  }
-
-  .editor-topbar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .editor-actions {
-    width: 100%;
-    flex-wrap: wrap;
+  .editor__body {
+    min-height: 420px;
   }
 }
 </style>
