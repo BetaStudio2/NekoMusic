@@ -20,6 +20,15 @@
         <div v-if="currentMusic" class="music-artist">{{ currentMusic.artist }}</div>
         <div v-else class="music-artist placeholder-text">-</div>
       </div>
+
+      <!-- 迷你频谱（数据同播放页，来自 useAudioAnalyser） -->
+      <SpectrumCanvas
+        v-if="currentMusic"
+        class="mini-spectrum"
+        :bars="18"
+        :height="24"
+        :active="isPlaying"
+      />
       
       <!-- 播放控制 -->
       <div class="player-controls">
@@ -210,6 +219,7 @@ import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import { useToast } from 'vue-toastification'
 import { attachAudioElement } from '@/composables/useAudioAnalyser'
+import SpectrumCanvas from '@/components/SpectrumCanvas.vue'
 
 defineProps({
   chromeDark: {
@@ -2030,6 +2040,18 @@ onUnmounted(() => {
   height: 100%;
   width: 100%;
   gap: 15px;
+}
+
+/* 迷你频谱：窄屏隐藏，避免挤压控制区 */
+.mini-spectrum {
+  flex: none;
+  width: 84px;
+}
+
+@media (max-width: 900px) {
+  .mini-spectrum {
+    display: none;
+  }
 }
 
 .cover-container {
