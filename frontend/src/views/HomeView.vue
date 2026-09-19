@@ -1,130 +1,20 @@
-<template>
-  <div class="home-page">
-    <div class="ambient" aria-hidden="true">
-      <div class="ambient__blob ambient__blob--a" />
-      <div class="ambient__blob ambient__blob--b" />
-      <div class="ambient__blob ambient__blob--c" />
-      <div class="ambient__grid" />
-    </div>
-
-    <main class="shell">
-      <section class="intro" aria-labelledby="home-title">
-        <div class="intro__text">
-          <h1 id="home-title" class="intro__title">从这里开始听</h1>
-          <p class="intro__lede">用顶栏搜索与播放；在客户端可<strong class="intro__lede-strong">从网易、QQ、酷狗迁入歌单</strong>，开源免费、无绑架式社交。</p>
-        </div>
-        <nav class="intro__nav" aria-label="快捷入口">
-          <router-link to="/download#netease-migrate" class="intro__chip intro__chip--accent">网易、QQ、酷狗歌单迁入</router-link>
-          <router-link to="/download" class="intro__chip">下载客户端</router-link>
-          <router-link v-if="isLoggedIn" to="/upload" class="intro__chip">上传音乐</router-link>
-          <a
-            href="https://github.com/FantasyNetworkCN/NekoMusicDocs"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="intro__chip"
-          >开发者文档</a>
-          <a
-              href="https://qm.qq.com/q/Q9HkDi6Ewk"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="intro__chip"
-          >加入QQ群</a>
-        </nav>
-      </section>
-
-      <section class="migrate-strip" aria-labelledby="migrate-title">
-        <div class="migrate-strip__inner">
-          <p class="migrate-strip__eyebrow">从网易、QQ、酷狗过来？</p>
-          <h2 id="migrate-title" class="migrate-strip__title">歌单链接或 ID，客户端里一键匹配入库</h2>
-          <p class="migrate-strip__text">
-            Android 与 PC 客户端支持粘贴网易云 / QQ 音乐 / 酷狗歌单链接，自动拉取曲目并在 Neko 曲库中匹配后导入你的歌单。匹配结果取决于站内是否已有对应歌曲。
-          </p>
-          <router-link to="/download#netease-migrate" class="migrate-strip__cta">查看怎么操作</router-link>
-        </div>
-      </section>
-
-      <section class="browse" aria-labelledby="browse-heading">
-        <div class="browse__rail" aria-hidden="true" />
-        <div class="browse__inner">
-          <header class="browse__head">
-            <div>
-              <h2 id="browse-heading" class="browse__title">热门与最新</h2>
-              <p class="browse__sub">排行榜与最新上架封面预览</p>
-            </div>
-          </header>
-
-          <div v-if="showDiscoverSkeleton" class="state state--loading">
-            <div class="state__spinner" aria-hidden="true" />
-            <p class="state__text">正在加载预览…</p>
-          </div>
-
-          <div v-else class="browse__tiles">
-            <article
-              class="b-tile b-tile--hot"
-              tabindex="0"
-              role="button"
-              @click="goToRanking"
-              @keydown.enter.prevent="goToRanking"
-            >
-              <div class="b-tile__cover b-tile__cover--hot">
-                <div class="b-tile__mosaic">
-                  <img
-                    v-for="(item, index) in displayList.slice(0, 4)"
-                    :key="'h-' + index"
-                    :src="item.coverUrl"
-                    :alt="item.title"
-                    class="b-tile__img"
-                    @error="handleImageError"
-                  />
-                </div>
-                <span class="b-tile__badge">{{ rankingList.length }} 首</span>
-              </div>
-              <div class="b-tile__meta">
-                <h3 class="b-tile__name">热门音乐</h3>
-                <p class="b-tile__hint">进入排行榜</p>
-              </div>
-            </article>
-
-            <article
-              class="b-tile b-tile--latest"
-              tabindex="0"
-              role="button"
-              @click="goToLatest"
-              @keydown.enter.prevent="goToLatest"
-            >
-              <div class="b-tile__cover b-tile__cover--latest">
-                <div class="b-tile__mosaic">
-                  <img
-                    v-for="(item, index) in displayLatestList.slice(0, 4)"
-                    :key="'l-' + index"
-                    :src="item.coverUrl"
-                    :alt="item.title"
-                    class="b-tile__img"
-                    @error="handleImageError"
-                  />
-                </div>
-                <span class="b-tile__badge">{{ latestList.length }} 首</span>
-              </div>
-              <div class="b-tile__meta">
-                <h3 class="b-tile__name">最新音乐</h3>
-                <p class="b-tile__hint">进入最新上架</p>
-              </div>
-            </article>
-          </div>
-        </div>
-      </section>
-    </main>
-  </div>
-</template>
-
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+/**
+ * HomeView —— 首页
+ * ------------------------------------------------------------
+ * 完整重排：Hero + 快捷入口 + 歌单迁入 + 热门 + 最新。
+ * 设计约定：不使用侧边高亮条 / 区块级动画渐变；层次由排版与留白建立，
+ * 全页仅保留「播放热门」一处主强调，其余按钮降级为次级/幽灵。
+ * 全局契约：播放经 hash #play / #playlist 驱动 GlobalPlayer（与列表页一致）。
+ */
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import API_CONFIG from '@/config/apiConfig.js'
-import { useToast } from 'vue-toastification'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NCard, NTag, NSpinner } from '@/ui'
+import { PageShell, AmbientBackdrop } from '@/layouts'
+import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
-const router = useRouter()
 
 const rankingList = ref([])
 const latestList = ref([])
@@ -137,30 +27,41 @@ const syncLoginState = () => {
   isLoggedIn.value = t != null && t !== ''
 }
 
-const displayList = computed(() => rankingList.value.slice(0, 20))
-const displayLatestList = computed(() => latestList.value.slice(0, 20))
-
-const showDiscoverSkeleton = computed(
-  () =>
-    (rankingLoading.value || latestLoading.value) &&
-    rankingList.value.length === 0 &&
-    latestList.value.length === 0
+/** 封面墙：热门取前 6，最新取前 12 */
+const hotList = computed(() => rankingList.value.slice(0, 6))
+const latestGrid = computed(() => latestList.value.slice(0, 12))
+/** Hero 主视觉：热门第一首 */
+const featured = computed(() => rankingList.value[0] || null)
+const loadingGrids = computed(
+  () => (rankingLoading.value || latestLoading.value) && !rankingList.value.length && !latestList.value.length
 )
+
+const quickLinks = computed(() => {
+  const links = [
+    { to: '/ranking', icon: 'trophy', title: '热门排行', desc: '按播放量排序' },
+    { to: '/latest', icon: 'sparkles', title: '最新上架', desc: '刚刚入库的新歌' },
+    { to: '/download#netease-migrate', icon: 'list-music', title: '歌单迁入', desc: '网易 / QQ / 酷狗' },
+  ]
+  links.push(
+    isLoggedIn.value
+      ? { to: '/upload', icon: 'upload', title: '上传音乐', desc: '分享你的作品' }
+      : { to: '/favorites', icon: 'heart', title: '我的收藏', desc: '登录后同步' }
+  )
+  return links
+})
+
+const withCover = (item) => ({
+  ...item,
+  coverUrl: `${API_CONFIG.BASE_URL}/api/music/cover/${item.id}`,
+})
 
 const fetchRanking = async () => {
   rankingLoading.value = true
   try {
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/ranking`)
-    const data = await response.json()
-
-    if (data.success && data.data) {
-      rankingList.value = data.data.map((item) => ({
-        ...item,
-        coverUrl: `${API_CONFIG.BASE_URL}/api/music/cover/${item.id}`
-      }))
-    } else {
-      console.error('获取排行榜失败:', data.message)
-    }
+    const res = await fetch(`${API_CONFIG.BASE_URL}/api/music/ranking`)
+    const data = await res.json()
+    if (data.success && data.data) rankingList.value = data.data.map(withCover)
+    else console.error('获取排行榜失败:', data.message)
   } catch (error) {
     console.error('排行榜请求失败:', error)
     toast.error('加载排行榜失败')
@@ -172,17 +73,10 @@ const fetchRanking = async () => {
 const fetchLatest = async () => {
   latestLoading.value = true
   try {
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/latest?limit=300`)
-    const data = await response.json()
-
-    if (data.success && data.data) {
-      latestList.value = data.data.map((item) => ({
-        ...item,
-        coverUrl: `${API_CONFIG.BASE_URL}/api/music/cover/${item.id}`
-      }))
-    } else {
-      console.error('获取最新音乐失败:', data.message)
-    }
+    const res = await fetch(`${API_CONFIG.BASE_URL}/api/music/latest?limit=300`)
+    const data = await res.json()
+    if (data.success && data.data) latestList.value = data.data.map(withCover)
+    else console.error('获取最新音乐失败:', data.message)
   } catch (error) {
     console.error('最新音乐请求失败:', error)
     toast.error('加载最新音乐失败')
@@ -191,16 +85,28 @@ const fetchLatest = async () => {
   }
 }
 
-const goToRanking = () => {
-  router.push('/ranking')
-}
-
-const goToLatest = () => {
-  router.push('/latest')
-}
-
 const handleImageError = (event) => {
   event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/0`
+}
+
+const toTrack = (m) => ({
+  id: m.id,
+  title: m.title,
+  artist: m.artist,
+  album: m.album,
+  duration: m.duration,
+})
+
+const playMusic = (m) => {
+  window.location.hash = `#play=${encodeURIComponent(JSON.stringify(toTrack(m)))}`
+  toast.success(`开始播放：${m.title}`)
+}
+
+const playList = (list) => {
+  if (!list.length) return
+  const payload = encodeURIComponent(JSON.stringify(list.map(toTrack)))
+  window.location.hash = `#playlist=${payload}&index=0`
+  toast.success(`开始播放热门 ${list.length} 首`)
 }
 
 onMounted(() => {
@@ -215,528 +121,616 @@ onUnmounted(() => {
 })
 </script>
 
+<template>
+  <AmbientBackdrop />
+
+  <PageShell width="default">
+    <!-- ==================== Hero ==================== -->
+    <section class="hero">
+      <div class="hero__copy">
+        <span class="hero__eyebrow">
+          <NIcon name="sparkles" :size="14" />
+          开源 · 免费 · 无广告
+        </span>
+        <h1 class="hero__title">从这里开始听</h1>
+        <p class="hero__lede">
+          搜索、播放、收藏全站音乐；在客户端还能从
+          <strong class="hero__strong">网易、QQ、酷狗</strong>
+          一键迁入歌单。开源免费，无绑架式社交。
+        </p>
+        <div class="hero__actions">
+          <NButton
+            v-if="hotList.length"
+            variant="primary"
+            icon="play"
+            @click="playList(rankingList)"
+          >
+            播放热门
+          </NButton>
+          <NButton variant="secondary" icon="list-music" to="/download#netease-migrate">
+            歌单迁入
+          </NButton>
+          <NButton variant="ghost" icon="download" to="/download">下载客户端</NButton>
+        </div>
+      </div>
+
+      <div class="hero__art" :class="{ 'hero__art--empty': !featured }">
+        <div
+          v-if="featured"
+          class="hero__glow"
+          :style="{ backgroundImage: `url(${featured.coverUrl})` }"
+          aria-hidden="true"
+        />
+        <div class="hero__frame">
+          <img
+            v-if="featured"
+            :src="featured.coverUrl"
+            :alt="featured.title"
+            decoding="async"
+            @error="handleImageError"
+          />
+          <div v-else class="hero__placeholder">
+            <NIcon name="music" :size="44" />
+          </div>
+
+          <button
+            v-if="featured"
+            type="button"
+            class="hero__play"
+            :aria-label="`播放 ${featured.title}`"
+            @click="playMusic(featured)"
+          >
+            <NIcon name="play" :size="24" />
+          </button>
+
+          <NTag v-if="featured" class="hero__tag" variant="accent" size="sm">
+            <NIcon name="flame" :size="12" />
+            热度第 1
+          </NTag>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 快捷入口 ==================== -->
+    <section class="quick" aria-label="快捷入口">
+      <NCard
+        v-for="q in quickLinks"
+        :key="q.to"
+        as="router-link"
+        :to="q.to"
+        hoverable
+        pad="md"
+        class="quick__card"
+      >
+        <span class="quick__icon"><NIcon :name="q.icon" :size="20" /></span>
+        <span class="quick__body">
+          <span class="quick__title">{{ q.title }}</span>
+          <span class="quick__desc">{{ q.desc }}</span>
+        </span>
+        <NIcon name="arrow-right" :size="16" class="quick__arrow" />
+      </NCard>
+    </section>
+
+    <!-- ==================== 歌单迁入 ==================== -->
+    <NCard pad="lg" class="migrate">
+      <span class="migrate__icon"><NIcon name="list-music" :size="24" /></span>
+      <div class="migrate__body">
+        <NTag variant="accent" size="sm">歌单迁入</NTag>
+        <h2 class="migrate__title">从网易、QQ、酷狗过来？</h2>
+        <p class="migrate__text">
+          在 Android / PC 客户端粘贴歌单链接或 ID，自动拉取曲目并在站内曲库中匹配后导入你的歌单。
+        </p>
+      </div>
+      <NButton
+        class="migrate__cta"
+        variant="outline"
+        icon-after="arrow-right"
+        to="/download#netease-migrate"
+      >
+        查看怎么操作
+      </NButton>
+    </NCard>
+
+    <!-- ==================== 加载态 ==================== -->
+    <div v-if="loadingGrids" class="loading">
+      <NSpinner :size="28" />
+      <p>正在加载音乐…</p>
+    </div>
+
+    <template v-else>
+      <!-- ==================== 热门音乐 ==================== -->
+      <section v-if="hotList.length" class="section">
+        <header class="section__head">
+          <div>
+            <h2 class="section__title">热门音乐</h2>
+            <p class="section__sub">按播放量排序的热门曲目</p>
+          </div>
+          <NButton variant="ghost" icon-after="arrow-right" to="/ranking">查看全部</NButton>
+        </header>
+
+        <div class="grid">
+          <article
+            v-for="(m, i) in hotList"
+            :key="m.id"
+            class="cover-card"
+            tabindex="0"
+            role="button"
+            :aria-label="`播放 ${m.title}`"
+            @click="playMusic(m)"
+            @keydown.enter.prevent="playMusic(m)"
+          >
+            <div class="cover-card__art">
+              <img
+                :src="m.coverUrl"
+                :alt="m.title"
+                loading="lazy"
+                decoding="async"
+                @error="handleImageError"
+              />
+              <span class="cover-card__rank">{{ i + 1 }}</span>
+              <span class="cover-card__play"><NIcon name="play" :size="18" /></span>
+            </div>
+            <h3 class="cover-card__title">{{ m.title }}</h3>
+            <p class="cover-card__artist">{{ m.artist }}</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ==================== 最新上架 ==================== -->
+      <section v-if="latestGrid.length" class="section">
+        <header class="section__head">
+          <div>
+            <h2 class="section__title">最新上架</h2>
+            <p class="section__sub">刚刚入库的新歌</p>
+          </div>
+          <NButton variant="ghost" icon-after="arrow-right" to="/latest">查看全部</NButton>
+        </header>
+
+        <div class="grid">
+          <article
+            v-for="m in latestGrid"
+            :key="m.id"
+            class="cover-card"
+            tabindex="0"
+            role="button"
+            :aria-label="`播放 ${m.title}`"
+            @click="playMusic(m)"
+            @keydown.enter.prevent="playMusic(m)"
+          >
+            <div class="cover-card__art">
+              <img
+                :src="m.coverUrl"
+                :alt="m.title"
+                loading="lazy"
+                decoding="async"
+                @error="handleImageError"
+              />
+              <span class="cover-card__play"><NIcon name="play" :size="18" /></span>
+            </div>
+            <h3 class="cover-card__title">{{ m.title }}</h3>
+            <p class="cover-card__artist">{{ m.artist }}</p>
+          </article>
+        </div>
+      </section>
+    </template>
+  </PageShell>
+</template>
+
 <style scoped>
-/* -- 与下载页同一套页面基底（深色、光斑、网格）-- */
-.home-page {
-  --bg0: #07060d;
-  --bg1: #0f1020;
-  --line: rgba(255, 255, 255, 0.08);
-  --text: rgba(255, 255, 255, 0.92);
-  --muted: rgba(255, 255, 255, 0.62);
-  --faint: rgba(255, 255, 255, 0.42);
-  --card: rgba(255, 255, 255, 0.06);
-  --card2: rgba(255, 255, 255, 0.09);
-  --accent: #69c8df;
-  --accent2: #69c8df;
-  --accent3: #9beaff;
-  --radius: 18px;
-  --radius-lg: 24px;
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
-
-  position: relative;
-  min-height: 100vh;
-  padding-top: env(safe-area-inset-top, 0px);
-  color: var(--text);
-  /* 底图由 #app.app--home 统一提供，避免顶栏下沿与主内容背景不一致 */
-  background: transparent;
+/* ==================== Hero ==================== */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  align-items: center;
+  gap: clamp(24px, 5vw, 56px);
+  padding: clamp(12px, 3vw, 32px) 0 clamp(32px, 5vw, 56px);
 }
 
-.ambient {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
+.hero__copy {
+  min-width: 0;
 }
 
-.ambient__blob {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(72px);
-  opacity: 0.55;
-  animation: blobFloat 22s var(--ease) infinite;
+.hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--n-space-2);
+  padding: 5px 12px;
+  border-radius: var(--n-radius-pill);
+  background: var(--n-accent-soft);
+  color: var(--n-accent-strong);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-semibold);
+  letter-spacing: 0.02em;
 }
 
-.ambient__blob--a {
-  width: 420px;
-  height: 420px;
-  background: rgba(105, 200, 223, 0.24);
-  top: -140px;
-  left: -120px;
-}
-
-.ambient__blob--b {
-  width: 360px;
-  height: 360px;
-  background: rgba(155, 234, 255, 0.16);
-  bottom: -80px;
-  right: -100px;
-  animation-delay: -7s;
-}
-
-.ambient__blob--c {
-  width: 280px;
-  height: 280px;
-  background: rgba(105, 200, 223, 0.14);
-  top: 42%;
-  left: 38%;
-  animation-delay: -12s;
-}
-
-.ambient__grid {
-  position: absolute;
-  inset: 0;
-  opacity: 0.35;
-  background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: radial-gradient(ellipse 80% 60% at 50% 20%, black, transparent);
-  animation: gridBreathe 10s ease-in-out infinite;
-}
-
-@keyframes gridBreathe {
-  0%,
-  100% {
-    opacity: 0.28;
-  }
-  50% {
-    opacity: 0.42;
-  }
-}
-
-@keyframes blobFloat {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(24px, -18px) scale(1.05);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ambient__blob {
-    animation: none;
-  }
-
-  .ambient__grid {
-    animation: none;
-  }
-}
-
-.shell {
-  position: relative;
-  z-index: 1;
-  width: min(1120px, 100%);
-  margin: 0 auto;
-  padding: clamp(18px, 3.5vw, 36px) clamp(16px, 4vw, 32px) 56px;
-}
-
-.intro {
-  margin-bottom: clamp(22px, 3.5vw, 32px);
-  padding-bottom: clamp(16px, 2.8vw, 24px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.intro__text {
-  max-width: 38rem;
-}
-
-.intro__title {
-  margin: 0 0 8px;
-  font-size: clamp(1.55rem, 3.5vw, 2.1rem);
-  font-weight: 800;
+.hero__title {
+  margin: var(--n-space-5) 0 var(--n-space-3);
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  font-weight: var(--n-weight-bold);
+  line-height: 1.08;
   letter-spacing: -0.03em;
-  line-height: 1.15;
-  color: var(--text);
+  background: var(--n-gradient-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.intro__lede {
-  margin: 0;
-  font-size: clamp(0.88rem, 1.75vw, 0.97rem);
-  line-height: 1.5;
-  color: var(--muted);
-  max-width: 52ch;
+.hero__lede {
+  max-width: 44ch;
+  color: var(--n-text-muted);
+  font-size: clamp(0.95rem, 1.6vw, 1.05rem);
+  line-height: var(--n-leading-normal);
 }
 
-.intro__lede-strong {
-  color: rgba(255, 255, 255, 0.82);
-  font-weight: 700;
+.hero__strong {
+  color: var(--n-text);
+  font-weight: var(--n-weight-semibold);
 }
 
-.intro__nav {
+.hero__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: clamp(14px, 2.5vw, 20px);
+  gap: var(--n-space-3);
+  margin-top: var(--n-space-6);
 }
 
-.intro__chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 9px 15px;
-  font-size: 0.84rem;
-  font-weight: 600;
-  text-decoration: none;
-  color: rgba(255, 255, 255, 0.88);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
-  transition: background 0.2s var(--ease), border-color 0.2s var(--ease), transform 0.2s var(--ease);
-}
-
-.intro__chip:focus-visible {
-  outline: 2px solid var(--accent2);
-  outline-offset: 3px;
-}
-
-@media (hover: hover) {
-  .intro__chip:hover {
-    background: rgba(255, 255, 255, 0.11);
-    border-color: rgba(105, 200, 223, 0.35);
-    transform: translateY(-1px);
-  }
-}
-
-.intro__chip--accent {
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.18), rgba(155, 234, 255, 0.12));
-  border-color: rgba(105, 200, 223, 0.26);
-}
-
-@media (hover: hover) {
-  .intro__chip--accent:hover {
-    border-color: rgba(155, 234, 255, 0.42);
-  }
-}
-
-/* -- 网易云迁入说明条 -- */
-.migrate-strip {
-  margin-bottom: clamp(22px, 3.5vw, 32px);
-  border-radius: var(--radius-lg);
-  border: 1px solid rgba(105, 200, 223, 0.18);
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.12), rgba(155, 234, 255, 0.08), rgba(255, 255, 255, 0.03));
-  box-shadow: var(--shadow);
-}
-
-.migrate-strip__inner {
-  padding: clamp(18px, 3vw, 24px) clamp(18px, 3.5vw, 26px);
-}
-
-.migrate-strip__eyebrow {
-  margin: 0 0 6px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--accent3);
-}
-
-.migrate-strip__title {
-  margin: 0 0 10px;
-  font-size: clamp(1.05rem, 2.4vw, 1.25rem);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.25;
-  color: var(--text);
-}
-
-.migrate-strip__text {
-  margin: 0 0 14px;
-  font-size: 0.88rem;
-  line-height: 1.55;
-  color: var(--muted);
-  max-width: 62ch;
-}
-
-.migrate-strip__cta {
-  display: inline-flex;
-  align-items: center;
-  padding: 10px 18px;
-  font-size: 0.86rem;
-  font-weight: 700;
-  text-decoration: none;
-  color: #fff;
-  background: linear-gradient(135deg, #69c8df, #69c8df);
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  transition: transform 0.2s var(--ease), filter 0.2s var(--ease);
-}
-
-.migrate-strip__cta:focus-visible {
-  outline: 2px solid var(--accent2);
-  outline-offset: 3px;
-}
-
-@media (hover: hover) {
-  .migrate-strip__cta:hover {
-    filter: brightness(1.06);
-    transform: translateY(-1px);
-  }
-}
-
-@keyframes sectionLift {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 36px, 0) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
-
-/* -- 浏览区：左侧彩条 + 与 Android 区块同气质 -- */
-.browse {
+/* Hero 主视觉：热门第一首封面 */
+.hero__art {
   position: relative;
-  margin-bottom: clamp(24px, 4vw, 36px);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--line);
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.14), rgba(255, 255, 255, 0.03));
-  box-shadow: var(--shadow);
-  overflow: hidden;
-  animation: sectionLift 0.85s var(--ease) 0.2s both;
+  justify-self: center;
+  width: min(320px, 70vw);
+  aspect-ratio: 1;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .browse {
-    animation: none;
-  }
+.hero__glow {
+  position: absolute;
+  inset: 6%;
+  border-radius: var(--n-radius-xl);
+  background-size: cover;
+  background-position: center;
+  filter: blur(38px) saturate(1.3);
+  opacity: 0.5;
+  transform: scale(0.92);
+}
+
+.hero__frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--n-radius-xl);
+  overflow: hidden;
+  border: 1px solid var(--n-line-strong);
+  background: var(--n-surface-soft);
+  box-shadow: var(--n-shadow-lg);
+}
+
+.hero__frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.hero__placeholder {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--n-text-faint);
+}
+
+.hero__play {
+  position: absolute;
+  right: var(--n-space-4);
+  bottom: var(--n-space-4);
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--n-radius-circle);
+  background: var(--n-accent);
+  color: var(--n-text-inverse);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+  transition: transform var(--n-duration-fast) var(--n-ease), background var(--n-duration-fast) var(--n-ease);
 }
 
 @media (hover: hover) {
-.browse:hover {
-    border-color: rgba(105, 200, 223, 0.26);
-    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(105, 200, 223, 0.15);
+  .hero__play:hover {
+    transform: scale(1.08);
+    background: var(--n-accent-strong);
   }
 }
 
-.browse__rail {
+.hero__tag {
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 5px;
-  background: linear-gradient(180deg, var(--accent), var(--accent2), var(--accent3));
-  background-size: 100% 200%;
-  animation: railFlow 3.5s linear infinite;
+  top: var(--n-space-4);
+  left: var(--n-space-4);
+  background: rgba(6, 16, 20, 0.72);
+  backdrop-filter: var(--n-blur-sm);
+  -webkit-backdrop-filter: var(--n-blur-sm);
 }
 
-@keyframes railFlow {
-  0% {
-    background-position: 0% 0%;
-  }
-  100% {
-    background-position: 0% 100%;
-  }
+/* ==================== 快捷入口 ==================== */
+.quick {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--n-space-4);
+  margin-bottom: clamp(28px, 4vw, 44px);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .browse__rail {
-    animation: none;
-  }
-}
-
-.browse__inner {
-  padding: clamp(20px, 3.5vw, 28px) clamp(20px, 3.5vw, 32px) clamp(20px, 3.5vw, 28px) clamp(24px, 4vw, 36px);
-}
-
-.browse__head {
+.quick__card {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-bottom: 20px;
+  align-items: center;
+  gap: var(--n-space-4);
+  text-decoration: none;
+  color: inherit;
 }
 
-.browse__title {
-  margin: 0 0 4px;
-  font-size: 1.35rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+.quick__icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--n-radius-sm);
+  background: var(--n-accent-soft);
+  color: var(--n-accent-strong);
 }
 
-.browse__sub {
-  margin: 0;
-  font-size: 0.86rem;
-  color: var(--muted);
-  line-height: 1.4;
+.quick__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
 }
 
-.state {
+.quick__title {
+  font-weight: var(--n-weight-semibold);
+  color: var(--n-text);
+}
+
+.quick__desc {
+  font-size: var(--n-text-sm);
+  color: var(--n-text-muted);
+}
+
+.quick__arrow {
+  flex: none;
+  color: var(--n-text-faint);
+  transition: transform var(--n-duration-fast) var(--n-ease), color var(--n-duration-fast) var(--n-ease);
+}
+
+@media (hover: hover) {
+  .quick__card:hover .quick__arrow {
+    transform: translateX(3px);
+    color: var(--n-accent);
+  }
+}
+
+/* ==================== 歌单迁入 ==================== */
+.migrate {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-6);
+  margin-bottom: clamp(32px, 5vw, 56px);
+}
+
+.migrate__icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--n-radius);
+  background: var(--n-surface-soft);
+  border: 1px solid var(--n-line);
+  color: var(--n-accent-strong);
+}
+
+.migrate__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.migrate__title {
+  margin: var(--n-space-2) 0 var(--n-space-1);
+  font-size: var(--n-text-lg);
+  font-weight: var(--n-weight-semibold);
+  letter-spacing: -0.01em;
+}
+
+.migrate__text {
+  color: var(--n-text-muted);
+  font-size: var(--n-text-base);
+  max-width: 64ch;
+}
+
+.migrate__cta {
+  flex: none;
+}
+
+/* ==================== 加载态 ==================== */
+.loading {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: 40px 24px;
-  border-radius: var(--radius);
-  border: 1px solid var(--line);
-  background: var(--card);
+  gap: var(--n-space-4);
+  padding: var(--n-space-16) 0;
+  color: var(--n-text-muted);
 }
 
-.state--loading {
-  animation: statePulse 2.4s ease-in-out infinite;
+/* ==================== 区块 ==================== */
+.section {
+  margin-bottom: clamp(32px, 5vw, 56px);
 }
 
-@keyframes statePulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(105, 200, 223, 0);
-  }
-  50% {
-    box-shadow: 0 0 40px 2px rgba(105, 200, 223, 0.08);
-  }
+.section:last-child {
+  margin-bottom: 0;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .state--loading {
-    animation: none;
-  }
-}
-
-.state__spinner {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 3px solid rgba(255, 255, 255, 0.12);
-  border-top-color: var(--accent2);
-  animation: spin 0.85s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .state__spinner {
-    animation: none;
-    border-color: rgba(105, 200, 223, 0.35);
-  }
-}
-
-.state__text {
-  margin: 0;
-  text-align: center;
-  color: var(--muted);
-  max-width: 36ch;
-}
-
-.browse__tiles {
+.section__head {
   display: flex;
-  gap: 16px;
-  overflow-x: auto;
-  padding-bottom: 8px;
-  scroll-snap-type: x mandatory;
-  scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--n-space-4);
+  margin-bottom: var(--n-space-6);
 }
 
-.browse__tiles::-webkit-scrollbar {
-  height: 6px;
+.section__title {
+  font-size: clamp(1.2rem, 2.4vw, 1.5rem);
+  font-weight: var(--n-weight-semibold);
+  letter-spacing: -0.02em;
 }
 
-.browse__tiles::-webkit-scrollbar-thumb {
-  background: rgba(105, 200, 223, 0.4);
-  border-radius: 999px;
+.section__sub {
+  margin-top: var(--n-space-1);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
 }
 
-.b-tile {
-  flex: 0 0 auto;
-  width: min(200px, 78vw);
-  scroll-snap-align: start;
+/* ==================== 封面墙 ==================== */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: var(--n-space-5) var(--n-space-4);
+}
+
+.cover-card {
   cursor: pointer;
-  transition: transform 0.25s var(--ease);
+  min-width: 0;
 }
 
-.b-tile:focus-visible {
-  outline: 2px solid var(--accent2);
-  outline-offset: 4px;
+.cover-card:focus-visible {
+  outline: var(--n-focus-ring);
+  outline-offset: 3px;
+  border-radius: var(--n-radius-sm);
+}
+
+.cover-card__art {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: var(--n-radius);
+  overflow: hidden;
+  border: 1px solid var(--n-line);
+  background: var(--n-surface-soft);
+}
+
+.cover-card__art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform var(--n-duration-slow) var(--n-ease);
 }
 
 @media (hover: hover) {
-  .b-tile:hover {
-    transform: translateY(-6px);
+  .cover-card:hover .cover-card__art img {
+    transform: scale(1.05);
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .b-tile {
-    transition: none;
-  }
+.cover-card__rank {
+  position: absolute;
+  top: var(--n-space-2);
+  left: var(--n-space-2);
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: var(--n-radius-xs);
+  background: rgba(6, 16, 20, 0.72);
+  backdrop-filter: var(--n-blur-sm);
+  -webkit-backdrop-filter: var(--n-blur-sm);
+  color: var(--n-text);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
 
-  .b-tile:hover {
+.cover-card__play {
+  position: absolute;
+  right: var(--n-space-2);
+  bottom: var(--n-space-2);
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--n-radius-circle);
+  background: var(--n-accent);
+  color: var(--n-text-inverse);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity var(--n-duration-fast) var(--n-ease), transform var(--n-duration-fast) var(--n-ease);
+}
+
+@media (hover: hover) {
+  .cover-card:hover .cover-card__play {
+    opacity: 1;
     transform: none;
   }
 }
 
-.b-tile__cover {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: var(--radius);
+/* 触屏设备常显播放键 */
+@media (hover: none) {
+  .cover-card__play {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.cover-card__title {
+  margin-top: var(--n-space-3);
+  font-size: var(--n-text-base);
+  font-weight: var(--n-weight-medium);
+  white-space: nowrap;
   overflow: hidden;
-  margin-bottom: 10px;
-  border: 1px solid var(--line);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  text-overflow: ellipsis;
 }
 
-.b-tile__cover--hot {
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.26), rgba(143, 174, 198, 0.16));
-  padding: 4px;
-}
-
-.b-tile__cover--latest {
-  background: linear-gradient(135deg, rgba(155, 234, 255, 0.18), rgba(105, 200, 223, 0.22));
-  padding: 4px;
-}
-
-.b-tile__mosaic {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 4px;
-  width: 100%;
-  height: 100%;
-  border-radius: 14px;
+.cover-card__artist {
+  margin-top: 2px;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.b-tile__img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+/* ==================== 响应式 ==================== */
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: 1fr;
+    gap: var(--n-space-8);
+  }
+
+  .hero__art {
+    justify-self: start;
+    width: min(260px, 60vw);
+    order: -1;
+  }
+
+  .migrate {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--n-space-4);
+  }
+
+  .migrate__cta {
+    align-self: stretch;
+    justify-content: center;
+  }
 }
 
-.b-tile__badge {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 18px 10px 8px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: #fff;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
-}
+@media (max-width: 560px) {
+  .hero__actions :deep(.n-btn) {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
 
-.b-tile__meta {
-  padding: 0 2px;
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
 }
-
-.b-tile__name {
-  margin: 0 0 4px;
-  font-size: 0.95rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-
-.b-tile__hint {
-  margin: 0;
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-
 </style>
