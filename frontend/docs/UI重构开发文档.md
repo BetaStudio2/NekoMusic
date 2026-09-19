@@ -275,13 +275,31 @@ frontend/
 
 ### 5.3 视觉语言规范
 
+> 主题已于 2026-09 定为「**黑偏青 + 圆角矩形**」，全站统一。
+
+- **基调**：黑偏青 —— 近黑为底（青相 ~190°），青为唯一强调色。
 - **背景**：`--n-bg` 渐变 + 极淡 ambient（统一由 `AppShell` 提供，页面不再自建）。
-- **表面**：玻璃卡片 `NCard variant="glass"`，圆角 `--n-radius-lg(22px)`，呼吸感来自阴影而非彩边。
+- **表面**：玻璃卡片 `NCard variant="glass"`，圆角 `--n-radius-lg`（18px），呼吸感来自阴影而非彩边。
 - **文字**：主 `--n-text`、次 `--n-text-muted`、弱 `--n-text-faint`；标题可用渐变文字。
-- **强调**：`--n-accent(#69c8df)` 仅用于主 CTA、链接、图标激活、focus 环。
-- **圆角**：卡片 22px、控件 12px、按钮/标签胶囊 999px。
-- **动效**：`--n-duration-fast(160ms)` 用于交互反馈，`--n-duration(240ms)` 用于位移/展开；禁止常驻循环动画（ambient 除外且需尊重 `prefers-reduced-motion`）。
+- **强调**：`--n-accent(#5fd0e0)` 仅用于主 CTA、链接、图标激活、focus 环。
+- **形状**：**圆角矩形语言，不使用胶囊**。
+  - 按钮 / 输入框：`--n-radius-control`（12px）
+  - 标签 / 小徽章：`--n-radius-xs`（8px）
+  - 卡片：`--n-radius-lg`（18px）；封面：`--n-radius`（14px）
+  - 大面板 / Hero：`--n-radius-xl`（24px）
+  - `--n-radius-circle` 仅用于头像、加载环、关闭按钮等确需圆形处。
+- **动效**：`--n-duration-fast`（160ms）用于交互反馈，`--n-duration`（240ms）用于位移/展开；禁止常驻循环动画（ambient 除外且需尊重 `prefers-reduced-motion`）。
 - **图标**：统一 `NIcon`；状态切换（播放/暂停、菜单/关闭、收藏）用 morphicons 变形，替代生硬的显隐切换。
+
+### 5.4 播放条形态（决策）
+
+参考 ArchoeraMusic 的实现，确定采用**停靠式 + 空闲隐藏**，**不做悬浮**：
+
+- **位置**：始终停靠页面底部（搜索栏始终在顶部），保持现有 chrome 层次。
+- **空闲隐藏**：无当前曲目时整体下移并淡出，**不占用底部空间**；有曲目（含暂停的恢复会话）时从底部滑入 + 淡入（约 300ms，`ease-out`，尊重 `prefers-reduced-motion`）。
+- **不可卸载**：`GlobalPlayer` 挂载着 hash / 自定义事件 / MediaSession 监听，空闲时只能**视觉隐藏**，不能 `v-if` 卸载，否则无法接收新的播放指令。
+- **底栏联动**：页脚为播放器预留的高度需在隐藏时同步收起，避免空白。
+- **落地批次**：随布局壳批次（批次 1）实现外壳与过渡；`GlobalPlayer` 本体重构仍在批次 6。
 
 ---
 
@@ -406,7 +424,7 @@ home-page（自建 ambient + 自建变量集）
 | 批次 | 内容 | 说明 |
 |---|---|---|
 | 0 | ✅ 框架 + HomeView 样板 | 本文档 + 框架已就绪；HomeView 作为风格基准 |
-| 1 | 布局壳落地 | 抽出 `SiteHeader`（由 SearchHeader 改造）、`SiteFooter`；管理端抽 `AdminLayout`（含嵌套 `<router-view>`） |
+| 1 | 布局壳落地 | 抽出 `SiteHeader`（由 SearchHeader 改造）、`SiteFooter`；**播放条改为「停靠式 + 空闲隐藏」**（见下）；管理端抽 `AdminLayout`（含嵌套 `<router-view>`） |
 | 2 | 简单页 | About / Privacy / Error / CreatePlaylist / UserLogin / ForgotPassword / UserFavorites |
 | 3 | 列表页 | Latest / Ranking / SearchResults / PlaylistDetail / UserPlaylists |
 | 4 | 复杂页 | PlayerView / UploadMusicView / UserRegister / UserVip / UserProfile |
