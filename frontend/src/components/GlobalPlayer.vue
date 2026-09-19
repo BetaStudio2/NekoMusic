@@ -116,9 +116,13 @@
             <i>/</i>{{ formatTime(duration) }}
           </span>
           <div class="gp-now__viz">
-            <span v-if="barLyric" class="gp-now__lyric" :title="barLyric.full">
-              {{ barLyric.display }}
-            </span>
+            <MiniLyric
+              v-if="barLyric"
+              class="gp-now__lyric"
+              :text="barLyric.display"
+              :playing="isPlaying"
+              :title="barLyric.full"
+            />
             <SpectrumCanvas
               v-else-if="currentMusic"
               class="gp-now__spectrum"
@@ -227,6 +231,7 @@ import API_CONFIG from '@/config/apiConfig.js'
 import { useToast } from 'vue-toastification'
 import { attachAudioElement, unlockAudioAnalyser } from '@/composables/useAudioAnalyser'
 import SpectrumCanvas from '@/components/SpectrumCanvas.vue'
+import MiniLyric from '@/components/MiniLyric.vue'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NModal } from '@/ui'
 
@@ -714,9 +719,9 @@ const barLyric = computed(() => {
   return {
     text,
     translation,
-    // 只有 12px 高的一行：正文与翻译并排显示，超出省略；完整内容挂 title
-    display: translation ? `${text} · ${translation}` : text,
-    full: translation ? `${text} — ${translation}` : text,
+    // 对齐原版格式「原文（翻译）」；超宽时由 MiniLyric 自动循环滚动
+    display: translation ? `${text}（${translation}）` : text,
+    full: translation ? `${text}\n${translation}` : text,
   }
 })
 
@@ -2218,14 +2223,11 @@ onUnmounted(() => {
 }
 
 .gp-now__lyric {
-  max-width: 100%;
+  width: 100%;
+  height: 100%;
   font-size: var(--n-text-xs);
-  line-height: 1.1;
+  line-height: 1;
   color: var(--n-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-align: right;
 }
 
 .gp-now__spectrum {
