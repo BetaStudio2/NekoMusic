@@ -71,10 +71,10 @@ const classes = computed(() => [
 .n-page--centered {
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  justify-content: center;
   align-items: center;
   min-height: min(78dvh, 880px);
-  padding-top: clamp(28px, 6vh, 64px);
+  padding-block: clamp(24px, 5vh, 56px);
 }
 
 .n-page--centered > :not(.n-page__header) {
