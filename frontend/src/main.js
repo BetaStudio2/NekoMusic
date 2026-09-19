@@ -3,6 +3,8 @@ import App from './App.vue'
 import router from './router'
 import './assets/main.css'
 import './styles/glassShell.css'
+import './design/tokens.css'
+import './design/reset.css'
 import VueToastification from 'vue-toastification'
 import 'vue-toastification/dist/index.css'
 
