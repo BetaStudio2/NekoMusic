@@ -420,8 +420,8 @@ home-page（自建 ambient + 自建变量集）
 | 1 | ✅ 布局壳落地 | 已抽出 `SiteHeader`/`SiteFooter`/`AdminLayout`（含嵌套路由）；播放条已改为「停靠式 + 空闲隐藏」 |
 | 2 | ✅ 简单页 | About / Privacy / Error / CreatePlaylist / UserLogin / ForgotPassword / UserFavorites 已迁移 |
 | 3 | ✅ 列表页 | Latest / Ranking / SearchResults / PlaylistDetail / UserPlaylists 已迁移；搜索页改为标签页，播放页重排为「封面 + 歌词」双栏 |
-| 4 | ✅ 复杂页 | PlayerView / UploadMusicView / UserRegisterView / UserVipView / UserProfileView 已迁移；登录页按 WebWord 参考重做（含特效） |
-| 5 | 管理端 | 在既有 `AdminLayout` 下重制 9 个页面外观；替换/删除 `assets/main.css` 的 `.admin-layout !important` 皮肤与各页遗留的浅色 scoped 样式 |
+| 4 | ✅ 复杂页 | PlayerView / UploadMusicView / UserRegisterView / UserVipView / UserProfileView 已迁移；登录页按 WebWord 参考重做（含特效）；**DownloadView 一并迁移**（用户端已全部完成） |
+| 5 | ⏳ 管理端 | 进行中：`.admin-layout` 皮肤已改为令牌版（全站管理页即时换肤）、`AdminVipPricingView` 已精修；**剩余 6 页待精修**：AdminView / AdminMusicView / AdminAuditView / AdminUsersView / AdminLyricsEditorView / AdminReleasesView，以及 AdminLoginView（独立于管理布局）。收尾时删除 `main.css` 的 `!important` 皮肤与各页浅色 scoped 样式 |
 | 6 | 播放器 | GlobalPlayer 重构 + 抽出 `usePlayer`/`useLyrics`/`useMediaSession`；收敛全局契约 |
 | 7 | 清理 | 删除 `main.css`/`glassShell.css` 废弃段与旧组件；**此时**移除 `/__kit` 与 `KitView.vue`（迁移期间一直保留） |
 
