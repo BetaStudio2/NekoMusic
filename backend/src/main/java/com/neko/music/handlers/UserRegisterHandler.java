@@ -3,7 +3,7 @@ package com.neko.music.handlers;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
 import com.neko.music.service.UserAuthService;
-import com.neko.music.util.SensitiveWordUtil;
+import com.neko.music.util.NicknameValidator;
 import jakarta.servlet.annotation.WebServlet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -80,12 +80,9 @@ public class UserRegisterHandler extends HttpServlet {
             }
 
             // 4. 昵称与密码长度/合规校验
-            if (username.isEmpty() || username.length() > 20) {
-                sendResponse(response, false, "昵称长度需在1-20之间喵", null);
-                return;
-            }
-            if (SensitiveWordUtil.contains(username)) {
-                sendResponse(response, false, "昵称包含违禁词喵", null);
+            String nicknameError = NicknameValidator.validate(username);
+            if (nicknameError != null) {
+                sendResponse(response, false, nicknameError, null);
                 return;
             }
             if (password.length() < 6 || password.length() > 30) {
