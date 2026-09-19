@@ -44,6 +44,14 @@
             </button>
           </div>
 
+          <!-- 实时频谱（数据来自 GlobalPlayer 的音频元素） -->
+          <SpectrumCanvas
+            class="np__spectrum"
+            :bars="40"
+            :height="64"
+            :active="isPlaying"
+          />
+
           <div class="np__meta">
             <h1 id="track-title" class="np__title">{{ currentMusic.title }}</h1>
             <p class="np__artist">{{ currentMusic.artist }}</p>
@@ -207,6 +215,7 @@ import { useToast } from '@/composables/useToast'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NModal, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
+import SpectrumCanvas from '@/components/SpectrumCanvas.vue'
 const toast = useToast()
 
 const route = useRoute()
@@ -1204,6 +1213,10 @@ onUnmounted(() => {
     transform: translateY(-2px) scale(1.04);
     background: var(--n-accent-strong);
   }
+}
+
+.np__spectrum {
+  margin-top: var(--n-space-5);
 }
 
 .np__meta {

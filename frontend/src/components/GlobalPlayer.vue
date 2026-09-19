@@ -209,6 +209,7 @@ import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import { useToast } from 'vue-toastification'
+import { attachAudioElement } from '@/composables/useAudioAnalyser'
 
 defineProps({
   chromeDark: {
@@ -1558,6 +1559,9 @@ const handlePauseGlobalPlayer = () => {
 }
 
 onMounted(() => {
+  // 把音频元素注册给频谱分析（Web Audio AnalyserNode 需挂在同一元素上）
+  if (audioPlayer.value) attachAudioElement(audioPlayer.value)
+
   // 加载播放列表
   loadPlaylist()
 
