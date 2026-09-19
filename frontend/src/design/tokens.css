@@ -1,0 +1,149 @@
+/**
+ * Neko 设计令牌 (Design Tokens)
+ * ------------------------------------------------------------
+ * 全站唯一的视觉取值范围来源。组件只允许引用这里的 CSS 变量，
+ * 不允许在组件内硬编码颜色 / 间距 / 圆角 / 时长。
+ *
+ * 命名约定：--n-<类别>-<语义>[-<变体>]
+ * 视觉基调沿用旧版：深色玻璃拟态 + 青色强调 (#69c8df)。
+ */
+
+:root {
+  /* ===== 颜色 · 背景层次 ===== */
+  --n-bg: #070b10;
+  --n-bg-soft: #0b1118;
+  --n-bg-deep: #06090d;
+  --n-bg-elevated: #0e1620;
+
+  /* ===== 颜色 · 表面（玻璃层） ===== */
+  --n-surface: rgba(14, 22, 31, 0.82);
+  --n-surface-strong: rgba(20, 31, 43, 0.92);
+  --n-surface-soft: rgba(255, 255, 255, 0.045);
+  --n-surface-hover: rgba(255, 255, 255, 0.075);
+  --n-surface-active: rgba(255, 255, 255, 0.11);
+  --n-surface-sunken: rgba(8, 13, 19, 0.5);
+
+  /* ===== 颜色 · 描边 ===== */
+  --n-line: rgba(143, 174, 198, 0.16);
+  --n-line-strong: rgba(143, 174, 198, 0.28);
+  --n-line-subtle: rgba(143, 174, 198, 0.1);
+
+  /* ===== 颜色 · 文本 ===== */
+  --n-text: #f2f8fb;
+  --n-text-muted: #a6b7c4;
+  --n-text-faint: #708493;
+  --n-text-inverse: #061014;
+
+  /* ===== 颜色 · 强调 ===== */
+  --n-accent: #69c8df;
+  --n-accent-soft: rgba(105, 200, 223, 0.16);
+  --n-accent-line: rgba(105, 200, 223, 0.24);
+  --n-accent-strong: #9beaff;
+  --n-accent-deep: #3d9fb8;
+
+  /* ===== 颜色 · 语义状态 ===== */
+  --n-danger: #ff6b6b;
+  --n-danger-soft: rgba(255, 107, 107, 0.14);
+  --n-warning: #f7c66a;
+  --n-warning-soft: rgba(247, 198, 106, 0.14);
+  --n-success: #66d9a0;
+  --n-success-soft: rgba(102, 217, 160, 0.14);
+  --n-info: var(--n-accent);
+  --n-info-soft: var(--n-accent-soft);
+
+  /* ===== 渐变 ===== */
+  --n-gradient-accent: linear-gradient(135deg, rgba(105, 200, 223, 0.24), rgba(105, 200, 223, 0.1));
+  --n-gradient-text: linear-gradient(120deg, #eff9fc, #9beaff, #d7edf5);
+  --n-gradient-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent);
+
+  /* ===== 间距标尺（4px 基准） ===== */
+  --n-space-1: 4px;
+  --n-space-2: 8px;
+  --n-space-3: 12px;
+  --n-space-4: 16px;
+  --n-space-5: 20px;
+  --n-space-6: 24px;
+  --n-space-8: 32px;
+  --n-space-10: 40px;
+  --n-space-12: 48px;
+  --n-space-16: 64px;
+
+  /* ===== 圆角 ===== */
+  --n-radius-xs: 8px;
+  --n-radius-sm: 12px;
+  --n-radius: 16px;
+  --n-radius-lg: 22px;
+  --n-radius-xl: 28px;
+  --n-radius-pill: 999px;
+  --n-radius-circle: 50%;
+
+  /* ===== 字体 ===== */
+  --n-font-sans:
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    sans-serif;
+  --n-font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  --n-text-xs: 0.75rem;
+  --n-text-sm: 0.8125rem;
+  --n-text-base: 0.9375rem;
+  --n-text-md: 1rem;
+  --n-text-lg: 1.25rem;
+  --n-text-xl: 1.5rem;
+  --n-text-2xl: 2rem;
+  --n-text-3xl: 2.5rem;
+
+  --n-leading-tight: 1.25;
+  --n-leading-normal: 1.6;
+  --n-leading-loose: 1.8;
+
+  --n-weight-normal: 400;
+  --n-weight-medium: 500;
+  --n-weight-semibold: 600;
+  --n-weight-bold: 700;
+
+  /* ===== 阴影 ===== */
+  --n-shadow-sm: 0 4px 14px rgba(0, 0, 0, 0.22);
+  --n-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+  --n-shadow-lg: 0 26px 80px rgba(0, 0, 0, 0.42);
+  --n-shadow-glow: 0 0 0 4px rgba(105, 200, 223, 0.16);
+
+  /* ===== 模糊 ===== */
+  --n-blur-sm: blur(8px);
+  --n-blur: blur(18px);
+  --n-blur-lg: blur(28px);
+
+  /* ===== 动效 ===== */
+  --n-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --n-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --n-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --n-duration-instant: 90ms;
+  --n-duration-fast: 160ms;
+  --n-duration: 240ms;
+  --n-duration-slow: 420ms;
+  --n-duration-slower: 700ms;
+
+  /* ===== 层级 ===== */
+  --n-z-base: 0;
+  --n-z-ambient: 0;
+  --n-z-content: 1;
+  --n-z-sticky: 100;
+  --n-z-header: 200;
+  --n-z-player: 300;
+  --n-z-overlay: 400;
+  --n-z-modal: 500;
+  --n-z-toast: 2147483000;
+
+  /* ===== 布局尺寸 ===== */
+  --n-shell-max: 1120px;
+  --n-header-height: 64px;
+  --n-player-height: 88px;
+  --n-content-gutter: clamp(16px, 4vw, 32px);
+
+  /* ===== 焦点环 ===== */
+  --n-focus-ring: 2px solid var(--n-accent);
+  --n-focus-offset: 3px;
+}

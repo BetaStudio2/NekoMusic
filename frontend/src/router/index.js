@@ -48,6 +48,12 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
+      path: '/__kit',
+      name: 'kit',
+      component: () => import('@/views/KitView.vue'),
+      meta: { title: 'UI 框架自检' }
+    },
+    {
       path: '/',
       name: 'home',
       component: () => import('@/views/HomeView.vue'),
