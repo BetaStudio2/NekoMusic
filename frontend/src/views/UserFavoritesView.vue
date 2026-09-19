@@ -1,105 +1,48 @@
-<template>
-  <div class="glass-page">
-    <div class="ambient" aria-hidden="true">
-      <div class="ambient__blob ambient__blob--a" />
-      <div class="ambient__blob ambient__blob--b" />
-      <div class="ambient__blob ambient__blob--c" />
-      <div class="ambient__grid" />
-    </div>
-    <main class="shell">
-      <section class="panel fav-head">
-        <div class="fav-head__main">
-          <h1 class="fav-title">我的收藏</h1>
-          <p v-if="favorites.length === 0" class="fav-empty-hint">还没有收藏任何音乐</p>
-        </div>
-        <button
-          v-if="favorites.length > 0"
-          type="button"
-          class="btn-play-all"
-          title="播放全部"
-          @click="playAllFavorites"
-        >
-          <svg class="play-all-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M8 5v14l11-7z" />
-          </svg>
-          播放全部
-        </button>
-      </section>
-
-      <div v-if="favorites.length > 0" class="favorites-list">
-        <div 
-          v-for="music in favorites" 
-          :key="music.id" 
-          class="favorite-item"
-        >
-          <img 
-            :src="getCoverUrl(music.id)" 
-            :alt="music.title"
-            class="favorite-cover"
-            @error="handleImageError"
-          />
-          <div class="favorite-info" @click="playMusic(music)">
-            <div class="favorite-title">{{ music.title }}</div>
-            <div class="favorite-artist">作曲：{{ music.artist }}</div>
-            <div class="favorite-album">专辑：{{ music.album || '未知专辑' }}</div>
-          </div>
-          <div class="favorite-actions">
-            <button type="button" class="text-btn text-btn--play" title="播放" @click.stop="playMusic(music)">
-              播放
-            </button>
-            <button type="button" class="text-btn text-btn--remove" title="取消收藏" @click.stop="removeFavorite(music.id)">
-              移除
-            </button>
-          </div>
-        </div>
-      </div>
-    </main>
-  </div>
-</template>
-
 <script setup>
+/**
+ * UserFavoritesView —— 我的收藏
+ * ------------------------------------------------------------
+ * 契约（保持与旧实现一致，勿改）：
+ *  - GET /api/user/favorites（Authorization: 裸 userToken）
+ *  - DELETE /api/user/favorites/{id}
+ *  - 播放：写 globalPlaylist / currentPlayingMusic / globalPlayerState，
+ *    并广播 playlistUpdated / playerStateChange / forcePlay
+ */
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
-import { useToast } from 'vue-toastification'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NCard, NModal, NSpinner } from '@/ui'
+import { PageShell, AmbientBackdrop } from '@/layouts'
+import { useToast } from '@/composables/useToast'
+
 const toast = useToast()
-
 const router = useRouter()
+
 const favorites = ref([])
+const loading = ref(true)
+const confirmOpen = ref(false)
+const pendingRemove = ref(null)
 
-// 获取用户token
-const getToken = () => {
-  return localStorage.getItem('userToken')
-}
+const getToken = () => localStorage.getItem('userToken')
 
-// 检查用户是否登录
-const isLoggedIn = () => {
-  return !!getToken()
-}
-
-// 获取收藏列表
-const fetchFavorites = async () => {
-  if (!isLoggedIn()) {
+async function fetchFavorites() {
+  if (!getToken()) {
     router.push('/login')
     return
   }
-  
+  loading.value = true
   try {
-    const token = getToken()
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/favorites`, {
       method: 'GET',
-      headers: {
-        'Authorization': token
-      }
+      headers: { Authorization: getToken() },
     })
-    
     const data = await response.json()
     if (data.success) {
       favorites.value = data.favorites || []
     } else {
       console.error('获取收藏列表失败:', data.message)
       if (response.status === 401) {
-        // Token无效，跳转到登录页
         localStorage.removeItem('userToken')
         localStorage.removeItem('userInfo')
         router.push('/login')
@@ -107,109 +50,77 @@ const fetchFavorites = async () => {
     }
   } catch (error) {
     console.error('获取收藏列表失败:', error)
+  } finally {
+    loading.value = false
   }
 }
 
-// 播放音乐
-const playMusic = async (music) => {
-  // 先获取当前播放列表，如果没有则从后端获取
-  let playlist = JSON.parse(localStorage.getItem('globalPlaylist') || '[]')
-  
-  // 检查当前音乐是否已经在播放列表中
-  const existingIndex = playlist.findIndex(item => item.id === music.id)
+/** 播放单曲：沿用旧契约（localStorage + 事件，非 hash） */
+function playMusic(music) {
+  const playlist = JSON.parse(localStorage.getItem('globalPlaylist') || '[]')
+  const existingIndex = playlist.findIndex((item) => item.id === music.id)
   if (existingIndex === -1) {
-    // 如果当前音乐不在播放列表中，则添加到列表中
     playlist.push(music)
-    // 保存更新后的播放列表
     localStorage.setItem('globalPlaylist', JSON.stringify(playlist))
-    
-    // 立即广播播放列表更新事件，确保 GlobalPlayer 组件收到通知
-    const playlistEvent = new CustomEvent('playlistUpdated', {
-      detail: {
-        playlist: playlist
-      }
-    })
-    window.dispatchEvent(playlistEvent)
+    window.dispatchEvent(new CustomEvent('playlistUpdated', { detail: { playlist } }))
   }
-  
-  // 设置当前播放的音乐到localStorage，触发全局播放器
+
   localStorage.setItem('currentPlayingMusic', JSON.stringify(music))
-  
-  // 立即更新播放状态为播放，并清零时间（从0.1开始）
+
   const state = {
     isPlaying: true,
     currentTime: 0.1,
-    duration: music.duration || 0
+    duration: music.duration || 0,
   }
   localStorage.setItem('globalPlayerState', JSON.stringify(state))
-  
-  // 立即广播播放状态变化
-  const event = new CustomEvent('playerStateChange', {
-    detail: {
-      isPlaying: state.isPlaying,
-      currentTime: state.currentTime,
-      duration: state.duration,
-      currentMusic: music
-    }
-  })
-  window.dispatchEvent(event)
-  
-  // 立即触发强制播放
-  setTimeout(() => {
-    window.dispatchEvent(new Event('forcePlay'))
-  }, 10)
-  
-  // 再次确保播放器状态同步
-  setTimeout(() => {
-    window.dispatchEvent(new Event('forcePlay'))
-  }, 100)
+
+  window.dispatchEvent(
+    new CustomEvent('playerStateChange', {
+      detail: {
+        isPlaying: state.isPlaying,
+        currentTime: state.currentTime,
+        duration: state.duration,
+        currentMusic: music,
+      },
+    })
+  )
+
+  setTimeout(() => window.dispatchEvent(new Event('forcePlay')), 10)
+  setTimeout(() => window.dispatchEvent(new Event('forcePlay')), 100)
 }
 
-// 播放全部收藏
-const playAllFavorites = () => {
-  if (favorites.value.length === 0) {
+function playAllFavorites() {
+  if (!favorites.value.length) {
     toast.warning('收藏列表为空')
     return
   }
-  
-  // 将整个收藏列表设置为播放列表
   localStorage.setItem('globalPlaylist', JSON.stringify(favorites.value))
-  
-  // 广播播放列表更新事件
-  const playlistEvent = new CustomEvent('playlistUpdated', {
-    detail: {
-      playlist: favorites.value
-    }
-  })
-  window.dispatchEvent(playlistEvent)
-  
-  // 播放第一首
-  if (favorites.value.length > 0) {
-    playMusic(favorites.value[0])
-  }
-  
+  window.dispatchEvent(new CustomEvent('playlistUpdated', { detail: { playlist: favorites.value } }))
+  playMusic(favorites.value[0])
   toast.success(`已开始播放全部 ${favorites.value.length} 首收藏音乐`)
 }
 
-// 取消收藏
-const removeFavorite = async (musicId) => {
-  if (!confirm('确定要取消收藏这首音乐吗？')) {
-    return
-  }
-  
+function askRemove(music) {
+  pendingRemove.value = music
+  confirmOpen.value = true
+}
+
+async function confirmRemove() {
+  const music = pendingRemove.value
+  confirmOpen.value = false
+  pendingRemove.value = null
+  if (music) await removeFavorite(music.id)
+}
+
+async function removeFavorite(musicId) {
   try {
-    const token = getToken()
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/favorites/${musicId}`, {
       method: 'DELETE',
-      headers: {
-        'Authorization': token
-      }
+      headers: { Authorization: getToken() },
     })
-    
     const data = await response.json()
     if (data.success) {
-      // 从列表中移除
-      favorites.value = favorites.value.filter(m => m.id !== musicId)
+      favorites.value = favorites.value.filter((m) => m.id !== musicId)
       toast.success('取消收藏成功')
     } else {
       console.error('取消收藏失败:', data.message)
@@ -221,184 +132,237 @@ const removeFavorite = async (musicId) => {
   }
 }
 
-// 获取音乐封面URL
-const getCoverUrl = (musicId) => {
-  return `${API_CONFIG.BASE_URL}/api/music/cover/${musicId}`
-}
+const getCoverUrl = (musicId) => `${API_CONFIG.BASE_URL}/api/music/cover/${musicId}`
 
-// 处理封面图片加载错误
-const handleImageError = (event) => {
+function handleImageError(event) {
   event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/0`
 }
 
-onMounted(() => {
-  fetchFavorites()
-})
+onMounted(fetchFavorites)
 </script>
 
-<style scoped>
-.panel {
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(105, 200, 223, 0.12), rgba(255, 255, 255, 0.04));
-  box-shadow: var(--shadow);
-}
+<template>
+  <AmbientBackdrop />
 
-.fav-head {
+  <PageShell width="default">
+    <!-- 页头 -->
+    <header class="head">
+      <div class="head__main">
+        <h1 class="head__title">我的收藏</h1>
+        <p class="head__sub">
+          <template v-if="favorites.length">共 {{ favorites.length }} 首</template>
+          <template v-else>收藏喜欢的音乐，随时回来听</template>
+        </p>
+      </div>
+      <NButton
+        v-if="favorites.length"
+        variant="primary"
+        icon="play"
+        @click="playAllFavorites"
+      >
+        播放全部
+      </NButton>
+    </header>
+
+    <!-- 加载 -->
+    <div v-if="loading" class="state">
+      <NSpinner :size="28" />
+    </div>
+
+    <!-- 空状态 -->
+    <NCard v-else-if="!favorites.length" pad="lg" class="empty">
+      <span class="empty__icon"><NIcon name="heart" :size="28" /></span>
+      <h2 class="empty__title">还没有收藏任何音乐</h2>
+      <p class="empty__text">在播放页点击收藏，之后就能在这里快速找到。</p>
+      <NButton variant="primary" icon="home" to="/">去发现音乐</NButton>
+    </NCard>
+
+    <!-- 列表 -->
+    <div v-else class="list">
+      <article v-for="music in favorites" :key="music.id" class="row">
+        <img
+          :src="getCoverUrl(music.id)"
+          :alt="music.title"
+          class="row__cover"
+          loading="lazy"
+          decoding="async"
+          @error="handleImageError"
+        />
+        <button type="button" class="row__info" @click="playMusic(music)">
+          <span class="row__title">{{ music.title }}</span>
+          <span class="row__artist">作曲：{{ music.artist }}</span>
+          <span class="row__album">专辑：{{ music.album || '未知专辑' }}</span>
+        </button>
+        <div class="row__actions">
+          <NButton size="sm" variant="secondary" icon="play" @click="playMusic(music)">播放</NButton>
+          <NButton size="sm" variant="danger" icon="heart-off" @click="askRemove(music)">移除</NButton>
+        </div>
+      </article>
+    </div>
+
+    <NModal v-model="confirmOpen" title="取消收藏" size="sm">
+      <p class="confirm-text">
+        确定要取消收藏「{{ pendingRemove?.title }}」吗？
+      </p>
+      <template #footer>
+        <NButton variant="ghost" @click="confirmOpen = false">取消</NButton>
+        <NButton variant="danger" @click="confirmRemove">确定移除</NButton>
+      </template>
+    </NModal>
+  </PageShell>
+</template>
+
+<style scoped>
+.head {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 16px;
-  padding: clamp(18px, 3vw, 24px) clamp(18px, 3vw, 22px);
-  margin-bottom: 16px;
+  gap: var(--n-space-4);
+  margin-bottom: var(--n-space-6);
 }
 
-.fav-head__main {
-  flex: 1;
+.head__main {
   min-width: 0;
 }
 
-.fav-title {
-  margin: 0 0 6px;
+.head__title {
+  margin: 0 0 var(--n-space-1);
   font-size: clamp(1.45rem, 3vw, 1.85rem);
-  font-weight: 800;
+  font-weight: var(--n-weight-bold);
   letter-spacing: -0.03em;
-  color: var(--text);
 }
 
-.fav-empty-hint {
+.head__sub {
   margin: 0;
-  font-size: 0.92rem;
-  color: var(--muted);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
 }
 
-.btn-play-all {
-  font-family: inherit;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
-  border: none;
-  border-radius: 999px;
-  font-size: 0.88rem;
-  font-weight: 700;
-  cursor: pointer;
-  color: #0c0a14;
-  background: linear-gradient(135deg, #9beaff, var(--accent2));
-  box-shadow: 0 8px 24px rgba(105, 200, 223, 0.3);
+.state {
+  display: flex;
+  justify-content: center;
+  padding: var(--n-space-16) 0;
 }
 
-.play-all-icon {
-  width: 18px;
-  height: 18px;
-}
-
-.favorites-list {
+/* ===== 空状态 ===== */
+.empty {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  align-items: center;
+  text-align: center;
+  gap: var(--n-space-3);
+  padding: var(--n-space-12) var(--n-space-6);
 }
 
-.favorite-item {
+.empty__icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--n-radius);
+  background: var(--n-accent-soft);
+  color: var(--n-accent-strong);
+}
+
+.empty__title {
+  margin: 0;
+  font-size: var(--n-text-lg);
+  font-weight: var(--n-weight-semibold);
+}
+
+.empty__text {
+  margin: 0 0 var(--n-space-2);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+}
+
+/* ===== 列表 ===== */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--n-space-3);
+}
+
+.row {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(105, 200, 223, 0.08), rgba(255, 255, 255, 0.03));
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
-  transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
+  gap: var(--n-space-4);
+  padding: var(--n-space-3) var(--n-space-4);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-lg);
+  background: var(--n-surface);
+  transition: border-color var(--n-duration-fast) var(--n-ease), background var(--n-duration-fast) var(--n-ease);
 }
 
 @media (hover: hover) {
-  .favorite-item:hover {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(105, 200, 223, 0.28);
+  .row:hover {
+    border-color: var(--n-line-strong);
+    background: var(--n-surface-hover);
   }
 }
 
-.favorite-cover {
+.row__cover {
   width: 52px;
   height: 52px;
   object-fit: cover;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  flex-shrink: 0;
+  border-radius: var(--n-radius-sm);
+  border: 1px solid var(--n-line-subtle);
+  flex: none;
 }
 
-.favorite-info {
+.row__info {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  gap: 2px;
   flex: 1;
   min-width: 0;
-  gap: 2px;
-  cursor: pointer;
+  text-align: left;
 }
 
-.favorite-title {
-  font-weight: 700;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 0.95rem;
-}
-
-.favorite-artist {
-  color: var(--accent2);
-  font-size: 0.82rem;
+.row__title {
+  font-weight: var(--n-weight-semibold);
+  color: var(--n-text);
+  font-size: var(--n-text-base);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.favorite-album {
-  color: var(--faint);
-  font-size: 0.76rem;
+.row__artist {
+  color: var(--n-accent-strong);
+  font-size: var(--n-text-sm);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.favorite-actions {
+.row__album {
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row__actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  flex-shrink: 0;
+  gap: var(--n-space-2);
+  flex: none;
 }
 
-.text-btn {
-  font-family: inherit;
-  padding: 7px 12px;
-  border-radius: 999px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.text-btn--play:hover {
-  border-color: rgba(105, 200, 223, 0.45);
-  background: rgba(105, 200, 223, 0.2);
-}
-
-.text-btn--remove {
-  border-color: rgba(251, 113, 133, 0.35);
-  background: rgba(244, 63, 94, 0.12);
-  color: #fecdd3;
+.confirm-text {
+  margin: 0;
+  color: var(--n-text-muted);
+  line-height: var(--n-leading-normal);
 }
 
 @media (max-width: 560px) {
-  .favorite-item {
+  .row {
     flex-wrap: wrap;
   }
 
-  .favorite-actions {
+  .row__actions {
     width: 100%;
     justify-content: flex-end;
   }

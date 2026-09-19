@@ -1,72 +1,39 @@
-<template>
-  <div class="glass-page">
-    <div class="ambient" aria-hidden="true">
-      <div class="ambient__blob ambient__blob--a" />
-      <div class="ambient__blob ambient__blob--b" />
-      <div class="ambient__blob ambient__blob--c" />
-      <div class="ambient__grid" />
-    </div>
-    <main class="shell auth-main">
-      <div class="panel auth-card">
-        <h2 class="auth-title">用户登录</h2>
-        <form class="auth-form" @submit.prevent="handleLogin">
-          <div class="form-group">
-            <input
-              v-model="username"
-              type="text"
-              class="form-input"
-              placeholder="邮箱"
-              required
-              autocomplete="username"
-            />
-          </div>
-          <div class="form-group">
-            <input
-              v-model="password"
-              type="password"
-              class="form-input"
-              placeholder="密码"
-              required
-              autocomplete="current-password"
-            />
-          </div>
-          <button type="submit" class="btn-submit" :disabled="loading">
-            <span v-if="loading">登录中…</span>
-            <span v-else>登录</span>
-          </button>
-        </form>
-        <div class="auth-footer">
-          <p>还没有账户？<a href="#" @click.prevent="goToRegister">立即注册</a></p>
-          <p><a href="#" @click.prevent="goToForgotPassword">忘记密码？</a></p>
-        </div>
-      </div>
-    </main>
-  </div>
-</template>
-
 <script setup>
+/**
+ * UserLoginView —— 用户登录
+ * ------------------------------------------------------------
+ * 契约（保持与旧实现一致）：
+ *  - POST /api/user/login
+ *  - 成功后写 userToken / user，并广播 storage（供 GlobalPlayer/顶栏同步）
+ *  - 跳转首页
+ */
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
-import { useToast } from 'vue-toastification'
 import API_CONFIG from '@/config/apiConfig.js'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NCard, NInput } from '@/ui'
+import { PageShell, AmbientBackdrop } from '@/layouts'
+import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
 const router = useRouter()
+
 const username = ref('')
 const password = ref('')
 const loading = ref(false)
 
-const handleLogin = async () => {
+async function handleLogin() {
+  if (loading.value) return
   loading.value = true
   try {
     const response = await axios.post(`${API_CONFIG.BASE_URL}/api/user/login`, {
       username: username.value,
-      password: password.value
+      password: password.value,
     })
 
     if (response.data.success) {
-      toast.success('登录成功！')
+      toast.success('登录成功')
       const previousToken = localStorage.getItem('userToken')
 
       localStorage.setItem('userToken', response.data.data.token)
@@ -77,7 +44,7 @@ const handleLogin = async () => {
           new StorageEvent('storage', {
             key: 'userToken',
             oldValue: null,
-            newValue: response.data.data.token
+            newValue: response.data.data.token,
           })
         )
       }
@@ -97,116 +64,91 @@ const handleLogin = async () => {
     loading.value = false
   }
 }
-
-const goToRegister = () => {
-  router.push('/register')
-}
-
-const goToForgotPassword = () => {
-  router.push('/forgot-password')
-}
 </script>
 
-<style scoped>
-.panel {
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(105, 200, 223, 0.14), rgba(255, 255, 255, 0.04));
-  box-shadow: var(--shadow);
-}
+<template>
+  <AmbientBackdrop />
 
-.auth-card {
+  <PageShell width="narrow" centered>
+    <NCard pad="lg" class="auth">
+      <h1 class="auth__title">用户登录</h1>
+
+      <form class="auth__form" @submit.prevent="handleLogin">
+        <NInput
+          v-model="username"
+          icon="mail"
+          placeholder="邮箱"
+          autocomplete="username"
+          required
+        />
+        <NInput
+          v-model="password"
+          type="password"
+          icon="lock"
+          placeholder="密码"
+          autocomplete="current-password"
+          required
+        />
+        <NButton type="submit" variant="primary" size="lg" block :loading="loading">
+          登录
+        </NButton>
+      </form>
+
+      <div class="auth__footer">
+        <p>
+          还没有账户？
+          <RouterLink to="/register">立即注册</RouterLink>
+        </p>
+        <p>
+          <RouterLink to="/forgot-password">
+            <NIcon name="key" :size="14" />
+            忘记密码？
+          </RouterLink>
+        </p>
+      </div>
+    </NCard>
+  </PageShell>
+</template>
+
+<style scoped>
+.auth {
   width: 100%;
   max-width: 420px;
-  padding: clamp(28px, 4vw, 40px) clamp(22px, 4vw, 32px);
 }
 
-.auth-title {
-  margin: 0 0 24px;
+.auth__title {
+  margin: 0 0 var(--n-space-6);
   text-align: center;
   font-size: clamp(1.35rem, 3vw, 1.65rem);
-  font-weight: 800;
+  font-weight: var(--n-weight-bold);
   letter-spacing: -0.02em;
-  background: linear-gradient(120deg, #d7edf5, #c8f7ff, #9beaff);
+  background: var(--n-gradient-text);
   -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.auth-form {
+.auth__form {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: var(--n-space-4);
 }
 
-.form-group {
-  margin: 0;
-}
-
-.form-input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 12px 14px;
-  border-radius: var(--radius);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.22);
-  color: var(--text);
-  font-size: 0.95rem;
-  font-family: inherit;
-  transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
-}
-
-.form-input::placeholder {
-  color: var(--faint);
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: rgba(105, 200, 223, 0.45);
-  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.12);
-}
-
-.btn-submit {
-  font-family: inherit;
-  margin-top: 6px;
-  padding: 12px 20px;
-  border: none;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 0.95rem;
-  cursor: pointer;
-  color: #0c0a14;
-  background: linear-gradient(135deg, #9beaff, var(--accent2));
-  box-shadow: 0 8px 24px rgba(105, 200, 223, 0.3);
-}
-
-.btn-submit:hover:not(:disabled) {
-  filter: brightness(1.05);
-}
-
-.btn-submit:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.auth-footer {
-  margin-top: 22px;
+.auth__footer {
+  margin-top: var(--n-space-6);
   text-align: center;
-  font-size: 0.88rem;
-  color: var(--muted);
+  font-size: var(--n-text-sm);
+  color: var(--n-text-muted);
 }
 
-.auth-footer p {
-  margin: 8px 0;
+.auth__footer p {
+  margin: var(--n-space-2) 0;
 }
 
-.auth-footer a {
-  color: var(--accent2);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.auth-footer a:hover {
-  text-decoration: underline;
+.auth__footer a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: var(--n-weight-semibold);
 }
 </style>
