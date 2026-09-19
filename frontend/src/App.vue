@@ -30,6 +30,16 @@ const isChromeDarkShell = computed(() => !String(route.name || '').startsWith('a
 /** 是否存在当前曲目（决定播放条显隐） */
 const hasTrack = ref(false)
 
+/** 顶栏高度（用于「收起」时精确收拢布局，避免硬编码） */
+const headerRef = ref(null)
+const headerHeight = ref(0)
+let headerResizeObserver = null
+
+function measureHeader() {
+  const el = headerRef.value?.$el
+  if (el) headerHeight.value = el.offsetHeight
+}
+
 function refreshTrackPresence() {
   const raw = localStorage.getItem('currentPlayingMusic')
   hasTrack.value = !!raw && raw !== 'null' && raw !== 'undefined'
@@ -45,18 +55,40 @@ onMounted(() => {
   window.addEventListener('storage', refreshTrackPresence)
   window.addEventListener('forcePlay', refreshTrackPresence)
   window.addEventListener('playerStateChange', onPlayerState)
+
+  // 顶栏高度跟随渲染/尺寸变化，保证收起动效收拢准确
+  measureHeader()
+  const el = headerRef.value?.$el
+  if (el && typeof ResizeObserver !== 'undefined') {
+    headerResizeObserver = new ResizeObserver(measureHeader)
+    headerResizeObserver.observe(el)
+  }
+  window.addEventListener('resize', measureHeader)
 })
 
 onUnmounted(() => {
   window.removeEventListener('storage', refreshTrackPresence)
   window.removeEventListener('forcePlay', refreshTrackPresence)
   window.removeEventListener('playerStateChange', onPlayerState)
+  headerResizeObserver?.disconnect()
+  headerResizeObserver = null
+  window.removeEventListener('resize', measureHeader)
 })
 </script>
 
 <template>
-  <div id="app" :class="{ 'app--home': isChromeDarkShell, 'app--player-visible': hasTrack }">
-    <SiteHeader v-if="!isDownloadPage" />
+  <div
+    id="app"
+    :class="{ 'app--home': isChromeDarkShell, 'app--player-visible': hasTrack }"
+    :style="{ '--app-header-h': headerHeight + 'px' }"
+  >
+    <SiteHeader
+      ref="headerRef"
+      class="app-chrome-header"
+      :class="{ 'app-chrome-header--hidden': isDownloadPage }"
+      :inert="isDownloadPage || null"
+      :aria-hidden="isDownloadPage || undefined"
+    />
 
     <main :class="{ 'main--flush': isFlushMain }">
       <RouterView />
@@ -98,6 +130,23 @@ main.main--flush {
   padding: 0;
 }
 
+/* ===== 顶栏：进入下载页时上滑收起，并同步收拢布局占位 =====
+   下载页无顶栏；此处保留挂载只做视觉隐藏，以便播放收起/展开过渡。
+   用 --app-header-h（JS 实测高度）精确收拢，避免硬编码与移动端换行偏差。 */
+.app-chrome-header {
+  transition:
+    margin-bottom var(--n-duration) var(--n-ease),
+    transform var(--n-duration) var(--n-ease),
+    opacity var(--n-duration) var(--n-ease);
+}
+
+.app-chrome-header--hidden {
+  margin-bottom: calc(-1 * var(--app-header-h, 0px));
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* ===== 页脚：为播放条预留空间，随播放条显隐收放 ===== */
 .app-footer {
   transition: padding-bottom var(--n-duration) var(--n-ease);
@@ -122,6 +171,7 @@ main.main--flush {
 
 @media (prefers-reduced-motion: reduce) {
   .app-footer,
+  .app-chrome-header,
   .app-player :deep(.global-player) {
     transition: none;
   }
