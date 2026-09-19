@@ -12,11 +12,11 @@ const props = defineProps({
   title: { type: String, default: '' },
   /** 副标题 */
   subtitle: { type: String, default: '' },
-  /** 内容最大宽度：narrow | default | wide | full */
+  /** 内容最大宽度：narrow | default | wide | xwide | full */
   width: {
     type: String,
     default: 'default',
-    validator: (v) => ['narrow', 'default', 'wide', 'full'].includes(v),
+    validator: (v) => ['narrow', 'default', 'wide', 'xwide', 'full'].includes(v),
   },
   /** 内容水平 / 垂直居中（适合登录、错误页） */
   centered: { type: Boolean, default: false },
@@ -64,6 +64,7 @@ const classes = computed(() => [
 .n-page--narrow { max-width: 560px; }
 .n-page--default { max-width: var(--n-shell-max); }
 .n-page--wide { max-width: 1440px; }
+.n-page--xwide { max-width: 1680px; }
 .n-page--full { max-width: none; }
 
 .n-page--flush-top { padding-top: 0; }
