@@ -14,7 +14,7 @@ import {
   Repeat, Repeat1, Shuffle, ListMusic, Music, Music2, Mic2, AudioLines,
   Rewind, FastForward, Radio, Disc3, Waves, CircleStop,
   // 通用操作
-  Search, X, Check, Plus, Minus, Trash2, Pencil, Copy, Share2, Download,
+  Search, SearchX, X, Check, Plus, Minus, Trash2, Pencil, Copy, Share2, Download,
   Upload, Filter, SlidersHorizontal, RefreshCw, ExternalLink, Link, Link2,
   MoreHorizontal, MoreVertical, GripVertical, Maximize2, Minimize2, Expand,
   // 方向
@@ -34,6 +34,7 @@ import {
   // 主题 / 展示
   Sun, Moon, Monitor, Eye, EyeOff, Palette, LayoutGrid, LayoutList, Menu,
   PanelLeft, PanelRight, Table, Grid3x3, GalleryHorizontal, Rows3,
+  Video, Clapperboard,
   // 时间 / 位置
   Clock, Calendar, CalendarDays, History, MapPin, Timer, Hourglass,
   // 其他
@@ -81,6 +82,7 @@ export const icons = {
 
   // 通用操作
   search: Search,
+  'search-x': SearchX,
   close: X,
   check: Check,
   plus: Plus,
@@ -201,6 +203,8 @@ export const icons = {
   grid: Grid3x3,
   gallery: GalleryHorizontal,
   rows: Rows3,
+  video: Video,
+  clapperboard: Clapperboard,
 
   // 时间 / 位置
   clock: Clock,
