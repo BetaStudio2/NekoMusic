@@ -39,7 +39,8 @@ function resumeContext() {
 /** 由 GlobalPlayer 在挂载后调用，注册承载音频的元素 */
 export function attachAudioElement(el) {
   if (typeof window === 'undefined' || !el) return
-  if (state.attachedEl === el && state.ready) return
+  // 同一个元素重复注册直接忽略
+  if (state.attachedEl === el) return
 
   const AudioCtx = window.AudioContext || window.webkitAudioContext
   if (!AudioCtx) {
@@ -51,17 +52,26 @@ export function attachAudioElement(el) {
   try {
     if (!state.ctx) state.ctx = new AudioCtx()
 
-    // 每个元素只能建一次 source
-    if (!state.source) {
-      state.source = state.ctx.createMediaElementSource(el)
+    // 元素被重建（如 v-if 切换）时，旧链路必须断开并重建：
+    // createMediaElementSource 对每个元素只能调用一次，旧元素无法复用。
+    if (state.source) {
+      try {
+        state.source.disconnect()
+      } catch {
+        /* ignore */
+      }
+      state.source = null
+      state.analyser = null
+      state.freq = null
+      state.ready = false
+      analyserReady.value = false
     }
 
-    if (!state.analyser) {
-      state.analyser = state.ctx.createAnalyser()
-      state.analyser.fftSize = 1024
-      state.analyser.smoothingTimeConstant = 0.78
-      state.freq = new Uint8Array(state.analyser.frequencyBinCount)
-    }
+    state.source = state.ctx.createMediaElementSource(el)
+    state.analyser = state.ctx.createAnalyser()
+    state.analyser.fftSize = 1024
+    state.analyser.smoothingTimeConstant = 0.78
+    state.freq = new Uint8Array(state.analyser.frequencyBinCount)
 
     // 串联：source → analyser → destination（否则听不到声音）
     state.source.connect(state.analyser)
