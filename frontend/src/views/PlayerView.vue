@@ -119,17 +119,13 @@
             <span v-if="parsedLyrics.length" class="np__lyrics-count">{{ parsedLyrics.length }} 行</span>
           </header>
 
-          <div v-if="parsedLyrics.length > 0" ref="lyricsContent" class="np__lyrics-scroll">
-            <div
-              v-for="(line, index) in parsedLyrics"
-              :key="index"
-              class="lyric-line"
-              :class="getLyricLineClass(index)"
-            >
-              <div class="lyric-text">{{ line.text }}</div>
-              <div v-if="line.translation" class="lyric-translation">{{ line.translation }}</div>
-            </div>
-          </div>
+          <LyricsWall
+            v-if="parsedLyrics.length > 0"
+            class="np__wall"
+            :lines="parsedLyrics"
+            :current-time="currentTime"
+            :playing="isPlaying"
+          />
 
           <div v-else class="np__lyrics-empty">
             <NIcon name="file-text" :size="26" />
@@ -216,6 +212,7 @@ import NIcon from '@/icons/NIcon.vue'
 import { NButton, NModal, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import SpectrumCanvas from '@/components/SpectrumCanvas.vue'
+import LyricsWall from '@/components/LyricsWall.vue'
 const toast = useToast()
 
 const route = useRoute()
@@ -1217,6 +1214,10 @@ onUnmounted(() => {
 
 .np__spectrum {
   margin-top: var(--n-space-5);
+}
+
+.np__wall {
+  min-height: min(62vh, 620px);
 }
 
 .np__meta {
