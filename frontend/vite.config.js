@@ -37,6 +37,10 @@ export default defineConfig(({ command }) => ({
           if (id.includes('/axios/')) return 'axios-vendor'
           if (id.includes('qrcode')) return 'qrcode-vendor'
           if (id.includes('vue-toastification')) return 'ui-vendor'
+          // AMLL 歌词墙 + PixiJS：仅在播放页用到，单独成块便于缓存
+          if (/node_modules[/\\](@applemusic-like-lyrics|@pixi|gl-matrix|bezier-easing|deep-freeze|@ungap)[/\\]/.test(id)) {
+            return 'amll-vendor'
+          }
           if (id.includes('vue-router') || /node_modules[/\\]vue[/\\]/.test(id)) {
             return 'vue-vendor'
           }
