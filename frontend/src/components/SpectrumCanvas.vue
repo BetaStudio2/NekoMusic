@@ -58,9 +58,10 @@ function resize() {
   const rect = canvas.getBoundingClientRect()
   const w = Math.max(1, Math.floor(rect.width))
   const h = Math.max(1, props.height)
+  // 只写【绘图缓冲】尺寸；显示尺寸由外层与 CSS 决定，
+  // 避免 canvas.width 反过来影响布局（见 <style> 里的说明）
   canvas.width = Math.floor(w * dpr)
   canvas.height = Math.floor(h * dpr)
-  canvas.style.height = `${h}px`
   const ctx = canvas.getContext('2d')
   if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 }
@@ -252,12 +253,28 @@ defineExpose({ redraw: draw })
 </script>
 
 <template>
-  <canvas ref="canvasRef" class="spectrum" aria-hidden="true" />
+  <div class="spectrum-box" :style="{ height: height + 'px' }">
+    <canvas ref="canvasRef" class="spectrum-canvas" aria-hidden="true" />
+  </div>
 </template>
 
 <style scoped>
-.spectrum {
+/* 外层负责占位，canvas 用绝对定位【脱离布局】。
+   若让 <canvas> 直接作为对外根元素，它的固有尺寸（默认 300px，且会被
+   resize() 里写入的 canvas.width 改变）会经由 flex/grid 的内容尺寸反馈给
+   父级：既挤压同排控件，又会和 resize() 形成「越量越大」的正反馈。
+   调用方只需给外层一个确定宽度（如 width: 96px / min(100%, 38vh)）。 */
+.spectrum-box {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+.spectrum-canvas {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
+  height: 100%;
 }
 </style>
