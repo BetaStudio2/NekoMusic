@@ -11,38 +11,30 @@ function isAdminLoggedIn() {
   return localStorage.getItem('isAdminLoggedIn') === 'true';
 }
 
-// 管理员路由守卫
-const adminGuard = (to, from, next) => {
-  if (to.path.startsWith('/admin') && to.path !== '/admin/login') {
-    if (isAdminLoggedIn()) {
-      // 检查用户权限
-      const adminInfo = localStorage.getItem('adminInfo')
-      if (adminInfo) {
-        const parsedInfo = JSON.parse(adminInfo)
-        const role = parsedInfo.role || 'admin'
+// 管理员路由守卫（router v5：用返回值代替已弃用的 next 回调）
+const adminGuard = (to) => {
+  if (!to.path.startsWith('/admin') || to.path === '/admin/login') return true
 
-        // 审核员不能访问音乐/歌词管理页面
-        if (role === 'auditor' && (to.path.startsWith('/admin/music') || to.path.startsWith('/admin/lyrics'))) {
-          next('/admin') // 重定向到管理首页
-          return
-        }
-        if (role === 'auditor' && to.path.startsWith('/admin/vip-pricing')) {
-          next('/admin')
-          return
-        }
-        if (role === 'auditor' && to.path.startsWith('/admin/releases')) {
-          next('/admin')
-          return
-        }
+  if (!isAdminLoggedIn()) return '/admin/login'
+
+  // 检查用户权限
+  const stored = localStorage.getItem('adminInfo')
+  if (stored) {
+    try {
+      const role = JSON.parse(stored).role || 'admin'
+      // 审核员不能访问音乐/歌词/VIP 价目/客户端更新页面
+      if (role === 'auditor') {
+        if (to.path.startsWith('/admin/music') || to.path.startsWith('/admin/lyrics')) return '/admin'
+        if (to.path.startsWith('/admin/vip-pricing')) return '/admin'
+        if (to.path.startsWith('/admin/releases')) return '/admin'
       }
-      next(); // 如果已登录且有权限，允许访问
-    } else {
-      next('/admin/login'); // 如果未登录，重定向到登录页面
+    } catch {
+      /* adminInfo 损坏时按已登录处理，交由页面自行兜底 */
     }
-  } else {
-    next(); // 其他路由正常访问
   }
-};
+
+  return true
+}
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -358,7 +350,8 @@ const router = createRouter({
 })
 
 // 全局路由守卫 - 更新页面标题和元数据 + 移动设备检测
-router.beforeEach((to, from, next) => {
+// （router v5：用返回值代替已弃用的 next 回调）
+router.beforeEach((to) => {
   // 如果是移动设备访问非下载页面、非播放页面、非歌单详情页面、非管理员页面，重定向到下载页面
   if (isMobileDevice() &&
       to.path !== '/download' &&
@@ -368,8 +361,7 @@ router.beforeEach((to, from, next) => {
       !to.path.startsWith('/account') &&
       !to.path.startsWith('/vip') &&
       !to.path.startsWith('/admin')) {
-    next('/download')
-    return
+    return '/download'
   }
 
   // 设置页面标题
@@ -395,7 +387,7 @@ router.beforeEach((to, from, next) => {
   }
   keywordsMeta.content = keywords
 
-  next()
+  return true
 })
 
 export default router
