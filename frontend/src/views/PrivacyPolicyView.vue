@@ -585,13 +585,9 @@ onUnmounted(() => {
   gap: var(--n-space-5);
 }
 
-/* 窄屏：目录置顶 */
+/* 窄屏：目录置顶（无容器外观，仅标题 + 链接） */
 .doc__toc {
   order: -1;
-  padding: var(--n-space-4) var(--n-space-5);
-  border: 1px solid var(--n-line);
-  border-radius: var(--n-radius-lg);
-  background: var(--n-surface);
 }
 
 .doc__main {
@@ -662,7 +658,6 @@ onUnmounted(() => {
     top: calc(var(--n-header-height) + var(--n-space-5));
     max-height: calc(100dvh - var(--n-header-height) - var(--n-space-10));
     overflow-y: auto;
-    padding: var(--n-space-5);
   }
 }
 
