@@ -36,6 +36,7 @@
           v-if="currentMusic"
           ref="audioPlayer" 
           :src="`${API_CONFIG.BASE_URL}/api/music/file/${currentMusic.id}`" 
+          crossorigin="anonymous"
           @ended="onAudioEnded"
           @timeupdate="onTimeUpdate"
           @loadedmetadata="onLoadedMetadata"
@@ -1571,6 +1572,12 @@ const handlePauseGlobalPlayer = () => {
 onMounted(() => {
   // 把音频元素注册给频谱分析（Web Audio AnalyserNode 需挂在同一元素上）
   if (audioPlayer.value) attachAudioElement(audioPlayer.value)
+
+  // audio 是 v-if="currentMusic" 渲染的：首次挂载时通常还不存在，
+  // 因此监听 ref，等元素出现后再注册（元素被重建时也会重新注册）
+  watch(audioPlayer, (el) => {
+    if (el) attachAudioElement(el)
+  })
 
   // 加载播放列表
   loadPlaylist()

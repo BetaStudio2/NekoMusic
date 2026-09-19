@@ -10,6 +10,12 @@ function isLocalHostname(hostname) {
 
 function getApiBaseUrl() {
   if (typeof window === 'undefined') return '';
+
+  // 开发联调：可在 .env.development.local 指定后端地址（例如线上站点取真实媒体）。
+  // 仅本地生效，且优先于下面的同源推导；生产构建未设置该变量时行为不变。
+  const override = import.meta.env.VITE_API_BASE;
+  if (override) return String(override).replace(/\/+$/, '');
+
   const { protocol, hostname, port } = window.location;
   if (isLocalHostname(hostname) && port && port !== '80' && port !== '443') {
     return `${protocol}//${hostname}`;
