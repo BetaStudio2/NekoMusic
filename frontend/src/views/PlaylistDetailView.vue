@@ -1,123 +1,131 @@
 <template>
-  <div class="pl-detail-page">
-    <div class="ambient" aria-hidden="true">
-      <div class="ambient__blob ambient__blob--a" />
-      <div class="ambient__blob ambient__blob--b" />
-      <div class="ambient__grid" />
+  <div class="pl-detail">
+    <AmbientBackdrop />
+
+    <div v-if="isMobile && showBanner" class="banner">
+      <span>下载 App 获得更好体验</span>
+      <RouterLink to="/download" class="banner__btn">立即下载</RouterLink>
+      <button type="button" class="banner__close" aria-label="关闭" @click="closeBanner">
+        <NIcon name="close" :size="16" />
+      </button>
     </div>
 
-    <div v-if="isMobile && showBanner" class="mobile-download-banner">
-      <div class="banner-content">
-        <span class="banner-text">下载 App 获得更好体验</span>
-        <a href="/download" class="banner-link">立即下载</a>
-        <button type="button" class="banner-close" aria-label="关闭" @click="closeBanner">×</button>
-      </div>
-    </div>
+    <PageShell width="default">
+      <!-- 歌单头 -->
+      <section class="hero">
+        <NButton
+          v-if="!isMobile"
+          class="hero__back"
+          variant="ghost"
+          size="sm"
+          icon="arrow-left"
+          @click="goBack"
+        >
+          返回
+        </NButton>
 
-    <main class="shell" :class="{ 'shell--banner': isMobile && showBanner }">
-      <section class="panel hero-panel">
-        <button v-if="!isMobile" type="button" class="btn-back" @click="goBack">返回</button>
-        <div class="hero-main">
-          <div class="hero-cover">
+        <div class="hero__main">
+          <div class="hero__cover">
             <img :src="getPlaylistCover()" alt="" @error="handlePlaylistCoverError" />
           </div>
-          <div class="hero-text">
-            <h1 class="hero-title">{{ playlist?.name || '歌单' }}</h1>
-            <p v-if="playlist?.description" class="hero-desc">{{ playlist.description }}</p>
-            <p class="hero-meta">{{ playlist?.musicCount ?? 0 }} 首</p>
+          <div class="hero__text">
+            <h1 class="hero__title">{{ playlist?.name || '歌单' }}</h1>
+            <p v-if="playlist?.description" class="hero__desc">{{ playlist.description }}</p>
+            <p class="hero__meta">
+              <NIcon name="music" :size="14" />
+              {{ playlist?.musicCount ?? 0 }} 首
+            </p>
           </div>
         </div>
-        <div class="hero-actions">
-          <button
+
+        <div class="hero__actions">
+          <NButton
             v-if="musicList.length > 0"
-            type="button"
-            class="btn-play-all"
-            title="播放全部"
+            variant="primary"
+            icon="play"
             @click="playAll"
           >
-            <svg class="play-all-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M8 5v14l11-7z" />
-            </svg>
             播放全部
-          </button>
-          <button v-if="isOwner" type="button" class="btn-ghost" @click="showAddMusicDialog">添加音乐</button>
+          </NButton>
+          <NButton v-if="isOwner" variant="secondary" icon="plus" @click="showAddMusicDialog">
+            添加音乐
+          </NButton>
         </div>
       </section>
 
-      <section v-if="loading" class="panel state-panel">
-        <div class="state state--loading">
-          <div class="state__spinner" aria-hidden="true" />
-          <p class="state__text">加载中…</p>
-        </div>
-      </section>
-
-      <section v-else-if="musicList.length > 0" class="panel list-panel">
-        <div
-          v-for="(music, index) in musicList"
-          :key="music.id"
-          class="music-row"
-        >
-          <span class="music-idx">{{ index + 1 }}</span>
-          <button type="button" class="music-cover-btn" @click="playMusic(music)">
-            <img :src="getCoverUrl(music.id)" :alt="music.title" @error="handleCoverError" />
-          </button>
-          <button type="button" class="music-text-btn" @click="playMusic(music)">
-            <span class="music-title">{{ music.title }}</span>
-            <span class="music-artist">{{ music.artist }}</span>
-          </button>
-          <span class="music-dur">{{ formatDuration(music.duration) }}</span>
-          <button
-            v-if="isOwner"
-            type="button"
-            class="btn-remove"
-            title="从歌单移除"
-            aria-label="移除"
-            @click="removeMusic(music.id)"
-          >
-            移除
-          </button>
-        </div>
-      </section>
-
-      <section v-else class="panel state-panel state-empty">
-        <h2 class="state__title">歌单暂无音乐</h2>
-        <p v-if="isOwner" class="state__text">点击「添加音乐」搜索并加入曲目。</p>
-        <p v-else class="state__text">该歌单还没有添加曲目。</p>
-        <button v-if="isOwner" type="button" class="btn-play-all" @click="showAddMusicDialog">添加音乐</button>
-      </section>
-    </main>
-
-    <div v-if="showAddMusic" class="modal-overlay" @click.self="closeAddMusicDialog">
-      <div class="modal panel" role="dialog" aria-labelledby="add-music-title" @click.stop>
-        <button type="button" class="modal-close" aria-label="关闭" @click="closeAddMusicDialog">×</button>
-        <h3 id="add-music-title" class="modal-title">添加音乐</h3>
-        <input
-          v-model="searchQuery"
-          class="modal-search"
-          type="search"
-          placeholder="搜索曲名或艺人…"
-          autocomplete="off"
-          @input="handleSearch"
-        />
-        <div v-if="searchResults.length > 0" class="modal-results">
-          <button
-            v-for="music in searchResults"
-            :key="music.id"
-            type="button"
-            class="modal-result-row"
-            @click="addMusicToPlaylist(music)"
-          >
-            <img class="modal-result-cover" :src="getCoverUrl(music.id)" :alt="''" @error="handleCoverError" />
-            <span class="modal-result-text">
-              <span class="modal-result-title">{{ music.title }}</span>
-              <span class="modal-result-artist">{{ music.artist }}</span>
-            </span>
-            <span class="modal-result-add">加入</span>
-          </button>
-        </div>
-        <p v-else-if="searchQuery.trim()" class="modal-empty">未找到相关音乐</p>
+      <!-- 加载 -->
+      <div v-if="loading" class="state">
+        <NSpinner :size="28" />
       </div>
-    </div>
+
+      <!-- 曲目列表 -->
+      <div v-else-if="musicList.length > 0" class="list">
+        <article v-for="(music, index) in musicList" :key="music.id" class="row">
+          <span class="row__idx">{{ index + 1 }}</span>
+          <button type="button" class="row__cover-btn" @click="playMusic(music)">
+            <img :src="getCoverUrl(music.id)" :alt="music.title" loading="lazy" @error="handleCoverError" />
+            <span class="row__cover-play"><NIcon name="play" :size="14" /></span>
+          </button>
+          <button type="button" class="row__info" @click="playMusic(music)">
+            <span class="row__title">{{ music.title }}</span>
+            <span class="row__artist">{{ music.artist }}</span>
+          </button>
+          <span class="row__dur">{{ formatDuration(music.duration) }}</span>
+          <NButton
+            v-if="isOwner"
+            size="sm"
+            variant="danger"
+            icon="trash-2"
+            title="从歌单移除"
+            @click="removeMusic(music.id)"
+          />
+        </article>
+      </div>
+
+      <!-- 空状态 -->
+      <NCard v-else pad="lg" class="empty">
+        <span class="empty__icon"><NIcon name="list-music" :size="26" /></span>
+        <h2 class="empty__title">歌单暂无音乐</h2>
+        <p class="empty__text">
+          <template v-if="isOwner">点击「添加音乐」搜索并加入曲目。</template>
+          <template v-else>该歌单还没有添加曲目。</template>
+        </p>
+        <NButton v-if="isOwner" variant="primary" icon="plus" @click="showAddMusicDialog">
+          添加音乐
+        </NButton>
+      </NCard>
+    </PageShell>
+
+    <!-- 添加音乐 -->
+    <NModal v-model="showAddMusic" title="添加音乐" size="md" @close="closeAddMusicDialog">
+      <NInput
+        v-model="searchQuery"
+        icon="search"
+        placeholder="搜索曲名或艺人…"
+        autocomplete="off"
+        clearable
+        @update:model-value="handleSearch"
+      />
+
+      <div v-if="searchResults.length > 0" class="results">
+        <button
+          v-for="music in searchResults"
+          :key="music.id"
+          type="button"
+          class="results__row"
+          @click="addMusicToPlaylist(music)"
+        >
+          <img class="results__cover" :src="getCoverUrl(music.id)" alt="" loading="lazy" @error="handleCoverError" />
+          <span class="results__text">
+            <span class="results__title">{{ music.title }}</span>
+            <span class="results__artist">{{ music.artist }}</span>
+          </span>
+          <span class="results__add"><NIcon name="plus" :size="14" />加入</span>
+        </button>
+      </div>
+      <p v-else-if="searchQuery.trim()" class="results__empty">未找到相关音乐</p>
+      <p v-else class="results__empty">输入关键词开始搜索</p>
+    </NModal>
   </div>
 </template>
 
@@ -125,7 +133,10 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
-import { useToast } from 'vue-toastification'
+import { useToast } from '@/composables/useToast'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NCard, NInput, NModal, NSpinner } from '@/ui'
+import { PageShell, AmbientBackdrop } from '@/layouts'
 import { tryOpenPlaylistInApp } from '@/utils/nativeAppOpen.js'
 
 const toast = useToast()
@@ -444,558 +455,352 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.pl-detail-page {
-  --text: rgba(255, 255, 255, 0.92);
-  --muted: rgba(255, 255, 255, 0.62);
-  --faint: rgba(255, 255, 255, 0.42);
-  --line: rgba(255, 255, 255, 0.1);
-  --accent2: #69c8df;
-  --radius: 14px;
-  --radius-lg: 20px;
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
-
+.pl-detail {
   position: relative;
-  min-height: 100vh;
-  padding-top: env(safe-area-inset-top, 0px);
-  color: var(--text);
-  background: transparent;
+  min-height: 100dvh;
 }
 
-.ambient {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.ambient__blob {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(72px);
-  opacity: 0.45;
-}
-
-.ambient__blob--a {
-  width: 400px;
-  height: 400px;
-  background: rgba(105, 200, 223, 0.36);
-  top: -120px;
-  right: -80px;
-}
-
-.ambient__blob--b {
-  width: 320px;
-  height: 320px;
-  background: rgba(105, 200, 223, 0.18);
-  bottom: -40px;
-  left: -50px;
-}
-
-.ambient__grid {
-  position: absolute;
-  inset: 0;
-  opacity: 0.26;
-  background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: radial-gradient(ellipse 80% 55% at 50% 12%, black, transparent);
-}
-
-.mobile-download-banner {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1000;
-  background: linear-gradient(135deg, rgba(30, 27, 50, 0.96), rgba(15, 16, 32, 0.98));
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-}
-
-.banner-content {
+/* ==================== 移动下载横幅 ==================== */
+.banner {
+  position: relative;
+  z-index: var(--n-z-sticky);
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 11px 16px;
-  max-width: 1100px;
-  margin: 0 auto;
-  flex-wrap: wrap;
+  gap: var(--n-space-3);
+  padding: var(--n-space-3) var(--n-content-gutter);
+  background: var(--n-accent-soft);
+  border-bottom: 1px solid var(--n-accent-line);
+  color: var(--n-text);
+  font-size: var(--n-text-sm);
 }
 
-.banner-text {
-  color: rgba(255, 255, 255, 0.88);
-  font-size: 0.86rem;
-  font-weight: 600;
+.banner__btn {
+  margin-left: auto;
+  padding: 6px 14px;
+  border-radius: var(--n-radius-control);
+  background: var(--n-accent);
+  color: var(--n-text-inverse);
+  font-weight: var(--n-weight-semibold);
+  font-size: var(--n-text-sm);
 }
 
-.banner-link {
-  background: linear-gradient(135deg, #69c8df, #4aa9c0);
-  color: #fff;
-  text-decoration: none;
-  padding: 7px 16px;
-  border-radius: 999px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  white-space: nowrap;
+.banner__close {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--n-radius-xs);
+  color: var(--n-text-muted);
 }
 
-.banner-close {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.8);
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 1.1rem;
-  line-height: 1;
+/* ==================== 歌单头 ==================== */
+.hero {
+  margin-bottom: var(--n-space-6);
 }
 
-.shell {
-  position: relative;
-  z-index: 1;
-  width: min(920px, 100%);
-  margin: 0 auto;
-  padding: clamp(16px, 3vw, 28px) clamp(14px, 3.5vw, 24px) 48px;
+.hero__back {
+  margin-bottom: var(--n-space-4);
 }
 
-.shell--banner {
-  padding-top: 56px;
-}
-
-.panel {
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(105, 200, 223, 0.12), rgba(255, 255, 255, 0.04));
-  box-shadow: var(--shadow);
-  margin-bottom: 16px;
-}
-
-.hero-panel {
-  padding: 18px 20px 20px;
-}
-
-.btn-back {
-  font-family: inherit;
-  display: inline-flex;
-  margin-bottom: 14px;
-  padding: 8px 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.88);
-  font-size: 0.84rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.hero-main {
+.hero__main {
   display: flex;
-  flex-wrap: wrap;
-  gap: 18px;
   align-items: center;
+  gap: clamp(18px, 3vw, 32px);
 }
 
-.hero-cover {
-  width: 120px;
-  height: 120px;
-  border-radius: var(--radius);
+.hero__cover {
+  flex: none;
+  width: clamp(120px, 20vw, 180px);
+  aspect-ratio: 1;
+  border-radius: var(--n-radius-lg);
   overflow: hidden;
-  flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--n-line-strong);
+  background: var(--n-surface-soft);
+  box-shadow: var(--n-shadow-lg);
 }
 
-.hero-cover img {
+.hero__cover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
 
-.hero-text {
-  flex: 1;
+.hero__text {
   min-width: 0;
 }
 
-.hero-title {
-  margin: 0 0 8px;
-  font-size: clamp(1.35rem, 3vw, 1.75rem);
-  font-weight: 800;
+.hero__title {
+  margin: 0 0 var(--n-space-2);
+  font-size: clamp(1.5rem, 3.4vw, 2.2rem);
+  font-weight: var(--n-weight-bold);
   letter-spacing: -0.03em;
-  line-height: 1.2;
+  line-height: 1.12;
+  overflow-wrap: anywhere;
 }
 
-.hero-desc {
-  margin: 0 0 8px;
-  font-size: 0.88rem;
-  color: var(--muted);
-  line-height: 1.45;
-}
-
-.hero-meta {
-  margin: 0;
-  font-size: 0.86rem;
-  color: var(--accent2);
-  font-weight: 600;
-}
-
-.hero-actions {
-  width: 100%;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.btn-play-all {
-  font-family: inherit;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 11px 18px;
-  border: none;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 0.88rem;
-  cursor: pointer;
-  color: #0c0a14;
-  background: linear-gradient(135deg, #9beaff, var(--accent2));
-  box-shadow: 0 8px 24px rgba(105, 200, 223, 0.3);
-}
-
-.play-all-icon {
-  width: 18px;
-  height: 18px;
-}
-
-.btn-ghost {
-  font-family: inherit;
-  padding: 10px 16px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.88);
-  font-weight: 600;
-  font-size: 0.86rem;
-  cursor: pointer;
-}
-
-.state-panel {
-  padding: 36px 24px;
-  text-align: center;
-}
-
-.state--loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-}
-
-.state__spinner {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 3px solid rgba(255, 255, 255, 0.12);
-  border-top-color: var(--accent2);
-  animation: spin 0.85s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.state__text {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.92rem;
-}
-
-.state-empty .state__title {
-  margin: 0 0 10px;
-  font-size: 1.15rem;
-  font-weight: 800;
-}
-
-.state-empty .state__text {
-  margin: 0 0 18px;
-  line-height: 1.5;
-}
-
-.list-panel {
-  padding: 6px 0;
+.hero__desc {
+  margin: 0 0 var(--n-space-2);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-base);
+  line-height: var(--n-leading-normal);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.music-row {
-  display: flex;
+.hero__meta {
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  transition: background 0.15s var(--ease);
+  gap: var(--n-space-2);
+  margin: 0;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-sm);
 }
 
-.music-row:last-child {
-  border-bottom: none;
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--n-space-3);
+  margin-top: var(--n-space-5);
+}
+
+/* ==================== 状态 ==================== */
+.state {
+  display: flex;
+  justify-content: center;
+  padding: var(--n-space-16) 0;
+}
+
+/* ==================== 曲目列表 ==================== */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--n-space-2);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-4);
+  padding: var(--n-space-2) var(--n-space-4);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-lg);
+  background: var(--n-surface);
+  transition: border-color var(--n-duration-fast) var(--n-ease), background var(--n-duration-fast) var(--n-ease);
 }
 
 @media (hover: hover) {
-  .music-row:hover {
-    background: rgba(255, 255, 255, 0.05);
+  .row:hover {
+    border-color: var(--n-line-strong);
+    background: var(--n-surface-hover);
   }
 }
 
-.music-idx {
+.row__idx {
+  flex: none;
   width: 28px;
   text-align: center;
-  font-size: 0.82rem;
-  color: var(--faint);
+  color: var(--n-text-faint);
+  font-size: var(--n-text-sm);
   font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
 }
 
-.music-cover-btn {
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
+.row__cover-btn {
+  position: relative;
+  flex: none;
   width: 48px;
   height: 48px;
-  border-radius: 10px;
+  border-radius: var(--n-radius-sm);
   overflow: hidden;
-  flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--n-line-subtle);
 }
 
-.music-cover-btn img {
+.row__cover-btn img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
 
-.music-text-btn {
-  flex: 1;
-  min-width: 0;
-  text-align: left;
-  border: none;
-  background: none;
-  cursor: pointer;
-  padding: 4px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.music-title {
-  font-size: 0.92rem;
-  font-weight: 700;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.music-artist {
-  font-size: 0.8rem;
-  color: var(--accent2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.music-dur {
-  font-size: 0.78rem;
-  color: var(--faint);
-  font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
-}
-
-.btn-remove {
-  font-family: inherit;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(251, 113, 133, 0.35);
-  background: rgba(244, 63, 94, 0.12);
-  color: #fecdd3;
-  font-size: 0.72rem;
-  font-weight: 600;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 2000;
-  background: rgba(6, 5, 12, 0.72);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.modal {
-  position: relative;
-  width: min(480px, 100%);
-  max-height: min(85vh, 640px);
-  display: flex;
-  flex-direction: column;
-  padding: 22px 20px 18px;
-  color: var(--text);
-}
-
-.modal-close {
+.row__cover-play {
   position: absolute;
-  top: 10px;
-  right: 12px;
-  border: none;
-  background: none;
-  color: var(--faint);
-  font-size: 1.45rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.modal-title {
-  margin: 0 0 14px;
-  font-size: 1.1rem;
-  font-weight: 800;
-}
-
-.modal-search {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 11px 14px;
-  margin-bottom: 12px;
-  border-radius: var(--radius);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.22);
-  color: var(--text);
-  font-size: 0.92rem;
-}
-
-.modal-search::placeholder {
-  color: var(--faint);
-}
-
-.modal-search:focus {
-  outline: none;
-  border-color: rgba(105, 200, 223, 0.45);
-}
-
-.modal-results {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-right: 4px;
-}
-
-.modal-result-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
-  cursor: pointer;
-  text-align: left;
-  color: inherit;
-  font: inherit;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 9, 11, 0.55);
+  color: var(--n-accent-strong);
+  opacity: 0;
+  transition: opacity var(--n-duration-fast) var(--n-ease);
 }
 
 @media (hover: hover) {
-  .modal-result-row:hover {
-    border-color: rgba(105, 200, 223, 0.35);
-    background: rgba(255, 255, 255, 0.07);
+  .row__cover-btn:hover .row__cover-play {
+    opacity: 1;
   }
 }
 
-.modal-result-cover {
-  width: 44px;
-  height: 44px;
-  border-radius: 8px;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
-.modal-result-text {
-  flex: 1;
-  min-width: 0;
+.row__info {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
 }
 
-.modal-result-title {
-  font-size: 0.88rem;
-  font-weight: 700;
+.row__title {
+  color: var(--n-text);
+  font-size: var(--n-text-base);
+  font-weight: var(--n-weight-medium);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.modal-result-artist {
-  font-size: 0.78rem;
-  color: var(--muted);
+.row__artist {
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.modal-result-add {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--accent2);
-  flex-shrink: 0;
+.row__dur {
+  flex: none;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-sm);
+  font-variant-numeric: tabular-nums;
 }
 
-.modal-empty {
-  margin: 16px 0 0;
+/* ==================== 空状态 ==================== */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
-  font-size: 0.86rem;
-  color: var(--faint);
+  gap: var(--n-space-3);
+  padding: var(--n-space-12) var(--n-space-6);
 }
 
-@media (max-width: 600px) {
-  .hero-main {
+.empty__icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--n-radius);
+  background: var(--n-accent-soft);
+  color: var(--n-accent-strong);
+}
+
+.empty__title {
+  margin: 0;
+  font-size: var(--n-text-lg);
+  font-weight: var(--n-weight-semibold);
+}
+
+.empty__text {
+  margin: 0 0 var(--n-space-2);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+}
+
+/* ==================== 添加音乐弹窗 ==================== */
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--n-space-1);
+  margin-top: var(--n-space-4);
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+}
+
+.results__row {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-3);
+  padding: var(--n-space-2);
+  border-radius: var(--n-radius-sm);
+  text-align: left;
+  transition: background var(--n-duration-fast) var(--n-ease);
+}
+
+@media (hover: hover) {
+  .results__row:hover {
+    background: var(--n-surface-hover);
+  }
+}
+
+.results__cover {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--n-radius-xs);
+  object-fit: cover;
+  flex: none;
+  border: 1px solid var(--n-line-subtle);
+}
+
+.results__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.results__title {
+  color: var(--n-text);
+  font-size: var(--n-text-base);
+  font-weight: var(--n-weight-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.results__artist {
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.results__add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  padding: 5px 10px;
+  border-radius: var(--n-radius-xs);
+  background: var(--n-accent-soft);
+  color: var(--n-accent-strong);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-semibold);
+}
+
+.results__empty {
+  margin: var(--n-space-6) 0 0;
+  text-align: center;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-sm);
+}
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 640px) {
+  .hero__main {
     flex-direction: column;
     align-items: flex-start;
+    gap: var(--n-space-4);
   }
 
-  .hero-actions {
-    flex-direction: column;
+  .hero__cover {
+    width: 140px;
   }
 
-  .btn-play-all,
-  .btn-ghost {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .music-row {
-    flex-wrap: wrap;
-  }
-
-  .music-dur {
-    margin-left: auto;
-  }
-
-  .btn-remove {
-    width: 100%;
-    margin-top: 4px;
+  .row__dur {
+    display: none;
   }
 }
 </style>
