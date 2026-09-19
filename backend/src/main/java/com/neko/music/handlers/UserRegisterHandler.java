@@ -79,13 +79,13 @@ public class UserRegisterHandler extends HttpServlet {
                 return;
             }
 
-            // 4. 用户名与密码长度/合规校验
-            if (username.length() < 3 || username.length() > 20) {
-                sendResponse(response, false, "用户名长度需在3-20之间喵", null);
+            // 4. 昵称与密码长度/合规校验
+            if (username.isEmpty() || username.length() > 20) {
+                sendResponse(response, false, "昵称长度需在1-20之间喵", null);
                 return;
             }
             if (SensitiveWordUtil.contains(username)) {
-                sendResponse(response, false, "用户名包含违禁词喵", null);
+                sendResponse(response, false, "昵称包含违禁词喵", null);
                 return;
             }
             if (password.length() < 6 || password.length() > 30) {
@@ -106,7 +106,7 @@ public class UserRegisterHandler extends HttpServlet {
                 logger.info("用户注册成功: {}", username);
                 sendResponse(response, true, "注册成功喵！", Map.of("username", username));
             } else {
-                sendResponse(response, false, "注册失败，用户名或邮箱可能已存在喵", null);
+                sendResponse(response, false, "注册失败，邮箱已存在喵", null);
             }
 
         } catch (Exception e) {
