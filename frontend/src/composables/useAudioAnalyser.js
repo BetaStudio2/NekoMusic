@@ -31,6 +31,7 @@ const state = {
   builtEl: null,
   unlocked: false,
   gestureBound: false,
+  autoResumeBound: false,
   ready: false,
   failed: false,
 }
@@ -97,6 +98,7 @@ function build(el) {
     state.attachedEl = el
     state.ready = true
     analyserReady.value = true
+    bindContextAutoResume()
   } catch (err) {
     console.error('[Neko] 音频频谱初始化失败：', err)
     state.failed = true
@@ -109,6 +111,18 @@ function unlock() {
   state.unlocked = true
   if (state.attachedEl) build(state.attachedEl)
   resumeContext()
+}
+
+/**
+ * 浏览器会在标签页切到后台、或长时间静默后把 AudioContext 挂起，
+ * 回到前台时若不主动 resume，会表现为「音乐还在放但频谱不动」。
+ */
+function bindContextAutoResume() {
+  if (state.autoResumeBound || typeof document === 'undefined') return
+  state.autoResumeBound = true
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) resumeContext()
+  })
 }
 
 /** 绑定一次性手势解锁（capture 阶段，确保早于其它处理） */

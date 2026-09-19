@@ -14,15 +14,30 @@ installDevAdminBypass()
 const app = createApp(App)
 
 /**
- * vue-toastification@2.0.0-rc.5 在 Vue 3.5 下的上游告警：
- * 其内部 VtToastContainer 的 data() 里已声明 positions（见库源码），
- * 但渲染代理仍会报 "Property positions was accessed during render"。
- * 这是该 rc 版（2021 年，已停止维护）与新版 Vue 的兼容性问题，功能正常。
- * 仅精确过滤这一条，其余警告照常输出，避免掩盖真实问题。
+ * 过滤 vue-toastification@2.0.0-rc.5 的上游告警
+ * ------------------------------------------------------------
+ * 该 rc 版（2021 年，已停止维护）在渲染吐司容器时会报
+ *   Property "positions" was accessed during render but is not defined on instance
+ * 其源码 data() 里确实声明了 positions，属该版本与新版 Vue 的兼容性问题，
+ * 功能正常。
+ *
+ * 注意：不能用 app.config.warnHandler —— 该库内部【自建了一个 Vue app 实例】
+ * 来渲染吐司容器（dist 里有独立的 createApp/render），因此拿不到主 app 的
+ * config，只能在 console.warn 这一层拦。
+ * 匹配串足够具体，不会掩盖其它警告；生产构建不生效。
  */
-app.config.warnHandler = (msg, instance, trace) => {
-  if (msg.includes('Property "positions" was accessed during render')) return
-  console.warn(msg, trace)
+if (import.meta.env.DEV) {
+  const rawWarn = console.warn.bind(console)
+  console.warn = (...args) => {
+    const first = args[0]
+    if (
+      typeof first === 'string' &&
+      first.includes('Property "positions" was accessed during render')
+    ) {
+      return
+    }
+    rawWarn(...args)
+  }
 }
 
 app.use(router)

@@ -11,7 +11,7 @@
  *  - DPR 自适应；颜色取自设计令牌（--n-accent / --n-accent-strong）
  *  - 尊重 prefers-reduced-motion：只画静态帧
  */
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useAudioAnalyser } from '@/composables/useAudioAnalyser'
 
 const props = defineProps({
@@ -24,7 +24,7 @@ const props = defineProps({
 })
 
 const canvasRef = ref(null)
-const { ready, read } = useAudioAnalyser()
+const { read } = useAudioAnalyser()
 
 let rafId = 0
 let resizeObserver = null
@@ -83,9 +83,9 @@ function drawIdle(ctx, w, h) {
 
 function draw() {
   const canvas = canvasRef.value
-  if (!canvas) return
+  if (!canvas) return 0
   const ctx = canvas.getContext('2d')
-  if (!ctx) return
+  if (!ctx) return 0
 
   const rect = canvas.getBoundingClientRect()
   const w = Math.max(1, rect.width)
@@ -125,7 +125,7 @@ function draw() {
   // 完全静止 → 只画基线（省 CPU 且视觉干净）
   if (maxLevel < 0.008) {
     drawIdle(ctx, w, h)
-    return
+    return maxLevel
   }
 
   ctx.clearRect(0, 0, w, h)
@@ -157,20 +157,28 @@ function draw() {
     ctx.closePath()
     ctx.fill()
   }
+
+  return maxLevel
 }
+
+/** 当前帧的最大能量，用于判断「是否还需要继续画」 */
+let lastMax = 0
 
 function loop() {
   rafId = 0
   if (!visible || document.hidden) return
-  draw()
-  if (!reducedMotion && props.active) {
+  lastMax = draw()
+  // 播放中 → 持续绘制；
+  // 已暂停 → 继续画到所有条子衰减回基线（避免画面「冻住」），再停。
+  if (!reducedMotion && (props.active || lastMax >= 0.008)) {
     rafId = requestAnimationFrame(loop)
   }
 }
 
 function start() {
   if (rafId) return
-  if (reducedMotion || !props.active) {
+  // 纯静态帧：开了减动效，或已暂停且残留能量早已衰减干净
+  if (reducedMotion || (!props.active && lastMax < 0.008)) {
     draw()
     return
   }
@@ -184,15 +192,30 @@ function stop() {
   }
 }
 
+/**
+ * ★ 关键：这个循环只会「自己停」，不会「自己醒」：
+ *   active（绑 isPlaying）由 true → false 时，loop 把残留条子衰减回基线后
+ *   就停止调度；若没人监听它重新变 true，暂停一次之后频谱将永远不再动
+ *   （刷新后同理：自动播放被拦 → isPlaying 变 false → 循环停止，
+ *   此时再点播放也不会重新绘制）。
+ */
+watch(
+  () => props.active,
+  (isActive) => {
+    if (isActive) start()
+    // true → false 无需处理：loop 会自行衰减收尾后停止
+  }
+)
+
 onMounted(() => {
   reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false
   readTokens()
   resize()
-  draw()
+  lastMax = draw()
 
   resizeObserver = new ResizeObserver(() => {
     resize()
-    if (reducedMotion || !props.active) draw()
+    if (reducedMotion || !props.active) lastMax = draw()
   })
   if (canvasRef.value) resizeObserver.observe(canvasRef.value)
 
