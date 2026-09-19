@@ -4,33 +4,102 @@
  * ------------------------------------------------------------
  * 长文静态页。保留全部文案；去除左侧高亮条，提示块改为图标 + 淡色表面。
  */
-import { onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import NIcon from '@/icons/NIcon.vue'
 import { NCard, NTag } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 
 const toc = [
-  { href: '#collect', label: '一、我们如何收集和使用您的个人信息' },
-  { href: '#permissions', label: '二、权限调用说明' },
-  { href: '#storage-tech', label: '三、Cookie、本地存储及同类技术' },
-  { href: '#third-party', label: '四、委托处理、共享、转让和公开披露' },
-  { href: '#protect', label: '五、我们如何保护您的个人信息' },
-  { href: '#retain', label: '六、我们如何存储您的个人信息' },
-  { href: '#rights', label: '七、您的权利' },
-  { href: '#children', label: '八、未成年人个人信息保护' },
-  { href: '#updates', label: '九、隐私政策更新说明' },
-  { href: '#contact', label: '十、如何联系我们' },
+  { id: 'collect', label: '一、我们如何收集和使用您的个人信息' },
+  { id: 'permissions', label: '二、权限调用说明' },
+  { id: 'storage-tech', label: '三、Cookie、本地存储及同类技术' },
+  { id: 'third-party', label: '四、委托处理、共享、转让和公开披露' },
+  { id: 'protect', label: '五、我们如何保护您的个人信息' },
+  { id: 'retain', label: '六、我们如何存储您的个人信息' },
+  { id: 'rights', label: '七、您的权利' },
+  { id: 'children', label: '八、未成年人个人信息保护' },
+  { id: 'updates', label: '九、隐私政策更新说明' },
+  { id: 'contact', label: '十、如何联系我们' },
 ]
+
+/* ===== 目录：滚动高亮（scroll-spy）+ 点击平滑滚动 ===== */
+const activeId = ref('')
+/** 与 .block 的 scroll-margin-top 对齐的停靠线 */
+const STOP_LINE = 80
+/** 点击目录后的平滑滚动期间锁定高亮，避免被途经章节覆盖 */
+let spyLocked = false
+let unlockTimer = null
+
+function unlockSpy() {
+  spyLocked = false
+  if (unlockTimer) {
+    clearTimeout(unlockTimer)
+    unlockTimer = null
+  }
+}
+
+function scrollTo(id) {
+  const el = document.getElementById(id)
+  if (!el) return
+
+  activeId.value = id
+  spyLocked = true
+  if (unlockTimer) clearTimeout(unlockTimer)
+  unlockTimer = setTimeout(unlockSpy, 800) // 兜底：scrollend 不可靠时恢复跟随
+
+  // scrollIntoView 会遵循 .block 的 scroll-margin-top，无需手算顶栏高度
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+
+  history.replaceState(null, '', `#${id}`)
+}
+
+function onScroll() {
+  if (spyLocked || !toc.length) return
+  let current = ''
+  for (const t of toc) {
+    const el = document.getElementById(t.id)
+    if (el && el.getBoundingClientRect().top <= STOP_LINE) current = t.id
+  }
+  if (!current) current = toc[0].id
+  activeId.value = current
+}
 
 onMounted(() => {
   window.scrollTo(0, 0)
+  window.addEventListener('scroll', onScroll, { passive: true })
+  onScroll()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', onScroll)
+  if (unlockTimer) clearTimeout(unlockTimer)
 })
 </script>
 
 <template>
   <AmbientBackdrop />
 
-  <PageShell width="default">
+  <PageShell width="wide">
+    <div class="doc">
+      <!-- 目录：桌面端 sticky 侧栏，窄屏置顶 -->
+      <aside class="doc__toc" aria-label="隐私政策目录">
+        <p class="doc__toc-title">目录</p>
+        <nav class="doc__toc-nav">
+          <a
+            v-for="t in toc"
+            :key="t.id"
+            :href="`#${t.id}`"
+            class="doc__toc-link"
+            :class="{ 'doc__toc-link--active': activeId === t.id }"
+            @click.prevent="scrollTo(t.id)"
+          >
+            {{ t.label }}
+          </a>
+        </nav>
+      </aside>
+
+      <div class="doc__main">
     <!-- 头部 -->
     <NCard pad="lg" class="block hero">
       <p class="hero__eyebrow">Privacy Policy</p>
@@ -58,17 +127,6 @@ onMounted(() => {
         <NIcon name="info" :size="16" class="note__icon" />
         <span>如果您是未满 14 周岁的未成年人，请在父母或其他监护人陪同下阅读本政策，并在取得监护人同意后使用我们的产品或服务。</span>
       </p>
-    </NCard>
-
-    <!-- 目录 -->
-    <NCard pad="lg" class="block">
-      <h2 class="block__title">目录</h2>
-      <nav class="toc" aria-label="隐私政策目录">
-        <a v-for="t in toc" :key="t.href" :href="t.href" class="toc__item">
-          <span>{{ t.label }}</span>
-          <NIcon name="chevron-right" :size="15" />
-        </a>
-      </nav>
     </NCard>
 
     <!-- 一 -->
@@ -393,6 +451,8 @@ onMounted(() => {
         我们会在 15 个工作日内或法律法规要求的期限内回复。为保障您的信息安全，我们可能会先核验您的身份，再处理查询、更正、删除、注销、复制或投诉请求。
       </p>
     </NCard>
+      </div>
+    </div>
   </PageShell>
 </template>
 
@@ -518,36 +578,84 @@ onMounted(() => {
   margin-top: var(--n-space-5);
 }
 
-/* ===== 目录 ===== */
-.toc {
+/* ===== 布局：正文 + 目录侧栏 ===== */
+.doc {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--n-space-3);
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--n-space-5);
+  align-items: start;
 }
 
-.toc__item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--n-space-3);
-  padding: var(--n-space-3) var(--n-space-4);
+.doc__main {
+  min-width: 0;
+  order: 1;
+}
+
+/* 目录：窄屏置顶 */
+.doc__toc {
+  order: -1;
+  padding: var(--n-space-4) var(--n-space-5);
   border: 1px solid var(--n-line);
-  border-radius: var(--n-radius-control);
-  background: var(--n-surface-soft);
-  color: var(--n-text-muted);
+  border-radius: var(--n-radius-lg);
+  background: var(--n-surface);
+}
+
+.doc__toc-title {
+  margin: 0 0 var(--n-space-3);
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-bold);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.doc__toc-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.doc__toc-link {
+  display: block;
+  padding: var(--n-space-2) var(--n-space-3);
+  border-radius: var(--n-radius-xs);
+  color: var(--n-text-faint);
   font-size: var(--n-text-sm);
   line-height: var(--n-leading-normal);
   transition:
-    border-color var(--n-duration-fast) var(--n-ease),
-    background var(--n-duration-fast) var(--n-ease),
-    color var(--n-duration-fast) var(--n-ease);
+    color var(--n-duration-fast) var(--n-ease),
+    background var(--n-duration-fast) var(--n-ease);
 }
 
 @media (hover: hover) {
-  .toc__item:hover {
-    border-color: var(--n-accent-line);
-    background: var(--n-accent-soft);
-    color: var(--n-accent-strong);
+  .doc__toc-link:hover {
+    color: var(--n-text-muted);
+    background: var(--n-surface-soft);
+  }
+}
+
+.doc__toc-link--active {
+  color: var(--n-accent-strong);
+  background: var(--n-accent-soft);
+}
+
+/* 桌面端：目录固定在右侧，随内容滚动保持可见 */
+@media (min-width: 1024px) {
+  .doc {
+    grid-template-columns: minmax(0, 1fr) 240px;
+  }
+
+  .doc__main {
+    order: 0;
+  }
+
+  .doc__toc {
+    order: 0;
+    position: sticky;
+    top: calc(var(--n-header-height) + var(--n-space-5));
+    max-height: calc(100dvh - var(--n-header-height) - var(--n-space-10));
+    overflow-y: auto;
+    padding: var(--n-space-5);
   }
 }
 
@@ -599,11 +707,5 @@ onMounted(() => {
   font-weight: var(--n-weight-semibold);
   text-decoration: underline;
   text-underline-offset: 3px;
-}
-
-@media (max-width: 768px) {
-  .toc {
-    grid-template-columns: 1fr;
-  }
 }
 </style>
