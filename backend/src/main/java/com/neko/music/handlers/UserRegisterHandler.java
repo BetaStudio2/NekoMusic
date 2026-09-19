@@ -57,7 +57,7 @@ public class UserRegisterHandler extends HttpServlet {
 
             // 1. 基础非空校验
             if (isEmpty(username) || isEmpty(password) || isEmpty(email)) {
-                sendResponse(response, false, "用户名、密码和邮箱不能为空喵", null);
+                sendResponse(response, false, "昵称、密码和邮箱不能为空喵", null);
                 return;
             }
 
