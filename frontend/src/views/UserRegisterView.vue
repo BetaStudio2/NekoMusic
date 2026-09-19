@@ -1,181 +1,203 @@
 <template>
-  <div class="glass-page">
-    <div class="ambient" aria-hidden="true">
-      <div class="ambient__blob ambient__blob--a" />
-      <div class="ambient__blob ambient__blob--b" />
-      <div class="ambient__blob ambient__blob--c" />
-      <div class="ambient__grid" />
-    </div>
-    <main class="shell auth-main">
-      <div class="panel register-card">
-      <h2 class="register-title">用户注册</h2>
-      <form @submit.prevent="handleRegister" class="register-form">
-        <div class="form-group">
-          <input
-            type="text"
-            v-model="username"
-            class="form-input"
-            placeholder="用户名"
-            required
-          />
-        </div>
+  <AmbientBackdrop />
 
-        <div class="form-group">
-          <input
-            type="email"
-            v-model="email"
-            class="form-input"
-            placeholder="邮箱"
-            required
-          />
-        </div>
+  <PageShell width="narrow" centered>
+    <div class="auth">
+      <span class="auth__glow" aria-hidden="true" />
 
-        <div class="form-group">
-          <div style="display: flex; gap: 10px;">
-            <input
-                type="text"
-                v-model="verificationCode"
-                class="form-input"
-                placeholder="验证码"
-                required
-                style="flex: 1;"
-            />
-            <button
-                type="button"
-                class="verification-btn"
-                @click="sendVerificationCode"
-                :disabled="codeSending || countdown > 0 || captchaModalOpen"
-            >
-              {{ codeBtnText }}
-            </button>
+      <div class="auth__card">
+        <header class="auth__head">
+          <div class="auth__logo">
+            <NIcon name="user-plus" :size="26" />
           </div>
-        </div>
+          <h1 class="auth__title">注册 Neko歌姬计划</h1>
+          <p class="auth__subtitle">创建账户，开始收藏与整理你的音乐</p>
+        </header>
 
-        <div class="form-group">
-          <input
-            type="password"
-            v-model="password"
-            class="form-input"
-            placeholder="密码"
-            required
-          />
-        </div>
+        <form class="auth__body" @submit.prevent="handleRegister">
+          <div class="auth__field">
+            <label class="auth__label" for="regUsername">用户名</label>
+            <NInput
+              id="regUsername"
+              v-model="username"
+              icon="user"
+              placeholder="用户名"
+              autocomplete="username"
+              required
+            />
+          </div>
 
-        <div class="form-group">
-          <input
-            type="password"
-            v-model="confirmPassword"
-            class="form-input"
-            placeholder="确认密码"
-            required
-          />
-        </div>
+          <div class="auth__field">
+            <label class="auth__label" for="regEmail">邮箱</label>
+            <NInput
+              id="regEmail"
+              v-model="email"
+              type="email"
+              icon="mail"
+              placeholder="邮箱"
+              autocomplete="email"
+              required
+            />
+          </div>
 
-        <button type="submit" class="register-btn" :disabled="loading">
-          <span v-if="loading">注册中...</span>
-          <span v-else>注册</span>
-        </button>
-      </form>
-
-      <div class="register-footer">
-        <p>已有账户？<a href="#" @click.prevent="goToLogin">立即登录</a></p>
-      </div>
-      </div>
-    </main>
-
-    <Teleport to="body">
-      <Transition name="captcha-modal">
-        <div
-          v-if="captchaModalOpen"
-          class="captcha-modal-backdrop"
-          @click.self="closeCaptchaModal"
-        >
-          <div class="captcha-modal-card" role="dialog" aria-modal="true" aria-labelledby="captcha-modal-title" @click.stop>
-            <button type="button" class="captcha-modal-close" aria-label="关闭" @click="closeCaptchaModal">×</button>
-            <h3 id="captcha-modal-title" class="captcha-modal-title">安全验证</h3>
-            <p class="captcha-modal-desc">请拖动下方滑轨对齐拼图，验证通过后将向你的邮箱发送验证码。</p>
-            <div class="form-group slider-block captcha-modal-slider">
-              <p v-if="captchaLoading" class="slider-status">正在加载拼图…</p>
-              <div v-else-if="captchaError" class="slider-status slider-error">
-                {{ captchaError }}
-                <button type="button" class="slider-retry" @click="loadSliderCaptcha">重试</button>
-              </div>
-              <template v-else>
-                <div class="slider-challenge-panel">
-                  <div
-                    class="slider-captcha-wrap"
-                    :class="{ 'slider-captcha-wrap--shake': shakeActive }"
-                  >
-                    <div
-                      class="slider-stage"
-                      :class="{ 'slider-stage--checking': slideState === 'checking' }"
-                      :style="{ width: bgWidth + 'px', height: bgHeight + 'px' }"
-                    >
-                      <img :src="bgImageUrl" alt="" class="slider-bg-img" draggable="false" />
-                      <img
-                        :src="sliderImageUrl"
-                        alt=""
-                        class="slider-piece-img"
-                        draggable="false"
-                        :style="{
-                          width: sliderW + 'px',
-                          left: sliderX + 'px',
-                          top: puzzleY + 'px'
-                        }"
-                      />
-                    </div>
-                    <div
-                      ref="railRef"
-                      class="slider-rail"
-                      :class="{ 'slider-rail--checking': slideState === 'checking' }"
-                      :style="{ width: bgWidth + 'px' }"
-                      @pointerdown="onRailTrackPointerDown"
-                    >
-                      <div class="slider-rail-inner" aria-hidden="true">
-                        <div class="slider-rail-track-line" />
-                      </div>
-                      <div v-if="slideState === 'checking'" class="slider-rail-scan" aria-hidden="true" />
-                      <button
-                        type="button"
-                        class="slider-rail-thumb"
-                        :disabled="slideState === 'checking'"
-                        :style="{ width: railThumbW + 'px', left: thumbDisplayX + 'px' }"
-                        aria-label="拖动滑块完成验证"
-                        @pointerdown.stop.prevent="onThumbPointerDown"
-                      >
-                        <span v-if="slideState === 'checking'" class="slider-thumb-spinner" aria-hidden="true" />
-                        <span v-else class="slider-rail-thumb-arrows" aria-hidden="true">››</span>
-                      </button>
-                    </div>
-                    <p class="slider-status-line" :class="'slider-status-line--' + slideState">
-                      {{ slideStatusText }}
-                    </p>
-                  </div>
-                  <div class="slider-toolbar">
-                    <button
-                      type="button"
-                      class="slider-refresh"
-                      :disabled="slideState === 'checking'"
-                      @click="loadSliderCaptcha"
-                    >
-                      换一张
-                    </button>
-                  </div>
-                </div>
-              </template>
+          <div class="auth__field">
+            <label class="auth__label" for="regCode">邮箱验证码</label>
+            <div class="auth__code">
+              <NInput
+                id="regCode"
+                v-model="verificationCode"
+                icon="shield-check"
+                placeholder="验证码"
+                maxlength="6"
+                required
+              />
+              <NButton
+                variant="secondary"
+                :disabled="codeSending || countdown > 0 || captchaModalOpen"
+                @click="sendVerificationCode"
+              >
+                {{ codeBtnText }}
+              </NButton>
             </div>
           </div>
+
+          <div class="auth__field">
+            <label class="auth__label" for="regPassword">密码</label>
+            <NInput
+              id="regPassword"
+              v-model="password"
+              type="password"
+              icon="lock"
+              placeholder="密码"
+              autocomplete="new-password"
+              required
+            />
+          </div>
+
+          <div class="auth__field">
+            <label class="auth__label" for="regConfirm">确认密码</label>
+            <NInput
+              id="regConfirm"
+              v-model="confirmPassword"
+              type="password"
+              icon="lock"
+              placeholder="确认密码"
+              autocomplete="new-password"
+              required
+            />
+          </div>
+
+          <NButton type="submit" variant="primary" size="lg" block :loading="loading">
+            注册
+          </NButton>
+        </form>
+
+        <div class="auth__divider"><span>或</span></div>
+
+        <footer class="auth__foot">
+          <NButton variant="secondary" size="lg" block icon="login" to="/login">
+            已有账户，去登录
+          </NButton>
+        </footer>
+      </div>
+    </div>
+  </PageShell>
+
+  <Teleport to="body">
+    <Transition name="captcha-modal">
+      <div
+        v-if="captchaModalOpen"
+        class="captcha-modal-backdrop"
+        @click.self="closeCaptchaModal"
+      >
+        <div class="captcha-modal-card" role="dialog" aria-modal="true" aria-labelledby="captcha-modal-title" @click.stop>
+          <button type="button" class="captcha-modal-close" aria-label="关闭" @click="closeCaptchaModal">×</button>
+          <h3 id="captcha-modal-title" class="captcha-modal-title">安全验证</h3>
+          <p class="captcha-modal-desc">请拖动下方滑轨对齐拼图，验证通过后将向你的邮箱发送验证码。</p>
+          <div class="form-group slider-block captcha-modal-slider">
+            <p v-if="captchaLoading" class="slider-status">正在加载拼图…</p>
+            <div v-else-if="captchaError" class="slider-status slider-error">
+              {{ captchaError }}
+              <button type="button" class="slider-retry" @click="loadSliderCaptcha">重试</button>
+            </div>
+            <template v-else>
+              <div class="slider-challenge-panel">
+                <div
+                  class="slider-captcha-wrap"
+                  :class="{ 'slider-captcha-wrap--shake': shakeActive }"
+                >
+                  <div
+                    class="slider-stage"
+                    :class="{ 'slider-stage--checking': slideState === 'checking' }"
+                    :style="{ width: bgWidth + 'px', height: bgHeight + 'px' }"
+                  >
+                    <img :src="bgImageUrl" alt="" class="slider-bg-img" draggable="false" />
+                    <img
+                      :src="sliderImageUrl"
+                      alt=""
+                      class="slider-piece-img"
+                      draggable="false"
+                      :style="{
+                        width: sliderW + 'px',
+                        left: sliderX + 'px',
+                        top: puzzleY + 'px'
+                      }"
+                    />
+                  </div>
+                  <div
+                    ref="railRef"
+                    class="slider-rail"
+                    :class="{ 'slider-rail--checking': slideState === 'checking' }"
+                    :style="{ width: bgWidth + 'px' }"
+                    @pointerdown="onRailTrackPointerDown"
+                  >
+                    <div class="slider-rail-inner" aria-hidden="true">
+                      <div class="slider-rail-track-line" />
+                    </div>
+                    <div v-if="slideState === 'checking'" class="slider-rail-scan" aria-hidden="true" />
+                    <button
+                      type="button"
+                      class="slider-rail-thumb"
+                      :disabled="slideState === 'checking'"
+                      :style="{ width: railThumbW + 'px', left: thumbDisplayX + 'px' }"
+                      aria-label="拖动滑块完成验证"
+                      @pointerdown.stop.prevent="onThumbPointerDown"
+                    >
+                      <span v-if="slideState === 'checking'" class="slider-thumb-spinner" aria-hidden="true" />
+                      <span v-else class="slider-rail-thumb-arrows" aria-hidden="true">››</span>
+                    </button>
+                  </div>
+                  <p class="slider-status-line" :class="'slider-status-line--' + slideState">
+                    {{ slideStatusText }}
+                  </p>
+                </div>
+                <div class="slider-toolbar">
+                  <button
+                    type="button"
+                    class="slider-refresh"
+                    :disabled="slideState === 'checking'"
+                    @click="loadSliderCaptcha"
+                  >
+                    换一张
+                  </button>
+                </div>
+              </div>
+            </template>
+          </div>
         </div>
-      </Transition>
-    </Teleport>
-  </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup>
 import { ref, computed, nextTick, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
-import { useToast } from 'vue-toastification'
+import { useToast } from '@/composables/useToast'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NInput } from '@/ui'
+import { PageShell, AmbientBackdrop } from '@/layouts'
 import API_CONFIG from "@/config/apiConfig.js";
 
 const toast = useToast()
@@ -570,7 +592,7 @@ const goToLogin = () => {
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.97);
   box-shadow: 0 16px 48px rgba(31, 38, 135, 0.35);
-  border: 1px solid rgba(105, 200, 223, 0.2);
+  border: 1px solid rgba(95, 208, 224, 0.2);
 }
 
 .captcha-modal-close {
@@ -587,12 +609,12 @@ const goToLogin = () => {
   line-height: 1;
   cursor: pointer;
   color: #5c4b7b;
-  background: rgba(105, 200, 223, 0.12);
+  background: rgba(95, 208, 224, 0.12);
   transition: background 0.2s ease, color 0.2s ease;
 }
 
 .captcha-modal-close:hover {
-  background: rgba(105, 200, 223, 0.22);
+  background: rgba(95, 208, 224, 0.22);
   color: #3d2f66;
 }
 
@@ -675,7 +697,7 @@ const goToLogin = () => {
   margin-left: 8px;
   padding: 4px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(105, 200, 223, 0.5);
+  border: 1px solid rgba(95, 208, 224, 0.5);
   background: rgba(255, 255, 255, 0.6);
   cursor: pointer;
 }
@@ -719,7 +741,7 @@ const goToLogin = () => {
   margin-top: 10px;
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(105, 200, 223, 0.22);
+  border: 1px solid rgba(95, 208, 224, 0.22);
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06);
   touch-action: none;
   cursor: pointer;
@@ -756,8 +778,8 @@ const goToLogin = () => {
   color: #fff;
   font-size: 1.1rem;
   line-height: 1;
-  background: linear-gradient(135deg, #69c8df, #8eddec);
-  box-shadow: 0 2px 8px rgba(105, 200, 223, 0.45);
+  background: linear-gradient(135deg, #5fd0e0, #9ceefb);
+  box-shadow: 0 2px 8px rgba(95, 208, 224, 0.45);
   touch-action: none;
   user-select: none;
 }
@@ -805,13 +827,13 @@ const goToLogin = () => {
     box-shadow: 0 4px 16px rgba(31, 38, 135, 0.25);
   }
   50% {
-    box-shadow: 0 4px 22px rgba(105, 200, 223, 0.45);
+    box-shadow: 0 4px 22px rgba(95, 208, 224, 0.45);
   }
 }
 
 .slider-rail--checking {
-  border-color: rgba(105, 200, 223, 0.55);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 2px rgba(105, 200, 223, 0.18);
+  border-color: rgba(95, 208, 224, 0.55);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 2px rgba(95, 208, 224, 0.18);
 }
 
 .slider-rail-scan {
@@ -970,7 +992,7 @@ const goToLogin = () => {
   font-weight: 600;
   cursor: pointer;
   color: #fff;
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.85), rgba(105, 200, 223, 0.85));
+  background: linear-gradient(135deg, rgba(95, 208, 224, 0.85), rgba(95, 208, 224, 0.85));
 }
 
 .slider-hint {
@@ -978,134 +1000,180 @@ const goToLogin = () => {
   color: rgba(92, 75, 123, 0.85);
 }
 
-.panel {
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(105, 200, 223, 0.14), rgba(255, 255, 255, 0.04));
-  box-shadow: var(--shadow);
-}
 
-.register-card {
+/* ==================== 页面卡片（与登录页一致） ==================== */
+.auth {
+  position: relative;
   width: 100%;
-  max-width: 440px;
-  padding: clamp(28px, 4vw, 40px) clamp(22px, 4vw, 32px);
+  max-width: 420px;
 }
 
-.register-title {
-  margin: 0 0 22px;
+.auth__glow {
+  position: absolute;
+  inset: -14% -10%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, rgba(95, 208, 224, 0.22), transparent 62%);
+  filter: blur(48px);
+  pointer-events: none;
+  z-index: -1;
+  animation: authGlow 8s var(--n-ease-in-out) infinite;
+}
+
+@keyframes authGlow {
+  0%,
+  100% { opacity: 0.75; }
+  50% { opacity: 1; }
+}
+
+.auth__card {
+  position: relative;
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-xl);
+  background: var(--n-surface-strong);
+  backdrop-filter: var(--n-blur);
+  -webkit-backdrop-filter: var(--n-blur);
+  box-shadow: var(--n-shadow-lg);
+  overflow: hidden;
+  animation: authCardIn 0.5s var(--n-ease) both;
+}
+
+@keyframes authCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.auth__card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--n-accent-line), transparent);
+}
+
+.auth__head {
+  padding: var(--n-space-8) var(--n-space-8) 0;
   text-align: center;
-  font-size: clamp(1.35rem, 3vw, 1.65rem);
-  font-weight: 800;
+}
+
+.auth__logo {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto var(--n-space-4);
+  border-radius: var(--n-radius);
+  background: linear-gradient(135deg, var(--n-accent-strong), var(--n-accent));
+  color: var(--n-text-inverse);
+  box-shadow: 0 8px 26px rgba(95, 208, 224, 0.3);
+  animation: authLogoIn 0.6s var(--n-ease) 0.08s both;
+}
+
+@keyframes authLogoIn {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.auth__title {
+  margin: 0 0 var(--n-space-1);
+  font-size: var(--n-text-lg);
+  font-weight: var(--n-weight-bold);
   letter-spacing: -0.02em;
-  background: linear-gradient(120deg, #d7edf5, #c8f7ff, #9beaff);
+  background: var(--n-gradient-text);
   -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.register-form {
+.auth__subtitle {
+  margin: 0;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+}
+
+.auth__body {
+  padding: var(--n-space-6) var(--n-space-8) var(--n-space-5);
+}
+
+.auth__field {
+  margin-bottom: var(--n-space-4);
+}
+
+.auth__label {
+  display: block;
+  margin-bottom: var(--n-space-2);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-medium);
+}
+
+.auth__code {
   display: flex;
-  flex-direction: column;
-  gap: 20px;
+  gap: var(--n-space-3);
 }
 
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.auth__code :deep(.n-input) {
+  flex: 1;
+  min-width: 0;
 }
 
-.form-input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 12px 14px;
-  border-radius: var(--radius);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.22);
-  color: var(--text);
-  font-size: 0.95rem;
-  font-family: inherit;
-  transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
-}
-
-.form-input::placeholder {
-  color: var(--faint);
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: rgba(105, 200, 223, 0.45);
-  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.12);
-}
-
-.verification-btn {
-  font-family: inherit;
-  flex-shrink: 0;
-  padding: 12px 16px;
-  border: none;
-  border-radius: var(--radius);
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-  color: #0c0a14;
-  background: linear-gradient(135deg, #9beaff, var(--accent2));
-  box-shadow: 0 6px 18px rgba(105, 200, 223, 0.28);
+.auth__code :deep(.n-btn) {
+  flex: none;
   white-space: nowrap;
 }
 
-.verification-btn:hover:not(:disabled) {
-  filter: brightness(1.05);
+.auth__divider {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-3);
+  padding: 0 var(--n-space-8);
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
 }
 
-.verification-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+.auth__divider::before,
+.auth__divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--n-line);
 }
 
-.register-btn {
-  font-family: inherit;
-  margin-top: 6px;
-  padding: 12px 20px;
-  width: 100%;
-  border: none;
-  border-radius: 999px;
-  font-size: 0.95rem;
-  font-weight: 700;
-  cursor: pointer;
-  color: #0c0a14;
-  background: linear-gradient(135deg, #9beaff, var(--accent2));
-  box-shadow: 0 8px 24px rgba(105, 200, 223, 0.3);
+.auth__foot {
+  padding: var(--n-space-5) var(--n-space-8) var(--n-space-8);
 }
 
-.register-btn:hover:not(:disabled) {
-  filter: brightness(1.05);
+/* 验证码弹窗内的 form-group 仅作占位，不引入表单页的间距 */
+.form-group {
+  margin: 0;
 }
 
-.register-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+@media (prefers-reduced-motion: reduce) {
+  .auth__card,
+  .auth__logo,
+  .auth__glow {
+    animation: none;
+  }
 }
 
-.register-footer {
-  margin-top: 22px;
-  text-align: center;
-  font-size: 0.88rem;
-  color: var(--muted);
-}
+@media (max-width: 560px) {
+  .auth__code {
+    flex-direction: column;
+  }
 
-.register-footer a {
-  color: var(--accent2);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.register-footer a:hover {
-  text-decoration: underline;
-}
-
-@media (max-width: 768px) {
-  .register-card {
-    padding: 26px 18px;
+  .auth__code :deep(.n-btn) {
+    width: 100%;
   }
 }
 </style>
