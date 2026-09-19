@@ -50,7 +50,7 @@ public class SendVerificationHandler extends HttpServlet {
             JsonNode requestData = Main.getObjectMapper().readTree(requestBody.toString());
 
             String email = null;
-            String username = "用户"; // 默认用户名，实际应用中可能需要从请求中获取
+            String username = "用户";
             String captchaPassToken = null;
             if (requestData != null) {
                 if (requestData.has("email")) {

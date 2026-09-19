@@ -121,7 +121,7 @@ public class GetPlaylistDetailHandler extends HttpServlet {
     }
     
     /**
-     * 获取用户名
+     * 获取昵称
      */
     private String getUserName(int userId) {
         String sql = "SELECT username FROM users WHERE id = ?";
@@ -136,7 +136,7 @@ public class GetPlaylistDetailHandler extends HttpServlet {
                 return rs.getString("username");
             }
         } catch (SQLException e) {
-            logger.error("获取用户名失败: {}", e.getMessage(), e);
+            logger.error("获取昵称失败: {}", e.getMessage(), e);
         }
         
         return "未知用户";
