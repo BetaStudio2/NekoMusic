@@ -80,7 +80,7 @@ onUnmounted(() => {
 <template>
   <AmbientBackdrop />
 
-  <PageShell width="wide">
+  <PageShell width="xwide">
     <div class="doc">
       <!-- 目录：桌面端 sticky 侧栏，窄屏置顶 -->
       <aside class="doc__toc" aria-label="隐私政策目录">
@@ -647,7 +647,7 @@ onUnmounted(() => {
     order: 1;
     flex: 1 1 auto;
     /* 长文限宽，避免每行过长难以阅读 */
-    max-width: 900px;
+    max-width: 1100px;
   }
 
   /* 目录必须在正文之后（order 2），否则会排到左侧 */
