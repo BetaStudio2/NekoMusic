@@ -1,0 +1,448 @@
+<script setup>
+/**
+ * SiteHeader —— 全站顶栏（由旧 SearchHeader 改造）
+ * ------------------------------------------------------------
+ * 组成：Logo + 搜索（防抖下拉）+ 用户区。
+ * 设计：黑偏青 + 圆角矩形；不使用高亮条。
+ * 行为契约（保持与旧实现一致，勿随意改动）：
+ *  - localStorage：userToken / user
+ *  - window 事件：storage、USER_VIP_SYNC_EVENT
+ *  - 选中搜索结果：写 currentPlayingMusic 并跳 /detail/:id
+ *  - 回车：跳 /search/:query
+ */
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
+import API_CONFIG from '@/config/apiConfig.js'
+import NIcon from '@/icons/NIcon.vue'
+import { NInput, NButton } from '@/ui'
+import { syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
+
+const router = useRouter()
+
+const searchQuery = ref('')
+const searchResults = ref(null)
+const showResults = ref(false)
+const isLoading = ref(false)
+const searchRoot = ref(null)
+let debounceTimer = null
+
+const isLoggedIn = ref(false)
+const user = ref(null)
+const username = ref('')
+
+function initializeUserState() {
+  const token = localStorage.getItem('userToken')
+  isLoggedIn.value = token !== null && token !== undefined
+
+  const userStr = localStorage.getItem('user')
+  if (!userStr || userStr === 'undefined' || userStr === 'null') {
+    user.value = null
+    username.value = ''
+    return
+  }
+  try {
+    user.value = JSON.parse(userStr)
+    username.value = user.value ? user.value.username : ''
+  } catch (e) {
+    console.error('解析用户信息失败:', e)
+    user.value = null
+    username.value = ''
+  }
+}
+
+function handleStorageChange(event) {
+  if (event.key === 'userToken' || event.key === 'user') initializeUserState()
+}
+
+const userAvatar = computed(() => {
+  const userId = user.value ? user.value.id : 'default'
+  return `${API_CONFIG.BASE_URL}/api/user/avatar/${userId}`
+})
+
+const getCoverUrl = (musicId) => `${API_CONFIG.BASE_URL}/api/music/cover/${musicId}`
+
+function handleAvatarError(event) {
+  event.target.src =
+    'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="%235fd0e0"/><text x="20" y="25" font-family="Arial" font-size="16" fill="%2304191d" text-anchor="middle">N</text></svg>'
+}
+
+function handleImageError(event) {
+  event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/`
+}
+
+async function fetchSearchResults(query) {
+  try {
+    isLoading.value = true
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+    })
+    const data = await response.json()
+    if (response.ok && data.success && data.results) {
+      searchResults.value = data.results
+      showResults.value = true
+    } else {
+      searchResults.value = null
+      showResults.value = false
+    }
+  } catch (error) {
+    console.error('搜索请求失败:', error)
+    searchResults.value = null
+    showResults.value = false
+  } finally {
+    isLoading.value = false
+  }
+}
+
+function onSearchInput() {
+  if (debounceTimer) clearTimeout(debounceTimer)
+  if (!searchQuery.value.trim()) {
+    searchResults.value = null
+    showResults.value = false
+    return
+  }
+  debounceTimer = setTimeout(() => fetchSearchResults(searchQuery.value), 500)
+}
+
+async function performSearch() {
+  if (!searchQuery.value.trim()) return
+  const query = searchQuery.value
+  if (debounceTimer) clearTimeout(debounceTimer)
+  searchResults.value = null
+  showResults.value = false
+  router.push(`/search/${encodeURIComponent(query)}`)
+}
+
+function selectResult(result) {
+  localStorage.setItem('currentPlayingMusic', JSON.stringify(result))
+  router.push(`/detail/${result.id}`)
+  searchResults.value = null
+  showResults.value = false
+}
+
+function goHome() {
+  router.push('/')
+  searchQuery.value = ''
+  searchResults.value = null
+  showResults.value = false
+}
+
+function goToLogin() {
+  router.push('/login')
+}
+
+function logout() {
+  const previousToken = localStorage.getItem('userToken')
+  localStorage.removeItem('userToken')
+  localStorage.removeItem('user')
+  if (previousToken) {
+    window.dispatchEvent(
+      new StorageEvent('storage', { key: 'userToken', oldValue: previousToken, newValue: null })
+    )
+  }
+  router.push('/')
+}
+
+function handleClickOutside(event) {
+  if (searchRoot.value && !searchRoot.value.contains(event.target)) {
+    showResults.value = false
+  }
+}
+
+onMounted(async () => {
+  initializeUserState()
+  window.addEventListener('storage', handleStorageChange)
+  window.addEventListener(USER_VIP_SYNC_EVENT, initializeUserState)
+  document.addEventListener('click', handleClickOutside)
+  await syncUserVipFromPlaylistsApi()
+  initializeUserState()
+})
+
+onUnmounted(() => {
+  if (debounceTimer) clearTimeout(debounceTimer)
+  window.removeEventListener('storage', handleStorageChange)
+  window.removeEventListener(USER_VIP_SYNC_EVENT, initializeUserState)
+  document.removeEventListener('click', handleClickOutside)
+})
+</script>
+
+<template>
+  <header class="site-header">
+    <div class="site-header__inner">
+      <!-- Logo -->
+      <a class="site-header__logo" href="/" @click.prevent="goHome">Neko歌姬计划</a>
+
+      <!-- 搜索 -->
+      <div ref="searchRoot" class="site-header__search">
+        <NInput
+          v-model="searchQuery"
+          icon="search"
+          placeholder="搜索音乐、艺术家或歌词"
+          clearable
+          :disabled="isLoading"
+          @update:model-value="onSearchInput"
+          @enter="performSearch"
+        />
+
+        <div v-if="showResults && searchResults && searchResults.length" class="search-panel">
+          <button
+            v-for="result in searchResults"
+            :key="result.id"
+            type="button"
+            class="search-panel__item"
+            @click="selectResult(result)"
+          >
+            <img
+              :src="getCoverUrl(result.id)"
+              :alt="result.title"
+              class="search-panel__cover"
+              loading="lazy"
+              @error="handleImageError"
+            />
+            <span class="search-panel__info">
+              <span class="search-panel__title">
+                <span class="search-panel__title-text">{{ result.title }}</span>
+                <NIcon v-if="result.lrc" name="file-text" :size="13" class="search-panel__lyric" />
+              </span>
+              <span class="search-panel__artist">作曲：{{ result.artist }}</span>
+              <span class="search-panel__album">专辑：{{ result.album || '未知专辑' }}</span>
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 用户区 -->
+      <div class="site-header__auth">
+        <template v-if="isLoggedIn">
+          <RouterLink to="/account" class="site-header__user" title="个人中心">
+            <img :src="userAvatar" alt="用户头像" class="site-header__avatar" @error="handleAvatarError" />
+            <span class="site-header__username">{{ username }}</span>
+          </RouterLink>
+
+          <RouterLink
+            to="/vip"
+            class="site-header__vip"
+            :class="{ 'site-header__vip--active': user?.isVip }"
+            :title="user?.isVip ? '会员已开通 · 点击查看会员中心' : '非会员 · 点击查看会员中心'"
+          >
+            VIP
+          </RouterLink>
+
+          <NButton size="sm" variant="ghost" icon="list-music" to="/playlists" title="我的歌单" />
+          <NButton size="sm" variant="ghost" icon="heart" to="/favorites" title="我的收藏" />
+          <NButton size="sm" variant="danger" icon="logout" @click="logout">退出</NButton>
+        </template>
+
+        <NButton v-else variant="primary" icon="login" @click="goToLogin">登录</NButton>
+      </div>
+    </div>
+  </header>
+</template>
+
+<style scoped>
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--n-z-header);
+  border-bottom: 1px solid var(--n-line);
+  background: rgba(4, 9, 11, 0.82);
+  backdrop-filter: var(--n-blur);
+  -webkit-backdrop-filter: var(--n-blur);
+}
+
+.site-header__inner {
+  width: min(1400px, calc(100% - 2 * var(--n-content-gutter)));
+  margin: 0 auto;
+  min-height: var(--n-header-height);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--n-space-5);
+  padding: var(--n-space-2) 0;
+}
+
+/* ===== Logo ===== */
+.site-header__logo {
+  font-size: clamp(1.02rem, 1.7vw, 1.25rem);
+  font-weight: var(--n-weight-bold);
+  letter-spacing: -0.03em;
+  color: var(--n-text);
+  white-space: nowrap;
+}
+@media (hover: hover) {
+  .site-header__logo:hover {
+    color: var(--n-accent-strong);
+  }
+}
+
+/* ===== 搜索 ===== */
+.site-header__search {
+  position: relative;
+  min-width: 0;
+}
+
+.search-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: var(--n-z-overlay);
+  max-height: 340px;
+  overflow-y: auto;
+  padding: var(--n-space-1);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius);
+  background: var(--n-surface-strong);
+  backdrop-filter: var(--n-blur);
+  -webkit-backdrop-filter: var(--n-blur);
+  box-shadow: var(--n-shadow-lg);
+}
+
+.search-panel__item {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-3);
+  width: 100%;
+  padding: var(--n-space-2);
+  border-radius: var(--n-radius-sm);
+  text-align: left;
+  transition: background var(--n-duration-fast) var(--n-ease);
+}
+
+@media (hover: hover) {
+  .search-panel__item:hover {
+    background: var(--n-surface-hover);
+  }
+}
+
+.search-panel__cover {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--n-radius-xs);
+  object-fit: cover;
+  flex: none;
+  border: 1px solid var(--n-line-subtle);
+}
+
+.search-panel__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.search-panel__title {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-1);
+  min-width: 0;
+  color: var(--n-text);
+  font-size: var(--n-text-base);
+  font-weight: var(--n-weight-semibold);
+}
+
+.search-panel__title-text,
+.search-panel__artist,
+.search-panel__album {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-panel__lyric {
+  flex: none;
+  color: var(--n-accent);
+}
+
+.search-panel__artist {
+  color: var(--n-accent-strong);
+  font-size: var(--n-text-sm);
+}
+
+.search-panel__album {
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+}
+
+/* ===== 用户区 ===== */
+.site-header__auth {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-2);
+  justify-content: flex-end;
+}
+
+.site-header__user {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-2);
+  min-width: 0;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-control);
+  background: var(--n-surface-soft);
+  transition: border-color var(--n-duration-fast) var(--n-ease), background var(--n-duration-fast) var(--n-ease);
+}
+@media (hover: hover) {
+  .site-header__user:hover {
+    border-color: var(--n-line-strong);
+    background: var(--n-surface-hover);
+  }
+}
+
+.site-header__avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--n-radius-xs);
+  object-fit: cover;
+  flex: none;
+}
+
+.site-header__username {
+  max-width: 110px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-medium);
+}
+
+.site-header__vip {
+  flex: none;
+  padding: 5px 10px;
+  border-radius: var(--n-radius-xs);
+  font-size: 0.66rem;
+  font-weight: var(--n-weight-bold);
+  letter-spacing: 0.1em;
+  color: var(--n-text-muted);
+  background: var(--n-surface-soft);
+  border: 1px solid var(--n-line);
+}
+
+.site-header__vip--active {
+  color: var(--n-text-inverse);
+  background: linear-gradient(135deg, var(--n-accent-strong), var(--n-accent));
+  border-color: transparent;
+}
+
+/* ===== 响应式 ===== */
+@media (max-width: 1024px) {
+  .site-header__inner {
+    grid-template-columns: 1fr;
+    gap: var(--n-space-3);
+  }
+
+  .site-header__auth {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 560px) {
+  .site-header__username {
+    display: none;
+  }
+}
+</style>

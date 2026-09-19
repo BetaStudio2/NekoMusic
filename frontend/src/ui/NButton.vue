@@ -171,6 +171,12 @@ function onClick(e) {
   width: 100%;
 }
 
+/* 纯图标按钮：方形，不保留胶囊式内边距 */
+.n-btn--icon-only {
+  padding: 0;
+  aspect-ratio: 1;
+}
+
 /* ===== 变体 · primary ===== */
 .n-btn--primary {
   background: var(--n-gradient-accent);
