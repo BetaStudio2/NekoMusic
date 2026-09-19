@@ -1,11 +1,11 @@
 <template>
   <div class="np-page">
-    <!-- 模糊封面底 -->
-    <div
+    <!-- 专辑流动背景（AMLL BackgroundRender，随低频起伏） -->
+    <AlbumBackground
       v-if="currentMusic"
-      class="np-bg"
-      :style="{ backgroundImage: `url(${getCoverUrl(currentMusic.id)})` }"
-      aria-hidden="true"
+      :album="getCoverUrl(currentMusic.id)"
+      :playing="isPlaying"
+      :has-lyric="parsedLyrics.length > 0"
     />
     <div class="np-scrim" aria-hidden="true" />
 
@@ -213,6 +213,7 @@ import { NButton, NModal, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import SpectrumCanvas from '@/components/SpectrumCanvas.vue'
 import LyricsWall from '@/components/LyricsWall.vue'
+import AlbumBackground from '@/components/AlbumBackground.vue'
 const toast = useToast()
 
 const route = useRoute()
