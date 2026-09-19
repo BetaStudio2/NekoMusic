@@ -1,191 +1,195 @@
 <template>
-        <div class="admin-subpage">
-          <h2>用户管理</h2>
-          <p>管理平台用户信息，包括查看用户列表、编辑用户权限等操作。</p>
-          <div class="admin-controls">
-            <div class="filter-section">
-              <select v-model="accountType" class="filter-select">
-                <option value="">所有账户</option>
-                <option value="admin">管理员</option>
-                <option value="user">用户</option>
-              </select>
-              <input 
-                type="text" 
-                v-model="searchQuery" 
-                placeholder="搜索用户名或邮箱..." 
-                class="search-input"
-              />
-              <button 
-                              v-if="isSuperAdmin" 
-                              class="create-btn"
-                              @click="openCreateModal"
-                            >
-                              + 创建账号
-                            </button>            </div>
-          </div>
-          <div class="users-list-section">
-            <div class="table-container">
-              <table class="users-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>用户名</th>
-                    <th>邮箱</th>
-                    <th>角色</th>
-                    <th>注册时间</th>
-                    <th>会员</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="user in filteredUsers" :key="user.id">
-                    <td>{{ user.id }}</td>
-                    <td>{{ user.username }}</td>
-                    <td>{{ user.email }}</td>
-                    <td>{{ getRoleText(user.role) }}</td>
-                    <td>{{ formatDate(user.registerTime) }}</td>
-                    <td>
-                      <template v-if="user.accountType === 'user'">
-                        <span v-if="user.vip" class="vip-tag">VIP</span>
-                        <span v-else class="cell-muted">-</span>
-                        <div v-if="user.vipExpiresAt" class="cell-sub">{{ formatVipExpiresAt(user.vipExpiresAt) }}</div>
-                      </template>
-                      <span v-else class="cell-muted">-</span>
-                    </td>
-                    <td>
-                      <button 
-                        class="action-btn edit-btn" 
-                        @click="editUser(user)"
-                        v-if="canEditUser(user)"
-                      >
-                        编辑
-                      </button>
-                      <button 
-                        class="action-btn delete-btn" 
-                        @click="deleteUser(user.id)"
-                        v-if="canDeleteUser(user)"
-                      >
-                        删除
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div class="pagination">
-            <button 
-              :disabled="currentPage === 1" 
-              @click="currentPage--"
-              class="page-btn"
-            >
-              上一页
-            </button>
-            <span class="page-info">第 {{ currentPage }} 页，共 {{ totalPages }} 页</span>
-            <button 
-              :disabled="currentPage === totalPages" 
-              @click="currentPage++"
-              class="page-btn"
-            >
-              下一页
-            </button>
-          </div>
-        </div>
-    <!-- 创建账号模态框 -->
-    <Transition name="modal">
-      <div v-if="creatingUser" class="edit-modal-overlay" @click="closeCreateModal">
-        <div class="edit-modal" @click.stop>
-          <div class="modal-header">
-            <h3>创建账号</h3>
-            <button class="close-btn" @click="closeCreateModal">&times;</button>
-          </div>
-          <div class="modal-content">
-            <div v-if="createFormData.accountType === 'admin'" class="form-group">
-              <label>角色</label>
-              <select v-model="createFormData.role" class="form-select">
-<!--                <option value="super_admin">超级管理员</option>-->
-                <option value="admin">管理员</option>
-                <option value="auditor">审核员</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>用户名</label>
-              <input type="text" v-model="createFormData.username" placeholder="请输入用户名" />
-            </div>
-            <div class="form-group">
-              <label>邮箱</label>
-              <input type="email" v-model="createFormData.email" placeholder="请输入邮箱" />
-            </div>
-            <div class="form-group">
-              <label>密码</label>
-              <input type="password" v-model="createFormData.password" placeholder="请输入密码" />
-            </div>
-            <div class="form-group">
-              <label>确认密码</label>
-              <input type="password" v-model="createFormData.confirmPassword" placeholder="请确认密码" />
-            </div>
-          </div>
-          <div class="modal-actions">
-            <button class="secondary-btn" @click="closeCreateModal">取消</button>
-            <button class="primary-btn" @click="createUser">创建</button>
-          </div>
-        </div>
+  <div class="subpage">
+    <header class="subpage__head">
+      <div>
+        <h1 class="subpage__title">用户管理</h1>
+        <p class="subpage__desc">管理平台用户信息，包括查看用户列表、编辑用户权限等操作。</p>
       </div>
-    </Transition>
-    <!-- 编辑用户模态框 -->
-    <Transition name="modal">
-      <div v-if="editingUser" class="edit-modal-overlay" @click="closeEditModal">
-        <div class="edit-modal" @click.stop>
-          <div class="modal-header">
-            <h3>编辑用户</h3>
-            <button class="close-btn" @click="closeEditModal">&times;</button>
-          </div>
-          <div class="modal-content">
-            <div class="form-group">
-              <label>用户名</label>
-              <input type="text" v-model="editingUser.username" disabled class="disabled-input" />
-            </div>
-            <div class="form-group">
-              <label>邮箱</label>
-              <input type="email" v-model="editingUser.email" disabled class="disabled-input" />
-            </div>
-            <div class="form-group">
-              <label>新密码</label>
-              <input type="password" v-model="editingUser.newPassword" placeholder="如果不修改密码请留空" />
-            </div>
-            <div class="form-group">
-              <label>确认新密码</label>
-              <input type="password" v-model="editingUser.confirmPassword" placeholder="如果不修改密码请留空" />
-            </div>
-            <template v-if="editingUser.accountType === 'user'">
-              <div class="form-group">
-                <label>会员到期（上海时间 UTC+8）</label>
-                <input
-                  type="datetime-local"
-                  v-model="editingUser.vipLocal"
-                  :disabled="editingUser.vipClear"
-                  class="modal-input"
-                />
-                <label class="vip-clear-row">
-                  <input type="checkbox" v-model="editingUser.vipClear" />
-                  清除会员
-                </label>
-              </div>
-            </template>
-          </div>
-          <div class="modal-actions">
-            <button class="secondary-btn" @click="closeEditModal">取消</button>
-            <button class="primary-btn" @click="saveUserEdit">保存</button>
-          </div>
-        </div>
+    </header>
+
+    <!-- 工具条 -->
+    <div class="toolbar">
+      <select v-model="accountType" class="select" aria-label="账户类型">
+        <option value="">所有账户</option>
+        <option value="admin">管理员</option>
+        <option value="user">用户</option>
+      </select>
+
+      <NInput
+        v-model="searchQuery"
+        icon="search"
+        placeholder="搜索用户名或邮箱…"
+        clearable
+        class="toolbar__search"
+      />
+
+      <NButton v-if="isSuperAdmin" variant="primary" icon="user-plus" @click="openCreateModal">
+        创建账号
+      </NButton>
+    </div>
+
+    <!-- 表格 -->
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>用户名</th>
+            <th>邮箱</th>
+            <th>角色</th>
+            <th>注册时间</th>
+            <th>会员</th>
+            <th aria-label="操作" />
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="user in filteredUsers" :key="user.id">
+            <td class="cell-dim">{{ user.id }}</td>
+            <td class="cell-strong">{{ user.username }}</td>
+            <td class="cell-dim">{{ user.email }}</td>
+            <td>{{ getRoleText(user.role) }}</td>
+            <td class="cell-dim">{{ formatDate(user.registerTime) }}</td>
+            <td>
+              <template v-if="user.accountType === 'user'">
+                <NTag v-if="user.vip" variant="accent" size="sm">VIP</NTag>
+                <span v-else class="cell-dim">-</span>
+                <div v-if="user.vipExpiresAt" class="cell-sub">{{ formatVipExpiresAt(user.vipExpiresAt) }}</div>
+              </template>
+              <span v-else class="cell-dim">-</span>
+            </td>
+            <td class="cell-actions">
+              <NButton
+                v-if="canEditUser(user)"
+                size="sm"
+                variant="secondary"
+                icon="pencil"
+                @click="editUser(user)"
+              >
+                编辑
+              </NButton>
+              <NButton
+                v-if="canDeleteUser(user)"
+                size="sm"
+                variant="danger"
+                icon="trash-2"
+                @click="deleteUser(user.id)"
+              >
+                删除
+              </NButton>
+            </td>
+          </tr>
+          <tr v-if="!filteredUsers.length">
+            <td colspan="7" class="cell-empty">没有匹配的用户</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 分页 -->
+    <div class="pager">
+      <NButton size="sm" variant="secondary" icon="chevron-left" :disabled="currentPage === 1" @click="currentPage--">
+        上一页
+      </NButton>
+      <span class="pager__info">第 {{ currentPage }} / {{ totalPages }} 页</span>
+      <NButton
+        size="sm"
+        variant="secondary"
+        icon-after="chevron-right"
+        :disabled="currentPage === totalPages"
+        @click="currentPage++"
+      >
+        下一页
+      </NButton>
+    </div>
+
+    <!-- 创建账号 -->
+    <NModal v-model="creatingUser" title="创建账号" @close="closeCreateModal">
+      <div v-if="createFormData.accountType === 'admin'" class="field">
+        <label class="field__label" for="cu-role">角色</label>
+        <select id="cu-role" v-model="createFormData.role" class="select select--block">
+          <option value="admin">管理员</option>
+          <option value="auditor">审核员</option>
+        </select>
       </div>
-    </Transition>
+      <div class="field">
+        <label class="field__label" for="cu-username">用户名</label>
+        <NInput id="cu-username" v-model="createFormData.username" placeholder="请输入用户名" />
+      </div>
+      <div class="field">
+        <label class="field__label" for="cu-email">邮箱</label>
+        <NInput id="cu-email" v-model="createFormData.email" type="email" placeholder="请输入邮箱" />
+      </div>
+      <div class="field">
+        <label class="field__label" for="cu-password">密码</label>
+        <NInput id="cu-password" v-model="createFormData.password" type="password" placeholder="请输入密码" />
+      </div>
+      <div class="field field--last">
+        <label class="field__label" for="cu-confirm">确认密码</label>
+        <NInput id="cu-confirm" v-model="createFormData.confirmPassword" type="password" placeholder="请确认密码" />
+      </div>
+      <template #footer>
+        <NButton variant="ghost" @click="closeCreateModal">取消</NButton>
+        <NButton variant="primary" @click="createUser">创建</NButton>
+      </template>
+    </NModal>
+
+    <!-- 编辑用户 -->
+    <NModal
+      :model-value="!!editingUser"
+      title="编辑用户"
+      @close="closeEditModal"
+    >
+      <template v-if="editingUser">
+        <div class="field">
+          <label class="field__label" for="eu-username">用户名</label>
+          <NInput id="eu-username" v-model="editingUser.username" disabled />
+        </div>
+        <div class="field">
+          <label class="field__label" for="eu-email">邮箱</label>
+          <NInput id="eu-email" v-model="editingUser.email" type="email" disabled />
+        </div>
+        <div class="field">
+          <label class="field__label" for="eu-pwd">新密码</label>
+          <NInput id="eu-pwd" v-model="editingUser.newPassword" type="password" placeholder="不修改请留空" />
+        </div>
+        <div class="field">
+          <label class="field__label" for="eu-pwd2">确认新密码</label>
+          <NInput id="eu-pwd2" v-model="editingUser.confirmPassword" type="password" placeholder="不修改请留空" />
+        </div>
+
+        <template v-if="editingUser.accountType === 'user'">
+          <div class="field field--last">
+            <label class="field__label" for="eu-vip">会员到期（上海时间 UTC+8）</label>
+            <input
+              id="eu-vip"
+              v-model="editingUser.vipLocal"
+              type="datetime-local"
+              class="native-input"
+              :disabled="editingUser.vipClear"
+            />
+            <label class="check">
+              <input v-model="editingUser.vipClear" type="checkbox" />
+              清除会员
+            </label>
+          </div>
+        </template>
+      </template>
+
+      <template #footer>
+        <NButton variant="ghost" @click="closeEditModal">取消</NButton>
+        <NButton variant="primary" @click="saveUserEdit">保存</NButton>
+      </template>
+    </NModal>
+  </div>
 </template>
 
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { useToast } from 'vue-toastification'
+import { useToast } from '@/composables/useToast'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NCard, NInput, NModal, NSpinner, NTag } from '@/ui'
+import { PageShell, AmbientBackdrop } from '@/layouts'
 import API_CONFIG from '@/config/apiConfig.js'
 import {
   isoToDatetimeLocalValue,
@@ -736,469 +740,193 @@ watch(currentPage, (newPage) => {
 </script>
 
 <style scoped>
-.admin-layout {
+.subpage {
+  width: 100%;
+}
+
+.subpage__head {
+  margin-bottom: var(--n-space-5);
+}
+
+.subpage__title {
+  margin: 0 0 var(--n-space-1);
+  font-size: clamp(1.25rem, 2.6vw, 1.6rem);
+  font-weight: var(--n-weight-bold);
+  letter-spacing: -0.02em;
+  color: var(--n-text);
+}
+
+.subpage__desc {
+  margin: 0;
+  max-width: 72ch;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+}
+
+/* ==================== 工具条 ==================== */
+.toolbar {
   display: flex;
-  min-height: 100vh;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
-}
-
-.admin-main-content {
-  flex: 1;
-  margin-left: 250px; /* 侧边栏宽度 */
-  padding: 20px;
-  transition: margin-left 0.3s ease;
-  min-height: calc(100vh - 40px);
-  display: flex;
-  flex-direction: column;
-}
-
-.admin-header {
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 15px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  margin-bottom: 20px;
-  flex-shrink: 0; /* 防止头部被压缩 */
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.menu-toggle-btn {
-  display: none;
-  background: none;
-  border: none;
-  color: #887bb0;
-  cursor: pointer;
-  padding: 5px;
-  transition: color 0.3s ease;
-}
-
-.menu-toggle-btn:hover {
-  color: #69c8df;
-}
-
-.menu-toggle-btn svg {
-  width: 28px;
-  height: 28px;
-}
-
-.admin-user-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex: 1;
-}
-
-.logout-button {
-  background: linear-gradient(135deg, rgba(220, 20, 60, 0.8), rgba(105, 200, 223, 0.8));
-  color: white;
-  border: none;
-  border-radius: 20px;
-  padding: 8px 16px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 10px rgba(220, 20, 60, 0.3);
-}
-
-.logout-button:hover {
-  background: linear-gradient(135deg, rgba(190, 10, 50, 0.9), rgba(235, 79, 51, 0.9));
-  transform: translateY(-2px);
-  box-shadow: 0 6px 15px rgba(220, 20, 60, 0.5);
-}
-
-.admin-content-wrapper {
-  flex: 1; /* 让内容区域占据剩余空间 */
-  padding: 0 20px;
-  min-height: 0; /* 允许内容区域收缩 */
-  overflow: auto; /* 如果内容过多，允许滚动 */
-}
-
-.admin-subpage {
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 15px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-}
-
-.admin-subpage h2 {
-  color: #69c8df;
-  margin: 0 0 20px 0;
-  font-size: 1.5rem;
-}
-
-.admin-controls {
-  margin-bottom: 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   flex-wrap: wrap;
-  gap: 15px;
+  gap: var(--n-space-3);
+  margin-bottom: var(--n-space-5);
 }
 
-.filter-section {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+.toolbar__search {
+  flex: 1 1 240px;
+  min-width: 0;
 }
 
-.filter-select, .search-input {
-  padding: 8px 12px;
-  border: none;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: #333;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-}
-
-.create-btn {
-  padding: 8px 20px;
-  background: linear-gradient(135deg, #69c8df, #8eddec);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  margin-left: auto;
-}
-
-.create-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(105, 200, 223, 0.4);
-}
-
-.create-btn:active {
-  transform: translateY(0);
-}
-
-.filter-select:focus, .search-input:focus {
+.select {
+  height: 40px;
+  padding: 0 var(--n-space-4);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-control);
+  background: var(--n-surface-soft);
+  color: var(--n-text);
+  font-size: var(--n-text-base);
   outline: none;
-  border: 1px solid rgba(105, 200, 223, 0.5);
-  box-shadow: 0 0 0 2px rgba(105, 200, 223, 0.2);
-  background: rgba(255, 255, 255, 0.35);
+  transition: border-color var(--n-duration-fast) var(--n-ease), box-shadow var(--n-duration-fast) var(--n-ease);
 }
 
-.users-list-section {
-  margin-top: 20px;
+.select:focus {
+  border-color: var(--n-accent-line);
+  box-shadow: var(--n-shadow-glow);
 }
 
-.table-container {
+.select option {
+  background: var(--n-bg-elevated);
+  color: var(--n-text);
+}
+
+.select--block {
+  width: 100%;
+}
+
+/* ==================== 表格 ==================== */
+.table-wrap {
   overflow-x: auto;
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-lg);
+  background: var(--n-surface);
 }
 
-.users-table {
+.table {
   width: 100%;
   border-collapse: collapse;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-  overflow: hidden;
+  color: var(--n-text);
+  font-size: var(--n-text-sm);
 }
 
-.users-table th,
-.users-table td {
-  padding: 12px 15px;
+.table th,
+.table td {
+  padding: var(--n-space-3) var(--n-space-4);
   text-align: left;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--n-line-subtle);
+  vertical-align: middle;
+  white-space: nowrap;
 }
 
-.users-table th {
-  background: rgba(105, 200, 223, 0.3);
-  color: #69c8df;
-  font-weight: 600;
+.table th {
+  background: var(--n-accent-soft);
+  font-weight: var(--n-weight-semibold);
 }
 
-.users-table tr:last-child td {
+.table tbody tr:last-child td {
   border-bottom: none;
 }
 
-.users-table tr:hover {
-  background: rgba(105, 200, 223, 0.1);
+@media (hover: hover) {
+  .table tbody tr:hover td {
+    background: var(--n-surface-soft);
+  }
 }
 
-.vip-tag {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.22), rgba(155, 234, 255, 0.14));
-  color: var(--neko-text);
+.cell-dim {
+  color: var(--n-text-muted);
 }
 
-.cell-muted {
-  color: #999;
+.cell-strong {
+  color: var(--n-text);
+  font-weight: var(--n-weight-medium);
 }
 
 .cell-sub {
-  margin-top: 4px;
-  font-size: 0.75rem;
-  color: #666;
+  margin-top: 2px;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
 }
 
-.vip-clear-row {
+.cell-actions {
+  display: flex;
+  gap: var(--n-space-2);
+}
+
+.cell-empty {
+  padding: var(--n-space-10) var(--n-space-4) !important;
+  text-align: center;
+  color: var(--n-text-faint);
+}
+
+/* ==================== 分页 ==================== */
+.pager {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-  font-weight: 500;
-  color: #555;
-}
-
-.action-btn {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 0.8rem;
-  margin-right: 5px;
-  transition: all 0.3s ease;
-}
-
-.edit-btn {
-  background: rgba(52, 152, 219, 0.2);
-  color: #3498db;
-}
-
-.edit-btn:hover {
-  background: rgba(52, 152, 219, 0.3);
-}
-
-.delete-btn {
-  background: rgba(231, 76, 60, 0.2);
-  color: #e74c3c;
-}
-
-.delete-btn:hover {
-  background: rgba(231, 76, 60, 0.3);
-}
-
-.pagination {
-  margin-top: 20px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 15px;
-}
-
-.page-btn {
-  padding: 8px 15px;
-  border: none;
-  border-radius: 8px;
-  background: rgba(105, 200, 223, 0.2);
-  color: #69c8df;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.page-btn:hover:not(:disabled) {
-  background: rgba(105, 200, 223, 0.3);
-  transform: translateY(-2px);
-}
-
-.page-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.page-info {
-  color: #887bb0;
-  font-size: 0.9rem;
-}
-
-/* 编辑模态框样式 */
-.edit-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.edit-modal {
-  background: white;
-  border-radius: 15px;
-  width: 90%;
-  max-width: 500px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-  animation: modalSlideIn 0.3s ease;
-}
-
-@keyframes modalSlideIn {
-  from {
-    transform: translateY(-50px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.modal-header {
-  padding: 20px;
-  border-bottom: 1px solid rgba(105, 200, 223, 0.1);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.modal-header h3 {
-  margin: 0;
-  color: #69c8df;
-  font-size: 1.3rem;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: #999;
-  cursor: pointer;
-  transition: color 0.3s ease;
-}
-
-.close-btn:hover {
-  color: #e74c3c;
-}
-
-.modal-content {
-  padding: 20px;
-}
-
-.form-group {
-  margin-bottom: 20px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 8px;
-  color: #69c8df;
-  font-weight: 600;
-}
-
-.form-group input {
-  width: 100%;
-  padding: 10px 15px;
-  border: 1px solid rgba(105, 200, 223, 0.3);
-  border-radius: 8px;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-}
-
-.form-group input:focus {
-  outline: none;
-  border-color: #69c8df;
-  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.1);
-}
-
-.form-select {
-  width: 100%;
-  padding: 10px 15px;
-  border: 1px solid rgba(105, 200, 223, 0.3);
-  border-radius: 8px;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  background: white;
-}
-
-.form-select:focus {
-  outline: none;
-  border-color: #69c8df;
-  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.1);
-}
-
-.disabled-input {
-  background: rgba(0, 0, 0, 0.05);
-  cursor: not-allowed;
-}
-
-.modal-actions {
-  padding: 20px;
-  border-top: 1px solid rgba(105, 200, 223, 0.1);
-  display: flex;
   justify-content: flex-end;
-  gap: 10px;
+  gap: var(--n-space-4);
+  margin-top: var(--n-space-4);
 }
 
-.primary-btn, .secondary-btn {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
+.pager__info {
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==================== 弹窗字段 ==================== */
+.field {
+  margin-bottom: var(--n-space-4);
+}
+
+.field--last {
+  margin-bottom: 0;
+}
+
+.field__label {
+  display: block;
+  margin-bottom: var(--n-space-2);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-medium);
+}
+
+.native-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 var(--n-space-4);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-control);
+  background: var(--n-surface-soft);
+  color: var(--n-text);
+  font-size: var(--n-text-base);
+  outline: none;
+}
+
+.native-input:focus {
+  border-color: var(--n-accent-line);
+  box-shadow: var(--n-shadow-glow);
+}
+
+.native-input:disabled {
+  opacity: 0.55;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--n-space-2);
+  margin-top: var(--n-space-3);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
   cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.primary-btn {
-  background: linear-gradient(135deg, #69c8df, #4aa9c0);
-  color: white;
-}
-
-.primary-btn:hover {
-  background: linear-gradient(135deg, #5a4ab3, #7a2ad2);
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(105, 200, 223, 0.3);
-}
-
-.secondary-btn {
-  background: rgba(105, 200, 223, 0.1);
-  color: #69c8df;
-}
-
-.secondary-btn:hover {
-  background: rgba(105, 200, 223, 0.2);
-}
-
-/* 模态框过渡动画 */
-.modal-enter-active,
-.modal-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.modal-enter-from,
-.modal-leave-to {
-  opacity: 0;
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .admin-main-content {
-    margin-left: 0;
-    padding: 10px 10px 130px 10px;
-  }
-  
-  .admin-layout {
-    flex-direction: column;
-  }
-  
-  .menu-toggle-btn {
-    display: block;
-  }
-  
-  .admin-header {
-    padding: 15px;
-  }
-  
-  .admin-user-info span {
-    font-size: 0.9rem;
-  }
 }
 </style>
