@@ -424,6 +424,10 @@ public class Main {
         // 注册用户修改密码API处理器
         ServletHolder userPasswordChangeHolder = new ServletHolder(new UserPasswordChangeHandler());
         context.addServlet(userPasswordChangeHolder, "/api/user/password/change");
+
+        // 注册用户修改昵称API处理器
+        ServletHolder userNicknameChangeHolder = new ServletHolder(new UserNicknameChangeHandler());
+        context.addServlet(userNicknameChangeHolder, "/api/user/nickname/change");
         
         // 注册用户收藏API处理器
         ServletHolder userFavoriteHolder = new ServletHolder(new UserFavoriteHandler());

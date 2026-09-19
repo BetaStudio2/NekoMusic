@@ -42,8 +42,41 @@
           <div v-if="activeTab === 'profile'" class="tab-panel">
             <h3>个人信息</h3>
             <div class="info-item">
-              <label>用户名:</label>
-              <span>{{ user.username }}</span>
+              <label>昵称:</label>
+              <div class="info-value">
+                <template v-if="!editingNickname">
+                  <span>{{ user.username }}</span>
+                  <button type="button" class="edit-btn" @click="startEditNickname">修改</button>
+                </template>
+                <template v-else>
+                  <input
+                    ref="nicknameInputEl"
+                    v-model="nicknameInput"
+                    class="nickname-input"
+                    type="text"
+                    maxlength="20"
+                    placeholder="请输入新昵称（1-20字）"
+                    @keyup.enter="saveNickname"
+                    @keyup.esc="cancelEditNickname"
+                  />
+                  <button
+                    type="button"
+                    class="save-btn inline-btn"
+                    :disabled="savingNickname"
+                    @click="saveNickname"
+                  >
+                    {{ savingNickname ? '保存中…' : '保存' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="cancel-btn inline-btn"
+                    :disabled="savingNickname"
+                    @click="cancelEditNickname"
+                  >
+                    取消
+                  </button>
+                </template>
+              </div>
             </div>
             <div class="info-item">
               <label>邮箱:</label>
@@ -87,7 +120,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import API_CONFIG from '@/config/apiConfig.js'
 import { useToast } from 'vue-toastification'
 import { formatVipExpiresAt, syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
@@ -147,6 +180,12 @@ const newPassword = ref('')
 const confirmNewPassword = ref('')
 const changePasswordLoading = ref(false)
 
+// 昵称修改
+const editingNickname = ref(false)
+const nicknameInput = ref('')
+const nicknameInputEl = ref(null)
+const savingNickname = ref(false)
+
 const tabs = [
   { key: 'profile', label: '个人信息' },
   { key: 'security', label: '安全设置' }
@@ -166,6 +205,91 @@ const formatDate = (dateString) => {
 // 切换标签页
 const changeTab = (tabKey) => {
   activeTab.value = tabKey
+}
+
+// 开始修改昵称
+const startEditNickname = async () => {
+  nicknameInput.value = user.value?.username || ''
+  editingNickname.value = true
+  await nextTick()
+  nicknameInputEl.value?.focus()
+  nicknameInputEl.value?.select?.()
+}
+
+// 取消修改昵称
+const cancelEditNickname = () => {
+  editingNickname.value = false
+  nicknameInput.value = ''
+}
+
+// 保存昵称
+const saveNickname = async () => {
+  const nickname = nicknameInput.value.trim()
+
+  if (!nickname) {
+    toast.error('昵称不能为空')
+    return
+  }
+  if (nickname.length > 20) {
+    toast.error('昵称长度需在1-20之间')
+    return
+  }
+  if (nickname === user.value?.username) {
+    toast.info('昵称没有变化')
+    cancelEditNickname()
+    return
+  }
+
+  const token = localStorage.getItem('userToken')
+  if (!token) {
+    toast.error('登录状态已失效，请重新登录')
+    return
+  }
+
+  savingNickname.value = true
+  try {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/nickname/change`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ nickname })
+    })
+
+    const data = await response.json().catch(() => ({}))
+    if (response.ok && data.success) {
+      const savedNickname = data.data?.nickname || nickname
+      // 同步更新本地缓存的用户信息，页面头部/个人信息即时刷新
+      const previousUser = localStorage.getItem('user')
+      try {
+        const stored = localStorage.getItem('user')
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          parsed.username = savedNickname
+          localStorage.setItem('user', JSON.stringify(parsed))
+        }
+      } catch (e) {
+        console.error('更新本地用户信息失败:', e)
+      }
+      bumpUserFromStorage()
+      // 通知导航栏等监听 storage 的组件更新昵称显示
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'user',
+        oldValue: previousUser,
+        newValue: localStorage.getItem('user')
+      }))
+      toast.success(data.message || '昵称修改成功')
+      cancelEditNickname()
+    } else {
+      toast.error(data.message || '昵称修改失败')
+    }
+  } catch (error) {
+    console.error('修改昵称失败:', error)
+    toast.error('昵称修改失败，请稍后重试')
+  } finally {
+    savingNickname.value = false
+  }
 }
 
 // 处理头像上传
@@ -388,6 +512,96 @@ const changePassword = async () => {
 .info-item span {
   flex-grow: 1;
   color: var(--muted);
+}
+
+.info-item .info-value {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.info-item .info-value span {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.nickname-input {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 9px 14px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+
+.nickname-input::placeholder {
+  color: var(--faint);
+}
+
+.nickname-input:focus {
+  border-color: rgba(105, 200, 223, 0.45);
+  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.12);
+}
+
+.edit-btn {
+  font-family: inherit;
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(105, 200, 223, 0.35);
+  background: rgba(105, 200, 223, 0.12);
+  color: var(--accent2);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+
+.edit-btn:hover {
+  background: rgba(105, 200, 223, 0.2);
+  border-color: rgba(105, 200, 223, 0.5);
+}
+
+.inline-btn {
+  flex-shrink: 0;
+  margin-top: 0;
+  padding: 9px 18px;
+  font-size: 0.84rem;
+}
+
+.cancel-btn {
+  font-family: inherit;
+  flex-shrink: 0;
+  padding: 9px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease);
+}
+
+.cancel-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+
+.cancel-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .form-group {

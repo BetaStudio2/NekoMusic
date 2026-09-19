@@ -524,4 +524,23 @@ public class UserAuthService {
         }
         return false;
     }
+
+    /**
+     * 修改昵称（用户名，允许重复），成功后不影响现有会话。
+     */
+    public boolean changeNickname(int userId, String newNickname) {
+        String sql = "UPDATE users SET username = ? WHERE id = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, newNickname);
+            stmt.setInt(2, userId);
+            if (stmt.executeUpdate() > 0) {
+                logger.info("用户 {} 修改昵称成功", userId);
+                return true;
+            }
+        } catch (SQLException e) {
+            logger.error("修改昵称失败 userId={}: {}", userId, e.getMessage(), e);
+        }
+        return false;
+    }
 }
