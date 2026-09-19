@@ -294,7 +294,8 @@ frontend/
 - **原子组件** `src/ui/`：`NButton` `NCard` `NInput` `NTag` `NSpinner` `NModal`。
 - **组合式函数** `src/composables/`：`useTheme`、`useToast`；`src/utils/format.js` 格式化。
 - **布局壳** `src/layouts/`：`AppShell`（环境光 + 顶栏 + 内容 + 播放器 + 页脚）、`PageShell`（宽度 + 标题区）、`AmbientBackdrop`。
-- **自检页** `/__kit`：开发环境可视化验证全部基础层（**生产前移除**）。
+- **自检页** `/__kit`：开发环境可视化验证全部基础层（`KitView.vue`）。
+  **决策：迁移期间全程保留**，作为组件用法与视觉效果的参考样板；**待全部页面迁移完成后再移除**（见 §8.2 批次 7）。
 
 新框架与旧代码当前**并存**：`main.js` 额外引入两份 CSS，旧页面不受影响。
 
@@ -411,7 +412,7 @@ home-page（自建 ambient + 自建变量集）
 | 4 | 复杂页 | PlayerView / UploadMusicView / UserRegister / UserVip / UserProfile |
 | 5 | 管理端 | 9 个页面在 `AdminLayout` 下重建，替换 `.admin-layout !important` 皮肤 |
 | 6 | 播放器 | GlobalPlayer 重构 + 抽出 `usePlayer`/`useLyrics`/`useMediaSession`；收敛全局契约 |
-| 7 | 清理 | 删除 `main.css`/`glassShell.css` 废弃段与旧组件；移除 `/__kit` 与 `KitView.vue` |
+| 7 | 清理 | 删除 `main.css`/`glassShell.css` 废弃段与旧组件；**此时**移除 `/__kit` 与 `KitView.vue`（迁移期间一直保留） |
 
 ### 8.3 每页迁移检查清单
 
