@@ -29,6 +29,7 @@ import {
   // 状态 / 反馈
   Heart, Star, ThumbsUp, ThumbsDown, Flag, Info, TriangleAlert, CircleAlert,
   CircleCheck, CircleX, CircleHelp, Loader, LoaderCircle, Sparkles, Flame,
+  HeartOff,
   Crown, Gem, BadgeCheck, Award, Trophy, TrendingUp, TrendingDown, ChartNoAxesColumn, Activity,
   // 主题 / 展示
   Sun, Moon, Monitor, Eye, EyeOff, Palette, LayoutGrid, LayoutList, Menu,
@@ -159,6 +160,7 @@ export const icons = {
 
   // 状态 / 反馈
   heart: Heart,
+  'heart-off': HeartOff,
   star: Star,
   'thumbs-up': ThumbsUp,
   'thumbs-down': ThumbsDown,
