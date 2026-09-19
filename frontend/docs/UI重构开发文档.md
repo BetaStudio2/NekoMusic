@@ -423,7 +423,7 @@ home-page（自建 ambient + 自建变量集）
 | 4 | ✅ 复杂页 | PlayerView / UploadMusicView / UserRegisterView / UserVipView / UserProfileView 已迁移；登录页按 WebWord 参考重做（含特效）；**DownloadView 一并迁移**（用户端已全部完成） |
 | 5 | ⏳ 管理端 | 进行中：`.admin-layout` 皮肤已改为令牌版（全站管理页即时换肤）、`AdminVipPricingView` 已精修；**剩余 6 页待精修**：AdminView / AdminMusicView / AdminAuditView / AdminUsersView / AdminLyricsEditorView / AdminReleasesView，以及 AdminLoginView（独立于管理布局）。收尾时删除 `main.css` 的 `!important` 皮肤与各页浅色 scoped 样式 |
 | 6 | 播放器 | GlobalPlayer 重构 + 抽出 `usePlayer`/`useLyrics`/`useMediaSession`；收敛全局契约 |
-| 7 | 清理 | 删除 `main.css`/`glassShell.css` 废弃段与旧组件；**此时**移除 `/__kit` 与 `KitView.vue`（迁移期间一直保留） |
+| 7 | 清理 | 删除 `main.css` 废弃段与旧组件（`glassShell.css` 此前已随用户端完成而删除）；**此时**移除 `/__kit` 与 `KitView.vue`（迁移期间一直保留） |
 
 ### 8.3 每页迁移检查清单
 
