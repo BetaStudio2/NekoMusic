@@ -16,6 +16,7 @@ import SiteHeader from './layouts/SiteHeader.vue'
 import SiteFooter from './layouts/SiteFooter.vue'
 import GlobalPlayer from './components/GlobalPlayer.vue'
 import MobileAppBanner from './components/MobileAppBanner.vue'
+import AuthDialog from './components/AuthDialog.vue'
 import { isMobileDevice } from './utils/mobile.js'
 
 const route = useRoute()
@@ -113,6 +114,8 @@ onUnmounted(() => {
     :class="{ 'app--home': isChromeDarkShell, 'app--player-visible': hasTrack }"
     :style="{ '--app-header-h': headerHeight + 'px' }"
   >
+    <AuthDialog />
+
     <SiteHeader
       ref="headerRef"
       class="app-chrome-header"

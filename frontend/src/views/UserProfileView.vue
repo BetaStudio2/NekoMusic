@@ -2,7 +2,7 @@
   <AmbientBackdrop />
 
   <PageShell width="narrow">
-    <div class="profile">
+    <div v-if="user" class="profile">
       <!-- 头部 -->
       <header class="profile__head">
         <div class="profile__avatar-wrap">
@@ -116,13 +116,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import API_CONFIG from '@/config/apiConfig.js'
 import { useToast } from '@/composables/useToast'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NInput, NModal, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { formatVipExpiresAt, syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
+import { openAuthDialog } from '@/composables/useAuthDialog'
+import { useAuth } from '@/composables/useAuth'
 
 const toast = useToast()
 
@@ -143,19 +145,26 @@ const user = computed(() => {
   }
 })
 
-// 检查用户是否登录
-const isLoggedIn = computed(() => {
-  return localStorage.getItem('userToken') !== null;
-})
+const { token: authToken } = useAuth()
 
-// 如果用户未登录，重定向到登录页
-if (!isLoggedIn.value || !user.value) {
-  window.location.href = '/login';
-}
+// 检查用户是否登录（用响应式 token，弹窗里登录后能立刻更新）
+const isLoggedIn = computed(() => !!authToken.value)
 
 const bumpUserFromStorage = () => {
   vipSyncTick.value++
 }
+
+// 未登录：弹登录窗（登录成功后 watch 会重新读取用户信息）
+if (!isLoggedIn.value || !user.value) {
+  openAuthDialog('login');
+}
+
+watch(authToken, (token) => {
+  if (token) {
+    bumpUserFromStorage()
+    syncUserVipFromPlaylistsApi().then(bumpUserFromStorage)
+  }
+})
 
 onMounted(async () => {
   window.addEventListener(USER_VIP_SYNC_EVENT, bumpUserFromStorage)

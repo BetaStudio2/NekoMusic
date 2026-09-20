@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { openAuthDialog } from '@/composables/useAuthDialog'
 
 // 检查管理员是否已登录
 function isAdminLoggedIn() {
@@ -110,23 +111,20 @@ const router = createRouter({
       }
     },
     {
+      // 登录已改为全局弹窗：旧链接/书签仍可用，落到首页并弹出登录
       path: '/login',
       name: 'login',
-      component: () => import('@/views/UserAuthView.vue'),
-      meta: {
-        title: '用户登录 - Neko歌姬计划 | 免费音乐平台',
-        description: '登录您的Neko歌姬计划账户，享受完全免费的个性化音乐服务。无需付费，永久免费。',
-        keywords: '用户登录,账户登录,免费音乐账户'
+      redirect: () => {
+        openAuthDialog('login')
+        return { path: '/' }
       }
     },
     {
       path: '/register',
       name: 'register',
-      component: () => import('@/views/UserAuthView.vue'),
-      meta: {
-        title: '用户注册 - Neko歌姬计划 | 免费音乐平台',
-        description: '注册Neko歌姬计划账户，开启您的免费音乐之旅。完全免费，无需付费，永久免费。',
-        keywords: '用户注册,账户注册,免费音乐注册'
+      redirect: () => {
+        openAuthDialog('register')
+        return { path: '/' }
       }
     },
     {

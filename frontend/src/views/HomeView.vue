@@ -27,7 +27,7 @@ const rankingLoading = ref(true)
 const latestLoading = ref(true)
 
 const isLoggedIn = ref(false)
-const username = ref('')
+const nickname = ref('')
 
 /** 每日推荐（需登录） */
 const dailyList = ref([])
@@ -37,9 +37,9 @@ const syncLoginState = () => {
   isLoggedIn.value = !!localStorage.getItem('userToken')
   try {
     const u = JSON.parse(localStorage.getItem('user') || 'null')
-    username.value = u?.nickname || ''
+    nickname.value = u?.nickname || ''
   } catch {
-    username.value = ''
+    nickname.value = ''
   }
 }
 
@@ -213,7 +213,7 @@ onUnmounted(() => {
     <header class="home-head">
       <h1 class="home-head__title">首页</h1>
       <p class="home-head__greeting">
-        {{ greeting }}<template v-if="isLoggedIn && username">，{{ username }}</template>，欢迎来到 Neko歌姬计划
+        {{ greeting }}<template v-if="isLoggedIn && nickname">，{{ nickname }}</template>，欢迎来到 Neko歌姬计划
       </p>
     </header>
 
