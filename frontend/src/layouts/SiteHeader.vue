@@ -22,9 +22,13 @@ const router = useRouter()
 const searchQuery = ref('')
 const searchResults = ref(null)
 const showResults = ref(false)
-const isLoading = ref(false)
 const searchRoot = ref(null)
 let debounceTimer = null
+/**
+ * 请求序号：搜索请求是并发的，先发的可能后到。只采纳“最后一次发起”
+ * 的结果，避免旧响应把用户刚输入的新结果覆盖掉。
+ */
+let searchSeq = 0
 
 const isLoggedIn = ref(false)
 const user = ref(null)
@@ -71,14 +75,16 @@ function handleImageError(event) {
 }
 
 async function fetchSearchResults(query) {
+  const seq = ++searchSeq
   try {
-    isLoading.value = true
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query }),
     })
     const data = await response.json()
+    // 期间又发起了新的搜索：丢弃本次结果
+    if (seq !== searchSeq) return
     if (response.ok && data.success && data.results) {
       searchResults.value = data.results
       showResults.value = true
@@ -87,17 +93,18 @@ async function fetchSearchResults(query) {
       showResults.value = false
     }
   } catch (error) {
+    if (seq !== searchSeq) return
     console.error('搜索请求失败:', error)
     searchResults.value = null
     showResults.value = false
-  } finally {
-    isLoading.value = false
   }
 }
 
 function onSearchInput() {
   if (debounceTimer) clearTimeout(debounceTimer)
   if (!searchQuery.value.trim()) {
+    // 清空输入：让在途请求的结果失效，并收起下拉
+    searchSeq++
     searchResults.value = null
     showResults.value = false
     return
@@ -109,6 +116,8 @@ async function performSearch() {
   if (!searchQuery.value.trim()) return
   const query = searchQuery.value
   if (debounceTimer) clearTimeout(debounceTimer)
+  // 别再让在途的下拉搜索把面板重新弹出来
+  searchSeq++
   searchResults.value = null
   showResults.value = false
   router.push(`/search/${encodeURIComponent(query)}`)
@@ -117,12 +126,14 @@ async function performSearch() {
 function selectResult(result) {
   localStorage.setItem('currentPlayingMusic', JSON.stringify(result))
   router.push(`/detail/${result.id}`)
+  searchSeq++
   searchResults.value = null
   showResults.value = false
 }
 
 function goHome() {
   router.push('/')
+  searchSeq++
   searchQuery.value = ''
   searchResults.value = null
   showResults.value = false
@@ -180,7 +191,6 @@ onUnmounted(() => {
           icon="search"
           placeholder="搜索音乐、艺术家或歌词"
           clearable
-          :disabled="isLoading"
           @update:model-value="onSearchInput"
           @enter="performSearch"
         />
