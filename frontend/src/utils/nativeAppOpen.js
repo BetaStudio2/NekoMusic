@@ -1,3 +1,4 @@
+import { replaceUrlSafely } from './routerHistory'
 /**
  * 移动端进入详情 / 歌单页时尝试拉起原生 App。
  *
@@ -28,7 +29,8 @@ function stripSkipQueryFromUrl() {
     if (u.searchParams.get(SKIP_QUERY) !== '1') return
     u.searchParams.delete(SKIP_QUERY)
     const next = u.pathname + (u.searchParams.toString() ? `?${u.searchParams}` : '') + u.hash
-    window.history.replaceState({}, '', next)
+    // 用安全替换：直接 replaceState({}) 会抹掉 router 的 state
+    replaceUrlSafely(next)
   } catch {
     /* ignore */
   }

@@ -233,6 +233,7 @@ import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import { useToast } from 'vue-toastification'
 import { attachAudioElement, unlockAudioAnalyser } from '@/composables/useAudioAnalyser'
+import { clearUrlHash } from '@/utils/routerHistory'
 import SpectrumCanvas from '@/components/SpectrumCanvas.vue'
 import MiniLyric from '@/components/MiniLyric.vue'
 import NIcon from '@/icons/NIcon.vue'
@@ -1696,8 +1697,8 @@ const handleHashChange = () => {
       }
       isPlaying.value = true
 
-      // 清除hash
-      history.replaceState(null, null, ' ')
+      // 清除hash（保留 vue-router 写入的 history.state，否则下次导航报 R0121）
+      clearUrlHash()
     } catch (error) {
       console.error('解析播放数据失败:', error)
     }
@@ -1725,50 +1726,34 @@ const handleHashChange = () => {
         isPlaying.value = true
       }
 
-      // 清除hash
-      history.replaceState(null, null, ' ')
+      // 清除hash（保留 vue-router 写入的 history.state，否则下次导航报 R0121）
+      clearUrlHash()
     } catch (error) {
       console.error('解析播放列表数据失败:', error)
     }
   }
 }
 
-const loadPlaylist = async () => {
+/**
+ * 载入播放列表 —— 唯一来源是 localStorage。
+ *
+ * 原实现在「本地没有列表」时会去 POST /api/music/search 取一份默认列表，
+ * 但传的是 `{ query: '' }`，而后端要求 query 非空（返回 400
+ * 「请提供 query 或 items」）—— 这段兜底从来没成功过，只会在每次
+ * 首次访问时打一条 400 红字。搜索接口也不该被当作「取全部歌曲」用。
+ */
+const loadPlaylist = () => {
   try {
-    // 首先尝试从 localStorage 读取播放列表
-    const storedPlaylist = localStorage.getItem('globalPlaylist');
-    if (storedPlaylist) {
-      playlist.value = JSON.parse(storedPlaylist);
-    } else {
-      // 如果 localStorage 中没有播放列表，则从后端获取
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/search`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ query: '' })
-      })
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success) {
-          playlist.value = data.results || []
-          // 同时保存到 localStorage
-          localStorage.setItem('globalPlaylist', JSON.stringify(playlist.value));
-        }
-      }
+    const storedPlaylist = localStorage.getItem('globalPlaylist')
+    if (!storedPlaylist) {
+      playlist.value = []
+      return
     }
+    const parsed = JSON.parse(storedPlaylist)
+    playlist.value = Array.isArray(parsed) ? parsed : []
   } catch (error) {
     console.error('加载播放列表失败:', error)
-    
-    // 如果出错，尝试从 localStorage 获取播放列表作为备选
-    try {
-      const storedPlaylist = localStorage.getItem('globalPlaylist');
-      if (storedPlaylist) {
-        playlist.value = JSON.parse(storedPlaylist);
-      }
-    } catch (localStorageError) {
-      console.error('从localStorage加载播放列表也失败:', localStorageError);
-    }
+    playlist.value = []
   }
 }
 

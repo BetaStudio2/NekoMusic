@@ -5,6 +5,7 @@
  * 长文静态页。保留全部文案；去除左侧高亮条，提示块改为图标 + 淡色表面。
  */
 import { ref, onMounted, onUnmounted } from 'vue'
+import { replaceUrlSafely } from '@/utils/routerHistory'
 import NIcon from '@/icons/NIcon.vue'
 import { NCard, NTag } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
@@ -60,7 +61,8 @@ function scrollTo(id) {
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
 
-  history.replaceState(null, '', `#${id}`)
+  // 保留 vue-router 的 history.state，只把 hash 换掉
+  replaceUrlSafely(`#${id}`)
 }
 
 function onScroll() {
