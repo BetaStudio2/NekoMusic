@@ -207,7 +207,7 @@ const user = computed(() => {
 const displayName = computed(() => {
   const u = user.value
   if (!u) return ''
-  if (u.username && String(u.username).trim()) return String(u.username).trim()
+  if (u.nickname && String(u.nickname).trim()) return String(u.nickname).trim()
   if (u.email && String(u.email).trim()) return String(u.email).split('@')[0]
   return '用户'
 })

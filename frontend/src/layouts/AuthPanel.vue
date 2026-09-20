@@ -344,7 +344,7 @@ async function handleLogin() {
   loginLoading.value = true
   try {
     const response = await axios.post(`${API_CONFIG.BASE_URL}/api/user/login`, {
-      username: loginEmail.value,
+      nickname: loginEmail.value,
       password: loginPassword.value,
     })
 
@@ -622,7 +622,7 @@ async function sendVerificationWithCaptcha() {
   try {
     const response = await axios.post(`${API_CONFIG.BASE_URL}/api/user/send-verification`, {
       email: email.value,
-      username: username.value || '用户',
+      nickname: username.value || '用户',
       captchaPassToken: token,
     })
     if (response.data.success) {
@@ -694,7 +694,7 @@ async function handleRegister() {
   loading.value = true
   try {
     const response = await axios.post(`${API_CONFIG.BASE_URL}/api/user/register`, {
-      username: username.value,
+      nickname: username.value,
       email: email.value,
       password: password.value,
       verificationCode: verificationCode.value,

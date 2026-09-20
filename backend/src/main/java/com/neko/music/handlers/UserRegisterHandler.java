@@ -44,13 +44,13 @@ public class UserRegisterHandler extends ApiServlet {
                 return;
             }
 
-            String username = requestData.has("username") ? requestData.get("username").asText().trim() : null;
+            String nickname = requestData.has("nickname") ? requestData.get("nickname").asText().trim() : null;
             String password = requestData.has("password") ? requestData.get("password").asText() : null;
             String email = requestData.has("email") ? requestData.get("email").asText().trim() : null;
             String verificationCode = requestData.has("verificationCode") ? requestData.get("verificationCode").asText().trim() : null;
 
             // 1. 基础非空校验
-            if (isEmpty(username) || isEmpty(password) || isEmpty(email)) {
+            if (isEmpty(nickname) || isEmpty(password) || isEmpty(email)) {
                 sendResponse(response, false, "昵称、密码和邮箱不能为空喵", null);
                 return;
             }
@@ -74,7 +74,7 @@ public class UserRegisterHandler extends ApiServlet {
             }
 
             // 4. 昵称与密码长度/合规校验
-            String nicknameError = NicknameValidator.validate(username);
+            String nicknameError = NicknameValidator.validate(nickname);
             if (nicknameError != null) {
                 sendResponse(response, false, nicknameError, null);
                 return;
@@ -92,10 +92,10 @@ public class UserRegisterHandler extends ApiServlet {
             }
 
             // 6. 执行注册
-            boolean success = userAuthService.registerUser(username, password, email);
+            boolean success = userAuthService.registerUser(nickname, password, email);
             if (success) {
-                logger.info("用户注册成功: {}", username);
-                sendResponse(response, true, "注册成功喵！", Map.of("username", username));
+                logger.info("用户注册成功: {}", nickname);
+                sendResponse(response, true, "注册成功喵！", Map.of("nickname", nickname));
             } else {
                 sendResponse(response, false, "注册失败，邮箱已存在喵", null);
             }

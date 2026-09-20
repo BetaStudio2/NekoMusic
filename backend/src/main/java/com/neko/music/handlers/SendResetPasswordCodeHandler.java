@@ -46,7 +46,7 @@ public class SendResetPasswordCodeHandler extends ApiServlet {
             JsonNode requestData = Main.getObjectMapper().readTree(requestBody.toString());
 
             String email = null;
-            String username = "用户"; // 默认昵称
+            String nickname = "用户"; // 默认昵称
 
             if (requestData != null) {
                 if (requestData.has("email")) {
@@ -73,7 +73,7 @@ public class SendResetPasswordCodeHandler extends ApiServlet {
                 return;
             }
 
-            SendVerificationCodeResult result = userAuthService.sendResetPasswordCode(email, username);
+            SendVerificationCodeResult result = userAuthService.sendResetPasswordCode(email, nickname);
 
             if (result.rateLimited()) {
                 sendCooldownResponse(response, result.retryAfterSec());

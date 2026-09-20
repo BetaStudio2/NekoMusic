@@ -37,7 +37,7 @@ const syncLoginState = () => {
   isLoggedIn.value = !!localStorage.getItem('userToken')
   try {
     const u = JSON.parse(localStorage.getItem('user') || 'null')
-    username.value = u?.username || ''
+    username.value = u?.nickname || ''
   } catch {
     username.value = ''
   }

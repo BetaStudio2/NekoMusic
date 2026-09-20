@@ -154,7 +154,7 @@ public class UserFavoritePlaylistHandler extends ApiServlet {
     private List<JsonObject> getFavoritePlaylists(int userId) throws SQLException {
         List<JsonObject> playlists = new ArrayList<>();
         String sql = "SELECT p.id, p.name, p.description, p.music_count, p.created_at, p.updated_at, " +
-                     "u.username as creator_name, u.id as creator_id, " +
+                     "u.nickname as creator_name, u.id as creator_id, " +
                      "ufp.created_at as favorite_time " +
                      "FROM user_favorite_playlists ufp " +
                      "JOIN playlists p ON ufp.playlist_id = p.id " +
@@ -180,7 +180,7 @@ public class UserFavoritePlaylistHandler extends ApiServlet {
                 
                 JsonObject creator = new JsonObject();
                 creator.addProperty("id", rs.getInt("creator_id"));
-                creator.addProperty("username", rs.getString("creator_name"));
+                creator.addProperty("nickname", rs.getString("creator_name"));
                 playlist.add("creator", creator);
                 
                 playlists.add(playlist);

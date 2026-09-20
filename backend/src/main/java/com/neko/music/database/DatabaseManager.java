@@ -52,7 +52,7 @@ public class DatabaseManager {
             String createUserTable = """
                 CREATE TABLE IF NOT EXISTS users (
                     id INT AUTO_INCREMENT PRIMARY KEY,
-                    username VARCHAR(50) NOT NULL,
+                    nickname VARCHAR(50) NOT NULL,
                     password VARCHAR(255) NOT NULL,
                     email VARCHAR(100) UNIQUE NOT NULL,
                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -422,30 +422,30 @@ public class DatabaseManager {
 
             migrateUsersCreatedAtToDatetime(conn);
 
-            // 为已存在的 users 表迁移约束（移除username唯一约束，添加email唯一约束）
+            // 为已存在的 users 表迁移约束（移除nickname唯一约束，添加email唯一约束）
             try {
-                // 检查是否有username的唯一索引
+                // 检查是否有nickname的唯一索引
                 String checkIndex = """
                     SELECT COUNT(*) FROM information_schema.statistics
                     WHERE table_schema = DATABASE()
                     AND table_name = 'users'
                     AND index_name != 'PRIMARY'
-                    AND column_name = 'username'
+                    AND column_name = 'nickname'
                     AND non_unique = 0
                     """;
                 try (PreparedStatement stmt = conn.prepareStatement(checkIndex);
                      ResultSet rs = stmt.executeQuery()) {
                     if (rs.next() && rs.getInt(1) > 0) {
-                        // 删除username的唯一索引
-                        String dropIndex = "ALTER TABLE users DROP INDEX username";
+                        // 删除nickname的唯一索引
+                        String dropIndex = "ALTER TABLE users DROP INDEX nickname";
                         try (PreparedStatement dropStmt = conn.prepareStatement(dropIndex)) {
                             dropStmt.execute();
-                            logger.info("已删除 users 表的 username 唯一索引");
+                            logger.info("已删除 users 表的 nickname 唯一索引");
                         }
                     }
                 }
             } catch (SQLException e) {
-                logger.debug("删除 username 唯一索引失败（可能不存在）: {}", e.getMessage());
+                logger.debug("删除 nickname 唯一索引失败（可能不存在）: {}", e.getMessage());
             }
 
             try {

@@ -178,7 +178,7 @@ public class UserManagementHandler extends HttpServlet {
         List<RegularUser> regularUsers = new ArrayList<>();
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, username, email, created_at, vip_expires_at FROM users ORDER BY created_at DESC";
+            String sql = "SELECT id, nickname, email, created_at, vip_expires_at FROM users ORDER BY created_at DESC";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 ResultSet rs = stmt.executeQuery();
                 
@@ -187,7 +187,7 @@ public class UserManagementHandler extends HttpServlet {
                     boolean hasVip = !rs.wasNull();
                     regularUsers.add(new RegularUser(
                             rs.getInt("id"),
-                            rs.getString("username"),
+                            rs.getString("nickname"),
                             rs.getString("email"),
                             rs.getTimestamp("created_at").toString(),
                             hasVip && VipUtil.isVipActiveNow(vip),
@@ -314,7 +314,7 @@ public class UserManagementHandler extends HttpServlet {
     }
 
     // 内部类：普通用户
-    public record RegularUser(int id, String username, String email, String registerTime, boolean vip, String vipExpiresAt) {
+    public record RegularUser(int id, String nickname, String email, String registerTime, boolean vip, String vipExpiresAt) {
     }
     // 内部类：普通用户列表响应
     private record RegularUsersResponse(boolean success, String message, List<RegularUser> data) {

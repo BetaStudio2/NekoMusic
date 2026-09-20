@@ -146,7 +146,7 @@ public class EmailService {
     /**
      * 发送验证码邮件
      */
-    public boolean sendVerificationCode(String toEmail, String username, String verificationCode) {
+    public boolean sendVerificationCode(String toEmail, String nickname, String verificationCode) {
         String subject = "NekoMusic - 验证码";
         String content = emailTemplate.replace("{{verificationCode}}", verificationCode);
 
