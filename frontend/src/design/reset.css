@@ -136,6 +136,55 @@ a {
   border: 0;
 }
 
+/* ==========================================================================
+   移动端基础
+   ========================================================================== */
+
+/* 触摸设备：点击高亮统一去掉（button 已在上面处理，这里补齐 a / label 等） */
+a,
+label,
+[role='button'],
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 去掉移动端「双击缩放」带来的 300ms 点击延迟 */
+a,
+button,
+[role='button'],
+input,
+select,
+textarea,
+summary {
+  touch-action: manipulation;
+}
+
+/* iOS Safari：表单控件字号小于 16px 时，聚焦会【自动放大整页】，
+   表现为「一点搜索框页面就缩放、还要手动缩回」。
+   我们的基础字号是 15px，正好踩线，因此在小屏统一抬到 16px。
+   需要 !important：组件内的字号规则特异性更高，而这是浏览器行为层面的修正。 */
+@media (max-width: 560px) {
+  input:not([type='range']):not([type='checkbox']):not([type='radio']):not([type='file']),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* 触摸设备不需要常驻滚动条：占宽、且在窄屏上很割裂 */
+@media (hover: none) {
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border-width: 0;
+  }
+}
+
 /* ===== 尊重系统减弱动效偏好 ===== */
 @media (prefers-reduced-motion: reduce) {
   *,

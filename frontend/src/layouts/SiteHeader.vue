@@ -245,6 +245,8 @@ onUnmounted(() => {
   position: sticky;
   top: 0;
   z-index: var(--n-z-header);
+  /* 刘海屏：内容不下沉到状态栏下面 */
+  padding-top: var(--n-safe-top);
   border-bottom: 1px solid var(--n-line);
   background: rgba(4, 9, 11, 0.82);
   backdrop-filter: var(--n-blur);
@@ -428,21 +430,49 @@ onUnmounted(() => {
   border-color: transparent;
 }
 
-/* ===== 响应式 ===== */
-@media (max-width: 1024px) {
+/* ===== 响应式 =====
+   断点约定见 design/tokens.css：560 手机竖屏 / 900 平板 / 1200 桌面 */
+@media (max-width: 900px) {
   .site-header__inner {
-    grid-template-columns: 1fr;
-    gap: var(--n-space-3);
+    /* 两行：上行「Logo + 用户区」，下行整宽搜索框。
+       三行堆叠会吃掉手机上宝贵的首屏高度。 */
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'logo auth'
+      'search search';
+    gap: var(--n-space-2) var(--n-space-3);
+    padding: var(--n-space-2) 0 var(--n-space-3);
+  }
+
+  .site-header__logo {
+    grid-area: logo;
+  }
+
+  .site-header__search {
+    grid-area: search;
   }
 
   .site-header__auth {
-    justify-content: flex-start;
+    grid-area: auth;
+    gap: var(--n-space-1);
   }
 }
 
 @media (max-width: 560px) {
-  .site-header__username {
+  .site-header__logo {
+    font-size: 1rem;
+  }
+
+  /* 用户名与 VIP 入口收进个人中心：一行放不下 5 个元素，
+     且这两项在 /account 里都能看到 */
+  .site-header__username,
+  .site-header__vip {
     display: none;
+  }
+
+  /* 触摸目标抬到 32px（视觉仍是 28px 的圆角方块观感） */
+  .site-header__user {
+    padding: 2px;
   }
 }
 </style>
