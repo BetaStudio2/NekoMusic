@@ -77,16 +77,6 @@
 
         <button
           type="button"
-          class="gp-icon gp-icon--lg"
-          :title="getPlaybackModeTitle()"
-          :aria-label="getPlaybackModeTitle()"
-          @click="togglePlaybackMode"
-        >
-          <NIcon :name="modeIcon" :size="18" />
-        </button>
-
-        <button
-          type="button"
           class="gp-play"
           :disabled="!currentMusic"
           :aria-label="isPlaying && currentMusic ? '暂停' : '播放'"
@@ -135,6 +125,16 @@
             />
           </div>
         </div>
+
+        <button
+          type="button"
+          class="gp-icon gp-icon--lg gp-mode"
+          :title="getPlaybackModeTitle()"
+          :aria-label="getPlaybackModeTitle()"
+          @click="togglePlaybackMode"
+        >
+          <NIcon :name="modeIcon" :size="18" />
+        </button>
 
         <button
           type="button"
@@ -2464,8 +2464,9 @@ onUnmounted(() => {
     padding: 0 var(--n-space-3);
   }
 
-  .gp-controls .gp-icon:first-child,
-  .gp-track__fav {
+  /* 手机上收起次级操作：收藏与播放模式都在播放页里 */
+  .gp-track__fav,
+  .gp-mode {
     display: none;
   }
 

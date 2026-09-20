@@ -161,6 +161,7 @@
               :lines="parsedLyrics"
               :current-time="displayTime"
               :playing="isPlaying"
+              @seek="onLyricSeek"
             />
 
             <div v-else class="np__lyrics-empty">
@@ -1096,6 +1097,18 @@ const onSeekCommit = (event) => {
   seekPreview.value = time
   seeking.value = false
   sendPlayerCommand('seek', { time })
+}
+
+/**
+ * 点击歌词行 → 跳到该行。
+ * 与参考实现一致：暂停时点击也会接着播放（「从这句开始听」的预期），
+ * 否则点了之后画面跳了却没声音，会让人以为没生效。
+ */
+const onLyricSeek = (seconds) => {
+  const time = Number(seconds)
+  if (!Number.isFinite(time) || time < 0) return
+  sendPlayerCommand('seek', { time })
+  if (!isPlaying.value) sendPlayerCommand('play')
 }
 
 /** 播放模式图标与标题（状态来自桥接层；playback 是 reactive 对象，不是 ref） */
