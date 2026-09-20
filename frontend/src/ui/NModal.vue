@@ -104,7 +104,11 @@ const panelClass = computed(() => ['n-modal__panel', `n-modal__panel--${props.si
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--n-space-4);
+  /* 刘海/手势条：弹层与屏幕边缘保持安全距离 */
+  padding: max(var(--n-space-4), var(--n-safe-top))
+    max(var(--n-space-4), var(--n-safe-right))
+    max(var(--n-space-4), var(--n-safe-bottom))
+    max(var(--n-space-4), var(--n-safe-left));
 }
 
 .n-modal__mask {
@@ -153,8 +157,8 @@ const panelClass = computed(() => ['n-modal__panel', `n-modal__panel--${props.si
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: var(--n-tap-min);
+  height: var(--n-tap-min);
   border-radius: var(--n-radius-circle);
   color: var(--n-text-muted);
   transition: background var(--n-duration-fast) var(--n-ease), color var(--n-duration-fast) var(--n-ease);
@@ -174,6 +178,7 @@ const panelClass = computed(() => ['n-modal__panel', `n-modal__panel--${props.si
 
 .n-modal__footer {
   display: flex;
+  flex-wrap: wrap; /* 320px 窄屏下 3 个按钮要能换行，否则溢出 */
   align-items: center;
   justify-content: flex-end;
   gap: var(--n-space-3);

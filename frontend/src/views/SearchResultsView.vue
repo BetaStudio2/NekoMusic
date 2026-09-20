@@ -580,6 +580,24 @@ onMounted(async () => {
   overflow-x: auto;
 }
 
+/* 手机竖屏：改为均分收缩，避免出现「不易发现的横向滚动」 */
+@media (max-width: 560px) {
+  .tabs {
+    overflow-x: visible;
+  }
+
+  .tabs__btn {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    padding-inline: var(--n-space-2);
+  }
+
+  .tabs__count {
+    display: none;
+  }
+}
+
 .tabs__btn {
   display: inline-flex;
   align-items: center;

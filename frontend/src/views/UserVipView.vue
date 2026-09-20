@@ -500,6 +500,13 @@ onUnmounted(() => {
   gap: var(--n-space-3);
 }
 
+/* 手机竖屏：auto-fit 会挤成两列，套餐名/价格被压扁，直接单列 */
+@media (max-width: 560px) {
+  .plans {
+    grid-template-columns: 1fr;
+  }
+}
+
 .plan {
   display: flex;
   flex-direction: column;
@@ -631,7 +638,8 @@ onUnmounted(() => {
 /* ==================== 结算 ==================== */
 .vip__checkout {
   position: sticky;
-  top: calc(var(--n-header-height) + var(--n-space-5));
+  /* 用实测顶栏高度，避免 900–1024 区间两行顶栏与结算卡重叠 */
+  top: calc(var(--app-header-h, var(--n-header-height)) + var(--n-space-5));
 }
 
 .checkout__label {
@@ -746,7 +754,7 @@ onUnmounted(() => {
 }
 
 /* ==================== 响应式 ==================== */
-@media (max-width: 860px) {
+@media (max-width: 900px) {
   .vip {
     grid-template-columns: 1fr;
   }

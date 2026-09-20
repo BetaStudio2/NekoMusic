@@ -155,7 +155,7 @@ onUnmounted(() => {
   overflow: auto;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .admin-main-content {
     margin-left: 0;
   }

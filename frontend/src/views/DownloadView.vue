@@ -848,7 +848,7 @@ onMounted(() => {
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 560px) {
   .android__inner {
     flex-direction: column;
     align-items: flex-start;

@@ -871,7 +871,7 @@ onUnmounted(() => {
 }
 
 /* ==================== 响应式 ==================== */
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .hero {
     grid-template-columns: 1fr;
     gap: var(--n-space-6);

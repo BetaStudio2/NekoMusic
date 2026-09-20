@@ -1981,7 +1981,13 @@ onUnmounted(() => {
   background: transparent;
 }
 
-.gp-seek:hover .gp-seek__track,
+@media (hover: hover) {
+  .gp-seek:hover .gp-seek__track {
+    height: 6px;
+    margin-top: -3px;
+  }
+}
+
 .gp-seek:focus-within .gp-seek__track {
   height: 6px;
   margin-top: -3px;
@@ -2043,9 +2049,11 @@ onUnmounted(() => {
     border-color var(--n-duration-fast) var(--n-ease);
 }
 
-.gp-track__open:hover:not(:disabled) .gp-track__cover {
-  transform: translateY(-1px);
-  border-color: var(--n-accent-line);
+@media (hover: hover) {
+  .gp-track__open:hover:not(:disabled) .gp-track__cover {
+    transform: translateY(-1px);
+    border-color: var(--n-accent-line);
+  }
 }
 
 .gp-track__fav {
@@ -2129,9 +2137,11 @@ onUnmounted(() => {
   height: 30px;
 }
 
-.gp-icon:hover:not(:disabled) {
-  background: var(--n-surface-hover);
-  color: var(--n-text);
+@media (hover: hover) {
+  .gp-icon:hover:not(:disabled) {
+    background: var(--n-surface-hover);
+    color: var(--n-text);
+  }
 }
 
 .gp-icon:active:not(:disabled) {
@@ -2174,10 +2184,12 @@ onUnmounted(() => {
     box-shadow var(--n-duration-fast) var(--n-ease), filter var(--n-duration-fast) var(--n-ease);
 }
 
-.gp-play:hover:not(:disabled) {
-  transform: translateY(-1px);
-  filter: brightness(1.08);
-  box-shadow: 0 10px 24px rgba(47, 159, 178, 0.38);
+@media (hover: hover) {
+  .gp-play:hover:not(:disabled) {
+    transform: translateY(-1px);
+    filter: brightness(1.08);
+    box-shadow: 0 10px 24px rgba(47, 159, 178, 0.38);
+  }
 }
 
 .gp-play:active:not(:disabled) {
@@ -2320,10 +2332,12 @@ onUnmounted(() => {
     background var(--n-duration-fast) var(--n-ease);
 }
 
-.gp-pop__clear:hover:not(:disabled) {
-  color: var(--n-danger);
-  border-color: var(--n-danger);
-  background: var(--n-danger-soft);
+@media (hover: hover) {
+  .gp-pop__clear:hover:not(:disabled) {
+    color: var(--n-danger);
+    border-color: var(--n-danger);
+    background: var(--n-danger-soft);
+  }
 }
 
 .gp-pop__clear:disabled {
@@ -2364,8 +2378,10 @@ onUnmounted(() => {
     border-color var(--n-duration-fast) var(--n-ease);
 }
 
-.gp-pop__item:hover {
-  background: var(--n-surface-hover);
+@media (hover: hover) {
+  .gp-pop__item:hover {
+    background: var(--n-surface-hover);
+  }
 }
 
 .gp-pop__item.is-current {
@@ -2478,14 +2494,19 @@ onUnmounted(() => {
   }
 
   .gp-icon--lg {
-    width: 38px;
-    height: 38px;
+    width: var(--n-tap-min);
+    height: var(--n-tap-min);
+  }
+
+  .gp-icon--sm {
+    width: 36px;
+    height: 36px;
   }
 
   .gp-play {
-    width: 42px;
-    height: 42px;
-    margin: 0 var(--n-space-1);
+    width: 48px;
+    height: 48px;
+    margin: 0;
   }
 
   /* 顶部进度线加厚一点，手指更好按 */
