@@ -10,10 +10,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.sql.*;
@@ -21,7 +19,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 
-public class UserFavoriteHandler extends HttpServlet {
+public class UserFavoriteHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserFavoriteHandler.class);
     
     @Override
@@ -72,13 +70,7 @@ public class UserFavoriteHandler extends HttpServlet {
         }
         
         // 读取请求体
-        StringBuilder sb = new StringBuilder();
-        String line;
-        try (BufferedReader reader = req.getReader()) {
-            while ((line = reader.readLine()) != null) {
-                sb.append(line);
-            }
-        }
+        String sb = readBody(req);
         
         JsonObject requestBody = Main.getGson().fromJson(sb.toString(), JsonObject.class);
 
@@ -256,29 +248,5 @@ public class UserFavoriteHandler extends HttpServlet {
         }
     }
     
-    private void sendSuccessResponse(HttpServletResponse resp, JsonObject response) throws IOException {
-        resp.setContentType("application/json");
-        resp.setCharacterEncoding("UTF-8");
-        resp.setStatus(HttpServletResponse.SC_OK);
-        
-        try (PrintWriter writer = resp.getWriter()) {
-            writer.print(response.toString());
-            writer.flush();
-        }
-    }
     
-    private void sendErrorResponse(HttpServletResponse resp, int statusCode, String message) throws IOException {
-        JsonObject response = new JsonObject();
-        response.addProperty("success", false);
-        response.addProperty("message", message);
-        
-        resp.setContentType("application/json");
-        resp.setCharacterEncoding("UTF-8");
-        resp.setStatus(statusCode);
-        
-        try (PrintWriter writer = resp.getWriter()) {
-            writer.print(response.toString());
-            writer.flush();
-        }
-    }
 }

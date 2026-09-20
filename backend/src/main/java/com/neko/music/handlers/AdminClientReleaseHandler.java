@@ -10,7 +10,6 @@ import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -22,7 +21,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
 /** 管理员：查询/更新客户端版本号与安装包状态 */
-public class AdminClientReleaseHandler extends HttpServlet {
+public class AdminClientReleaseHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(AdminClientReleaseHandler.class);
     private static final ZoneId CN_ZONE = ZoneId.of("Asia/Shanghai");
     private static final DateTimeFormatter EFFECTIVE_FMT =
@@ -46,7 +45,7 @@ public class AdminClientReleaseHandler extends HttpServlet {
             data.putArray("packages");
         }
 
-        writeSuccess(response, "查询成功", data);
+        sendResponse(response, true, "查询成功", data);
     }
 
     @Override
@@ -61,21 +60,21 @@ public class AdminClientReleaseHandler extends HttpServlet {
             req = Main.getObjectMapper().readValue(body, VersionUpdateRequest.class);
         } catch (Exception e) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            writeFailure(response, "请求格式错误");
+            sendErrorResponse(response, "请求格式错误");
             return;
         }
 
-        if (req.androidVer == null || req.androidVer.isBlank() || req.pcVer == null || req.pcVer.isBlank()) {
+        if (req.androidVer() == null || req.androidVer().isBlank() || req.pcVer() == null || req.pcVer().isBlank()) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            writeFailure(response, "androidVer 与 pcVer 均不能为空");
+            sendErrorResponse(response, "androidVer 与 pcVer 均不能为空");
             return;
         }
 
-        String androidVer = req.androidVer.trim();
-        String pcVer = req.pcVer.trim();
+        String androidVer = req.androidVer().trim();
+        String pcVer = req.pcVer().trim();
         if (!isValidVersionToken(androidVer) || !isValidVersionToken(pcVer)) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            writeFailure(response, "版本号仅允许字母、数字、点、横线");
+            sendErrorResponse(response, "版本号仅允许字母、数字、点、横线");
             return;
         }
 
@@ -83,7 +82,7 @@ public class AdminClientReleaseHandler extends HttpServlet {
                 Main.getAppReleaseService().scheduleReleaseUpdate(androidVer, pcVer);
         if (state.isEmpty()) {
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
-            writeFailure(response, "保存版本号失败");
+            sendErrorResponse(response, "保存版本号失败");
             return;
         }
 
@@ -98,7 +97,7 @@ public class AdminClientReleaseHandler extends HttpServlet {
                 + AppReleaseService.VERSION_JSON_DELAY_MINUTES
                 + " 分钟内仍为旧版本）"
                 : "版本号已更新并立即对外生效";
-        writeSuccess(response, message, data);
+        sendResponse(response, true, message, data);
         logger.info("管理员排期/更新客户端版本 pending={}", state.get().hasPending());
     }
 
@@ -163,12 +162,12 @@ public class AdminClientReleaseHandler extends HttpServlet {
         String token = request.getHeader("Authorization");
         if (token == null || token.isBlank()) {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
-            writeFailure(response, "未授权访问");
+            sendErrorResponse(response, "未授权访问");
             return false;
         }
         if (!Main.getAdminAuthService().canUploadClientReleaseByToken(token)) {
             response.setStatus(HttpStatus.FORBIDDEN_403);
-            writeFailure(response, "需要管理员及以上权限");
+            sendErrorResponse(response, "需要管理员及以上权限");
             return false;
         }
         return true;
@@ -188,26 +187,8 @@ public class AdminClientReleaseHandler extends HttpServlet {
         return true;
     }
 
-    private void writeSuccess(HttpServletResponse response, String message, ObjectNode data) throws IOException {
-        ObjectNode root = Main.getObjectMapper().createObjectNode();
-        root.put("success", true);
-        root.put("message", message);
-        root.set("data", data);
-        response.setStatus(HttpStatus.OK_200);
-        response.setContentType("application/json;charset=utf-8");
-        response.getWriter().write(Main.getObjectMapper().writeValueAsString(root));
-    }
 
-    private void writeFailure(HttpServletResponse response, String message) throws IOException {
-        ObjectNode root = Main.getObjectMapper().createObjectNode();
-        root.put("success", false);
-        root.put("message", message);
-        response.setContentType("application/json;charset=utf-8");
-        response.getWriter().write(Main.getObjectMapper().writeValueAsString(root));
-    }
 
-    private static class VersionUpdateRequest {
-        public String androidVer;
-        public String pcVer;
+    private record VersionUpdateRequest(String androidVer, String pcVer) {
     }
 }

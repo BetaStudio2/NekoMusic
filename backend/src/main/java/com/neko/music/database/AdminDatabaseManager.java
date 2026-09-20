@@ -87,34 +87,25 @@ public class AdminDatabaseManager {
     }
 
     public boolean createAdmin(Admin admin) {
-            // 检查是否是第一个管理员，如果是则设置为super_admin
-            boolean isFirstAdmin = getAllAdmins().isEmpty();
-            if (isFirstAdmin && admin.getRole() == null) {
-                admin.setRole("super_admin");
-            }
-            
-            String sql = """
-                INSERT INTO admins (username, password_hash, email, active, created_at, role)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """;
-            
-            try (Connection conn = databaseManager.getConnection();
-                 PreparedStatement stmt = conn.prepareStatement(sql)) {
-                
-                stmt.setString(1, admin.getUsername());
-                stmt.setString(2, admin.getPasswordHash());
-                stmt.setString(3, admin.getEmail());
-                stmt.setBoolean(4, admin.isActive());
-                stmt.setLong(5, admin.getCreatedAt());
-                stmt.setString(6, admin.getRole() != null ? admin.getRole() : "admin");
-                
-                int rowsAffected = stmt.executeUpdate();
-                return rowsAffected > 0;
-            } catch (SQLException e) {
-                logger.error("创建管理员失败", e);
-                return false;
-            }
-        }
+        // 检查是否是第一个管理员，如果是则设置为super_admin
+        boolean isFirstAdmin = getAllAdmins().isEmpty();
+        String role = (isFirstAdmin && admin.role() == null) ? "super_admin" : admin.role();
+
+        String sql = """
+            INSERT INTO admins (username, password_hash, email, active, created_at, role)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """;
+
+        return executeUpdate(sql, "创建管理员失败", stmt -> {
+            stmt.setString(1, admin.username());
+            stmt.setString(2, admin.passwordHash());
+            stmt.setString(3, admin.email());
+            stmt.setBoolean(4, admin.active());
+            stmt.setLong(5, admin.createdAt());
+            stmt.setString(6, role != null ? role : "admin");
+        });
+    }
+
     public Optional<Admin> findAdminByUsername(String username) {
         String sql = "SELECT * FROM admins WHERE username = ?";
         
@@ -124,16 +115,7 @@ public class AdminDatabaseManager {
             stmt.setString(1, username);
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    Admin admin = new Admin();
-                    admin.setId(rs.getInt("id"));
-                    admin.setUsername(rs.getString("username"));
-                    admin.setPasswordHash(rs.getString("password_hash"));
-                    admin.setEmail(rs.getString("email"));
-                    admin.setActive(rs.getBoolean("active"));
-                    admin.setRole(rs.getString("role"));
-                    admin.setCreatedAt(rs.getLong("created_at"));
-                    admin.setLastLoginAt(rs.getLong("last_login_at"));
-                    return Optional.of(admin);
+                    return Optional.of(mapAdmin(rs));
                 }
             }
         } catch (SQLException e) {
@@ -143,53 +125,30 @@ public class AdminDatabaseManager {
     }
 
     public boolean updateLastLogin(String username) {
-        String sql = "UPDATE admins SET last_login_at = ? WHERE username = ?";
-        
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setLong(1, System.currentTimeMillis());
-            stmt.setString(2, username);
-            
-            int rowsAffected = stmt.executeUpdate();
-            return rowsAffected > 0;
-        } catch (SQLException e) {
-            logger.error("更新登录时间失败", e);
-            return false;
-        }
+        return executeUpdate(
+                "UPDATE admins SET last_login_at = ? WHERE username = ?",
+                "更新登录时间失败",
+                stmt -> {
+                    stmt.setLong(1, System.currentTimeMillis());
+                    stmt.setString(2, username);
+                });
     }
 
     public boolean updateAdminPassword(String username, String newPasswordHash) {
-        String sql = "UPDATE admins SET password_hash = ? WHERE username = ?";
-        
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setString(1, newPasswordHash);
-            stmt.setString(2, username);
-            
-            int rowsAffected = stmt.executeUpdate();
-            return rowsAffected > 0;
-        } catch (SQLException e) {
-            logger.error("更新密码失败", e);
-            return false;
-        }
+        return executeUpdate(
+                "UPDATE admins SET password_hash = ? WHERE username = ?",
+                "更新密码失败",
+                stmt -> {
+                    stmt.setString(1, newPasswordHash);
+                    stmt.setString(2, username);
+                });
     }
 
     public boolean deleteAdmin(String username) {
-        String sql = "DELETE FROM admins WHERE username = ?";
-        
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setString(1, username);
-            
-            int rowsAffected = stmt.executeUpdate();
-            return rowsAffected > 0;
-        } catch (SQLException e) {
-            logger.error("删除管理员失败", e);
-            return false;
-        }
+        return executeUpdate(
+                "DELETE FROM admins WHERE username = ?",
+                "删除管理员失败",
+                stmt -> stmt.setString(1, username));
     }
 
     /** 所有已启用且配置了邮箱的管理员地址（用于系统通知群发）。 */
@@ -220,16 +179,7 @@ public class AdminDatabaseManager {
              ResultSet rs = stmt.executeQuery(sql)) {
             
             while (rs.next()) {
-                Admin admin = new Admin();
-                admin.setId(rs.getInt("id"));
-                admin.setUsername(rs.getString("username"));
-                admin.setPasswordHash(rs.getString("password_hash"));
-                admin.setEmail(rs.getString("email"));
-                admin.setActive(rs.getBoolean("active"));
-                admin.setRole(rs.getString("role"));
-                admin.setCreatedAt(rs.getLong("created_at"));
-                admin.setLastLoginAt(rs.getLong("last_login_at"));
-                admins.add(admin);
+                admins.add(mapAdmin(rs));
             }
         } catch (SQLException e) {
             logger.error("获取所有管理员失败", e);
@@ -262,28 +212,16 @@ public class AdminDatabaseManager {
     private void updateMusicTableStructure(Connection conn) {
         try {
             // 检查upload_user_id列是否存在
-            boolean hasUploadUserId = false;
-            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "music", "upload_user_id")) {
-                hasUploadUserId = rs.next();
-            }
+            boolean hasUploadUserId = hasColumn(conn, "music", "upload_user_id");
             
             // 检查updated_at列是否存在
-            boolean hasUpdatedAt = false;
-            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "music", "updated_at")) {
-                hasUpdatedAt = rs.next();
-            }
+            boolean hasUpdatedAt = hasColumn(conn, "music", "updated_at");
             
             // 检查language列是否存在
-            boolean hasLanguage = false;
-            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "music", "language")) {
-                hasLanguage = rs.next();
-            }
+            boolean hasLanguage = hasColumn(conn, "music", "language");
             
             // 检查tags列是否存在
-            boolean hasTags = false;
-            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "music", "tags")) {
-                hasTags = rs.next();
-            }
+            boolean hasTags = hasColumn(conn, "music", "tags");
             
             // 添加缺少的列
             try (Statement stmt = conn.createStatement()) {
@@ -319,10 +257,7 @@ public class AdminDatabaseManager {
     private void updateAdminsTableStructure(Connection conn) {
         try {
             // 检查role列是否存在
-            boolean hasRole = false;
-            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "admins", "role")) {
-                hasRole = rs.next();
-            }
+            boolean hasRole = hasColumn(conn, "admins", "role");
             
             // 添加缺少的列
             try (Statement stmt = conn.createStatement()) {
@@ -343,5 +278,42 @@ public class AdminDatabaseManager {
         } catch (SQLException e) {
             logger.error("更新admins表结构失败", e);
         }
+    }
+
+    /** 将结果集当前行映射为 Admin（列与 SELECT * 顺序一致）。 */
+    private static Admin mapAdmin(ResultSet rs) throws SQLException {
+        return new Admin(
+                rs.getInt("id"),
+                rs.getString("username"),
+                rs.getString("password_hash"),
+                rs.getString("email"),
+                rs.getBoolean("active"),
+                rs.getString("role"),
+                rs.getLong("created_at"),
+                rs.getLong("last_login_at"));
+    }
+
+    /** 检查指定表是否存在指定列。 */
+    private static boolean hasColumn(Connection conn, String table, String column) throws SQLException {
+        try (ResultSet rs = conn.getMetaData().getColumns(null, null, table, column)) {
+            return rs.next();
+        }
+    }
+
+    /** 单条 INSERT/UPDATE/DELETE 的统一执行与失败日志。 */
+    private boolean executeUpdate(String sql, String errorMessage, StatementBinder binder) {
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            binder.bind(stmt);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            logger.error(errorMessage, e);
+            return false;
+        }
+    }
+
+    @FunctionalInterface
+    private interface StatementBinder {
+        void bind(PreparedStatement stmt) throws SQLException;
     }
 }

@@ -115,13 +115,7 @@ public class UserAuthService {
                 String storedPasswordHash = rs.getString("password");
 
                 if (argon2.verify(storedPasswordHash, password.toCharArray())) {
-                    User user = new User();
-                    user.setId(rs.getInt("id"));
-                    user.setUsername(rs.getString("username"));
-                    user.setEmail(rs.getString("email"));
-                    user.setCreatedAt(DbTimeUtil.formatStoredWallClock(rs.getString("created_at")));
-                    java.sql.Timestamp vipTs = rs.getTimestamp("vip_expires_at");
-                    user.setVipExpiresAt(rs.wasNull() ? null : vipTs);
+                    User user = mapUser(rs);
 
                     logger.info("用户登录成功: {}", email);
                     return Optional.of(user);
@@ -148,13 +142,7 @@ public class UserAuthService {
 
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    User user = new User();
-                    user.setId(rs.getInt("id"));
-                    user.setUsername(rs.getString("username"));
-                    user.setEmail(rs.getString("email"));
-                    user.setCreatedAt(DbTimeUtil.formatStoredWallClock(rs.getString("created_at")));
-                    java.sql.Timestamp vipTs = rs.getTimestamp("vip_expires_at");
-                    user.setVipExpiresAt(rs.wasNull() ? null : vipTs);
+                    User user = mapUser(rs);
                     return Optional.of(user);
                 }
             }
@@ -163,6 +151,23 @@ public class UserAuthService {
         }
 
         return Optional.empty();
+    }
+
+    /**
+     * 将 users 查询结果行映射为 {@link User}（读取 id/username/email/created_at/vip_expires_at）。
+     */
+    private static User mapUser(ResultSet rs) throws SQLException {
+        java.sql.Timestamp vipTs = rs.getTimestamp("vip_expires_at");
+        boolean hasVip = !rs.wasNull();
+        return new User(
+                rs.getInt("id"),
+                rs.getString("username"),
+                null,
+                rs.getString("email"),
+                false,
+                null,
+                DbTimeUtil.formatStoredWallClock(rs.getString("created_at")),
+                hasVip ? vipTs : null);
     }
 
     /**
@@ -320,28 +325,20 @@ public class UserAuthService {
     }
 
     private boolean emailExists(String email) {
-        String sql = "SELECT COUNT(*) FROM users WHERE email = ?";
-
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setString(1, email);
-
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                return rs.getInt(1) > 0;
-            }
-        } catch (SQLException e) {
-            logger.error("检查邮箱存在性失败: {}", e.getMessage(), e);
-        }
-
-        return false;
+        return emailExistsWithLog(email, "检查邮箱存在性失败:");
     }
 
     /**
      * 根据邮箱检查用户是否存在（公开方法，用于密码重置）
      */
     public boolean userExistsByEmail(String email) {
+        return emailExistsWithLog(email, "检查用户邮箱失败:");
+    }
+
+    /**
+     * 查询邮箱是否存在；失败日志前缀由调用方传入以保持各自原有文案。
+     */
+    private boolean emailExistsWithLog(String email, String errorLogPrefix) {
         String sql = "SELECT COUNT(*) FROM users WHERE email = ?";
 
         try (Connection conn = databaseManager.getConnection();
@@ -354,7 +351,7 @@ public class UserAuthService {
                 return rs.getInt(1) > 0;
             }
         } catch (SQLException e) {
-            logger.error("检查用户邮箱失败: {}", e.getMessage(), e);
+            logger.error(errorLogPrefix + " {}", e.getMessage(), e);
         }
 
         return false;

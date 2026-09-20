@@ -1,7 +1,12 @@
 package com.neko.music.handlers;
 
+import com.neko.music.util.HandlerResponses;
+
+import com.neko.music.model.ErrorResponse;
 import com.neko.music.Main;
+import com.neko.music.service.MusicIngestSupport;
 import com.neko.music.util.MusicAssetLocator;
+import com.neko.music.util.MusicPinyinColumns;
 import com.neko.music.util.RuntimeDiskGuard;
 import com.neko.music.util.AudioFileValidator;
 import com.neko.music.util.AudioIntegrityValidator;
@@ -48,11 +53,7 @@ public class FileUploadHandler extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         // 检查管理员权限
-        if (!isAdminAuthorized(request)) {
-            response.setStatus(HttpStatus.UNAUTHORIZED_401);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("未授权访问");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+        if (HandlerResponses.rejectIfUnauthorized(request, response)) {
             return;
         }
         RuntimeDiskGuard.logStorageForOperation("管理员上传音乐", "POST");
@@ -66,114 +67,31 @@ public class FileUploadHandler extends HttpServlet {
             
             // 获取所有上传的文件部分
             Collection<Part> parts = request.getParts();
-            
-            String title = null;
-            String artist = null;
-            String album = null;
-            String language = null;
-            String tags = null;
-            Integer duration = 0;
-            Integer uploadUserId = null;
-            Part musicFilePart = null;
-            Part coverFilePart = null;
-            Part lyricsFilePart = null;
-            ImageUploadValidator.ValidationResult coverImageValidation = null;
-            
-            // 解析表单字段和文件
-            for (Part part : parts) {
-                String fieldName = part.getName();
-                
-                if ("title".equals(fieldName)) {
-                    title = getPartValue(request, part);
-                } else if ("artist".equals(fieldName)) {
-                    artist = getPartValue(request, part);
-                } else if ("album".equals(fieldName)) {
-                    album = getPartValue(request, part);
-                } else if ("language".equals(fieldName)) {
-                    language = getPartValue(request, part);
-                } else if ("tags".equals(fieldName)) {
-                    tags = getPartValue(request, part);
-                } else if ("duration".equals(fieldName)) {
-                    String durationStr = getPartValue(request, part);
-                    if (durationStr != null && !durationStr.trim().isEmpty()) {
-                        try {
-                            duration = Integer.parseInt(durationStr);
-                        } catch (NumberFormatException e) {
-                            logger.error("解析音乐时长失败: " + durationStr, e);
-                        }
-                    }
-                } else if ("uploadUserId".equals(fieldName)) {
-                    String userIdStr = getPartValue(request, part);
-                    if (userIdStr != null && !userIdStr.trim().isEmpty()) {
-                        try {
-                            uploadUserId = Integer.parseInt(userIdStr);
-                        } catch (NumberFormatException e) {
-                            logger.error("解析上传用户ID失败: " + userIdStr, e);
-                        }
-                    }
-                } else if ("musicFile".equals(fieldName) && part.getSize() > 0) {
-                    musicFilePart = part;
-                } else if ("coverFile".equals(fieldName) && part.getSize() > 0) {
-                    coverFilePart = part;
-                } else if ("lyricsFile".equals(fieldName) && part.getSize() > 0) {
-                    lyricsFilePart = part;
-                }
-            }
+            MusicForm form = parseMusicForm(request, parts, false);
+            String title = form.title;
+            String artist = form.artist;
+            String album = form.album;
+            String language = form.language;
+            String tags = form.tags;
+            Integer duration = form.duration;
+            Integer uploadUserId = form.uploadUserId;
+            Part musicFilePart = form.musicFilePart;
+            Part coverFilePart = form.coverFilePart;
             
             // 验证必要字段
             if (title == null || title.trim().isEmpty() || artist == null || artist.trim().isEmpty() || 
                 language == null || language.trim().isEmpty()) {
-                response.setStatus(HttpStatus.BAD_REQUEST_400);
-                response.setContentType("application/json;charset=utf-8");
-                ErrorResponse errorResponse = new ErrorResponse("音乐标题、艺术家和语言不能为空");
-                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+                HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("音乐标题、艺术家和语言不能为空"));
                 return;
             }
             
-            // 验证歌词文件必填
-            if (lyricsFilePart == null) {
-                response.setStatus(HttpStatus.BAD_REQUEST_400);
-                response.setContentType("application/json;charset=utf-8");
-                ErrorResponse errorResponse = new ErrorResponse("歌词文件不能为空");
-                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-                return;
-            }
-            
-            // 检查歌词文件类型
-            String lyricsFileName = getFileName(lyricsFilePart);
-            if (!lyricsFileName.toLowerCase().endsWith(".lrc")) {
-                response.setStatus(HttpStatus.BAD_REQUEST_400);
-                response.setContentType("application/json;charset=utf-8");
-                ErrorResponse errorResponse = new ErrorResponse("只支持LRC格式的歌词文件");
-                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-                return;
-            }
-            
-            // 校验歌词文件格式
-            try (InputStream lyricsInputStream = lyricsFilePart.getInputStream()) {
-                LrcValidator.ValidationResult validationResult = LrcValidator.validate(
-                        lyricsInputStream, lyricsFilePart.getSize());
-                if (!validationResult.isValid()) {
-                    response.setStatus(HttpStatus.BAD_REQUEST_400);
-                    response.setContentType("application/json;charset=utf-8");
-                    ErrorResponse errorResponse = new ErrorResponse("歌词文件格式错误: " + validationResult.getErrorMessage());
-                    response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-                    return;
-                }
-            } catch (Exception e) {
-                logger.error("校验歌词文件时出错", e);
-                response.setStatus(HttpStatus.BAD_REQUEST_400);
-                response.setContentType("application/json;charset=utf-8");
-                ErrorResponse errorResponse = new ErrorResponse("校验歌词文件时出错: " + e.getMessage());
-                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+            // 验证歌词文件必填、类型与格式
+            if (!validateLyricsOrReject(response, form.lyricsFilePart)) {
                 return;
             }
             
             if (musicFilePart == null) {
-                response.setStatus(HttpStatus.BAD_REQUEST_400);
-                response.setContentType("application/json;charset=utf-8");
-                ErrorResponse errorResponse = new ErrorResponse("音乐文件不能为空");
-                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+                HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("音乐文件不能为空"));
                 return;
             }
             
@@ -184,14 +102,10 @@ public class FileUploadHandler extends HttpServlet {
             Files.createDirectories(coverPath);
             
             // 检查封面文件类型（如果是上传了的话）
+            ImageUploadValidator.ValidationResult coverImageValidation = null;
             if (coverFilePart != null) {
-                coverImageValidation =
-                        ImageUploadValidator.validatePart(coverFilePart, ImageUploadValidator.DEFAULT_MAX_IMAGE_BYTES);
-                if (!coverImageValidation.isValid()) {
-                    response.setStatus(HttpStatus.BAD_REQUEST_400);
-                    response.setContentType("application/json;charset=utf-8");
-                    ErrorResponse errorResponse = new ErrorResponse(coverImageValidation.getErrorMessage());
-                    response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+                coverImageValidation = validateCoverOrReject(response, coverFilePart);
+                if (coverImageValidation == null) {
                     return;
                 }
             }
@@ -208,53 +122,17 @@ public class FileUploadHandler extends HttpServlet {
             try {
                 Files.copy(musicFilePart.getInputStream(), musicTemp, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
 
-                AudioFileValidator.FormatDetectionResult detectionResult =
-                        AudioFileValidator.detectAndValidatePath(musicTemp, fileExtension);
-                if (!detectionResult.isValid()) {
-                    response.setStatus(HttpStatus.BAD_REQUEST_400);
-                    response.setContentType("application/json;charset=utf-8");
-                    ErrorResponse errorResponse = new ErrorResponse("音频文件格式错误: " + detectionResult.getErrorMessage());
-                    response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+                AudioValidation audio = validateAudioFile(musicTemp, fileExtension, duration);
+                duration = audio.duration();
+                if (!audio.valid()) {
+                    HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse(audio.errorMessage()));
                     return;
                 }
-                switch (detectionResult.getFormat()) {
-                    case MP3 -> fileFormat = "mp3";
-                    case FLAC -> fileFormat = "flac";
-                    case WAV -> fileFormat = "wav";
-                    default -> {
-                        response.setStatus(HttpStatus.BAD_REQUEST_400);
-                        response.setContentType("application/json;charset=utf-8");
-                        ErrorResponse errorResponse = new ErrorResponse("不支持的音频格式");
-                        response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-                        return;
-                    }
-                }
-                logger.info("检测到文件格式: {} (实际格式: {})", fileFormat, detectionResult.getFormatDescription());
-
-                if (duration == 0) {
-                    duration = readAudioDurationFromPath(musicTemp.toString());
-                }
-
-                AudioFileValidator.AudioFormat integrityFormat = switch (fileFormat) {
-                    case "flac" -> AudioFileValidator.AudioFormat.FLAC;
-                    case "wav" -> AudioFileValidator.AudioFormat.WAV;
-                    default -> AudioFileValidator.AudioFormat.MP3;
-                };
-                String audioIntegrityError = AudioIntegrityValidator.validateSavedFile(musicTemp, integrityFormat);
-                if (audioIntegrityError != null) {
-                    response.setStatus(HttpStatus.BAD_REQUEST_400);
-                    response.setContentType("application/json;charset=utf-8");
-                    ErrorResponse errorResponse = new ErrorResponse(audioIntegrityError);
-                    response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-                    return;
-                }
+                fileFormat = audio.fileFormat();
 
                 // 音频通过后再查重，避免无效文件也访问库
                 if (isDuplicateMusic(title, artist, album)) {
-                    response.setStatus(HttpStatus.OK_200);
-                    response.setContentType("application/json;charset=utf-8");
-                    MusicResponse errorResponse = new MusicResponse(false, "已有重复音乐", null);
-                    response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+                    HandlerResponses.writeJson(response, HttpStatus.OK_200, new MusicResponse(false, "已有重复音乐", null));
                     return;
                 }
 
@@ -281,10 +159,7 @@ public class FileUploadHandler extends HttpServlet {
                     }
                 }
                 logger.error("处理管理员上传音乐文件失败", e);
-                response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
-                response.setContentType("application/json;charset=utf-8");
-                ErrorResponse errorResponse = new ErrorResponse("上传音乐失败: " + e.getMessage());
-                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+                HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("上传音乐失败: " + e.getMessage()));
                 return;
             } finally {
                 if (deleteMusicTempIfPresent) {
@@ -313,37 +188,24 @@ public class FileUploadHandler extends HttpServlet {
             }
             
             // 保存歌词到数据库
-            saveLyricsToDatabase(musicId, lyricsFilePart);
+            saveLyricsToDatabase(musicId, form.lyricsFilePart);
             
             // 获取完整的音乐信息
             Music music = getMusicById(musicId);
-
-            if (Main.getMusicRecognitionService() != null) {
-                Main.getMusicRecognitionService().invalidateIndex();
-            }
+            MusicIngestSupport.invalidateRecognitionIndex();
             
-            response.setStatus(HttpStatus.OK_200);
-            response.setContentType("application/json;charset=utf-8");
-            MusicResponse musicResponse = new MusicResponse(true, "上传音乐成功", music);
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(musicResponse));
+            HandlerResponses.writeJson(response, HttpStatus.OK_200, new MusicResponse(true, "上传音乐成功", music));
             
         } catch (Exception e) {
             logger.error("上传音乐时出错", e);
-            response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("上传音乐失败: " + e.getMessage());
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("上传音乐失败: " + e.getMessage()));
         }
     }
     
     @Override
     protected void doPut(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         // 检查管理员权限
-        if (!isAdminAuthorized(request)) {
-            response.setStatus(HttpStatus.UNAUTHORIZED_401);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("未授权访问");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+        if (HandlerResponses.rejectIfUnauthorized(request, response)) {
             return;
         }
         RuntimeDiskGuard.logStorageForOperation("管理员更新音乐", "PUT");
@@ -357,125 +219,33 @@ public class FileUploadHandler extends HttpServlet {
             
             // 获取所有上传的文件部分
             Collection<Part> parts = request.getParts();
-            
-            Integer id = null;
-            String title = null;
-            String artist = null;
-            String album = null;
-            String language = null;
-            String tags = null;
-            Integer duration = 0;
-            Integer uploadUserId = null;
-            Part musicFilePart = null;
-            Part coverFilePart = null;
-            Part lyricsFilePart = null;
-            ImageUploadValidator.ValidationResult coverImageValidation = null;
-            
-            // 解析表单字段和文件
-            for (Part part : parts) {
-                String fieldName = part.getName();
-                
-                if ("id".equals(fieldName)) {
-                    String idStr = getPartValue(request, part);
-                    if (idStr != null && !idStr.trim().isEmpty()) {
-                        try {
-                            id = Integer.parseInt(idStr);
-                        } catch (NumberFormatException e) {
-                            logger.error("解析音乐ID失败: " + idStr, e);
-                        }
-                    }
-                } else if ("title".equals(fieldName)) {
-                    title = getPartValue(request, part);
-                } else if ("artist".equals(fieldName)) {
-                    artist = getPartValue(request, part);
-                } else if ("album".equals(fieldName)) {
-                    album = getPartValue(request, part);
-                } else if ("language".equals(fieldName)) {
-                    language = getPartValue(request, part);
-                } else if ("tags".equals(fieldName)) {
-                    tags = getPartValue(request, part);
-                } else if ("duration".equals(fieldName)) {
-                    String durationStr = getPartValue(request, part);
-                    if (durationStr != null && !durationStr.trim().isEmpty()) {
-                        try {
-                            duration = Integer.parseInt(durationStr);
-                        } catch (NumberFormatException e) {
-                            logger.error("解析音乐时长失败: " + durationStr, e);
-                        }
-                    }
-                } else if ("uploadUserId".equals(fieldName)) {
-                    String userIdStr = getPartValue(request, part);
-                    if (userIdStr != null && !userIdStr.trim().isEmpty()) {
-                        try {
-                            uploadUserId = Integer.parseInt(userIdStr);
-                        } catch (NumberFormatException e) {
-                            logger.error("解析上传用户ID失败: " + userIdStr, e);
-                        }
-                    }
-                } else if ("musicFile".equals(fieldName) && part.getSize() > 0) {
-                    musicFilePart = part;
-                } else if ("coverFile".equals(fieldName) && part.getSize() > 0) {
-                    coverFilePart = part;
-                } else if ("lyricsFile".equals(fieldName) && part.getSize() > 0) {
-                    lyricsFilePart = part;
-                }
-            }
+            MusicForm form = parseMusicForm(request, parts, true);
+            Integer id = form.id;
+            String title = form.title;
+            String artist = form.artist;
+            String album = form.album;
+            String language = form.language;
+            String tags = form.tags;
+            Integer duration = form.duration;
+            Integer uploadUserId = form.uploadUserId;
+            Part musicFilePart = form.musicFilePart;
+            Part coverFilePart = form.coverFilePart;
             
             // 验证必要字段
             if (id == null || title == null || title.trim().isEmpty() || artist == null || artist.trim().isEmpty()) {
-                response.setStatus(HttpStatus.BAD_REQUEST_400);
-                response.setContentType("application/json;charset=utf-8");
-                ErrorResponse errorResponse = new ErrorResponse("音乐ID、标题和艺术家不能为空");
-                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+                HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("音乐ID、标题和艺术家不能为空"));
                 return;
             }
             
-            // 验证歌词文件必填
-            if (lyricsFilePart == null) {
-                response.setStatus(HttpStatus.BAD_REQUEST_400);
-                response.setContentType("application/json;charset=utf-8");
-                ErrorResponse errorResponse = new ErrorResponse("歌词文件不能为空");
-                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-                return;
-            }
-            
-            // 检查歌词文件类型
-            String lyricsFileName = getFileName(lyricsFilePart);
-            if (!lyricsFileName.toLowerCase().endsWith(".lrc")) {
-                response.setStatus(HttpStatus.BAD_REQUEST_400);
-                response.setContentType("application/json;charset=utf-8");
-                ErrorResponse errorResponse = new ErrorResponse("只支持LRC格式的歌词文件");
-                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-                return;
-            }
-            
-            // 校验歌词文件格式
-            try (InputStream lyricsInputStream = lyricsFilePart.getInputStream()) {
-                LrcValidator.ValidationResult validationResult = LrcValidator.validate(
-                        lyricsInputStream, lyricsFilePart.getSize());
-                if (!validationResult.isValid()) {
-                    response.setStatus(HttpStatus.BAD_REQUEST_400);
-                    response.setContentType("application/json;charset=utf-8");
-                    ErrorResponse errorResponse = new ErrorResponse("歌词文件格式错误: " + validationResult.getErrorMessage());
-                    response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-                    return;
-                }
-            } catch (Exception e) {
-                logger.error("校验歌词文件时出错", e);
-                response.setStatus(HttpStatus.BAD_REQUEST_400);
-                response.setContentType("application/json;charset=utf-8");
-                ErrorResponse errorResponse = new ErrorResponse("校验歌词文件时出错: " + e.getMessage());
-                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+            // 验证歌词文件必填、类型与格式
+            if (!validateLyricsOrReject(response, form.lyricsFilePart)) {
                 return;
             }
             
             // 获取当前音乐信息
             Music currentMusic = getMusicById(id);
             if (currentMusic == null) {
-                response.setStatus(HttpStatus.NOT_FOUND_404);
-                response.setContentType("application/json;charset=utf-8");
-                ErrorResponse errorResponse = new ErrorResponse("音乐不存在");
-                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+                HandlerResponses.writeJson(response, HttpStatus.NOT_FOUND_404, new ErrorResponse("音乐不存在"));
                 return;
             }
             
@@ -496,46 +266,13 @@ public class FileUploadHandler extends HttpServlet {
                 try {
                     Files.copy(musicFilePart.getInputStream(), musicTemp, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
 
-                    AudioFileValidator.FormatDetectionResult detectionResult =
-                            AudioFileValidator.detectAndValidatePath(musicTemp, fileExtension);
-                    if (!detectionResult.isValid()) {
-                        response.setStatus(HttpStatus.BAD_REQUEST_400);
-                        response.setContentType("application/json;charset=utf-8");
-                        ErrorResponse errorResponse = new ErrorResponse("音频文件格式错误: " + detectionResult.getErrorMessage());
-                        response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+                    AudioValidation audio = validateAudioFile(musicTemp, fileExtension, duration);
+                    duration = audio.duration();
+                    if (!audio.valid()) {
+                        HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse(audio.errorMessage()));
                         return;
                     }
-                    switch (detectionResult.getFormat()) {
-                        case MP3 -> fileFormat = "mp3";
-                        case FLAC -> fileFormat = "flac";
-                        case WAV -> fileFormat = "wav";
-                        default -> {
-                            response.setStatus(HttpStatus.BAD_REQUEST_400);
-                            response.setContentType("application/json;charset=utf-8");
-                            ErrorResponse errorResponse = new ErrorResponse("不支持的音频格式");
-                            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-                            return;
-                        }
-                    }
-                    logger.info("检测到文件格式: {} (实际格式: {})", fileFormat, detectionResult.getFormatDescription());
-
-                    if (duration == 0) {
-                        duration = readAudioDurationFromPath(musicTemp.toString());
-                    }
-
-                    AudioFileValidator.AudioFormat integrityFormat = switch (fileFormat) {
-                        case "flac" -> AudioFileValidator.AudioFormat.FLAC;
-                        case "wav" -> AudioFileValidator.AudioFormat.WAV;
-                        default -> AudioFileValidator.AudioFormat.MP3;
-                    };
-                    String audioIntegrityError = AudioIntegrityValidator.validateSavedFile(musicTemp, integrityFormat);
-                    if (audioIntegrityError != null) {
-                        response.setStatus(HttpStatus.BAD_REQUEST_400);
-                        response.setContentType("application/json;charset=utf-8");
-                        ErrorResponse errorResponse = new ErrorResponse(audioIntegrityError);
-                        response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-                        return;
-                    }
+                    fileFormat = audio.fileFormat();
 
                     MusicAdMetadataPatcher.patchQuietly(musicTemp);
 
@@ -548,10 +285,7 @@ public class FileUploadHandler extends HttpServlet {
                     updateFileFormatInDatabase(id, fileFormat);
                 } catch (Exception e) {
                     logger.error("更新音乐文件失败 id={}", id, e);
-                    response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
-                    response.setContentType("application/json;charset=utf-8");
-                    ErrorResponse errorResponse = new ErrorResponse("更新音乐文件失败: " + e.getMessage());
-                    response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+                    HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("更新音乐文件失败: " + e.getMessage()));
                     return;
                 } finally {
                     if (deleteMusicTempIfPresent) {
@@ -571,13 +305,8 @@ public class FileUploadHandler extends HttpServlet {
             
             // 检查是否上传了新的封面文件
             if (coverFilePart != null) {
-                coverImageValidation =
-                        ImageUploadValidator.validatePart(coverFilePart, ImageUploadValidator.DEFAULT_MAX_IMAGE_BYTES);
-                if (!coverImageValidation.isValid()) {
-                    response.setStatus(HttpStatus.BAD_REQUEST_400);
-                    response.setContentType("application/json;charset=utf-8");
-                    ErrorResponse errorResponse = new ErrorResponse(coverImageValidation.getErrorMessage());
-                    response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+                ImageUploadValidator.ValidationResult coverImageValidation = validateCoverOrReject(response, coverFilePart);
+                if (coverImageValidation == null) {
                     return;
                 }
                 
@@ -596,44 +325,169 @@ public class FileUploadHandler extends HttpServlet {
             }
             
             // 保存歌词到数据库
-            saveLyricsToDatabase(id, lyricsFilePart);
+            saveLyricsToDatabase(id, form.lyricsFilePart);
             
             // 更新数据库中的音乐信息
             updateMusicInDatabase(id, title, artist, album, language, tags, duration, uploadUserId);
             
             // 获取更新后的音乐信息
             Music updatedMusic = getMusicById(id);
-
-            if (Main.getMusicRecognitionService() != null) {
-                Main.getMusicRecognitionService().invalidateIndex();
-            }
+            MusicIngestSupport.invalidateRecognitionIndex();
             
-            response.setStatus(HttpStatus.OK_200);
-            response.setContentType("application/json;charset=utf-8");
-            MusicResponse musicResponse = new MusicResponse(true, "更新音乐成功", updatedMusic);
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(musicResponse));
+            HandlerResponses.writeJson(response, HttpStatus.OK_200, new MusicResponse(true, "更新音乐成功", updatedMusic));
             
         } catch (Exception e) {
             logger.error("更新音乐时出错", e);
-            response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("更新音乐失败: " + e.getMessage());
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("更新音乐失败: " + e.getMessage()));
         }
     }
-    
-    // 检查管理员权限
-    private boolean isAdminAuthorized(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+
+    /** 校验歌词文件（必填 + .lrc 扩展名 + LrcValidator），失败时写出对应响应并返回 false。 */
+    private boolean validateLyricsOrReject(HttpServletResponse response, Part lyricsFilePart) throws IOException {
+        // 验证歌词文件必填
+        if (lyricsFilePart == null) {
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("歌词文件不能为空"));
             return false;
         }
         
-        String token = authHeader.substring(7); // 移除 "Bearer " 前缀
-        // 验证管理员令牌
-        return Main.getAdminAuthService().validateAdminToken(token);
+        // 检查歌词文件类型
+        String lyricsFileName = getFileName(lyricsFilePart);
+        if (!lyricsFileName.toLowerCase().endsWith(".lrc")) {
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("只支持LRC格式的歌词文件"));
+            return false;
+        }
+        
+        // 校验歌词文件格式
+        try (InputStream lyricsInputStream = lyricsFilePart.getInputStream()) {
+            LrcValidator.ValidationResult validationResult = LrcValidator.validate(
+                    lyricsInputStream, lyricsFilePart.getSize());
+            if (!validationResult.isValid()) {
+                HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("歌词文件格式错误: " + validationResult.getErrorMessage()));
+                return false;
+            }
+        } catch (Exception e) {
+            logger.error("校验歌词文件时出错", e);
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("校验歌词文件时出错: " + e.getMessage()));
+            return false;
+        }
+        return true;
     }
-    
+
+    /** 校验封面图片，失败时写出对应响应并返回 null。 */
+    private static ImageUploadValidator.ValidationResult validateCoverOrReject(HttpServletResponse response, Part coverFilePart) throws IOException {
+        ImageUploadValidator.ValidationResult result =
+                ImageUploadValidator.validatePart(coverFilePart, ImageUploadValidator.DEFAULT_MAX_IMAGE_BYTES);
+        if (!result.isValid()) {
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse(result.getErrorMessage()));
+            return null;
+        }
+        return result;
+    }
+
+    /** 音频校验结果：valid=false 时 errorMessage 为响应文案；valid=true 时 fileFormat/duration 可用。 */
+    private record AudioValidation(boolean valid, String errorMessage, String fileFormat, int duration) {
+    }
+
+    /**
+     * 检测实际音频格式、读取时长并做完整性校验。
+     * 成功返回 fileFormat（mp3/flac/wav）与可能更新后的 duration；失败返回 errorMessage。
+     */
+    private AudioValidation validateAudioFile(Path musicTemp, String fileExtension, int duration) {
+        AudioFileValidator.FormatDetectionResult detectionResult =
+                AudioFileValidator.detectAndValidatePath(musicTemp, fileExtension);
+        if (!detectionResult.isValid()) {
+            return new AudioValidation(false, "音频文件格式错误: " + detectionResult.getErrorMessage(), null, duration);
+        }
+        String fileFormat;
+        switch (detectionResult.getFormat()) {
+            case MP3 -> fileFormat = "mp3";
+            case FLAC -> fileFormat = "flac";
+            case WAV -> fileFormat = "wav";
+            default -> {
+                return new AudioValidation(false, "不支持的音频格式", null, duration);
+            }
+        }
+        logger.info("检测到文件格式: {} (实际格式: {})", fileFormat, detectionResult.getFormatDescription());
+
+        if (duration == 0) {
+            duration = readAudioDurationFromPath(musicTemp.toString());
+        }
+
+        AudioFileValidator.AudioFormat integrityFormat = switch (fileFormat) {
+            case "flac" -> AudioFileValidator.AudioFormat.FLAC;
+            case "wav" -> AudioFileValidator.AudioFormat.WAV;
+            default -> AudioFileValidator.AudioFormat.MP3;
+        };
+        String audioIntegrityError = AudioIntegrityValidator.validateSavedFile(musicTemp, integrityFormat);
+        if (audioIntegrityError != null) {
+            return new AudioValidation(false, audioIntegrityError, null, duration);
+        }
+        return new AudioValidation(true, null, fileFormat, duration);
+    }
+
+    /** 解析后的 multipart 表单字段。doPost 不解析 id，doPut 解析。 */
+    private static final class MusicForm {
+        Integer id;
+        String title;
+        String artist;
+        String album;
+        String language;
+        String tags;
+        Integer duration = 0;
+        Integer uploadUserId;
+        Part musicFilePart;
+        Part coverFilePart;
+        Part lyricsFilePart;
+    }
+
+    /**
+     * 按字段名解析 multipart 表单（顺序与逐字段处理无关，行为与原内联循环一致）。
+     *
+     * @param parseId doPut 需要解析 id，doPost 不需要
+     */
+    private MusicForm parseMusicForm(HttpServletRequest request, Collection<Part> parts, boolean parseId) throws IOException {
+        MusicForm form = new MusicForm();
+        for (Part part : parts) {
+            String fieldName = part.getName();
+            
+            if (parseId && "id".equals(fieldName)) {
+                form.id = parseOptionalInt(getPartValue(request, part), form.id, "解析音乐ID失败");
+            } else if ("title".equals(fieldName)) {
+                form.title = getPartValue(request, part);
+            } else if ("artist".equals(fieldName)) {
+                form.artist = getPartValue(request, part);
+            } else if ("album".equals(fieldName)) {
+                form.album = getPartValue(request, part);
+            } else if ("language".equals(fieldName)) {
+                form.language = getPartValue(request, part);
+            } else if ("tags".equals(fieldName)) {
+                form.tags = getPartValue(request, part);
+            } else if ("duration".equals(fieldName)) {
+                form.duration = parseOptionalInt(getPartValue(request, part), form.duration, "解析音乐时长失败");
+            } else if ("uploadUserId".equals(fieldName)) {
+                form.uploadUserId = parseOptionalInt(getPartValue(request, part), form.uploadUserId, "解析上传用户ID失败");
+            } else if ("musicFile".equals(fieldName) && part.getSize() > 0) {
+                form.musicFilePart = part;
+            } else if ("coverFile".equals(fieldName) && part.getSize() > 0) {
+                form.coverFilePart = part;
+            } else if ("lyricsFile".equals(fieldName) && part.getSize() > 0) {
+                form.lyricsFilePart = part;
+            }
+        }
+        return form;
+    }
+
+    private Integer parseOptionalInt(String raw, Integer fallback, String errorMessage) {
+        if (raw != null && !raw.trim().isEmpty()) {
+            try {
+                return Integer.parseInt(raw);
+            } catch (NumberFormatException e) {
+                logger.error(errorMessage + ": " + raw, e);
+            }
+        }
+        return fallback;
+    }
+
     private String getPartValue(HttpServletRequest request, Part part) throws IOException {
         return new String(part.getInputStream().readAllBytes(), "UTF-8");
     }
@@ -670,98 +524,41 @@ public class FileUploadHandler extends HttpServlet {
     }
 
     // 读取音频时长 - 旧方法保留用于doPut中文件已存在的场景
-    private int readAudioDuration(Part musicFilePart, String fileExtension) {
-        try (InputStream inputStream = musicFilePart.getInputStream()) {
-            File tempFile = File.createTempFile("temp_audio", "." + fileExtension);
-            try {
-                Files.copy(inputStream, tempFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                AudioFile audioFile = AudioFileIO.read(tempFile);
-                return audioFile.getAudioHeader().getTrackLength();
-            } finally {
-                tempFile.delete();
-            }
-        } catch (CannotReadException | IOException | TagException | ReadOnlyFileException | InvalidAudioFrameException e) {
-            logger.error("读取音频时长失败", e);
-            return 0;
-        }
-    }
     
     // 将音乐信息插入数据库
     private int insertMusicToDatabase(String title, String artist, String album, String language, String tags, int duration, Integer uploadUserId, String fileFormat) throws SQLException {
-        int id;
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            // 验证提供的uploadUserId是否存在于users表中
-            Integer validUploadUserId = null;
-            if (uploadUserId != null) {
-                if (isUserExists(conn, uploadUserId)) {
-                    validUploadUserId = uploadUserId;
-                } else {
-                    // 如果用户不存在，记录警告并使用null
-                    logger.warn("提供的upload_user_id {} 不存在于users表中，将使用NULL", uploadUserId);
-                }
-            }
-
-            String sql = "INSERT INTO music (title, artist, album, language, tags, duration, file_format, upload_user_id, title_pinyin, title_pinyin_initials, title_word_initials, artist_pinyin, artist_pinyin_initials, artist_word_initials, album_pinyin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-            try (PreparedStatement stmt = conn.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
-                stmt.setString(1, title);
-                stmt.setString(2, artist);
-                stmt.setString(3, album != null ? album : "未知专辑");
-                stmt.setString(4, language != null ? language : "未知语言");
-                stmt.setString(5, tags != null ? tags : "");
-                stmt.setInt(6, duration);
-                stmt.setString(7, fileFormat); // 文件格式
-                stmt.setObject(8, validUploadUserId); // 使用验证后的用户ID或null
-                // 预计算拼音列
-                stmt.setString(9, com.neko.music.util.PinyinUtil.getPinyin(title));
-                stmt.setString(10, com.neko.music.util.PinyinUtil.getPinyinInitials(title));
-                stmt.setString(11, com.neko.music.util.PinyinUtil.getWordInitials(title));
-                stmt.setString(12, com.neko.music.util.PinyinUtil.getPinyin(artist));
-                stmt.setString(13, com.neko.music.util.PinyinUtil.getPinyinInitials(artist));
-                stmt.setString(14, com.neko.music.util.PinyinUtil.getWordInitials(artist));
-                stmt.setString(15, album != null ? com.neko.music.util.PinyinUtil.getPinyin(album) : "");
-
-                int affectedRows = stmt.executeUpdate();
-
-                if (affectedRows == 0) {
-                    throw new SQLException("添加音乐失败");
-                }
-
-                try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
-                    if (generatedKeys.next()) {
-                        id = generatedKeys.getInt(1);
-                    } else {
-                        throw new SQLException("获取新音乐ID失败");
-                    }
-                }
-            }
+            Integer validUploadUserId = resolveValidUploadUserId(conn, uploadUserId);
+            return MusicIngestSupport.insertMusicRow(conn, title, artist,
+                    album != null ? album : "未知专辑",
+                    album,
+                    language != null ? language : "未知语言",
+                    tags != null ? tags : "",
+                    duration, validUploadUserId, fileFormat,
+                    "添加音乐失败", "获取新音乐ID失败");
         }
-        return id;
     }
 
     private void deleteMusicRecordById(int musicId) {
-        try (Connection conn = Main.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement("DELETE FROM music WHERE id = ?")) {
-            stmt.setInt(1, musicId);
-            stmt.executeUpdate();
-        } catch (SQLException e) {
-            logger.error("删除无效 music 记录失败 id={}", musicId, e);
-        }
+        MusicIngestSupport.deleteMusicRecordById(musicId, logger, "删除无效 music 记录失败 id={}");
     }
 
-    // 验证用户是否存在
-    private boolean isUserExists(Connection conn, int userId) throws SQLException {
-        String sql = "SELECT COUNT(*) FROM users WHERE id = ?";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, userId);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt(1) > 0;
-                }
-            }
+    /**
+     * 校验提供的 uploadUserId 是否存在于 users 表中；不存在则记录警告并返回 null。
+     * 插入/更新共用（原两处内联逻辑一致）。
+     */
+    private Integer resolveValidUploadUserId(Connection conn, Integer uploadUserId) throws SQLException {
+        if (uploadUserId == null) {
+            return null;
         }
-        return false;
+        if (MusicIngestSupport.isUserExists(conn, uploadUserId)) {
+            return uploadUserId;
+        }
+        // 如果用户不存在，记录警告并使用null
+        logger.warn("提供的upload_user_id {} 不存在于users表中，将使用NULL", uploadUserId);
+        return null;
     }
-    
+
     // 查重检查：检查是否已存在相同的音乐
     private boolean isDuplicateMusic(String title, String artist, String album) throws SQLException {
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
@@ -790,16 +587,7 @@ public class FileUploadHandler extends HttpServlet {
     private void updateMusicInDatabase(int id, String title, String artist, String album, String language, String tags, int duration,
                                       Integer uploadUserId) throws SQLException {
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            // 验证提供的uploadUserId是否存在于users表中
-            Integer validUploadUserId = null;
-            if (uploadUserId != null) {
-                if (isUserExists(conn, uploadUserId)) {
-                    validUploadUserId = uploadUserId;
-                } else {
-                    // 如果用户不存在，记录警告并使用null
-                    logger.warn("提供的upload_user_id {} 不存在于users表中，将使用NULL", uploadUserId);
-                }
-            }
+            Integer validUploadUserId = resolveValidUploadUserId(conn, uploadUserId);
 
             String sql = "UPDATE music SET title = ?, artist = ?, album = ?, language = ?, tags = ?, duration = ?, upload_user_id = ?, title_pinyin = ?, title_pinyin_initials = ?, title_word_initials = ?, artist_pinyin = ?, artist_pinyin_initials = ?, artist_word_initials = ?, album_pinyin = ?, updated_at = NOW() WHERE id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -811,13 +599,7 @@ public class FileUploadHandler extends HttpServlet {
                 stmt.setInt(6, duration);
                 stmt.setObject(7, validUploadUserId); // 使用验证后的用户ID或null
                 // 预计算拼音列
-                stmt.setString(8, com.neko.music.util.PinyinUtil.getPinyin(title));
-                stmt.setString(9, com.neko.music.util.PinyinUtil.getPinyinInitials(title));
-                stmt.setString(10, com.neko.music.util.PinyinUtil.getWordInitials(title));
-                stmt.setString(11, com.neko.music.util.PinyinUtil.getPinyin(artist));
-                stmt.setString(12, com.neko.music.util.PinyinUtil.getPinyinInitials(artist));
-                stmt.setString(13, com.neko.music.util.PinyinUtil.getWordInitials(artist));
-                stmt.setString(14, album != null ? com.neko.music.util.PinyinUtil.getPinyin(album) : "");
+                MusicPinyinColumns.bind(stmt, 8, title, artist, album);
                 stmt.setInt(15, id);
 
                 int rowsUpdated = stmt.executeUpdate();
@@ -931,47 +713,18 @@ public class FileUploadHandler extends HttpServlet {
     }
     
     // 内部类用于表示音乐响应
-    private static class MusicResponse {
-        private boolean success;
-        private String message;
-        private Music data;
-        
-        public MusicResponse(boolean success, String message, Music data) {
-            this.success = success;
-            this.message = message;
-            this.data = data;
-        }
-        
-        public boolean isSuccess() { return success; }
-        public void setSuccess(boolean success) { this.success = success; }
-        public String getMessage() { return message; }
-        public void setMessage(String message) { this.message = message; }
-        public Music getData() { return data; }
-        public void setData(Music data) { this.data = data; }
+    private record MusicResponse(boolean success, String message, Music data) {
     }
     
     private static boolean rejectIfLowDisk(HttpServletResponse response) throws IOException {
         if (RuntimeDiskGuard.hasSufficientSpaceForMusicWrites()) {
             return false;
         }
-        response.setStatus(HttpStatus.INSUFFICIENT_STORAGE_507);
-        response.setContentType("application/json;charset=utf-8");
-        ErrorResponse errorResponse = new ErrorResponse(RuntimeDiskGuard.uploadBlockedMessage());
-        response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+        HandlerResponses.writeJson(response, HttpStatus.INSUFFICIENT_STORAGE_507, new ErrorResponse(RuntimeDiskGuard.uploadBlockedMessage()));
         return true;
     }
 
     // 内部类用于表示错误响应
-    private static class ErrorResponse {
-        private String error;
-        
-        public ErrorResponse(String error) {
-            this.error = error;
-        }
-        
-        public String getError() { return error; }
-        public void setError(String error) { this.error = error; }
-    }
     
     // 保存歌词到数据库
     private void saveLyricsToDatabase(int musicId, Part lyricsFilePart) {
@@ -981,14 +734,7 @@ public class FileUploadHandler extends HttpServlet {
                 lyricsContent = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
             }
 
-            if (!Main.getLyricsDatabaseManager().upsert(musicId, lyricsContent, "admin_upload")) {
-                logger.error("保存数据库歌词失败 musicId={}", musicId);
-                return;
-            }
-            logger.info("歌词已保存到数据库 musicId={}", musicId);
-            if (Main.getLyricsSearchIndex() != null) {
-                Main.getLyricsSearchIndex().rebuildOne(musicId);
-            }
+            MusicIngestSupport.saveLyricsAndRebuild(musicId, lyricsContent, "admin_upload", logger);
         } catch (Exception e) {
             logger.error("保存数据库歌词失败", e);
         }

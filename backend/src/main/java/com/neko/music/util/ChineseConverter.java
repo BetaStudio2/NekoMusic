@@ -121,32 +121,10 @@ public class ChineseConverter {
      * @param str 输入字符串
      * @return 如果包含中文字符返回true
      */
-    private static boolean containsChinese(String str) {
-        if (str == null || str.isEmpty()) {
-            return false;
-        }
-        
-        for (char c : str.toCharArray()) {
-            if (isChinese(c)) {
-                return true;
-            }
-        }
-        return false;
-    }
     
     /**
      * 判断字符是否是中文字符
      * @param c 字符
      * @return 如果是中文字符返回true
      */
-    private static boolean isChinese(char c) {
-        return (c >= 0x4E00 && c <= 0x9FA5) || 
-               (c >= 0x3400 && c <= 0x4DBF) || 
-               (c >= 0x20000 && c <= 0x2A6DF) || 
-               (c >= 0x2A700 && c <= 0x2B73F) || 
-               (c >= 0x2B740 && c <= 0x2B81F) || 
-               (c >= 0x2B820 && c <= 0x2CEAF) || 
-               (c >= 0xF900 && c <= 0xFAFF) || 
-               (c >= 0x2F800 && c <= 0x2FA1F);
-    }
 }

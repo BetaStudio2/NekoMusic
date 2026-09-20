@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neko.music.config.ConfigManager;
+import com.neko.music.util.HttpTransport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,9 +61,7 @@ public class NeteaseCloudMusicClient {
     public NeteaseCloudMusicClient(ConfigManager config, ObjectMapper objectMapper) {
         this.config = config;
         this.objectMapper = objectMapper;
-        Duration timeout = Duration.ofSeconds(config.getNeteaseHttpTimeoutSeconds());
-        this.httpClient = HttpClient.newBuilder().connectTimeout(timeout)
-                .followRedirects(HttpClient.Redirect.NORMAL).build();
+        this.httpClient = HttpTransport.create(Duration.ofSeconds(config.getNeteaseHttpTimeoutSeconds()));
     }
 
     public record NeteaseSongCandidate(long id, String title, String artist, String album) {}
@@ -268,14 +267,10 @@ public class NeteaseCloudMusicClient {
                 .header("User-Agent", weapi ? weapiUserAgent() : userAgent())
                 .header("Referer", MUSIC_BASE).header("Cookie", cookieHeader(eapi))
                 .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
-        try {
-            HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            if (response.statusCode() < 200 || response.statusCode() >= 300) throw new IOException("Netease API HTTP " + response.statusCode());
-            String raw = eapi ? decryptEapi(response.body()) : response.body();
-            return objectMapper.readTree(raw);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt(); throw new IOException("请求被中断", e);
-        }
+        HttpResponse<String> response = HttpTransport.sendString(httpClient, builder.build(), "请求被中断");
+        if (!HttpTransport.isSuccess(response.statusCode())) throw new IOException("Netease API HTTP " + response.statusCode());
+        String raw = eapi ? decryptEapi(response.body()) : response.body();
+        return objectMapper.readTree(raw);
     }
 
     private String cookieHeader(boolean eapi) {

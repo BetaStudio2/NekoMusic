@@ -32,12 +32,8 @@ public class DatabaseInitializer {
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                 """;
             
-            try {
-                stmt.execute(createFavoritesTable);
-                logger.info("user_favorites 表创建成功");
-            } catch (Exception e) {
-                logger.warn("创建 user_favorites 表失败（可能是表已存在）: {}", e.getMessage());
-            }
+            executeTableDdl(stmt, createFavoritesTable,
+                    "user_favorites 表创建成功", "创建 user_favorites 表失败（可能是表已存在）");
             
             // 创建用户收藏歌单表
             String createFavoritePlaylistsTable = """
@@ -54,12 +50,8 @@ public class DatabaseInitializer {
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                 """;
             
-            try {
-                stmt.execute(createFavoritePlaylistsTable);
-                logger.info("user_favorite_playlists 表创建成功");
-            } catch (Exception e) {
-                logger.warn("创建 user_favorite_playlists 表失败（可能是表已存在）: {}", e.getMessage());
-            }
+            executeTableDdl(stmt, createFavoritePlaylistsTable,
+                    "user_favorite_playlists 表创建成功", "创建 user_favorite_playlists 表失败（可能是表已存在）");
             
             // 创建用户上传审核表
             String createUserUploadsTable = """
@@ -84,22 +76,16 @@ public class DatabaseInitializer {
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                 """;
             
-            try {
-                stmt.execute(createUserUploadsTable);
-                logger.info("user_uploads 表创建成功");
-            } catch (Exception e) {
-                logger.warn("创建 user_uploads 表失败（可能是表已存在）: {}", e.getMessage());
-            }
+            executeTableDdl(stmt, createUserUploadsTable,
+                    "user_uploads 表创建成功", "创建 user_uploads 表失败（可能是表已存在）");
             
             // 回填拼音索引列：为 title_pinyin 等字段为 NULL 的记录计算拼音
-            try {
-                String selectNull = "SELECT id, title, artist, album FROM music WHERE title_pinyin IS NULL";
-                String updatePinyin = "UPDATE music SET title_pinyin=?, title_pinyin_initials=?, artist_pinyin=?, artist_pinyin_initials=?, album_pinyin=?, title_word_initials=?, artist_word_initials=? WHERE id=?";
-                try (var selectStmt = conn.prepareStatement(selectNull);
-                     var rs = selectStmt.executeQuery();
-                     var updateStmt = conn.prepareStatement(updatePinyin)) {
-                    int count = 0;
-                    while (rs.next()) {
+            backfillPinyin(conn,
+                    "SELECT id, title, artist, album FROM music WHERE title_pinyin IS NULL",
+                    "UPDATE music SET title_pinyin=?, title_pinyin_initials=?, artist_pinyin=?, artist_pinyin_initials=?, album_pinyin=?, title_word_initials=?, artist_word_initials=? WHERE id=?",
+                    "已回填 {} 条音乐记录的拼音索引",
+                    "回填拼音索引失败",
+                    (updateStmt, rs) -> {
                         int id = rs.getInt("id");
                         String title = rs.getString("title");
                         String artist = rs.getString("artist");
@@ -112,32 +98,15 @@ public class DatabaseInitializer {
                         updateStmt.setString(6, com.neko.music.util.PinyinUtil.getWordInitials(title));
                         updateStmt.setString(7, com.neko.music.util.PinyinUtil.getWordInitials(artist));
                         updateStmt.setInt(8, id);
-                        updateStmt.addBatch();
-                        count++;
-                        if (count % 100 == 0) {
-                            updateStmt.executeBatch();
-                        }
-                    }
-                    if (count % 100 != 0) {
-                        updateStmt.executeBatch();
-                    }
-                    if (count > 0) {
-                        logger.info("已回填 {} 条音乐记录的拼音索引", count);
-                    }
-                }
-            } catch (Exception e) {
-                logger.warn("回填拼音索引失败: {}", e.getMessage());
-            }
+                    });
 
             // 强制重算所有首字母列（getPinyinInitials和getWordInitials逻辑已变更，需全量更新）
-            try {
-                String selectAll = "SELECT id, title, artist FROM music";
-                String updateInitials = "UPDATE music SET title_pinyin_initials=?, title_word_initials=?, artist_pinyin_initials=?, artist_word_initials=? WHERE id=?";
-                try (var selectStmt = conn.prepareStatement(selectAll);
-                     var rs = selectStmt.executeQuery();
-                     var updateStmt = conn.prepareStatement(updateInitials)) {
-                    int count = 0;
-                    while (rs.next()) {
+            backfillPinyin(conn,
+                    "SELECT id, title, artist FROM music",
+                    "UPDATE music SET title_pinyin_initials=?, title_word_initials=?, artist_pinyin_initials=?, artist_word_initials=? WHERE id=?",
+                    "已重算 {} 条音乐记录的首字母索引（中文/英文分离）",
+                    "重算首字母索引失败",
+                    (updateStmt, rs) -> {
                         int id = rs.getInt("id");
                         String title = rs.getString("title");
                         String artist = rs.getString("artist");
@@ -146,85 +115,36 @@ public class DatabaseInitializer {
                         updateStmt.setString(3, com.neko.music.util.PinyinUtil.getPinyinInitials(artist));
                         updateStmt.setString(4, com.neko.music.util.PinyinUtil.getWordInitials(artist));
                         updateStmt.setInt(5, id);
-                        updateStmt.addBatch();
-                        count++;
-                        if (count % 100 == 0) {
-                            updateStmt.executeBatch();
-                        }
-                    }
-                    if (count % 100 != 0) {
-                        updateStmt.executeBatch();
-                    }
-                    if (count > 0) {
-                        logger.info("已重算 {} 条音乐记录的首字母索引（中文/英文分离）", count);
-                    }
-                }
-            } catch (Exception e) {
-                logger.warn("重算首字母索引失败: {}", e.getMessage());
-            }
+                    });
 
             // 回填歌单拼音列
-            try {
-                String selectNull = "SELECT id, name FROM playlists WHERE name_pinyin IS NULL";
-                String updatePinyin = "UPDATE playlists SET name_pinyin=?, name_pinyin_initials=?, name_word_initials=? WHERE id=?";
-                try (var selectStmt = conn.prepareStatement(selectNull);
-                     var rs = selectStmt.executeQuery();
-                     var updateStmt = conn.prepareStatement(updatePinyin)) {
-                    int count = 0;
-                    while (rs.next()) {
+            backfillPinyin(conn,
+                    "SELECT id, name FROM playlists WHERE name_pinyin IS NULL",
+                    "UPDATE playlists SET name_pinyin=?, name_pinyin_initials=?, name_word_initials=? WHERE id=?",
+                    "已回填 {} 条歌单记录的拼音索引",
+                    "回填歌单拼音索引失败",
+                    (updateStmt, rs) -> {
                         int id = rs.getInt("id");
                         String name = rs.getString("name");
                         updateStmt.setString(1, com.neko.music.util.PinyinUtil.getPinyin(name));
                         updateStmt.setString(2, com.neko.music.util.PinyinUtil.getPinyinInitials(name));
                         updateStmt.setString(3, com.neko.music.util.PinyinUtil.getWordInitials(name));
                         updateStmt.setInt(4, id);
-                        updateStmt.addBatch();
-                        count++;
-                        if (count % 100 == 0) {
-                            updateStmt.executeBatch();
-                        }
-                    }
-                    if (count % 100 != 0) {
-                        updateStmt.executeBatch();
-                    }
-                    if (count > 0) {
-                        logger.info("已回填 {} 条歌单记录的拼音索引", count);
-                    }
-                }
-            } catch (Exception e) {
-                logger.warn("回填歌单拼音索引失败: {}", e.getMessage());
-            }
+                    });
 
             // 强制重算歌单首字母列（逻辑变更）
-            try {
-                String selectAll = "SELECT id, name FROM playlists";
-                String updateInitials = "UPDATE playlists SET name_pinyin_initials=?, name_word_initials=? WHERE id=?";
-                try (var selectStmt = conn.prepareStatement(selectAll);
-                     var rs = selectStmt.executeQuery();
-                     var updateStmt = conn.prepareStatement(updateInitials)) {
-                    int count = 0;
-                    while (rs.next()) {
+            backfillPinyin(conn,
+                    "SELECT id, name FROM playlists",
+                    "UPDATE playlists SET name_pinyin_initials=?, name_word_initials=? WHERE id=?",
+                    "已重算 {} 条歌单记录的首字母索引（中文/英文分离）",
+                    "重算歌单首字母索引失败",
+                    (updateStmt, rs) -> {
                         int id = rs.getInt("id");
                         String name = rs.getString("name");
                         updateStmt.setString(1, com.neko.music.util.PinyinUtil.getPinyinInitials(name));
                         updateStmt.setString(2, com.neko.music.util.PinyinUtil.getWordInitials(name));
                         updateStmt.setInt(3, id);
-                        updateStmt.addBatch();
-                        count++;
-                        if (count % 100 == 0) {
-                            updateStmt.executeBatch();
-                        }
-                    }
-                    if (count % 100 != 0) {
-                        updateStmt.executeBatch();
-                    }
-                    if (count > 0) {
-                        logger.info("已重算 {} 条歌单记录的首字母索引（中文/英文分离）", count);
-                    }
-                }
-            } catch (Exception e) {
-                logger.warn("重算歌单首字母索引失败: {}", e.getMessage());
-            }
+                    });
 
             // VIP 价目表（与主库一并备份）
             String createVipPricing = """
@@ -238,12 +158,8 @@ public class DatabaseInitializer {
                     KEY idx_vip_pricing_sort (sort_order, id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                 """;
-            try {
-                stmt.execute(createVipPricing);
-                logger.info("vip_pricing 表已就绪");
-            } catch (Exception e) {
-                logger.warn("创建 vip_pricing 表失败（可能已存在）: {}", e.getMessage());
-            }
+            executeTableDdl(stmt, createVipPricing,
+                    "vip_pricing 表已就绪", "创建 vip_pricing 表失败（可能已存在）");
 
             String createVipPayOrders = """
                 CREATE TABLE IF NOT EXISTS vip_pay_orders (
@@ -264,12 +180,8 @@ public class DatabaseInitializer {
                     CONSTRAINT fk_vip_pay_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                 """;
-            try {
-                stmt.execute(createVipPayOrders);
-                logger.info("vip_pay_orders 表已就绪");
-            } catch (Exception e) {
-                logger.warn("创建 vip_pay_orders 表失败（可能已存在）: {}", e.getMessage());
-            }
+            executeTableDdl(stmt, createVipPayOrders,
+                    "vip_pay_orders 表已就绪", "创建 vip_pay_orders 表失败（可能已存在）");
 
             migrateAppReleaseTable(conn, stmt);
 
@@ -278,6 +190,51 @@ public class DatabaseInitializer {
         } catch (Exception e) {
             logger.error("初始化数据库表失败: {}", e.getMessage(), e);
         }
+    }
+
+    /** 执行建表 DDL，失败仅记录告警（表可能已存在）。 */
+    private static void executeTableDdl(Statement stmt, String ddl, String successMessage, String failureMessage) {
+        try {
+            stmt.execute(ddl);
+            logger.info(successMessage);
+        } catch (Exception e) {
+            logger.warn(failureMessage + ": {}", e.getMessage());
+        }
+    }
+
+    /** 扫描查询结果集，由绑定器写入对应拼音列，每 100 条批量执行一次更新。 */
+    private static void backfillPinyin(Connection conn, String selectSql, String updateSql,
+                                       String successMessage, String failureMessage,
+                                       PinyinRowBinder binder) {
+        try {
+            try (var selectStmt = conn.prepareStatement(selectSql);
+                 var rs = selectStmt.executeQuery();
+                 var updateStmt = conn.prepareStatement(updateSql)) {
+                int count = 0;
+                while (rs.next()) {
+                    binder.bind(updateStmt, rs);
+                    updateStmt.addBatch();
+                    count++;
+                    if (count % 100 == 0) {
+                        updateStmt.executeBatch();
+                    }
+                }
+                if (count % 100 != 0) {
+                    updateStmt.executeBatch();
+                }
+                if (count > 0) {
+                    logger.info(successMessage, count);
+                }
+            }
+        } catch (Exception e) {
+            logger.warn(failureMessage + ": {}", e.getMessage());
+        }
+    }
+
+    /** 将结果集当前行绑定到拼音更新语句的参数。 */
+    @FunctionalInterface
+    private interface PinyinRowBinder {
+        void bind(PreparedStatement updateStmt, ResultSet rs) throws Exception;
     }
 
     /** 单行版本表：无 id，仅 android_ver / pc_ver */

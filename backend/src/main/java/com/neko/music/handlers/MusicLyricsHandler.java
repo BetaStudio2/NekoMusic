@@ -1,5 +1,7 @@
 package com.neko.music.handlers;
 
+import com.neko.music.model.SuccessResponse;
+import com.neko.music.model.ErrorResponse;
 import com.neko.music.Main;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -10,44 +12,24 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.OptionalInt;
 
 public class MusicLyricsHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicLyricsHandler.class);
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        String pathInfo = request.getPathInfo();
-        
-        if (pathInfo == null || pathInfo.equals("/")) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("音乐ID不能为空");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+        OptionalInt musicIdOpt = parseMusicId(request, response);
+        if (musicIdOpt.isEmpty()) {
             return;
         }
-        
-        // 解析音乐ID (路径格式: /{id})
-        String idStr = pathInfo.replace("/", "");
-        int musicId;
-        
-        try {
-            musicId = Integer.parseInt(idStr);
-        } catch (NumberFormatException e) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("无效的音乐ID");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-            return;
-        }
+        int musicId = musicIdOpt.getAsInt();
         
         // 获取歌词信息
         String lyrics = getLyricsById(musicId);
         
         if (lyrics == null) {
-            response.setStatus(HttpStatus.NOT_FOUND_404);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("歌词文件不存在");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+            writeError(response, HttpStatus.NOT_FOUND_404, "歌词文件不存在");
             return;
         }
         
@@ -64,36 +46,15 @@ public class MusicLyricsHandler extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         // 检查是否为管理员
         if (!isAdminRequest(request)) {
-            response.setStatus(HttpStatus.UNAUTHORIZED_401);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("需要管理员权限");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+            writeError(response, HttpStatus.UNAUTHORIZED_401, "需要管理员权限");
             return;
         }
         
-        String pathInfo = request.getPathInfo();
-        
-        if (pathInfo == null || pathInfo.equals("/")) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("音乐ID不能为空");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+        OptionalInt musicIdOpt = parseMusicId(request, response);
+        if (musicIdOpt.isEmpty()) {
             return;
         }
-        
-        // 解析音乐ID (路径格式: /{id})
-        String idStr = pathInfo.replace("/", "");
-        int musicId;
-        
-        try {
-            musicId = Integer.parseInt(idStr);
-        } catch (NumberFormatException e) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("无效的音乐ID");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-            return;
-        }
+        int musicId = musicIdOpt.getAsInt();
         
         // 读取请求体中的歌词
         StringBuilder requestBody = new StringBuilder();
@@ -106,29 +67,20 @@ public class MusicLyricsHandler extends HttpServlet {
         try {
             lyricsRequest = Main.getObjectMapper().readValue(requestBody.toString(), LyricsRequest.class);
         } catch (Exception e) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("无效的请求格式");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+            writeError(response, HttpStatus.BAD_REQUEST_400, "无效的请求格式");
             return;
         }
         
-        if (lyricsRequest.getLyrics() == null) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("歌词内容不能为空");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+        if (lyricsRequest.lyrics() == null) {
+            writeError(response, HttpStatus.BAD_REQUEST_400, "歌词内容不能为空");
             return;
         }
         
         // 更新数据库歌词
-        boolean success = updateLyrics(musicId, lyricsRequest.getLyrics());
+        boolean success = updateLyrics(musicId, lyricsRequest.lyrics());
         
         if (!success) {
-            response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("更新歌词失败");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+            writeError(response, HttpStatus.INTERNAL_SERVER_ERROR_500, "更新歌词失败");
             return;
         }
 
@@ -136,9 +88,48 @@ public class MusicLyricsHandler extends HttpServlet {
             Main.getLyricsSearchIndex().rebuildOne(musicId);
         }
         
+        writeSuccess(response, "更新歌词成功");
+    }
+    
+    /**
+     * 解析路径中的音乐ID；缺失或非法时写出错误响应并返回空。
+     */
+    private OptionalInt parseMusicId(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        String pathInfo = request.getPathInfo();
+        
+        if (pathInfo == null || pathInfo.equals("/")) {
+            writeError(response, HttpStatus.BAD_REQUEST_400, "音乐ID不能为空");
+            return OptionalInt.empty();
+        }
+        
+        // 解析音乐ID (路径格式: /{id})
+        String idStr = pathInfo.replace("/", "");
+        
+        try {
+            return OptionalInt.of(Integer.parseInt(idStr));
+        } catch (NumberFormatException e) {
+            writeError(response, HttpStatus.BAD_REQUEST_400, "无效的音乐ID");
+            return OptionalInt.empty();
+        }
+    }
+    
+    /**
+     * 写出 {@code {"error":"..."}} 错误响应（保持原有格式与换行行为）。
+     */
+    private void writeError(HttpServletResponse response, int status, String message) throws IOException {
+        response.setStatus(status);
+        response.setContentType("application/json;charset=utf-8");
+        ErrorResponse errorResponse = new ErrorResponse(message);
+        response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+    }
+    
+    /**
+     * 写出 {@code {"success":true,"message":"..."}} 成功响应（HTTP 200）。
+     */
+    private void writeSuccess(HttpServletResponse response, String message) throws IOException {
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
-        SuccessResponse successResponse = new SuccessResponse(true, "更新歌词成功");
+        SuccessResponse successResponse = new SuccessResponse(true, message);
         response.getWriter().println(Main.getObjectMapper().writeValueAsString(successResponse));
     }
     
@@ -260,58 +251,15 @@ public class MusicLyricsHandler extends HttpServlet {
     }
 
     // 内部类用于表示歌词请求
-    private static class LyricsRequest {
-        private String lyrics;
-        
-        public String getLyrics() { return lyrics; }
-        public void setLyrics(String lyrics) { this.lyrics = lyrics; }
+    // 歌词请求（Jackson 反序列化，只读）
+    private record LyricsRequest(String lyrics) {
     }
     
     // 内部类用于表示歌词响应
-    private static class LyricsResponse {
-        private boolean success;
-        private String message;
-        private String data;
-        
-        public LyricsResponse(boolean success, String message, String data) {
-            this.success = success;
-            this.message = message;
-            this.data = data;
-        }
-        
-        public boolean isSuccess() { return success; }
-        public void setSuccess(boolean success) { this.success = success; }
-        public String getMessage() { return message; }
-        public void setMessage(String message) { this.message = message; }
-        public String getData() { return data; }
-        public void setData(String data) { this.data = data; }
+    private record LyricsResponse(boolean success, String message, String data) {
     }
     
     // 内部类用于表示成功响应
-    private static class SuccessResponse {
-        private boolean success;
-        private String message;
-        
-        public SuccessResponse(boolean success, String message) {
-            this.success = success;
-            this.message = message;
-        }
-        
-        public boolean isSuccess() { return success; }
-        public void setSuccess(boolean success) { this.success = success; }
-        public String getMessage() { return message; }
-        public void setMessage(String message) { this.message = message; }
-    }
     
     // 内部类用于表示错误响应
-    private static class ErrorResponse {
-        private String error;
-        
-        public ErrorResponse(String error) {
-            this.error = error;
-        }
-        
-        public String getError() { return error; }
-        public void setError(String error) { this.error = error; }
-    }
 }

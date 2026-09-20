@@ -8,19 +8,16 @@ import com.neko.music.service.UserAuthService;
 import com.neko.music.util.SensitiveWordUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.Optional;
 
 @WebServlet("/api/user/playlist/create")
-public class CreatePlaylistHandler extends HttpServlet {
+public class CreatePlaylistHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(CreatePlaylistHandler.class);
     private PlaylistService playlistService;
     private UserAuthService userAuthService;
@@ -34,9 +31,6 @@ public class CreatePlaylistHandler extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         resp.setContentType("application/json;charset=UTF-8");
-        resp.setHeader("Access-Control-Allow-Origin", "*");
-        resp.setHeader("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, OPTIONS");
-        resp.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
         logger.info("收到创建歌单请求");
 
@@ -56,13 +50,7 @@ public class CreatePlaylistHandler extends HttpServlet {
         }
 
         // 读取请求体
-        StringBuilder requestBody = new StringBuilder();
-        try (BufferedReader reader = req.getReader()) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                requestBody.append(line);
-            }
-        }
+        String requestBody = readBody(req);
 
         try {
             JsonObject requestData = Main.getGson().fromJson(requestBody.toString(), JsonObject.class);
@@ -114,19 +102,19 @@ public class CreatePlaylistHandler extends HttpServlet {
 
             if (playlistOpt.isPresent()) {
                 Playlist playlist = playlistOpt.get();
-                logger.info("歌单创建成功: id={}, userId={}, name={}", playlist.getId(), userId, playlist.getName());
+                logger.info("歌单创建成功: id={}, userId={}, name={}", playlist.id(), userId, playlist.name());
 
                 JsonObject response = new JsonObject();
                 response.addProperty("success", true);
                 response.addProperty("message", "歌单创建成功");
 
                 JsonObject playlistData = new JsonObject();
-                playlistData.addProperty("id", playlist.getId());
-                playlistData.addProperty("name", playlist.getName());
-                playlistData.addProperty("description", playlist.getDescription());
-                playlistData.addProperty("musicCount", playlist.getMusicCount());
-                playlistData.addProperty("createdAt", playlist.getCreatedAt());
-                playlistData.addProperty("updatedAt", playlist.getUpdatedAt());
+                playlistData.addProperty("id", playlist.id());
+                playlistData.addProperty("name", playlist.name());
+                playlistData.addProperty("description", playlist.description());
+                playlistData.addProperty("musicCount", playlist.musicCount());
+                playlistData.addProperty("createdAt", playlist.createdAt());
+                playlistData.addProperty("updatedAt", playlist.updatedAt());
 
                 response.add("playlist", playlistData);
 
@@ -145,26 +133,8 @@ public class CreatePlaylistHandler extends HttpServlet {
     /**
      * 发送成功响应
      */
-    private void sendSuccessResponse(HttpServletResponse resp, JsonObject response) throws IOException {
-        resp.setStatus(HttpServletResponse.SC_OK);
-        try (PrintWriter out = resp.getWriter()) {
-            out.print(Main.getGson().toJson(response));
-            out.flush();
-        }
-    }
 
     /**
      * 发送错误响应
      */
-    private void sendErrorResponse(HttpServletResponse resp, int statusCode, String message) throws IOException {
-        resp.setStatus(statusCode);
-        JsonObject response = new JsonObject();
-        response.addProperty("success", false);
-        response.addProperty("message", message);
-
-        try (PrintWriter out = resp.getWriter()) {
-            out.print(Main.getGson().toJson(response));
-            out.flush();
-        }
-    }
 }

@@ -21,9 +21,6 @@ public class NeteaseCloudMusicHandler extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setContentType("application/json;charset=UTF-8");
-        response.setHeader("Access-Control-Allow-Origin", "*");
-        response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
         if (RequestAuthUtil.authenticate(request) == null) {
             writeError(response, HttpServletResponse.SC_UNAUTHORIZED, "缺少或无效的用户令牌");

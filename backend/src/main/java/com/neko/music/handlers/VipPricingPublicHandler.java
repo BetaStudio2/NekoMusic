@@ -53,18 +53,15 @@ public class VipPricingPublicHandler extends HttpServlet {
 
     private static ObjectNode itemNode(ObjectMapper mapper, VipPriceItem it) {
         ObjectNode n = mapper.createObjectNode();
-        n.put("id", it.getId());
-        n.put("months", it.getMonths());
-        n.put("days", it.getDays());
-        n.put("priceYuan", it.getPriceYuan());
-        n.put("sortOrder", it.getSortOrder());
-        n.put("updatedAt", it.getUpdatedAt() != null ? it.getUpdatedAt() : "");
+        n.put("id", it.id());
+        n.put("months", it.months());
+        n.put("days", it.days());
+        n.put("priceYuan", it.priceYuan());
+        n.put("sortOrder", it.sortOrder());
+        n.put("updatedAt", it.updatedAt() != null ? it.updatedAt() : "");
         return n;
     }
 
     private static void applyCors(HttpServletResponse response) {
-        response.setHeader("Access-Control-Allow-Origin", "*");
-        response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     }
 }

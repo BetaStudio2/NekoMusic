@@ -93,7 +93,7 @@ public class ExternalImportHandler extends HttpServlet {
                 writeJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "创建歌单失败");
                 return;
             }
-            resolvedPlaylistId = created.get().getId();
+            resolvedPlaylistId = created.get().id();
             playlistCreated = true;
         }
 
