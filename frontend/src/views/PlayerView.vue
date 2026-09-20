@@ -67,6 +67,15 @@
             >
               <NIcon name="video" :size="18" />
             </button>
+
+            <!-- 生成分享视频是会员相关能力：沿用重构前的权益提示 -->
+            <p v-if="isLoggedIn()" class="np__video-hint">
+              <template v-if="userIsVip">会员：整首横屏成片，无水印、不限次数</template>
+              <template v-else>
+                免费：30 秒横屏成片（含水印），每日 10 次 ·
+                <RouterLink to="/vip">开通会员</RouterLink>
+              </template>
+            </p>
           </div>
         </header>
 
@@ -108,15 +117,6 @@
                 :height="56"
                 :active="isPlaying"
               />
-
-              <p v-if="isLoggedIn()" class="np__hint">
-                <NIcon name="sparkles" :size="14" />
-                <template v-if="userIsVip">会员：整首横屏成片，无水印、不限次数</template>
-                <template v-else>
-                  免费：30 秒横屏成片（含水印），每日 10 次 ·
-                  <RouterLink to="/vip">开通会员</RouterLink>
-                </template>
-              </p>
 
               <div v-if="videoRenderSubmitted" class="np__notice">
                 <NIcon name="circle-check" :size="16" />
@@ -1531,19 +1531,18 @@ watch(
   width: min(100%, 38vh);
 }
 
-.np__hint {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: center;
+/* 生成分享视频的会员/免费权益提示（沿用重构前文案），贴在顶栏视频入口旁 */
+.np__video-hint {
+  margin: 0 0 0 var(--n-space-2);
+  align-self: center;
+  max-width: 34ch;
   font-size: var(--n-text-xs);
+  line-height: 1.4;
   color: var(--n-text-faint);
-  text-align: center;
+  text-align: right;
 }
 
-.np__hint a {
+.np__video-hint a {
   color: var(--n-accent);
 }
 
@@ -1780,7 +1779,6 @@ watch(
     width: min(100%, 32vh);
   }
 
-  .np__hint,
   .np__album,
   .np__dur {
     display: none;
@@ -1842,8 +1840,8 @@ watch(
     display: none;
   }
 
-  /* 提示行在手机上省掉，把高度让给歌词 */
-  .np__hint {
+  /* 窄屏顶栏空间有限，权益提示省略（入口在顶栏，title 仍可见） */
+  .np__video-hint {
     display: none;
   }
 
