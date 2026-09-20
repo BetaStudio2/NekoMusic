@@ -897,33 +897,17 @@ const playFromPlaylist = (index) => {
     // 重新加载歌词
     loadLyrics(playlist.value[index].id)
     
-    // 确保音频元素重新加载资源
-    if (audioPlayer.value) {
-      // 先加载音频资源
-      audioPlayer.value.load()
-      
-      // 在音频加载完成后设置时间为0.1
-      const onLoadedData = () => {
-        audioPlayer.value.currentTime = 0.1
-        currentTime.value = 0.1
-        progress.value = 0.1
-        updateGlobalPlayerState()
-        // 只在有有效 duration 时才更新媒体会话播放位置
-        if (audioPlayer.value.duration > 0) {
-          duration.value = audioPlayer.value.duration
-          updateMediaSessionPositionState()
-        }
-        fadeIn(audioPlayer.value)
-        audioPlayer.value.removeEventListener('loadeddata', onLoadedData)
-      }
-      
-      audioPlayer.value.addEventListener('loadeddata', onLoadedData)
-    }
+    // 切歌 + 起播统一交给 handleForcePlay：等 Vue 把 <audio> 的 :src 补成
+    // 新曲目后再起播。不要在这里手动 load()/play()，那会和 :src 绑定互抢，
+    // 既报 AbortError，也可能「界面在播、实际没播」（见 handleForcePlay 注释）。
+    handleForcePlay()
     
     // 更新媒体会话元数据
     updateMediaSessionMetadata(playlist.value[index])
     // 更新播放状态
     updateMediaSessionPlaybackState()
+    // 广播：否则播放页等订阅方不知道当前曲目已经换了
+    broadcastPlayerStateChange()
   }
   // 关闭播放列表
   showPlaylist.value = false
@@ -985,43 +969,10 @@ const playNext = (fromEnded = false) => {
         audioPlayer.value.addEventListener('canplay', onCanPlay)
       }
     } else {
-      // 手动点下一首：允许淡入
-      // 先暂停当前音频
-      if (audioPlayer.value && !audioPlayer.value.paused) {
-        audioPlayer.value.pause();
-      }
-      
-      // 重置播放时间并立即更新UI（从0.1开始）
-      currentTime.value = 0.1
-      duration.value = 0
-      progress.value = 0.1
-      updateGlobalPlayerState()
-      
-      // 更新媒体会话播放位置
-      updateMediaSessionPositionState()
-      
-      // 加载新音频资源
-      if (audioPlayer.value) {
-        // 确保音频元素在加载新资源前已重置时间（从0.1开始）
-        audioPlayer.value.currentTime = 0.1
-        
-        // 监听loadeddata事件以确保音频已加载后再操作
-        const onLoadedData = () => {
-          // 确保音频时间已重置为0.1
-          audioPlayer.value.currentTime = 0.1
-          currentTime.value = 0.1
-          progress.value = 0.1
-          updateGlobalPlayerState()
-          
-          fadeIn(audioPlayer.value)
-          
-          // 移除事件监听器
-          audioPlayer.value.removeEventListener('loadeddata', onLoadedData)
-        }
-        
-        audioPlayer.value.addEventListener('loadeddata', onLoadedData)
-        audioPlayer.value.load()
-      }
+      // 手动切歌：统一走 handleForcePlay —— 等 Vue 把 <audio> 的 :src
+      // 补成新曲目后再起播。不要在这里手动 load()/play()，那会和
+      // :src 绑定互抢，既报 AbortError，也可能「界面在播、实际没播」。
+      handleForcePlay()
     }
     
     // 确保UI立即更新时间轴（从0.1开始）
@@ -1034,6 +985,9 @@ const playNext = (fromEnded = false) => {
     updateMediaSessionMetadata(playlist.value[nextIndex])
     // 更新播放状态
     updateMediaSessionPlaybackState()
+    // 手动切歌（含播放页「下一首」）：广播新曲目；
+    // 来自 ended 的情况由 onAudioEnded 统一广播，避免重复。
+    if (!fromEnded) broadcastPlayerStateChange()
   }
 }
 
@@ -1081,43 +1035,10 @@ const playPrevious = (fromEnded = false) => {
         audioPlayer.value.addEventListener('canplay', onCanPlay)
       }
     } else {
-      // 手动点下一首：允许淡入
-      // 先暂停当前音频
-      if (audioPlayer.value && !audioPlayer.value.paused) {
-        audioPlayer.value.pause();
-      }
-      
-      // 重置播放时间并立即更新UI（从0.1开始）
-      currentTime.value = 0.1
-      duration.value = 0
-      progress.value = 0.1
-      updateGlobalPlayerState()
-      
-      // 更新媒体会话播放位置
-      updateMediaSessionPositionState()
-      
-      // 加载新音频资源
-      if (audioPlayer.value) {
-        // 确保音频元素在加载新资源前已重置时间（从0.1开始）
-        audioPlayer.value.currentTime = 0.1
-        
-        // 监听loadeddata事件以确保音频已加载后再操作
-        const onLoadedData = () => {
-          // 确保音频时间已重置为0.1
-          audioPlayer.value.currentTime = 0.1
-          currentTime.value = 0.1
-          progress.value = 0.1
-          updateGlobalPlayerState()
-          
-          fadeIn(audioPlayer.value)
-          
-          // 移除事件监听器
-          audioPlayer.value.removeEventListener('loadeddata', onLoadedData)
-        }
-        
-        audioPlayer.value.addEventListener('loadeddata', onLoadedData)
-        audioPlayer.value.load()
-      }
+      // 手动切歌：统一走 handleForcePlay —— 等 Vue 把 <audio> 的 :src
+      // 补成新曲目后再起播。不要在这里手动 load()/play()，那会和
+      // :src 绑定互抢，既报 AbortError，也可能「界面在播、实际没播」。
+      handleForcePlay()
     }
     
     // 确保UI立即更新时间轴（从0.1开始）
@@ -1130,6 +1051,9 @@ const playPrevious = (fromEnded = false) => {
     updateMediaSessionMetadata(playlist.value[prevIndex])
     // 更新播放状态
     updateMediaSessionPlaybackState()
+    // 手动切歌（含播放页「上一首」）：广播新曲目；
+    // 来自 ended 的情况由 onAudioEnded 统一广播，避免重复。
+    if (!fromEnded) broadcastPlayerStateChange()
   }
 }
 
@@ -1183,43 +1107,10 @@ const playNextInShuffle = (fromEnded = false) => {
         audioPlayer.value.addEventListener('canplay', onCanPlay)
       }
     } else {
-      // 手动点下一首：允许淡入
-      // 先暂停当前音频
-      if (audioPlayer.value && !audioPlayer.value.paused) {
-        audioPlayer.value.pause();
-      }
-      
-      // 重置播放时间并立即更新UI
-      currentTime.value = 0
-      duration.value = 0
-      progress.value = 0
-      updateGlobalPlayerState()
-      
-      // 更新媒体会话播放位置
-      updateMediaSessionPositionState()
-      
-      // 加载新音频资源
-      if (audioPlayer.value) {
-        // 确保音频元素在加载新资源前已重置时间
-        audioPlayer.value.currentTime = 0
-        
-        // 监听loadeddata事件以确保音频已加载后再操作
-        const onLoadedData = () => {
-          // 确保音频时间已重置为0
-          audioPlayer.value.currentTime = 0
-          currentTime.value = 0
-          progress.value = 0
-          updateGlobalPlayerState()
-          updateMediaSessionPositionState()
-          fadeIn(audioPlayer.value)
-          
-          // 移除事件监听器
-          audioPlayer.value.removeEventListener('loadeddata', onLoadedData)
-        }
-        
-        audioPlayer.value.addEventListener('loadeddata', onLoadedData)
-        audioPlayer.value.load()
-      }
+      // 手动切歌：统一走 handleForcePlay —— 等 Vue 把 <audio> 的 :src
+      // 补成新曲目后再起播。不要在这里手动 load()/play()，那会和
+      // :src 绑定互抢，既报 AbortError，也可能「界面在播、实际没播」。
+      handleForcePlay()
     }
     
     // 确保UI立即更新时间轴（从0.1开始）
@@ -1232,6 +1123,9 @@ const playNextInShuffle = (fromEnded = false) => {
     updateMediaSessionMetadata(playlist.value[nextIndex])
     // 更新播放状态
     updateMediaSessionPlaybackState()
+    // 手动切歌（含播放页「下一首」）：广播新曲目；
+    // 来自 ended 的情况由 onAudioEnded 统一广播，避免重复。
+    if (!fromEnded) broadcastPlayerStateChange()
   }
 }
 

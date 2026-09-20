@@ -29,13 +29,31 @@ const app = createApp(App)
  */
 if (import.meta.env.DEV) {
   const rawWarn = console.warn.bind(console)
+
+  /**
+   * AMLL 的 WebGL1 背景渲染器在初始化时会去找这几个【WebGL2 专有】扩展名：
+   *   EXT_color_buffer_float / EXT_float_blend / OES_texture_float_linear / OES_texture_float
+   * 但它的上下文本来就是 canvas.getContext('webgl')（WebGL1），必然取不到，
+   * 于是每次进播放页都刷一遍 "… not supported"。这些扩展与 WebGL1 的渲染
+   * 路径无关，属上游误报；降级与否由 useLiteMode 的 WebGL1 探测决定，
+   * 这里只负责别让它们污染控制台。
+   */
+  const AMLL_WEBGL1_BENIGN_WARNINGS = [
+    'EXT_color_buffer_float not supported',
+    'EXT_float_blend not supported',
+    'OES_texture_float_linear not supported',
+    'OES_texture_float not supported',
+  ]
+
   console.warn = (...args) => {
     const first = args[0]
-    if (
-      typeof first === 'string' &&
-      first.includes('Property "positions" was accessed during render')
-    ) {
-      return
+    if (typeof first === 'string') {
+      if (first.includes('Property "positions" was accessed during render')) {
+        return
+      }
+      if (AMLL_WEBGL1_BENIGN_WARNINGS.some((msg) => first.includes(msg))) {
+        return
+      }
     }
     rawWarn(...args)
   }
