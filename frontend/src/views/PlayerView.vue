@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <!-- 全屏播放页：自底部滑入 / 滑出（关闭前先播完退出动效再换路由） -->
-    <Transition name="np" appear @after-leave="onAfterLeave">
+    <Transition name="np" appear @after-enter="onAfterEnter" @after-leave="onAfterLeave">
       <div
         v-show="!closing"
         class="np"
@@ -20,6 +20,7 @@
           :album="getCoverUrl(currentMusic.id)"
           :playing="isPlaying"
           :has-lyric="parsedLyrics.length > 0"
+          :active="backgroundReady"
         />
         <div class="np__scrim" aria-hidden="true" />
 
@@ -304,7 +305,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import { createVideoRenderJob, fetchVideoRenderStatus, downloadVideoRenderFile } from '@/api/videoRender.js'
@@ -357,6 +358,14 @@ const clipPreviewPlaying = ref(false)
 
 /** 全屏页关闭中：先播退出动效，动效结束再切换路由 */
 const closing = ref(false)
+/**
+ * 进场动效是否已结束。结束前背景只渲染静态模糊封面，结束后才把 WebGL
+ * 渲染器挂起来 —— 避免在 .np 带 transform 的动效期间创建 canvas，
+ * 那是「关一次播放页再打开就没背景」的根因（详见 AlbumBackground）。
+ */
+const backgroundReady = ref(false)
+/** 兜底定时器：万一 after-enter 没触发，也要把背景放出来 */
+let backgroundReadyTimer = null
 /** 拖动进度条期间使用本地预览值，避免状态回流把滑块拽回去 */
 const seeking = ref(false)
 const seekPreview = ref(0)
@@ -398,6 +407,21 @@ const fetchMusicDetail = async (musicId) => {
   } catch (error) {
     console.error('请求音乐详情时出错:', error)
   }
+}
+
+/**
+ * 按 id 载入一首曲目（详情 + 歌词），并复位与「上一首」强相关的派生状态。
+ * 首帧进页与后续切歌（路由变化 / 全局播放器换曲）都走这里。
+ */
+const loadMusicById = async (musicId) => {
+  lyrics.value = ''
+  parsedLyrics.value = []
+  videoRenderSubmitted.value = false
+  videoRenderReady.value = false
+  videoRenderJobId.value = ''
+  await fetchMusicDetail(musicId)
+  // 启动定时器以持续更新歌词 / 对齐全局播放状态
+  startTimer()
 }
 
 // 获取歌词
@@ -1148,6 +1172,15 @@ const onAfterLeave = () => {
   }
 }
 
+/** 进场动效结束：.np 不再有 transform，可以安全创建 WebGL 背景 */
+const onAfterEnter = () => {
+  if (backgroundReadyTimer) {
+    clearTimeout(backgroundReadyTimer)
+    backgroundReadyTimer = null
+  }
+  backgroundReady.value = true
+}
+
 /* ============================================================================
    手机端手势：下拉收起
    ----------------------------------------------------------------------------
@@ -1209,6 +1242,9 @@ function onTouchEnd() {
 
 // 初始化
 onMounted(async () => {
+  // 兜底：若无 CSS 过渡（或 after-enter 未触发），定时放出 WebGL 背景
+  backgroundReadyTimer = setTimeout(onAfterEnter, 700)
+
   // 检测是否是移动设备
   isMobile.value = checkMobile()
 
@@ -1234,9 +1270,7 @@ onMounted(async () => {
   }
 
   if (musicId) {
-    await fetchMusicDetail(musicId)
-    // 启动定时器以持续更新歌词
-    startTimer();
+    await loadMusicById(String(musicId))
   }
 
   // 获取收藏列表
@@ -1252,6 +1286,10 @@ onMounted(async () => {
 onUnmounted(() => {
   stopClipPreview()
   revokeClipPreviewBlobs()
+  if (backgroundReadyTimer) {
+    clearTimeout(backgroundReadyTimer)
+    backgroundReadyTimer = null
+  }
   document.body.style.overflow = previousBodyOverflow
   window.removeEventListener('resize', syncSwipeEnabled)
   window.removeEventListener('playerStateChange', handlePlayerStateChange)
@@ -1261,6 +1299,37 @@ onUnmounted(() => {
     timeUpdateInterval = null;
   }
 })
+
+/* ============================================================================
+   与全局播放器同步曲目
+   ----------------------------------------------------------------------------
+   全局播放条（GlobalPlayer）是全站唯一播放引擎。切歌可能来自三处：
+     · 播放页底部的上一首 / 下一首（发 playerCommand 给 GlobalPlayer）
+     · 播放条的上一首 / 下一首 / 播放列表点选
+     · 一首播完自动切下一首
+   无论哪条来源，播放页都要跟着切到新曲目 —— 否则会出现「页面还停在
+   上一首、播放条已经下一首」的错位。
+   ========================================================================== */
+
+/** 全局当前曲目变化 → 把播放页地址切到新曲目（replace，不污染历史） */
+watch(
+  () => playback.currentMusic?.id,
+  (id) => {
+    if (!id) return
+    if (String(route.params.id) === String(id)) return
+    router.replace(`/detail/${id}`)
+  }
+)
+
+/** 路由曲目变化（含上面 replace 的结果）→ 重新载入详情与歌词 */
+watch(
+  () => route.params.id,
+  (id) => {
+    if (!id) return
+    if (String(currentMusic.value?.id) === String(id)) return
+    loadMusicById(String(id))
+  }
+)
 </script>
 
 <style scoped>

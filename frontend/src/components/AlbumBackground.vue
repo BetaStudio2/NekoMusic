@@ -2,10 +2,11 @@
 /**
  * AlbumBackground —— 专辑背景
  * ------------------------------------------------------------
- * 桌面：使用官方 @applemusic-like-lyrics/vue 的 BackgroundRender，
- *       以专辑封面为素材生成 WebGL 流动背景（Apple Music 观感）。
- * 手机 / 减弱动效 / 弱设备：换用【静态降级】——封面放大 + 高斯模糊，
- *       观感接近，但没有每帧全屏着色器的开销（见 useLiteMode）。
+ * 桌面：使用自封装的 AmllBackgroundRender（底层是 AMLL 的
+ *       MeshGradientRenderer），以专辑封面为素材生成 WebGL 流动背景。
+ * 手机 / 减弱动效 / 弱设备 / 起不来 WebGL：换用【静态降级】——
+ *       封面放大 + 高斯模糊，观感接近，但没有每帧全屏着色器的开销
+ *       （见 useLiteMode）。
  *
  * 音频联动：
  *   通过 useAudioAnalyser 读取 80–120Hz 低频能量，喂给 AMLL 的
@@ -13,7 +14,7 @@
  *   AMLL 会退回默认值 1.0（静态流动）。轻量模式下不跑这条 rAF。
  */
 import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { BackgroundRender } from '@applemusic-like-lyrics/vue'
+import AmllBackgroundRender from '@/components/AmllBackgroundRender.vue'
 import { useAudioAnalyser } from '@/composables/useAudioAnalyser'
 import { useLiteMode } from '@/composables/useLiteMode'
 
@@ -24,6 +25,12 @@ const props = defineProps({
   playing: { type: Boolean, default: false },
   /** 是否有歌词（部分渲染器据此调整效果） */
   hasLyric: { type: Boolean, default: false },
+  /**
+   * 是否已过了播放页进场动效。true 之前先渲染静态模糊封面（便宜），
+   * 之后再把 WebGL 渲染器挂起来 —— 避免在祖先带 transform 的进场
+   * 动效期间创建 canvas，那正是「关一次再打开就没背景」的诱因。
+   */
+  active: { type: Boolean, default: true },
 })
 
 const { ready, readBand } = useAudioAnalyser()
@@ -103,16 +110,15 @@ watch(lite, (v) => {
 
 <template>
   <div class="bg" aria-hidden="true">
-    <!-- 桌面：WebGL 流动背景 -->
-    <BackgroundRender
-      v-if="album && !lite"
-      class="bg__render"
+    <!-- 桌面：WebGL 流动背景（进场动效结束后才挂载，见 active prop） -->
+    <AmllBackgroundRender
+      v-if="album && !lite && active"
       :album="album"
       :playing="playing"
       :has-lyric="hasLyric"
       :low-freq-volume="lowFreqVolume"
     />
-    <!-- 轻量：静态模糊封面（观感接近，几乎零成本） -->
+    <!-- 轻量 / 进场动效期间：静态模糊封面（观感接近，几乎零成本） -->
     <div
       v-else-if="album"
       class="bg__still"
@@ -129,11 +135,6 @@ watch(lite, (v) => {
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
-}
-
-.bg__render {
-  width: 100%;
-  height: 100%;
 }
 
 /* 静态降级：放大 + 高斯模糊，避免边缘露出底色 */
