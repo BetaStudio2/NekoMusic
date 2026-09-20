@@ -112,10 +112,6 @@ import { formatDuration, formatCount, formatBytes, formatDate } from '@/utils/fo
 - `PageShell`：内容宽度与标题区；`width`(narrow/default/wide/full)、`centered`、`flushTop`。
 - `AmbientBackdrop`：装饰背景，已内置于 `AppShell`。
 
-## 自检页
-
-开发环境访问 `/__kit` 可查看全部基础层组件的实际效果。
-
 ## 迁移约定
 
 1. 新页面一律使用 `AppShell` + `PageShell`，不重复实现背景与容器。

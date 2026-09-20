@@ -6,11 +6,7 @@ import './design/tokens.css'
 import './design/reset.css'
 import VueToastification from 'vue-toastification'
 import 'vue-toastification/dist/index.css'
-import { installDevAdminBypass } from './config/devAdmin'
 import { installBenignPlayAbortGuard } from './utils/benignPlayAbort'
-
-// 开发环境：注入模拟管理员，便于直接查看管理后台（生产构建会被剔除）
-installDevAdminBypass()
 
 const app = createApp(App)
 
