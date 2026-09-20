@@ -1,4 +1,5 @@
 import { replaceUrlSafely } from './routerHistory'
+import { isMobileDevice } from './mobile'
 /**
  * 移动端进入详情 / 歌单页时尝试拉起原生 App。
  *
@@ -17,11 +18,7 @@ const SKIP_QUERY = 'nekoweb'
 /** 同一条资源在几秒内只尝试拉起一次（含 Vue Strict Mode 双挂载、路由重复触发） */
 const OPEN_DEDUPE_MS = 12000
 
-function shouldTryMobile() {
-  if (typeof window === 'undefined') return false
-  const ua = navigator.userAgent || ''
-  return /android|ipad|iphone|ipod/i.test(ua)
-}
+
 
 function stripSkipQueryFromUrl() {
   try {
@@ -80,7 +77,7 @@ function shouldFireNativeOpen(kind, id) {
  * @param {string} schemeUrl
  */
 function tryOpenNative(kind, id, webPath, schemeUrl) {
-  if (!id || !shouldTryMobile()) return
+  if (!id || !isMobileDevice()) return
 
   try {
     const u = new URL(window.location.href)

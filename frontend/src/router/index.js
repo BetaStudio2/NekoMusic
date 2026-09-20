@@ -1,11 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-// 检查是否是移动设备
-function isMobileDevice() {
-  const userAgent = navigator.userAgent || navigator.vendor || window.opera
-  return /android|ipad|iphone|ipod/i.test(userAgent)
-}
-
 // 检查管理员是否已登录
 function isAdminLoggedIn() {
   return localStorage.getItem('isAdminLoggedIn') === 'true';
@@ -351,21 +345,14 @@ const router = createRouter({
   ]
 })
 
-// 全局路由守卫 - 更新页面标题和元数据 + 移动设备检测
+// 全局路由守卫 - 更新页面标题和元数据
 // （router v5：用返回值代替已弃用的 next 回调）
+//
+// 这里【不再】把移动设备硬重定向到 /download。原先手机访问首页 / 搜索 /
+// 收藏等会被直接踢走，整站手机端不可用。App 导流改由 MobileAppBanner
+// 软引导横幅承担（见 src/components/MobileAppBanner.vue），
+// 真正的「拉起 App」由 src/utils/nativeAppOpen.js 负责。
 router.beforeEach((to) => {
-  // 如果是移动设备访问非下载页面、非播放页面、非歌单详情页面、非管理员页面，重定向到下载页面
-  if (isMobileDevice() &&
-      to.path !== '/download' &&
-      to.path !== '/privacy' &&
-      !to.path.startsWith('/detail/') &&
-      !to.path.startsWith('/playlist/') &&
-      !to.path.startsWith('/account') &&
-      !to.path.startsWith('/vip') &&
-      !to.path.startsWith('/admin')) {
-    return '/download'
-  }
-
   // 设置页面标题
   document.title = to.meta.title || 'Neko歌姬计划 - 完全免费的在线音乐播放平台'
 
