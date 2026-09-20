@@ -1,18 +1,21 @@
 <script setup>
 /**
- * AlbumBackground —— AMLL 专辑流动背景
+ * AlbumBackground —— 专辑背景
  * ------------------------------------------------------------
- * 使用官方 @applemusic-like-lyrics/vue 的 BackgroundRender：
- * 以专辑封面为素材生成 WebGL 流动背景（Apple Music 观感）。
+ * 桌面：使用官方 @applemusic-like-lyrics/vue 的 BackgroundRender，
+ *       以专辑封面为素材生成 WebGL 流动背景（Apple Music 观感）。
+ * 手机 / 减弱动效 / 弱设备：换用【静态降级】——封面放大 + 高斯模糊，
+ *       观感接近，但没有每帧全屏着色器的开销（见 useLiteMode）。
  *
  * 音频联动：
  *   通过 useAudioAnalyser 读取 80–120Hz 低频能量，喂给 AMLL 的
  *   lowFreqVolume，使背景随鼓点起伏。分析器未就绪时传 undefined，
- *   AMLL 会退回默认值 1.0（静态流动）。
+ *   AMLL 会退回默认值 1.0（静态流动）。轻量模式下不跑这条 rAF。
  */
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { BackgroundRender } from '@applemusic-like-lyrics/vue'
 import { useAudioAnalyser } from '@/composables/useAudioAnalyser'
+import { useLiteMode } from '@/composables/useLiteMode'
 
 const props = defineProps({
   /** 专辑封面地址 */
@@ -24,6 +27,7 @@ const props = defineProps({
 })
 
 const { ready, readBand } = useAudioAnalyser()
+const { lite } = useLiteMode()
 
 /** 低频音量 0..1；undefined = 交给 AMLL 默认值 */
 const lowFreqVolume = ref(undefined)
@@ -51,7 +55,8 @@ function tick() {
 }
 
 function start() {
-  if (rafId || reducedMotion) return
+  // 轻量模式没有 WebGL 背景可喂，不必空转读频谱
+  if (rafId || reducedMotion || lite.value) return
   rafId = requestAnimationFrame(tick)
 }
 
@@ -69,11 +74,6 @@ function onVisibility() {
 
 onMounted(() => {
   reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false
-
-  if (typeof IntersectionObserver !== 'undefined') {
-    // BackgroundRender 挂在 fixed 容器上，这里以组件宿主判定可见性
-    visible = true
-  }
   document.addEventListener('visibilitychange', onVisibility)
   start()
 })
@@ -93,18 +93,32 @@ watch(
     }
   }
 )
+
+// 降级切换（如窗口从窄拉宽）：按需起停频谱联动
+watch(lite, (v) => {
+  if (v) stop()
+  else start()
+})
 </script>
 
 <template>
   <div class="bg" aria-hidden="true">
+    <!-- 桌面：WebGL 流动背景 -->
     <BackgroundRender
-      v-if="album"
+      v-if="album && !lite"
       class="bg__render"
       :album="album"
       :playing="playing"
       :has-lyric="hasLyric"
       :low-freq-volume="lowFreqVolume"
     />
+    <!-- 轻量：静态模糊封面（观感接近，几乎零成本） -->
+    <div
+      v-else-if="album"
+      class="bg__still"
+      :style="{ backgroundImage: `url('${album}')` }"
+    />
+    <div v-if="lite" class="bg__tint" />
   </div>
 </template>
 
@@ -120,5 +134,25 @@ watch(
 .bg__render {
   width: 100%;
   height: 100%;
+}
+
+/* 静态降级：放大 + 高斯模糊，避免边缘露出底色 */
+.bg__still {
+  position: absolute;
+  inset: -10%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(56px) saturate(1.5);
+  transform: scale(1.08);
+  opacity: 0.6;
+}
+
+/* 压一层主题色，保证与 WebGL 背景的明暗观感一致 */
+.bg__tint {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(1100px 700px at 18% 0%, rgba(95, 208, 224, 0.16), transparent 60%),
+    linear-gradient(180deg, rgba(4, 9, 11, 0.34), rgba(4, 9, 11, 0.5));
 }
 </style>
