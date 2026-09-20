@@ -135,7 +135,8 @@ onUnmounted(() => {
       class="app-player"
       :class="{ 'app-player--hidden': !hasTrack || isDownloadPage || isPlayerPage }"
     >
-      <GlobalPlayer v-if="!isDownloadPage" :chrome-dark="isChromeDarkShell" />
+      <!-- 不能 v-if 卸载：<audio> 是唯一播放源，卸载即打断播放（含下载页） -->
+      <GlobalPlayer :chrome-dark="isChromeDarkShell" />
     </div>
   </div>
 </template>
