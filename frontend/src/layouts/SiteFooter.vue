@@ -115,7 +115,7 @@ const links = [
   margin: 0;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .site-footer__inner {
     grid-template-columns: 1fr;
   }

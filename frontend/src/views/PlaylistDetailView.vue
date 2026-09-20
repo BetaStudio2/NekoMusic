@@ -642,6 +642,14 @@ onMounted(() => {
   }
 }
 
+/* 触摸端没有 hover，遮罩常显一角，提示「这里可以播放」 */
+@media (hover: none) {
+  .row__cover-play {
+    opacity: 1;
+    background: rgba(4, 9, 11, 0.28);
+  }
+}
+
 .row__info {
   display: flex;
   flex-direction: column;
@@ -788,7 +796,7 @@ onMounted(() => {
 }
 
 /* ==================== 响应式 ==================== */
-@media (max-width: 640px) {
+@media (max-width: 560px) {
   .hero__main {
     flex-direction: column;
     align-items: flex-start;

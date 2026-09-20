@@ -126,7 +126,7 @@ function goBack() {
   .err__note { animation: none; }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 560px) {
   .err__actions :deep(.n-btn) {
     width: 100%;
     justify-content: center;

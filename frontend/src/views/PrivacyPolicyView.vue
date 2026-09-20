@@ -24,8 +24,17 @@ const toc = [
 
 /* ===== 目录：滚动高亮（scroll-spy）+ 点击平滑滚动 ===== */
 const activeId = ref('')
-/** 与 .block 的 scroll-margin-top 对齐的停靠线 */
-const STOP_LINE = 80
+/**
+ * 与 .block 的 scroll-margin-top 对齐的停靠线：
+ * 顶栏在手机上会变成两行并叠加安全区（约 100–150px），写死 80 会让目录
+ * 高亮与实际章节错位。这里读取 App 注入到 #app 的实测高度。
+ */
+function headerHeight() {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue('--app-header-h')
+  const appEl = document.getElementById('app')
+  const v = appEl ? getComputedStyle(appEl).getPropertyValue('--app-header-h') : raw
+  return parseFloat(v) || 64
+}
 /** 点击目录后的平滑滚动期间锁定高亮，避免被途经章节覆盖 */
 let spyLocked = false
 let unlockTimer = null
@@ -59,7 +68,7 @@ function onScroll() {
   let current = ''
   for (const t of toc) {
     const el = document.getElementById(t.id)
-    if (el && el.getBoundingClientRect().top <= STOP_LINE) current = t.id
+    if (el && el.getBoundingClientRect().top <= headerHeight() + 16) current = t.id
   }
   if (!current) current = toc[0].id
   activeId.value = current
@@ -459,7 +468,9 @@ onUnmounted(() => {
 <style scoped>
 .block {
   margin-bottom: var(--n-space-4);
-  scroll-margin-top: calc(var(--n-header-height) + var(--n-space-4));
+  /* 顶栏高度在手机上会变（两行布局 + 安全区），必须用 App 注入的实测值，
+     否则锚点跳转后标题会被顶栏盖住 */
+  scroll-margin-top: calc(var(--app-header-h, var(--n-header-height)) + var(--n-space-4));
 }
 
 .block--last {
@@ -655,8 +666,8 @@ onUnmounted(() => {
     order: 2;
     flex: 0 0 240px;
     position: sticky;
-    top: calc(var(--n-header-height) + var(--n-space-5));
-    max-height: calc(100dvh - var(--n-header-height) - var(--n-space-10));
+    top: calc(var(--app-header-h, var(--n-header-height)) + var(--n-space-5));
+    max-height: calc(100dvh - var(--app-header-h, var(--n-header-height)) - var(--n-space-10));
     overflow-y: auto;
   }
 }
@@ -666,6 +677,7 @@ onUnmounted(() => {
   width: 100%;
   margin: var(--n-space-5) 0;
   overflow-x: auto;
+  /* 手机上 4 列表格要反复左右拖，见下方 ≤560 的卡片化改造 */
   border: 1px solid var(--n-line);
   border-radius: var(--n-radius);
   background: var(--n-surface-sunken);
@@ -702,6 +714,62 @@ onUnmounted(() => {
 .info-table td:first-child {
   color: var(--n-text);
   font-weight: var(--n-weight-semibold);
+}
+
+/* ===== 手机竖屏：表格卡片化 =====
+   760px 最小宽度在 375px 屏上只能露出约四成，用户要反复左右拖。
+   首列（「功能或场景」「权限或能力」）本就是该行的分类名，
+   因此直接隐藏表头、把每行堆叠成一张卡，无需改动 HTML。 */
+@media (max-width: 560px) {
+  .table-wrap {
+    overflow-x: visible;
+  }
+
+  .info-table {
+    min-width: 0;
+  }
+
+  .info-table thead {
+    display: none;
+  }
+
+  .info-table,
+  .info-table tbody,
+  .info-table tr,
+  .info-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .info-table tr {
+    padding: var(--n-space-3) var(--n-space-4);
+    border-bottom: 1px solid var(--n-line-subtle);
+  }
+
+  .info-table tr:last-child {
+    border-bottom: 0;
+  }
+
+  .info-table td {
+    border-bottom: 0;
+    padding: 0 0 var(--n-space-2);
+  }
+
+  .info-table td:first-child {
+    padding-bottom: var(--n-space-1);
+    font-size: var(--n-text-base);
+  }
+
+  .info-table td:last-child {
+    padding-bottom: 0;
+  }
+
+  /* 第 2 列起挂一条竖线，表示「从属于上方分类」 */
+  .info-table td:not(:first-child) {
+    margin-left: 2px;
+    padding-left: var(--n-space-3);
+    border-left: 2px solid var(--n-line);
+  }
 }
 
 .sensitive {

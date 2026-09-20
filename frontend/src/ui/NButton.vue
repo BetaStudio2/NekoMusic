@@ -177,6 +177,28 @@ function onClick(e) {
   aspect-ratio: 1;
 }
 
+/* ===== 触摸设备：补齐可点热区 =====
+   sm/md 尺寸只有 30/38px，手指很容易点不中。这里不动视觉尺寸，
+   而是用一层透明的 ::after 把热区外扩到 --n-tap-min（44px），
+   这样既不会打乱「一排按钮」的既有布局，也能显著降低误触。 */
+@media (hover: none) and (pointer: coarse) {
+  .n-btn--icon-only,
+  .n-btn--round {
+    position: relative;
+  }
+
+  .n-btn--icon-only::after,
+  .n-btn--round::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, var(--n-tap-min, 44px));
+    height: max(100%, var(--n-tap-min, 44px));
+    transform: translate(-50%, -50%);
+  }
+}
+
 /* ===== 变体 · primary ===== */
 .n-btn--primary {
   background: var(--n-gradient-accent);

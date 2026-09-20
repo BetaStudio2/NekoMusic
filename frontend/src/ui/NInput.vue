@@ -218,6 +218,20 @@ function onEnter(e) {
   width: 22px;
   height: 22px;
   border-radius: var(--n-radius-xs);
+  position: relative;
+
+/* 触摸设备：22px 太小，热区外扩到 --n-tap-min（视觉不变） */
+@media (hover: none) and (pointer: coarse) {
+  .n-input__affix::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, var(--n-tap-min, 44px));
+    height: max(100%, var(--n-tap-min, 44px));
+    transform: translate(-50%, -50%);
+  }
+}
   transition: color var(--n-duration-fast) var(--n-ease), background var(--n-duration-fast) var(--n-ease);
 }
 

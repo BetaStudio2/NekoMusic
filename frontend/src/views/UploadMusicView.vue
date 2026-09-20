@@ -1034,7 +1034,8 @@ const handleSubmit = async () => {
 /* ==================== 提示条 ==================== */
 .notice {
   position: sticky;
-  top: calc(var(--n-header-height) + var(--n-space-3));
+  /* 用实测顶栏高度：手机上顶栏两行 + 安全区，写死 64 会被压住 */
+  top: calc(var(--app-header-h, var(--n-header-height)) + var(--n-space-3));
   z-index: var(--n-z-sticky);
   display: flex;
   align-items: center;

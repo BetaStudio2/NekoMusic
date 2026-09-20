@@ -180,7 +180,7 @@ function goBack() {
   justify-content: flex-end;
 }
 
-@media (max-width: 520px) {
+@media (max-width: 560px) {
   .form__actions {
     flex-direction: column-reverse;
   }

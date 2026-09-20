@@ -1755,7 +1755,9 @@ const handleImageError = (event) => {
 
 .pager__controls {
   display: flex;
+  flex-wrap: wrap; /* 手机上「上一页 + 5 个页码 + 下一页」会超出卡片，必须能换行 */
   align-items: center;
+  justify-content: center;
   gap: var(--n-space-3);
 }
 

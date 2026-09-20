@@ -146,6 +146,10 @@ const navGroups = computed(() => {
   flex-direction: column;
   width: 250px;
   height: 100dvh;
+  /* 抽屉贴物理屏边：刘海/状态栏/圆角不能压住品牌与关闭按钮 */
+  padding-top: var(--n-safe-top);
+  padding-left: var(--n-safe-left);
+  padding-bottom: var(--n-safe-bottom);
   border-right: 1px solid var(--n-line);
   background: var(--n-bg-soft);
   backdrop-filter: var(--n-blur);
@@ -158,8 +162,8 @@ const navGroups = computed(() => {
   align-items: center;
   gap: var(--n-space-3);
   flex: none;
-  height: 64px;
-  padding: 0 var(--n-space-5);
+  min-height: 64px;
+  padding: var(--n-space-2) var(--n-space-5);
   border-bottom: 1px solid var(--n-line-subtle);
 }
 
@@ -191,8 +195,8 @@ const navGroups = computed(() => {
   display: none;
   margin-left: auto;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: var(--n-tap-min);
+  height: var(--n-tap-min);
   border-radius: var(--n-radius-xs);
   color: var(--n-text-muted);
   transition: background var(--n-duration-fast) var(--n-ease), color var(--n-duration-fast) var(--n-ease);
@@ -267,7 +271,7 @@ const navGroups = computed(() => {
 }
 
 /* ==================== 移动端：抽屉 ==================== */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .sidebar {
     transform: translateX(-100%);
     transition: transform var(--n-duration) var(--n-ease);
