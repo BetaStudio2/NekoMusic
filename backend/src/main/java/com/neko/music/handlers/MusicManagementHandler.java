@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
+import com.neko.music.service.EmbeddedMetadataSyncService;
 import com.neko.music.util.MusicAssetLocator;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -475,6 +476,9 @@ public class MusicManagementHandler extends HttpServlet {
                 response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                 return;
             }
+
+            // 标题/艺术家/专辑/歌词变更后写回音频文件（保留广告元数据）
+            EmbeddedMetadataSyncService.syncOne(editRequest.getId());
             
             // 获取更新后的音乐信息
             Music updatedMusic = null;

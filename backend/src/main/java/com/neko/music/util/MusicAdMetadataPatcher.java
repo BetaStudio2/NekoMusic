@@ -8,6 +8,8 @@ import org.jaudiotagger.tag.FieldKey;
 import org.jaudiotagger.tag.Tag;
 import org.jaudiotagger.tag.TagException;
 import org.jaudiotagger.tag.flac.FlacTag;
+import org.jaudiotagger.tag.images.Artwork;
+import org.jaudiotagger.tag.images.ArtworkFactory;
 import org.jaudiotagger.tag.id3.AbstractID3v2Tag;
 import org.jaudiotagger.tag.id3.ID3v24Frame;
 import org.jaudiotagger.tag.id3.ID3v24Frames;
@@ -30,10 +32,12 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * 为进入曲库的音频写入平台广告元数据。
+ * 曲库音频标签写入：平台广告元数据 + 曲库元数据（标题/艺术家/专辑/歌词/封面）。
  * <ul>
  *   <li>评论 / 发行方 / 出版者：删除旧值后写入平台文案（整段替换，不拼接）</li>
  *   <li>内嵌歌词：在已有歌词正文最上方插入 LRC 横幅；无内嵌歌词则仅写入横幅；已含同首行则跳过</li>
+ *   <li>{@link #syncLibraryMetadata(Path, LibraryMetadata)}：按曲库数据重写标题/艺术家/专辑/歌词/封面，
+ *       同时重新写入上述广告元数据，因此广告字段不会因重写而丢失</li>
  * </ul>
  */
 public final class MusicAdMetadataPatcher {
@@ -46,12 +50,13 @@ public final class MusicAdMetadataPatcher {
     public static final String ORGANIZATION = "Neko Music";
     public static final String PUBLISHER = "music.cnmsb.xin";
 
-    public static final String LYRICS_BANNER =
-            "[00:00.00]资源来自Neko歌姬计划 Resources from Neko Cloud Music\n"
-                    + "[00:00.00]获取更多无损音乐https://music.cnmsb.xin/ Get more lossless music at https://music.cnmsb.xin/";
-
     public static final String LYRICS_BANNER_FIRST =
             "[00:00.00]资源来自Neko歌姬计划 Resources from Neko Cloud Music";
+
+    public static final String LYRICS_BANNER_SECOND =
+            "[00:00.00]获取更多无损音乐https://music.cnmsb.xin/ Get more lossless music at https://music.cnmsb.xin/";
+
+    public static final String LYRICS_BANNER = LYRICS_BANNER_FIRST + "\n" + LYRICS_BANNER_SECOND;
 
     private MusicAdMetadataPatcher() {
     }
@@ -93,6 +98,111 @@ public final class MusicAdMetadataPatcher {
             return;
         }
         throw new IllegalArgumentException("不支持的扩展名: " + ext);
+    }
+
+    /**
+     * 曲库元数据快照（来自数据库 / 封面目录）。字段为空时保持文件中的原值。
+     */
+    public record LibraryMetadata(String title, String artist, String album, String lyrics, Path coverFile) {
+    }
+
+    /**
+     * 写入标题 / 艺术家 / 专辑 / 内嵌歌词 / 内嵌封面，并保持广告元数据（评论、发行方、出版者、歌词横幅）。
+     * 内嵌歌词整段以曲库正文为准重写，横幅始终位于最上方且不重复。
+     */
+    public static void syncLibraryMetadata(Path audioPath, LibraryMetadata metadata) throws Exception {
+        ensureUserWritable(audioPath);
+
+        String ext = extension(audioPath);
+        if (".wav".equals(ext) || ".wave".equals(ext)) {
+            syncTaggedAudio(audioPath, metadata, false);
+            return;
+        }
+        if (".flac".equals(ext)) {
+            syncTaggedAudio(audioPath, metadata, true);
+            return;
+        }
+        if (".mp3".equals(ext) || ".m4a".equals(ext) || ".mp4".equals(ext) || ".aac".equals(ext)
+                || ".ogg".equals(ext) || ".oga".equals(ext)) {
+            syncTaggedAudio(audioPath, metadata, false);
+            return;
+        }
+        throw new IllegalArgumentException("不支持的扩展名: " + ext);
+    }
+
+    /**
+     * @param flacLyrics true 时按 FLAC 约定写入 {@code lyrics} 字段（deleteField(FieldKey.LYRICS) 在部分实现上不生效）
+     */
+    private static void syncTaggedAudio(Path path, LibraryMetadata metadata, boolean flacLyrics) throws Exception {
+        AudioFile audio = AudioFileIO.read(path.toFile());
+        Tag tag = audio.getTagOrCreateAndSetDefault();
+        applyAdTags(tag);
+        if (tag instanceof FlacTag flac && flacLyrics) {
+            replaceFlacEmbeddedLyrics(flac, metadata.lyrics());
+        } else {
+            replaceEmbeddedLyrics(tag, metadata.lyrics());
+        }
+        setCoreTags(tag, metadata);
+        setCoverArt(tag, metadata.coverFile());
+        AudioFileIO.write(audio);
+    }
+
+    /** 写入广告字段：评论、发行方、出版者。各格式自行选择字段，不触碰其他标签。 */
+    private static void applyAdTags(Tag tag) throws TagException {
+        replaceComment(tag);
+        if (tag instanceof AbstractID3v2Tag id3) {
+            replaceId3OrganizationAndPublisher(id3);
+        } else if (tag instanceof FlacTag flac) {
+            flac.setField("ORGANIZATION", ORGANIZATION);
+            flac.setField("PUBLISHER", PUBLISHER);
+        } else if (tag instanceof Mp4Tag mp4) {
+            mp4.setField(Mp4FieldKey.LABEL, ORGANIZATION);
+            mp4.setField(Mp4FieldKey.MM_PUBLISHER, PUBLISHER);
+        }
+    }
+
+    /** 内嵌歌词整段替换为「横幅 + 曲库正文」。 */
+    private static void replaceEmbeddedLyrics(Tag tag, String lyricsBody) throws TagException {
+        tag.deleteField(FieldKey.LYRICS);
+        tag.setField(FieldKey.LYRICS, mergeLyricsWithBanner(stripBannerLines(lyricsBody)));
+    }
+
+    private static void replaceFlacEmbeddedLyrics(FlacTag flac, String lyricsBody) throws TagException {
+        flac.deleteField("lyrics");
+        flac.deleteField("LYRICS");
+        flac.deleteField(FieldKey.LYRICS);
+        flac.setField("lyrics", mergeLyricsWithBanner(stripBannerLines(lyricsBody)));
+    }
+
+    private static void setCoreTags(Tag tag, LibraryMetadata metadata) {
+        setFieldIfPresent(tag, FieldKey.TITLE, metadata.title());
+        setFieldIfPresent(tag, FieldKey.ARTIST, metadata.artist());
+        setFieldIfPresent(tag, FieldKey.ALBUM, metadata.album());
+    }
+
+    private static void setFieldIfPresent(Tag tag, FieldKey key, String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        try {
+            tag.setField(key, value.trim());
+        } catch (Exception e) {
+            logger.debug("写入标签失败 key={}: {}", key, e.toString());
+        }
+    }
+
+    /** 内嵌封面：删除旧封面后写入封面目录中的当前文件；格式不支持时只记日志。 */
+    private static void setCoverArt(Tag tag, Path coverFile) {
+        if (coverFile == null || !Files.isRegularFile(coverFile)) {
+            return;
+        }
+        try {
+            Artwork artwork = ArtworkFactory.createArtworkFromFile(coverFile.toFile());
+            tag.deleteArtworkField();
+            tag.setField(artwork);
+        } catch (Exception e) {
+            logger.warn("写入内嵌封面失败 file={}: {}", coverFile, e.toString());
+        }
     }
 
     private static void patchMp3(Path path) throws Exception {
@@ -346,6 +456,22 @@ public final class MusicAdMetadataPatcher {
             return LYRICS_BANNER.trim();
         }
         return (LYRICS_BANNER + existingBody).trim();
+    }
+
+    /** 去掉正文中已存在的横幅行（管理员可能直接粘贴带横幅的歌词），避免重写后横幅叠加。 */
+    static String stripBannerLines(String body) {
+        if (body == null || body.isBlank()) {
+            return "";
+        }
+        String first = LYRICS_BANNER_FIRST.trim();
+        String second = LYRICS_BANNER_SECOND.trim();
+        return body.lines()
+                .filter(line -> {
+                    String trimmed = line.trim();
+                    return !first.equals(trimmed) && !second.equals(trimmed);
+                })
+                .collect(java.util.stream.Collectors.joining("\n"))
+                .strip();
     }
 
     private static String safeFirst(Tag tag, FieldKey key) {

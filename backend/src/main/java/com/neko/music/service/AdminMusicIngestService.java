@@ -146,6 +146,9 @@ public class AdminMusicIngestService {
                 com.neko.music.Main.getLyricsSearchIndex().rebuildOne(musicId);
             }
 
+            // 曲库落盘后把歌词/封面/基础标签同步进音频文件（同时保留广告元数据）
+            EmbeddedMetadataSyncService.syncOne(musicId);
+
             IngestedMusic row = loadIngestedMusic(musicId);
             if (Main.getMusicRecognitionService() != null) {
                 Main.getMusicRecognitionService().invalidateIndex();
