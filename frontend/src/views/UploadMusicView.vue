@@ -73,8 +73,9 @@
             </template>
           </div>
 
-          <details class="guide">
-            <summary class="guide__summary">双语歌词格式说明</summary>
+          <!-- 格式说明常驻展开：说明本身是使用前提，不做折叠 -->
+          <section class="guide">
+            <h3 class="guide__title">双语歌词格式说明</h3>
             <p class="guide__text">第一行为「时间戳 + 原文」，第二行为 JSON 翻译；没有翻译时只保留原文行。</p>
             <pre class="guide__code">[00:00.389] ざこざこざこざこ くだらない存在 あわれだね
 {"杂鱼杂鱼杂鱼杂鱼 无聊的存在 真可怜呢"}
@@ -86,7 +87,7 @@
               <li>翻译使用 <code>{"翻译内容"}</code></li>
               <li>没有翻译可以只保留原文行</li>
             </ul>
-          </details>
+          </section>
         </NCard>
       </div>
 
@@ -1179,17 +1180,19 @@ const handleSubmit = async () => {
 /* ==================== 歌词格式说明 ==================== */
 .guide {
   margin-top: var(--n-space-4);
+  padding-top: var(--n-space-4);
+  border-top: 1px solid var(--n-line);
 }
 
-.guide__summary {
-  color: var(--n-text-muted);
+.guide__title {
+  margin: 0 0 var(--n-space-2);
+  color: var(--n-text);
   font-size: var(--n-text-sm);
-  font-weight: var(--n-weight-medium);
-  cursor: pointer;
+  font-weight: var(--n-weight-bold);
 }
 
 .guide__text {
-  margin: var(--n-space-3) 0;
+  margin: 0 0 var(--n-space-3);
   color: var(--n-text-faint);
   font-size: var(--n-text-xs);
   line-height: var(--n-leading-normal);
