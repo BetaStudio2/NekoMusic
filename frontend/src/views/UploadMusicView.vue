@@ -902,6 +902,33 @@ const showUploadResultToast = (result, fallbackMessage) => {
   return false
 }
 
+/**
+ * 带真实上传进度的 POST。
+ * fetch 不支持上传进度，只有 XHR 的 `upload.onprogress` 能拿到已发送字节数；
+ * 发送阶段最多报到 99%，剩下的 1% 留给服务端处理，收到响应后再由调用方置 100。
+ */
+function uploadWithProgress(url, form, token, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', url)
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+    }
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable || !event.total) return
+      onProgress(Math.min(99, Math.round((event.loaded / event.total) * 100)))
+    }
+    xhr.onload = () => {
+      onProgress(100)
+      resolve({ status: xhr.status, responseText: xhr.responseText })
+    }
+    xhr.onerror = () => reject(new Error('网络错误，上传失败'))
+    xhr.onabort = () => reject(new Error('上传已取消'))
+    xhr.ontimeout = () => reject(new Error('上传超时'))
+    xhr.send(form)
+  })
+}
+
 const handleSubmit = async () => {
   
   if (!musicFile.value) {
@@ -938,20 +965,12 @@ const handleSubmit = async () => {
 
     const uploadUrl = `${API_CONFIG.BASE_URL}/api/user/upload`
     const token = localStorage.getItem('userToken')
-    const headers = {}
-    if (token) {
-      headers.Authorization = `Bearer ${token}`
-    }
 
-    uploadProgress.value = 10
-    const response = await fetch(uploadUrl, {
-      method: 'POST',
-      headers,
-      body: form
+    uploadProgress.value = 0
+    const { status, responseText } = await uploadWithProgress(uploadUrl, form, token, (percent) => {
+      uploadProgress.value = percent
     })
-    uploadProgress.value = 100
 
-    const responseText = await response.text()
     let result = {}
     try {
       result = responseText ? JSON.parse(responseText) : {}
@@ -959,7 +978,7 @@ const handleSubmit = async () => {
       console.error('上传接口返回内容不是JSON:', responseText)
     }
 
-    const fallbackMessage = result.error || responseText || `上传失败（HTTP ${response.status}）`
+    const fallbackMessage = result.error || responseText || `上传失败（HTTP ${status}）`
 
     if (showUploadResultToast(result, fallbackMessage)) {
       setTimeout(() => {
