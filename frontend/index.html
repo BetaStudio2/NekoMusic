@@ -2,62 +2,131 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <link rel="icon" href="/favicon.ico">
+    <link rel="icon" href="/favicon.ico" sizes="any">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
-    <meta name="description" content="Neko歌姬计划 - 原Neko云音乐 官方网站 (Neko Music) - 完全免费的开源在线音乐播放平台。无需付费，永久免费，支持全平台搜索。">
-    <meta name="keywords" content="Neko歌姬计划,Neko云音乐,Neko Music,免费音乐,在线音乐">
-    <meta name="author" content="NekoMusic">
-    <meta name="robots" content="index, follow">
+    <meta name="description" content="Neko歌姬计划（原Neko云音乐）官方网站：完全免费、开源、无广告的在线音乐播放平台，支持音乐搜索、高品质试听、歌单收藏与多端同步。Free, ad-free, open-source music streaming for everyone.">
+    <meta name="keywords" content="Neko歌姬计划,Neko云音乐,Neko Music,免费音乐,在线音乐,免费听歌,音乐播放器,开源音乐,无广告音乐,在线音乐播放">
+    <meta name="author" content="FantasyNetworkCN">
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+    <meta name="googlebot" content="index, follow, max-image-preview:large">
+    <meta name="bingbot" content="index, follow">
     <meta name="theme-color" content="#04090b">
+    <meta name="color-scheme" content="dark">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
 
     <meta name="google-site-verification" content="NKqMcFjak7GMgc28fy_P9iMgM1wKoJjSIzeHl1bwNIs">
 
     <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Neko歌姬计划 (Neko Music)">
     <meta property="og:url" content="https://music.cnmsb.xin/">
-    <meta property="og:title" content="Neko歌姬计划官方网站(原Neko云音乐) - 纯粹、免费、开源的在线音乐天堂 | Neko Music Heaven">
+    <meta property="og:title" content="Neko歌姬计划官方网站（原Neko云音乐）- 纯粹、免费、开源的在线音乐天堂 | Neko Music Heaven">
     <meta property="og:description" content="完全免费的在线音乐播放平台，支持高品质音频。A pure, free, and open-source music paradise for everyone.">
     <meta property="og:image" content="https://music.cnmsb.xin/og-image.jpg">
+    <meta property="og:image:type" content="image/jpeg">
+    <meta property="og:image:width" content="1024">
+    <meta property="og:image:height" content="559">
+    <meta property="og:image:alt" content="Neko歌姬计划 - 免费开源在线音乐播放平台 / Neko Music, a free open-source online music player">
     <meta property="og:locale" content="zh_CN">
     <meta property="og:locale:alternate" content="en_US">
 
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://music.cnmsb.xin/">
-    <meta property="twitter:title" content="Neko Music - Free Open Source Online Music Platform">
-    <meta property="twitter:description" content="No ads, high performance, and forever free music streaming service.">
-    <meta property="twitter:image" content="https://music.cnmsb.xin/og-image.jpg">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://music.cnmsb.xin/">
+    <meta name="twitter:title" content="Neko Music - Free Open Source Online Music Platform">
+    <meta name="twitter:description" content="No ads, high performance, and forever free music streaming service.">
+    <meta name="twitter:image" content="https://music.cnmsb.xin/og-image.jpg">
+    <meta name="twitter:image:alt" content="Neko Music - free and open-source online music platform">
 
     <link rel="canonical" href="https://music.cnmsb.xin/">
+    <link rel="alternate" hreflang="zh-CN" href="https://music.cnmsb.xin/">
+    <link rel="alternate" hreflang="x-default" href="https://music.cnmsb.xin/">
+    <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml">
     <link rel="preconnect" href="https://music.cnmsb.xin">
     <link rel="dns-prefetch" href="https://music.cnmsb.xin">
 
-    <title>Neko歌姬计划(原Neko云音乐) - 完全免费的在线音乐播放平台 | Neko Music Free Online Player</title>
+    <title>Neko歌姬计划（原Neko云音乐）- 完全免费的在线音乐播放平台 | Neko Music Free Online Player</title>
 
+    <!--
+      结构化数据：用 @graph 把「组织 → 站点 → 应用 → 页面」串成一张图，
+      比过去单个 WebApplication 更容易被搜索引擎理解实体关系。
+    -->
     <script type="application/ld+json">
         {
             "@context": "https://schema.org",
-            "@type": "WebApplication",
-            "name": "Neko歌姬计划",
-            "alternateName": ["Neko Music", "NekoMusic"],
-            "url": "https://music.cnmsb.xin/",
-            "description": "完全免费的在线音乐播放平台。Free and open-source online music streaming platform.",
-            "applicationCategory": "MultimediaApplication",
-            "operatingSystem": "Web, Android, Windows, Linux",
-            "logo": "https://music.cnmsb.xin/favicon.png",
-            "sameAs": [
-                "https://github.com/FantasyNetworkCN/NekoMusicForAndroid"
-            ],
-            "offers": {
-                "@type": "Offer",
-                "price": "0",
-                "priceCurrency": "CNY",
-                "description": "Permanently Free / 永久免费"
-            },
-            "potentialAction": {
-                "@type": "SearchAction",
-                "target": "https://music.cnmsb.xin/search/{search_term_string}",
-                "query-input": "required name=search_term_string"
-            }
+            "@graph": [
+                {
+                    "@type": "Organization",
+                    "@id": "https://music.cnmsb.xin/#organization",
+                    "name": "Neko歌姬计划",
+                    "alternateName": ["Neko云音乐", "Neko Music", "NekoMusic"],
+                    "url": "https://music.cnmsb.xin/",
+                    "logo": {
+                        "@type": "ImageObject",
+                        "url": "https://music.cnmsb.xin/favicon.ico"
+                    },
+                    "sameAs": [
+                        "https://github.com/FantasyNetworkCN/NekoMusic",
+                        "https://github.com/FantasyNetworkCN/NekoMusicForAndroid",
+                        "https://github.com/FantasyNetworkCN/NekoMusicForPc",
+                        "https://github.com/FantasyNetworkCN/NekoMusicDocs"
+                    ]
+                },
+                {
+                    "@type": "WebSite",
+                    "@id": "https://music.cnmsb.xin/#website",
+                    "url": "https://music.cnmsb.xin/",
+                    "name": "Neko歌姬计划",
+                    "alternateName": "Neko Music",
+                    "inLanguage": ["zh-CN", "en"],
+                    "publisher": { "@id": "https://music.cnmsb.xin/#organization" },
+                    "potentialAction": {
+                        "@type": "SearchAction",
+                        "target": {
+                            "@type": "EntryPoint",
+                            "urlTemplate": "https://music.cnmsb.xin/search/{search_term_string}"
+                        },
+                        "query-input": "required name=search_term_string"
+                    }
+                },
+                {
+                    "@type": "WebApplication",
+                    "@id": "https://music.cnmsb.xin/#webapp",
+                    "name": "Neko歌姬计划（Neko Music）",
+                    "url": "https://music.cnmsb.xin/",
+                    "description": "完全免费的在线音乐播放平台，支持音乐搜索、高品质试听与歌单收藏。Free and open-source online music streaming platform.",
+                    "applicationCategory": "MultimediaApplication",
+                    "operatingSystem": "Web, Android, Windows, Linux",
+                    "browserRequirements": "Requires JavaScript",
+                    "inLanguage": ["zh-CN", "en"],
+                    "isAccessibleForFree": true,
+                    "codeRepository": "https://github.com/FantasyNetworkCN/NekoMusic",
+                    "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+                    "isPartOf": { "@id": "https://music.cnmsb.xin/#website" },
+                    "offers": {
+                        "@type": "Offer",
+                        "price": "0",
+                        "priceCurrency": "CNY",
+                        "availability": "https://schema.org/InStock",
+                        "description": "Permanently Free / 永久免费"
+                    }
+                },
+                {
+                    "@type": "WebPage",
+                    "@id": "https://music.cnmsb.xin/#webpage",
+                    "url": "https://music.cnmsb.xin/",
+                    "name": "Neko歌姬计划（原Neko云音乐）- 完全免费的在线音乐播放平台 | Neko Music Free Online Player",
+                    "description": "完全免费、开源、无广告的在线音乐播放平台，支持音乐搜索、高品质试听、歌单收藏与多端同步。",
+                    "inLanguage": "zh-CN",
+                    "isPartOf": { "@id": "https://music.cnmsb.xin/#website" },
+                    "about": { "@id": "https://music.cnmsb.xin/#webapp" },
+                    "primaryImageOfPage": {
+                        "@type": "ImageObject",
+                        "url": "https://music.cnmsb.xin/og-image.jpg",
+                        "width": 1024,
+                        "height": 559
+                    }
+                }
+            ]
         }
     </script>
 
@@ -78,22 +147,7 @@
             min-height: 100%;
             background: #07060d;
         }
-        .skip-link {
-            position: absolute;
-            left: -9999px;
-            top: 0;
-            z-index: 99999;
-            padding: 8px 16px;
-            background: #22d3ee;
-            color: #07060d;
-            font-weight: 600;
-            text-decoration: none;
-            border-radius: 8px;
-        }
-        .skip-link:focus {
-            left: 8px;
-            top: 8px;
-        }
+
         #app {
             position: relative;
             min-height: 100vh;
