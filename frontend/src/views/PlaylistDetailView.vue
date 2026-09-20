@@ -2,19 +2,10 @@
   <div class="pl-detail">
     <AmbientBackdrop />
 
-    <div v-if="isMobile && showBanner" class="banner">
-      <span>下载 App 获得更好体验</span>
-      <RouterLink to="/download" class="banner__btn">立即下载</RouterLink>
-      <button type="button" class="banner__close" aria-label="关闭" @click="closeBanner">
-        <NIcon name="close" :size="16" />
-      </button>
-    </div>
-
     <PageShell width="default">
       <!-- 歌单头 -->
       <section class="hero">
         <NButton
-          v-if="!isMobile"
           class="hero__back"
           variant="ghost"
           size="sm"
@@ -161,21 +152,6 @@ const isOwner = computed(() => {
   if (!currentUser.value || !playlist.value) return false
   return currentUser.value.id === playlist.value.userId
 })
-
-// 移动端检测
-const isMobile = computed(() => {
-  const userAgent = navigator.userAgent || navigator.vendor || window.opera
-  return /android|ipad|iphone|ipod/i.test(userAgent)
-})
-
-// 下载横幅显示状态
-const showBanner = ref(true)
-
-// 关闭下载横幅
-const closeBanner = () => {
-  showBanner.value = false
-  localStorage.setItem('mobileDownloadBannerClosed', 'true')
-}
 
 const getToken = () => {
   return localStorage.getItem('userToken')
@@ -444,10 +420,8 @@ const goBack = () => {
 }
 
 onMounted(() => {
-  if (typeof localStorage !== 'undefined' && localStorage.getItem('mobileDownloadBannerClosed') === 'true') {
-    showBanner.value = false
-  }
-  if (isMobile.value && playlistId.value) {
+  // 手机端尝试拉起原生 App（无 App 时会带 nekoweb=1 回到本页，不死循环）
+  if (playlistId.value) {
     tryOpenPlaylistInApp(playlistId.value)
   }
   fetchPlaylistDetail()
@@ -461,37 +435,8 @@ onMounted(() => {
 }
 
 /* ==================== 移动下载横幅 ==================== */
-.banner {
-  position: relative;
-  z-index: var(--n-z-sticky);
-  display: flex;
-  align-items: center;
-  gap: var(--n-space-3);
-  padding: var(--n-space-3) var(--n-content-gutter);
-  background: var(--n-accent-soft);
-  border-bottom: 1px solid var(--n-accent-line);
-  color: var(--n-text);
-  font-size: var(--n-text-sm);
-}
 
-.banner__btn {
-  margin-left: auto;
-  padding: 6px 14px;
-  border-radius: var(--n-radius-control);
-  background: var(--n-accent);
-  color: var(--n-text-inverse);
-  font-weight: var(--n-weight-semibold);
-  font-size: var(--n-text-sm);
-}
 
-.banner__close {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--n-radius-xs);
-  color: var(--n-text-muted);
-}
 
 /* ==================== 歌单头 ==================== */
 .hero {

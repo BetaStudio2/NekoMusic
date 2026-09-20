@@ -14,11 +14,6 @@ import { useToast } from '@/composables/useToast'
 const toast = useToast()
 const router = useRouter()
 
-const isMobile = computed(() => {
-  const ua = navigator.userAgent || navigator.vendor || window.opera
-  return /android|ipad|iphone|ipod/i.test(ua)
-})
-
 const playlistName = ref('')
 const playlistDescription = ref('')
 const submitting = ref(false)
@@ -69,7 +64,6 @@ function goBack() {
   <PageShell width="narrow" flush-top>
     <header class="head">
       <NButton
-        v-if="!isMobile"
         class="head__back"
         variant="ghost"
         size="sm"

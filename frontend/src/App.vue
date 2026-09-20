@@ -15,6 +15,8 @@ import { RouterView, useRoute } from 'vue-router'
 import SiteHeader from './layouts/SiteHeader.vue'
 import SiteFooter from './layouts/SiteFooter.vue'
 import GlobalPlayer from './components/GlobalPlayer.vue'
+import MobileAppBanner from './components/MobileAppBanner.vue'
+import { isMobileDevice } from './utils/mobile.js'
 
 const route = useRoute()
 
@@ -29,6 +31,22 @@ const isPlayerPage = computed(() => route.name === 'detail')
 
 /** 内容区全幅（去掉 main 内边距，由页面自行控制） */
 const isFlushMain = computed(() => !String(route.name || '').startsWith('admin'))
+
+/** 管理后台 */
+const isAdminPage = computed(() => String(route.name || '').startsWith('admin'))
+
+/**
+ * 手机端「下载 APP」软引导横幅。
+ * 原先手机访问首页/搜索/收藏等会被路由守卫【硬重定向】到 /download，
+ * 整站手机端不可用；改为可关闭的横幅后导流仍在但不阻断浏览。
+ *
+ * UA 在应用生命周期内不会变，因此在 setup 里【取一次】再进 computed ——
+ * 把非响应式的 isMobileDevice() 直接写进 computed 会让人误以为它会跟着变。
+ */
+const isMobileUA = isMobileDevice()
+const showAppBanner = computed(
+  () => isMobileUA && !isDownloadPage.value && !isAdminPage.value
+)
 
 /** 深色 chrome：管理后台除外 */
 const isChromeDarkShell = computed(() => !String(route.name || '').startsWith('admin'))
@@ -102,6 +120,8 @@ onUnmounted(() => {
       :inert="isDownloadPage || null"
       :aria-hidden="isDownloadPage || undefined"
     />
+
+    <MobileAppBanner v-if="showAppBanner" />
 
     <main :class="{ 'main--flush': isFlushMain }">
       <RouterView />

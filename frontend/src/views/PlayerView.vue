@@ -69,14 +69,8 @@
           </div>
         </header>
 
-        <!-- 移动设备下载提示 -->
-        <div v-if="isMobile && showBanner" class="np__banner">
-          <span>下载 APP 体验更好</span>
-          <RouterLink to="/download" class="np__banner-btn">立即下载</RouterLink>
-          <button type="button" class="np-icon np-icon--sm" aria-label="关闭" @click="closeBanner">
-            <NIcon name="close" :size="15" />
-          </button>
-        </div>
+        <!-- 移动设备下载提示：全屏覆盖层盖住了 App 的通栏横幅，这里用卡片式 -->
+        <MobileAppBanner v-if="isMobile" variant="card" class="np__app-banner" />
 
         <!-- 主体 -->
         <div class="np__body">
@@ -321,6 +315,8 @@ import { NButton, NModal, NSpinner } from '@/ui'
 import SpectrumCanvas from '@/components/SpectrumCanvas.vue'
 import LyricsWall from '@/components/LyricsWall.vue'
 import AlbumBackground from '@/components/AlbumBackground.vue'
+import MobileAppBanner from '@/components/MobileAppBanner.vue'
+import { isMobileDevice } from '@/utils/mobile.js'
 import { usePlaybackBridge } from '@/composables/usePlaybackBridge'
 
 const toast = useToast()
@@ -342,7 +338,6 @@ const lyrics = ref('')
 const parsedLyrics = ref([])
 const favoriteMusicIds = ref(new Set()) // 存储收藏的音乐ID
 const isMobile = ref(false)
-const showBanner = ref(true)
 const userIsVip = ref(false)
 
 const videoModalOpen = ref(false)
@@ -373,16 +368,9 @@ const clipPreviewBlobUrlByMusicId = new Map()
 let clipPreviewLoading = false
 
 // 检测是否是移动设备
-const checkMobile = () => {
-  const userAgent = navigator.userAgent || navigator.vendor || window.opera
-  return /android|ipad|iphone|ipod/i.test(userAgent)
-}
+const checkMobile = () => isMobileDevice()
 
 // 关闭横幅
-const closeBanner = () => {
-  showBanner.value = false
-}
-
 // 获取音乐详情
 const fetchMusicDetail = async (musicId) => {
   try {
@@ -1399,34 +1387,12 @@ onUnmounted(() => {
   box-shadow: 0 0 0 3px var(--n-accent-soft);
 }
 
-/* ===== 移动端下载提示 ===== */
-.np__banner {
+/* ===== 移动端下载提示（卡片式，见 MobileAppBanner） ===== */
+.np__app-banner {
   position: relative;
   z-index: 2;
   flex: none;
-  display: flex;
-  align-items: center;
-  gap: var(--n-space-3);
-  margin: 0 clamp(20px, 4vw, 56px);
-  padding: var(--n-space-3) var(--n-space-4);
-  border: 1px solid var(--n-line);
-  border-radius: var(--n-radius-control);
-  background: var(--n-surface);
-  font-size: var(--n-text-sm);
-  color: var(--n-text-muted);
-}
-
-.np__banner-btn {
-  margin-left: auto;
-  color: var(--n-accent);
-  font-weight: var(--n-weight-semibold);
-  text-decoration: none;
-}
-
-@media (hover: hover) {
-  .np__banner-btn:hover {
-    color: var(--n-accent-strong);
-  }
+  margin-top: var(--n-space-2);
 }
 
 /* ===== 主体 ===== */
