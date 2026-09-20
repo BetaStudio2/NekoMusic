@@ -312,8 +312,7 @@ frontend/
 - **原子组件** `src/ui/`：`NButton` `NCard` `NInput` `NTag` `NSpinner` `NModal`。
 - **组合式函数** `src/composables/`：`useTheme`、`useToast`；`src/utils/format.js` 格式化。
 - **布局壳** `src/layouts/`：`AppShell`（环境光 + 顶栏 + 内容 + 播放器 + 页脚）、`PageShell`（宽度 + 标题区）、`AmbientBackdrop`。
-- **自检页** `/__kit`：开发环境可视化验证全部基础层（`KitView.vue`）。
-  **决策：迁移期间全程保留**，作为组件用法与视觉效果的参考样板；**待全部页面迁移完成后再移除**（见 §8.2 批次 7）。
+- ~~**自检页** `/__kit`：开发环境可视化验证全部基础层（`KitView.vue`）。~~ 已随清理移除。
 
 新框架与旧代码当前**并存**：`main.js` 额外引入两份 CSS，旧页面不受影响。
 
@@ -423,7 +422,7 @@ home-page（自建 ambient + 自建变量集）
 | 4 | ✅ 复杂页 | PlayerView / UploadMusicView / UserVipView / UserProfileView 已迁移；**登录与注册合并为单卡片切换**（`layouts/AuthPanel.vue`，含高度过渡 + 淡入淡出 + 滑动指示块）；DownloadView 一并迁移（用户端已全部完成） |
 | 5 | ✅ 管理端 | 全部 7 页 + 管理登录已迁移；`AdminLayout`/`AdminSidebar` 重制（分组式圆角导航）；`.admin-layout` 皮肤改为令牌版。**待收尾**：删除 `main.css` 的 `!important` 皮肤与各页遗留的浅色 scoped 样式 |
 | 6 | 播放器 | GlobalPlayer 重构 + 抽出 `usePlayer`/`useLyrics`/`useMediaSession`；收敛全局契约 |
-| 7 | 清理 | 删除 `main.css` 废弃段与旧组件（`glassShell.css` 此前已随用户端完成而删除）；**此时**移除 `/__kit` 与 `KitView.vue`（迁移期间一直保留） |
+| 7 | 清理 | 删除 `main.css` 废弃段与旧组件（`glassShell.css` 此前已随用户端完成而删除）；移除 `/__kit` 与 `KitView.vue`（**已移除**，同时移除开发用 `devAdmin` 管理员直通） |
 
 ### 8.3 每页迁移检查清单
 
