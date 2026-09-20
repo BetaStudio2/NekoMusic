@@ -28,6 +28,36 @@ function weakHardware() {
   return false
 }
 
+/**
+ * WebGL 能力探测（只做一次，结果缓存）。
+ *
+ * AMLL 的 BackgroundRender 依赖【浮点渲染目标】：WebGL2 下需要
+ * EXT_color_buffer_float。缺这个扩展时 Pixi 会打出
+ *   EXT_color_buffer_float not supported
+ * 并退回低保真路径（画面发灰、丢效果）。与其让它半残地跑，
+ * 不如直接判定为轻量模式、换我们的静态模糊封面 —— 观感反而更稳。
+ */
+let webglCapable = null
+
+function supportsAmllBackground() {
+  if (webglCapable !== null) return webglCapable
+  try {
+    const canvas = document.createElement('canvas')
+    const gl = canvas.getContext('webgl2')
+    // 拿不到 WebGL2 就不代 AMLL 做判断（它可能走 WebGL1 路径）
+    if (!gl) {
+      webglCapable = true
+      return webglCapable
+    }
+    webglCapable = !!gl.getExtension('EXT_color_buffer_float')
+    // 立刻释放：浏览器同时可存活的 WebGL 上下文有限，别占配额
+    gl.getExtension('WEBGL_lose_context')?.loseContext()
+  } catch {
+    webglCapable = false
+  }
+  return webglCapable
+}
+
 export function useLiteMode() {
   const lite = ref(false)
 
@@ -37,6 +67,8 @@ export function useLiteMode() {
     if (!value && window.matchMedia?.(TOUCH_QUERY)?.matches) {
       value = weakHardware()
     }
+    // 设备跑不动 AMLL 的 WebGL 背景（缺浮点渲染目标）→ 也用静态降级
+    if (!value) value = !supportsAmllBackground()
     lite.value = value
   }
 
