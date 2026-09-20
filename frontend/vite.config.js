@@ -1,19 +1,11 @@
 import { fileURLToPath, URL } from 'node:url'
 
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
 // https://vite.dev/config/
-export default defineConfig(({ command, mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
-
-  // 开发联调代理：设置 VITE_DEV_PROXY_TARGET 后，把 /api 与 /version 代理到该后端。
-  // 好处：前端与接口/音频/封面变成【同源】，彻底绕开跨域，
-  // 同时让 Web Audio 的 AnalyserNode 读取到的是同源媒体（不会被判为「污染」而静音）。
-  // 未设置该变量时不注册代理，生产构建不受影响（proxy 仅作用于 dev server）。
-  const proxyTarget = env.VITE_DEV_PROXY_TARGET
-
+export default defineConfig(({ command }) => {
   return {
     plugins: [
       vue(),
@@ -70,12 +62,6 @@ export default defineConfig(({ command, mode }) => {
       allowedHosts: ['music.cnmsb.xin', 'localhost'],
       // 开发环境也启用生产级别的优化
       hmr: true,
-      proxy: proxyTarget
-        ? {
-            '/api': { target: proxyTarget, changeOrigin: true, secure: false },
-            '/version': { target: proxyTarget, changeOrigin: true, secure: false },
-          }
-        : undefined,
     },
     // 确保开发和生产环境行为一致
     define: {

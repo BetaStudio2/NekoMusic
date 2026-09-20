@@ -41,7 +41,6 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
-import com.neko.music.filter.CorsFilter;
 import com.neko.music.filter.IPRateLimitFilter;
 import com.neko.music.util.ClientReleaseStorage;
 import com.neko.music.util.SiteResourceStorage;
@@ -250,7 +249,6 @@ public class Main {
 
         // IP 限流需在嵌入式 Jetty 中显式注册（@WebFilter 不会生效）
         context.addFilter(IPRateLimitFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
-        context.addFilter(CorsFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
 
         // 前端静态资源 + 全部 API/页面路由（详见 ServletRegistrar）
         ServletRegistrar.register(context, configManager);
