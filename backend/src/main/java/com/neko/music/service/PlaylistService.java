@@ -31,6 +31,9 @@ public class PlaylistService {
         ORDER BY pl.created_at DESC
         """;
 
+    private static final String SQL_PLAYLIST_COLUMNS =
+            "SELECT id, user_id, name, description, music_count, created_at, updated_at FROM playlists";
+
     private final DatabaseManager databaseManager;
 
     public PlaylistService(DatabaseManager databaseManager) {
@@ -83,8 +86,7 @@ public class PlaylistService {
         logger.info("获取用户歌单: userId={}", userId);
 
         List<Playlist> playlists = new ArrayList<>();
-        String sql = "SELECT id, user_id, name, description, music_count, created_at, updated_at " +
-                     "FROM playlists WHERE user_id = ? ORDER BY created_at DESC";
+        String sql = SQL_PLAYLIST_COLUMNS + " WHERE user_id = ? ORDER BY created_at DESC";
 
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -93,15 +95,7 @@ public class PlaylistService {
             ResultSet rs = stmt.executeQuery();
 
             while (rs.next()) {
-                Playlist playlist = new Playlist();
-                playlist.setId(rs.getInt("id"));
-                playlist.setUserId(rs.getInt("user_id"));
-                playlist.setName(rs.getString("name"));
-                playlist.setDescription(rs.getString("description"));
-                playlist.setMusicCount(rs.getInt("music_count"));
-                playlist.setCreatedAt(rs.getString("created_at"));
-                playlist.setUpdatedAt(rs.getString("updated_at"));
-                playlists.add(playlist);
+                playlists.add(mapPlaylistRow(rs));
             }
 
             logger.info("获取到 {} 个歌单", playlists.size());
@@ -119,8 +113,7 @@ public class PlaylistService {
         logger.info("获取所有歌单");
 
         List<Playlist> playlists = new ArrayList<>();
-        String sql = "SELECT id, user_id, name, description, music_count, created_at, updated_at " +
-                     "FROM playlists ORDER BY created_at DESC";
+        String sql = SQL_PLAYLIST_COLUMNS + " ORDER BY created_at DESC";
 
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -128,15 +121,7 @@ public class PlaylistService {
             ResultSet rs = stmt.executeQuery();
 
             while (rs.next()) {
-                Playlist playlist = new Playlist();
-                playlist.setId(rs.getInt("id"));
-                playlist.setUserId(rs.getInt("user_id"));
-                playlist.setName(rs.getString("name"));
-                playlist.setDescription(rs.getString("description"));
-                playlist.setMusicCount(rs.getInt("music_count"));
-                playlist.setCreatedAt(rs.getString("created_at"));
-                playlist.setUpdatedAt(rs.getString("updated_at"));
-                playlists.add(playlist);
+                playlists.add(mapPlaylistRow(rs));
             }
 
             logger.info("获取到 {} 个歌单", playlists.size());
@@ -153,8 +138,7 @@ public class PlaylistService {
     public Optional<Playlist> getPlaylistById(int playlistId) {
         logger.info("获取歌单详情: id={}", playlistId);
 
-        String sql = "SELECT id, user_id, name, description, music_count, created_at, updated_at " +
-                     "FROM playlists WHERE id = ?";
+        String sql = SQL_PLAYLIST_COLUMNS + " WHERE id = ?";
 
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -163,14 +147,7 @@ public class PlaylistService {
             ResultSet rs = stmt.executeQuery();
 
             if (rs.next()) {
-                Playlist playlist = new Playlist();
-                playlist.setId(rs.getInt("id"));
-                playlist.setUserId(rs.getInt("user_id"));
-                playlist.setName(rs.getString("name"));
-                playlist.setDescription(rs.getString("description"));
-                playlist.setMusicCount(rs.getInt("music_count"));
-                playlist.setCreatedAt(rs.getString("created_at"));
-                playlist.setUpdatedAt(rs.getString("updated_at"));
+                Playlist playlist = mapPlaylistRow(rs);
 
                 logger.info("歌单详情获取成功: id={}", playlistId);
                 return Optional.of(playlist);
@@ -570,6 +547,17 @@ public class PlaylistService {
         }
 
         return results;
+    }
+
+    private static Playlist mapPlaylistRow(ResultSet rs) throws SQLException {
+        return new Playlist(
+                rs.getInt("id"),
+                rs.getInt("user_id"),
+                rs.getString("name"),
+                rs.getString("description"),
+                rs.getInt("music_count"),
+                rs.getString("created_at"),
+                rs.getString("updated_at"));
     }
 
     private static com.google.gson.JsonObject mapSearchPlaylistRow(ResultSet rs) throws SQLException {

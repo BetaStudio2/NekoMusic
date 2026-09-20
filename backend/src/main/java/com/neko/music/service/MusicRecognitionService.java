@@ -51,6 +51,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class MusicRecognitionService implements AutoCloseable {
     private static final Logger logger = LoggerFactory.getLogger(MusicRecognitionService.class);
+    private static final String INDEX_BUILD_RETRY_MESSAGE = "曲库声纹索引构建暂时失败，请稍后重试";
 
     private final ConfigManager config;
     private final TrackCatalog catalog;
@@ -208,7 +209,7 @@ public final class MusicRecognitionService implements AutoCloseable {
         }
         long retryNotBefore = buildRetryNotBeforeMillis;
         if (retryNotBefore > System.currentTimeMillis()) {
-            return CompletableFuture.failedFuture(new IOException("曲库声纹索引构建暂时失败，请稍后重试"));
+            return CompletableFuture.failedFuture(new IOException(INDEX_BUILD_RETRY_MESSAGE));
         }
         synchronized (buildLock) {
             existing = indexBuild;
@@ -217,7 +218,7 @@ public final class MusicRecognitionService implements AutoCloseable {
             }
             retryNotBefore = buildRetryNotBeforeMillis;
             if (retryNotBefore > System.currentTimeMillis()) {
-                return CompletableFuture.failedFuture(new IOException("曲库声纹索引构建暂时失败，请稍后重试"));
+                return CompletableFuture.failedFuture(new IOException(INDEX_BUILD_RETRY_MESSAGE));
             }
             long buildGeneration = requestedGeneration;
             CompletableFuture<IndexSnapshot> created = CompletableFuture.supplyAsync(() -> {
@@ -276,13 +277,7 @@ public final class MusicRecognitionService implements AutoCloseable {
                     ready.index.musicCount(), ready.index.uniqueHashCount());
             IndexSnapshot refreshed = new IndexSnapshot(
                     ready.index, ready.tracks, catalogEntries, System.currentTimeMillis());
-            if (!fullIndexCache.exists()) {
-                try {
-                    fullIndexCache.save(refreshed);
-                } catch (IOException e) {
-                    logger.warn("补写曲库声纹总索引失败: {}", safeMessage(e));
-                }
-            }
+            persistSnapshot(refreshed, true, "补写曲库声纹总索引失败: {}");
             return refreshed;
         }
 
@@ -324,15 +319,12 @@ public final class MusicRecognitionService implements AutoCloseable {
             audioFileCount++;
             try {
                 Optional<AudioFingerprintEngine.Fingerprint> cached = diskCache.load(track.id(), audio);
-                AudioFingerprintEngine.Fingerprint fingerprint;
-                if (cached.isPresent()) {
-                    fingerprint = cached.get();
-                    cacheHits++;
-                } else {
+                if (cached.isEmpty()) {
                     pendingTasks.add(completion.submit(() -> generateFingerprint(track, audio)));
                     continue;
                 }
-                addFingerprint(track, audio, fingerprint, indexBuilder, indexedTracks);
+                cacheHits++;
+                addFingerprint(track, audio, cached.get(), indexBuilder, indexedTracks);
             } catch (Exception e) {
                 lastFailure = e;
                 logger.warn("生成歌曲声纹失败，已跳过 musicId={} path={}: {}",
@@ -399,14 +391,8 @@ public final class MusicRecognitionService implements AutoCloseable {
                             elapsedSeconds, etaSeconds);
                 }
             }
-        } catch (InterruptedException e) {
-            pendingTasks.forEach(task -> task.cancel(true));
-            Thread.currentThread().interrupt();
-            throw new IOException("曲库声纹索引构建被中断", e);
-        } catch (ExecutionException e) {
-            pendingTasks.forEach(task -> task.cancel(true));
-            Throwable cause = e.getCause() == null ? e : e.getCause();
-            throw new IOException("曲库声纹并行任务异常: " + safeMessage(cause), cause);
+        } catch (InterruptedException | ExecutionException e) {
+            abortFingerprintDrain(e, pendingTasks, "曲库声纹索引构建被中断", "曲库声纹并行任务异常: ");
         }
         // Completed FutureTask instances retain their result. Release them
         // before assembling the large inverted index so full fingerprints can
@@ -416,16 +402,12 @@ public final class MusicRecognitionService implements AutoCloseable {
             throw new IOException("没有任何曲库音频成功生成声纹", lastFailure);
         }
 
-        AudioFingerprintEngine.Index index = indexBuilder.build();
         IndexSnapshot snapshot = new IndexSnapshot(
-                index, Map.copyOf(indexedTracks), catalogEntries, System.currentTimeMillis());
-        try {
-            fullIndexCache.save(snapshot);
-        } catch (IOException e) {
-            logger.warn("持久化曲库声纹总索引失败，本次仍使用内存索引: {}", safeMessage(e));
-        }
+                indexBuilder.build(), Map.copyOf(indexedTracks), catalogEntries,
+                System.currentTimeMillis());
+        persistSnapshot(snapshot, false, "持久化曲库声纹总索引失败，本次仍使用内存索引: {}");
         logger.info("曲库声纹索引构建完成: indexedMusic={}, uniqueHashes={}, cacheHits={}, generated={}, failed={}, workers={}, elapsedMs={}",
-                index.musicCount(), index.uniqueHashCount(), cacheHits, generated, failed,
+                snapshot.index.musicCount(), snapshot.index.uniqueHashCount(), cacheHits, generated, failed,
                 config.getMusicRecognitionIndexBuildThreads(),
                 System.currentTimeMillis() - started);
         return snapshot;
@@ -513,28 +495,42 @@ public final class MusicRecognitionService implements AutoCloseable {
                             completed, pendingCount, cacheHits, generated, failed);
                 }
             }
-        } catch (InterruptedException e) {
-            pendingTasks.forEach(task -> task.cancel(true));
-            Thread.currentThread().interrupt();
-            throw new IOException("增量曲库声纹索引构建被中断", e);
-        } catch (ExecutionException e) {
-            pendingTasks.forEach(task -> task.cancel(true));
-            Throwable cause = e.getCause() == null ? e : e.getCause();
-            throw new IOException("增量曲库声纹并行任务异常: " + safeMessage(cause), cause);
+        } catch (InterruptedException | ExecutionException e) {
+            abortFingerprintDrain(e, pendingTasks, "增量曲库声纹索引构建被中断", "增量曲库声纹并行任务异常: ");
         }
         pendingTasks.clear();
-        AudioFingerprintEngine.Index index = indexBuilder.build();
         IndexSnapshot snapshot = new IndexSnapshot(
-                index, Map.copyOf(indexedTracks), catalogEntries, System.currentTimeMillis());
+                indexBuilder.build(), Map.copyOf(indexedTracks), catalogEntries,
+                System.currentTimeMillis());
+        persistSnapshot(snapshot, false, "持久化增量曲库声纹总索引失败，本次仍使用内存索引: {}");
+        logger.info("增量曲库声纹索引构建完成: indexedMusic={}, uniqueHashes={}, cacheHits={}, generated={}, failed={}, elapsedMs={}",
+                snapshot.index.musicCount(), snapshot.index.uniqueHashCount(), cacheHits, generated, failed,
+                System.currentTimeMillis() - started);
+        return snapshot;
+    }
+
+    private static void abortFingerprintDrain(Exception failure,
+            Set<Future<FingerprintBuildResult>> pendingTasks,
+            String interruptedMessage, String parallelMessage) throws IOException {
+        pendingTasks.forEach(task -> task.cancel(true));
+        if (failure instanceof InterruptedException) {
+            Thread.currentThread().interrupt();
+            throw new IOException(interruptedMessage, failure);
+        }
+        Throwable cause = failure.getCause() == null ? failure : failure.getCause();
+        throw new IOException(parallelMessage + safeMessage(cause), cause);
+    }
+
+    /** Persists the full index, ignoring storage failures so the in-memory snapshot stays usable. */
+    private void persistSnapshot(IndexSnapshot snapshot, boolean onlyIfMissing, String failureMessage) {
+        if (onlyIfMissing && fullIndexCache.exists()) {
+            return;
+        }
         try {
             fullIndexCache.save(snapshot);
         } catch (IOException e) {
-            logger.warn("持久化增量曲库声纹总索引失败，本次仍使用内存索引: {}", safeMessage(e));
+            logger.warn(failureMessage, safeMessage(e));
         }
-        logger.info("增量曲库声纹索引构建完成: indexedMusic={}, uniqueHashes={}, cacheHits={}, generated={}, failed={}, elapsedMs={}",
-                index.musicCount(), index.uniqueHashCount(), cacheHits, generated, failed,
-                System.currentTimeMillis() - started);
-        return snapshot;
     }
 
     private static boolean isAppendOnlyCatalog(
@@ -746,11 +742,9 @@ public final class MusicRecognitionService implements AutoCloseable {
             ProcessBuilder processBuilder = new ProcessBuilder(command);
             processBuilder.redirectError(ProcessBuilder.Redirect.DISCARD);
             Process process = processBuilder.start();
-            CompletableFuture<Void> killer = CompletableFuture.runAsync(() -> {
-                if (process.isAlive()) {
-                    process.destroyForcibly();
-                }
-            }, CompletableFuture.delayedExecutor(Math.max(1L, timeout.toSeconds()), TimeUnit.SECONDS));
+            CompletableFuture<Void> killer = CompletableFuture.runAsync(
+                    () -> killIfAlive(process),
+                    CompletableFuture.delayedExecutor(Math.max(1L, timeout.toSeconds()), TimeUnit.SECONDS));
 
             try (InputStream stdout = process.getInputStream()) {
                 long maxSamples = (long) maxDurationSeconds * AudioFingerprintEngine.SAMPLE_RATE;
@@ -780,9 +774,7 @@ public final class MusicRecognitionService implements AutoCloseable {
                 return fingerprint;
             } finally {
                 killer.cancel(false);
-                if (process.isAlive()) {
-                    process.destroyForcibly();
-                }
+                killIfAlive(process);
             }
         }
     }
@@ -974,14 +966,6 @@ public final class MusicRecognitionService implements AutoCloseable {
             }
             return count;
         }
-
-        private static void moveAtomically(Path source, Path target) throws IOException {
-            try {
-                Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException e) {
-                Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
-            }
-        }
     }
 
     static final class FingerprintDiskCache {
@@ -1044,13 +1028,7 @@ public final class MusicRecognitionService implements AutoCloseable {
                         output.writeInt(landmark.timeFrame());
                     }
                 }
-                try {
-                    Files.move(temp, target,
-                            StandardCopyOption.REPLACE_EXISTING,
-                            StandardCopyOption.ATOMIC_MOVE);
-                } catch (AtomicMoveNotSupportedException e) {
-                    Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
-                }
+                moveAtomically(temp, target);
             } finally {
                 Files.deleteIfExists(temp);
             }
@@ -1111,6 +1089,20 @@ public final class MusicRecognitionService implements AutoCloseable {
     public static final class IndexUnavailableException extends Exception {
         public IndexUnavailableException(String message, Throwable cause) {
             super(message, cause);
+        }
+    }
+
+    private static void killIfAlive(Process process) {
+        if (process.isAlive()) {
+            process.destroyForcibly();
+        }
+    }
+
+    private static void moveAtomically(Path source, Path target) throws IOException {
+        try {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
         }
     }
 

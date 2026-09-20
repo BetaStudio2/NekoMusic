@@ -1,7 +1,8 @@
 package com.neko.music.handlers;
 
+import com.neko.music.util.ClientAborts;
+
 import com.neko.music.Main;
-import org.eclipse.jetty.io.EofException;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -109,7 +110,7 @@ public class UserAvatarHandler extends HttpServlet {
              OutputStream outputStream = response.getOutputStream()) {
             copyStream(inputStream, outputStream);
         } catch (IOException e) {
-            if (isClientAbort(e)) {
+            if (ClientAborts.isClientAbort(e)) {
                 logger.debug("客户端在默认头像发送完成前断开连接");
                 return;
             }
@@ -129,7 +130,7 @@ public class UserAvatarHandler extends HttpServlet {
              OutputStream outputStream = response.getOutputStream()) {
             copyStream(inputStream, outputStream);
         } catch (IOException e) {
-            if (isClientAbort(e)) {
+            if (ClientAborts.isClientAbort(e)) {
                 logger.debug("客户端在头像发送完成前断开连接: {}", imagePath);
                 return;
             }
@@ -148,20 +149,6 @@ public class UserAvatarHandler extends HttpServlet {
         outputStream.flush();
     }
 
-    private boolean isClientAbort(Throwable throwable) {
-        Throwable current = throwable;
-        while (current != null) {
-            if (current instanceof EofException) {
-                return true;
-            }
-            String message = current.getMessage();
-            if (message != null && message.toLowerCase().contains("broken pipe")) {
-                return true;
-            }
-            current = current.getCause();
-        }
-        return false;
-    }
     
     /**
      * 根据文件扩展名获取MIME类型

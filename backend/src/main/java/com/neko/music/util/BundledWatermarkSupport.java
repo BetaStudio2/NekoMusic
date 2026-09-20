@@ -20,7 +20,6 @@ public final class BundledWatermarkSupport {
     private static final Logger logger = LoggerFactory.getLogger(BundledWatermarkSupport.class);
 
     private static final String RESOURCE_PATH = "/watermark.png";
-    private static final String FILE_NAME = "watermark.png";
 
     private static volatile Path cachedFile;
     private static volatile String cachedJarHash;

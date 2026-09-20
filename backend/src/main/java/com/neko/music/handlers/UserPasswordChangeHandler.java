@@ -7,16 +7,14 @@ import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
-public class UserPasswordChangeHandler extends HttpServlet {
+public class UserPasswordChangeHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserPasswordChangeHandler.class);
     private final Argon2 argon2 = Argon2Factory.create();
 
@@ -25,7 +23,7 @@ public class UserPasswordChangeHandler extends HttpServlet {
         // 验证用户Token
         String token = request.getHeader("Authorization");
         if (token == null || !token.startsWith("Bearer ")) {
-            sendErrorResponse(response, HttpStatus.UNAUTHORIZED_401, "未授权访问");
+            sendErrorObject(response, HttpStatus.UNAUTHORIZED_401, "未授权访问");
             return;
         }
         
@@ -33,62 +31,56 @@ public class UserPasswordChangeHandler extends HttpServlet {
         
         Integer userId = validateToken(token);
         if (userId == null) {
-            sendErrorResponse(response, HttpStatus.UNAUTHORIZED_401, "无效的Token");
+            sendErrorObject(response, HttpStatus.UNAUTHORIZED_401, "无效的Token");
             return;
         }
         
         // 读取请求体
-        StringBuilder requestBody = new StringBuilder();
-        try (BufferedReader reader = request.getReader()) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                requestBody.append(line);
-            }
-        }
+        String requestBody = readBody(request);
         
         try {
             // 解析JSON请求体
             PasswordChangeRequest changeRequest = Main.getObjectMapper().readValue(requestBody.toString(), PasswordChangeRequest.class);
             
             // 验证请求参数
-            if (changeRequest.getOldPassword() == null || changeRequest.getOldPassword().trim().isEmpty()) {
-                sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "原密码不能为空");
+            if (changeRequest.oldPassword() == null || changeRequest.oldPassword().trim().isEmpty()) {
+                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "原密码不能为空");
                 return;
             }
             
-            if (changeRequest.getNewPassword() == null || changeRequest.getNewPassword().trim().isEmpty()) {
-                sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "新密码不能为空");
+            if (changeRequest.newPassword() == null || changeRequest.newPassword().trim().isEmpty()) {
+                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "新密码不能为空");
                 return;
             }
             
-            if (changeRequest.getNewPassword().length() < 6) {
-                sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "新密码长度不能少于6位");
+            if (changeRequest.newPassword().length() < 6) {
+                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "新密码长度不能少于6位");
                 return;
             }
             
-            if (changeRequest.getOldPassword().equals(changeRequest.getNewPassword())) {
-                sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "新密码不能与原密码相同");
+            if (changeRequest.oldPassword().equals(changeRequest.newPassword())) {
+                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "新密码不能与原密码相同");
                 return;
             }
             
             // 验证原密码
-            if (!verifyOldPassword(userId, changeRequest.getOldPassword())) {
-                sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "原密码错误");
+            if (!verifyOldPassword(userId, changeRequest.oldPassword())) {
+                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "原密码错误");
                 return;
             }
             
-            boolean success = Main.getUserAuthService().changePassword(userId, changeRequest.getNewPassword());
+            boolean success = Main.getUserAuthService().changePassword(userId, changeRequest.newPassword());
 
             if (success) {
                 logger.info("用户 {} 修改密码成功，已注销全部会话", userId);
                 sendSuccessResponse(response, "密码修改成功，请使用新密码重新登录");
             } else {
-                sendErrorResponse(response, HttpStatus.INTERNAL_SERVER_ERROR_500, "密码修改失败");
+                sendErrorObject(response, HttpStatus.INTERNAL_SERVER_ERROR_500, "密码修改失败");
             }
             
         } catch (Exception e) {
             logger.error("修改密码时出错", e);
-            sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "请求格式错误: " + e.getMessage());
+            sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "请求格式错误: " + e.getMessage());
         }
     }
     
@@ -120,58 +112,17 @@ public class UserPasswordChangeHandler extends HttpServlet {
     /**
      * 发送成功响应
      */
-    private void sendSuccessResponse(HttpServletResponse response, String message) throws IOException {
-        response.setStatus(HttpStatus.OK_200);
-        response.setContentType("application/json;charset=utf-8");
-        
-        SuccessResponse successResponse = new SuccessResponse(true, message);
-        response.getWriter().println(Main.getObjectMapper().writeValueAsString(successResponse));
-    }
     
     /**
      * 发送错误响应
      */
-    private void sendErrorResponse(HttpServletResponse response, int statusCode, String message) throws IOException {
-        response.setStatus(statusCode);
-        response.setContentType("application/json;charset=utf-8");
-        
-        ErrorResponse errorResponse = new ErrorResponse(message);
-        response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-    }
     
     // 内部类：密码修改请求
-    private static class PasswordChangeRequest {
-        private String oldPassword;
-        private String newPassword;
-        
-        public String getOldPassword() { return oldPassword; }
-        public void setOldPassword(String oldPassword) { this.oldPassword = oldPassword; }
-        public String getNewPassword() { return newPassword; }
-        public void setNewPassword(String newPassword) { this.newPassword = newPassword; }
+    // 密码修改请求（Jackson 反序列化，只读）
+    private record PasswordChangeRequest(String oldPassword, String newPassword) {
     }
     
     // 内部类：成功响应
-    private static class SuccessResponse {
-        private boolean success;
-        private String message;
-        
-        public SuccessResponse(boolean success, String message) {
-            this.success = success;
-            this.message = message;
-        }
-        
-        public boolean isSuccess() { return success; }
-        public String getMessage() { return message; }
-    }
     
     // 内部类：错误响应
-    private static class ErrorResponse {
-        private String error;
-        
-        public ErrorResponse(String error) {
-            this.error = error;
-        }
-        
-        public String getError() { return error; }
-    }
 }

@@ -9,17 +9,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.HashMap;
 import java.util.Map;
 
 @WebServlet("/api/user/register")
-public class UserRegisterHandler extends HttpServlet {
+public class UserRegisterHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserRegisterHandler.class);
     private UserAuthService userAuthService;
 
@@ -31,9 +28,6 @@ public class UserRegisterHandler extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         response.setContentType("application/json;charset=UTF-8");
-        response.setHeader("Access-Control-Allow-Origin", "*");
-        response.setHeader("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
         StringBuilder requestBody = new StringBuilder();
         try (BufferedReader reader = request.getReader()) {
@@ -120,15 +114,4 @@ public class UserRegisterHandler extends HttpServlet {
         return email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
     }
 
-    private void sendResponse(HttpServletResponse response, boolean success, String message, Object data) throws IOException {
-        Map<String, Object> responseMap = new HashMap<>();
-        responseMap.put("success", success);
-        responseMap.put("message", message);
-        responseMap.put("data", data);
-
-        try (PrintWriter out = response.getWriter()) {
-            out.print(Main.getObjectMapper().writeValueAsString(responseMap));
-            out.flush();
-        }
-    }
 }

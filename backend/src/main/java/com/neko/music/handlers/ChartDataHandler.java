@@ -1,12 +1,10 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
-import com.neko.music.model.Admin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -18,17 +16,13 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
-public class ChartDataHandler extends HttpServlet {
+public class ChartDataHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(ChartDataHandler.class);
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         response.setContentType("application/json;charset=UTF-8");
-        response.setHeader("Access-Control-Allow-Origin", "*");
-        response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
         // 处理预检请求
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
@@ -122,14 +116,4 @@ public class ChartDataHandler extends HttpServlet {
         return chartData;
     }
 
-    private void sendErrorResponse(HttpServletResponse response, int statusCode, String message) throws IOException {
-        Map<String, Object> errorResponse = new HashMap<>();
-        errorResponse.put("success", false);
-        errorResponse.put("message", message);
-
-        response.setStatus(statusCode);
-        PrintWriter out = response.getWriter();
-        out.print(Main.getObjectMapper().writeValueAsString(errorResponse));
-        out.flush();
-    }
 }

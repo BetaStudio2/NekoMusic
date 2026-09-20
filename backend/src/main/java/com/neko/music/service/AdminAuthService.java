@@ -30,7 +30,7 @@ public class AdminAuthService {
         
         if (adminOpt.isPresent()) {
             Admin admin = adminOpt.get();
-            if (argon2.verify(admin.getPasswordHash(), password.toCharArray())) {
+            if (argon2.verify(admin.passwordHash(), password.toCharArray())) {
                 adminDatabaseManager.updateLastLogin(username);
                 return Optional.of(admin);
             }
@@ -45,8 +45,7 @@ public class AdminAuthService {
         }
         
         String hash = argon2.hash(10, 65536, 1, password.toCharArray());
-        Admin admin = new Admin(username, hash);
-        admin.setEmail(email);
+        Admin admin = new Admin(0, username, hash, email, true, null, System.currentTimeMillis(), 0L);
         
         return adminDatabaseManager.createAdmin(admin);
     }
@@ -60,7 +59,7 @@ public class AdminAuthService {
         
         if (adminOpt.isPresent()) {
             Admin admin = adminOpt.get();
-            if (argon2.verify(admin.getPasswordHash(), oldPassword.toCharArray())) {
+            if (argon2.verify(admin.passwordHash(), oldPassword.toCharArray())) {
                 String newHash = argon2.hash(10, 65536, 1, newPassword.toCharArray());
                 return adminDatabaseManager.updateAdminPassword(username, newHash);
             }
@@ -88,7 +87,7 @@ public class AdminAuthService {
 
     public boolean canUploadClientReleaseByToken(String token) {
         Admin admin = getAdminByToken(token);
-        return admin != null && canUploadClientRelease(admin.getRole());
+        return admin != null && canUploadClientRelease(admin.role());
     }
 
     public Optional<Integer> getAdminIdByToken(String token) {
@@ -98,7 +97,7 @@ public class AdminAuthService {
     public String createAdminSession(Admin admin) {
         String sessionToken = generateSessionToken();
         try {
-            tokenStore.saveAdminToken(sessionToken, admin.getId(), ADMIN_SESSION_TTL_SECONDS);
+            tokenStore.saveAdminToken(sessionToken, admin.id(), ADMIN_SESSION_TTL_SECONDS);
             return sessionToken;
         } catch (Exception e) {
             logger.error("创建管理员会话失败", e);
@@ -128,15 +127,15 @@ public class AdminAuthService {
             stmt.setInt(1, adminIdOpt.get());
             try (java.sql.ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    Admin admin = new Admin();
-                    admin.setId(rs.getInt("id"));
-                    admin.setUsername(rs.getString("username"));
-                    admin.setPasswordHash(rs.getString("password_hash"));
-                    admin.setEmail(rs.getString("email"));
-                    admin.setActive(rs.getBoolean("active"));
-                    admin.setRole(rs.getString("role"));
-                    admin.setCreatedAt(rs.getLong("created_at"));
-                    admin.setLastLoginAt(rs.getLong("last_login_at"));
+                    Admin admin = new Admin(
+                            rs.getInt("id"),
+                            rs.getString("username"),
+                            rs.getString("password_hash"),
+                            rs.getString("email"),
+                            rs.getBoolean("active"),
+                            rs.getString("role"),
+                            rs.getLong("created_at"),
+                            rs.getLong("last_login_at"));
                     return admin;
                 }
             }

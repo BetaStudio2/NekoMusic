@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neko.music.Main;
 import com.neko.music.service.QishuiMusicClient;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -35,7 +34,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p>登录成功后 Cookie 由 {@link QishuiMusicClient} 持久化，后续汽水接口可直接复用。</p>
  */
-public class QishuiMusicHandler extends HttpServlet {
+public class QishuiMusicHandler extends ApiServlet {
 
     private static final Logger logger = LoggerFactory.getLogger(QishuiMusicHandler.class);
 
@@ -66,9 +65,6 @@ public class QishuiMusicHandler extends HttpServlet {
 
     @Override
     protected void doOptions(HttpServletRequest request, HttpServletResponse response) {
-        response.setHeader("Access-Control-Allow-Origin", "*");
-        response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
         response.setStatus(HttpServletResponse.SC_NO_CONTENT);
     }
 
@@ -91,13 +87,13 @@ public class QishuiMusicHandler extends HttpServlet {
                 case "/login/expire" -> expireQrcode(request, response);
                 case "/login/state" -> sendState(response);
                 case "/login/logout", "/login/clear" -> logout(response);
-                default -> sendError(response, HttpServletResponse.SC_NOT_FOUND, "接口不存在");
+                default -> sendErrorData(response, HttpServletResponse.SC_NOT_FOUND, "接口不存在");
             }
         } catch (IllegalArgumentException e) {
-            sendError(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
+            sendErrorData(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
         } catch (IOException e) {
             logger.warn("汽水音乐接口请求失败 path={}: {}", action, e.getMessage());
-            sendError(response, HttpServletResponse.SC_BAD_GATEWAY,
+            sendErrorData(response, HttpServletResponse.SC_BAD_GATEWAY,
                     e.getMessage() == null ? "请求汽水音乐接口失败" : e.getMessage());
         }
     }
@@ -109,14 +105,11 @@ public class QishuiMusicHandler extends HttpServlet {
         JsonNode data = unwrap(upstream);
         int errorCode = data.path("error_code").asInt(0);
         if (errorCode != 0 || data.path("token").asText("").isEmpty()) {
-            sendError(response, HttpServletResponse.SC_BAD_GATEWAY, qishuiMessage(upstream, "取二维码失败"));
+            sendErrorData(response, HttpServletResponse.SC_BAD_GATEWAY, qishuiMessage(upstream, "取二维码失败"));
             return;
         }
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("token", data.path("token").asText(""));
-        payload.put("qrcode", data.path("qrcode").asText(""));
-        payload.put("qrcode_index_url", data.path("qrcode_index_url").asText(""));
-        payload.put("expire_time", data.path("expire_time").asLong(0));
+        putQrcodeFields(payload, data);
         sendSuccess(response, "ok", payload);
     }
 
@@ -170,10 +163,7 @@ public class QishuiMusicHandler extends HttpServlet {
         payload.put("status", status);
         if (QishuiMusicClient.STATUS_EXPIRED.equals(status)) {
             // 上游失效时通常补发一张新码，直接透传给前端续用
-            payload.put("token", data.path("token").asText(""));
-            payload.put("qrcode", data.path("qrcode").asText(""));
-            payload.put("qrcode_index_url", data.path("qrcode_index_url").asText(""));
-            payload.put("expire_time", data.path("expire_time").asLong(0));
+            putQrcodeFields(payload, data);
         }
         if (QishuiMusicClient.STATUS_SCANNED.equals(status)) {
             payload.put("scan_user_avatar", data.path("scan_user_info").path("avatar_url").asText(""));
@@ -253,10 +243,7 @@ public class QishuiMusicHandler extends HttpServlet {
         JsonNode upstream = client().expireQrcode(token);
         JsonNode data = unwrap(upstream);
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("token", data.path("token").asText(""));
-        payload.put("qrcode", data.path("qrcode").asText(""));
-        payload.put("qrcode_index_url", data.path("qrcode_index_url").asText(""));
-        payload.put("expire_time", data.path("expire_time").asLong(0));
+        putQrcodeFields(payload, data);
         sendSuccess(response, "ok", payload);
     }
 
@@ -336,6 +323,14 @@ public class QishuiMusicHandler extends HttpServlet {
         return data.isObject() ? data : upstream;
     }
 
+    /** 透传二维码字段（token/qrcode/qrcode_index_url/expire_time），字段顺序与原来一致。 */
+    private static void putQrcodeFields(Map<String, Object> payload, JsonNode data) {
+        payload.put("token", data.path("token").asText(""));
+        payload.put("qrcode", data.path("qrcode").asText(""));
+        payload.put("qrcode_index_url", data.path("qrcode_index_url").asText(""));
+        payload.put("expire_time", data.path("expire_time").asLong(0));
+    }
+
     private static String qishuiMessage(JsonNode upstream, String fallback) {
         JsonNode data = unwrap(upstream);
         String description = data.path("description").asText("");
@@ -381,20 +376,10 @@ public class QishuiMusicHandler extends HttpServlet {
         writeJson(response, HttpServletResponse.SC_OK, body);
     }
 
-    private static void sendError(HttpServletResponse response, int status, String message) throws IOException {
-        Map<String, Object> body = new HashMap<>();
-        body.put("success", false);
-        body.put("message", message);
-        body.put("data", null);
-        writeJson(response, status, body);
-    }
 
     private static void writeJson(HttpServletResponse response, int status, Object body) throws IOException {
         response.setStatus(status);
         response.setContentType("application/json;charset=UTF-8");
-        response.setHeader("Access-Control-Allow-Origin", "*");
-        response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
         ObjectNode node = (ObjectNode) Main.getObjectMapper().valueToTree(body);
         response.getWriter().write(node.toString());
     }

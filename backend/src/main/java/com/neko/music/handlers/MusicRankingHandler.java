@@ -64,20 +64,18 @@ public class MusicRankingHandler extends HttpServlet {
                 ResultSet rs = stmt.executeQuery();
 
                 while (rs.next()) {
-                    MusicRankingItem item = new MusicRankingItem();
-                    item.setId(rs.getInt("id"));
-                    item.setTitle(rs.getString("title"));
-                    item.setArtist(rs.getString("artist"));
-                    item.setAlbum(rs.getString("album"));
-                    item.setDuration(rs.getInt("duration"));
-                    item.setCoverPath(null);
-                    item.setLanguage(rs.getString("language"));
-                    item.setTags(rs.getString("tags"));
-                    item.setPlayCount(rs.getInt("play_count"));
-
-                    item.setCoverUrl(MusicAssetLocator.coverApiUrl(item.getId()));
-
-                    ranking.add(item);
+                    int id = rs.getInt("id");
+                    ranking.add(new MusicRankingItem(
+                            id,
+                            rs.getString("title"),
+                            rs.getString("artist"),
+                            rs.getString("album"),
+                            rs.getInt("duration"),
+                            null,
+                            MusicAssetLocator.coverApiUrl(id),
+                            rs.getString("language"),
+                            rs.getString("tags"),
+                            rs.getInt("play_count")));
                 }
             }
             logger.info("成功获取播放次数排行榜，共 {} 条记录", ranking.size());
@@ -88,59 +86,21 @@ public class MusicRankingHandler extends HttpServlet {
         return ranking;
     }
 
-    // 内部类用于表示排行榜音乐项
-    public static class MusicRankingItem {
-        private int id;
-        private String title;
-        private String artist;
-        private String album;
-        private int duration;
-        private String coverPath;
-        private String coverUrl;
-        private String language;
-        private String tags;
-        private int playCount;
-
-        // Getters and Setters
-        public int getId() { return id; }
-        public void setId(int id) { this.id = id; }
-        public String getTitle() { return title; }
-        public void setTitle(String title) { this.title = title; }
-        public String getArtist() { return artist; }
-        public void setArtist(String artist) { this.artist = artist; }
-        public String getAlbum() { return album; }
-        public void setAlbum(String album) { this.album = album; }
-        public int getDuration() { return duration; }
-        public void setDuration(int duration) { this.duration = duration; }
-        public String getCoverPath() { return coverPath; }
-        public void setCoverPath(String coverPath) { this.coverPath = coverPath; }
-        public String getCoverUrl() { return coverUrl; }
-        public void setCoverUrl(String coverUrl) { this.coverUrl = coverUrl; }
-        public String getLanguage() { return language; }
-        public void setLanguage(String language) { this.language = language; }
-        public String getTags() { return tags; }
-        public void setTags(String tags) { this.tags = tags; }
-        public int getPlayCount() { return playCount; }
-        public void setPlayCount(int playCount) { this.playCount = playCount; }
+    // 排行榜音乐项：只读数据载体（字段名与顺序与旧 POJO 一致，序列化结果不变）
+    public record MusicRankingItem(
+            int id,
+            String title,
+            String artist,
+            String album,
+            int duration,
+            String coverPath,
+            String coverUrl,
+            String language,
+            String tags,
+            int playCount) {
     }
 
-    // 内部类用于表示排行榜响应
-    private static class RankingResponse {
-        private boolean success;
-        private String message;
-        private List<MusicRankingItem> data;
-
-        public RankingResponse(boolean success, String message, List<MusicRankingItem> data) {
-            this.success = success;
-            this.message = message;
-            this.data = data;
-        }
-
-        public boolean isSuccess() { return success; }
-        public void setSuccess(boolean success) { this.success = success; }
-        public String getMessage() { return message; }
-        public void setMessage(String message) { this.message = message; }
-        public List<MusicRankingItem> getData() { return data; }
-        public void setData(List<MusicRankingItem> data) { this.data = data; }
+    // 排行榜响应
+    private record RankingResponse(boolean success, String message, List<MusicRankingItem> data) {
     }
 }

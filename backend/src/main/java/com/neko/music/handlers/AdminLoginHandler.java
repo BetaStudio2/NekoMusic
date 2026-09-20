@@ -6,25 +6,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-public class AdminLoginHandler extends HttpServlet {
+public class AdminLoginHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(AdminLoginHandler.class);
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         response.setContentType("application/json;charset=UTF-8");
-        response.setHeader("Access-Control-Allow-Origin", "*");
-        response.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
         // 处理预检请求
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
@@ -34,13 +29,7 @@ public class AdminLoginHandler extends HttpServlet {
 
         try {
             // 读取请求体
-            StringBuilder requestBody = new StringBuilder();
-            String line;
-            try (BufferedReader reader = request.getReader()) {
-                while ((line = reader.readLine()) != null) {
-                    requestBody.append(line);
-                }
-            }
+            String requestBody = readBody(request);
 
             // 解析JSON请求体
             Map<String, String> requestData = Main.getObjectMapper().readValue(requestBody.toString(), Map.class);
@@ -72,12 +61,12 @@ public class AdminLoginHandler extends HttpServlet {
                 successResponse.put("message", "登录成功");
                 successResponse.put("token", sessionToken);  // 返回会话令牌
                 successResponse.put("admin", Map.of(
-                    "id", admin.getId(),
-                    "username", admin.getUsername(),
-                    "email", admin.getEmail(),
-                    "role", admin.getRole(),
-                    "createdAt", admin.getCreatedAt(),
-                    "lastLoginAt", admin.getLastLoginAt()
+                    "id", admin.id(),
+                    "username", admin.username(),
+                    "email", admin.email(),
+                    "role", admin.role(),
+                    "createdAt", admin.createdAt(),
+                    "lastLoginAt", admin.lastLoginAt()
                 ));
                 
                 response.setStatus(HttpServletResponse.SC_OK);
@@ -93,14 +82,4 @@ public class AdminLoginHandler extends HttpServlet {
         }
     }
 
-    private void sendErrorResponse(HttpServletResponse response, int statusCode, String message) throws IOException {
-        Map<String, Object> errorResponse = new HashMap<>();
-        errorResponse.put("success", false);
-        errorResponse.put("message", message);
-
-        response.setStatus(statusCode);
-        PrintWriter out = response.getWriter();
-        out.print(Main.getObjectMapper().writeValueAsString(errorResponse));
-        out.flush();
-    }
 }

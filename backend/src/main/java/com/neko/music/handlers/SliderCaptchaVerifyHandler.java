@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -12,8 +11,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -21,16 +18,13 @@ import java.util.Optional;
  * POST /api/captcha/slider/verify — 提交位移，成功返回短时 captchaPassToken（供发送邮箱验证码接口消费）。
  */
 @WebServlet("/api/captcha/slider/verify")
-public class SliderCaptchaVerifyHandler extends HttpServlet {
+public class SliderCaptchaVerifyHandler extends ApiServlet {
 
     private static final Logger logger = LoggerFactory.getLogger(SliderCaptchaVerifyHandler.class);
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         response.setContentType("application/json;charset=UTF-8");
-        response.setHeader("Access-Control-Allow-Origin", "*");
-        response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
         StringBuilder body = new StringBuilder();
         try (BufferedReader reader = request.getReader()) {
@@ -69,14 +63,4 @@ public class SliderCaptchaVerifyHandler extends HttpServlet {
         }
     }
 
-    private void sendJson(HttpServletResponse response, boolean success, String message, Object data) throws IOException {
-        Map<String, Object> map = new HashMap<>();
-        map.put("success", success);
-        map.put("message", message);
-        map.put("data", data);
-        try (PrintWriter out = response.getWriter()) {
-            out.print(Main.getObjectMapper().writeValueAsString(map));
-            out.flush();
-        }
-    }
 }

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.neko.music.util.HttpTransport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -141,10 +142,7 @@ public class QishuiMusicClient {
         this.deviceId = resolve("qishui.device_id", "QISHUI_DEVICE_ID", DEFAULT_DEVICE_ID);
         this.installId = resolve("qishui.install_id", "QISHUI_INSTALL_ID", DEFAULT_INSTALL_ID);
         this.cookieFile = Path.of(cookieFilePath).toAbsolutePath();
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .build();
+        this.httpClient = HttpTransport.create(Duration.ofSeconds(10));
         loadCookies();
     }
 
@@ -800,13 +798,8 @@ public class QishuiMusicClient {
                     .POST(HttpRequest.BodyPublishers.ofString(encodeForm(form), StandardCharsets.UTF_8));
         }
 
-        HttpResponse<String> response;
-        try {
-            response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("请求汽水音乐接口被中断: " + path, e);
-        }
+        HttpResponse<String> response =
+                HttpTransport.sendString(httpClient, builder.build(), "请求汽水音乐接口被中断: " + path);
         absorbCookies(response);
         saveCookies();
 

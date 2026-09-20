@@ -63,21 +63,19 @@ public class LatestMusicHandler extends HttpServlet {
                 ResultSet rs = stmt.executeQuery();
 
                 while (rs.next()) {
-                    LatestMusicItem item = new LatestMusicItem();
-                    item.setId(rs.getInt("id"));
-                    item.setTitle(rs.getString("title"));
-                    item.setArtist(rs.getString("artist"));
-                    item.setAlbum(rs.getString("album"));
-                    item.setDuration(rs.getInt("duration"));
-                    item.setCoverPath(null);
-                    item.setLanguage(rs.getString("language"));
-                    item.setTags(rs.getString("tags"));
-                    item.setFileFormat(rs.getString("file_format"));
-                    item.setCreatedAt(rs.getTimestamp("created_at").getTime());
-
-                    item.setCoverUrl(MusicAssetLocator.coverApiUrl(item.getId()));
-
-                    latestMusic.add(item);
+                    int id = rs.getInt("id");
+                    latestMusic.add(new LatestMusicItem(
+                            id,
+                            rs.getString("title"),
+                            rs.getString("artist"),
+                            rs.getString("album"),
+                            rs.getInt("duration"),
+                            null,
+                            MusicAssetLocator.coverApiUrl(id),
+                            rs.getString("language"),
+                            rs.getString("tags"),
+                            rs.getString("file_format"),
+                            rs.getTimestamp("created_at").getTime()));
                 }
             }
             logger.info("成功获取最新音乐，共 {} 条记录", latestMusic.size());
@@ -88,62 +86,22 @@ public class LatestMusicHandler extends HttpServlet {
         return latestMusic;
     }
 
-    // 内部类用于表示最新音乐项
-    public static class LatestMusicItem {
-        private int id;
-        private String title;
-        private String artist;
-        private String album;
-        private int duration;
-        private String coverPath;
-        private String coverUrl;
-        private String language;
-        private String tags;
-        private String fileFormat;
-        private long createdAt;
-
-        // Getters and Setters
-        public int getId() { return id; }
-        public void setId(int id) { this.id = id; }
-        public String getTitle() { return title; }
-        public void setTitle(String title) { this.title = title; }
-        public String getArtist() { return artist; }
-        public void setArtist(String artist) { this.artist = artist; }
-        public String getAlbum() { return album; }
-        public void setAlbum(String album) { this.album = album; }
-        public int getDuration() { return duration; }
-        public void setDuration(int duration) { this.duration = duration; }
-        public String getCoverPath() { return coverPath; }
-        public void setCoverPath(String coverPath) { this.coverPath = coverPath; }
-        public String getCoverUrl() { return coverUrl; }
-        public void setCoverUrl(String coverUrl) { this.coverUrl = coverUrl; }
-        public String getLanguage() { return language; }
-        public void setLanguage(String language) { this.language = language; }
-        public String getTags() { return tags; }
-        public void setTags(String tags) { this.tags = tags; }
-        public String getFileFormat() { return fileFormat; }
-        public void setFileFormat(String fileFormat) { this.fileFormat = fileFormat; }
-        public long getCreatedAt() { return createdAt; }
-        public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
+    // 最新音乐项：只读数据载体（字段名与顺序与旧 POJO 一致，序列化结果不变）
+    public record LatestMusicItem(
+            int id,
+            String title,
+            String artist,
+            String album,
+            int duration,
+            String coverPath,
+            String coverUrl,
+            String language,
+            String tags,
+            String fileFormat,
+            long createdAt) {
     }
 
-    // 内部类用于表示最新音乐响应
-    private static class LatestMusicResponse {
-        private boolean success;
-        private String message;
-        private List<LatestMusicItem> data;
-
-        public LatestMusicResponse(boolean success, String message, List<LatestMusicItem> data) {
-            this.success = success;
-            this.message = message;
-            this.data = data;
-        }
-
-        public boolean isSuccess() { return success; }
-        public void setSuccess(boolean success) { this.success = success; }
-        public String getMessage() { return message; }
-        public void setMessage(String message) { this.message = message; }
-        public List<LatestMusicItem> getData() { return data; }
-        public void setData(List<LatestMusicItem> data) { this.data = data; }
+    // 最新音乐响应
+    private record LatestMusicResponse(boolean success, String message, List<LatestMusicItem> data) {
     }
 }

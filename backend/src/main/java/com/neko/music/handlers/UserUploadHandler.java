@@ -9,7 +9,6 @@ import com.neko.music.util.LrcValidator;
 import com.neko.music.util.ImageUploadValidator;
 import com.neko.music.util.SensitiveWordUtil;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.Part;
@@ -31,7 +30,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-public class UserUploadHandler extends HttpServlet {
+public class UserUploadHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserUploadHandler.class);
 
     private static final String UPLOAD_DIR = "user_upload";
@@ -44,14 +43,14 @@ public class UserUploadHandler extends HttpServlet {
         // 验证用户登录
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            sendError(response, 401, "未授权访问");
+            sendErrorResponse(response, 401, "未授权访问");
             return;
         }
         
         String token = authHeader.substring(7);
         java.util.Optional<Integer> userIdOpt = Main.getUserAuthService().validateToken(token);
         if (userIdOpt.isEmpty()) {
-            sendError(response, 401, "未授权访问");
+            sendErrorResponse(response, 401, "未授权访问");
             return;
         }
         
@@ -59,7 +58,7 @@ public class UserUploadHandler extends HttpServlet {
 
         RuntimeDiskGuard.logStorageForOperation("用户上传音乐", "userId=" + userId);
         if (!RuntimeDiskGuard.hasSufficientSpaceForMusicWrites()) {
-            sendError(response, 507, RuntimeDiskGuard.uploadBlockedMessage());
+            sendErrorResponse(response, 507, RuntimeDiskGuard.uploadBlockedMessage());
             return;
         }
         
@@ -75,32 +74,32 @@ public class UserUploadHandler extends HttpServlet {
             
             // 验证必填字段
             if (title == null || title.isEmpty() || artist == null || artist.isEmpty() || language == null || language.isEmpty()) {
-                sendError(response, 400, "标题、歌手和语言为必填项");
+                sendErrorResponse(response, 400, "标题、歌手和语言为必填项");
                 return;
             }
 
             // 验证违禁词
             if (SensitiveWordUtil.contains(title)) {
-                sendError(response, 400, "标题包含违禁词");
+                sendErrorResponse(response, 400, "标题包含违禁词");
                 return;
             }
             else logger.info("标题不包含违禁词");
             if (SensitiveWordUtil.contains(artist)) {
-                sendError(response, 400, "歌手名包含违禁词");
+                sendErrorResponse(response, 400, "歌手名包含违禁词");
                 return;
             }
             else logger.info("歌手名不包含违禁词");
             if (album != null && !album.isEmpty() && SensitiveWordUtil.contains(album)) {
-                sendError(response, 400, "专辑名包含违禁词");
+                sendErrorResponse(response, 400, "专辑名包含违禁词");
                 return;
             }
             // 验证语言字段白名单
             if (!java.util.Set.of("中文", "粤语", "上海语", "英文", "日语", "韩语", "法语", "德语", "俄语", "纯音乐").contains(language)) {
-                sendError(response, 400, "语言字段不合法，仅支持：中文、粤语、上海语、英文、日语、韩语、法语、德语、俄语、纯音乐");
+                sendErrorResponse(response, 400, "语言字段不合法，仅支持：中文、粤语、上海语、英文、日语、韩语、法语、德语、俄语、纯音乐");
                 return;
             }
             if (tags != null && !tags.isEmpty() && SensitiveWordUtil.contains(tags)) {
-                sendError(response, 400, "标签包含违禁词");
+                sendErrorResponse(response, 400, "标签包含违禁词");
                 return;
             }
             else logger.info("所有内容未包含违禁词");
@@ -120,7 +119,7 @@ public class UserUploadHandler extends HttpServlet {
             Part lyricsFilePart = request.getPart("lyricsFile");
             
             if (musicFilePart == null || musicFilePart.getSize() == 0) {
-                sendError(response, 400, "请上传音乐文件");
+                sendErrorResponse(response, 400, "请上传音乐文件");
                 return;
             }
             
@@ -141,7 +140,7 @@ public class UserUploadHandler extends HttpServlet {
                 AudioFileValidator.FormatDetectionResult detectionResult =
                         AudioFileValidator.detectAndValidatePath(musicTemp, musicFileExtension);
                 if (!detectionResult.isValid()) {
-                    sendError(response, 400, "音频文件格式错误: " + detectionResult.getErrorMessage());
+                    sendErrorResponse(response, 400, "音频文件格式错误: " + detectionResult.getErrorMessage());
                     return;
                 }
                 detectedFormat = detectionResult.getFormat();
@@ -156,23 +155,23 @@ public class UserUploadHandler extends HttpServlet {
                         fileFormat = "wav";
                         break;
                     default:
-                        sendError(response, 400, "不支持的音频格式");
+                        sendErrorResponse(response, 400, "不支持的音频格式");
                         return;
                 }
                 logger.info("检测到文件格式: {} (实际格式: {})", fileFormat, detectionResult.getFormatDescription());
 
                 String audioProblem = AudioIntegrityValidator.validateSavedFile(musicTemp, detectedFormat);
                 if (audioProblem != null) {
-                    sendError(response, 400, audioProblem);
+                    sendErrorResponse(response, 400, audioProblem);
                     return;
                 }
 
                 String duplicateType = isDuplicateMusic(title, artist, album);
                 if (duplicateType != null) {
                     if ("pending".equals(duplicateType)) {
-                        sendError(response, 409, "已有用户上传。请勿重复提交");
+                        sendErrorResponse(response, 409, "已有用户上传。请勿重复提交");
                     } else {
-                        sendError(response, 409, "已有重复音乐，请检查后重新上传");
+                        sendErrorResponse(response, 409, "已有重复音乐，请检查后重新上传");
                     }
                     return;
                 }
@@ -187,7 +186,7 @@ public class UserUploadHandler extends HttpServlet {
                 deleteTempIfPresent = false;
             } catch (Exception e) {
                 logger.error("处理音乐文件时出错", e);
-                sendError(response, 400, "处理音乐文件时出错: " + e.getMessage());
+                sendErrorResponse(response, 400, "处理音乐文件时出错: " + e.getMessage());
                 return;
             } finally {
                 if (deleteTempIfPresent) {
@@ -205,7 +204,7 @@ public class UserUploadHandler extends HttpServlet {
                 ImageUploadValidator.ValidationResult imageValidation =
                         ImageUploadValidator.validatePart(coverFilePart, ImageUploadValidator.DEFAULT_MAX_IMAGE_BYTES);
                 if (!imageValidation.isValid()) {
-                    sendError(response, 400, imageValidation.getErrorMessage());
+                    sendErrorResponse(response, 400, imageValidation.getErrorMessage());
                     deleteFileIfExists(musicFilePath);
                     return;
                 }
@@ -221,7 +220,7 @@ public class UserUploadHandler extends HttpServlet {
                 // 检查歌词文件类型
                 String lyricsFileName = "lyrics_" + timestamp + getFileExtension(lyricsFilePart.getSubmittedFileName());
                 if (!lyricsFileName.toLowerCase().endsWith(".lrc")) {
-                    sendError(response, 400, "只支持LRC格式的歌词文件");
+                    sendErrorResponse(response, 400, "只支持LRC格式的歌词文件");
                     // 删除已上传的音乐和封面文件
                     deleteFileIfExists(musicFilePath);
                     deleteFileIfExists(coverFilePath);
@@ -233,7 +232,7 @@ public class UserUploadHandler extends HttpServlet {
                     LrcValidator.ValidationResult validationResult = LrcValidator.validate(
                             lyricsInputStream, lyricsFilePart.getSize());
                     if (!validationResult.isValid()) {
-                        sendError(response, 400, "歌词文件格式错误: " + validationResult.getErrorMessage());
+                        sendErrorResponse(response, 400, "歌词文件格式错误: " + validationResult.getErrorMessage());
                         // 删除已上传的音乐和封面文件
                         deleteFileIfExists(musicFilePath);
                         deleteFileIfExists(coverFilePath);
@@ -241,7 +240,7 @@ public class UserUploadHandler extends HttpServlet {
                     }
                 } catch (Exception e) {
                     logger.error("校验歌词文件时出错", e);
-                    sendError(response, 400, "校验歌词文件时出错: " + e.getMessage());
+                    sendErrorResponse(response, 400, "校验歌词文件时出错: " + e.getMessage());
                     // 删除已上传的音乐和封面文件
                     deleteFileIfExists(musicFilePath);
                     deleteFileIfExists(coverFilePath);
@@ -314,12 +313,12 @@ public class UserUploadHandler extends HttpServlet {
                 deleteFileIfExists(coverFilePath);
                 deleteFileIfExists(lyricsFilePath);
                 
-                sendError(response, 500, "保存上传记录失败");
+                sendErrorResponse(response, 500, "保存上传记录失败");
             }
             
         } catch (Exception e) {
             logger.error("处理用户上传失败: " + e.getMessage(), e);
-            sendError(response, 500, "服务器错误: " + e.getMessage());
+            sendErrorResponse(response, 500, "服务器错误: " + e.getMessage());
         }
     }
     
@@ -384,58 +383,43 @@ public class UserUploadHandler extends HttpServlet {
     private String isDuplicateMusic(String title, String artist, String album) {
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             // 1. 检查 user_uploads 表（等待审核的音乐）- 优先检查，防止重复提交
-            String uploadSql = "SELECT artist, album FROM user_uploads WHERE title = ? AND status = 'pending'";
-            try (PreparedStatement stmt = conn.prepareStatement(uploadSql)) {
-                stmt.setString(1, title);
-                try (ResultSet rs = stmt.executeQuery()) {
-                    while (rs.next()) {
-                        String existingArtist = rs.getString("artist");
-                        String existingAlbum = rs.getString("album");
-                        
-                        // 如果标题相同，检查艺术家或专辑是否相同
-                        if (artist.equals(existingArtist) || 
-                            (album != null && !album.isEmpty() && album.equals(existingAlbum))) {
-                            return "pending"; // 发现重复（等待审核中）
-                        }
-                    }
-                }
+            if (hasDuplicateRow(conn,
+                    "SELECT artist, album FROM user_uploads WHERE title = ? AND status = 'pending'",
+                    title, artist, album)) {
+                return "pending"; // 发现重复（等待审核中）
             }
             
             // 2. 检查 music 表（已审核通过的音乐）
-            String musicSql = "SELECT artist, album FROM music WHERE title = ?";
-            try (PreparedStatement stmt = conn.prepareStatement(musicSql)) {
-                stmt.setString(1, title);
-                try (ResultSet rs = stmt.executeQuery()) {
-                    while (rs.next()) {
-                        String existingArtist = rs.getString("artist");
-                        String existingAlbum = rs.getString("album");
-                        
-                        // 如果标题相同，检查艺术家或专辑是否相同
-                        if (artist.equals(existingArtist) || 
-                            (album != null && !album.isEmpty() && album.equals(existingAlbum))) {
-                            return "music"; // 发现重复（已审核通过）
-                        }
-                    }
-                }
+            if (hasDuplicateRow(conn, "SELECT artist, album FROM music WHERE title = ?",
+                    title, artist, album)) {
+                return "music"; // 发现重复（已审核通过）
             }
         } catch (SQLException e) {
             logger.error("查重检查失败: " + e.getMessage(), e);
         }
         return null;
     }
-    
-    private void sendError(HttpServletResponse response, int status, String message) throws IOException {
-        response.setStatus(status);
-        response.setContentType("application/json;charset=UTF-8");
-        Map<String, Object> error = new HashMap<>();
-        error.put("success", false);
-        error.put("message", message);
-        response.getWriter().write(Main.getObjectMapper().writeValueAsString(error));
+
+    // 按标题查询候选行，命中相同的艺术家或专辑即视为重复
+    private boolean hasDuplicateRow(Connection conn, String sql, String title, String artist, String album)
+            throws SQLException {
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, title);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    String existingArtist = rs.getString("artist");
+                    String existingAlbum = rs.getString("album");
+                    
+                    // 如果标题相同，检查艺术家或专辑是否相同
+                    if (artist.equals(existingArtist) || 
+                        (album != null && !album.isEmpty() && album.equals(existingAlbum))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
     
-    private void sendJsonResponse(HttpServletResponse response, Map<String, Object> data) throws IOException {
-        response.setStatus(200);
-        response.setContentType("application/json;charset=UTF-8");
-        response.getWriter().write(Main.getObjectMapper().writeValueAsString(data));
-    }
+    
 }

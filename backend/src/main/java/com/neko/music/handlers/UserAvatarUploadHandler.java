@@ -7,7 +7,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.Part;
@@ -22,7 +21,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.UUID;
 
-public class UserAvatarUploadHandler extends HttpServlet {
+public class UserAvatarUploadHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserAvatarUploadHandler.class);
     
     // 定义头像上传目录（相对于JAR运行目录）
@@ -36,7 +35,7 @@ public class UserAvatarUploadHandler extends HttpServlet {
         // 验证用户Token
         String token = request.getHeader("Authorization");
         if (token == null || !token.startsWith("Bearer ")) {
-            sendErrorResponse(response, HttpStatus.UNAUTHORIZED_401, "未授权访问");
+            sendErrorObject(response, HttpStatus.UNAUTHORIZED_401, "未授权访问");
             return;
         }
         
@@ -44,7 +43,7 @@ public class UserAvatarUploadHandler extends HttpServlet {
         
         Integer userId = validateToken(token);
         if (userId == null) {
-            sendErrorResponse(response, HttpStatus.UNAUTHORIZED_401, "无效的Token");
+            sendErrorObject(response, HttpStatus.UNAUTHORIZED_401, "无效的Token");
             return;
         }
         
@@ -56,14 +55,14 @@ public class UserAvatarUploadHandler extends HttpServlet {
             Part avatarPart = request.getPart("avatar");
             
             if (avatarPart == null || avatarPart.getSize() == 0) {
-                sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "未上传头像文件");
+                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "未上传头像文件");
                 return;
             }
             
             ImageUploadValidator.ValidationResult imageValidation =
                     ImageUploadValidator.validatePart(avatarPart, MAX_FILE_SIZE);
             if (!imageValidation.isValid()) {
-                sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, imageValidation.getErrorMessage());
+                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, imageValidation.getErrorMessage());
                 return;
             }
             String fileExtension = imageValidation.getExtension();
@@ -93,12 +92,12 @@ public class UserAvatarUploadHandler extends HttpServlet {
             } else {
                 // 如果数据库更新失败，删除已上传的文件
                 Files.deleteIfExists(filePath);
-                sendErrorResponse(response, HttpStatus.INTERNAL_SERVER_ERROR_500, "更新数据库失败");
+                sendErrorObject(response, HttpStatus.INTERNAL_SERVER_ERROR_500, "更新数据库失败");
             }
             
         } catch (Exception e) {
             logger.error("上传头像时出错", e);
-            sendErrorResponse(response, HttpStatus.INTERNAL_SERVER_ERROR_500, "上传头像失败: " + e.getMessage());
+            sendErrorObject(response, HttpStatus.INTERNAL_SERVER_ERROR_500, "上传头像失败: " + e.getMessage());
         }
     }
     
@@ -160,39 +159,10 @@ public class UserAvatarUploadHandler extends HttpServlet {
     /**
      * 发送错误响应
      */
-    private void sendErrorResponse(HttpServletResponse response, int statusCode, String message) throws IOException {
-        response.setStatus(statusCode);
-        response.setContentType("application/json;charset=utf-8");
-        
-        ErrorResponse errorResponse = new ErrorResponse(message);
-        response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
-    }
     
     // 内部类：成功响应
-    private static class SuccessResponse {
-        private boolean success;
-        private String message;
-        private String avatarPath;
-        
-        public SuccessResponse(boolean success, String message, String avatarPath) {
-            this.success = success;
-            this.message = message;
-            this.avatarPath = avatarPath;
-        }
-        
-        public boolean isSuccess() { return success; }
-        public String getMessage() { return message; }
-        public String getAvatarPath() { return avatarPath; }
+    private record SuccessResponse(boolean success, String message, String avatarPath) {
     }
     
     // 内部类：错误响应
-    private static class ErrorResponse {
-        private String error;
-        
-        public ErrorResponse(String error) {
-            this.error = error;
-        }
-        
-        public String getError() { return error; }
-    }
 }
