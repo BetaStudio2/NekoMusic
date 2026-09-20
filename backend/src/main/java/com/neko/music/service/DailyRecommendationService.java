@@ -30,6 +30,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class DailyRecommendationService {
@@ -104,8 +105,7 @@ public class DailyRecommendationService {
             return;
         }
 
-        Map<Integer, SongCandidate> candidateById = candidates.stream()
-                .collect(Collectors.toMap(SongCandidate::id, c -> c, (a, b) -> a, LinkedHashMap::new));
+        Map<Integer, SongCandidate> candidateById = indexBy(candidates, SongCandidate::id);
         Map<Integer, Integer> daysSinceRecommended = loadDaysSinceLastRecommended(userId, recDate);
 
         UserProfile profile = loadUserProfile(userId);
@@ -148,54 +148,32 @@ public class DailyRecommendationService {
 
     /** 已收藏曲目：硬排除，不出现在推荐列表。 */
     private Set<Integer> loadUserFavoriteIds(int userId) {
-        Set<Integer> ids = new HashSet<>();
-        String sql = "SELECT music_id FROM user_favorites WHERE user_id=?";
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, userId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    ids.add(rs.getInt("music_id"));
-                }
-            }
-        } catch (Exception e) {
-            logger.error("查询用户收藏失败 userId={}", userId, e);
-        }
-        return ids;
+        return queryMusicIds("SELECT music_id FROM user_favorites WHERE user_id=?",
+                userId, "查询用户收藏失败 userId={}");
     }
 
     /** 用户自建歌单内曲目：降权，仍可能进入推荐。 */
     private Set<Integer> loadOwnPlaylistMusicIds(int userId) {
-        Set<Integer> ids = new HashSet<>();
-        String sql = """
+        return queryMusicIds("""
                 SELECT DISTINCT pm.music_id
                 FROM playlist_music pm
                 INNER JOIN playlists p ON p.id = pm.playlist_id
                 WHERE p.user_id = ?
-                """;
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, userId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    ids.add(rs.getInt("music_id"));
-                }
-            }
-        } catch (Exception e) {
-            logger.error("查询用户歌单曲目失败 userId={}", userId, e);
-        }
-        return ids;
+                """, userId, "查询用户歌单曲目失败 userId={}");
     }
 
     /** 用户收藏歌单内曲目：降权（弱于自建歌单），仍可能进入推荐。 */
     private Set<Integer> loadFavoritePlaylistMusicIds(int userId) {
-        Set<Integer> ids = new HashSet<>();
-        String sql = """
+        return queryMusicIds("""
                 SELECT DISTINCT pm.music_id
                 FROM playlist_music pm
                 INNER JOIN user_favorite_playlists ufp ON ufp.playlist_id = pm.playlist_id
                 WHERE ufp.user_id = ?
-                """;
+                """, userId, "查询收藏歌单曲目失败 userId={}");
+    }
+
+    private Set<Integer> queryMusicIds(String sql, int userId, String errorMessage) {
+        Set<Integer> ids = new HashSet<>();
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, userId);
@@ -205,7 +183,7 @@ public class DailyRecommendationService {
                 }
             }
         } catch (Exception e) {
-            logger.error("查询收藏歌单曲目失败 userId={}", userId, e);
+            logger.error(errorMessage, userId, e);
         }
         return ids;
     }
@@ -328,7 +306,7 @@ public class DailyRecommendationService {
             }
             list.add(new RecommendationItem(c.id, score, "rule", "基于收藏风格匹配"));
         }
-        list.sort(Comparator.comparingDouble(RecommendationItem::score).reversed());
+        sortByScoreDesc(list);
         return list;
     }
 
@@ -356,14 +334,9 @@ public class DailyRecommendationService {
             } else if (daysAgo <= HISTORY_RETENTION_DAYS) {
                 penalty = PENALTY_RECENT_LIGHT;
             }
-            adjusted.add(new RecommendationItem(
-                    item.musicId,
-                    item.score - penalty,
-                    item.source,
-                    item.reason
-            ));
+            adjusted.add(withScore(item, item.score - penalty));
         }
-        adjusted.sort(Comparator.comparingDouble(RecommendationItem::score).reversed());
+        sortByScoreDesc(adjusted);
         return adjusted;
     }
 
@@ -374,14 +347,9 @@ public class DailyRecommendationService {
         List<RecommendationItem> adjusted = new ArrayList<>(ranked.size());
         for (RecommendationItem item : ranked) {
             double jitter = dayJitter(userId, recDate, item.musicId);
-            adjusted.add(new RecommendationItem(
-                    item.musicId,
-                    item.score + jitter,
-                    item.source,
-                    item.reason
-            ));
+            adjusted.add(withScore(item, item.score + jitter));
         }
-        adjusted.sort(Comparator.comparingDouble(RecommendationItem::score).reversed());
+        sortByScoreDesc(adjusted);
         return adjusted;
     }
 
@@ -486,10 +454,8 @@ public class DailyRecommendationService {
 
         try {
             List<Integer> topIds = ranked.stream().limit(80).map(RecommendationItem::musicId).toList();
-            Map<Integer, RecommendationItem> byId = ranked.stream()
-                    .collect(Collectors.toMap(RecommendationItem::musicId, r -> r, (a, b) -> a, LinkedHashMap::new));
-            Map<Integer, SongCandidate> candidateMap = candidates.stream()
-                    .collect(Collectors.toMap(SongCandidate::id, c -> c, (a, b) -> a, LinkedHashMap::new));
+            Map<Integer, RecommendationItem> byId = indexBy(ranked, RecommendationItem::musicId);
+            Map<Integer, SongCandidate> candidateMap = indexBy(candidates, SongCandidate::id);
             String response = callOpenAiForRerank(userId, profile, topIds, candidateMap, recDate);
             List<RecommendationItem> aiRanked = parseAiRerankResponse(response, byId);
             if (aiRanked.isEmpty()) {
@@ -648,8 +614,7 @@ public class DailyRecommendationService {
     private void cacheRecommendations(int userId, LocalDate recDate, List<RecommendationItem> ranked, List<SongCandidate> candidates) {
         try {
             String key = redisKey(userId, recDate);
-            Map<Integer, SongCandidate> songMap = candidates.stream()
-                    .collect(Collectors.toMap(SongCandidate::id, c -> c, (a, b) -> a, LinkedHashMap::new));
+            Map<Integer, SongCandidate> songMap = indexBy(candidates, SongCandidate::id);
             List<Map<String, Object>> data = new ArrayList<>();
             int rank = 1;
             for (RecommendationItem item : ranked) {
@@ -854,6 +819,20 @@ public class DailyRecommendationService {
 
     private static String nullToEmpty(String s) {
         return s == null ? "" : s;
+    }
+
+    /** 按主键索引列表，保留插入顺序；重复键保留先出现者。 */
+    private static <K, V> Map<K, V> indexBy(List<V> list, Function<V, K> keyFn) {
+        return list.stream()
+                .collect(Collectors.toMap(keyFn, v -> v, (a, b) -> a, LinkedHashMap::new));
+    }
+
+    private static void sortByScoreDesc(List<RecommendationItem> items) {
+        items.sort(Comparator.comparingDouble(RecommendationItem::score).reversed());
+    }
+
+    private static RecommendationItem withScore(RecommendationItem item, double score) {
+        return new RecommendationItem(item.musicId, score, item.source, item.reason);
     }
 
     private static List<String> topKeys(Map<String, Integer> m, int topN) {

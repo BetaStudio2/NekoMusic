@@ -8,7 +8,6 @@ import com.neko.music.service.UserAuthService;
 import com.neko.music.util.RequestAuthUtil;
 import com.neko.music.util.VipUtil;
 import jakarta.servlet.AsyncContext;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -34,7 +33,7 @@ import java.util.concurrent.Executors;
  *   <li>{@code POST /api/user/qrlogin/confirm} — 手机确认/拒绝登录（需登录）</li>
  * </ul>
  */
-public class UserQrLoginHandler extends HttpServlet {
+public class UserQrLoginHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserQrLoginHandler.class);
 
     /** 状态变更轮询间隔 */
@@ -261,7 +260,7 @@ public class UserQrLoginHandler extends HttpServlet {
             return;
         }
 
-        JsonNode body = readBody(request);
+        JsonNode body = readJsonBody(request);
         String sessionId = body == null ? null : text(body, "sessionId");
         boolean approve = body == null || !body.has("approve") || body.get("approve").asBoolean(true);
 
@@ -319,17 +318,17 @@ public class UserQrLoginHandler extends HttpServlet {
 
     private Map<String, Object> toUserMap(User user) {
         Map<String, Object> userData = new HashMap<>();
-        userData.put("id", user.getId());
-        userData.put("username", user.getUsername());
-        userData.put("email", user.getEmail());
-        userData.put("createdAt", user.getCreatedAt());
-        userData.put("isVip", VipUtil.isVipActiveNow(user.getVipExpiresAt()));
+        userData.put("id", user.id());
+        userData.put("username", user.username());
+        userData.put("email", user.email());
+        userData.put("createdAt", user.createdAt());
+        userData.put("isVip", VipUtil.isVipActiveNow(user.vipExpiresAt()));
         userData.put("vipExpiresAt",
-                user.getVipExpiresAt() != null ? user.getVipExpiresAt().toInstant().toString() : null);
+                user.vipExpiresAt() != null ? user.vipExpiresAt().toInstant().toString() : null);
         return userData;
     }
 
-    private static JsonNode readBody(HttpServletRequest request) {
+    private static JsonNode readJsonBody(HttpServletRequest request) {
         StringBuilder sb = new StringBuilder();
         try (BufferedReader reader = request.getReader()) {
             String line;
@@ -350,7 +349,7 @@ public class UserQrLoginHandler extends HttpServlet {
     }
 
     private static String readSessionId(HttpServletRequest request) {
-        JsonNode body = readBody(request);
+        JsonNode body = readJsonBody(request);
         if (body != null) {
             String fromBody = text(body, "sessionId");
             if (fromBody != null && !fromBody.isBlank()) {
@@ -365,19 +364,4 @@ public class UserQrLoginHandler extends HttpServlet {
         return value == null || value.isNull() ? null : value.asText();
     }
 
-    private static void sendJson(HttpServletResponse response, int status, boolean success,
-                                 String message, Object data) throws IOException {
-        response.setStatus(status);
-        response.setContentType("application/json;charset=UTF-8");
-
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("success", success);
-        payload.put("message", message);
-        payload.put("data", data);
-
-        try (PrintWriter out = response.getWriter()) {
-            out.print(Main.getObjectMapper().writeValueAsString(payload));
-            out.flush();
-        }
-    }
 }

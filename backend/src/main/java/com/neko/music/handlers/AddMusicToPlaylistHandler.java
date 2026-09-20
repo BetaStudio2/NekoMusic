@@ -8,13 +8,11 @@ import com.neko.music.service.PlaylistService;
 import com.neko.music.service.UserAuthService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -22,7 +20,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 
 @WebServlet("/api/user/playlist/music/add")
-public class AddMusicToPlaylistHandler extends HttpServlet {
+public class AddMusicToPlaylistHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(AddMusicToPlaylistHandler.class);
     private PlaylistService playlistService;
     private UserAuthService userAuthService;
@@ -36,9 +34,6 @@ public class AddMusicToPlaylistHandler extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         resp.setContentType("application/json;charset=UTF-8");
-        resp.setHeader("Access-Control-Allow-Origin", "*");
-        resp.setHeader("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, OPTIONS");
-        resp.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
         logger.info("收到添加音乐到歌单请求");
 
@@ -55,13 +50,7 @@ public class AddMusicToPlaylistHandler extends HttpServlet {
             return;
         }
 
-        StringBuilder requestBody = new StringBuilder();
-        try (BufferedReader reader = req.getReader()) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                requestBody.append(line);
-            }
-        }
+        String requestBody = readBody(req);
 
         try {
             JsonObject requestData = Main.getGson().fromJson(requestBody.toString(), JsonObject.class);
@@ -155,23 +144,5 @@ public class AddMusicToPlaylistHandler extends HttpServlet {
         }
     }
 
-    private void sendSuccessResponse(HttpServletResponse resp, JsonObject response) throws IOException {
-        resp.setStatus(HttpServletResponse.SC_OK);
-        try (PrintWriter out = resp.getWriter()) {
-            out.print(Main.getGson().toJson(response));
-            out.flush();
-        }
-    }
 
-    private void sendErrorResponse(HttpServletResponse resp, int statusCode, String message) throws IOException {
-        resp.setStatus(statusCode);
-        JsonObject response = new JsonObject();
-        response.addProperty("success", false);
-        response.addProperty("message", message);
-
-        try (PrintWriter out = resp.getWriter()) {
-            out.print(Main.getGson().toJson(response));
-            out.flush();
-        }
-    }
 }

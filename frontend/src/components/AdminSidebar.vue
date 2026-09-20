@@ -1,264 +1,295 @@
-<template>
-  <div class="admin-sidebar" :class="{ 'open': isOpen }">
-    <div class="sidebar-header">
-      <h3>管理中心</h3>
-      <button class="close-sidebar-btn" @click="toggleSidebar">
-        <svg viewBox="0 0 24 24" fill="currentColor">
-          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-        </svg>
-      </button>
-    </div>
-    <nav class="sidebar-nav">
-      <ul>
-        <li>
-          <router-link to="/admin" class="nav-link" :class="{ 'active': isActiveRoute('/admin') }">
-            <span class="nav-icon">📊</span>
-            <span class="nav-text">统计概览</span>
-          </router-link>
-        </li>
-        <li v-if="hasPermission('music_view')">
-          <router-link to="/admin/music" class="nav-link" :class="{ 'active': isActiveRoute('/admin/music') }">
-            <span class="nav-icon">🎵</span>
-            <span class="nav-text">音乐管理</span>
-          </router-link>
-        </li>
-        <li v-if="hasPermission('music_view')">
-          <router-link to="/admin/lyrics" class="nav-link" :class="{ 'active': isActiveRoute('/admin/lyrics') }">
-            <span class="nav-icon">📝</span>
-            <span class="nav-text">歌词编辑</span>
-          </router-link>
-        </li>
-        <li v-if="hasPermission('audit_view')">
-          <router-link to="/admin/audit" class="nav-link" :class="{ 'active': isActiveRoute('/admin/audit') }">
-            <span class="nav-icon">✅</span>
-            <span class="nav-text">审核管理</span>
-          </router-link>
-        </li>
-        <li v-if="hasPermission('user_view')">
-          <router-link to="/admin/users" class="nav-link" :class="{ 'active': isActiveRoute('/admin/users') }">
-            <span class="nav-icon">👥</span>
-            <span class="nav-text">用户管理</span>
-          </router-link>
-        </li>
-        <li v-if="hasPermission('user_edit')">
-          <router-link to="/admin/vip-pricing" class="nav-link" :class="{ 'active': isActiveRoute('/admin/vip-pricing') }">
-            <span class="nav-icon">💎</span>
-            <span class="nav-text">VIP 价目</span>
-          </router-link>
-        </li>
-        <li v-if="hasPermission('release_manage')">
-          <router-link to="/admin/releases" class="nav-link" :class="{ 'active': isActiveRoute('/admin/releases') }">
-            <span class="nav-icon">📦</span>
-            <span class="nav-text">客户端更新</span>
-          </router-link>
-        </li>
-      </ul>
-    </nav>
-  </div>
-</template>
-
 <script setup>
+/**
+ * AdminSidebar —— 管理后台侧栏
+ * ------------------------------------------------------------
+ * 视觉参考 ArchoeraMusic 的侧栏（SMenu 观感）：
+ *  - 圆角导航项 + 选中态 primary@10% 背景 + 内缩圆角指示条（非整行 border-left）
+ *  - 悬浮态为中性 onSurface@5%
+ *  - 分组标题（概览 / 内容 / 运营）
+ *  - 顶部 Logo 字标
+ * 权限：保留原有 hasPermission 矩阵（super_admin / admin / auditor）。
+ */
 import { useRoute } from 'vue-router'
 import { computed, onMounted, ref } from 'vue'
+import NIcon from '@/icons/NIcon.vue'
 
 const route = useRoute()
 const adminInfo = ref(null)
 const isOpen = ref(false)
 
-// 切换侧边栏
+/** 移动端侧栏开关 */
 const toggleSidebar = () => {
   isOpen.value = !isOpen.value
 }
-
-// 关闭侧边栏
 const closeSidebar = () => {
   isOpen.value = false
 }
+defineExpose({ toggleSidebar, closeSidebar })
 
-// 暴露方法给父组件
-defineExpose({
-  toggleSidebar,
-  closeSidebar
-})
-
-// 检查当前路由是否与指定路径完全匹配
+/** 精确匹配 /admin，其余按前缀匹配 */
 const isActiveRoute = (path) => {
   if (path === '/admin') return route.path === '/admin'
   return route.path === path || route.path.startsWith(path + '/')
 }
 
-// 获取管理员信息
 onMounted(() => {
-  const storedAdminInfo = localStorage.getItem('adminInfo')
-  if (storedAdminInfo) {
-    adminInfo.value = JSON.parse(storedAdminInfo)
+  const stored = localStorage.getItem('adminInfo')
+  if (!stored) return
+  try {
+    adminInfo.value = JSON.parse(stored)
+  } catch {
+    adminInfo.value = null
   }
 })
 
-// 权限检查
 const hasPermission = (permission) => {
   if (!adminInfo.value) return false
-  
   const role = adminInfo.value.role || 'admin'
-  
-  // 超级管理员拥有所有权限
+
   if (role === 'super_admin') return true
-  
-  // 管理员权限
+
   if (role === 'admin') {
-    switch (permission) {
-      case 'music_view':
-      case 'music_add':
-      case 'music_edit':
-      case 'music_delete':
-      case 'audit_view':
-      case 'audit_approve':
-      case 'audit_reject':
-      case 'user_view':
-      case 'user_edit':
-      case 'user_delete':
-      case 'stats_view':
-      case 'release_manage':
-        return true
-      default:
-        return false
-    }
+    return [
+      'music_view',
+      'music_add',
+      'music_edit',
+      'music_delete',
+      'audit_view',
+      'audit_approve',
+      'audit_reject',
+      'user_view',
+      'user_edit',
+      'user_delete',
+      'stats_view',
+      'release_manage',
+    ].includes(permission)
   }
-  
-  // 审核员权限（只能查看自己的账号，不能删除）
+
   if (role === 'auditor') {
-    switch (permission) {
-      case 'audit_view':
-      case 'audit_approve':
-      case 'audit_reject':
-      case 'stats_view':
-      case 'user_view':
-        return true
-      default:
-        return false
-    }
+    return ['audit_view', 'audit_approve', 'audit_reject', 'stats_view', 'user_view'].includes(permission)
   }
-  
+
   return false
 }
+
+/** 分组导航：组内无可见项时不渲染该组 */
+const navGroups = computed(() => {
+  const overview = [{ to: '/admin', icon: 'chart', label: '统计概览' }]
+
+  const content = []
+  if (hasPermission('music_view')) {
+    content.push({ to: '/admin/music', icon: 'music', label: '音乐管理' })
+    content.push({ to: '/admin/lyrics', icon: 'file-text', label: '歌词编辑' })
+  }
+  if (hasPermission('audit_view')) {
+    content.push({ to: '/admin/audit', icon: 'clipboard-check', label: '审核管理' })
+  }
+
+  const ops = []
+  if (hasPermission('user_view')) {
+    ops.push({ to: '/admin/users', icon: 'users', label: '用户管理' })
+  }
+  if (hasPermission('user_edit')) {
+    ops.push({ to: '/admin/vip-pricing', icon: 'gem', label: 'VIP 价目' })
+  }
+  if (hasPermission('release_manage')) {
+    ops.push({ to: '/admin/releases', icon: 'package', label: '客户端更新' })
+  }
+
+  return [
+    { title: '概览', items: overview },
+    { title: '内容', items: content },
+    { title: '运营', items: ops },
+  ].filter((g) => g.items.length > 0)
+})
 </script>
 
+<template>
+  <aside class="sidebar" :class="{ 'sidebar--open': isOpen }">
+    <!-- 品牌 -->
+    <div class="sidebar__brand">
+      <span class="sidebar__mark">
+        <NIcon name="cat" :size="20" />
+      </span>
+      <span class="sidebar__wordmark">管理中心</span>
+      <button type="button" class="sidebar__close" aria-label="关闭菜单" @click="toggleSidebar">
+        <NIcon name="close" :size="18" />
+      </button>
+    </div>
+
+    <nav class="sidebar__nav" aria-label="管理导航">
+      <template v-for="group in navGroups" :key="group.title">
+        <p class="sidebar__group">{{ group.title }}</p>
+        <RouterLink
+          v-for="item in group.items"
+          :key="item.to"
+          :to="item.to"
+          class="sidebar__item"
+          :class="{ 'sidebar__item--active': isActiveRoute(item.to) }"
+          @click="closeSidebar"
+        >
+          <NIcon :name="item.icon" :size="18" class="sidebar__icon" />
+          <span class="sidebar__label">{{ item.label }}</span>
+        </RouterLink>
+      </template>
+    </nav>
+  </aside>
+</template>
+
 <style scoped>
-.admin-sidebar {
-  width: 250px;
-  background: rgba(8, 13, 19, 0.96);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  border-right: 1px solid rgba(143, 174, 198, 0.14);
-  display: flex;
-  flex-direction: column;
+.sidebar {
   position: fixed;
   left: 0;
   top: 0;
+  z-index: var(--n-z-modal);
+  display: flex;
+  flex-direction: column;
+  width: 250px;
   height: 100dvh;
-  z-index: 1000;
+  /* 抽屉贴物理屏边：刘海/状态栏/圆角不能压住品牌与关闭按钮 */
+  padding-top: var(--n-safe-top);
+  padding-left: var(--n-safe-left);
+  padding-bottom: var(--n-safe-bottom);
+  border-right: 1px solid var(--n-line);
+  background: var(--n-bg-soft);
+  backdrop-filter: var(--n-blur);
+  -webkit-backdrop-filter: var(--n-blur);
 }
 
-.sidebar-header {
-  padding: 20px;
-  border-bottom: 1px solid rgba(143, 174, 198, 0.14);
+/* ==================== 品牌 ==================== */
+.sidebar__brand {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--n-space-3);
+  flex: none;
+  min-height: 64px;
+  padding: var(--n-space-2) var(--n-space-5);
+  border-bottom: 1px solid var(--n-line-subtle);
 }
 
-.sidebar-header h3 {
-  margin: 0;
-  color: var(--neko-text);
-  font-size: 1.3rem;
-  flex: 1;
-  letter-spacing: -0.03em;
+.sidebar__mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--n-radius-sm);
+  background: linear-gradient(135deg, var(--n-accent-strong), var(--n-accent));
+  color: var(--n-text-inverse);
+  box-shadow: 0 6px 18px rgba(95, 208, 224, 0.24);
+  transition: transform var(--n-duration-fast) var(--n-ease);
 }
 
-.close-sidebar-btn {
+.sidebar__brand:hover .sidebar__mark {
+  transform: scale(1.06);
+}
+
+.sidebar__wordmark {
+  color: var(--n-accent-strong);
+  font-size: var(--n-text-base);
+  font-weight: var(--n-weight-bold);
+  letter-spacing: 0.02em;
+}
+
+.sidebar__close {
   display: none;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(143, 174, 198, 0.14);
-  border-radius: 10px;
-  color: var(--neko-muted);
-  cursor: pointer;
-  padding: 5px;
-  transition: color 0.2s var(--neko-ease), background 0.2s var(--neko-ease);
+  margin-left: auto;
+  place-items: center;
+  width: var(--n-tap-min);
+  height: var(--n-tap-min);
+  border-radius: var(--n-radius-xs);
+  color: var(--n-text-muted);
+  transition: background var(--n-duration-fast) var(--n-ease), color var(--n-duration-fast) var(--n-ease);
 }
 
-.close-sidebar-btn:hover {
-  color: var(--neko-text);
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.close-sidebar-btn svg {
-  width: 24px;
-  height: 24px;
-}
-
-.sidebar-nav {
+/* ==================== 导航 ==================== */
+.sidebar__nav {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  padding: var(--n-space-2) 10px var(--n-space-5);
 }
 
-.sidebar-nav ul {
-  list-style: none;
-  padding: 0;
+.sidebar__group {
   margin: 0;
+  padding: var(--n-space-4) var(--n-space-3) var(--n-space-2);
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-medium);
+  letter-spacing: 0.05em;
 }
 
-.sidebar-nav li {
-  margin-bottom: 5px;
-}
-
-.nav-link {
+.sidebar__item {
+  position: relative;
   display: flex;
   align-items: center;
-  padding: 12px 20px;
-  color: var(--neko-muted);
-  text-decoration: none;
-  transition: color 0.2s var(--neko-ease), background 0.2s var(--neko-ease), border-color 0.2s var(--neko-ease);
-  border-left: 3px solid transparent;
+  gap: var(--n-space-3);
+  height: 40px;
+  padding: 0 var(--n-space-3);
+  border-radius: var(--n-radius-sm);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-base);
+  transition:
+    background var(--n-duration-fast) var(--n-ease),
+    color var(--n-duration-fast) var(--n-ease);
 }
 
-.nav-link:hover {
-  background: rgba(105, 200, 223, 0.07);
-  color: var(--neko-text);
-  border-left-color: rgba(105, 200, 223, 0.45);
-}
-
-.nav-link.active {
-  background: rgba(105, 200, 223, 0.12);
-  color: var(--neko-accent-strong);
-  border-left-color: var(--neko-accent);
-}
-
-.nav-icon {
-  margin-right: 12px;
-  font-size: 1.2rem;
-  width: 24px;
-  text-align: center;
-}
-
-.nav-text {
-  font-size: 0.95rem;
-  font-weight: 650;
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .admin-sidebar {
-    transform: translateX(-100%);
-    transition: transform 0.3s ease;
-    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.2);
+@media (hover: hover) {
+  .sidebar__item:not(.sidebar__item--active):hover {
+    background: var(--n-surface-soft);
+    color: var(--n-text);
   }
-  
-  .admin-sidebar.open {
+}
+
+.sidebar__item--active {
+  background: var(--n-accent-soft);
+  color: var(--n-accent-strong);
+  font-weight: var(--n-weight-semibold);
+}
+
+/* 选中指示条：内缩 + 圆角（对齐参考实现，非整行 border-left） */
+.sidebar__item--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--n-accent);
+}
+
+.sidebar__icon {
+  flex: none;
+}
+
+.sidebar__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==================== 移动端：抽屉 ==================== */
+@media (max-width: 900px) {
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform var(--n-duration) var(--n-ease);
+    box-shadow: var(--n-shadow-lg);
+  }
+
+  .sidebar--open {
     transform: translateX(0);
   }
-  
-  .close-sidebar-btn {
-    display: block;
+
+  .sidebar__close {
+    display: grid;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar {
+    transition: none;
   }
 }
 </style>

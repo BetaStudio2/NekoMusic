@@ -1,5 +1,7 @@
 package com.neko.music.handlers;
 
+import com.neko.music.util.UserLookup;
+
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonNull;
@@ -10,24 +12,18 @@ import com.neko.music.service.UserAuthService;
 import com.neko.music.util.VipUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Optional;
 
 @WebServlet("/api/user/playlists")
-public class GetPlaylistsHandler extends HttpServlet {
+public class GetPlaylistsHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(GetPlaylistsHandler.class);
     private PlaylistService playlistService;
     private UserAuthService userAuthService;
@@ -41,9 +37,6 @@ public class GetPlaylistsHandler extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         resp.setContentType("application/json;charset=UTF-8");
-        resp.setHeader("Access-Control-Allow-Origin", "*");
-        resp.setHeader("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, OPTIONS");
-        resp.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
         logger.info("收到获取歌单列表请求");
 
@@ -75,18 +68,18 @@ public class GetPlaylistsHandler extends HttpServlet {
             JsonArray playlistsArray = new JsonArray();
             for (Playlist playlist : playlists) {
                 JsonObject playlistJson = new JsonObject();
-                playlistJson.addProperty("id", playlist.getId());
-                playlistJson.addProperty("userId", playlist.getUserId());
-                playlistJson.addProperty("name", playlist.getName());
-                playlistJson.addProperty("description", playlist.getDescription());
-                playlistJson.addProperty("musicCount", playlist.getMusicCount());
-                playlistJson.addProperty("createdAt", playlist.getCreatedAt());
-                playlistJson.addProperty("updatedAt", playlist.getUpdatedAt());
+                playlistJson.addProperty("id", playlist.id());
+                playlistJson.addProperty("userId", playlist.userId());
+                playlistJson.addProperty("name", playlist.name());
+                playlistJson.addProperty("description", playlist.description());
+                playlistJson.addProperty("musicCount", playlist.musicCount());
+                playlistJson.addProperty("createdAt", playlist.createdAt());
+                playlistJson.addProperty("updatedAt", playlist.updatedAt());
                 
                 // 添加创建者信息
                 JsonObject creator = new JsonObject();
-                creator.addProperty("id", playlist.getUserId());
-                creator.addProperty("username", getUserName(playlist.getUserId()));
+                creator.addProperty("id", playlist.userId());
+                creator.addProperty("username", UserLookup.getUserName(playlist.userId()));
                 playlistJson.add("creator", creator);
                 
                 playlistsArray.add(playlistJson);
@@ -114,48 +107,12 @@ public class GetPlaylistsHandler extends HttpServlet {
     /**
      * 发送成功响应
      */
-    private void sendSuccessResponse(HttpServletResponse resp, JsonObject response) throws IOException {
-        resp.setStatus(HttpServletResponse.SC_OK);
-        try (PrintWriter out = resp.getWriter()) {
-            out.print(Main.getGson().toJson(response));
-            out.flush();
-        }
-    }
 
     /**
      * 发送错误响应
      */
-    private void sendErrorResponse(HttpServletResponse resp, int statusCode, String message) throws IOException {
-        resp.setStatus(statusCode);
-        JsonObject response = new JsonObject();
-        response.addProperty("success", false);
-        response.addProperty("message", message);
-
-        try (PrintWriter out = resp.getWriter()) {
-            out.print(Main.getGson().toJson(response));
-            out.flush();
-        }
-    }
     
     /**
      * 获取昵称
      */
-    private String getUserName(int userId) {
-        String sql = "SELECT username FROM users WHERE id = ?";
-        
-        try (Connection conn = Main.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setInt(1, userId);
-            ResultSet rs = stmt.executeQuery();
-            
-            if (rs.next()) {
-                return rs.getString("username");
-            }
-        } catch (SQLException e) {
-            logger.error("获取昵称失败: {}", e.getMessage(), e);
-        }
-        
-        return "未知用户";
-    }
 }

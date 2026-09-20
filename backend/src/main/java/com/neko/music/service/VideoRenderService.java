@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -398,13 +397,20 @@ public class VideoRenderService {
         return "if(lte(pow(X-W/2,2)+pow(Y-H/2,2)," + r2 + "),255,0)";
     }
 
+    /** 径向环带守卫：内缘 RADIAL_R0 以内、外缘 RADIAL_R1 以外均为 0，否则套用 inner 表达式。 */
+    private static String radialBand(String inner) {
+        int c = RING_HALF;
+        String hypot = "hypot(X-" + c + ",Y-" + c + ")";
+        return "if(lt(" + hypot + "," + RADIAL_R0 + "),0,"
+                + "if(gt(" + hypot + "," + RADIAL_R1 + "),0,"
+                + inner + "))";
+    }
+
     /** remap 用 x 坐标图（8bit）：角向对应 showfreqs 的列 */
     private static String radialXmapLumGeq() {
         int c = RING_HALF;
         int smax = RADIAL_SPEC_W - 1;
-        return "if(lt(hypot(X-" + c + ",Y-" + c + ")," + RADIAL_R0 + "),0,"
-                + "if(gt(hypot(X-" + c + ",Y-" + c + ")," + RADIAL_R1 + "),0,"
-                + "min(255,max(0,(255*min(" + smax + ",max(0,(" + smax + ")*(atan2(Y-" + c + ",X-" + c + ")+PI)/(2*PI))))/(" + smax + ")))))";
+        return radialBand("min(255,max(0,(255*min(" + smax + ",max(0,(" + smax + ")*(atan2(Y-" + c + ",X-" + c + ")+PI)/(2*PI))))/(" + smax + ")))");
     }
 
     /** remap 用 y 坐标图：半径越大越靠近条形顶端（能量越强） */
@@ -414,37 +420,29 @@ public class VideoRenderService {
         int span = RADIAL_R1 - RADIAL_R0;
         int m = RADIAL_SPEC_YMARGIN;
         int yr = Math.max(1, sh - 2 * m);
-        return "if(lt(hypot(X-" + c + ",Y-" + c + ")," + RADIAL_R0 + "),0,"
-                + "if(gt(hypot(X-" + c + ",Y-" + c + ")," + RADIAL_R1 + "),0,"
-                + "min(255,max(0,(255*min(" + sh + ",max(0," + m + "+(" + yr + ")*(1-((hypot(X-" + c + ",Y-" + c + ")-" + RADIAL_R0 + ")/(" + span + ")))))/" + sh + ")))))";
+        return radialBand("min(255,max(0,(255*min(" + sh + ",max(0," + m + "+(" + yr + ")*(1-((hypot(X-" + c + ",Y-" + c + ")-" + RADIAL_R0 + ")/(" + span + ")))))/" + sh + ")))");
     }
 
     /**
      * 叠层 RGB：环带内、频谱够亮则输出纯白（对齐参考 demo 的白色径向细条）。
      */
     private static String radialRingWhiteRgbGeq() {
-        int c = RING_HALF;
         String lum = "0.299*r(X,Y)+0.587*g(X,Y)+0.114*b(X,Y)";
-        return "if(lt(hypot(X-" + c + ",Y-" + c + ")," + RADIAL_R0 + "),0,"
-                + "if(gt(hypot(X-" + c + ",Y-" + c + ")," + RADIAL_R1 + "),0,"
-                + "if(gt(" + lum + "," + RADIAL_ALPHA_LUM_THRESH + "),255,0)))";
+        return radialBand("if(gt(" + lum + "," + RADIAL_ALPHA_LUM_THRESH + "),255,0)");
     }
 
     /** 叠层 alpha：同径向带；略抬 alpha 让白条在毛玻璃上更站得住 */
     private static String radialRingWhiteAlphaGeq() {
-        int c = RING_HALF;
         String lum = "0.299*r(X,Y)+0.587*g(X,Y)+0.114*b(X,Y)";
-        return "if(lt(hypot(X-" + c + ",Y-" + c + ")," + RADIAL_R0 + "),0,"
-                + "if(gt(hypot(X-" + c + ",Y-" + c + ")," + RADIAL_R1 + "),0,"
-                + "if(gt(" + lum + "," + RADIAL_ALPHA_LUM_THRESH + "),min(255,58+1.4*(" + lum + ")),0)))";
+        return radialBand("if(gt(" + lum + "," + RADIAL_ALPHA_LUM_THRESH + "),min(255,58+1.4*(" + lum + ")),0)");
     }
 
     /**
      * 视频编码：NVENC 走 GPU（需系统 FFmpeg 编译含 h264_nvenc 与 NVIDIA 驱动）；libx264 走 CPU。
      */
     private static void appendVideoEncodeArgs(List<String> cmd, String codec) {
+        cmd.add("-c:v");
         if ("h264_nvenc".equals(codec)) {
-            cmd.add("-c:v");
             cmd.add("h264_nvenc");
             cmd.add("-preset");
             cmd.add("p4");
@@ -454,18 +452,15 @@ public class VideoRenderService {
             cmd.add("23");
             cmd.add("-b:v");
             cmd.add("0");
-            cmd.add("-pix_fmt");
-            cmd.add("yuv420p");
-            return;
+        } else {
+            cmd.add("libx264");
+            cmd.add("-preset");
+            cmd.add("veryfast");
+            cmd.add("-threads");
+            cmd.add("2");
+            cmd.add("-crf");
+            cmd.add("23");
         }
-        cmd.add("-c:v");
-        cmd.add("libx264");
-        cmd.add("-preset");
-        cmd.add("veryfast");
-        cmd.add("-threads");
-        cmd.add("2");
-        cmd.add("-crf");
-        cmd.add("23");
         cmd.add("-pix_fmt");
         cmd.add("yuv420p");
     }
@@ -498,14 +493,7 @@ public class VideoRenderService {
         int coverInputIdx = -1;
         if (hasCover) {
             coverInputIdx = 1;
-            cmd.add("-loop");
-            cmd.add("1");
-            cmd.add("-framerate");
-            cmd.add(String.valueOf(fps));
-            cmd.add("-t");
-            cmd.add(formatSec(duration));
-            cmd.add("-i");
-            cmd.add(coverFile.get().toAbsolutePath().toString());
+            appendLoopImageInput(cmd, fps, duration, coverFile.get());
         }
 
         boolean watermarked = job.isWatermarked();
@@ -517,14 +505,7 @@ public class VideoRenderService {
             logger.info("视频水印 PNG 输入 jobId={} inputIndex={} hasCover={} {}",
                     job.getId(), watermarkInputIdx, hasCover,
                     BundledWatermarkSupport.describeForLog(watermarkFile));
-            cmd.add("-loop");
-            cmd.add("1");
-            cmd.add("-framerate");
-            cmd.add(String.valueOf(fps));
-            cmd.add("-t");
-            cmd.add(formatSec(duration));
-            cmd.add("-i");
-            cmd.add(watermarkFile.toAbsolutePath().toString());
+            appendLoopImageInput(cmd, fps, duration, watermarkFile);
         }
 
         String subtitles = VideoRenderPaths.subtitlesFilterArg(assFile, fontsDir);
@@ -595,19 +576,15 @@ public class VideoRenderService {
                     .append(":force_original_aspect_ratio=increase,crop=").append(sizeColon)
                     .append(",setsar=1[bg_src];");
             fc.append("[bg_src]gblur=sigma=50,eq=brightness='0.02+0.015*sin(n/30)':saturation=1.12:contrast=1.06[blur_bg];");
-            fc.append("color=c=white@0.22:s=").append(sizeWxH).append(":d=").append(durFrames)
-                    .append(":r=").append(fps).append("[frost_base];");
+            fc.append(colorSource("white@0.22", sizeWxH, durFrames, fps)).append("[frost_base];");
             fc.append("[frost_base]noise=alls=8:allf=t[frost_noise];");
             fc.append("[blur_bg][frost_noise]overlay=0:0:format=auto[glass];");
             fc.append("[glass]hue=h='4*sin(2*PI*t/14)':s=1.18[glass_hue];");
-            fc.append("color=c=0x7C3AED@0.10:s=").append(sizeWxH).append(":d=").append(durFrames)
-                    .append(":r=").append(fps).append("[tint_p];");
-            fc.append("color=c=0x22D3EE@0.05:s=").append(sizeWxH).append(":d=").append(durFrames)
-                    .append(":r=").append(fps).append("[tint_c];");
+            fc.append(colorSource("0x7C3AED@0.10", sizeWxH, durFrames, fps)).append("[tint_p];");
+            fc.append(colorSource("0x22D3EE@0.05", sizeWxH, durFrames, fps)).append("[tint_c];");
             fc.append("[glass_hue][tint_p]overlay=0:0:format=auto[glass_p];");
             fc.append("[glass_p][tint_c]overlay=0:0:format=auto[glass_tint];");
-            fc.append("color=c=black@0.15:s=").append(sizeWxH).append(":d=").append(durFrames)
-                    .append(":r=").append(fps).append("[vign];");
+            fc.append(colorSource("black@0.15", sizeWxH, durFrames, fps)).append("[vign];");
             fc.append("[glass_tint][vign]overlay=0:0:format=auto[bg];");
             fc.append(coverIn).append("scale=").append(coverColon).append(":force_original_aspect_ratio=decrease,")
                     .append("pad=").append(coverColon).append(":(ow-iw)/2:(oh-ih)/2:color=black@0,")
@@ -624,23 +601,20 @@ public class VideoRenderService {
             fc.append("[bg_shadow][cover_main]overlay=").append(COVER_X).append(':').append(COVER_Y)
                     .append(":format=auto[composed];");
         } else {
-            fc.append("color=c=0x0f172a:s=").append(sizeWxH).append(":d=").append(durFrames)
-                    .append(":r=").append(fps).append(",eq=brightness='0.02+0.01*sin(n/30)'[dark];");
-            fc.append("color=c=white@0.14:s=").append(sizeWxH).append(":d=").append(durFrames)
-                    .append(":r=").append(fps).append(",noise=alls=6:allf=t[frost];");
+            fc.append(colorSource("0x0f172a", sizeWxH, durFrames, fps)).append(",eq=brightness='0.02+0.01*sin(n/30)'[dark];");
+            fc.append(colorSource("white@0.14", sizeWxH, durFrames, fps)).append(",noise=alls=6:allf=t[frost];");
             fc.append("[dark][frost]overlay=0:0:format=auto[composed];");
             fc.append("[composed]hue=h='4*sin(2*PI*t/14)':s=1.12[composed];");
         }
         String mapDurSec = String.format(Locale.US, "%.5f", Math.max(0.1, durFrames / (double) fps));
+        String ringSize = RING_VIS_SIZE + "x" + RING_VIS_SIZE;
         fc.append("[0:a]aformat=sample_rates=44100:channel_layouts=stereo,showfreqs=s=").append(RADIAL_SPEC_W).append('x')
                 .append(RADIAL_SPEC_H).append(":mode=bar:ascale=sqrt:fscale=log:overlap=0.30:averaging=1:win_size=4096:rate=")
                 .append(fps).append(":colors=white|white[spec_raw];");
         fc.append("[spec_raw]eq=contrast=1.28:brightness=0.08[spec_eq];");
         fc.append("[spec_eq]gblur=sigma=0.22[spec_strip];");
-        fc.append("color=c=black:s=").append(RING_VIS_SIZE).append('x').append(RING_VIS_SIZE).append(":d=").append(mapDurSec)
-                .append(":r=").append(fps).append(",format=gray,geq=lum='").append(radialXmapLumGeq()).append("'[xmap];");
-        fc.append("color=c=black:s=").append(RING_VIS_SIZE).append('x').append(RING_VIS_SIZE).append(":d=").append(mapDurSec)
-                .append(":r=").append(fps).append(",format=gray,geq=lum='").append(radialYmapLumGeq()).append("'[ymap];");
+        fc.append(colorSource("black", ringSize, mapDurSec, fps)).append(",format=gray,geq=lum='").append(radialXmapLumGeq()).append("'[xmap];");
+        fc.append(colorSource("black", ringSize, mapDurSec, fps)).append(",format=gray,geq=lum='").append(radialYmapLumGeq()).append("'[ymap];");
         fc.append("[spec_strip][xmap][ymap]remap=fill=black,unsharp=7:7:1.05:5:5:0.0,format=rgba,geq=r='")
                 .append(radialRingWhiteRgbGeq()).append("':g='").append(radialRingWhiteRgbGeq()).append("':b='")
                 .append(radialRingWhiteRgbGeq()).append("':a='").append(radialRingWhiteAlphaGeq()).append("'[ring_vis];");
@@ -656,6 +630,28 @@ public class VideoRenderService {
             fc.append("[flash]").append(subtitles).append("[vout]");
         }
         return fc.toString();
+    }
+
+    /** 追加一路循环图片输入（封面/水印共用）。 */
+    private static void appendLoopImageInput(List<String> cmd, int fps, double duration, Path file) {
+        cmd.add("-loop");
+        cmd.add("1");
+        cmd.add("-framerate");
+        cmd.add(String.valueOf(fps));
+        cmd.add("-t");
+        cmd.add(formatSec(duration));
+        cmd.add("-i");
+        cmd.add(file.toAbsolutePath().toString());
+    }
+
+    /** color 源滤镜（画布尺寸 + 整数帧数）。 */
+    private static String colorSource(String color, String size, int durFrames, int fps) {
+        return colorSource(color, size, String.valueOf(durFrames), fps);
+    }
+
+    /** color 源滤镜（自定义时长文本，供 remap 映射图层复用）。 */
+    private static String colorSource(String color, String size, String duration, int fps) {
+        return "color=c=" + color + ":s=" + size + ":d=" + duration + ":r=" + fps;
     }
 
     private static String formatSec(double sec) {

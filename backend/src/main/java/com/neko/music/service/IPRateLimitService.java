@@ -109,13 +109,6 @@ public class IPRateLimitService {
     /**
      * 封锁 IP 段
      */
-    private void blockIP(String ip) {
-        String ipSegment = convertToIPSegment(ip);
-        String key = IP_BLOCKED_PREFIX + ipSegment;
-        redisService.setWithExpiry(key, "1", configManager.getRateLimitBlockDuration());
-        String countKey = IP_REQUEST_COUNT_PREFIX + ipSegment;
-        redisService.del(countKey);
-    }
 
     /**
      * 解除 IP 封锁

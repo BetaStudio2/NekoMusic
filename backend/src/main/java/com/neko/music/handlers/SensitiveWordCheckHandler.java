@@ -128,9 +128,6 @@ public class SensitiveWordCheckHandler extends HttpServlet {
     }
 
     private static void setCorsHeaders(HttpServletResponse response) {
-        response.setHeader("Access-Control-Allow-Origin", "*");
-        response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     }
 
     private static void writeError(HttpServletResponse response, int status, String message)
@@ -140,54 +137,12 @@ public class SensitiveWordCheckHandler extends HttpServlet {
         response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
     }
 
-    public static class CheckItem {
-        public String text;
-        public boolean contains;
-        public List<String> words;
-
-        public CheckItem() {
-        }
-
-        public CheckItem(String text, boolean contains, List<String> words) {
-            this.text = text;
-            this.contains = contains;
-            this.words = words;
-        }
+    public record CheckItem(String text, boolean contains, List<String> words) {
     }
-
-    public static class CheckResponse {
-        public boolean success;
-        public String message;
-        public CheckItem data;
-        public boolean contains;
-
-        public CheckResponse(boolean success, String message, CheckItem data, boolean contains) {
-            this.success = success;
-            this.message = message;
-            this.data = data;
-            this.contains = contains;
-        }
+    public record CheckResponse(boolean success, String message, CheckItem data, boolean contains) {
     }
-
-    public static class BatchCheckResponse {
-        public boolean success;
-        public String message;
-        public List<CheckItem> data;
-        public boolean contains;
-
-        public BatchCheckResponse(boolean success, String message, List<CheckItem> data, boolean contains) {
-            this.success = success;
-            this.message = message;
-            this.data = data;
-            this.contains = contains;
-        }
+    public record BatchCheckResponse(boolean success, String message, List<CheckItem> data, boolean contains) {
     }
-
-    public static class ErrorResponse {
-        public String message;
-
-        public ErrorResponse(String message) {
-            this.message = message;
-        }
+    public record ErrorResponse(String message) {
     }
 }

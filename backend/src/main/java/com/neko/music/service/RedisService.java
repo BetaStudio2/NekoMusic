@@ -5,7 +5,6 @@ import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.SetArgs;
 import io.lettuce.core.api.StatefulRedisConnection;
-import io.lettuce.core.api.sync.RedisCommands;
 import io.lettuce.core.resource.ClientResources;
 import io.lettuce.core.resource.DefaultClientResources;
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -61,10 +60,6 @@ public class RedisService {
     /**
      * 从连接池获取一个同步命令接口
      */
-    private RedisCommands<String, String> getSyncCommands() throws Exception {
-        StatefulRedisConnection<String, String> conn = connectionPool.borrowObject();
-        return conn.sync();
-    }
 
     /**
      * 归还连接到连接池

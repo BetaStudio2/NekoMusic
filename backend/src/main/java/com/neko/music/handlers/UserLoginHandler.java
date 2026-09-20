@@ -10,18 +10,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
 @WebServlet("/api/user/login")
-public class UserLoginHandler extends HttpServlet {
+public class UserLoginHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserLoginHandler.class);
     private UserAuthService userAuthService;
 
@@ -33,9 +31,6 @@ public class UserLoginHandler extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         response.setContentType("application/json;charset=UTF-8");
-        response.setHeader("Access-Control-Allow-Origin", "*");
-        response.setHeader("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
         logger.info("收到用户登录请求");
 
@@ -82,26 +77,26 @@ public class UserLoginHandler extends HttpServlet {
 
             if (userOpt.isPresent()) {
                 User user = userOpt.get();
-                logger.info("用户登录成功: {}", user.getEmail());
+                logger.info("用户登录成功: {}", user.email());
 
                 // 生成 token 并写入 Redis
-                String token = userAuthService.createTokenForUser(user.getId());
+                String token = userAuthService.createTokenForUser(user.id());
 
                 if (token == null) {
-                    logger.error("生成token失败: {}", user.getEmail());
+                    logger.error("生成token失败: {}", user.email());
                     sendResponse(response, false, "登录失败，请稍后重试", null);
                     return;
                 }
 
                 // 返回用户信息（不包含密码）和token
                 Map<String, Object> userData = new HashMap<>();
-                userData.put("id", user.getId());
-                userData.put("username", user.getUsername());
-                userData.put("email", user.getEmail());
-                userData.put("createdAt", user.getCreatedAt());
-                userData.put("isVip", VipUtil.isVipActiveNow(user.getVipExpiresAt()));
+                userData.put("id", user.id());
+                userData.put("username", user.username());
+                userData.put("email", user.email());
+                userData.put("createdAt", user.createdAt());
+                userData.put("isVip", VipUtil.isVipActiveNow(user.vipExpiresAt()));
                 userData.put("vipExpiresAt",
-                        user.getVipExpiresAt() != null ? user.getVipExpiresAt().toInstant().toString() : null);
+                        user.vipExpiresAt() != null ? user.vipExpiresAt().toInstant().toString() : null);
 
                 Map<String, Object> responseData = new HashMap<>();
                 responseData.put("user", userData);
@@ -122,17 +117,4 @@ public class UserLoginHandler extends HttpServlet {
     /**
      * 发送JSON响应
      */
-    private void sendResponse(HttpServletResponse response, boolean success, String message, Object data) throws IOException {
-        response.setContentType("application/json;charset=UTF-8");
-        
-        Map<String, Object> responseMap = new HashMap<>();
-        responseMap.put("success", success);
-        responseMap.put("message", message);
-        responseMap.put("data", data);
-
-        try (PrintWriter out = response.getWriter()) {
-            out.print(Main.getObjectMapper().writeValueAsString(responseMap));
-            out.flush();
-        }
-    }
 }

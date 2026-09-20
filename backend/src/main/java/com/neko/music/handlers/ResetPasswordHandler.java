@@ -8,20 +8,16 @@ import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * 重置密码处理器
  */
 @WebServlet("/user/reset-password")
-public class ResetPasswordHandler extends HttpServlet {
+public class ResetPasswordHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(ResetPasswordHandler.class);
     private UserAuthService userAuthService;
 
@@ -33,9 +29,6 @@ public class ResetPasswordHandler extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         response.setContentType("application/json;charset=UTF-8");
-        response.setHeader("Access-Control-Allow-Origin", "*");
-        response.setHeader("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
         logger.info("收到重置密码请求");
 
@@ -129,17 +122,4 @@ public class ResetPasswordHandler extends HttpServlet {
     /**
      * 发送JSON响应
      */
-    private void sendResponse(HttpServletResponse response, boolean success, String message, Object data) throws IOException {
-        response.setContentType("application/json;charset=UTF-8");
-
-        Map<String, Object> responseMap = new HashMap<>();
-        responseMap.put("success", success);
-        responseMap.put("message", message);
-        responseMap.put("data", data);
-
-        try (PrintWriter out = response.getWriter()) {
-            out.print(Main.getObjectMapper().writeValueAsString(responseMap));
-            out.flush();
-        }
-    }
 }

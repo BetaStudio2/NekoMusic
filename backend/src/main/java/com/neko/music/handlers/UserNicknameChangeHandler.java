@@ -7,10 +7,8 @@ import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -19,7 +17,7 @@ import java.util.Map;
  * 修改当前登录用户的昵称：{@code POST /api/user/nickname/change}。
  * 请求体 {@code {"nickname": "新昵称"}}，昵称规则与注册保持一致。
  */
-public class UserNicknameChangeHandler extends HttpServlet {
+public class UserNicknameChangeHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserNicknameChangeHandler.class);
 
     @Override
@@ -30,18 +28,12 @@ public class UserNicknameChangeHandler extends HttpServlet {
             return;
         }
 
-        StringBuilder requestBody = new StringBuilder();
-        try (BufferedReader reader = request.getReader()) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                requestBody.append(line);
-            }
-        }
+        String requestBody = readBody(request);
 
         try {
             NicknameChangeRequest changeRequest =
                     Main.getObjectMapper().readValue(requestBody.toString(), NicknameChangeRequest.class);
-            String nickname = changeRequest.getNickname() == null ? null : changeRequest.getNickname().trim();
+            String nickname = changeRequest.nickname() == null ? null : changeRequest.nickname().trim();
 
             String validationError = NicknameValidator.validate(nickname);
             if (validationError != null) {
@@ -73,20 +65,8 @@ public class UserNicknameChangeHandler extends HttpServlet {
         response.getWriter().println(Main.getObjectMapper().writeValueAsString(body));
     }
 
-    private void sendErrorResponse(HttpServletResponse response, int statusCode, String message) throws IOException {
-        response.setStatus(statusCode);
-        response.setContentType("application/json;charset=utf-8");
 
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", false);
-        body.put("message", message);
-        response.getWriter().println(Main.getObjectMapper().writeValueAsString(body));
-    }
-
-    private static class NicknameChangeRequest {
-        private String nickname;
-
-        public String getNickname() { return nickname; }
-        public void setNickname(String nickname) { this.nickname = nickname; }
+    // 昵称修改请求（Jackson 反序列化，只读）
+    private record NicknameChangeRequest(String nickname) {
     }
 }

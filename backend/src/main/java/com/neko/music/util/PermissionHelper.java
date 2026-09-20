@@ -30,6 +30,23 @@ public class PermissionHelper {
         String token = authHeader.substring(7);
         return Main.getAdminAuthService().getAdminByToken(token);
     }
+
+    /**
+     * 校验请求是否携带有效的管理员令牌。
+     *
+     * <p>原先 6 个处理器各自复制了一份同名的私有方法，收敛到这里。
+     *
+     * @param request HTTP请求
+     * @return 是否已通过管理员令牌校验
+     */
+    public static boolean isAdminAuthorized(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return false;
+        }
+        String token = authHeader.substring(7);
+        return Main.getAdminAuthService().validateAdminToken(token);
+    }
     
     /**
      * 验证管理员是否有指定权限

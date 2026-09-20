@@ -1,98 +1,82 @@
 <template>
-  <div class="pl-page">
-    <div class="ambient" aria-hidden="true">
-      <div class="ambient__blob ambient__blob--a" />
-      <div class="ambient__blob ambient__blob--b" />
-      <div class="ambient__blob ambient__blob--c" />
-      <div class="ambient__grid" />
+  <AmbientBackdrop />
+
+  <PageShell width="default">
+    <header class="head">
+      <div>
+        <h1 class="head__title">我的歌单</h1>
+        <p class="head__sub">管理自建歌单，点击进入详情或编辑。</p>
+      </div>
+      <NButton variant="primary" icon="plus" @click="goToCreatePlaylist">创建歌单</NButton>
+    </header>
+
+    <div v-if="loading" class="state">
+      <NSpinner :size="28" />
     </div>
 
-    <main class="shell">
-      <header class="page-head">
-        <div class="page-head-row">
-          <div>
-            <h1 class="page-title">我的歌单</h1>
-            <p class="page-lede">管理自建歌单，点击进入详情或编辑。</p>
-          </div>
-          <button type="button" class="btn-primary" @click="goToCreatePlaylist">创建歌单</button>
+    <div v-else-if="playlists.length > 0" class="grid">
+      <NCard
+        v-for="playlist in playlists"
+        :key="playlist.id"
+        hoverable
+        pad="none"
+        class="pl"
+        tabindex="0"
+        role="link"
+        @click="goToPlaylistDetail(playlist.id)"
+        @keydown.enter.prevent="goToPlaylistDetail(playlist.id)"
+      >
+        <div class="pl__cover">
+          <img :src="getPlaylistCover(playlist)" :alt="playlist.name" loading="lazy" @error="handleCoverError($event)" />
         </div>
-      </header>
-
-      <section v-if="loading" class="panel state-panel">
-        <div class="state state--loading">
-          <div class="state__spinner" aria-hidden="true" />
-          <p class="state__text">加载中…</p>
+        <div class="pl__body">
+          <h2 class="pl__title">{{ playlist.name }}</h2>
+          <p class="pl__meta">
+            <NIcon name="music" :size="13" />
+            {{ playlist.musicCount }} 首
+          </p>
+          <p v-if="playlist.description" class="pl__desc">{{ playlist.description }}</p>
         </div>
-      </section>
-
-      <div v-else-if="playlists.length > 0" class="pl-grid">
-        <article
-          v-for="playlist in playlists"
-          :key="playlist.id"
-          class="pl-card panel"
-          tabindex="0"
-          role="link"
-          @click="goToPlaylistDetail(playlist.id)"
-          @keydown.enter.prevent="goToPlaylistDetail(playlist.id)"
-        >
-          <div class="pl-card-cover">
-            <img :src="getPlaylistCover(playlist)" alt="" @error="handleCoverError($event)" />
-          </div>
-          <div class="pl-card-body">
-            <h2 class="pl-card-title">{{ playlist.name }}</h2>
-            <p class="pl-card-meta">{{ playlist.musicCount }} 首</p>
-            <p v-if="playlist.description" class="pl-card-desc">{{ playlist.description }}</p>
-          </div>
-          <div v-if="isPlaylistOwner(playlist.userId)" class="pl-card-actions" @click.stop>
-            <button type="button" class="btn-chip" title="编辑歌单" @click="showEditDialog(playlist)">编辑</button>
-            <button type="button" class="btn-chip btn-chip--danger" title="删除歌单" @click="confirmDelete(playlist)">
-              删除
-            </button>
-          </div>
-        </article>
-      </div>
-
-      <section v-else class="panel state-panel state--empty">
-        <h2 class="state__title">暂无歌单</h2>
-        <p class="state__text">创建第一个歌单，把喜欢的曲目收在一起。</p>
-        <button type="button" class="btn-primary" @click="goToCreatePlaylist">创建歌单</button>
-      </section>
-    </main>
-
-    <div v-if="showEdit" class="modal-overlay" @click.self="closeEditDialog">
-      <div class="modal panel" role="dialog" aria-labelledby="edit-title" @click.stop>
-        <button type="button" class="modal-close" aria-label="关闭" @click="closeEditDialog">×</button>
-        <h3 id="edit-title" class="modal-title">编辑歌单</h3>
-        <form @submit.prevent="handleEditPlaylist">
-          <div class="form-group">
-            <label for="edit-name">歌单名称</label>
-            <input id="edit-name" v-model="editForm.name" type="text" required maxlength="255" />
-          </div>
-          <div class="form-group">
-            <label for="edit-desc">歌单描述</label>
-            <textarea id="edit-desc" v-model="editForm.description" maxlength="500" rows="4" />
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn-ghost" @click="closeEditDialog">取消</button>
-            <button type="submit" class="btn-primary">保存</button>
-          </div>
-        </form>
-      </div>
+        <div v-if="isPlaylistOwner(playlist.userId)" class="pl__actions" @click.stop>
+          <NButton size="sm" variant="secondary" icon="pencil" @click="showEditDialog(playlist)">编辑</NButton>
+          <NButton size="sm" variant="danger" icon="trash-2" @click="confirmDelete(playlist)">删除</NButton>
+        </div>
+      </NCard>
     </div>
 
-    <div v-if="showDeleteConfirm" class="modal-overlay" @click.self="closeDeleteConfirm">
-      <div class="modal panel" role="dialog" aria-labelledby="del-title" @click.stop>
-        <button type="button" class="modal-close" aria-label="关闭" @click="closeDeleteConfirm">×</button>
-        <h3 id="del-title" class="modal-title">确认删除</h3>
-        <p class="modal-text">确定要删除歌单「{{ playlistToDelete?.name }}」吗？</p>
-        <p class="modal-warn">此操作不可恢复，歌单内曲目会从歌单中移除。</p>
-        <div class="modal-actions">
-          <button type="button" class="btn-ghost" @click="closeDeleteConfirm">取消</button>
-          <button type="button" class="btn-primary btn-primary--danger" @click="handleDeletePlaylist">删除</button>
-        </div>
+    <NCard v-else pad="lg" class="empty">
+      <span class="empty__icon"><NIcon name="list-music" :size="26" /></span>
+      <h2 class="empty__title">暂无歌单</h2>
+      <p class="empty__text">创建第一个歌单，把喜欢的曲目收在一起。</p>
+      <NButton variant="primary" icon="plus" @click="goToCreatePlaylist">创建歌单</NButton>
+    </NCard>
+
+    <!-- 编辑歌单 -->
+    <NModal v-model="showEdit" title="编辑歌单">
+      <div class="field">
+        <label class="field__label" for="edit-name">歌单名称</label>
+        <NInput id="edit-name" v-model="editForm.name" maxlength="255" required />
       </div>
-    </div>
-  </div>
+      <div class="field field--last">
+        <label class="field__label" for="edit-desc">歌单描述</label>
+        <NInput id="edit-desc" v-model="editForm.description" textarea :rows="4" maxlength="500" />
+      </div>
+      <template #footer>
+        <NButton variant="ghost" @click="closeEditDialog">取消</NButton>
+        <NButton variant="primary" @click="handleEditPlaylist">保存</NButton>
+      </template>
+    </NModal>
+
+    <!-- 删除确认 -->
+    <NModal v-model="showDeleteConfirm" title="确认删除" size="sm">
+      <p class="del-text">确定要删除歌单「{{ playlistToDelete?.name }}」吗？</p>
+      <p class="del-warn">此操作不可恢复，歌单内曲目会从歌单中移除。</p>
+      <template #footer>
+        <NButton variant="ghost" @click="closeDeleteConfirm">取消</NButton>
+        <NButton variant="danger" @click="handleDeletePlaylist">删除</NButton>
+      </template>
+    </NModal>
+  </PageShell>
 </template>
 
 <script setup>
@@ -100,7 +84,10 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import { applyVipFromPlaylistsResponse } from '@/utils/userVip.js'
-import { useToast } from 'vue-toastification'
+import { useToast } from '@/composables/useToast'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NCard, NInput, NModal, NSpinner } from '@/ui'
+import { PageShell, AmbientBackdrop } from '@/layouts'
 
 const toast = useToast()
 const router = useRouter()
@@ -159,7 +146,6 @@ const fetchPlaylists = async () => {
         }
       })
       
-      console.log('歌单列表数据:', playlists.value)
     } else {
       toast.error(data.message || '获取歌单列表失败')
     }
@@ -341,391 +327,171 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.pl-page {
-  --text: rgba(255, 255, 255, 0.92);
-  --muted: rgba(255, 255, 255, 0.62);
-  --faint: rgba(255, 255, 255, 0.42);
-  --line: rgba(255, 255, 255, 0.1);
-  --accent2: #69c8df;
-  --radius: 16px;
-  --radius-lg: 22px;
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
-
-  position: relative;
-  min-height: 100vh;
-  padding-top: env(safe-area-inset-top, 0px);
-  color: var(--text);
-  background: transparent;
-}
-
-.ambient {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.ambient__blob {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(72px);
-  opacity: 0.48;
-}
-
-.ambient__blob--a {
-  width: 400px;
-  height: 400px;
-  background: rgba(105, 200, 223, 0.38);
-  top: -120px;
-  left: -80px;
-}
-
-.ambient__blob--b {
-  width: 320px;
-  height: 320px;
-  background: rgba(105, 200, 223, 0.2);
-  bottom: -40px;
-  right: -60px;
-}
-
-.ambient__blob--c {
-  width: 260px;
-  height: 260px;
-  background: rgba(155, 234, 255, 0.14);
-  top: 40%;
-  right: 20%;
-}
-
-.ambient__grid {
-  position: absolute;
-  inset: 0;
-  opacity: 0.28;
-  background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: radial-gradient(ellipse 80% 55% at 50% 15%, black, transparent);
-}
-
-.shell {
-  position: relative;
-  z-index: 1;
-  width: min(1100px, 100%);
-  margin: 0 auto;
-  padding: clamp(16px, 3vw, 28px) clamp(14px, 3.5vw, 24px) 48px;
-}
-
-.page-head {
-  margin-bottom: 22px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--line);
-}
-
-.page-head-row {
+.head {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--n-space-4);
+  margin-bottom: var(--n-space-6);
 }
 
-.page-title {
-  margin: 0 0 6px;
+.head__title {
+  margin: 0 0 var(--n-space-1);
   font-size: clamp(1.45rem, 3vw, 1.85rem);
-  font-weight: 800;
+  font-weight: var(--n-weight-bold);
   letter-spacing: -0.03em;
 }
 
-.page-lede {
+.head__sub {
   margin: 0;
-  font-size: 0.9rem;
-  color: var(--muted);
-  line-height: 1.45;
-  max-width: 40ch;
-}
-
-.btn-primary {
-  font-family: inherit;
-  border: none;
-  cursor: pointer;
-  padding: 11px 20px;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 0.88rem;
-  color: #0c0a14;
-  background: linear-gradient(135deg, #9beaff, var(--accent2));
-  box-shadow: 0 8px 28px rgba(105, 200, 223, 0.35);
-  white-space: nowrap;
-}
-
-.btn-primary:hover {
-  filter: brightness(1.06);
-}
-
-.btn-primary--danger {
-  background: linear-gradient(135deg, #fb7185, #f43f5e);
-  box-shadow: 0 8px 28px rgba(244, 63, 94, 0.3);
-}
-
-.panel {
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(105, 200, 223, 0.14), rgba(255, 255, 255, 0.04));
-  box-shadow: var(--shadow);
-}
-
-.state-panel {
-  padding: 36px 24px;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
 }
 
 .state {
-  text-align: center;
-}
-
-.state--loading {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
+  justify-content: center;
+  padding: var(--n-space-16) 0;
 }
 
-.state__spinner {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 3px solid rgba(255, 255, 255, 0.12);
-  border-top-color: var(--accent2);
-  animation: spin 0.85s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.state__text {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.92rem;
-}
-
-.state--empty .state__title {
-  margin: 0 0 10px;
-  font-size: 1.2rem;
-  font-weight: 800;
-}
-
-.state--empty .state__text {
-  margin: 0 0 22px;
-  line-height: 1.55;
-}
-
-.pl-grid {
+/* ==================== 卡片网格 ==================== */
+.grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--n-space-5);
 }
 
-.pl-card {
+.pl {
   display: flex;
   flex-direction: column;
-  padding: 0;
   overflow: hidden;
   cursor: pointer;
-  transition: transform 0.2s var(--ease), border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
-}
-
-.pl-card:focus-visible {
-  outline: 2px solid var(--accent2);
   outline-offset: 3px;
 }
 
-@media (hover: hover) {
-  .pl-card:hover {
-    transform: translateY(-3px);
-    border-color: rgba(105, 200, 223, 0.4);
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
-  }
-}
-
-.pl-card-cover {
+.pl__cover {
   aspect-ratio: 16 / 10;
-  background: rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  background: var(--n-surface-soft);
+  border-bottom: 1px solid var(--n-line-subtle);
 }
 
-.pl-card-cover img {
+.pl__cover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform var(--n-duration-slow) var(--n-ease);
 }
 
-.pl-card-body {
-  padding: 14px 16px 10px;
+@media (hover: hover) {
+  .pl:hover .pl__cover img {
+    transform: scale(1.05);
+  }
+}
+
+.pl__body {
   flex: 1;
-  min-height: 0;
+  padding: var(--n-space-4);
 }
 
-.pl-card-title {
-  margin: 0 0 6px;
-  font-size: 1.02rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.25;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+.pl__title {
+  margin: 0 0 var(--n-space-1);
+  font-size: var(--n-text-md);
+  font-weight: var(--n-weight-semibold);
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.pl-card-meta {
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--accent2);
-  font-weight: 600;
-}
-
-.pl-card-desc {
-  margin: 8px 0 0;
-  font-size: 0.78rem;
-  color: var(--faint);
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.pl-card-actions {
-  display: flex;
-  gap: 8px;
-  padding: 0 12px 12px;
-  flex-wrap: wrap;
-}
-
-.btn-chip {
-  font-family: inherit;
-  padding: 7px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 0.76rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.btn-chip:hover {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.btn-chip--danger {
-  border-color: rgba(251, 113, 133, 0.4);
-  color: #fecdd3;
-}
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 2000;
-  background: rgba(6, 5, 12, 0.72);
-  backdrop-filter: blur(8px);
-  display: flex;
+.pl__meta {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  padding: 20px;
+  gap: 4px;
+  margin: 0;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
 }
 
-.modal {
-  position: relative;
-  width: min(440px, 100%);
-  padding: 26px 22px 22px;
-  color: var(--text);
+.pl__desc {
+  margin: var(--n-space-2) 0 0;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  line-height: var(--n-leading-normal);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-.modal-close {
-  position: absolute;
-  top: 10px;
-  right: 12px;
-  border: none;
-  background: none;
-  color: var(--faint);
-  font-size: 1.5rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.modal-title {
-  margin: 0 0 18px;
-  font-size: 1.15rem;
-  font-weight: 800;
-}
-
-.modal-text,
-.modal-warn {
-  margin: 0 0 12px;
-  font-size: 0.88rem;
-  color: var(--muted);
-  line-height: 1.5;
-}
-
-.modal-warn {
-  color: #fcd34d;
-}
-
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-group label {
-  display: block;
-  font-size: 0.82rem;
-  font-weight: 600;
-  margin-bottom: 6px;
-  color: rgba(255, 255, 255, 0.78);
-}
-
-.form-group input,
-.form-group textarea {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.22);
-  color: var(--text);
-  font-family: inherit;
-  font-size: 0.92rem;
-}
-
-.form-group textarea {
-  resize: vertical;
-  min-height: 100px;
-}
-
-.form-group input:focus,
-.form-group textarea:focus {
-  outline: none;
-  border-color: rgba(105, 200, 223, 0.45);
-}
-
-.modal-actions {
+.pl__actions {
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 18px;
+  gap: var(--n-space-2);
+  padding: var(--n-space-3) var(--n-space-4);
+  border-top: 1px solid var(--n-line-subtle);
 }
 
-.btn-ghost {
-  font-family: inherit;
-  padding: 9px 16px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.88);
-  font-weight: 600;
-  font-size: 0.86rem;
-  cursor: pointer;
+/* ==================== 空状态 ==================== */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--n-space-3);
+  padding: var(--n-space-12) var(--n-space-6);
+}
+
+.empty__icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--n-radius);
+  background: var(--n-accent-soft);
+  color: var(--n-accent-strong);
+}
+
+.empty__title {
+  margin: 0;
+  font-size: var(--n-text-lg);
+  font-weight: var(--n-weight-semibold);
+}
+
+.empty__text {
+  margin: 0 0 var(--n-space-2);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+}
+
+/* ==================== 弹窗字段 ==================== */
+.field {
+  margin-bottom: var(--n-space-5);
+}
+
+.field--last {
+  margin-bottom: 0;
+}
+
+.field__label {
+  display: block;
+  margin-bottom: var(--n-space-2);
+  color: var(--n-text);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-semibold);
+}
+
+.del-text {
+  margin: 0 0 var(--n-space-2);
+  color: var(--n-text);
+  line-height: var(--n-leading-normal);
+}
+
+.del-warn {
+  margin: 0;
+  color: var(--n-warning);
+  font-size: var(--n-text-sm);
+  line-height: var(--n-leading-normal);
 }
 </style>

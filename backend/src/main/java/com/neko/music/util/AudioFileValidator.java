@@ -60,7 +60,7 @@ public class AudioFileValidator {
      */
     private static ValidationResult validateMP3(byte[] header, InputStream inputStream, int bytesRead) throws IOException {
         // 检查是否有 ID3v2 标签
-        if (header.length >= 3 && header[0] == 0x49 && header[1] == 0x44 && header[2] == 0x33) {
+        if (isId3Magic(header)) {
             // ID3v2 标签，进一步验证 ID3 版本
             if (header.length >= 5) {
                 byte versionMajor = header[3];
@@ -74,47 +74,19 @@ public class AudioFileValidator {
         }
 
         // 检查 MPEG 同步字节
-        // MP3 帧头以 0xFF 开头，第二字节的高 3 位必须是 111 (即 0xE0)
-        // 所以第二字节应该是 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF
-        if (header[0] == (byte) 0xFF) {
-            byte secondByte = header[1];
-            // 检查 MPEG 音频的同步模式
-            if ((secondByte & 0xE0) == 0xE0) {
-                // 进一步验证 MPEG 层版本
-                int mpegVersion = (secondByte >> 3) & 0x03;
-                int layer = (secondByte >> 1) & 0x03;
-                
-                // MPEG Version: 00 = MPEG Version 2.5, 01 = reserved, 10 = MPEG Version 2, 11 = MPEG Version 1
-                // Layer: 00 = reserved, 01 = Layer III, 10 = Layer II, 11 = Layer I
-                if (mpegVersion != 0x01 && layer != 0x00) {
-                    return ValidationResult.success();
-                }
-            }
+        if (isMpegFrameHeaderAt(header, 0)) {
+            return ValidationResult.success();
         }
 
         // 如果前 12 个字节中没有找到 MP3 标记，尝试读取更多字节
         // 有些 MP3 文件可能有 ID3v1 标签在文件末尾，但我们需要从开头识别
         byte[] moreBytes = new byte[4096];
-        int totalRead = bytesRead;
-        
-        if (totalRead < moreBytes.length) {
-            int additionalRead = inputStream.read(moreBytes, bytesRead, moreBytes.length - bytesRead);
-            if (additionalRead > 0) {
-                totalRead += additionalRead;
-            }
-        }
-        
+        int totalRead = readRemaining(inputStream, moreBytes, bytesRead);
+
         // 在读取的字节中搜索 MPEG 同步字节
         for (int i = 0; i < totalRead - 1; i++) {
-            if (moreBytes[i] == (byte) 0xFF && i < moreBytes.length - 1) {
-                byte secondByte = moreBytes[i + 1];
-                if ((secondByte & 0xE0) == 0xE0) {
-                    int mpegVersion = (secondByte >> 3) & 0x03;
-                    int layer = (secondByte >> 1) & 0x03;
-                    if (mpegVersion != 0x01 && layer != 0x00) {
-                        return ValidationResult.success();
-                    }
-                }
+            if (isMpegFrameHeaderAt(moreBytes, i)) {
+                return ValidationResult.success();
             }
         }
 
@@ -126,9 +98,7 @@ public class AudioFileValidator {
      * FLAC 文件以 "fLaC" 开头
      */
     private static ValidationResult validateFLAC(byte[] header) {
-        if (header.length >= 4 &&
-            header[0] == 0x66 && header[1] == 0x4C && 
-            header[2] == 0x61 && header[3] == 0x43) {
+        if (isFlacMagic(header)) {
             return ValidationResult.success();
         }
         return ValidationResult.fail("不是有效的 FLAC 文件");
@@ -139,11 +109,7 @@ public class AudioFileValidator {
      * WAV 文件以 "RIFF" 开头，后面跟着 "WAVE"
      */
     private static ValidationResult validateWAV(byte[] header) {
-        if (header.length >= 12 &&
-            header[0] == 0x52 && header[1] == 0x49 && 
-            header[2] == 0x46 && header[3] == 0x46 && // "RIFF"
-            header[8] == 0x57 && header[9] == 0x41 && 
-            header[10] == 0x56 && header[11] == 0x45) { // "WAVE"
+        if (isWavMagic(header)) {
             return ValidationResult.success();
         }
         return ValidationResult.fail("不是有效的 WAV 文件");
@@ -158,50 +124,34 @@ public class AudioFileValidator {
     public static AudioFormat detectFormat(InputStream inputStream) {
         try {
             // 标记输入流位置，以便后续重置
-            if (inputStream.markSupported()) {
-                inputStream.mark(4096);
-            }
+            markIfSupported(inputStream);
 
             byte[] header = new byte[12];
             int bytesRead = inputStream.read(header);
             
             if (bytesRead < 4) {
-                if (inputStream.markSupported()) {
-                    inputStream.reset();
-                }
+                resetIfSupported(inputStream);
                 return null;
             }
 
             AudioFormat detectedFormat = null;
 
             // 检查 FLAC
-            if (header.length >= 4 &&
-                header[0] == 0x66 && header[1] == 0x4C && 
-                header[2] == 0x61 && header[3] == 0x43) {
+            if (isFlacMagic(header)) {
                 detectedFormat = AudioFormat.FLAC;
             }
             // 检查 WAV
-            else if (header.length >= 12 &&
-                     header[0] == 0x52 && header[1] == 0x49 && 
-                     header[2] == 0x46 && header[3] == 0x46 &&
-                     header[8] == 0x57 && header[9] == 0x41 && 
-                     header[10] == 0x56 && header[11] == 0x45) {
+            else if (isWavMagic(header)) {
                 detectedFormat = AudioFormat.WAV;
             }
             // 检查 MP3
-            else if (header.length >= 3 && 
-                     (header[0] == 0x49 && header[1] == 0x44 && header[2] == 0x33)) {
+            else if (isId3Magic(header)) {
                 detectedFormat = AudioFormat.MP3;
             }
             // 检查 MP3 (无 ID3 标签)
             else if (header[0] == (byte) 0xFF) {
-                byte secondByte = header[1];
-                if ((secondByte & 0xE0) == 0xE0) {
-                    int mpegVersion = (secondByte >> 3) & 0x03;
-                    int layer = (secondByte >> 1) & 0x03;
-                    if (mpegVersion != 0x01 && layer != 0x00) {
-                        detectedFormat = AudioFormat.MP3;
-                    }
+                if (isMpegFrameHeaderAt(header, 0)) {
+                    detectedFormat = AudioFormat.MP3;
                 }
             }
             // 如果前面的检测都失败了，尝试在更多字节中搜索 MP3 帧
@@ -209,9 +159,7 @@ public class AudioFileValidator {
                 detectedFormat = detectMP3InStream(inputStream, bytesRead, header);
             }
 
-            if (inputStream.markSupported()) {
-                inputStream.reset();
-            }
+            resetIfSupported(inputStream);
 
             return detectedFormat;
         } catch (IOException e) {
@@ -225,28 +173,16 @@ public class AudioFileValidator {
     private static AudioFormat detectMP3InStream(InputStream inputStream, int bytesRead, byte[] initialHeader) throws IOException {
         byte[] searchBuffer = new byte[4096];
         System.arraycopy(initialHeader, 0, searchBuffer, 0, bytesRead);
-        
-        if (bytesRead < searchBuffer.length) {
-            int additionalRead = inputStream.read(searchBuffer, bytesRead, searchBuffer.length - bytesRead);
-            if (additionalRead > 0) {
-                bytesRead += additionalRead;
-            }
-        }
-        
+
+        bytesRead = readRemaining(inputStream, searchBuffer, bytesRead);
+
         // 在缓冲区中搜索 MP3 同步字节
         for (int i = 0; i < bytesRead - 1; i++) {
-            if (searchBuffer[i] == (byte) 0xFF) {
-                byte secondByte = searchBuffer[i + 1];
-                if ((secondByte & 0xE0) == 0xE0) {
-                    int mpegVersion = (secondByte >> 3) & 0x03;
-                    int layer = (secondByte >> 1) & 0x03;
-                    if (mpegVersion != 0x01 && layer != 0x00) {
-                        return AudioFormat.MP3;
-                    }
-                }
+            if (isMpegFrameHeaderAt(searchBuffer, i)) {
+                return AudioFormat.MP3;
             }
         }
-        
+
         return null;
     }
 
@@ -260,17 +196,13 @@ public class AudioFileValidator {
      */
     public static FormatDetectionResult detectAndValidate(InputStream inputStream, String fileExtension) {
         try {
-            if (inputStream.markSupported()) {
-                inputStream.mark(4096);
-            }
+            markIfSupported(inputStream);
 
             byte[] header = new byte[12];
             int bytesRead = inputStream.read(header);
             
             if (bytesRead < 4) {
-                if (inputStream.markSupported()) {
-                    inputStream.reset();
-                }
+                resetIfSupported(inputStream);
                 return FormatDetectionResult.fail("文件太小，无法确定格式");
             }
 
@@ -279,37 +211,25 @@ public class AudioFileValidator {
             String formatDescription = null;
 
             // 检查 FLAC
-            if (header.length >= 4 &&
-                header[0] == 0x66 && header[1] == 0x4C && 
-                header[2] == 0x61 && header[3] == 0x43) {
+            if (isFlacMagic(header)) {
                 detectedFormat = AudioFormat.FLAC;
                 formatDescription = "FLAC";
             }
             // 检查 WAV
-            else if (header.length >= 12 &&
-                     header[0] == 0x52 && header[1] == 0x49 && 
-                     header[2] == 0x46 && header[3] == 0x46 &&
-                     header[8] == 0x57 && header[9] == 0x41 && 
-                     header[10] == 0x56 && header[11] == 0x45) {
+            else if (isWavMagic(header)) {
                 detectedFormat = AudioFormat.WAV;
                 formatDescription = "WAV";
             }
             // 检查 MP3 (ID3v2)
-            else if (header.length >= 3 && 
-                     (header[0] == 0x49 && header[1] == 0x44 && header[2] == 0x33)) {
+            else if (isId3Magic(header)) {
                 detectedFormat = AudioFormat.MP3;
                 formatDescription = "MP3 (ID3v2)";
             }
             // 检查 MP3 (无 ID3)
             else if (header[0] == (byte) 0xFF) {
-                byte secondByte = header[1];
-                if ((secondByte & 0xE0) == 0xE0) {
-                    int mpegVersion = (secondByte >> 3) & 0x03;
-                    int layer = (secondByte >> 1) & 0x03;
-                    if (mpegVersion != 0x01 && layer != 0x00) {
-                        detectedFormat = AudioFormat.MP3;
-                        formatDescription = "MP3 (原始)";
-                    }
+                if (isMpegFrameHeaderAt(header, 0)) {
+                    detectedFormat = AudioFormat.MP3;
+                    formatDescription = "MP3 (原始)";
                 }
             }
 
@@ -321,9 +241,7 @@ public class AudioFileValidator {
                 }
             }
 
-            if (inputStream.markSupported()) {
-                inputStream.reset();
-            }
+            resetIfSupported(inputStream);
 
             // 检查不支持的格式
             if (detectedFormat == null) {
@@ -340,8 +258,7 @@ public class AudioFileValidator {
                         return FormatDetectionResult.fail("检测到 OGG 格式，目前不支持");
                     }
                     // AVI
-                    if (header[0] == 0x52 && header[1] == 0x49 && 
-                        header[2] == 0x46 && header[3] == 0x46 &&
+                    if (isRiffMagic(header) &&
                         header[8] == 0x41 && header[9] == 0x56 && 
                         header[10] == 0x49) {
                         return FormatDetectionResult.fail("检测到 AVI 视频格式，这不是音频文件");
@@ -412,6 +329,92 @@ public class AudioFileValidator {
         } catch (IOException e) {
             return FormatDetectionResult.fail("读取文件失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 按需标记输入流，便于读取后复位。
+     */
+    private static void markIfSupported(InputStream inputStream) {
+        if (inputStream.markSupported()) {
+            inputStream.mark(4096);
+        }
+    }
+
+    /**
+     * 复位之前由 {@link #markIfSupported(InputStream)} 标记的输入流。
+     */
+    private static void resetIfSupported(InputStream inputStream) throws IOException {
+        if (inputStream.markSupported()) {
+            inputStream.reset();
+        }
+    }
+
+    /**
+     * 判断头部是否为 "fLaC"。
+     */
+    private static boolean isFlacMagic(byte[] header) {
+        return header.length >= 4 &&
+                header[0] == 0x66 && header[1] == 0x4C &&
+                header[2] == 0x61 && header[3] == 0x43;
+    }
+
+    /**
+     * 判断头部前 4 字节是否为 "RIFF"。
+     */
+    private static boolean isRiffMagic(byte[] header) {
+        return header.length >= 4 &&
+                header[0] == 0x52 && header[1] == 0x49 &&
+                header[2] == 0x46 && header[3] == 0x46;
+    }
+
+    /**
+     * 判断头部是否为 "RIFF....WAVE"。
+     */
+    private static boolean isWavMagic(byte[] header) {
+        return header.length >= 12 && isRiffMagic(header) &&
+                header[8] == 0x57 && header[9] == 0x41 &&
+                header[10] == 0x56 && header[11] == 0x45;
+    }
+
+    /**
+     * 判断头部是否以 ID3v2 标签 "ID3" 开头。
+     */
+    private static boolean isId3Magic(byte[] header) {
+        return header.length >= 3 &&
+                header[0] == 0x49 && header[1] == 0x44 && header[2] == 0x33;
+    }
+
+    /**
+     * 判断 data[offset] 起是否为有效的 MPEG 音频帧头。
+     * MP3 帧头以 0xFF 开头，第二字节的高 3 位必须是 111 (即 0xE0)；
+     * MPEG Version: 00 = 2.5, 01 = reserved, 10 = 2, 11 = 1；
+     * Layer: 00 = reserved, 01 = III, 10 = II, 11 = I。
+     */
+    private static boolean isMpegFrameHeaderAt(byte[] data, int offset) {
+        if (data[offset] != (byte) 0xFF) {
+            return false;
+        }
+        byte secondByte = data[offset + 1];
+        if ((secondByte & 0xE0) != 0xE0) {
+            return false;
+        }
+        int mpegVersion = (secondByte >> 3) & 0x03;
+        int layer = (secondByte >> 1) & 0x03;
+        return mpegVersion != 0x01 && layer != 0x00;
+    }
+
+    /**
+     * 从流中继续读取，填充 buffer 中已读取位置之后的部分，返回新的已读长度。
+     */
+    private static int readRemaining(InputStream inputStream, byte[] buffer, int alreadyRead) throws IOException {
+        int totalRead = alreadyRead;
+        if (totalRead < buffer.length) {
+            int additionalRead = inputStream.read(buffer, alreadyRead, buffer.length - alreadyRead);
+            if (additionalRead > 0) {
+                totalRead += additionalRead;
+            }
+        }
+        return totalRead;
     }
 
     /**

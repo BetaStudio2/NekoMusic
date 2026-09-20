@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.neko.music.util.HttpTransport;
 
 import java.io.IOException;
 import java.net.URI;
@@ -29,10 +30,7 @@ public class QQMusicClient {
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
 
     private final ObjectMapper objectMapper;
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(REQUEST_TIMEOUT)
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build();
+    private final HttpClient httpClient = HttpTransport.create(REQUEST_TIMEOUT);
 
     public QQMusicClient(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
@@ -111,21 +109,16 @@ public class QQMusicClient {
                 .POST(HttpRequest.BodyPublishers.ofString(
                         objectMapper.writeValueAsString(body), StandardCharsets.UTF_8))
                 .build();
-        try {
-            HttpResponse<String> upstreamResponse = httpClient.send(
-                    upstreamRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            if (upstreamResponse.statusCode() < 200 || upstreamResponse.statusCode() >= 300) {
-                throw new UpstreamException(upstreamResponse.statusCode());
-            }
-            JsonNode json = objectMapper.readTree(upstreamResponse.body());
-            if (json == null || json.isMissingNode()) {
-                throw new IOException("QQ 音乐接口返回为空");
-            }
-            return toLegacyPlaylistNode(json);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("请求 QQ 音乐接口被中断", e);
+        HttpResponse<String> upstreamResponse =
+                HttpTransport.sendString(httpClient, upstreamRequest, "请求 QQ 音乐接口被中断");
+        if (!HttpTransport.isSuccess(upstreamResponse.statusCode())) {
+            throw new UpstreamException(upstreamResponse.statusCode());
         }
+        JsonNode json = objectMapper.readTree(upstreamResponse.body());
+        if (json == null || json.isMissingNode()) {
+            throw new IOException("QQ 音乐接口返回为空");
+        }
+        return toLegacyPlaylistNode(json);
     }
 
     /** 把 musicu.fcg 的响应转换成旧接口的 cdlist 结构，保持对上层与客户端的兼容。 */

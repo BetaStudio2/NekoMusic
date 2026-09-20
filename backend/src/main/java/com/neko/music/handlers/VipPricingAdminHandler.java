@@ -113,10 +113,7 @@ public class VipPricingAdminHandler extends HttpServlet {
                 response.getWriter().write("{\"success\":false,\"message\":\"priceYuan 须为非负有限数\"}");
                 return;
             }
-            VipPriceItem it = new VipPriceItem();
-            it.setMonths(months);
-            it.setDays(days);
-            it.setPriceYuan(price);
+            VipPriceItem it = new VipPriceItem(0, months, days, price, 0, null);
             parsed.add(it);
         }
 
@@ -125,12 +122,12 @@ public class VipPricingAdminHandler extends HttpServlet {
             ArrayNode arr = mapper.createArrayNode();
             for (VipPriceItem it : saved) {
                 ObjectNode n = mapper.createObjectNode();
-                n.put("id", it.getId());
-                n.put("months", it.getMonths());
-                n.put("days", it.getDays());
-                n.put("priceYuan", it.getPriceYuan());
-                n.put("sortOrder", it.getSortOrder());
-                n.put("updatedAt", it.getUpdatedAt() != null ? it.getUpdatedAt() : "");
+                n.put("id", it.id());
+                n.put("months", it.months());
+                n.put("days", it.days());
+                n.put("priceYuan", it.priceYuan());
+                n.put("sortOrder", it.sortOrder());
+                n.put("updatedAt", it.updatedAt() != null ? it.updatedAt() : "");
                 arr.add(n);
             }
             ObjectNode out = mapper.createObjectNode();
@@ -156,8 +153,5 @@ public class VipPricingAdminHandler extends HttpServlet {
     }
 
     private static void applyCors(HttpServletResponse response) {
-        response.setHeader("Access-Control-Allow-Origin", "*");
-        response.setHeader("Access-Control-Allow-Methods", "PUT, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     }
 }

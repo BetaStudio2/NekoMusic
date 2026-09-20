@@ -1,225 +1,36 @@
-<template>
-  <div class="search-page">
-    <div class="ambient" aria-hidden="true">
-      <div class="ambient__blob ambient__blob--a" />
-      <div class="ambient__blob ambient__blob--b" />
-      <div class="ambient__blob ambient__blob--c" />
-      <div class="ambient__grid" />
-    </div>
-
-    <main class="shell">
-      <header class="page-head">
-        <h1 class="page-title">搜索</h1>
-        <p v-if="searchQuery" class="page-lede">
-          关键词 <span class="page-query">「{{ searchQuery }}」</span>
-        </p>
-        <p v-else class="page-lede muted">在顶栏输入关键词后跳转至此查看结果</p>
-      </header>
-
-      <div v-if="searchQuery && searchLoading" class="search-loading-wrap">
-        <section class="panel search-loading" aria-live="polite">
-          <div class="state state--loading">
-            <div class="state__spinner" aria-hidden="true" />
-            <p class="state__text">正在搜索单曲、歌单与艺人…</p>
-          </div>
-        </section>
-      </div>
-
-      <div v-else-if="searchQuery && !searchLoading && hasAnyResults" class="search-grid">
-        <!-- 单曲栏 -->
-        <section class="search-column search-column--tracks panel" aria-labelledby="sec-tracks">
-          <header class="column-head">
-            <h2 id="sec-tracks" class="column-title">单曲</h2>
-            <span class="column-badge">{{ musicResults.length }} 首</span>
-          </header>
-          <div class="column-body">
-            <template v-if="musicResults.length > 0">
-              <ul class="results results--dense" aria-label="单曲列表">
-                <li v-for="result in musicResults" :key="'m-' + result.id" class="result-row">
-                  <img
-                    :src="getCoverUrl(result.id)"
-                    :alt="result.title"
-                    class="result-cover"
-                    width="48"
-                    height="48"
-                    loading="lazy"
-                    @error="handleImageError"
-                  />
-                  <div
-                    class="result-main"
-                    role="button"
-                    tabindex="0"
-                    @click="goMusicDetail(result)"
-                    @keydown.enter.prevent="goMusicDetail(result)"
-                  >
-                    <span class="result-title">
-                      <span class="result-title__text">{{ result.title }}</span>
-                      <LrcBadge :show="!!result.lrc" />
-                    </span>
-                    <span class="result-meta">{{ result.artist }}</span>
-                    <span class="result-sub">{{ result.album || '未知专辑' }}</span>
-                  </div>
-                  <div class="result-actions">
-                    <button type="button" class="icon-btn icon-btn--play" title="播放" aria-label="播放" @click.stop="playMusic(result)">
-                      播放
-                    </button>
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      :class="{ 'icon-btn--on': isFavorite(result.id) }"
-                      :title="isFavorite(result.id) ? '取消收藏' : '收藏'"
-                      :aria-label="isFavorite(result.id) ? '取消收藏' : '收藏'"
-                      @click.stop="toggleFavorite(result)"
-                    >
-                      {{ isFavorite(result.id) ? '已藏' : '收藏' }}
-                    </button>
-                    <button type="button" class="icon-btn icon-btn--dl" title="下载" aria-label="下载" @click.stop="downloadMusic(result)">
-                      下载
-                    </button>
-                  </div>
-                </li>
-              </ul>
-            </template>
-            <p v-else class="col-empty">本关键词下暂无单曲</p>
-          </div>
-        </section>
-
-        <!-- 歌单栏 -->
-        <section class="search-column search-column--playlists panel" aria-labelledby="sec-playlists">
-          <header class="column-head">
-            <h2 id="sec-playlists" class="column-title">歌单</h2>
-            <span class="column-badge">{{ playlistResults.length }} 个</span>
-          </header>
-          <div class="column-body">
-            <template v-if="playlistResults.length > 0">
-              <ul class="results results--dense" aria-label="歌单列表">
-                <li
-                  v-for="pl in playlistResults"
-                  :key="'p-' + pl.id"
-                  class="result-row result-row--playlist"
-                >
-                  <img
-                    :src="playlistCoverUrl(pl)"
-                    :alt="pl.name"
-                    class="result-cover"
-                    width="48"
-                    height="48"
-                    loading="lazy"
-                    @error="handleImageError"
-                  />
-                  <div
-                    class="result-main"
-                    role="button"
-                    tabindex="0"
-                    @click="goPlaylist(pl)"
-                    @keydown.enter.prevent="goPlaylist(pl)"
-                  >
-                    <span class="result-title">{{ pl.name }}</span>
-                    <span class="result-meta">{{ pl.musicCount ?? 0 }} 首</span>
-                    <span class="result-sub">{{ pl.description || '暂无简介' }}</span>
-                  </div>
-                  <div class="result-actions">
-                    <button type="button" class="icon-btn icon-btn--play" title="打开歌单" aria-label="打开歌单" @click.stop="goPlaylist(pl)">
-                      打开
-                    </button>
-                  </div>
-                </li>
-              </ul>
-            </template>
-            <p v-else class="col-empty">本关键词下暂无歌单</p>
-          </div>
-        </section>
-
-        <!-- 艺人栏 -->
-        <section class="search-column search-column--artist panel" aria-labelledby="sec-artist">
-          <header class="column-head">
-            <h2 id="sec-artist" class="column-title">艺人</h2>
-            <span v-if="artistPayload.name" class="column-badge">{{ artistTrackCount }} 首</span>
-            <span v-else class="column-badge">无</span>
-          </header>
-          <div class="column-body">
-            <template v-if="artistPayload.name">
-              <p class="column-artist-name">{{ artistPayload.name }}</p>
-              <ul v-if="artistTracks.length" class="results results--dense" :aria-label="`${artistPayload.name} 的作品`">
-                <li v-for="result in artistTracks" :key="'a-' + result.id" class="result-row">
-                  <img
-                    :src="trackCoverUrl(result)"
-                    :alt="result.title"
-                    class="result-cover"
-                    width="48"
-                    height="48"
-                    loading="lazy"
-                    @error="handleImageError"
-                  />
-                  <div
-                    class="result-main"
-                    role="button"
-                    tabindex="0"
-                    @click="goMusicDetail(result)"
-                    @keydown.enter.prevent="goMusicDetail(result)"
-                  >
-                    <span class="result-title">{{ result.title }}</span>
-                    <span class="result-meta">{{ result.artist }}</span>
-                    <span class="result-sub">{{ result.album || '未知专辑' }}</span>
-                  </div>
-                  <div class="result-actions">
-                    <button type="button" class="icon-btn icon-btn--play" title="播放" aria-label="播放" @click.stop="playMusic(normalizeTrack(result))">
-                      播放
-                    </button>
-                    <button
-                      type="button"
-                      class="icon-btn"
-                      :class="{ 'icon-btn--on': isFavorite(result.id) }"
-                      :title="isFavorite(result.id) ? '取消收藏' : '收藏'"
-                      :aria-label="isFavorite(result.id) ? '取消收藏' : '收藏'"
-                      @click.stop="toggleFavorite(normalizeTrack(result))"
-                    >
-                      {{ isFavorite(result.id) ? '已藏' : '收藏' }}
-                    </button>
-                    <button type="button" class="icon-btn icon-btn--dl" title="下载" aria-label="下载" @click.stop="downloadMusic(normalizeTrack(result))">
-                      下载
-                    </button>
-                  </div>
-                </li>
-              </ul>
-              <p v-else class="col-empty col-empty--tight">暂无该艺人下的曲目列表</p>
-            </template>
-            <p v-else class="col-empty">本关键词下暂无匹配艺人</p>
-          </div>
-        </section>
-      </div>
-
-      <section v-else-if="searchQuery && !searchLoading && !hasAnyResults" class="panel state-panel state state--empty">
-        <h2 class="state__title">未找到结果</h2>
-        <p class="state__text">没有找到与「{{ searchQuery }}」匹配的单曲、歌单或艺人</p>
-        <p class="state__hint">如需补全曲库可联系我们</p>
-        <a class="state__link" href="mailto:support@cnmsb.xin">support@cnmsb.xin</a>
-      </section>
-
-      <section v-else class="panel state-panel state state--hint">
-        <h2 class="state__title">开始搜索</h2>
-        <p class="state__text">请先在顶部搜索框输入关键词并搜索</p>
-      </section>
-    </main>
-  </div>
-</template>
-
 <script setup>
+/**
+ * SearchResultsView —— 搜索结果
+ * ------------------------------------------------------------
+ * 排布参考主流音乐 App：查询标题 + 标签页（单曲 / 歌单 / 艺人），
+ * 取代原先的三栏并排。（原三栏在窄屏与结果不均衡时体验很差）
+ *
+ * 数据契约（保持不变）：
+ *  - POST /api/music/search    -> results[]
+ *  - POST /api/playlists/search -> results[]
+ *  - POST /api/artists/search  -> artist{name,musicCount,musicList}
+ *  - 收藏：GET/POST/DELETE /api/user/favorites（Authorization: 裸 userToken）
+ *  - 播放：写 globalPlaylist/currentPlayingMusic/globalPlayerState + 事件
+ */
 import { ref, watch, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
-import LrcBadge from '@/components/LrcBadge.vue'
-import { useToast } from 'vue-toastification'
-const toast = useToast()
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NCard, NSpinner } from '@/ui'
+import { PageShell, AmbientBackdrop } from '@/layouts'
+import { useToast } from '@/composables/useToast'
 
+const toast = useToast()
 const route = useRoute()
 const router = useRouter()
+
 const searchQuery = ref('')
 const searchLoading = ref(false)
 const musicResults = ref([])
 const playlistResults = ref([])
 const artistPayload = ref({ name: '', musicCount: 0, musicList: [] })
 const favoriteMusicIds = ref(new Set())
+const tab = ref('tracks')
 
 if (route.params.query) {
   searchQuery.value = decodeURIComponent(route.params.query)
@@ -243,13 +54,33 @@ const artistTrackCount = computed(() => {
   return artistTracks.value.length
 })
 
+const tabs = computed(() => [
+  { key: 'tracks', label: '单曲', icon: 'music', count: musicResults.value.length },
+  { key: 'playlists', label: '歌单', icon: 'list-music', count: playlistResults.value.length },
+  { key: 'artist', label: '艺人', icon: 'mic-2', count: artistPayload.value.name ? artistTrackCount.value : 0 },
+])
+
+/** 有结果但当前标签为空时的引导：切到有内容的标签 */
+watch(
+  () => [searchLoading.value, hasAnyResults.value, tabs.value.map((t) => t.count).join(',')],
+  () => {
+    if (searchLoading.value || !hasAnyResults.value) return
+    const current = tabs.value.find((t) => t.key === tab.value)
+    if (current && current.count === 0) {
+      const firstNonEmpty = tabs.value.find((t) => t.count > 0)
+      if (firstNonEmpty) tab.value = firstNonEmpty.key
+    }
+  },
+  { immediate: true }
+)
+
 const jsonHeaders = { 'Content-Type': 'application/json' }
 
-const fetchMusicResults = async (query) => {
+async function fetchMusicResults(query) {
   const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/search`, {
     method: 'POST',
     headers: jsonHeaders,
-    body: JSON.stringify({ query })
+    body: JSON.stringify({ query }),
   })
   const data = await response.json()
   if (response.ok && data.success && Array.isArray(data.results)) return data.results
@@ -257,22 +88,22 @@ const fetchMusicResults = async (query) => {
   return []
 }
 
-const fetchPlaylistResults = async (query) => {
+async function fetchPlaylistResults(query) {
   const response = await fetch(`${API_CONFIG.BASE_URL}/api/playlists/search`, {
     method: 'POST',
     headers: jsonHeaders,
-    body: JSON.stringify({ query })
+    body: JSON.stringify({ query }),
   })
   const data = await response.json()
   if (response.ok && data.success && Array.isArray(data.results)) return data.results
   return []
 }
 
-const fetchArtistPayload = async (query) => {
+async function fetchArtistPayload(query) {
   const response = await fetch(`${API_CONFIG.BASE_URL}/api/artists/search`, {
     method: 'POST',
     headers: jsonHeaders,
-    body: JSON.stringify({ query })
+    body: JSON.stringify({ query }),
   })
   const data = await response.json()
   if (!response.ok || !data.success || !data.artist) {
@@ -285,16 +116,15 @@ const fetchArtistPayload = async (query) => {
   return { name, musicCount, musicList }
 }
 
-const runSearch = async (query) => {
+async function runSearch(query) {
   const q = (query || '').trim()
   if (!q) return
-
   searchLoading.value = true
   try {
     const [tracks, playlists, artist] = await Promise.all([
       fetchMusicResults(q),
       fetchPlaylistResults(q),
-      fetchArtistPayload(q)
+      fetchArtistPayload(q),
     ])
     musicResults.value = tracks
     playlistResults.value = playlists
@@ -310,26 +140,20 @@ const runSearch = async (query) => {
   }
 }
 
-const goMusicDetail = (result) => {
-  router.push(`/detail/${result.id}`)
-}
-
-const goPlaylist = (pl) => {
-  router.push(`/playlist/${pl.id}`)
-}
+const goMusicDetail = (result) => router.push(`/detail/${result.id}`)
+const goPlaylist = (pl) => router.push(`/playlist/${pl.id}`)
 
 /** 艺人搜索返回的曲目字段与单曲接口略有差异，统一成播放器/收藏可用的形状 */
-const normalizeTrack = (m) => {
-  const id = m.id
+function normalizeTrack(m) {
   const fileFormat = m.fileFormat ?? m.file_format ?? 'mp3'
   return {
-    id,
+    id: m.id,
     title: m.title,
     artist: m.artist,
     album: m.album ?? '',
     duration: m.duration ?? 0,
     fileFormat,
-    filename: m.filename ?? `${m.title}.${fileFormat}`
+    filename: m.filename ?? `${m.title}.${fileFormat}`,
   }
 }
 
@@ -351,83 +175,34 @@ const trackCoverUrl = (m) => {
   return getCoverUrl(m.id)
 }
 
-const playMusic = async (result) => {
-  let playlist = JSON.parse(localStorage.getItem('globalPlaylist') || '[]')
-
+/** 播放：沿用旧契约（localStorage + 事件） */
+function playMusic(result) {
+  const playlist = JSON.parse(localStorage.getItem('globalPlaylist') || '[]')
   const existingIndex = playlist.findIndex((item) => item.id === result.id)
   if (existingIndex === -1) {
     playlist.push(result)
     localStorage.setItem('globalPlaylist', JSON.stringify(playlist))
-
-    const playlistEvent = new CustomEvent('playlistUpdated', {
-      detail: {
-        playlist: playlist
-      }
-    })
-    window.dispatchEvent(playlistEvent)
+    window.dispatchEvent(new CustomEvent('playlistUpdated', { detail: { playlist } }))
   }
 
   localStorage.setItem('currentPlayingMusic', JSON.stringify(result))
-
-  const state = {
-    isPlaying: true,
-    currentTime: 0.1,
-    duration: result.duration || 0
-  }
+  const state = { isPlaying: true, currentTime: 0.1, duration: result.duration || 0 }
   localStorage.setItem('globalPlayerState', JSON.stringify(state))
-
-  const event = new CustomEvent('playerStateChange', {
-    detail: {
-      isPlaying: state.isPlaying,
-      currentTime: state.currentTime,
-      duration: state.duration,
-      currentMusic: result
-    }
-  })
-  window.dispatchEvent(event)
-
-  setTimeout(() => {
-    window.dispatchEvent(new Event('forcePlay'))
-  }, 10)
-
-  setTimeout(() => {
-    window.dispatchEvent(new Event('forcePlay'))
-  }, 100)
+  window.dispatchEvent(
+    new CustomEvent('playerStateChange', {
+      detail: {
+        isPlaying: state.isPlaying,
+        currentTime: state.currentTime,
+        duration: state.duration,
+        currentMusic: result,
+      },
+    })
+  )
+  setTimeout(() => window.dispatchEvent(new Event('forcePlay')), 10)
+  setTimeout(() => window.dispatchEvent(new Event('forcePlay')), 100)
 }
 
-const downloadMusic = async (result) => {
-  try {
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/file/${result.id}`)
-    const blob = await response.blob()
-
-    const contentType = response.headers.get('Content-Type') || 'audio/mpeg'
-    const extension = mapContentTypeToExtension(contentType)
-
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = result.filename || `${result.title}.${extension}`
-
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-
-    window.URL.revokeObjectURL(url)
-  } catch (error) {
-    console.error('下载音乐失败:', error)
-
-    const link = document.createElement('a')
-    link.href = `${API_CONFIG.BASE_URL}/api/music/file/${result.id}`
-    const extension = result.fileFormat || 'mp3'
-    link.download = result.filename || `${result.title}.${extension}`
-    link.target = '_blank'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-}
-
-const mapContentTypeToExtension = (contentType) => {
+function mapContentTypeToExtension(contentType) {
   const type = contentType.toLowerCase()
   if (type.includes('flac')) return 'flac'
   if (type.includes('wav')) return 'wav'
@@ -437,45 +212,58 @@ const mapContentTypeToExtension = (contentType) => {
   if (type.includes('wma')) return 'wma'
   if (type.includes('ape')) return 'ape'
   if (type.includes('mpeg') || type.includes('mp3')) return 'mp3'
-  console.warn('未知的 Content-Type:', contentType, '使用 mp3')
   return 'mp3'
 }
 
-const getToken = () => {
-  return localStorage.getItem('userToken')
+async function downloadMusic(result) {
+  try {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/file/${result.id}`)
+    const blob = await response.blob()
+    const contentType = response.headers.get('Content-Type') || 'audio/mpeg'
+    const extension = mapContentTypeToExtension(contentType)
+
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = result.filename || `${result.title}.${extension}`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('下载音乐失败:', error)
+    const link = document.createElement('a')
+    link.href = `${API_CONFIG.BASE_URL}/api/music/file/${result.id}`
+    link.download = result.filename || `${result.title}.${result.fileFormat || 'mp3'}`
+    link.target = '_blank'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
 }
 
-const isLoggedIn = () => {
-  return !!getToken()
-}
+const getToken = () => localStorage.getItem('userToken')
+const isLoggedIn = () => !!getToken()
+const isFavorite = (musicId) => favoriteMusicIds.value.has(musicId)
 
-const isFavorite = (musicId) => {
-  return favoriteMusicIds.value.has(musicId)
-}
-
-const toggleFavorite = async (result) => {
+async function toggleFavorite(result) {
   if (!isLoggedIn()) {
     toast.error('请先登录')
     return
   }
-
   const token = getToken()
 
   if (isFavorite(result.id)) {
     try {
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/favorites/${result.id}`, {
         method: 'DELETE',
-        headers: {
-          Authorization: token
-        }
+        headers: { Authorization: token },
       })
-
       const data = await response.json()
       if (data.success) {
         favoriteMusicIds.value.delete(result.id)
         toast.success('取消收藏成功')
       } else {
-        console.error('取消收藏失败:', data.message)
         toast.error('取消收藏失败: ' + data.message)
       }
     } catch (error) {
@@ -486,19 +274,14 @@ const toggleFavorite = async (result) => {
     try {
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/favorites`, {
         method: 'POST',
-        headers: {
-          Authorization: token,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ musicId: result.id })
+        headers: { Authorization: token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ musicId: result.id }),
       })
-
       const data = await response.json()
       if (data.success) {
         favoriteMusicIds.value.add(result.id)
         toast.success('收藏成功')
       } else {
-        console.error('收藏失败:', data.message)
         toast.error('收藏失败: ' + data.message)
       }
     } catch (error) {
@@ -508,20 +291,13 @@ const toggleFavorite = async (result) => {
   }
 }
 
-const fetchFavorites = async () => {
-  if (!isLoggedIn()) {
-    return
-  }
-
+async function fetchFavorites() {
+  if (!isLoggedIn()) return
   try {
-    const token = getToken()
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/favorites`, {
       method: 'GET',
-      headers: {
-        Authorization: token
-      }
+      headers: { Authorization: getToken() },
     })
-
     const data = await response.json()
     if (data.success) {
       favoriteMusicIds.value = new Set(data.favorites.map((m) => m.id))
@@ -531,11 +307,9 @@ const fetchFavorites = async () => {
   }
 }
 
-const getCoverUrl = (musicId) => {
-  return `${API_CONFIG.BASE_URL}/api/music/cover/${musicId}`
-}
+const getCoverUrl = (musicId) => `${API_CONFIG.BASE_URL}/api/music/cover/${musicId}`
 
-const handleImageError = (event) => {
+function handleImageError(event) {
   event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/0`
 }
 
@@ -563,555 +337,443 @@ onMounted(async () => {
 })
 </script>
 
+<template>
+  <AmbientBackdrop />
+
+  <PageShell width="default">
+    <!-- 页头 -->
+    <header class="head">
+      <h1 class="head__title">{{ searchQuery || '搜索' }}</h1>
+      <p class="head__sub">
+        <template v-if="searchQuery">关键词「{{ searchQuery }}」</template>
+        <template v-else>在顶栏输入关键词后跳转至此查看结果</template>
+      </p>
+    </header>
+
+    <!-- 加载 -->
+    <div v-if="searchQuery && searchLoading" class="state">
+      <NSpinner :size="28" />
+      <p>正在搜索单曲、歌单与艺人…</p>
+    </div>
+
+    <!-- 未输入关键词 -->
+    <NCard v-else-if="!searchQuery" pad="lg" class="empty">
+      <span class="empty__icon"><NIcon name="search" :size="28" /></span>
+      <h2 class="empty__title">开始搜索</h2>
+      <p class="empty__text">在顶栏搜索框输入歌名、歌手或专辑，回车即可查看结果。</p>
+    </NCard>
+
+    <!-- 无结果 -->
+    <NCard v-else-if="!hasAnyResults" pad="lg" class="empty">
+      <span class="empty__icon"><NIcon name="search-x" :size="28" /></span>
+      <h2 class="empty__title">未找到结果</h2>
+      <p class="empty__text">没有找到与「{{ searchQuery }}」匹配的单曲、歌单或艺人。</p>
+      <p class="empty__hint">
+        如需补全曲库，可联系
+        <a href="mailto:support@cnmsb.xin">support@cnmsb.xin</a>
+      </p>
+    </NCard>
+
+    <!-- 结果 -->
+    <template v-else>
+      <div class="tabs" role="tablist" aria-label="搜索结果分类">
+        <button
+          v-for="t in tabs"
+          :key="t.key"
+          type="button"
+          role="tab"
+          class="tabs__btn"
+          :class="{ 'tabs__btn--active': tab === t.key }"
+          :aria-selected="tab === t.key"
+          @click="tab = t.key"
+        >
+          <NIcon :name="t.icon" :size="16" />
+          <span>{{ t.label }}</span>
+          <span class="tabs__count">{{ t.count }}</span>
+        </button>
+      </div>
+
+      <!-- 单曲 -->
+      <div v-if="tab === 'tracks'" class="list">
+        <p v-if="!musicResults.length" class="list__empty">本关键词下暂无单曲</p>
+        <article v-for="result in musicResults" v-else :key="'m-' + result.id" class="row">
+          <img
+            :src="getCoverUrl(result.id)"
+            :alt="result.title"
+            class="row__cover"
+            loading="lazy"
+            decoding="async"
+            @error="handleImageError"
+          />
+          <button type="button" class="row__info" @click="goMusicDetail(result)">
+            <span class="row__title">
+              <span class="row__title-text">{{ result.title }}</span>
+              <NIcon v-if="result.lrc" name="file-text" :size="13" class="row__lyric" />
+            </span>
+            <span class="row__meta">{{ result.artist }}</span>
+            <span class="row__sub">{{ result.album || '未知专辑' }}</span>
+          </button>
+          <div class="row__actions">
+            <NButton size="sm" variant="secondary" icon="play" title="播放" @click="playMusic(result)" />
+            <NButton
+              size="sm"
+              :variant="isFavorite(result.id) ? 'primary' : 'secondary'"
+              icon="heart"
+              :title="isFavorite(result.id) ? '取消收藏' : '收藏'"
+              @click="toggleFavorite(result)"
+            />
+            <NButton size="sm" variant="secondary" icon="download" title="下载" @click="downloadMusic(result)" />
+          </div>
+        </article>
+      </div>
+
+      <!-- 歌单 -->
+      <div v-else-if="tab === 'playlists'" class="list">
+        <p v-if="!playlistResults.length" class="list__empty">本关键词下暂无歌单</p>
+        <article v-for="pl in playlistResults" v-else :key="'p-' + pl.id" class="row">
+          <img
+            :src="playlistCoverUrl(pl)"
+            :alt="pl.name"
+            class="row__cover"
+            loading="lazy"
+            decoding="async"
+            @error="handleImageError"
+          />
+          <button type="button" class="row__info" @click="goPlaylist(pl)">
+            <span class="row__title">
+              <span class="row__title-text">{{ pl.name }}</span>
+            </span>
+            <span class="row__meta">{{ pl.musicCount ?? 0 }} 首</span>
+            <span class="row__sub">{{ pl.description || '暂无简介' }}</span>
+          </button>
+          <div class="row__actions">
+            <NButton size="sm" variant="secondary" icon="arrow-right" @click="goPlaylist(pl)">打开</NButton>
+          </div>
+        </article>
+      </div>
+
+      <!-- 艺人 -->
+      <div v-else class="artist">
+        <template v-if="artistPayload.name">
+          <header class="artist__head">
+            <span class="artist__avatar"><NIcon name="mic-2" :size="22" /></span>
+            <div>
+              <h2 class="artist__name">{{ artistPayload.name }}</h2>
+              <p class="artist__meta">{{ artistTrackCount }} 首作品</p>
+            </div>
+          </header>
+
+          <div class="list">
+            <p v-if="!artistTracks.length" class="list__empty">暂无该艺人下的曲目列表</p>
+            <article v-for="result in artistTracks" v-else :key="'a-' + result.id" class="row">
+              <img
+                :src="trackCoverUrl(result)"
+                :alt="result.title"
+                class="row__cover"
+                loading="lazy"
+                decoding="async"
+                @error="handleImageError"
+              />
+              <button type="button" class="row__info" @click="goMusicDetail(result)">
+                <span class="row__title">
+                  <span class="row__title-text">{{ result.title }}</span>
+                </span>
+                <span class="row__meta">{{ result.artist }}</span>
+                <span class="row__sub">{{ result.album || '未知专辑' }}</span>
+              </button>
+              <div class="row__actions">
+                <NButton size="sm" variant="secondary" icon="play" title="播放" @click="playMusic(normalizeTrack(result))" />
+                <NButton
+                  size="sm"
+                  :variant="isFavorite(result.id) ? 'primary' : 'secondary'"
+                  icon="heart"
+                  :title="isFavorite(result.id) ? '取消收藏' : '收藏'"
+                  @click="toggleFavorite(normalizeTrack(result))"
+                />
+                <NButton size="sm" variant="secondary" icon="download" title="下载" @click="downloadMusic(normalizeTrack(result))" />
+              </div>
+            </article>
+          </div>
+        </template>
+
+        <p v-else class="list__empty">本关键词下暂无匹配艺人</p>
+      </div>
+    </template>
+  </PageShell>
+</template>
+
 <style scoped>
-.search-page {
-  --text: rgba(255, 255, 255, 0.92);
-  --muted: rgba(255, 255, 255, 0.62);
-  --faint: rgba(255, 255, 255, 0.42);
-  --line: rgba(255, 255, 255, 0.1);
-  --accent: #69c8df;
-  --accent2: #69c8df;
-  --accent3: #9beaff;
-  --radius: 16px;
-  --radius-lg: 22px;
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
-
-  position: relative;
-  min-height: 100vh;
-  padding-top: env(safe-area-inset-top, 0px);
-  color: var(--text);
-  background: transparent;
+.head {
+  margin-bottom: var(--n-space-6);
 }
 
-.ambient {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.ambient__blob {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(72px);
-  opacity: 0.48;
-  animation: blobFloat 22s var(--ease) infinite;
-}
-
-.ambient__blob--a {
-  width: 400px;
-  height: 400px;
-  background: rgba(105, 200, 223, 0.4);
-  top: -120px;
-  right: -80px;
-}
-
-.ambient__blob--b {
-  width: 340px;
-  height: 340px;
-  background: rgba(105, 200, 223, 0.22);
-  bottom: -60px;
-  left: -60px;
-  animation-delay: -8s;
-}
-
-.ambient__blob--c {
-  width: 260px;
-  height: 260px;
-  background: rgba(155, 234, 255, 0.16);
-  top: 38%;
-  left: 30%;
-  animation-delay: -14s;
-}
-
-.ambient__grid {
-  position: absolute;
-  inset: 0;
-  opacity: 0.3;
-  background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: radial-gradient(ellipse 80% 55% at 50% 15%, black, transparent);
-}
-
-@keyframes blobFloat {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(-16px, 12px) scale(1.04);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ambient__blob {
-    animation: none;
-  }
-}
-
-.shell {
-  position: relative;
-  z-index: 1;
-  width: min(1320px, 100%);
-  margin: 0 auto;
-  padding: clamp(16px, 3vw, 28px) clamp(14px, 3.5vw, 24px) 48px;
-}
-
-.page-head {
-  margin-bottom: clamp(18px, 2.5vw, 24px);
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--line);
-}
-
-.page-title {
-  margin: 0 0 6px;
-  font-size: clamp(1.45rem, 3.2vw, 1.85rem);
-  font-weight: 800;
+.head__title {
+  margin: 0 0 var(--n-space-1);
+  font-size: clamp(1.5rem, 3vw, 1.9rem);
+  font-weight: var(--n-weight-bold);
   letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
 }
 
-.page-lede {
+.head__sub {
   margin: 0;
-  font-size: 0.92rem;
-  color: var(--muted);
-  line-height: 1.45;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
 }
 
-.page-lede.muted {
-  color: var(--faint);
-}
-
-.page-query {
-  color: var(--accent2);
-  font-weight: 700;
-}
-
-.search-loading-wrap {
-  max-width: 520px;
-  margin: 0 auto;
-}
-
-.search-loading {
-  padding: 28px 24px;
-}
-
-.search-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: clamp(14px, 2vw, 22px);
-  align-items: stretch;
-}
-
-@media (max-width: 1024px) {
-  .search-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .search-column {
-    min-height: auto;
-    max-height: none;
-  }
-
-  .search-column .column-body {
-    max-height: min(52vh, 520px);
-  }
-}
-
-.search-column {
-  --col-accent: var(--accent);
+/* ===== 状态 ===== */
+.state {
   display: flex;
   flex-direction: column;
-  min-width: 0;
-  min-height: min(62vh, 640px);
-  max-height: min(78vh, 820px);
-  overflow: hidden;
-}
-
-.search-column--tracks {
-  --col-accent: #69c8df;
-}
-
-.search-column--playlists {
-  --col-accent: #8eddec;
-}
-
-.search-column--artist {
-  --col-accent: #b7f0fb;
-}
-
-.column-head {
-  flex-shrink: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px 12px;
-  padding: 16px 16px 12px;
-  border-bottom: 1px solid var(--line);
-  border-left: 4px solid var(--col-accent);
-  margin-left: 0;
-  background: rgba(0, 0, 0, 0.12);
-}
-
-.column-title {
-  margin: 0;
-  font-size: 1.02rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-
-.column-badge {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--faint);
-  font-variant-numeric: tabular-nums;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.column-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(105, 200, 223, 0.45) rgba(255, 255, 255, 0.06);
-  padding-bottom: 8px;
-}
-
-.column-body::-webkit-scrollbar {
-  width: 6px;
-}
-
-.column-body::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.column-body::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 999px;
-}
-
-.column-artist-name {
-  margin: 12px 14px 10px;
-  padding: 10px 12px;
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--accent2);
-  border-radius: var(--radius);
-  border: 1px solid rgba(105, 200, 223, 0.25);
-  background: rgba(105, 200, 223, 0.08);
-}
-
-.col-empty {
-  margin: 24px 16px;
-  padding: 20px 14px;
-  font-size: 0.86rem;
-  line-height: 1.5;
-  color: var(--faint);
-  text-align: center;
-  border-radius: var(--radius);
-  border: 1px dashed rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.col-empty--tight {
-  margin-top: 8px;
-}
-
-.state-panel {
-  padding: 40px 24px;
-}
-
-.panel {
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(105, 200, 223, 0.14), rgba(255, 255, 255, 0.04));
-  box-shadow: var(--shadow);
-  overflow: hidden;
-}
-
-.results {
-  list-style: none;
-  margin: 0;
-  padding: 10px 0;
-}
-
-.results--dense {
-  padding: 6px 0 10px;
-}
-
-.search-column .result-row {
-  margin: 0 8px 6px;
-  padding: 10px 10px;
-  gap: 10px;
-}
-
-.search-column .result-cover {
-  width: 48px;
-  height: 48px;
-}
-
-.search-column .result-actions {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-}
-
-.search-column .icon-btn {
-  padding: 6px 8px;
-  font-size: 0.72rem;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-@media (min-width: 1025px) {
-  .search-column .result-actions {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    width: auto;
-  }
-
-  .search-column .icon-btn {
-    width: auto;
-  }
-}
-
-.result-row {
-  display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 12px 18px;
-  margin: 0 10px 8px;
-  border-radius: var(--radius);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
-  transition:
-    background 0.2s var(--ease),
-    border-color 0.2s var(--ease),
-    transform 0.2s var(--ease);
+  gap: var(--n-space-4);
+  padding: var(--n-space-16) 0;
+  color: var(--n-text-muted);
 }
 
-.result-row:last-child {
-  margin-bottom: 12px;
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--n-space-3);
+  padding: var(--n-space-12) var(--n-space-6);
 }
 
-@media (hover: hover) {
-  .result-row:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(105, 200, 223, 0.35);
-    transform: translateY(-1px);
-  }
-}
-
-.result-cover {
+.empty__icon {
+  display: grid;
+  place-items: center;
   width: 56px;
   height: 56px;
-  object-fit: cover;
-  border-radius: 10px;
-  flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  border-radius: var(--n-radius);
+  background: var(--n-accent-soft);
+  color: var(--n-accent-strong);
 }
 
-.result-main {
-  flex: 1;
-  min-width: 0;
+.empty__title {
+  margin: 0;
+  font-size: var(--n-text-lg);
+  font-weight: var(--n-weight-semibold);
+}
+
+.empty__text {
+  margin: 0;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+}
+
+.empty__hint {
+  margin: 0;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-sm);
+}
+
+/* ===== 标签页 ===== */
+.tabs {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
-  cursor: pointer;
-  text-align: left;
-  border-radius: 10px;
-  padding: 4px 6px;
-  margin: -4px -6px;
-  outline: none;
+  gap: var(--n-space-1);
+  padding: 4px;
+  margin-bottom: var(--n-space-5);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-control);
+  background: var(--n-surface-soft);
+  overflow-x: auto;
 }
 
-.result-main:focus-visible {
-  outline: 2px solid var(--accent2);
-  outline-offset: 2px;
+/* 手机竖屏：改为均分收缩，避免出现「不易发现的横向滚动」 */
+@media (max-width: 560px) {
+  .tabs {
+    overflow-x: visible;
+  }
+
+  .tabs__btn {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    padding-inline: var(--n-space-2);
+  }
+
+  .tabs__count {
+    display: none;
+  }
 }
 
-.result-title {
+.tabs__btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  max-width: 100%;
-  font-weight: 700;
-  font-size: 0.95rem;
-  color: var(--text);
-}
-
-.result-title__text {
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.result-meta {
-  font-size: 0.84rem;
-  color: var(--accent2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.result-sub {
-  font-size: 0.78rem;
-  color: var(--faint);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.result-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  flex-shrink: 0;
-  align-items: center;
-}
-
-.icon-btn {
-  font-family: inherit;
-  display: inline-flex;
-  align-items: center;
+  gap: var(--n-space-2);
+  flex: 1 1 auto;
   justify-content: center;
-  padding: 7px 12px;
-  border-radius: 999px;
-  font-size: 0.76rem;
-  font-weight: 600;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.88);
-  cursor: pointer;
-  transition:
-    background 0.2s var(--ease),
-    border-color 0.2s var(--ease),
-    transform 0.2s var(--ease);
+  padding: 9px var(--n-space-4);
+  border-radius: var(--n-radius-xs);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-semibold);
   white-space: nowrap;
+  transition: background var(--n-duration-fast) var(--n-ease), color var(--n-duration-fast) var(--n-ease);
 }
 
 @media (hover: hover) {
-  .icon-btn:hover {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(105, 200, 223, 0.4);
+  .tabs__btn:hover {
+    color: var(--n-text);
   }
 }
 
-.icon-btn--play {
-  color: #0c0a14;
-  border: none;
-  background: linear-gradient(135deg, #9beaff, var(--accent2));
+.tabs__btn--active {
+  background: var(--n-accent-soft);
+  color: var(--n-accent-strong);
 }
 
-.icon-btn--on {
-  border-color: rgba(105, 200, 223, 0.3);
-  color: #dffbff;
-  background: rgba(105, 200, 223, 0.12);
+.tabs__count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--n-radius-xs);
+  background: rgba(120, 220, 232, 0.12);
+  font-size: var(--n-text-xs);
+  font-variant-numeric: tabular-nums;
 }
 
-.icon-btn--dl {
-  border-color: rgba(105, 200, 223, 0.24);
-  color: #b7f0fb;
+.tabs__btn--active .tabs__count {
+  background: rgba(95, 208, 224, 0.22);
 }
 
-.state {
-  padding: 40px 24px;
-  text-align: center;
-}
-
-.state--loading {
+/* ===== 列表 ===== */
+.list {
   display: flex;
   flex-direction: column;
+  gap: var(--n-space-2);
+}
+
+.list__empty {
+  margin: 0;
+  padding: var(--n-space-10) 0;
+  text-align: center;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-sm);
+}
+
+.row {
+  display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 48px 24px;
+  gap: var(--n-space-4);
+  padding: var(--n-space-3) var(--n-space-4);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-lg);
+  background: var(--n-surface);
+  transition: border-color var(--n-duration-fast) var(--n-ease), background var(--n-duration-fast) var(--n-ease);
 }
 
-.state__spinner {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 3px solid rgba(255, 255, 255, 0.12);
-  border-top-color: var(--accent2);
-  animation: spin 0.85s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+@media (hover: hover) {
+  .row:hover {
+    border-color: var(--n-line-strong);
+    background: var(--n-surface-hover);
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .state__spinner {
-    animation: none;
-    border-color: rgba(105, 200, 223, 0.35);
-  }
+.row__cover {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: var(--n-radius-sm);
+  border: 1px solid var(--n-line-subtle);
+  flex: none;
 }
 
-.state__title {
-  margin: 0 0 10px;
-  font-size: 1.15rem;
-  font-weight: 800;
+.row__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.row__title {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-1);
+  min-width: 0;
+  color: var(--n-text);
+  font-size: var(--n-text-base);
+  font-weight: var(--n-weight-semibold);
+}
+
+.row__title-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row__lyric {
+  flex: none;
+  color: var(--n-accent);
+}
+
+.row__meta {
+  color: var(--n-accent-strong);
+  font-size: var(--n-text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row__sub {
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row__actions {
+  display: flex;
+  gap: var(--n-space-2);
+  flex: none;
+}
+
+/* ===== 艺人 ===== */
+.artist__head {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-4);
+  margin-bottom: var(--n-space-5);
+}
+
+.artist__avatar {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--n-radius);
+  background: var(--n-accent-soft);
+  color: var(--n-accent-strong);
+  flex: none;
+}
+
+.artist__name {
+  margin: 0;
+  font-size: var(--n-text-xl);
+  font-weight: var(--n-weight-semibold);
   letter-spacing: -0.02em;
 }
 
-.state__text {
-  margin: 0;
-  font-size: 0.92rem;
-  color: var(--muted);
-  line-height: 1.55;
-}
-
-.state__hint {
-  margin: 16px 0 6px;
-  font-size: 0.82rem;
-  color: var(--faint);
-}
-
-.state__link {
-  color: var(--accent2);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.state__link:hover {
-  text-decoration: underline;
-}
-
-.state--empty .state__title {
-  color: rgba(252, 211, 77, 0.95);
-}
-
-.state--hint .state__title {
-  color: var(--text);
+.artist__meta {
+  margin: 2px 0 0;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
 }
 
 @media (max-width: 560px) {
-  .result-row {
+  .row {
     flex-wrap: wrap;
-    align-items: flex-start;
   }
 
-  .result-actions {
+  .row__actions {
     width: 100%;
     justify-content: flex-end;
-    padding-top: 4px;
-  }
-
-  .icon-btn {
-    flex: 1;
-    justify-content: center;
-    min-width: 0;
   }
 }
 </style>

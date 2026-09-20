@@ -1,130 +1,25 @@
-<template>
-  <div class="home-page">
-    <div class="ambient" aria-hidden="true">
-      <div class="ambient__blob ambient__blob--a" />
-      <div class="ambient__blob ambient__blob--b" />
-      <div class="ambient__blob ambient__blob--c" />
-      <div class="ambient__grid" />
-    </div>
-
-    <main class="shell">
-      <section class="intro" aria-labelledby="home-title">
-        <div class="intro__text">
-          <h1 id="home-title" class="intro__title">从这里开始听</h1>
-          <p class="intro__lede">用顶栏搜索与播放；在客户端可<strong class="intro__lede-strong">从网易、QQ、酷狗迁入歌单</strong>，开源免费、无绑架式社交。</p>
-        </div>
-        <nav class="intro__nav" aria-label="快捷入口">
-          <router-link to="/download#netease-migrate" class="intro__chip intro__chip--accent">网易、QQ、酷狗歌单迁入</router-link>
-          <router-link to="/download" class="intro__chip">下载客户端</router-link>
-          <router-link v-if="isLoggedIn" to="/upload" class="intro__chip">上传音乐</router-link>
-          <a
-            href="https://github.com/FantasyNetworkCN/NekoMusicDocs"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="intro__chip"
-          >开发者文档</a>
-          <a
-              href="https://qm.qq.com/q/Q9HkDi6Ewk"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="intro__chip"
-          >加入QQ群</a>
-        </nav>
-      </section>
-
-      <section class="migrate-strip" aria-labelledby="migrate-title">
-        <div class="migrate-strip__inner">
-          <p class="migrate-strip__eyebrow">从网易、QQ、酷狗过来？</p>
-          <h2 id="migrate-title" class="migrate-strip__title">歌单链接或 ID，客户端里一键匹配入库</h2>
-          <p class="migrate-strip__text">
-            Android 与 PC 客户端支持粘贴网易云 / QQ 音乐 / 酷狗歌单链接，自动拉取曲目并在 Neko 曲库中匹配后导入你的歌单。匹配结果取决于站内是否已有对应歌曲。
-          </p>
-          <router-link to="/download#netease-migrate" class="migrate-strip__cta">查看怎么操作</router-link>
-        </div>
-      </section>
-
-      <section class="browse" aria-labelledby="browse-heading">
-        <div class="browse__rail" aria-hidden="true" />
-        <div class="browse__inner">
-          <header class="browse__head">
-            <div>
-              <h2 id="browse-heading" class="browse__title">热门与最新</h2>
-              <p class="browse__sub">排行榜与最新上架封面预览</p>
-            </div>
-          </header>
-
-          <div v-if="showDiscoverSkeleton" class="state state--loading">
-            <div class="state__spinner" aria-hidden="true" />
-            <p class="state__text">正在加载预览…</p>
-          </div>
-
-          <div v-else class="browse__tiles">
-            <article
-              class="b-tile b-tile--hot"
-              tabindex="0"
-              role="button"
-              @click="goToRanking"
-              @keydown.enter.prevent="goToRanking"
-            >
-              <div class="b-tile__cover b-tile__cover--hot">
-                <div class="b-tile__mosaic">
-                  <img
-                    v-for="(item, index) in displayList.slice(0, 4)"
-                    :key="'h-' + index"
-                    :src="item.coverUrl"
-                    :alt="item.title"
-                    class="b-tile__img"
-                    @error="handleImageError"
-                  />
-                </div>
-                <span class="b-tile__badge">{{ rankingList.length }} 首</span>
-              </div>
-              <div class="b-tile__meta">
-                <h3 class="b-tile__name">热门音乐</h3>
-                <p class="b-tile__hint">进入排行榜</p>
-              </div>
-            </article>
-
-            <article
-              class="b-tile b-tile--latest"
-              tabindex="0"
-              role="button"
-              @click="goToLatest"
-              @keydown.enter.prevent="goToLatest"
-            >
-              <div class="b-tile__cover b-tile__cover--latest">
-                <div class="b-tile__mosaic">
-                  <img
-                    v-for="(item, index) in displayLatestList.slice(0, 4)"
-                    :key="'l-' + index"
-                    :src="item.coverUrl"
-                    :alt="item.title"
-                    class="b-tile__img"
-                    @error="handleImageError"
-                  />
-                </div>
-                <span class="b-tile__badge">{{ latestList.length }} 首</span>
-              </div>
-              <div class="b-tile__meta">
-                <h3 class="b-tile__name">最新音乐</h3>
-                <p class="b-tile__hint">进入最新上架</p>
-              </div>
-            </article>
-          </div>
-        </div>
-      </section>
-    </main>
-  </div>
-</template>
-
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+/**
+ * HomeView —— 首页
+ * ------------------------------------------------------------
+ * 排布参考主流音乐 App（ArchoeraMusic 首页范式）：
+ *   页头（标题 + 问候） → Hero 横幅 → 动作卡 → 横向封面栏 ×2
+ *
+ * Hero 双态：
+ *  - 已登录且取到每日推荐 → 展示「每日推荐」（2×2 封面拼图 + 播放推荐）
+ *  - 否则 → 展示品牌文案（热门第一首 + 播放热门）
+ *
+ * 设计：黑偏青 + 圆角矩形；不使用侧边高亮条与区块级动画渐变。
+ * 全局契约：播放经 hash #play / #playlist 驱动 GlobalPlayer（与列表页一致）。
+ */
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import API_CONFIG from '@/config/apiConfig.js'
-import { useToast } from 'vue-toastification'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NCard, NSpinner } from '@/ui'
+import { PageShell, AmbientBackdrop } from '@/layouts'
+import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
-const router = useRouter()
 
 const rankingList = ref([])
 const latestList = ref([])
@@ -132,35 +27,74 @@ const rankingLoading = ref(true)
 const latestLoading = ref(true)
 
 const isLoggedIn = ref(false)
+const username = ref('')
+
+/** 每日推荐（需登录） */
+const dailyList = ref([])
+const dailyDate = ref('')
+
 const syncLoginState = () => {
-  const t = localStorage.getItem('userToken')
-  isLoggedIn.value = t != null && t !== ''
+  isLoggedIn.value = !!localStorage.getItem('userToken')
+  try {
+    const u = JSON.parse(localStorage.getItem('user') || 'null')
+    username.value = u?.username || ''
+  } catch {
+    username.value = ''
+  }
 }
 
-const displayList = computed(() => rankingList.value.slice(0, 20))
-const displayLatestList = computed(() => latestList.value.slice(0, 20))
+/** 按时段问候 */
+const greeting = computed(() => {
+  const h = new Date().getHours()
+  if (h < 6) return '夜深了'
+  if (h < 12) return '早上好'
+  if (h < 14) return '中午好'
+  if (h < 18) return '下午好'
+  return '晚上好'
+})
 
-const showDiscoverSkeleton = computed(
-  () =>
-    (rankingLoading.value || latestLoading.value) &&
-    rankingList.value.length === 0 &&
-    latestList.value.length === 0
+const hasDaily = computed(() => isLoggedIn.value && dailyList.value.length > 0)
+
+/** Hero：优先每日推荐，否则热门第一首 */
+const heroList = computed(() => (hasDaily.value ? dailyList.value : rankingList.value))
+const heroFeature = computed(() => heroList.value[0] || null)
+const heroBackdrop = computed(() => heroFeature.value?.coverUrl || '')
+const dailyMosaic = computed(() => dailyList.value.slice(0, 4))
+
+/** 横向封面栏取前 12 首 */
+const hotList = computed(() => rankingList.value.slice(0, 12))
+const latestGrid = computed(() => latestList.value.slice(0, 12))
+
+const loadingAll = computed(
+  () => (rankingLoading.value || latestLoading.value) && !rankingList.value.length && !latestList.value.length
 )
+
+const quickLinks = computed(() => {
+  const links = [
+    { to: '/ranking', icon: 'trophy', title: '热门排行', desc: '按播放量排序' },
+    { to: '/latest', icon: 'sparkles', title: '最新上架', desc: '刚刚入库的新歌' },
+    { to: '/download', icon: 'list-music', title: '歌单迁入', desc: '网易 / QQ / 酷狗' },
+  ]
+  links.push(
+    isLoggedIn.value
+      ? { to: '/upload', icon: 'upload', title: '上传音乐', desc: '分享你的作品' }
+      : { to: '/favorites', icon: 'heart', title: '我的收藏', desc: '登录后同步' }
+  )
+  return links
+})
+
+const withCover = (item) => ({
+  ...item,
+  coverUrl: `${API_CONFIG.BASE_URL}/api/music/cover/${item.id}`,
+})
 
 const fetchRanking = async () => {
   rankingLoading.value = true
   try {
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/ranking`)
-    const data = await response.json()
-
-    if (data.success && data.data) {
-      rankingList.value = data.data.map((item) => ({
-        ...item,
-        coverUrl: `${API_CONFIG.BASE_URL}/api/music/cover/${item.id}`
-      }))
-    } else {
-      console.error('获取排行榜失败:', data.message)
-    }
+    const res = await fetch(`${API_CONFIG.BASE_URL}/api/music/ranking`)
+    const data = await res.json()
+    if (data.success && data.data) rankingList.value = data.data.map(withCover)
+    else console.error('获取排行榜失败:', data.message)
   } catch (error) {
     console.error('排行榜请求失败:', error)
     toast.error('加载排行榜失败')
@@ -172,17 +106,10 @@ const fetchRanking = async () => {
 const fetchLatest = async () => {
   latestLoading.value = true
   try {
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/latest?limit=300`)
-    const data = await response.json()
-
-    if (data.success && data.data) {
-      latestList.value = data.data.map((item) => ({
-        ...item,
-        coverUrl: `${API_CONFIG.BASE_URL}/api/music/cover/${item.id}`
-      }))
-    } else {
-      console.error('获取最新音乐失败:', data.message)
-    }
+    const res = await fetch(`${API_CONFIG.BASE_URL}/api/music/latest?limit=300`)
+    const data = await res.json()
+    if (data.success && data.data) latestList.value = data.data.map(withCover)
+    else console.error('获取最新音乐失败:', data.message)
   } catch (error) {
     console.error('最新音乐请求失败:', error)
     toast.error('加载最新音乐失败')
@@ -191,552 +118,815 @@ const fetchLatest = async () => {
   }
 }
 
-const goToRanking = () => {
-  router.push('/ranking')
-}
-
-const goToLatest = () => {
-  router.push('/latest')
+/**
+ * 每日推荐：失败/未登录时静默回退到品牌 Hero，不打扰用户。
+ * 契约：Authorization 传裸 userToken（与其它用户接口一致）。
+ */
+const fetchDaily = async () => {
+  const token = localStorage.getItem('userToken')
+  if (!token) {
+    dailyList.value = []
+    return
+  }
+  try {
+    const res = await fetch(`${API_CONFIG.BASE_URL}/api/user/recommendations/daily`, {
+      headers: { Authorization: token },
+    })
+    if (!res.ok) {
+      dailyList.value = []
+      return
+    }
+    const data = await res.json()
+    if (data.success && Array.isArray(data.data)) {
+      dailyList.value = data.data.map((it) => ({
+        ...it,
+        id: it.musicId,
+        coverUrl: `${API_CONFIG.BASE_URL}/api/music/cover/${it.musicId}`,
+      }))
+      dailyDate.value = data.date || ''
+    } else {
+      dailyList.value = []
+    }
+  } catch (error) {
+    console.error('每日推荐请求失败:', error)
+    dailyList.value = []
+  }
 }
 
 const handleImageError = (event) => {
   event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/0`
 }
 
+const toTrack = (m) => ({
+  id: m.id,
+  title: m.title,
+  artist: m.artist,
+  album: m.album,
+  duration: m.duration,
+})
+
+const playMusic = (m) => {
+  window.location.hash = `#play=${encodeURIComponent(JSON.stringify(toTrack(m)))}`
+  toast.success(`开始播放：${m.title}`)
+}
+
+const playList = (list, label) => {
+  if (!list.length) return
+  const payload = encodeURIComponent(JSON.stringify(list.map(toTrack)))
+  window.location.hash = `#playlist=${payload}&index=0`
+  toast.success(`开始播放${label ? '：' + label : ''} ${list.length} 首`)
+}
+
+const playHero = () => {
+  if (heroFeature.value) playMusic(heroFeature.value)
+}
+
+const playHeroList = () => {
+  playList(heroList.value, hasDaily.value ? '每日推荐' : '热门')
+}
+
+function onStorage() {
+  const wasLoggedIn = isLoggedIn.value
+  syncLoginState()
+  if (isLoggedIn.value && !wasLoggedIn) fetchDaily()
+  if (!isLoggedIn.value) dailyList.value = []
+}
+
 onMounted(() => {
   syncLoginState()
-  window.addEventListener('storage', syncLoginState)
+  window.addEventListener('storage', onStorage)
   fetchRanking()
   fetchLatest()
+  fetchDaily()
 })
 
 onUnmounted(() => {
-  window.removeEventListener('storage', syncLoginState)
+  window.removeEventListener('storage', onStorage)
 })
 </script>
 
+<template>
+  <AmbientBackdrop />
+
+  <PageShell width="default">
+    <!-- ==================== 页头 ==================== -->
+    <header class="home-head">
+      <h1 class="home-head__title">首页</h1>
+      <p class="home-head__greeting">
+        {{ greeting }}<template v-if="isLoggedIn && username">，{{ username }}</template>，欢迎来到 Neko歌姬计划
+      </p>
+    </header>
+
+    <!-- ==================== Hero 横幅 ==================== -->
+    <section class="hero">
+      <div
+        v-if="heroBackdrop"
+        class="hero__bg"
+        :style="{ backgroundImage: `url(${heroBackdrop})` }"
+        aria-hidden="true"
+      />
+      <div class="hero__scrim" aria-hidden="true" />
+
+      <div class="hero__copy">
+        <span class="hero__eyebrow">
+          <NIcon name="sparkles" :size="14" />
+          {{ hasDaily ? '每日推荐' : '开源 · 免费 · 无广告' }}
+        </span>
+
+        <h2 class="hero__title">{{ hasDaily ? '今日为你推荐' : '从这里开始听' }}</h2>
+
+        <p v-if="hasDaily" class="hero__lede">
+          根据你的收藏与口味生成，每天 00:00 更新<template v-if="dailyList.length">，共 {{ dailyList.length }} 首</template>。
+        </p>
+        <p v-else class="hero__lede">
+          搜索、播放、收藏全站音乐；在客户端还能从
+          <strong>网易、QQ、酷狗</strong>
+          一键迁入歌单。
+        </p>
+
+        <div class="hero__actions">
+          <NButton
+            v-if="hasDaily"
+            variant="primary"
+            icon="play"
+            @click="playHeroList"
+          >
+            播放推荐
+          </NButton>
+          <NButton
+            v-else-if="rankingList.length"
+            variant="primary"
+            icon="play"
+            @click="playHeroList"
+          >
+            播放热门
+          </NButton>
+          <NButton variant="secondary" icon="list-music" to="/download">
+            歌单迁入
+          </NButton>
+        </div>
+      </div>
+
+      <button
+        v-if="heroFeature"
+        type="button"
+        class="hero__feature"
+        :class="{ 'hero__feature--mosaic': hasDaily }"
+        :aria-label="hasDaily ? '播放每日推荐' : `播放 ${heroFeature.title}`"
+        @click="playHero"
+      >
+        <span v-if="hasDaily" class="hero__mosaic">
+          <img
+            v-for="m in dailyMosaic"
+            :key="m.id"
+            :src="m.coverUrl"
+            :alt="m.title"
+            decoding="async"
+            @error="handleImageError"
+          />
+        </span>
+        <img
+          v-else
+          :src="heroFeature.coverUrl"
+          :alt="heroFeature.title"
+          decoding="async"
+          @error="handleImageError"
+        />
+
+        <span class="hero__badge">
+          <NIcon name="sparkles" :size="12" />
+          {{ hasDaily ? '每日推荐' : '热度第 1' }}
+        </span>
+        <span class="hero__play"><NIcon name="play" :size="22" /></span>
+        <span class="hero__feature-meta">
+          <span class="hero__feature-title">{{ heroFeature.title }}</span>
+          <span class="hero__feature-artist">{{ heroFeature.artist }}</span>
+        </span>
+      </button>
+    </section>
+
+    <!-- ==================== 动作卡 ==================== -->
+    <section class="quick" aria-label="快捷入口">
+      <NCard
+        v-for="q in quickLinks"
+        :key="q.to"
+        as="router-link"
+        :to="q.to"
+        hoverable
+        pad="md"
+        class="quick__card"
+      >
+        <span class="quick__icon"><NIcon :name="q.icon" :size="20" /></span>
+        <span class="quick__body">
+          <span class="quick__title">{{ q.title }}</span>
+          <span class="quick__desc">{{ q.desc }}</span>
+        </span>
+        <NIcon name="chevron-right" :size="16" class="quick__arrow" />
+      </NCard>
+    </section>
+
+    <!-- ==================== 加载态 ==================== -->
+    <div v-if="loadingAll" class="loading">
+      <NSpinner :size="28" />
+      <p>正在加载音乐…</p>
+    </div>
+
+    <template v-else>
+      <!-- ==================== 热门音乐（横向栏） ==================== -->
+      <section v-if="hotList.length" class="section">
+        <header class="section__head">
+          <div class="section__heading">
+            <h2 class="section__title">热门音乐</h2>
+            <p class="section__sub">按播放量排序</p>
+          </div>
+          <NButton variant="ghost" size="sm" icon-after="chevron-right" to="/ranking">更多</NButton>
+        </header>
+
+        <div class="rail">
+          <article
+            v-for="(m, i) in hotList"
+            :key="m.id"
+            class="cover-card"
+            tabindex="0"
+            role="button"
+            :aria-label="`播放 ${m.title}`"
+            @click="playMusic(m)"
+            @keydown.enter.prevent="playMusic(m)"
+          >
+            <div class="cover-card__art">
+              <img
+                :src="m.coverUrl"
+                :alt="m.title"
+                loading="lazy"
+                decoding="async"
+                @error="handleImageError"
+              />
+              <span class="cover-card__rank">{{ i + 1 }}</span>
+              <span class="cover-card__play"><NIcon name="play" :size="16" /></span>
+            </div>
+            <h3 class="cover-card__title">{{ m.title }}</h3>
+            <p class="cover-card__artist">{{ m.artist }}</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ==================== 最新上架（横向栏） ==================== -->
+      <section v-if="latestGrid.length" class="section">
+        <header class="section__head">
+          <div class="section__heading">
+            <h2 class="section__title">最新上架</h2>
+            <p class="section__sub">刚刚入库的新歌</p>
+          </div>
+          <NButton variant="ghost" size="sm" icon-after="chevron-right" to="/latest">更多</NButton>
+        </header>
+
+        <div class="rail">
+          <article
+            v-for="m in latestGrid"
+            :key="m.id"
+            class="cover-card"
+            tabindex="0"
+            role="button"
+            :aria-label="`播放 ${m.title}`"
+            @click="playMusic(m)"
+            @keydown.enter.prevent="playMusic(m)"
+          >
+            <div class="cover-card__art">
+              <img
+                :src="m.coverUrl"
+                :alt="m.title"
+                loading="lazy"
+                decoding="async"
+                @error="handleImageError"
+              />
+              <span class="cover-card__play"><NIcon name="play" :size="16" /></span>
+            </div>
+            <h3 class="cover-card__title">{{ m.title }}</h3>
+            <p class="cover-card__artist">{{ m.artist }}</p>
+          </article>
+        </div>
+      </section>
+    </template>
+  </PageShell>
+</template>
+
 <style scoped>
-/* -- 与下载页同一套页面基底（深色、光斑、网格）-- */
-.home-page {
-  --bg0: #07060d;
-  --bg1: #0f1020;
-  --line: rgba(255, 255, 255, 0.08);
-  --text: rgba(255, 255, 255, 0.92);
-  --muted: rgba(255, 255, 255, 0.62);
-  --faint: rgba(255, 255, 255, 0.42);
-  --card: rgba(255, 255, 255, 0.06);
-  --card2: rgba(255, 255, 255, 0.09);
-  --accent: #69c8df;
-  --accent2: #69c8df;
-  --accent3: #9beaff;
-  --radius: 18px;
-  --radius-lg: 24px;
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
-
-  position: relative;
-  min-height: 100vh;
-  padding-top: env(safe-area-inset-top, 0px);
-  color: var(--text);
-  /* 底图由 #app.app--home 统一提供，避免顶栏下沿与主内容背景不一致 */
-  background: transparent;
+/* ==================== 页头 ==================== */
+.home-head {
+  margin-bottom: var(--n-space-6);
 }
 
-.ambient {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.ambient__blob {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(72px);
-  opacity: 0.55;
-  animation: blobFloat 22s var(--ease) infinite;
-}
-
-.ambient__blob--a {
-  width: 420px;
-  height: 420px;
-  background: rgba(105, 200, 223, 0.24);
-  top: -140px;
-  left: -120px;
-}
-
-.ambient__blob--b {
-  width: 360px;
-  height: 360px;
-  background: rgba(155, 234, 255, 0.16);
-  bottom: -80px;
-  right: -100px;
-  animation-delay: -7s;
-}
-
-.ambient__blob--c {
-  width: 280px;
-  height: 280px;
-  background: rgba(105, 200, 223, 0.14);
-  top: 42%;
-  left: 38%;
-  animation-delay: -12s;
-}
-
-.ambient__grid {
-  position: absolute;
-  inset: 0;
-  opacity: 0.35;
-  background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: radial-gradient(ellipse 80% 60% at 50% 20%, black, transparent);
-  animation: gridBreathe 10s ease-in-out infinite;
-}
-
-@keyframes gridBreathe {
-  0%,
-  100% {
-    opacity: 0.28;
-  }
-  50% {
-    opacity: 0.42;
-  }
-}
-
-@keyframes blobFloat {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(24px, -18px) scale(1.05);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ambient__blob {
-    animation: none;
-  }
-
-  .ambient__grid {
-    animation: none;
-  }
-}
-
-.shell {
-  position: relative;
-  z-index: 1;
-  width: min(1120px, 100%);
-  margin: 0 auto;
-  padding: clamp(18px, 3.5vw, 36px) clamp(16px, 4vw, 32px) 56px;
-}
-
-.intro {
-  margin-bottom: clamp(22px, 3.5vw, 32px);
-  padding-bottom: clamp(16px, 2.8vw, 24px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.intro__text {
-  max-width: 38rem;
-}
-
-.intro__title {
-  margin: 0 0 8px;
-  font-size: clamp(1.55rem, 3.5vw, 2.1rem);
-  font-weight: 800;
+.home-head__title {
+  font-size: clamp(1.5rem, 3vw, 1.9rem);
+  font-weight: var(--n-weight-bold);
   letter-spacing: -0.03em;
-  line-height: 1.15;
-  color: var(--text);
 }
 
-.intro__lede {
-  margin: 0;
-  font-size: clamp(0.88rem, 1.75vw, 0.97rem);
-  line-height: 1.5;
-  color: var(--muted);
-  max-width: 52ch;
+.home-head__greeting {
+  margin-top: var(--n-space-1);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
 }
 
-.intro__lede-strong {
-  color: rgba(255, 255, 255, 0.82);
-  font-weight: 700;
-}
-
-.intro__nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: clamp(14px, 2.5vw, 20px);
-}
-
-.intro__chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 9px 15px;
-  font-size: 0.84rem;
-  font-weight: 600;
-  text-decoration: none;
-  color: rgba(255, 255, 255, 0.88);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
-  transition: background 0.2s var(--ease), border-color 0.2s var(--ease), transform 0.2s var(--ease);
-}
-
-.intro__chip:focus-visible {
-  outline: 2px solid var(--accent2);
-  outline-offset: 3px;
-}
-
-@media (hover: hover) {
-  .intro__chip:hover {
-    background: rgba(255, 255, 255, 0.11);
-    border-color: rgba(105, 200, 223, 0.35);
-    transform: translateY(-1px);
-  }
-}
-
-.intro__chip--accent {
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.18), rgba(155, 234, 255, 0.12));
-  border-color: rgba(105, 200, 223, 0.26);
-}
-
-@media (hover: hover) {
-  .intro__chip--accent:hover {
-    border-color: rgba(155, 234, 255, 0.42);
-  }
-}
-
-/* -- 网易云迁入说明条 -- */
-.migrate-strip {
-  margin-bottom: clamp(22px, 3.5vw, 32px);
-  border-radius: var(--radius-lg);
-  border: 1px solid rgba(105, 200, 223, 0.18);
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.12), rgba(155, 234, 255, 0.08), rgba(255, 255, 255, 0.03));
-  box-shadow: var(--shadow);
-}
-
-.migrate-strip__inner {
-  padding: clamp(18px, 3vw, 24px) clamp(18px, 3.5vw, 26px);
-}
-
-.migrate-strip__eyebrow {
-  margin: 0 0 6px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--accent3);
-}
-
-.migrate-strip__title {
-  margin: 0 0 10px;
-  font-size: clamp(1.05rem, 2.4vw, 1.25rem);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.25;
-  color: var(--text);
-}
-
-.migrate-strip__text {
-  margin: 0 0 14px;
-  font-size: 0.88rem;
-  line-height: 1.55;
-  color: var(--muted);
-  max-width: 62ch;
-}
-
-.migrate-strip__cta {
-  display: inline-flex;
-  align-items: center;
-  padding: 10px 18px;
-  font-size: 0.86rem;
-  font-weight: 700;
-  text-decoration: none;
-  color: #fff;
-  background: linear-gradient(135deg, #69c8df, #69c8df);
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  transition: transform 0.2s var(--ease), filter 0.2s var(--ease);
-}
-
-.migrate-strip__cta:focus-visible {
-  outline: 2px solid var(--accent2);
-  outline-offset: 3px;
-}
-
-@media (hover: hover) {
-  .migrate-strip__cta:hover {
-    filter: brightness(1.06);
-    transform: translateY(-1px);
-  }
-}
-
-@keyframes sectionLift {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 36px, 0) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
-
-/* -- 浏览区：左侧彩条 + 与 Android 区块同气质 -- */
-.browse {
+/* ==================== Hero 横幅 ==================== */
+.hero {
   position: relative;
-  margin-bottom: clamp(24px, 4vw, 36px);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--line);
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.14), rgba(255, 255, 255, 0.03));
-  box-shadow: var(--shadow);
-  overflow: hidden;
-  animation: sectionLift 0.85s var(--ease) 0.2s both;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .browse {
-    animation: none;
-  }
-}
-
-@media (hover: hover) {
-.browse:hover {
-    border-color: rgba(105, 200, 223, 0.26);
-    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(105, 200, 223, 0.15);
-  }
-}
-
-.browse__rail {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 5px;
-  background: linear-gradient(180deg, var(--accent), var(--accent2), var(--accent3));
-  background-size: 100% 200%;
-  animation: railFlow 3.5s linear infinite;
-}
-
-@keyframes railFlow {
-  0% {
-    background-position: 0% 0%;
-  }
-  100% {
-    background-position: 0% 100%;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .browse__rail {
-    animation: none;
-  }
-}
-
-.browse__inner {
-  padding: clamp(20px, 3.5vw, 28px) clamp(20px, 3.5vw, 32px) clamp(20px, 3.5vw, 28px) clamp(24px, 4vw, 36px);
-}
-
-.browse__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-bottom: 20px;
-}
-
-.browse__title {
-  margin: 0 0 4px;
-  font-size: 1.35rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-
-.browse__sub {
-  margin: 0;
-  font-size: 0.86rem;
-  color: var(--muted);
-  line-height: 1.4;
-}
-
-.state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: 40px 24px;
-  border-radius: var(--radius);
-  border: 1px solid var(--line);
-  background: var(--card);
-}
-
-.state--loading {
-  animation: statePulse 2.4s ease-in-out infinite;
-}
-
-@keyframes statePulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(105, 200, 223, 0);
-  }
-  50% {
-    box-shadow: 0 0 40px 2px rgba(105, 200, 223, 0.08);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .state--loading {
-    animation: none;
-  }
-}
-
-.state__spinner {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 3px solid rgba(255, 255, 255, 0.12);
-  border-top-color: var(--accent2);
-  animation: spin 0.85s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .state__spinner {
-    animation: none;
-    border-color: rgba(105, 200, 223, 0.35);
-  }
-}
-
-.state__text {
-  margin: 0;
-  text-align: center;
-  color: var(--muted);
-  max-width: 36ch;
-}
-
-.browse__tiles {
-  display: flex;
-  gap: 16px;
-  overflow-x: auto;
-  padding-bottom: 8px;
-  scroll-snap-type: x mandatory;
-  scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch;
-}
-
-.browse__tiles::-webkit-scrollbar {
-  height: 6px;
-}
-
-.browse__tiles::-webkit-scrollbar-thumb {
-  background: rgba(105, 200, 223, 0.4);
-  border-radius: 999px;
-}
-
-.b-tile {
-  flex: 0 0 auto;
-  width: min(200px, 78vw);
-  scroll-snap-align: start;
-  cursor: pointer;
-  transition: transform 0.25s var(--ease);
-}
-
-.b-tile:focus-visible {
-  outline: 2px solid var(--accent2);
-  outline-offset: 4px;
-}
-
-@media (hover: hover) {
-  .b-tile:hover {
-    transform: translateY(-6px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .b-tile {
-    transition: none;
-  }
-
-  .b-tile:hover {
-    transform: none;
-  }
-}
-
-.b-tile__cover {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: var(--radius);
-  overflow: hidden;
-  margin-bottom: 10px;
-  border: 1px solid var(--line);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
-}
-
-.b-tile__cover--hot {
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.26), rgba(143, 174, 198, 0.16));
-  padding: 4px;
-}
-
-.b-tile__cover--latest {
-  background: linear-gradient(135deg, rgba(155, 234, 255, 0.18), rgba(105, 200, 223, 0.22));
-  padding: 4px;
-}
-
-.b-tile__mosaic {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 4px;
-  width: 100%;
-  height: 100%;
-  border-radius: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: clamp(20px, 4vw, 44px);
+  min-height: 208px;
+  padding: clamp(20px, 3.5vw, 32px);
+  margin-bottom: clamp(24px, 3.5vw, 36px);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-xl);
   overflow: hidden;
+  background: var(--n-surface);
 }
 
-.b-tile__img {
+/* 模糊封面底 */
+.hero__bg {
+  position: absolute;
+  inset: -20%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(64px) saturate(1.3);
+  opacity: 0.28;
+  transform: scale(1.1);
+}
+
+.hero__scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(100deg, rgba(4, 9, 11, 0.94) 22%, rgba(4, 9, 11, 0.6) 62%, rgba(4, 9, 11, 0.32) 100%);
+}
+
+.hero__copy {
+  position: relative;
+  z-index: var(--n-z-content);
+  min-width: 0;
+}
+
+.hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--n-space-2);
+  padding: 5px 11px;
+  border-radius: var(--n-radius-xs);
+  background: var(--n-accent-soft);
+  border: 1px solid var(--n-accent-line);
+  color: var(--n-accent-strong);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-semibold);
+  letter-spacing: 0.02em;
+}
+
+.hero__title {
+  margin: var(--n-space-4) 0 var(--n-space-2);
+  font-size: clamp(1.7rem, 4vw, 2.6rem);
+  font-weight: var(--n-weight-bold);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  background: var(--n-gradient-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero__lede {
+  max-width: 42ch;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-base);
+  line-height: var(--n-leading-normal);
+}
+
+.hero__lede strong {
+  color: var(--n-text);
+  font-weight: var(--n-weight-semibold);
+}
+
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--n-space-3);
+  margin-top: var(--n-space-5);
+}
+
+/* ==================== Hero 右侧视觉 ==================== */
+.hero__feature {
+  position: relative;
+  z-index: var(--n-z-content);
+  width: clamp(150px, 22vw, 200px);
+  aspect-ratio: 1;
+  border-radius: var(--n-radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--n-line-strong);
+  background: var(--n-surface-soft);
+  box-shadow: var(--n-shadow-lg);
+  cursor: pointer;
+  padding: 0;
+}
+
+.hero__feature > img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
+  transition: transform var(--n-duration-slow) var(--n-ease);
 }
 
-.b-tile__badge {
+/* 每日推荐：2×2 拼图 */
+.hero__mosaic {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+}
+
+.hero__mosaic img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform var(--n-duration-slow) var(--n-ease);
+}
+
+@media (hover: hover) {
+  .hero__feature:hover > img,
+  .hero__feature:hover .hero__mosaic img {
+    transform: scale(1.05);
+  }
+}
+
+.hero__badge {
+  position: absolute;
+  top: var(--n-space-3);
+  left: var(--n-space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--n-radius-xs);
+  background: rgba(4, 9, 11, 0.72);
+  backdrop-filter: var(--n-blur-sm);
+  -webkit-backdrop-filter: var(--n-blur-sm);
+  color: var(--n-accent-strong);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-semibold);
+}
+
+.hero__play {
+  position: absolute;
+  right: var(--n-space-3);
+  top: var(--n-space-3);
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--n-radius-control);
+  background: var(--n-accent);
+  color: var(--n-text-inverse);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
+  transition: transform var(--n-duration-fast) var(--n-ease), background var(--n-duration-fast) var(--n-ease);
+}
+
+@media (hover: hover) {
+  .hero__feature:hover .hero__play {
+    transform: scale(1.08);
+    background: var(--n-accent-strong);
+  }
+}
+
+.hero__feature-meta {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 18px 10px 8px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: #fff;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 26px var(--n-space-3) var(--n-space-3);
+  text-align: left;
+  background: linear-gradient(to top, rgba(4, 9, 11, 0.9), transparent);
 }
 
-.b-tile__meta {
-  padding: 0 2px;
+.hero__feature-title {
+  color: var(--n-text);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.b-tile__name {
-  margin: 0 0 4px;
-  font-size: 0.95rem;
-  font-weight: 800;
+.hero__feature-artist {
+  color: var(--n-text-muted);
+  font-size: var(--n-text-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==================== 动作卡 ==================== */
+.quick {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--n-space-4);
+  margin-bottom: clamp(28px, 4vw, 44px);
+}
+
+.quick__card {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-4);
+  text-decoration: none;
+  color: inherit;
+}
+
+.quick__icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--n-radius-sm);
+  background: var(--n-accent-soft);
+  color: var(--n-accent-strong);
+}
+
+.quick__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.quick__title {
+  font-weight: var(--n-weight-semibold);
+  color: var(--n-text);
+}
+
+.quick__desc {
+  font-size: var(--n-text-sm);
+  color: var(--n-text-muted);
+}
+
+.quick__arrow {
+  flex: none;
+  color: var(--n-text-faint);
+  transition: transform var(--n-duration-fast) var(--n-ease), color var(--n-duration-fast) var(--n-ease);
+}
+
+@media (hover: hover) {
+  .quick__card:hover .quick__arrow {
+    transform: translateX(3px);
+    color: var(--n-accent);
+  }
+}
+
+/* ==================== 加载态 ==================== */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--n-space-4);
+  padding: var(--n-space-16) 0;
+  color: var(--n-text-muted);
+}
+
+/* ==================== 区块 ==================== */
+.section {
+  margin-bottom: clamp(28px, 4vw, 44px);
+}
+
+.section:last-child {
+  margin-bottom: 0;
+}
+
+.section__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--n-space-4);
+  margin-bottom: var(--n-space-4);
+}
+
+.section__heading {
+  min-width: 0;
+}
+
+.section__title {
+  font-size: 1.1rem;
+  font-weight: var(--n-weight-semibold);
   letter-spacing: -0.02em;
 }
 
-.b-tile__hint {
-  margin: 0;
-  font-size: 0.78rem;
-  color: var(--muted);
+.section__sub {
+  margin-top: 2px;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
 }
 
+/* ==================== 横向封面栏 ==================== */
+.rail {
+  display: flex;
+  gap: var(--n-space-4);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: var(--n-space-1);
+  padding: var(--n-space-1) var(--n-space-1) var(--n-space-4);
+  -webkit-overflow-scrolling: touch;
+}
+
+.rail::-webkit-scrollbar {
+  height: 6px;
+}
+
+.rail::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.rail::-webkit-scrollbar-thumb {
+  background: rgba(95, 208, 224, 0.28);
+  border-radius: var(--n-radius-pill);
+}
+
+@media (hover: hover) {
+  .rail::-webkit-scrollbar-thumb:hover {
+    background: rgba(95, 208, 224, 0.45);
+  }
+}
+
+.cover-card {
+  flex: 0 0 auto;
+  width: 152px;
+  scroll-snap-align: start;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.cover-card:focus-visible {
+  outline: var(--n-focus-ring);
+  outline-offset: 3px;
+  border-radius: var(--n-radius-sm);
+}
+
+.cover-card__art {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: var(--n-radius);
+  overflow: hidden;
+  border: 1px solid var(--n-line);
+  background: var(--n-surface-soft);
+  transition: border-color var(--n-duration-fast) var(--n-ease);
+}
+
+.cover-card__art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform var(--n-duration-slow) var(--n-ease);
+}
+
+@media (hover: hover) {
+  .cover-card:hover .cover-card__art {
+    border-color: var(--n-line-strong);
+  }
+
+  .cover-card:hover .cover-card__art img {
+    transform: scale(1.05);
+  }
+}
+
+.cover-card__rank {
+  position: absolute;
+  top: var(--n-space-2);
+  left: var(--n-space-2);
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: var(--n-radius-xs);
+  background: rgba(4, 9, 11, 0.72);
+  backdrop-filter: var(--n-blur-sm);
+  -webkit-backdrop-filter: var(--n-blur-sm);
+  color: var(--n-text);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.cover-card__play {
+  position: absolute;
+  right: var(--n-space-2);
+  bottom: var(--n-space-2);
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--n-radius-sm);
+  background: var(--n-accent);
+  color: var(--n-text-inverse);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity var(--n-duration-fast) var(--n-ease), transform var(--n-duration-fast) var(--n-ease);
+}
+
+@media (hover: hover) {
+  .cover-card:hover .cover-card__play {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (hover: none) {
+  .cover-card__play {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.cover-card__title {
+  margin-top: var(--n-space-3);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cover-card__artist {
+  margin-top: 1px;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: 1fr;
+    gap: var(--n-space-6);
+  }
+
+  .hero__feature {
+    width: 100%;
+    max-width: 220px;
+    justify-self: start;
+  }
+
+  .hero__actions :deep(.n-btn) {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+
+/* ==================== 手机竖屏：横向卡片栏 ====================
+   原来卡片是 4px 内边距 + 152px 固定宽，在 375px 屏上只能露出 2 张，
+   既看不出「还能往右滑」，卡片又没贴到屏幕边缘、与上方标题差 4px。
+   改为手机上通行的「出血滚动」：负外边距抵消页面留白，让卡片能滑到
+   屏幕边缘，再靠 padding-inline + scroll-padding-inline 把首尾两张
+   对齐回正文左边界。 */
+@media (max-width: 560px) {
+  .rail {
+    gap: var(--n-space-3);
+    /* 抵消 PageShell 的内容留白（.section 本身无内边距，故可直接出血） */
+    margin-inline: calc(-1 * var(--n-content-gutter));
+    padding-inline: var(--n-content-gutter);
+    /* 吸附位置也按留白计算，滑停时首张与标题对齐 */
+    scroll-padding-inline: var(--n-content-gutter);
+    /* 触摸端不用横向滚动条：占高度、且手指本来也拖不到它 */
+    scrollbar-width: none;
+  }
+
+  .rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 128px 可露出约 2.5 张 —— 露出的半张本身就是「可横滑」的提示 */
+  .cover-card {
+    width: 128px;
+  }
+
+  .cover-card__play {
+    width: 40px;
+    height: 40px;
+  }
+
+  .cover-card__title {
+    margin-top: var(--n-space-2);
+  }
+
+  .quick__card {
+    gap: var(--n-space-3);
+  }
+}
 </style>

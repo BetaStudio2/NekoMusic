@@ -7,20 +7,18 @@ import com.neko.music.util.MusicAssetLocator;
 import com.neko.music.service.UserAuthService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
 @WebServlet("/api/user/uploaded-music")
-public class GetUserUploadedMusicHandler extends HttpServlet {
+public class GetUserUploadedMusicHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(GetUserUploadedMusicHandler.class);
     private UserAuthService userAuthService;
 
@@ -32,9 +30,6 @@ public class GetUserUploadedMusicHandler extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         resp.setContentType("application/json;charset=UTF-8");
-        resp.setHeader("Access-Control-Allow-Origin", "*");
-        resp.setHeader("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, OPTIONS");
-        resp.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
         logger.info("收到获取用户上传审核通过的音乐请求");
 
@@ -134,28 +129,8 @@ public class GetUserUploadedMusicHandler extends HttpServlet {
     /**
      * 发送成功响应
      */
-    private void sendSuccessResponse(HttpServletResponse resp, JsonObject response) throws IOException {
-        resp.setStatus(HttpServletResponse.SC_OK);
-        String jsonResponse = Main.getGson().toJson(response);
-        logger.info("发送成功响应: {}", jsonResponse);
-        try (PrintWriter out = resp.getWriter()) {
-            out.print(jsonResponse);
-            out.flush();
-        }
-    }
 
     /**
      * 发送错误响应
      */
-    private void sendErrorResponse(HttpServletResponse resp, int statusCode, String message) throws IOException {
-        resp.setStatus(statusCode);
-        JsonObject response = new JsonObject();
-        response.addProperty("success", false);
-        response.addProperty("message", message);
-
-        try (PrintWriter out = resp.getWriter()) {
-            out.print(Main.getGson().toJson(response));
-            out.flush();
-        }
-    }
 }

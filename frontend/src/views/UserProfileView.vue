@@ -1,128 +1,127 @@
 <template>
-  <div class="glass-page">
-    <div class="ambient" aria-hidden="true">
-      <div class="ambient__blob ambient__blob--a" />
-      <div class="ambient__blob ambient__blob--b" />
-      <div class="ambient__blob ambient__blob--c" />
-      <div class="ambient__grid" />
-    </div>
-    <main class="shell profile-shell">
-      <div class="panel profile-card">
-      <div class="profile-header">
-        <div class="avatar-section">
-          <img :src="userAvatar" alt="用户头像" class="profile-avatar" @error="handleAvatarError" />
-          <div class="upload-avatar-btn">
-            <input type="file" id="avatar-upload" accept="image/*" @change="handleAvatarUpload" />
-            <label for="avatar-upload">更换头像</label>
-          </div>
+  <AmbientBackdrop />
+
+  <PageShell width="narrow">
+    <div class="profile">
+      <!-- 头部 -->
+      <header class="profile__head">
+        <div class="profile__avatar-wrap">
+          <img :src="userAvatar" alt="用户头像" class="profile__avatar" @error="handleAvatarError" />
+          <input id="avatar-upload" type="file" accept="image/*" class="profile__file" @change="handleAvatarUpload" />
+          <label for="avatar-upload" class="profile__avatar-btn" title="更换头像">
+            <NIcon name="image-plus" :size="16" />
+          </label>
         </div>
-        <div class="user-info">
-          <h2 class="username">
+
+        <div class="profile__ident">
+          <h1 class="profile__name">
             {{ user.username }}
-            <router-link v-if="user.isVip" to="/vip" class="vip-badge" title="会员中心">VIP</router-link>
-          </h2>
-          <p class="email">{{ user.email }}</p>
-          <p class="join-date">加入时间: {{ formatDate(user.createdAt) }}</p>
+            <RouterLink v-if="user.isVip" to="/vip" class="profile__vip">VIP</RouterLink>
+          </h1>
+          <p class="profile__email">{{ user.email }}</p>
+          <p class="profile__joined">
+            <NIcon name="calendar" :size="14" />
+            加入时间 {{ formatDate(user.createdAt) }}
+          </p>
         </div>
+      </header>
+
+      <!-- 标签页 -->
+      <div class="tabs" role="tablist" aria-label="个人中心">
+        <button
+          v-for="tab in tabs"
+          :key="tab.key"
+          type="button"
+          role="tab"
+          class="tabs__btn"
+          :class="{ 'tabs__btn--active': activeTab === tab.key }"
+          :aria-selected="activeTab === tab.key"
+          @click="changeTab(tab.key)"
+        >
+          {{ tab.label }}
+        </button>
       </div>
-      
-      <div class="profile-content">
-        <div class="profile-tabs">
-          <button 
-            v-for="tab in tabs" 
-            :key="tab.key"
-            :class="['tab-btn', { active: activeTab === tab.key }]"
-            @click="changeTab(tab.key)"
-          >
-            {{ tab.label }}
-          </button>
-        </div>
-        
-        <div class="tab-content">
-          <div v-if="activeTab === 'profile'" class="tab-panel">
-            <h3>个人信息</h3>
-            <div class="info-item">
-              <label>昵称:</label>
-              <div class="info-value">
-                <template v-if="!editingNickname">
-                  <span>{{ user.username }}</span>
-                  <button type="button" class="edit-btn" @click="startEditNickname">修改</button>
-                </template>
-                <template v-else>
-                  <input
-                    ref="nicknameInputEl"
-                    v-model="nicknameInput"
-                    class="nickname-input"
-                    type="text"
-                    maxlength="20"
-                    placeholder="请输入新昵称（1-20字）"
-                    @keyup.enter="saveNickname"
-                    @keyup.esc="cancelEditNickname"
-                  />
-                  <button
-                    type="button"
-                    class="save-btn inline-btn"
-                    :disabled="savingNickname"
-                    @click="saveNickname"
-                  >
-                    {{ savingNickname ? '保存中…' : '保存' }}
-                  </button>
-                  <button
-                    type="button"
-                    class="cancel-btn inline-btn"
-                    :disabled="savingNickname"
-                    @click="cancelEditNickname"
-                  >
-                    取消
-                  </button>
-                </template>
-              </div>
-            </div>
-            <div class="info-item">
-              <label>邮箱:</label>
-              <span>{{ user.email }}</span>
-            </div>
-            <div class="info-item">
-              <label>会员状态:</label>
-              <span>{{ user.isVip ? '会员' : '非会员' }}</span>
-            </div>
-            <div class="info-item">
-              <label>会员到期:</label>
-              <span>{{ formatVipExpiresAt(user.vipExpiresAt) }}</span>
-            </div>
-            <div class="info-item">
-              <label>注册时间:</label>
-              <span>{{ formatDate(user.createdAt) }}</span>
-            </div>
-          </div>
-          
-          <div v-if="activeTab === 'security'" class="tab-panel">
-            <h3>安全设置</h3>
-            <div class="form-group">
-              <label>当前密码:</label>
-              <input type="password" v-model="currentPassword" placeholder="请输入当前密码" />
-            </div>
-            <div class="form-group">
-              <label>新密码:</label>
-              <input type="password" v-model="newPassword" placeholder="请输入新密码" />
-            </div>
-            <div class="form-group">
-              <label>确认新密码:</label>
-              <input type="password" v-model="confirmNewPassword" placeholder="请确认新密码" />
-            </div>
-            <button @click="changePassword" class="save-btn" :disabled="changePasswordLoading">修改密码</button>
+
+      <!-- 个人信息 -->
+      <div v-if="activeTab === 'profile'" class="panel">
+        <h2 class="panel__title">个人信息</h2>
+
+        <div class="info">
+          <span class="info__label">昵称</span>
+          <div class="info__value">
+            <template v-if="!editingNickname">
+              <span class="info__text">{{ user.username }}</span>
+              <NButton size="sm" variant="secondary" icon="pencil" @click="startEditNickname">修改</NButton>
+            </template>
+            <template v-else>
+              <NInput
+                ref="nicknameInputEl"
+                v-model="nicknameInput"
+                class="info__edit"
+                maxlength="20"
+                placeholder="请输入新昵称（1-20字）"
+                @keyup.enter="saveNickname"
+                @keyup.esc="cancelEditNickname"
+              />
+              <NButton size="sm" variant="primary" :loading="savingNickname" @click="saveNickname">保存</NButton>
+              <NButton size="sm" variant="ghost" :disabled="savingNickname" @click="cancelEditNickname">取消</NButton>
+            </template>
           </div>
         </div>
+
+        <div class="info">
+          <span class="info__label">邮箱</span>
+          <span class="info__text">{{ user.email }}</span>
+        </div>
+
+        <div class="info">
+          <span class="info__label">会员状态</span>
+          <span class="info__text">{{ user.isVip ? '会员' : '非会员' }}</span>
+        </div>
+
+        <div class="info">
+          <span class="info__label">会员到期</span>
+          <span class="info__text">{{ formatVipExpiresAt(user.vipExpiresAt) }}</span>
+        </div>
+
+        <div class="info info--last">
+          <span class="info__label">注册时间</span>
+          <span class="info__text">{{ formatDate(user.createdAt) }}</span>
+        </div>
       </div>
+
+      <!-- 安全设置 -->
+      <div v-else class="panel">
+        <h2 class="panel__title">安全设置</h2>
+
+        <div class="field">
+          <label class="field__label" for="cur-pwd">当前密码</label>
+          <NInput id="cur-pwd" v-model="currentPassword" type="password" icon="lock" placeholder="请输入当前密码" />
+        </div>
+        <div class="field">
+          <label class="field__label" for="new-pwd">新密码</label>
+          <NInput id="new-pwd" v-model="newPassword" type="password" icon="key" placeholder="请输入新密码" />
+        </div>
+        <div class="field">
+          <label class="field__label" for="cfm-pwd">确认新密码</label>
+          <NInput id="cfm-pwd" v-model="confirmNewPassword" type="password" icon="key" placeholder="请确认新密码" />
+        </div>
+
+        <NButton variant="primary" icon="shield-check" :loading="changePasswordLoading" @click="changePassword">
+          修改密码
+        </NButton>
       </div>
-    </main>
-  </div>
+    </div>
+  </PageShell>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import API_CONFIG from '@/config/apiConfig.js'
-import { useToast } from 'vue-toastification'
+import { useToast } from '@/composables/useToast'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NCard, NInput, NModal, NSpinner } from '@/ui'
+import { PageShell, AmbientBackdrop } from '@/layouts'
 import { formatVipExpiresAt, syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
 
 const toast = useToast()
@@ -298,7 +297,6 @@ const handleAvatarUpload = (event) => {
   if (!file) return;
   
   // 这里可以实现上传头像的逻辑
-  console.log('选择的头像文件:', file.name);
   toast.info('头像上传功能将在后续版本中实现');
 }
 
@@ -327,10 +325,6 @@ const changePassword = async () => {
   changePasswordLoading.value = true;
   try {
     // 这里可以实现修改密码的API调用
-    console.log('修改密码请求:', {
-      currentPassword: currentPassword.value,
-      newPassword: newPassword.value
-    });
     
     toast.info('修改密码功能将在后续版本中实现');
   } catch (error) {
@@ -343,344 +337,230 @@ const changePassword = async () => {
 </script>
 
 <style scoped>
-.panel {
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(105, 200, 223, 0.14), rgba(255, 255, 255, 0.04));
-  box-shadow: var(--shadow);
-}
-
-.profile-card {
+.profile {
   width: 100%;
-  max-width: 800px;
-  padding: clamp(22px, 3vw, 32px);
 }
 
-.profile-header {
+/* ==================== 头部 ==================== */
+.profile__head {
   display: flex;
   align-items: center;
-  gap: 30px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 24px;
+  gap: clamp(18px, 3vw, 28px);
+  padding: clamp(20px, 3vw, 28px);
+  margin-bottom: var(--n-space-5);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-xl);
+  background: var(--n-surface);
+  box-shadow: var(--n-shadow);
 }
 
-.avatar-section {
-  text-align: center;
+.profile__avatar-wrap {
+  position: relative;
+  flex: none;
+  width: clamp(88px, 16vw, 112px);
+  aspect-ratio: 1;
 }
 
-.profile-avatar {
-  width: 150px;
-  height: 150px;
-  border-radius: 50%;
+.profile__avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--n-radius-lg);
   object-fit: cover;
-  border: 3px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--n-line-strong);
+  background: var(--n-surface-soft);
 }
 
-.upload-avatar-btn {
-  margin-top: 15px;
-}
-
-.upload-avatar-btn input[type="file"] {
+.profile__file {
   display: none;
 }
 
-.upload-avatar-btn label {
-  display: inline-block;
-  padding: 8px 16px;
-  background: linear-gradient(135deg, #9beaff, var(--accent2));
-  color: #0c0a14;
-  border-radius: 999px;
+.profile__avatar-btn {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--n-radius-control);
+  background: var(--n-accent);
+  color: var(--n-text-inverse);
+  border: 2px solid var(--n-bg);
   cursor: pointer;
-  font-size: 0.86rem;
-  font-weight: 700;
-  transition: filter 0.15s var(--ease);
-  box-shadow: 0 6px 18px rgba(105, 200, 223, 0.28);
+  transition: transform var(--n-duration-fast) var(--n-ease), background var(--n-duration-fast) var(--n-ease);
 }
 
-.upload-avatar-btn label:hover {
-  filter: brightness(1.06);
+@media (hover: hover) {
+  .profile__avatar-btn:hover {
+    transform: translateY(-1px);
+    background: var(--n-accent-strong);
+  }
 }
 
-.user-info .username {
-  margin: 0;
-  font-size: clamp(1.35rem, 3vw, 1.75rem);
-  font-weight: 800;
-  background: linear-gradient(120deg, #d7edf5, #c8f7ff, #9beaff);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  display: inline-flex;
+.profile__ident {
+  min-width: 0;
+}
+
+.profile__name {
+  display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: var(--n-space-3);
+  margin: 0 0 var(--n-space-2);
+  font-size: clamp(1.3rem, 3vw, 1.7rem);
+  font-weight: var(--n-weight-bold);
+  letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
 }
 
-.user-info .username .vip-badge {
-  -webkit-text-fill-color: initial;
-  background: linear-gradient(135deg, #9beaff, #69c8df);
-  color: #061014;
-  font-size: 0.55rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+.profile__vip {
+  flex: none;
   padding: 4px 10px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(105, 200, 223, 0.35);
-  text-decoration: none;
+  border-radius: var(--n-radius-xs);
+  background: linear-gradient(135deg, var(--n-accent-strong), var(--n-accent));
+  color: var(--n-text-inverse);
+  font-size: 0.66rem;
+  font-weight: var(--n-weight-bold);
+  letter-spacing: 0.1em;
+}
+
+.profile__email {
+  margin: 0 0 var(--n-space-1);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.profile__joined {
   display: inline-flex;
   align-items: center;
+  gap: var(--n-space-2);
+  margin: 0;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
 }
 
-.user-info .email {
-  margin: 10px 0;
-  font-size: 1rem;
-  color: var(--muted);
-}
-
-.user-info .join-date {
-  margin: 5px 0 0;
-  font-size: 0.88rem;
-  color: var(--faint);
-}
-
-.profile-content {
+/* ==================== 标签页 ==================== */
+.tabs {
   display: flex;
-  flex-direction: column;
+  gap: var(--n-space-1);
+  padding: 4px;
+  margin-bottom: var(--n-space-5);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-control);
+  background: var(--n-surface-soft);
 }
 
-.profile-tabs {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-}
-
-.tab-btn {
-  padding: 10px 20px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--muted);
-  transition: background 0.15s var(--ease), border-color 0.15s var(--ease), color 0.15s var(--ease);
-}
-
-.tab-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text);
-}
-
-.tab-btn.active {
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.45), rgba(105, 200, 223, 0.2));
-  border-color: rgba(105, 200, 223, 0.45);
-  color: var(--text);
-  box-shadow: 0 6px 20px rgba(105, 200, 223, 0.25);
-}
-
-.tab-content {
-  background: rgba(0, 0, 0, 0.18);
-  border-radius: var(--radius);
-  padding: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.tab-panel h3 {
-  margin-top: 0;
-  margin-bottom: 18px;
-  color: var(--text);
-  font-size: 1.15rem;
-  font-weight: 800;
-}
-
-.info-item {
-  display: flex;
-  margin-bottom: 14px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.info-item label {
-  font-weight: 700;
-  color: var(--accent2);
-  width: 120px;
-  flex-shrink: 0;
-}
-
-.info-item span {
-  flex-grow: 1;
-  color: var(--muted);
-}
-
-.info-item .info-value {
+.tabs__btn {
   flex: 1;
+  padding: 9px var(--n-space-4);
+  border-radius: var(--n-radius-xs);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-semibold);
+  transition: background var(--n-duration-fast) var(--n-ease), color var(--n-duration-fast) var(--n-ease);
+}
+
+@media (hover: hover) {
+  .tabs__btn:hover {
+    color: var(--n-text);
+  }
+}
+
+.tabs__btn--active {
+  background: var(--n-accent-soft);
+  color: var(--n-accent-strong);
+}
+
+/* ==================== 面板 ==================== */
+.panel {
+  padding: clamp(20px, 3vw, 28px);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-xl);
+  background: var(--n-surface);
+}
+
+.panel__title {
+  margin: 0 0 var(--n-space-5);
+  font-size: var(--n-text-lg);
+  font-weight: var(--n-weight-semibold);
+  letter-spacing: -0.01em;
+}
+
+/* ==================== 信息行 ==================== */
+.info {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  min-width: 0;
+  gap: var(--n-space-4);
+  padding: var(--n-space-3) 0;
+  border-bottom: 1px solid var(--n-line-subtle);
 }
 
-.info-item .info-value span {
+.info--last {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.info__label {
+  flex: none;
+  width: 84px;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-sm);
+}
+
+.info__value {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-2);
   flex: 1;
   min-width: 0;
-  color: var(--muted);
-  word-break: break-all;
 }
 
-.nickname-input {
+.info__text {
+  color: var(--n-text);
+  font-size: var(--n-text-base);
+  overflow-wrap: anywhere;
+}
+
+.info__edit {
   flex: 1;
   min-width: 0;
-  box-sizing: border-box;
-  padding: 9px 14px;
-  border-radius: var(--radius);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.22);
-  color: var(--text);
-  font-size: 0.95rem;
-  font-family: inherit;
-  outline: none;
-  transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 
-.nickname-input::placeholder {
-  color: var(--faint);
+/* ==================== 表单字段 ==================== */
+.field {
+  margin-bottom: var(--n-space-4);
 }
 
-.nickname-input:focus {
-  border-color: rgba(105, 200, 223, 0.45);
-  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.12);
-}
-
-.edit-btn {
-  font-family: inherit;
-  flex-shrink: 0;
-  padding: 6px 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(105, 200, 223, 0.35);
-  background: rgba(105, 200, 223, 0.12);
-  color: var(--accent2);
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
-}
-
-.edit-btn:hover {
-  background: rgba(105, 200, 223, 0.2);
-  border-color: rgba(105, 200, 223, 0.5);
-}
-
-.inline-btn {
-  flex-shrink: 0;
-  margin-top: 0;
-  padding: 9px 18px;
-  font-size: 0.84rem;
-}
-
-.cancel-btn {
-  font-family: inherit;
-  flex-shrink: 0;
-  padding: 9px 18px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--muted);
-  font-size: 0.84rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.15s var(--ease), color 0.15s var(--ease);
-}
-
-.cancel-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text);
-}
-
-.cancel-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.form-group {
-  margin-bottom: 20px;
-}
-
-.form-group label {
+.field__label {
   display: block;
-  margin-bottom: 8px;
-  font-weight: 700;
-  font-size: 0.88rem;
-  color: rgba(255, 255, 255, 0.88);
+  margin-bottom: var(--n-space-2);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-medium);
 }
 
-.form-group input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 12px 14px;
-  border-radius: var(--radius);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.22);
-  font-size: 0.95rem;
-  font-family: inherit;
-  outline: none;
-  color: var(--text);
-  transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
-}
-
-.form-group input::placeholder {
-  color: var(--faint);
-}
-
-.form-group input:focus {
-  border-color: rgba(105, 200, 223, 0.45);
-  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.12);
-}
-
-.save-btn {
-  font-family: inherit;
-  margin-top: 8px;
-  padding: 11px 22px;
-  background: linear-gradient(135deg, #9beaff, var(--accent2));
-  color: #0c0a14;
-  border: none;
-  border-radius: 999px;
-  font-size: 0.9rem;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 8px 24px rgba(105, 200, 223, 0.28);
-  transition: filter 0.15s var(--ease);
-}
-
-.save-btn:hover:not(:disabled) {
-  filter: brightness(1.05);
-}
-
-.save-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-@media (max-width: 768px) {
-  .profile-header {
+@media (max-width: 560px) {
+  .profile__head {
     flex-direction: column;
     text-align: center;
-    gap: 20px;
   }
-  
-  .profile-card {
-    padding: 20px;
-    margin: 10px;
+
+  .profile__name {
+    justify-content: center;
   }
-  
-  .info-item {
+
+  .info {
     flex-direction: column;
+    align-items: flex-start;
+    gap: var(--n-space-2);
   }
-  
-  .info-item label {
-    margin-bottom: 5px;
+
+  .info__label {
+    width: auto;
+  }
+
+  .info__value {
+    width: 100%;
   }
 }
 </style>

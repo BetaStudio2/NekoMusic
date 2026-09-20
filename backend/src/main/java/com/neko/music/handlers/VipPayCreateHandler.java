@@ -6,7 +6,6 @@ import com.neko.music.config.ConfigManager;
 import com.neko.music.database.VipPayOrderDatabaseManager;
 import com.neko.music.model.VipPriceItem;
 import com.neko.music.payment.zpay.ZpayMapiClient;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -14,7 +13,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.HashMap;
@@ -24,7 +22,7 @@ import java.util.Optional;
 /**
  * 登录用户发起 VIP 套餐 ZPay 支付：写入本地订单并调用 {@code mapi.php} 返回收银台 URL / 二维码等。
  */
-public class VipPayCreateHandler extends HttpServlet {
+public class VipPayCreateHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(VipPayCreateHandler.class);
 
     @Override
@@ -92,23 +90,23 @@ public class VipPayCreateHandler extends HttpServlet {
             return;
         }
         VipPriceItem item = itemOpt.get();
-        if (item.getMonths() <= 0 && item.getDays() <= 0) {
+        if (item.months() <= 0 && item.days() <= 0) {
             sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "套餐时长无效");
             return;
         }
-        if (item.getPriceYuan() <= 0) {
+        if (item.priceYuan() <= 0) {
             sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "套餐价格无效");
             return;
         }
 
-        BigDecimal moneyBd = BigDecimal.valueOf(item.getPriceYuan()).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal moneyBd = BigDecimal.valueOf(item.priceYuan()).setScale(2, RoundingMode.HALF_UP);
         String moneyStr = moneyBd.toPlainString();
         String outTradeNo = VipPayOrderDatabaseManager.newOutTradeNo();
         String productName = buildProductName(item);
 
         VipPayOrderDatabaseManager orders = Main.getVipPayOrderDatabaseManager();
         try {
-            orders.insertPending(outTradeNo, userId, pricingId, item.getMonths(), item.getDays(), moneyBd, payType);
+            orders.insertPending(outTradeNo, userId, pricingId, item.months(), item.days(), moneyBd, payType);
         } catch (Exception e) {
             logger.error("写入支付订单失败", e);
             sendJson(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false, "创建订单失败");
@@ -162,11 +160,11 @@ public class VipPayCreateHandler extends HttpServlet {
 
     private static String buildProductName(VipPriceItem item) {
         StringBuilder sb = new StringBuilder("Neko歌姬计划 VIP");
-        if (item.getMonths() > 0) {
-            sb.append(item.getMonths()).append("个月");
+        if (item.months() > 0) {
+            sb.append(item.months()).append("个月");
         }
-        if (item.getDays() > 0) {
-            sb.append(item.getDays()).append("天");
+        if (item.days() > 0) {
+            sb.append(item.days()).append("天");
         }
         String s = sb.toString();
         if (s.length() > 100) {
@@ -201,18 +199,5 @@ public class VipPayCreateHandler extends HttpServlet {
         return "pc";
     }
 
-    private static void sendJson(HttpServletResponse resp, int code, boolean success, String message) throws IOException {
-        JsonObject o = new JsonObject();
-        o.addProperty("success", success);
-        o.addProperty("message", message);
-        sendRawJson(resp, code, o);
-    }
 
-    private static void sendRawJson(HttpServletResponse resp, int code, JsonObject o) throws IOException {
-        resp.setContentType("application/json;charset=UTF-8");
-        resp.setStatus(code);
-        try (PrintWriter w = resp.getWriter()) {
-            w.print(o.toString());
-        }
-    }
 }

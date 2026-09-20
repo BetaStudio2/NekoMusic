@@ -1,53 +1,68 @@
 <template>
-  <div class="admin-login-container">
-    <div class="admin-login-card">
-      <div class="login-header">
-        <h2>管理员登录</h2>
-        <p>请输入您的管理员凭据</p>
+  <AmbientBackdrop />
+
+  <PageShell width="narrow" centered>
+    <div class="auth">
+      <span class="auth__glow" aria-hidden="true" />
+
+      <div class="auth__card">
+        <header class="auth__head">
+          <div class="auth__logo">
+            <NIcon name="shield-check" :size="26" />
+          </div>
+          <h1 class="auth__title">管理员登录</h1>
+          <p class="auth__subtitle">请输入您的管理员凭据</p>
+        </header>
+
+        <form class="auth__body" @submit.prevent="handleLogin">
+          <div class="auth__field">
+            <label class="auth__label" for="admin-username">用户名</label>
+            <NInput
+              id="admin-username"
+              v-model="username"
+              icon="user"
+              placeholder="请输入用户名"
+              autocomplete="username"
+            />
+          </div>
+
+          <div class="auth__field">
+            <label class="auth__label" for="admin-password">密码</label>
+            <NInput
+              id="admin-password"
+              v-model="password"
+              type="password"
+              icon="lock"
+              placeholder="请输入密码"
+              autocomplete="current-password"
+            />
+          </div>
+
+          <p class="auth__error" role="alert">{{ errorMessage || '\u00A0' }}</p>
+
+          <NButton type="submit" variant="primary" size="lg" block :loading="isLoading">
+            登录
+          </NButton>
+        </form>
+
+        <p class="auth__foot">
+          <RouterLink to="/" class="auth__link">
+            <NIcon name="arrow-left" :size="14" />
+            返回站点
+          </RouterLink>
+        </p>
       </div>
-      
-      <form @submit.prevent="handleLogin" class="login-form">
-        <div class="form-group">
-          <label for="username">用户名</label>
-          <input
-            id="username"
-            v-model="username"
-            type="text"
-            placeholder="请输入用户名"
-            class="form-input"
-            required
-          />
-        </div>
-        
-        <div class="form-group">
-          <label for="password">密码</label>
-          <input
-            id="password"
-            v-model="password"
-            type="password"
-            placeholder="请输入密码"
-            class="form-input"
-            required
-          />
-        </div>
-        
-        <button type="submit" class="login-button" :disabled="isLoading">
-          <span v-if="isLoading">登录中...</span>
-          <span v-else>登录</span>
-        </button>
-        
-        <div v-if="errorMessage" class="error-message">
-          {{ errorMessage }}
-        </div>
-      </form>
     </div>
-  </div>
+  </PageShell>
 </template>
 
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NCard, NInput, NModal, NSpinner, NTag } from '@/ui'
+import { PageShell, AmbientBackdrop } from '@/layouts'
 
 const router = useRouter()
 const username = ref('')
@@ -99,184 +114,157 @@ const handleLogin = async () => {
 </script>
 
 <style scoped>
-.admin-login-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 80vh;
-  padding: 20px;
-}
-
-.admin-login-card {
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 20px;
-  padding: 40px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+/* ===== 与前台登录卡片一致的容器与特效 ===== */
+.auth {
+  position: relative;
   width: 100%;
   max-width: 400px;
-  text-align: center;
 }
 
-.login-header {
-  margin-bottom: 30px;
+.auth__glow {
+  position: absolute;
+  inset: -14% -10%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, rgba(95, 208, 224, 0.22), transparent 62%);
+  filter: blur(48px);
+  pointer-events: none;
+  z-index: -1;
+  animation: authGlow 8s var(--n-ease-in-out) infinite;
 }
 
-.login-header h2 {
-  color: #69c8df;
-  margin-bottom: 10px;
-  font-size: 1.8rem;
+@keyframes authGlow {
+  0%,
+  100% { opacity: 0.75; }
+  50% { opacity: 1; }
 }
 
-.login-header p {
-  color: #887bb0;
-  font-size: 0.9rem;
+.auth__card {
+  position: relative;
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-xl);
+  background: var(--n-surface-strong);
+  backdrop-filter: var(--n-blur);
+  -webkit-backdrop-filter: var(--n-blur);
+  box-shadow: var(--n-shadow-lg);
+  overflow: hidden;
+  animation: authCardIn 0.5s var(--n-ease) both;
 }
 
-.login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  text-align: left;
-}
-
-.form-group label {
-  color: #5c4b7b;
-  margin-bottom: 5px;
-  font-weight: 500;
-}
-
-.form-input {
-  padding: 12px 15px;
-  border: none;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: #333;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-}
-
-.form-input:focus {
-  outline: none;
-  border: 1px solid rgba(105, 200, 223, 0.5);
-  box-shadow: 0 0 0 2px rgba(105, 200, 223, 0.2);
-  background: rgba(255, 255, 255, 0.35);
-}
-
-.login-button {
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.8), rgba(105, 200, 223, 0.8));
-  color: white;
-  border: none;
-  border-radius: 10px;
-  padding: 12px 20px;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 500;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(105, 200, 223, 0.3);
-}
-
-.login-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, rgba(92, 75, 123, 0.9), rgba(122, 91, 192, 0.9));
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(105, 200, 223, 0.5);
-}
-
-.login-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.error-message {
-  color: #e74c3c;
-  background: rgba(231, 76, 60, 0.1);
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(231, 76, 60, 0.3);
-  text-align: center;
-  margin-top: 10px;
-  animation: shake 0.5s;
-}
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  75% { transform: translateX(5px); }
-}
-
-@media (max-width: 480px) {
-  .admin-login-card {
-    padding: 30px 20px;
-    margin: 10px;
+@keyframes authCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 
-.admin-login-container {
-  min-height: 100dvh;
-  background:
-    radial-gradient(780px 520px at 18% -10%, rgba(105, 200, 223, 0.16), transparent 58%),
-    linear-gradient(180deg, #070b10, #0b1118 48%, #06090d 100%);
+.auth__card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--n-accent-line), transparent);
 }
 
-.admin-login-card {
-  background: rgba(14, 22, 31, 0.88);
-  border: 1px solid rgba(143, 174, 198, 0.14);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.36);
-  border-radius: 22px;
+.auth__head {
+  padding: var(--n-space-8) var(--n-space-8) 0;
+  text-align: center;
 }
 
-.login-header h2 {
-  color: var(--neko-text);
-  letter-spacing: -0.03em;
+.auth__logo {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto var(--n-space-4);
+  border-radius: var(--n-radius);
+  background: linear-gradient(135deg, var(--n-accent-strong), var(--n-accent));
+  color: var(--n-text-inverse);
+  box-shadow: 0 8px 26px rgba(95, 208, 224, 0.3);
+  animation: authLogoIn 0.5s var(--n-ease) 0.08s both;
 }
 
-.login-header p,
-.form-group label {
-  color: var(--neko-muted);
+@keyframes authLogoIn {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
-.form-input {
-  background: rgba(255, 255, 255, 0.045);
-  border: 1px solid rgba(143, 174, 198, 0.16);
-  color: var(--neko-text);
-  border-radius: 14px;
+.auth__title {
+  margin: 0 0 var(--n-space-1);
+  font-size: var(--n-text-lg);
+  font-weight: var(--n-weight-bold);
+  letter-spacing: -0.02em;
+  background: var(--n-gradient-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.form-input::placeholder {
-  color: var(--neko-faint);
+.auth__subtitle {
+  margin: 0;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
 }
 
-.form-input:focus {
-  border-color: rgba(105, 200, 223, 0.45);
-  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.12);
-  background: rgba(255, 255, 255, 0.065);
+.auth__body {
+  padding: var(--n-space-6) var(--n-space-8) 0;
 }
 
-.login-button {
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.22), rgba(105, 200, 223, 0.1));
-  color: var(--neko-text);
-  border: 1px solid rgba(105, 200, 223, 0.24);
-  border-radius: 999px;
-  box-shadow: none;
+.auth__field {
+  margin-bottom: var(--n-space-4);
 }
 
-.login-button:hover:not(:disabled) {
-  background: rgba(105, 200, 223, 0.14);
-  box-shadow: none;
+.auth__label {
+  display: block;
+  margin-bottom: var(--n-space-2);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-medium);
 }
 
-.error-message {
-  color: #ffd7d7;
-  background: rgba(255, 107, 107, 0.1);
-  border-color: rgba(255, 107, 107, 0.22);
+.auth__error {
+  min-height: 18px;
+  margin: 0 0 var(--n-space-3);
+  color: var(--n-danger);
+  font-size: var(--n-text-xs);
+  text-align: center;
+}
+
+.auth__foot {
+  margin: 0;
+  padding: var(--n-space-5) var(--n-space-8) var(--n-space-8);
+  text-align: center;
+}
+
+.auth__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-medium);
+}
+
+@media (hover: hover) {
+  .auth__link:hover {
+    color: var(--n-accent-strong);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth__card,
+  .auth__logo,
+  .auth__glow {
+    animation: none;
+  }
 }
 </style>

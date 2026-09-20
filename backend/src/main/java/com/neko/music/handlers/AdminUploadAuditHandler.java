@@ -3,10 +3,10 @@ package com.neko.music.handlers;
 import com.neko.music.Main;
 import com.neko.music.model.UserUpload;
 import com.neko.music.service.EmbeddedMetadataSyncService;
-import com.neko.music.util.PinyinUtil;
+import com.neko.music.service.MusicIngestSupport;
+import com.neko.music.util.MusicPinyinColumns;
 import com.neko.music.util.MusicAdMetadataPatcher;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -27,12 +27,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class AdminUploadAuditHandler extends HttpServlet {
+public class AdminUploadAuditHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(AdminUploadAuditHandler.class);
-    private static final String MUSIC_DIR = "Music";
     private static final String MUSIC_AUDIO_DIR = "Music/music";
     private static final String MUSIC_COVERS_DIR = "Music/covers";
-    private static final String UPLOAD_DIR = "user_upload";
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -53,7 +51,7 @@ public class AdminUploadAuditHandler extends HttpServlet {
             // 获取待审核列表
             handleGetPendingUploads(response);
         } else {
-            sendError(response, 404, "请求的资源不存在");
+            sendErrorResponse(response, 404, "请求的资源不存在");
         }
     }
     
@@ -85,7 +83,7 @@ public class AdminUploadAuditHandler extends HttpServlet {
             int uploadId = Integer.parseInt(pathInfo.substring(8));
             handleRejectUpload(uploadId, request, response);
         } else {
-            sendError(response, 404, "请求的资源不存在");
+            sendErrorResponse(response, 404, "请求的资源不存在");
         }
     }
     
@@ -95,14 +93,14 @@ public class AdminUploadAuditHandler extends HttpServlet {
     private boolean verifyAdmin(HttpServletRequest request, HttpServletResponse response) throws IOException {
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            sendError(response, 401, "未授权访问");
+            sendErrorResponse(response, 401, "未授权访问");
             return false;
         }
         
         String token = authHeader.substring(7);
         boolean isValid = Main.getAdminAuthService().validateAdminToken(token);
         if (!isValid) {
-            sendError(response, 401, "未授权访问");
+            sendErrorResponse(response, 401, "未授权访问");
             return false;
         }
         
@@ -160,7 +158,7 @@ public class AdminUploadAuditHandler extends HttpServlet {
             
         } catch (Exception e) {
             logger.error("获取待审核列表失败: " + e.getMessage(), e);
-            sendError(response, 500, "服务器错误: " + e.getMessage());
+            sendErrorResponse(response, 500, "服务器错误: " + e.getMessage());
         }
     }
     
@@ -175,27 +173,16 @@ public class AdminUploadAuditHandler extends HttpServlet {
         
         try {
             // 获取管理员ID
-            String authHeader = request.getHeader("Authorization");
-            String token = authHeader.substring(7);
-            int adminId = getAdminIdByToken(token);
-            
+            int adminId = requireAdminId(request, response);
             if (adminId <= 0) {
-                sendError(response, 401, "未授权访问");
                 return;
             }
             
             // 获取上传记录
             com.neko.music.database.UserUploadDatabaseManager uploadManager = 
                 new com.neko.music.database.UserUploadDatabaseManager(Main.getDatabaseManager());
-            
-            UserUpload upload = uploadManager.getUserUploadById(uploadId);
+            UserUpload upload = findPendingUpload(uploadManager, uploadId, response);
             if (upload == null) {
-                sendError(response, 404, "上传记录不存在");
-                return;
-            }
-            
-            if (!"pending".equals(upload.getStatus())) {
-                sendError(response, 400, "该记录已被审核，无需重复操作");
                 return;
             }
             
@@ -223,7 +210,7 @@ public class AdminUploadAuditHandler extends HttpServlet {
             // 验证源文件存在并迁移到临时位置
             if (!Files.exists(Paths.get(upload.getMusicFilePath()))) {
                 conn.rollback();
-                sendError(response, 500, "音乐文件不存在: " + upload.getMusicFilePath());
+                sendErrorResponse(response, 500, "音乐文件不存在: " + upload.getMusicFilePath());
                 return;
             }
             
@@ -236,7 +223,7 @@ public class AdminUploadAuditHandler extends HttpServlet {
                     conn.rollback();
                     // 回滚音乐文件
                     Files.move(Paths.get(tempMusicPath), Paths.get(upload.getMusicFilePath()), StandardCopyOption.REPLACE_EXISTING);
-                    sendError(response, 500, "封面文件不存在: " + upload.getCoverFilePath());
+                    sendErrorResponse(response, 500, "封面文件不存在: " + upload.getCoverFilePath());
                     return;
                 }
                 Files.move(Paths.get(upload.getCoverFilePath()), Paths.get(tempCoverPath), StandardCopyOption.REPLACE_EXISTING);
@@ -267,13 +254,8 @@ public class AdminUploadAuditHandler extends HttpServlet {
                 pstmt.setString(6, upload.getLanguage());
                 pstmt.setString(7, upload.getTags());
                 pstmt.setInt(8, upload.getUserId());
-                pstmt.setString(9, PinyinUtil.getPinyin(title));
-                pstmt.setString(10, PinyinUtil.getPinyinInitials(title));
-                pstmt.setString(11, PinyinUtil.getWordInitials(title));
-                pstmt.setString(12, PinyinUtil.getPinyin(artist));
-                pstmt.setString(13, PinyinUtil.getPinyinInitials(artist));
-                pstmt.setString(14, PinyinUtil.getWordInitials(artist));
-                pstmt.setString(15, PinyinUtil.getPinyin(albumVal));
+                // 预计算拼音列
+                MusicPinyinColumns.bind(pstmt, 9, title, artist, albumVal);
 
                 int affectedRows = pstmt.executeUpdate();
 
@@ -294,7 +276,7 @@ public class AdminUploadAuditHandler extends HttpServlet {
                 if (upload.getCoverFilePath() != null && !upload.getCoverFilePath().isEmpty()) {
                     Files.move(Paths.get(tempCoverPath), Paths.get(upload.getCoverFilePath()), StandardCopyOption.REPLACE_EXISTING);
                 }
-                sendError(response, 500, "插入音乐记录失败");
+                sendErrorResponse(response, 500, "插入音乐记录失败");
                 return;
             }
 
@@ -337,9 +319,7 @@ public class AdminUploadAuditHandler extends HttpServlet {
             EmbeddedMetadataSyncService.syncOne(musicId);
 
             // 仅在审核通过并正式进入曲库后，异步生成并发布新的声纹索引。
-            if (Main.getMusicRecognitionService() != null) {
-                Main.getMusicRecognitionService().invalidateIndex();
-            }
+            MusicIngestSupport.invalidateRecognitionIndex();
             
             // 发送通知
 //            try {
@@ -406,7 +386,7 @@ public class AdminUploadAuditHandler extends HttpServlet {
                 logger.error("事务回滚失败: " + rollbackEx.getMessage(), rollbackEx);
             }
             
-            sendError(response, 500, "服务器错误: " + e.getMessage());
+            sendErrorResponse(response, 500, "服务器错误: " + e.getMessage());
         } finally {
             // 关闭连接
             try {
@@ -426,12 +406,8 @@ public class AdminUploadAuditHandler extends HttpServlet {
     private void handleRejectUpload(int uploadId, HttpServletRequest request, HttpServletResponse response) throws IOException {
         try {
             // 获取管理员ID
-            String authHeader = request.getHeader("Authorization");
-            String token = authHeader.substring(7);
-            int adminId = getAdminIdByToken(token);
-            
+            int adminId = requireAdminId(request, response);
             if (adminId <= 0) {
-                sendError(response, 401, "未授权访问");
                 return;
             }
             
@@ -449,15 +425,8 @@ public class AdminUploadAuditHandler extends HttpServlet {
             // 获取上传记录
             com.neko.music.database.UserUploadDatabaseManager uploadManager = 
                 new com.neko.music.database.UserUploadDatabaseManager(Main.getDatabaseManager());
-            
-            UserUpload upload = uploadManager.getUserUploadById(uploadId);
+            UserUpload upload = findPendingUpload(uploadManager, uploadId, response);
             if (upload == null) {
-                sendError(response, 404, "上传记录不存在");
-                return;
-            }
-            
-            if (!"pending".equals(upload.getStatus())) {
-                sendError(response, 400, "该记录已被审核，无需重复操作");
                 return;
             }
             
@@ -506,7 +475,7 @@ public class AdminUploadAuditHandler extends HttpServlet {
             
         } catch (Exception e) {
             logger.error("审核拒绝失败: " + e.getMessage(), e);
-            sendError(response, 500, "服务器错误: " + e.getMessage());
+            sendErrorResponse(response, 500, "服务器错误: " + e.getMessage());
         }
     }
     
@@ -561,6 +530,33 @@ public class AdminUploadAuditHandler extends HttpServlet {
         String ext = getFileExtension(filePath);
         return ext.isEmpty() ? "" : ext.substring(1);
     }
+
+    /** 审核通过/拒绝共用的前置校验：令牌有效。返回 adminId；无效时写出 401 并返回 -1。 */
+    private int requireAdminId(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        String authHeader = request.getHeader("Authorization");
+        String token = authHeader.substring(7);
+        int adminId = getAdminIdByToken(token);
+        if (adminId <= 0) {
+            sendErrorResponse(response, 401, "未授权访问");
+        }
+        return adminId;
+    }
+
+    /** 加载待审核上传记录；不存在/已审核时写出 404/400 并返回 null（与原两处内联一致）。 */
+    private UserUpload findPendingUpload(
+            com.neko.music.database.UserUploadDatabaseManager uploadManager,
+            int uploadId, HttpServletResponse response) throws IOException {
+        UserUpload upload = uploadManager.getUserUploadById(uploadId);
+        if (upload == null) {
+            sendErrorResponse(response, 404, "上传记录不存在");
+            return null;
+        }
+        if (!"pending".equals(upload.getStatus())) {
+            sendErrorResponse(response, 400, "该记录已被审核，无需重复操作");
+            return null;
+        }
+        return upload;
+    }
     
     /**
      * 根据token获取管理员ID
@@ -590,18 +586,5 @@ public class AdminUploadAuditHandler extends HttpServlet {
         return null;
     }
     
-    private void sendError(HttpServletResponse response, int status, String message) throws IOException {
-        response.setStatus(status);
-        response.setContentType("application/json;charset=UTF-8");
-        Map<String, Object> error = new HashMap<>();
-        error.put("success", false);
-        error.put("message", message);
-        response.getWriter().write(Main.getObjectMapper().writeValueAsString(error));
-    }
     
-    private void sendJsonResponse(HttpServletResponse response, Map<String, Object> data) throws IOException {
-        response.setStatus(200);
-        response.setContentType("application/json;charset=UTF-8");
-        response.getWriter().write(Main.getObjectMapper().writeValueAsString(data));
-    }
 }

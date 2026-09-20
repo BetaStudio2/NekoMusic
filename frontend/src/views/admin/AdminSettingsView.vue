@@ -204,7 +204,6 @@ const settings = ref({
 const saveSettings = (tab) => {
   toast.success(`${settingsTabs.value.find(t => t.key === tab).title} 已保存！`)
   // 这里可以实现实际的保存逻辑
-  console.log('保存设置:', settings.value[tab])
 }
 </script>
 
@@ -227,11 +226,15 @@ const saveSettings = (tab) => {
 
 .settings-tabs {
   display: flex;
+  overflow-x: auto; /* 手机上 3 个 Tab 会挤爆容器 */
+  overscroll-behavior-x: contain;
   margin-bottom: 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .tab-btn {
+  flex: 0 0 auto; /* 横向滚动时不被压缩 */
+  white-space: nowrap;
   padding: 10px 20px;
   background: transparent;
   border: none;
@@ -387,9 +390,9 @@ input:checked + .slider:before {
 }
 
 /* 响应式设计 */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .admin-subpage {
-    padding: 20px 20px 150px 20px;
+    padding: 20px 20px 40px;
   }
 }
 </style>

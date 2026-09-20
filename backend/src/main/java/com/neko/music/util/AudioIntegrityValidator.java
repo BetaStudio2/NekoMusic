@@ -205,28 +205,21 @@ public final class AudioIntegrityValidator {
 
     private static boolean runFlacTest(Path path) throws IOException {
         ProcessBuilder pb = new ProcessBuilder("flac", "-s", "-t", path.toAbsolutePath().normalize().toString());
-        pb.redirectErrorStream(true);
-        Process p = pb.start();
-        try {
-            if (!p.waitFor(5, TimeUnit.MINUTES)) {
-                p.destroyForcibly();
-                return false;
-            }
-            return p.exitValue() == 0;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            p.destroyForcibly();
-            return false;
-        }
+        return runProcessForExit(pb, 5, TimeUnit.MINUTES);
     }
 
     private static boolean ffmpegFullDecode(String ffmpeg, Path path) throws IOException {
         ProcessBuilder pb = new ProcessBuilder(
                 ffmpeg, "-v", "error", "-nostats", "-i", path.toString(), "-f", "null", "-");
+        return runProcessForExit(pb, 5, TimeUnit.MINUTES);
+    }
+
+    /** 启动进程并等待退出：超时或非零退出返回 false，中断时恢复中断标志。 */
+    private static boolean runProcessForExit(ProcessBuilder pb, long timeout, TimeUnit unit) throws IOException {
         pb.redirectErrorStream(true);
         Process p = pb.start();
         try {
-            if (!p.waitFor(5, TimeUnit.MINUTES)) {
+            if (!p.waitFor(timeout, unit)) {
                 p.destroyForcibly();
                 return false;
             }

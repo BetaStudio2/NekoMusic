@@ -158,12 +158,17 @@ select:focus-visible,
   }
 }
 
-/* Shared admin skin for all management routes. */
+/* ==========================================================================
+   管理端深色皮肤（令牌版）
+   --------------------------------------------------------------------------
+   用途：管理页仍保留各自的浅色 scoped 样式，此处用令牌统一覆盖为黑偏青深色。
+   TODO(批次 5 收尾)：逐页清理浅色 scoped 样式后，删除本段 !important 皮肤。
+   ========================================================================== */
 .admin-layout {
   background:
-    radial-gradient(920px 560px at 12% -8%, rgba(105, 200, 223, 0.16), transparent 58%),
-    linear-gradient(180deg, #070b10, #0b1118 48%, #06090d 100%) !important;
-  color: var(--neko-text) !important;
+    radial-gradient(920px 560px at 12% -8%, rgba(95, 208, 224, 0.12), transparent 58%),
+    linear-gradient(180deg, var(--n-bg), var(--n-bg-soft) 48%, var(--n-bg-deep)) !important;
+  color: var(--n-text) !important;
 }
 
 .admin-main-content {
@@ -174,6 +179,7 @@ select:focus-visible,
 .admin-layout .admin-content-wrapper,
 .admin-layout .admin-subpage,
 .admin-layout .admin-header-section,
+.admin-layout .admin-dashboard,
 .admin-layout .users-list-section,
 .admin-layout .music-list-section,
 .admin-layout .audit-card,
@@ -185,11 +191,14 @@ select:focus-visible,
 .admin-layout .modal-content,
 .admin-layout .panel-toolbar,
 .admin-layout .chart-section,
-.admin-layout .content-placeholder {
-  background: rgba(14, 22, 31, 0.84) !important;
-  border-color: rgba(143, 174, 198, 0.14) !important;
-  color: var(--neko-text) !important;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24) !important;
+.admin-layout .content-placeholder,
+.admin-layout .file-panel,
+.admin-layout .editor-panel,
+.admin-layout .stat-card {
+  background: var(--n-surface) !important;
+  border-color: var(--n-line) !important;
+  color: var(--n-text) !important;
+  box-shadow: var(--n-shadow) !important;
 }
 
 .admin-layout h1,
@@ -197,8 +206,11 @@ select:focus-visible,
 .admin-layout h3,
 .admin-layout h4,
 .admin-layout label,
-.admin-layout th {
-  color: var(--neko-text) !important;
+.admin-layout th,
+.admin-layout .admin-title,
+.admin-layout .side-label,
+.admin-layout .panel-label {
+  color: var(--n-text) !important;
 }
 
 .admin-layout p,
@@ -208,7 +220,7 @@ select:focus-visible,
 .admin-layout .cell-muted,
 .admin-layout .cell-sub,
 .admin-layout .content-placeholder {
-  color: var(--neko-muted) !important;
+  color: var(--n-text-muted) !important;
 }
 
 .admin-layout input,
@@ -216,33 +228,43 @@ select:focus-visible,
 .admin-layout textarea,
 .admin-layout .filter-select,
 .admin-layout .search-input,
-.admin-layout .styled-select {
-  background: rgba(255, 255, 255, 0.045) !important;
-  border: 1px solid rgba(143, 174, 198, 0.16) !important;
-  color: var(--neko-text) !important;
-  border-radius: 12px !important;
+.admin-layout .styled-select,
+.admin-layout .cell-inp {
+  background: var(--n-surface-soft) !important;
+  border: 1px solid var(--n-line) !important;
+  color: var(--n-text) !important;
+  border-radius: var(--n-radius-control) !important;
 }
 
 .admin-layout input::placeholder,
 .admin-layout textarea::placeholder {
-  color: var(--neko-faint) !important;
+  color: var(--n-text-faint) !important;
+}
+
+.admin-layout input:focus,
+.admin-layout select:focus,
+.admin-layout textarea:focus {
+  border-color: var(--n-accent-line) !important;
+  box-shadow: var(--n-shadow-glow) !important;
+  outline: none !important;
 }
 
 .admin-layout table {
-  background: rgba(8, 13, 19, 0.5) !important;
-  color: var(--neko-text) !important;
+  background: var(--n-surface-sunken) !important;
+  color: var(--n-text) !important;
 }
 
 .admin-layout thead,
 .admin-layout th {
-  background: rgba(105, 200, 223, 0.08) !important;
+  background: var(--n-accent-soft) !important;
 }
 
 .admin-layout tr,
 .admin-layout td {
-  border-color: rgba(143, 174, 198, 0.12) !important;
+  border-color: var(--n-line-subtle) !important;
 }
 
+/* 按钮统一为圆角矩形（去掉旧的胶囊强制） */
 .admin-layout button,
 .admin-layout .action-btn,
 .admin-layout .add-btn,
@@ -250,7 +272,7 @@ select:focus-visible,
 .admin-layout .save-btn,
 .admin-layout .submit-btn,
 .admin-layout .login-button {
-  border-radius: 999px !important;
+  border-radius: var(--n-radius-control) !important;
 }
 
 .admin-layout .add-btn,
@@ -258,11 +280,24 @@ select:focus-visible,
 .admin-layout .save-btn,
 .admin-layout .submit-btn,
 .admin-layout .login-button,
-.admin-layout .action-btn.primary {
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.24), rgba(105, 200, 223, 0.1)) !important;
-  border: 1px solid rgba(105, 200, 223, 0.24) !important;
-  color: var(--neko-text) !important;
+.admin-layout .action-btn.primary,
+.admin-layout .btn-primary {
+  background: var(--n-gradient-accent) !important;
+  border: 1px solid var(--n-accent-line) !important;
+  color: var(--n-text) !important;
   box-shadow: none !important;
+}
+
+@media (hover: hover) {
+  .admin-layout .add-btn:hover,
+  .admin-layout .create-btn:hover,
+  .admin-layout .save-btn:hover,
+  .admin-layout .submit-btn:hover,
+  .admin-layout .login-button:hover,
+  .admin-layout .btn-primary:hover {
+    background: var(--n-accent-soft) !important;
+    border-color: var(--n-accent-line) !important;
+  }
 }
 
 .admin-layout .edit-btn,

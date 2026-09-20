@@ -9,20 +9,16 @@ import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * 发送重置密码验证码处理器
  */
 @WebServlet("/user/send-reset-code")
-public class SendResetPasswordCodeHandler extends HttpServlet {
+public class SendResetPasswordCodeHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(SendResetPasswordCodeHandler.class);
     private UserAuthService userAuthService;
 
@@ -34,9 +30,6 @@ public class SendResetPasswordCodeHandler extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         response.setContentType("application/json;charset=UTF-8");
-        response.setHeader("Access-Control-Allow-Origin", "*");
-        response.setHeader("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
         logger.info("收到发送重置密码验证码请求");
 
@@ -107,31 +100,8 @@ public class SendResetPasswordCodeHandler extends HttpServlet {
         return email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
     }
 
-    private void sendCooldownResponse(HttpServletResponse response, long retryAfterSec) throws IOException {
-        long sec = Math.max(1, retryAfterSec);
-        response.setStatus(429);
-        response.setHeader("Retry-After", String.valueOf(sec));
-
-        Map<String, Object> data = new HashMap<>();
-        data.put("retryAfterSec", sec);
-
-        sendResponse(response, false, "发送过于频繁，请 " + sec + " 秒后再试", data);
-    }
 
     /**
      * 发送JSON响应
      */
-    private void sendResponse(HttpServletResponse response, boolean success, String message, Object data) throws IOException {
-        response.setContentType("application/json;charset=UTF-8");
-
-        Map<String, Object> responseMap = new HashMap<>();
-        responseMap.put("success", success);
-        responseMap.put("message", message);
-        responseMap.put("data", data);
-
-        try (PrintWriter out = response.getWriter()) {
-            out.print(Main.getObjectMapper().writeValueAsString(responseMap));
-            out.flush();
-        }
-    }
 }

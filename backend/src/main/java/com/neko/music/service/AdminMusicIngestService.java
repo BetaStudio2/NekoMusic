@@ -8,7 +8,6 @@ import com.neko.music.util.MusicAdMetadataPatcher;
 import com.neko.music.util.BatchMusicMatchUtil;
 import com.neko.music.util.ChineseConverter;
 import com.neko.music.util.MusicAssetLocator;
-import com.neko.music.util.PinyinUtil;
 import com.neko.music.util.TempAudioSpool;
 import org.jaudiotagger.audio.AudioFile;
 import org.jaudiotagger.audio.AudioFileIO;
@@ -150,9 +149,7 @@ public class AdminMusicIngestService {
             EmbeddedMetadataSyncService.syncOne(musicId);
 
             IngestedMusic row = loadIngestedMusic(musicId);
-            if (Main.getMusicRecognitionService() != null) {
-                Main.getMusicRecognitionService().invalidateIndex();
-            }
+            MusicIngestSupport.invalidateRecognitionIndex();
             logger.info("网易云补全入库成功 id={} title={}", musicId, title);
             return java.util.Optional.of(row);
         } catch (Exception e) {
@@ -406,20 +403,7 @@ public class AdminMusicIngestService {
                     if (!rs.next()) {
                         return Optional.empty();
                     }
-                    int uploadUserId = rs.getInt("upload_user_id");
-                    if (rs.wasNull()) {
-                        uploadUserId = 0;
-                    }
-                    Timestamp createdAt = rs.getTimestamp("created_at");
-                    return Optional.of(new IngestedMusic(
-                            rs.getInt("id"),
-                            rs.getString("title"),
-                            rs.getString("artist"),
-                            rs.getString("album"),
-                            rs.getInt("duration"),
-                            uploadUserId,
-                            createdAt != null ? createdAt.toString() : ""
-                    ));
+                    return Optional.of(mapIngestedRow(rs));
                 }
             }
         }
@@ -496,45 +480,13 @@ public class AdminMusicIngestService {
     ) throws SQLException {
         Integer validUploadUserId = null;
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            if (uploadUserId != null && isUserExists(conn, uploadUserId)) {
+            if (uploadUserId != null && MusicIngestSupport.isUserExists(conn, uploadUserId)) {
                 validUploadUserId = uploadUserId;
             } else if (uploadUserId != null) {
                 logger.warn("upload_user_id {} 不存在，将使用 NULL", uploadUserId);
             }
-
-            String sql = """
-                    INSERT INTO music (title, artist, album, language, tags, duration, file_format, upload_user_id,
-                        title_pinyin, title_pinyin_initials, title_word_initials,
-                        artist_pinyin, artist_pinyin_initials, artist_word_initials, album_pinyin)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """;
-            try (PreparedStatement stmt = conn.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
-                stmt.setString(1, title);
-                stmt.setString(2, artist);
-                stmt.setString(3, album);
-                stmt.setString(4, language);
-                stmt.setString(5, tags);
-                stmt.setInt(6, duration);
-                stmt.setString(7, fileFormat);
-                stmt.setObject(8, validUploadUserId);
-                stmt.setString(9, PinyinUtil.getPinyin(title));
-                stmt.setString(10, PinyinUtil.getPinyinInitials(title));
-                stmt.setString(11, PinyinUtil.getWordInitials(title));
-                stmt.setString(12, PinyinUtil.getPinyin(artist));
-                stmt.setString(13, PinyinUtil.getPinyinInitials(artist));
-                stmt.setString(14, PinyinUtil.getWordInitials(artist));
-                stmt.setString(15, PinyinUtil.getPinyin(album));
-                int affected = stmt.executeUpdate();
-                if (affected == 0) {
-                    throw new SQLException("插入 music 失败");
-                }
-                try (ResultSet keys = stmt.getGeneratedKeys()) {
-                    if (keys.next()) {
-                        return keys.getInt(1);
-                    }
-                }
-                throw new SQLException("未获取到新音乐 ID");
-            }
+            return MusicIngestSupport.insertMusicRow(conn, title, artist, album, album, language, tags,
+                    duration, validUploadUserId, fileFormat, "插入 music 失败", "未获取到新音乐 ID");
         }
     }
 
@@ -547,42 +499,14 @@ public class AdminMusicIngestService {
                     if (!rs.next()) {
                         throw new SQLException("音乐记录不存在 id=" + musicId);
                     }
-                    int uploadUserId = rs.getInt("upload_user_id");
-                    if (rs.wasNull()) {
-                        uploadUserId = 0;
-                    }
-                    Timestamp createdAt = rs.getTimestamp("created_at");
-                    return new IngestedMusic(
-                            rs.getInt("id"),
-                            rs.getString("title"),
-                            rs.getString("artist"),
-                            rs.getString("album"),
-                            rs.getInt("duration"),
-                            uploadUserId,
-                            createdAt != null ? createdAt.toString() : ""
-                    );
+                    return mapIngestedRow(rs);
                 }
             }
         }
     }
 
-    private static boolean isUserExists(Connection conn, int userId) throws SQLException {
-        try (PreparedStatement stmt = conn.prepareStatement("SELECT COUNT(*) FROM users WHERE id = ?")) {
-            stmt.setInt(1, userId);
-            try (ResultSet rs = stmt.executeQuery()) {
-                return rs.next() && rs.getInt(1) > 0;
-            }
-        }
-    }
-
     private static void deleteMusicRecordById(int musicId) {
-        try (Connection conn = Main.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement("DELETE FROM music WHERE id = ?")) {
-            stmt.setInt(1, musicId);
-            stmt.executeUpdate();
-        } catch (SQLException e) {
-            logger.error("回滚删除 music 失败 id={}", musicId, e);
-        }
+        MusicIngestSupport.deleteMusicRecordById(musicId, logger, "回滚删除 music 失败 id={}");
     }
 
     private static int readAudioDurationSeconds(Path path) {
