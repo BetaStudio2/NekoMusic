@@ -1,48 +1,34 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-// 检查是否是移动设备
-function isMobileDevice() {
-  const userAgent = navigator.userAgent || navigator.vendor || window.opera
-  return /android|ipad|iphone|ipod/i.test(userAgent)
-}
-
 // 检查管理员是否已登录
 function isAdminLoggedIn() {
   return localStorage.getItem('isAdminLoggedIn') === 'true';
 }
 
-// 管理员路由守卫
-const adminGuard = (to, from, next) => {
-  if (to.path.startsWith('/admin') && to.path !== '/admin/login') {
-    if (isAdminLoggedIn()) {
-      // 检查用户权限
-      const adminInfo = localStorage.getItem('adminInfo')
-      if (adminInfo) {
-        const parsedInfo = JSON.parse(adminInfo)
-        const role = parsedInfo.role || 'admin'
+// 管理员路由守卫（router v5：用返回值代替已弃用的 next 回调）
+const adminGuard = (to) => {
+  if (!to.path.startsWith('/admin') || to.path === '/admin/login') return true
 
-        // 审核员不能访问音乐/歌词管理页面
-        if (role === 'auditor' && (to.path.startsWith('/admin/music') || to.path.startsWith('/admin/lyrics'))) {
-          next('/admin') // 重定向到管理首页
-          return
-        }
-        if (role === 'auditor' && to.path.startsWith('/admin/vip-pricing')) {
-          next('/admin')
-          return
-        }
-        if (role === 'auditor' && to.path.startsWith('/admin/releases')) {
-          next('/admin')
-          return
-        }
+  if (!isAdminLoggedIn()) return '/admin/login'
+
+  // 检查用户权限
+  const stored = localStorage.getItem('adminInfo')
+  if (stored) {
+    try {
+      const role = JSON.parse(stored).role || 'admin'
+      // 审核员不能访问音乐/歌词/VIP 价目/客户端更新页面
+      if (role === 'auditor') {
+        if (to.path.startsWith('/admin/music') || to.path.startsWith('/admin/lyrics')) return '/admin'
+        if (to.path.startsWith('/admin/vip-pricing')) return '/admin'
+        if (to.path.startsWith('/admin/releases')) return '/admin'
       }
-      next(); // 如果已登录且有权限，允许访问
-    } else {
-      next('/admin/login'); // 如果未登录，重定向到登录页面
+    } catch {
+      /* adminInfo 损坏时按已登录处理，交由页面自行兜底 */
     }
-  } else {
-    next(); // 其他路由正常访问
   }
-};
+
+  return true
+}
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -126,7 +112,7 @@ const router = createRouter({
     {
       path: '/login',
       name: 'login',
-      component: () => import('@/views/UserLoginView.vue'),
+      component: () => import('@/views/UserAuthView.vue'),
       meta: {
         title: '用户登录 - Neko歌姬计划 | 免费音乐平台',
         description: '登录您的Neko歌姬计划账户，享受完全免费的个性化音乐服务。无需付费，永久免费。',
@@ -136,7 +122,7 @@ const router = createRouter({
     {
       path: '/register',
       name: 'register',
-      component: () => import('@/views/UserRegisterView.vue'),
+      component: () => import('@/views/UserAuthView.vue'),
       meta: {
         title: '用户注册 - Neko歌姬计划 | 免费音乐平台',
         description: '注册Neko歌姬计划账户，开启您的免费音乐之旅。完全免费，无需付费，永久免费。',
@@ -246,86 +232,94 @@ const router = createRouter({
     },
     {
       path: '/admin',
-      name: 'admin',
-      component: () => import('@/views/admin/AdminView.vue'),
-      beforeEnter: adminGuard,
-      meta: {
-        title: '管理后台 - Neko歌姬计划',
-        description: '管理后台首页，管理免费音乐平台各项功能。',
-        keywords: '管理后台,后台管理'
-      }
-    },
-    {
-      path: '/admin/music',
-      name: 'admin-music',
-      component: () => import('@/views/admin/AdminMusicView.vue'),
-      beforeEnter: adminGuard,
-      meta: {
-        title: '音乐管理 - Neko歌姬计划',
-        description: '管理平台免费音乐资源，上传、编辑、删除免费音乐。',
-        keywords: '音乐管理,音乐上传,免费音乐管理'
-      }
-    },
-    {
-      path: '/admin/lyrics',
-      name: 'admin-lyrics',
-      component: () => import('@/views/admin/AdminLyricsEditorView.vue'),
-      beforeEnter: adminGuard,
-      meta: {
-        title: '歌词编辑 - Neko歌姬计划',
-        description: '以文件管理器方式在线编辑平台歌词文件。',
-        keywords: '歌词编辑,在线编辑,LRC,后台管理'
-      }
-    },
-    {
-      path: '/admin/audit',
-      name: 'admin-audit',
-      component: () => import('@/views/admin/AdminAuditView.vue'),
-      beforeEnter: adminGuard,
-      meta: {
-        title: '审核管理 - Neko歌姬计划',
-        description: '审核用户上传的音乐，管理待审核的免费音乐内容。',
-        keywords: '审核管理,音乐审核,待审核,免费音乐审核'
-      }
-    },
-    {
-      path: '/admin/users',
-      name: 'admin-users',
-      component: () => import('@/views/admin/AdminUsersView.vue'),
-      beforeEnter: adminGuard,
-      meta: {
-        title: '用户管理 - Neko歌姬计划',
-        description: '管理平台免费音乐用户，查看用户信息和统计数据。',
-        keywords: '用户管理,用户统计,免费音乐用户'
-      }
-    },
-    {
-      path: '/admin/vip-pricing',
-      name: 'admin-vip-pricing',
-      component: () => import('@/views/admin/AdminVipPricingView.vue'),
-      beforeEnter: adminGuard,
-      meta: {
-        title: 'VIP 价目 - Neko歌姬计划',
-        description: '管理 VIP 套餐价目表。',
-        keywords: 'VIP,价目,管理'
-      }
-    },
-    {
-      path: '/admin/releases',
-      name: 'admin-releases',
-      component: () => import('@/views/admin/AdminReleasesView.vue'),
-      beforeEnter: adminGuard,
-      meta: {
-        title: '客户端更新 - Neko歌姬计划',
-        description: '管理客户端版本号与安装包上传。',
-        keywords: '客户端,更新,安装包,管理'
-      }
+      component: () => import('@/layouts/AdminLayout.vue'),
+      children: [
+        {
+          path: '',
+          name: 'admin',
+          component: () => import('@/views/admin/AdminView.vue'),
+          beforeEnter: adminGuard,
+          meta: {
+            title: '管理后台 - Neko歌姬计划',
+            description: '管理后台首页，管理免费音乐平台各项功能。',
+            keywords: '管理后台,后台管理'
+          }
+        },
+        {
+          path: 'music',
+          name: 'admin-music',
+          component: () => import('@/views/admin/AdminMusicView.vue'),
+          beforeEnter: adminGuard,
+          meta: {
+            title: '音乐管理 - Neko歌姬计划',
+            description: '管理平台免费音乐资源，上传、编辑、删除免费音乐。',
+            keywords: '音乐管理,音乐上传,免费音乐管理'
+          }
+        },
+        {
+          path: 'lyrics',
+          name: 'admin-lyrics',
+          component: () => import('@/views/admin/AdminLyricsEditorView.vue'),
+          beforeEnter: adminGuard,
+          meta: {
+            title: '歌词编辑 - Neko歌姬计划',
+            description: '以文件管理器方式在线编辑平台歌词文件。',
+            keywords: '歌词编辑,在线编辑,LRC,后台管理'
+          }
+        },
+        {
+          path: 'audit',
+          name: 'admin-audit',
+          component: () => import('@/views/admin/AdminAuditView.vue'),
+          beforeEnter: adminGuard,
+          meta: {
+            title: '审核管理 - Neko歌姬计划',
+            description: '审核用户上传的音乐，管理待审核的免费音乐内容。',
+            keywords: '审核管理,音乐审核,待审核,免费音乐审核'
+          }
+        },
+        {
+          path: 'users',
+          name: 'admin-users',
+          component: () => import('@/views/admin/AdminUsersView.vue'),
+          beforeEnter: adminGuard,
+          meta: {
+            title: '用户管理 - Neko歌姬计划',
+            description: '管理平台免费音乐用户，查看用户信息和统计数据。',
+            keywords: '用户管理,用户统计,免费音乐用户'
+          }
+        },
+        {
+          path: 'vip-pricing',
+          name: 'admin-vip-pricing',
+          component: () => import('@/views/admin/AdminVipPricingView.vue'),
+          beforeEnter: adminGuard,
+          meta: {
+            title: 'VIP 价目 - Neko歌姬计划',
+            description: '管理 VIP 套餐价目表。',
+            keywords: 'VIP,价目,管理'
+          }
+        },
+        {
+          path: 'releases',
+          name: 'admin-releases',
+          component: () => import('@/views/admin/AdminReleasesView.vue'),
+          beforeEnter: adminGuard,
+          meta: {
+            title: '客户端更新 - Neko歌姬计划',
+            description: '管理客户端版本号与安装包上传。',
+            keywords: '客户端,更新,安装包,管理'
+          }
+        },
+      ]
     },
     {
       path: '/detail/:id',
       name: 'detail',
       component: () => import('@/views/PlayerView.vue'),
-      props: true,
+      // 注意：不要开 props: true —— 播放页整屏 Teleport 到 body，根是片段，
+      // 无法继承非 prop 属性，多传的 id 只会触发 Vue 的 "Extraneous
+      // non-props attributes" 警告。页面自己读 route.params.id。
       meta: {
         title: '音乐详情 - Neko歌姬计划 | 免费音乐播放',
         description: '查看免费音乐详细信息，免费播放高品质音乐。Neko歌姬计划提供完全免费的音乐播放服务。',
@@ -345,21 +339,14 @@ const router = createRouter({
   ]
 })
 
-// 全局路由守卫 - 更新页面标题和元数据 + 移动设备检测
-router.beforeEach((to, from, next) => {
-  // 如果是移动设备访问非下载页面、非播放页面、非歌单详情页面、非管理员页面，重定向到下载页面
-  if (isMobileDevice() &&
-      to.path !== '/download' &&
-      to.path !== '/privacy' &&
-      !to.path.startsWith('/detail/') &&
-      !to.path.startsWith('/playlist/') &&
-      !to.path.startsWith('/account') &&
-      !to.path.startsWith('/vip') &&
-      !to.path.startsWith('/admin')) {
-    next('/download')
-    return
-  }
-
+// 全局路由守卫 - 更新页面标题和元数据
+// （router v5：用返回值代替已弃用的 next 回调）
+//
+// 这里【不再】把移动设备硬重定向到 /download。原先手机访问首页 / 搜索 /
+// 收藏等会被直接踢走，整站手机端不可用。App 导流改由 MobileAppBanner
+// 软引导横幅承担（见 src/components/MobileAppBanner.vue），
+// 真正的「拉起 App」由 src/utils/nativeAppOpen.js 负责。
+router.beforeEach((to) => {
   // 设置页面标题
   document.title = to.meta.title || 'Neko歌姬计划 - 完全免费的在线音乐播放平台'
 
@@ -383,7 +370,7 @@ router.beforeEach((to, from, next) => {
   }
   keywordsMeta.content = keywords
 
-  next()
+  return true
 })
 
 export default router

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.neko.music.util.HttpTransport;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -73,10 +74,7 @@ public class KugouMusicClient {
     private static final String WINDOW_OUTPUT_MARKER = "window.$output";
 
     private final ObjectMapper objectMapper;
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(REQUEST_TIMEOUT)
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build();
+    private final HttpClient httpClient = HttpTransport.create(REQUEST_TIMEOUT);
     private final SecureRandom secureRandom = new SecureRandom();
 
     public KugouMusicClient(ObjectMapper objectMapper) {
@@ -620,35 +618,25 @@ public class KugouMusicClient {
                 .header("Referer", "https://m.kugou.com/")
                 .GET()
                 .build();
-        try {
-            HttpResponse<String> response = httpClient.send(
-                    request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new UpstreamException(response.statusCode());
-            }
-            return response.body();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("请求酷狗分享页被中断", e);
+        HttpResponse<String> response =
+                HttpTransport.sendString(httpClient, request, "请求酷狗分享页被中断");
+        if (!HttpTransport.isSuccess(response.statusCode())) {
+            throw new UpstreamException(response.statusCode());
         }
+        return response.body();
     }
 
     private JsonNode send(HttpRequest request) throws IOException {
-        try {
-            HttpResponse<String> response = httpClient.send(
-                    request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new UpstreamException(response.statusCode());
-            }
-            JsonNode json = objectMapper.readTree(response.body());
-            if (json == null || json.isMissingNode()) {
-                throw new IOException("酷狗接口返回为空");
-            }
-            return json;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("请求酷狗接口被中断", e);
+        HttpResponse<String> response =
+                HttpTransport.sendString(httpClient, request, "请求酷狗接口被中断");
+        if (!HttpTransport.isSuccess(response.statusCode())) {
+            throw new UpstreamException(response.statusCode());
         }
+        JsonNode json = objectMapper.readTree(response.body());
+        if (json == null || json.isMissingNode()) {
+            throw new IOException("酷狗接口返回为空");
+        }
+        return json;
     }
 
     /** android 签名：md5(salt + 按 key 升序的 k=v 串 + salt)。 */

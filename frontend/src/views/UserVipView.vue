@@ -1,167 +1,168 @@
 <template>
-  <div class="vip-page">
-    <div class="vip-shell">
-      <div class="vip-shell-inner">
-        <!-- 左：参考 img - 用户信息 + 横向套餐卡 + 权益 -->
-        <div class="vip-col vip-col--main">
-          <div v-if="user" class="vip-userbar">
-            <div class="vip-avatar">
-              <img
-                v-if="!avatarBroken"
-                :src="userAvatarUrl"
-                alt="头像"
-                class="vip-avatar-img"
-                referrerpolicy="no-referrer"
-                @error="avatarBroken = true"
-              />
-              <span v-else class="vip-avatar-fallback" aria-hidden="true">{{ userInitial }}</span>
-            </div>
-            <div class="vip-usermeta">
-              <div class="vip-userline">
-                <span class="vip-nickname">{{ displayName }}</span>
-                <span :class="['vip-badge', user.isVip ? 'vip-badge--on' : 'vip-badge--off']">
-                  {{ user.isVip ? '会员' : '未开通' }}
-                </span>
-              </div>
-              <p class="vip-expires-line">到期 {{ formatVipExpiresAt(user.vipExpiresAt) }} · UTC8</p>
-            </div>
-          </div>
+  <AmbientBackdrop />
 
-          <p class="vip-tagline">开通会员，畅享高品质音乐与更多权益</p>
-
-          <div class="vip-tier-tabs" role="tablist" aria-label="套餐类型">
-            <span class="vip-tier-tab vip-tier-tab--active" role="tab" aria-selected="true">会员套餐</span>
+  <PageShell width="wide">
+    <div class="vip">
+      <!-- 左：用户 + 套餐 -->
+      <div class="vip__main">
+        <div v-if="user" class="vip__user">
+          <div class="vip__avatar">
+            <img
+              v-if="!avatarBroken"
+              :src="userAvatarUrl"
+              alt="头像"
+              referrerpolicy="no-referrer"
+              @error="avatarBroken = true"
+            />
+            <span v-else class="vip__avatar-fallback" aria-hidden="true">{{ userInitial }}</span>
           </div>
-
-          <div v-if="pricingLoading" class="plan-strip plan-strip--skel" aria-busy="true">
-            <div class="plan-card plan-card--skel" />
-            <div class="plan-card plan-card--skel plan-card--skel-mid" />
-            <div class="plan-card plan-card--skel" />
-          </div>
-          <div v-else-if="pricingError" class="vip-inline-err">{{ pricingError }}</div>
-          <template v-else-if="pricingRows.length">
-            <p v-if="payError" class="vip-inline-err">{{ payError }}</p>
-            <div class="plan-strip-wrap">
-              <div class="plan-strip">
-                <button
-                  v-for="row in pricingRows"
-                  :key="row.id"
-                  type="button"
-                  class="plan-card"
-                  :class="{ 'plan-card--active': selectedPlanId === row.id }"
-                  @click="selectedPlanId = row.id"
-                >
-                  <span class="plan-card-name">{{ formatPlanDuration(row.months, row.days) }}</span>
-                  <span class="plan-card-price">¥{{ formatYuan(row.priceYuan) }}</span>
-                  <span v-if="pricePerDayLine(row)" class="plan-card-meta">{{ pricePerDayLine(row) }}</span>
-                  <span v-else class="plan-card-meta">所选时长权益</span>
-                </button>
-              </div>
+          <div class="vip__usermeta">
+            <div class="vip__userline">
+              <span class="vip__nickname">{{ displayName }}</span>
+              <span :class="['vip__badge', user.isVip ? 'vip__badge--on' : 'vip__badge--off']">
+                {{ user.isVip ? '会员' : '未开通' }}
+              </span>
             </div>
-            <p class="vip-terms">
-              支付成功后会员时长将按套餐叠加；请在常用网络环境下完成支付。若有疑问请联系管理员。
+            <p class="vip__expires">
+              <NIcon name="calendar" :size="14" />
+              到期 {{ formatVipExpiresAt(user.vipExpiresAt) }} · UTC+8
             </p>
-
-<!--            <div class="vip-perks">-->
-<!--              <div class="vip-perks-title">会员权益</div>-->
-<!--              <ul class="vip-perks-grid">-->
-<!--                <li class="vip-perk"><span class="vip-perk-ic" aria-hidden="true">♪</span>高品质在线播放</li>-->
-<!--                <li class="vip-perk"><span class="vip-perk-ic" aria-hidden="true">☁</span>云端歌单与同步</li>-->
-<!--                <li class="vip-perk"><span class="vip-perk-ic" aria-hidden="true">✦</span>会员标识与优先体验</li>-->
-<!--                <li class="vip-perk"><span class="vip-perk-ic" aria-hidden="true">∞</span>更多权益持续更新</li>-->
-<!--              </ul>-->
-<!--            </div>-->
-          </template>
-          <div v-else class="vip-inline-empty">
-            <p>暂无在售套餐</p>
-            <p class="vip-inline-empty-sub">请稍后再试或联系管理员维护价目表。</p>
-          </div>
-
-          <div class="vip-foot-links">
-            <router-link to="/account" class="vip-foot-a">个人中心</router-link>
-            <span class="vip-foot-dot">·</span>
-            <router-link to="/" class="vip-foot-a">返回首页</router-link>
           </div>
         </div>
 
-        <!-- 右：结算条 - 价格 + 支付 / 二维码（同 img 右栏） -->
-        <aside class="vip-col vip-col--checkout" aria-label="结算与支付">
-          <template v-if="selectedPlan && pricingRows.length && !pricingLoading">
-            <div class="checkout-inner">
-              <p class="checkout-label">当前套餐</p>
-              <p class="checkout-dur">{{ formatPlanDuration(selectedPlan.months, selectedPlan.days) }}</p>
+        <NCard pad="lg" class="vip__plans">
+          <h1 class="vip__heading">会员套餐</h1>
+          <p class="vip__tagline">开通会员，畅享高品质音乐与更多权益</p>
 
-              <div class="checkout-price-block">
-                <span class="checkout-price-yen">¥</span>
-                <span class="checkout-price-num">{{ formatYuan(selectedPlan.priceYuan) }}</span>
+          <div v-if="pricingLoading" class="plans" aria-busy="true">
+            <div class="plan plan--skel" />
+            <div class="plan plan--skel" />
+            <div class="plan plan--skel" />
+          </div>
+
+          <p v-else-if="pricingError" class="vip__err">{{ pricingError }}</p>
+
+          <template v-else-if="pricingRows.length">
+            <p v-if="payError" class="vip__err">{{ payError }}</p>
+
+            <div class="plans">
+              <button
+                v-for="row in pricingRows"
+                :key="row.id"
+                type="button"
+                class="plan"
+                :class="{ 'plan--active': selectedPlanId === row.id }"
+                @click="selectedPlanId = row.id"
+              >
+                <span class="plan__name">{{ formatPlanDuration(row.months, row.days) }}</span>
+                <span class="plan__price"><span class="plan__yen">¥</span>{{ formatYuan(row.priceYuan) }}</span>
+                <span class="plan__meta">{{ pricePerDayLine(row) || '所选时长权益' }}</span>
+              </button>
+            </div>
+
+            <p class="vip__terms">
+              <NIcon name="info" :size="14" />
+              支付成功后会员时长将按套餐叠加；请在常用网络环境下完成支付。若有疑问请联系管理员。
+            </p>
+          </template>
+
+          <div v-else class="vip__empty">
+            <NIcon name="gem" :size="24" />
+            <p>暂无在售套餐</p>
+            <p class="vip__empty-sub">请稍后再试或联系管理员维护价目表。</p>
+          </div>
+        </NCard>
+
+        <div class="vip__links">
+          <RouterLink to="/account">个人中心</RouterLink>
+          <span aria-hidden="true">·</span>
+          <RouterLink to="/">返回首页</RouterLink>
+        </div>
+      </div>
+
+      <!-- 右：结算 -->
+      <aside class="vip__checkout" aria-label="结算与支付">
+        <NCard pad="lg" class="checkout">
+          <template v-if="selectedPlan && pricingRows.length && !pricingLoading">
+            <p class="checkout__label">当前套餐</p>
+            <p class="checkout__dur">{{ formatPlanDuration(selectedPlan.months, selectedPlan.days) }}</p>
+
+            <p class="checkout__price">
+              <span class="checkout__yen">¥</span>{{ formatYuan(selectedPlan.priceYuan) }}
+            </p>
+
+            <template v-if="!payInline.visible">
+              <p class="checkout__hint">选择支付方式</p>
+              <div class="checkout__pay">
+                <NButton
+                  variant="primary"
+                  block
+                  icon="qr-code"
+                  :disabled="payBusyId === selectedPlan.id"
+                  @click="startPay(selectedPlan, 'alipay')"
+                >
+                  {{ payBusyId === selectedPlan.id ? '请稍候…' : '支付宝' }}
+                </NButton>
+                <NButton
+                  variant="secondary"
+                  block
+                  icon="message"
+                  :disabled="payBusyId === selectedPlan.id"
+                  @click="startPay(selectedPlan, 'wxpay')"
+                >
+                  {{ payBusyId === selectedPlan.id ? '请稍候…' : '微信' }}
+                </NButton>
+              </div>
+            </template>
+
+            <template v-else>
+              <p class="checkout__qr-title">{{ payInline.title }}</p>
+              <p class="checkout__qr-tip">请使用相机或对应 App 扫描完成支付</p>
+              <div class="checkout__qr-frame">
+                <img
+                  v-if="payInline.imageUrl"
+                  :src="payInline.imageUrl"
+                  class="checkout__qr-img"
+                  alt="支付二维码"
+                  referrerpolicy="no-referrer"
+                />
+                <img
+                  v-else-if="payInline.qrDataUrl"
+                  :src="payInline.qrDataUrl"
+                  class="checkout__qr-img"
+                  alt="支付二维码"
+                />
               </div>
 
-              <template v-if="!payInline.visible">
-                <p class="checkout-pay-hint">选择支付方式</p>
-                <div class="checkout-pay-row">
-                  <button
-                    type="button"
-                    class="checkout-btn checkout-btn--ali"
-                    :disabled="payBusyId === selectedPlan.id"
-                    @click="startPay(selectedPlan, 'alipay')"
-                  >
-                    {{ payBusyId === selectedPlan.id ? '请稍候…' : '支付宝' }}
-                  </button>
-                  <button
-                    type="button"
-                    class="checkout-btn checkout-btn--wx"
-                    :disabled="payBusyId === selectedPlan.id"
-                    @click="startPay(selectedPlan, 'wxpay')"
-                  >
-                    {{ payBusyId === selectedPlan.id ? '请稍候…' : '微信' }}
-                  </button>
-                </div>
-              </template>
+              <a
+                v-if="payInline.browserUrl"
+                class="checkout__browser"
+                :href="payInline.browserUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <NIcon name="external-link" :size="14" />
+                浏览器打开支付
+              </a>
 
-              <template v-else>
-                <p class="checkout-qr-title">{{ payInline.title }}</p>
-                <p class="checkout-qr-tip">请使用相机或对应 App 扫描完成支付</p>
-                <div class="checkout-qr-frame">
-                  <div class="checkout-qr-scanline" aria-hidden="true" />
-                  <img
-                    v-if="payInline.imageUrl"
-                    :src="payInline.imageUrl"
-                    class="checkout-qr-img"
-                    alt="支付二维码"
-                    referrerpolicy="no-referrer"
-                  />
-                  <img
-                    v-else-if="payInline.qrDataUrl"
-                    :src="payInline.qrDataUrl"
-                    class="checkout-qr-img"
-                    alt="支付二维码"
-                  />
-                </div>
-                <a
-                  v-if="payInline.browserUrl"
-                  class="checkout-browser-link"
-                  :href="payInline.browserUrl"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >浏览器打开支付</a>
-                <div class="checkout-done-row">
-                  <button type="button" class="checkout-done-btn" @click="onPaidDone">我已完成支付</button>
-                  <button type="button" class="checkout-back-btn" @click="clearPayInline">更换支付方式</button>
-                </div>
-              </template>
+              <div class="checkout__done">
+                <NButton variant="primary" block icon="circle-check" @click="onPaidDone">我已完成支付</NButton>
+                <NButton variant="ghost" block @click="clearPayInline">更换支付方式</NButton>
+              </div>
+            </template>
 
-              <p class="checkout-legal">
-                <span>支付即视为同意会员服务说明</span>
-              </p>
-            </div>
+            <p class="checkout__legal">支付即视为同意会员服务说明</p>
           </template>
-          <div v-else-if="pricingLoading" class="checkout-placeholder">加载套餐中…</div>
-          <div v-else-if="pricingError" class="checkout-placeholder checkout-placeholder--err">无法加载价目</div>
-          <div v-else class="checkout-placeholder">暂无可售套餐</div>
-        </aside>
-      </div>
+
+          <div v-else-if="pricingLoading" class="checkout__placeholder">加载套餐中…</div>
+          <div v-else-if="pricingError" class="checkout__placeholder checkout__placeholder--err">
+            无法加载价目
+          </div>
+          <div v-else class="checkout__placeholder">暂无可售套餐</div>
+        </NCard>
+      </aside>
     </div>
-  </div>
+  </PageShell>
 </template>
 
 <script setup>
@@ -171,6 +172,9 @@ import QRCode from 'qrcode'
 import { formatVipExpiresAt, syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
 import { fetchVipPricing, createVipPayOrder } from '@/api/vipPricing.js'
 import API_CONFIG from '@/config/apiConfig.js'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NCard } from '@/ui'
+import { PageShell, AmbientBackdrop } from '@/layouts'
 
 const router = useRouter()
 const vipTick = ref(0)
@@ -380,616 +384,389 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 页面不铺底，由站点全局决定 */
-.vip-page {
-  --text: var(--neko-text);
-  --muted: var(--neko-muted);
-  --faint: var(--neko-faint);
-  --line: var(--neko-line);
-  --accent: var(--neko-accent);
-  --accent3: var(--neko-accent-strong);
-  --shell-bg: rgba(12, 19, 27, 0.96);
-  --shell-ink: var(--text);
-  --shell-muted: var(--muted);
-  --shell-line: var(--line);
-  --brand-red: var(--accent);
-  --brand-orange: var(--accent3);
-  --checkout-bg: linear-gradient(165deg, rgba(14, 22, 31, 0.98) 0%, rgba(10, 16, 23, 0.98) 45%, rgba(7, 11, 16, 0.98) 100%);
-  min-height: calc(100dvh - 180px);
-  padding: 20px 14px 32px;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  background: transparent;
+.vip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
+  gap: clamp(20px, 3vw, 32px);
+  align-items: start;
 }
 
-.vip-shell {
-  width: 100%;
-  max-width: min(960px, calc(100vw - 28px));
-  border-radius: 22px;
-  background: var(--shell-bg);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(143, 174, 198, 0.14);
-  overflow: hidden;
-}
-
-.vip-shell-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-}
-
-@media (min-width: 800px) {
-  .vip-shell-inner {
-    flex-direction: row;
-    align-items: stretch;
-    min-height: 420px;
-  }
-}
-
-.vip-col {
+.vip__main {
   min-width: 0;
 }
 
-.vip-col--main {
-  flex: 1 1 auto;
-  padding: 20px 18px 22px;
-  background: rgba(15, 23, 33, 0.94);
-}
-
-@media (min-width: 800px) {
-  .vip-col--main {
-    padding: 22px 22px 24px;
-    flex: 1 1 62%;
-  }
-}
-
-.vip-userbar {
+/* ==================== 用户条 ==================== */
+.vip__user {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 10px;
+  gap: var(--n-space-4);
+  padding: var(--n-space-4) var(--n-space-5);
+  margin-bottom: var(--n-space-5);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-xl);
+  background: var(--n-surface);
 }
 
-.vip-avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.22), rgba(143, 174, 198, 0.14));
-  color: var(--text);
-  flex-shrink: 0;
-  border: 1px solid rgba(143, 174, 198, 0.18);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.24);
+.vip__avatar {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--n-radius);
   overflow: hidden;
-  position: relative;
+  border: 1px solid var(--n-line-strong);
+  background: var(--n-surface-soft);
 }
 
-.vip-avatar-img {
+.vip__avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
 
-.vip-avatar-fallback {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 1.1rem;
+.vip__avatar-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, var(--n-accent-strong), var(--n-accent));
+  color: var(--n-text-inverse);
+  font-size: var(--n-text-xl);
+  font-weight: var(--n-weight-bold);
 }
 
-.vip-usermeta {
-  flex: 1;
+.vip__usermeta {
   min-width: 0;
 }
 
-.vip-userline {
+.vip__userline {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: var(--n-space-3);
 }
 
-.vip-nickname {
-  font-size: 1.05rem;
-  font-weight: 800;
-  color: var(--shell-ink);
+.vip__nickname {
+  color: var(--n-text);
+  font-size: var(--n-text-md);
+  font-weight: var(--n-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.vip__badge {
+  flex: none;
+  padding: 3px 9px;
+  border-radius: var(--n-radius-xs);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-semibold);
+}
+
+.vip__badge--on {
+  background: linear-gradient(135deg, var(--n-accent-strong), var(--n-accent));
+  color: var(--n-text-inverse);
+}
+
+.vip__badge--off {
+  background: var(--n-surface-soft);
+  border: 1px solid var(--n-line);
+  color: var(--n-text-muted);
+}
+
+.vip__expires {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--n-space-2);
+  margin: var(--n-space-2) 0 0;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+}
+
+/* ==================== 套餐 ==================== */
+.vip__heading {
+  margin: 0 0 var(--n-space-1);
+  font-size: var(--n-text-xl);
+  font-weight: var(--n-weight-bold);
   letter-spacing: -0.02em;
 }
 
-.vip-badge {
-  font-size: 0.68rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 999px;
-  letter-spacing: 0.02em;
+.vip__tagline {
+  margin: 0 0 var(--n-space-5);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
 }
 
-.vip-badge--on {
-  background: linear-gradient(90deg, rgba(105, 200, 223, 0.28), rgba(155, 234, 255, 0.16));
-  color: #f2f8fb;
-  border: 1px solid rgba(105, 200, 223, 0.3);
+.plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--n-space-3);
 }
 
-.vip-badge--off {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--shell-muted);
-  border: 1px solid rgba(143, 174, 198, 0.14);
+/* 手机竖屏：auto-fit 会挤成两列，套餐名/价格被压扁，直接单列 */
+@media (max-width: 560px) {
+  .plans {
+    grid-template-columns: 1fr;
+  }
 }
 
-.vip-expires-line {
-  margin: 4px 0 0;
-  font-size: 0.78rem;
-  color: var(--shell-muted);
-}
-
-.vip-tagline {
-  margin: 0 0 14px;
-  font-size: 0.8rem;
-  line-height: 1.5;
-  color: var(--muted);
-}
-
-.vip-tier-tabs {
-  display: flex;
-  gap: 0;
-  border-bottom: 1px solid var(--shell-line);
-  margin-bottom: 14px;
-}
-
-.vip-tier-tab {
-  padding: 10px 18px 12px;
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: var(--shell-muted);
-  border: none;
-  background: transparent;
-  border-radius: 12px 12px 0 0;
-  cursor: default;
-}
-
-.vip-tier-tab--active {
-  color: var(--shell-ink);
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: 0 -1px 0 rgba(143, 174, 198, 0.12);
-  margin-bottom: -1px;
-  border: 1px solid var(--shell-line);
-  border-bottom-color: rgba(15, 23, 33, 0.94);
-}
-
-.plan-strip-wrap {
-  margin: 0 -4px;
-}
-
-.plan-strip {
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  padding: 6px 4px 14px;
-  scroll-snap-type: x proximity;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-
-.plan-strip::-webkit-scrollbar {
-  display: none;
-}
-
-.plan-card {
-  flex: 0 0 auto;
-  scroll-snap-align: start;
-  width: 148px;
-  min-height: 128px;
-  padding: 12px 12px 10px;
-  border-radius: 14px;
-  border: 1px solid rgba(143, 174, 198, 0.14);
-  background: rgba(255, 255, 255, 0.04);
-  cursor: pointer;
-  text-align: left;
+.plan {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
+  gap: var(--n-space-1);
+  padding: var(--n-space-4);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-lg);
+  background: var(--n-surface-soft);
+  text-align: left;
+  transition:
+    border-color var(--n-duration-fast) var(--n-ease),
+    background var(--n-duration-fast) var(--n-ease),
+    transform var(--n-duration-fast) var(--n-ease);
 }
 
-.plan-card:hover {
-  border-color: rgba(105, 200, 223, 0.28);
+@media (hover: hover) {
+  .plan:hover {
+    border-color: var(--n-line-strong);
+    background: var(--n-surface-hover);
+    transform: translateY(-2px);
+  }
 }
 
-.plan-card--active {
-  border-color: rgba(105, 200, 223, 0.34);
-  background: linear-gradient(180deg, rgba(105, 200, 223, 0.14) 0%, rgba(255, 255, 255, 0.04) 100%);
-  box-shadow: 0 0 0 1px rgba(105, 200, 223, 0.22), 0 10px 24px rgba(0, 0, 0, 0.18);
-  transform: translateY(-1px);
+.plan--active {
+  border-color: var(--n-accent-line);
+  background: var(--n-accent-soft);
+  box-shadow: 0 0 0 1px var(--n-accent-line);
 }
 
-.plan-card-name {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--shell-ink);
-  line-height: 1.35;
+.plan__name {
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-medium);
 }
 
-.plan-card-price {
-  font-size: 1.35rem;
-  font-weight: 800;
-  color: var(--accent-strong);
+.plan__price {
+  color: var(--n-text);
+  font-size: var(--n-text-2xl);
+  font-weight: var(--n-weight-bold);
+  font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
-  line-height: 1.1;
 }
 
-.plan-card-meta {
-  margin-top: auto;
-  font-size: 0.7rem;
-  color: var(--shell-muted);
+.plan--active .plan__price {
+  color: var(--n-accent-strong);
 }
 
-.plan-strip--skel {
-  pointer-events: none;
+.plan__yen {
+  margin-right: 2px;
+  font-size: var(--n-text-md);
+  font-weight: var(--n-weight-semibold);
 }
 
-.plan-card--skel {
-  border-color: rgba(143, 174, 198, 0.1);
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.04) 100%);
+.plan__meta {
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+}
+
+.plan--skel {
+  min-height: 104px;
+  border-radius: var(--n-radius-lg);
+  background: linear-gradient(100deg, var(--n-surface-soft) 30%, var(--n-surface-hover) 50%, var(--n-surface-soft) 70%);
   background-size: 200% 100%;
-  animation: skel 1s ease-in-out infinite;
-  min-height: 128px;
+  animation: planSkel 1.4s linear infinite;
 }
 
-.plan-card--skel-mid {
-  width: 160px;
+@keyframes planSkel {
+  to { background-position: -200% 0; }
 }
 
-@keyframes skel {
-  0% {
-    background-position: 100% 0;
-  }
-  100% {
-    background-position: -100% 0;
-  }
-}
-
-.vip-terms {
-  margin: 0 0 18px;
-  font-size: 0.68rem;
-  line-height: 1.55;
-  color: var(--faint);
-}
-
-.vip-inline-err {
-  margin-bottom: 12px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(105, 200, 223, 0.08);
-  border: 1px solid rgba(105, 200, 223, 0.18);
-  color: var(--text);
-  font-size: 0.82rem;
-}
-
-.vip-inline-empty {
-  padding: 20px;
-  text-align: center;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px dashed rgba(143, 174, 198, 0.18);
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-.vip-inline-empty-sub {
-  margin: 6px 0 0;
-  font-size: 0.78rem;
-  color: var(--faint);
-}
-
-.vip-perks {
-  margin-bottom: 8px;
-}
-
-.vip-perks-title {
-  font-size: 0.82rem;
-  font-weight: 800;
-  color: var(--shell-ink);
-  margin-bottom: 10px;
-}
-
-.vip-perks-grid {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px 10px;
-}
-
-@media (min-width: 520px) {
-  .vip-perks-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
-
-.vip-perk {
+.vip__terms {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.72rem;
-  color: var(--muted);
-  padding: 8px 8px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(143, 174, 198, 0.12);
+  align-items: flex-start;
+  gap: var(--n-space-2);
+  margin: var(--n-space-5) 0 0;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+  line-height: var(--n-leading-normal);
 }
 
-.vip-perk-ic {
-  width: 22px;
-  height: 22px;
-  border-radius: 8px;
-  background: rgba(105, 200, 223, 0.1);
-  color: var(--accent-strong);
-  font-size: 0.65rem;
+.vip__terms :deep(.n-icon) {
+  flex: none;
+  margin-top: 2px;
+}
+
+.vip__err {
+  margin: var(--n-space-3) 0;
+  padding: var(--n-space-3) var(--n-space-4);
+  border: 1px solid rgba(255, 107, 107, 0.28);
+  border-radius: var(--n-radius-control);
+  background: var(--n-danger-soft);
+  color: #ffb3b3;
+  font-size: var(--n-text-sm);
+}
+
+.vip__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--n-space-2);
+  padding: var(--n-space-10) var(--n-space-4);
+  text-align: center;
+  color: var(--n-text-muted);
+}
+
+.vip__empty :deep(.n-icon) {
+  color: var(--n-text-faint);
+}
+
+.vip__empty p {
+  margin: 0;
+}
+
+.vip__empty-sub {
+  color: var(--n-text-faint);
+  font-size: var(--n-text-sm);
+}
+
+.vip__links {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  gap: var(--n-space-3);
+  margin-top: var(--n-space-5);
+  color: var(--n-text-faint);
+  font-size: var(--n-text-sm);
 }
 
-.vip-foot-links {
-  margin-top: 16px;
-  font-size: 0.78rem;
-  color: var(--shell-muted);
+/* ==================== 结算 ==================== */
+.vip__checkout {
+  position: sticky;
+  /* 用实测顶栏高度，避免 900–1024 区间两行顶栏与结算卡重叠 */
+  top: calc(var(--app-header-h, var(--n-header-height)) + var(--n-space-5));
 }
 
-.vip-foot-a {
-  color: var(--accent-strong);
-  text-decoration: none;
-  font-weight: 600;
+.checkout__label {
+  margin: 0;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
 }
 
-.vip-foot-a:hover {
-  color: #ffffff;
+.checkout__dur {
+  margin: var(--n-space-1) 0 var(--n-space-4);
+  color: var(--n-text);
+  font-size: var(--n-text-lg);
+  font-weight: var(--n-weight-semibold);
 }
 
-.vip-foot-dot {
-  margin: 0 6px;
-  opacity: 0.45;
-}
-
-/* 右栏结算 */
-.vip-col--checkout {
-  flex: 1 1 auto;
-  background: var(--checkout-bg);
-  border-top: 1px solid var(--shell-line);
-  padding: 20px 18px 22px;
+.checkout__price {
   display: flex;
-  flex-direction: column;
-}
-
-@media (min-width: 800px) {
-  .vip-col--checkout {
-    flex: 0 0 300px;
-    max-width: 320px;
-    border-top: none;
-    border-left: 1px solid var(--shell-line);
-    padding: 22px 18px 20px;
-  }
-}
-
-.checkout-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  height: 100%;
-}
-
-.checkout-label {
-  margin: 0 0 4px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--shell-muted);
-}
-
-.checkout-dur {
-  margin: 0 0 12px;
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: var(--shell-ink);
-  line-height: 1.35;
-}
-
-.checkout-price-block {
-  margin-bottom: 16px;
-  line-height: 1;
-}
-
-.checkout-price-yen {
-  font-size: 1.1rem;
-  font-weight: 800;
-  color: var(--accent-strong);
-  vertical-align: super;
-  margin-right: 2px;
-}
-
-.checkout-price-num {
-  font-size: 2.35rem;
-  font-weight: 800;
-  color: var(--accent-strong);
+  align-items: baseline;
+  margin: 0 0 var(--n-space-5);
+  color: var(--n-accent-strong);
+  font-size: var(--n-text-3xl);
+  font-weight: var(--n-weight-bold);
+  font-variant-numeric: tabular-nums;
   letter-spacing: -0.04em;
 }
 
-.checkout-pay-hint {
-  margin: 0 0 10px;
-  font-size: 0.78rem;
-  color: var(--faint);
+.checkout__yen {
+  margin-right: 4px;
+  font-size: var(--n-text-lg);
+  font-weight: var(--n-weight-semibold);
 }
 
-.checkout-pay-row {
-  display: flex;
-  gap: 10px;
-  margin-bottom: auto;
+.checkout__hint {
+  margin: 0 0 var(--n-space-3);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
 }
 
-.checkout-btn {
-  flex: 1;
-  padding: 11px 8px;
-  border-radius: 999px;
-  border: none;
-  font-size: 0.82rem;
-  font-weight: 800;
-  cursor: pointer;
-  color: #fff;
-  transition: transform 0.12s, opacity 0.2s;
-}
-
-.checkout-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.checkout-btn:not(:disabled):active {
-  transform: scale(0.98);
-}
-
-.checkout-btn--ali {
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.24), rgba(105, 200, 223, 0.12));
-}
-
-.checkout-btn--wx {
-  background: linear-gradient(135deg, rgba(155, 234, 255, 0.22), rgba(105, 200, 223, 0.14));
-}
-
-.checkout-qr-title {
-  margin: 0 0 6px;
-  font-size: 0.88rem;
-  font-weight: 800;
-  color: var(--shell-ink);
-  text-align: center;
-}
-
-.checkout-qr-tip {
-  margin: 0 0 12px;
-  font-size: 0.72rem;
-  color: var(--faint);
-  text-align: center;
-  line-height: 1.45;
-}
-
-.checkout-qr-frame {
-  position: relative;
-  margin: 0 auto 12px;
-  padding: 12px;
-  max-width: 220px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(105, 200, 223, 0.24);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
-  overflow: hidden;
-}
-
-.checkout-qr-scanline {
-  position: absolute;
-  left: 8%;
-  right: 8%;
-  top: 18%;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--brand-red), transparent);
-  opacity: 0.55;
-  animation: scanmove 2.2s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 1;
-}
-
-@keyframes scanmove {
-  0%,
-  100% {
-    top: 14%;
-    opacity: 0.3;
-  }
-  50% {
-    top: 78%;
-    opacity: 0.75;
-  }
-}
-
-.checkout-qr-img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border-radius: 8px;
-  position: relative;
-  z-index: 0;
-}
-
-.checkout-browser-link {
-  display: block;
-  text-align: center;
-  margin-bottom: 12px;
-  font-size: 0.76rem;
-  font-weight: 600;
-  color: var(--accent-strong);
-  text-decoration: none;
-}
-
-.checkout-browser-link:hover {
-  text-decoration: underline;
-}
-
-.checkout-done-row {
+.checkout__pay {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: var(--n-space-3);
 }
 
-.checkout-done-btn {
-  padding: 11px 14px;
-  border-radius: 999px;
-  border: none;
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.24), rgba(105, 200, 223, 0.12));
-  color: var(--text);
-  font-size: 0.84rem;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.checkout-done-btn:hover {
-  filter: brightness(1.05);
-}
-
-.checkout-back-btn {
-  padding: 9px 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(143, 174, 198, 0.14);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--muted);
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.checkout-legal {
-  margin: 0;
-  margin-top: 8px;
-  font-size: 0.65rem;
-  line-height: 1.5;
-  color: var(--faint);
+.checkout__qr-title {
+  margin: 0 0 var(--n-space-1);
+  color: var(--n-text);
+  font-size: var(--n-text-md);
+  font-weight: var(--n-weight-semibold);
   text-align: center;
 }
 
-.checkout-placeholder {
-  margin: auto 0;
+.checkout__qr-tip {
+  margin: 0 0 var(--n-space-4);
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
   text-align: center;
-  font-size: 0.86rem;
-  color: var(--muted);
-  padding: 24px 8px;
 }
 
-.checkout-placeholder--err {
-  color: var(--accent-strong);
+.checkout__qr-frame {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1;
+  max-width: 240px;
+  margin: 0 auto var(--n-space-4);
+  padding: var(--n-space-3);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-lg);
+  background: #ffffff;
+}
+
+.checkout__qr-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.checkout__browser {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--n-space-2);
+  width: 100%;
+  margin-bottom: var(--n-space-4);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-semibold);
+}
+
+.checkout__done {
+  display: flex;
+  flex-direction: column;
+  gap: var(--n-space-2);
+}
+
+.checkout__legal {
+  margin: var(--n-space-5) 0 0;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+  text-align: center;
+}
+
+.checkout__placeholder {
+  padding: var(--n-space-10) 0;
+  text-align: center;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+}
+
+.checkout__placeholder--err {
+  color: var(--n-danger);
+}
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 900px) {
+  .vip {
+    grid-template-columns: 1fr;
+  }
+
+  .vip__checkout {
+    position: static;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan--skel {
+    animation: none;
+  }
 }
 </style>

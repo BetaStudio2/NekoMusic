@@ -10,16 +10,13 @@ import com.neko.music.service.VideoRenderService;
 import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.VideoRenderPaths;
 import com.neko.music.util.VipUtil;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -39,7 +36,7 @@ import java.util.regex.Pattern;
  *   <li>GET /api/video/render/{jobId}/download — 下载成片（无需登录）</li>
  * </ul>
  */
-public class VideoRenderHandler extends HttpServlet {
+public class VideoRenderHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(VideoRenderHandler.class);
     private static final Pattern JOB_ID_PATTERN = Pattern.compile("^[0-9a-fA-F-]{36}$");
 
@@ -353,31 +350,8 @@ public class VideoRenderHandler extends HttpServlet {
         return jobId != null && JOB_ID_PATTERN.matcher(jobId).matches();
     }
 
-    private static String readBody(HttpServletRequest req) throws IOException {
-        StringBuilder body = new StringBuilder();
-        try (BufferedReader r = req.getReader()) {
-            String line;
-            while ((line = r.readLine()) != null) {
-                body.append(line);
-            }
-        }
-        return body.toString();
-    }
 
-    private static void sendJson(HttpServletResponse resp, int code, boolean success, String message) throws IOException {
-        JsonObject o = new JsonObject();
-        o.addProperty("success", success);
-        o.addProperty("message", message);
-        sendRawJson(resp, code, o);
-    }
 
-    private static void sendRawJson(HttpServletResponse resp, int code, JsonObject o) throws IOException {
-        resp.setContentType("application/json;charset=UTF-8");
-        resp.setStatus(code);
-        try (PrintWriter w = resp.getWriter()) {
-            w.print(o.toString());
-        }
-    }
 
     private static final class MusicMeta {
         String title;

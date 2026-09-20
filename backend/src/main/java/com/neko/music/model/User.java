@@ -2,88 +2,24 @@ package com.neko.music.model;
 
 import java.sql.Timestamp;
 
-public class User {
-    private int id;
-    private String username;
-    private String password;
-    private String email;
-    private boolean emailVerified;
-    private String avatar;
-    private String createdAt;
-    /** 会员到期时间，null 表示非会员或未设置 */
-    private Timestamp vipExpiresAt;
-
-    public User() {
-    }
+/**
+ * 用户。只读数据载体（JDBC 行映射后即使用，不再修改）。
+ *
+ * <p>字段名与顺序与旧 POJO 一致；保留 {@code (username, password, email)}
+ * 便捷构造器供注册使用。Jackson 对 boolean 组件的序列化名仍为
+ * {@code emailVerified}（与原 {@code isEmailVerified()} 相同）。
+ */
+public record User(
+        int id,
+        String username,
+        String password,
+        String email,
+        boolean emailVerified,
+        String avatar,
+        String createdAt,
+        Timestamp vipExpiresAt) {
 
     public User(String username, String password, String email) {
-        this.username = username;
-        this.password = password;
-        this.email = email;
-    }
-
-    // Getters and Setters
-    public int getId() {
-        return id;
-    }
-
-    public void setId(int id) {
-        this.id = id;
-    }
-
-    public String getUsername() {
-        return username;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public boolean isEmailVerified() {
-        return emailVerified;
-    }
-
-    public void setEmailVerified(boolean emailVerified) {
-        this.emailVerified = emailVerified;
-    }
-
-    public String getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(String createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public String getAvatar() {
-        return avatar;
-    }
-
-    public void setAvatar(String avatar) {
-        this.avatar = avatar;
-    }
-
-    public Timestamp getVipExpiresAt() {
-        return vipExpiresAt;
-    }
-
-    public void setVipExpiresAt(Timestamp vipExpiresAt) {
-        this.vipExpiresAt = vipExpiresAt;
+        this(0, username, password, email, false, null, null, null);
     }
 }

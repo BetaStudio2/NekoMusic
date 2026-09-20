@@ -1,6 +1,5 @@
 package com.neko.music.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neko.music.config.ConfigManager;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
@@ -12,7 +11,6 @@ import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.charset.StandardCharsets;
 
 public class NotificationService {
     private static final Logger logger = LoggerFactory.getLogger(NotificationService.class);

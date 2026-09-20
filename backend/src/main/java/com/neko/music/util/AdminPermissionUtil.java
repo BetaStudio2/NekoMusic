@@ -74,11 +74,11 @@ public class AdminPermissionUtil {
      * @return 是否有权限
      */
     public static boolean hasPermission(Admin admin, Permission permission) {
-        if (admin == null || !admin.isActive()) {
+        if (admin == null || !admin.active()) {
             return false;
         }
         
-        Role role = Role.fromString(admin.getRole());
+        Role role = Role.fromString(admin.role());
         
         switch (role) {
             case SUPER_ADMIN:
@@ -121,7 +121,7 @@ public class AdminPermissionUtil {
      * @return 是否为超级管理员
      */
     public static boolean isSuperAdmin(Admin admin) {
-        return admin != null && Role.SUPER_ADMIN.getValue().equals(admin.getRole());
+        return admin != null && Role.SUPER_ADMIN.getValue().equals(admin.role());
     }
     
     /**
@@ -130,7 +130,7 @@ public class AdminPermissionUtil {
      * @return 是否为管理员
      */
     public static boolean isAdmin(Admin admin) {
-        return admin != null && Role.ADMIN.getValue().equals(admin.getRole());
+        return admin != null && Role.ADMIN.getValue().equals(admin.role());
     }
     
     /**
@@ -139,6 +139,6 @@ public class AdminPermissionUtil {
      * @return 是否为审核员
      */
     public static boolean isAuditor(Admin admin) {
-        return admin != null && Role.AUDITOR.getValue().equals(admin.getRole());
+        return admin != null && Role.AUDITOR.getValue().equals(admin.role());
     }
 }

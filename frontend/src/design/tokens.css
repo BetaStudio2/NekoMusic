@@ -1,0 +1,186 @@
+/**
+ * Neko 设计令牌 (Design Tokens)
+ * ------------------------------------------------------------
+ * 全站唯一的视觉取值范围来源。组件只允许引用这里的 CSS 变量，
+ * 不允许在组件内硬编码颜色 / 间距 / 圆角 / 时长。
+ *
+ * 命名约定：--n-<类别>-<语义>[-<变体>]
+ * 视觉基调：黑偏青 —— 近黑为底、青为唯一强调；形状语言为圆角矩形（去胶囊）。
+ */
+
+:root {
+  /* ===== 颜色 · 背景（黑偏青：极深、低饱和、青相 ~190°） ===== */
+  --n-bg: #04090b;
+  --n-bg-soft: #071115;
+  --n-bg-deep: #010506;
+  --n-bg-elevated: #0a161a;
+
+  /* ===== 颜色 · 表面（青调深玻璃） ===== */
+  --n-surface: rgba(9, 24, 29, 0.82);
+  --n-surface-strong: rgba(13, 33, 39, 0.92);
+  --n-surface-soft: rgba(120, 220, 232, 0.05);
+  --n-surface-hover: rgba(120, 220, 232, 0.09);
+  --n-surface-active: rgba(120, 220, 232, 0.14);
+  --n-surface-sunken: rgba(2, 11, 14, 0.55);
+
+  /* ===== 颜色 · 描边（青调） ===== */
+  --n-line: rgba(120, 205, 218, 0.14);
+  --n-line-strong: rgba(120, 205, 218, 0.28);
+  --n-line-subtle: rgba(120, 205, 218, 0.08);
+
+  /* ===== 颜色 · 文本 ===== */
+  --n-text: #eaf8fb;
+  --n-text-muted: #9ab6be;
+  --n-text-faint: #617d85;
+  --n-text-inverse: #04191d;
+
+  /* ===== 颜色 · 强调（青） ===== */
+  --n-accent: #5fd0e0;
+  --n-accent-soft: rgba(95, 208, 224, 0.14);
+  --n-accent-line: rgba(95, 208, 224, 0.24);
+  --n-accent-strong: #9ceefb;
+  --n-accent-deep: #2f9fb2;
+
+  /* ===== 颜色 · 语义状态 ===== */
+  --n-danger: #ff6b6b;
+  --n-danger-soft: rgba(255, 107, 107, 0.13);
+  --n-warning: #f7c66a;
+  --n-warning-soft: rgba(247, 198, 106, 0.13);
+  --n-success: #5fd6a6;
+  --n-success-soft: rgba(95, 214, 166, 0.13);
+  --n-info: var(--n-accent);
+  --n-info-soft: var(--n-accent-soft);
+
+  /* ===== 渐变 ===== */
+  --n-gradient-accent: linear-gradient(135deg, rgba(95, 208, 224, 0.20), rgba(95, 208, 224, 0.07));
+  --n-gradient-text: linear-gradient(120deg, #eafcfe, #9ceefb, #cfedf2);
+  --n-gradient-surface: linear-gradient(180deg, rgba(120, 220, 232, 0.035), transparent);
+
+  /* ===== 间距标尺（4px 基准） ===== */
+  --n-space-1: 4px;
+  --n-space-2: 8px;
+  --n-space-3: 12px;
+  --n-space-4: 16px;
+  --n-space-5: 20px;
+  --n-space-6: 24px;
+  --n-space-8: 32px;
+  --n-space-10: 40px;
+  --n-space-12: 48px;
+  --n-space-16: 64px;
+
+  /* ===== 圆角（圆角矩形语言，去胶囊） ===== */
+  --n-radius-xs: 8px;
+  --n-radius-sm: 10px;
+  --n-radius-control: 12px;  /* 按钮 / 输入框 / 分段控件 */
+  --n-radius: 14px;
+  --n-radius-lg: 18px;       /* 卡片 */
+  --n-radius-xl: 24px;       /* 大面板 / Hero */
+  --n-radius-pill: 999px;    /* 仅用于确实需要胶囊的场景（如进度条） */
+  --n-radius-circle: 50%;
+
+  /* ===== 字体 ===== */
+  --n-font-sans:
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    sans-serif;
+  --n-font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  --n-text-xs: 0.75rem;
+  --n-text-sm: 0.8125rem;
+  --n-text-base: 0.9375rem;
+  --n-text-md: 1rem;
+  --n-text-lg: 1.25rem;
+  --n-text-xl: 1.5rem;
+  --n-text-2xl: 2rem;
+  --n-text-3xl: 2.5rem;
+
+  --n-leading-tight: 1.25;
+  --n-leading-normal: 1.6;
+  --n-leading-loose: 1.8;
+
+  --n-weight-normal: 400;
+  --n-weight-medium: 500;
+  --n-weight-semibold: 600;
+  --n-weight-bold: 700;
+
+  /* ===== 阴影（黑偏青：冷调、克制） ===== */
+  --n-shadow-sm: 0 4px 14px rgba(0, 0, 0, 0.3);
+  --n-shadow: 0 16px 44px rgba(0, 0, 0, 0.34);
+  --n-shadow-lg: 0 26px 70px rgba(0, 0, 0, 0.46);
+  --n-shadow-glow: 0 0 0 4px rgba(95, 208, 224, 0.16);
+
+  /* ===== 模糊 ===== */
+  --n-blur-sm: blur(8px);
+  --n-blur: blur(18px);
+  --n-blur-lg: blur(28px);
+
+  /* ===== 动效 ===== */
+  --n-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --n-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --n-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --n-duration-instant: 90ms;
+  --n-duration-fast: 160ms;
+  --n-duration: 240ms;
+  --n-duration-slow: 420ms;
+  --n-duration-slower: 700ms;
+
+  /* ===== 层级 ===== */
+  --n-z-base: 0;
+  --n-z-ambient: 0;
+  --n-z-content: 1;
+  --n-z-sticky: 100;
+  --n-z-header: 200;
+  --n-z-player: 300;
+  --n-z-overlay: 400;
+  --n-z-modal: 500;
+  --n-z-toast: 2147483000;
+
+  /* ===== 布局尺寸 ===== */
+  --n-shell-max: 1120px;
+  --n-header-height: 64px;
+  --n-player-height: 88px;
+  --n-content-gutter: clamp(16px, 4vw, 32px);
+
+  /* ===== 安全区（刘海屏 / 手势条）=====
+     必须配合 index.html 里的 viewport-fit=cover，否则恒为 0。
+     固定贴边的元素（顶栏、播放条、全屏播放页）用它做内边距，
+     避免被刘海或 Home 指示条遮住。 */
+  --n-safe-top: env(safe-area-inset-top, 0px);
+  --n-safe-right: env(safe-area-inset-right, 0px);
+  --n-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --n-safe-left: env(safe-area-inset-left, 0px);
+
+  /* ===== 响应式断点（约定）=====
+     CSS 变量不能用在媒体查询里，这里只作统一约定，写媒体查询时请照抄数值：
+       sm  560px   手机竖屏——多列栅格转单列的主断点
+       md  900px   平板竖屏 / 手机横屏
+       lg  1200px  桌面（宽屏再收窄）
+     新增样式请优先使用这三个值，不要继续引入新断点。 */
+
+  /* ===== 触摸目标 ===== */
+  /* 指/拇指可靠命中的最小边长；图标按钮在触摸设备上按此补齐热区 */
+  --n-tap-min: 44px;
+
+  /* ===== 焦点环 ===== */
+  --n-focus-ring: 2px solid var(--n-accent);
+  --n-focus-offset: 3px;
+}
+
+/* ==========================================================================
+   手机竖屏（≤560px）
+   --------------------------------------------------------------------------
+   顶栏与播放条都能收窄：手机屏幕纵向宝贵，这两个固定条各减一档，
+   把空间还给内容。--n-player-height 同时被 App 的页脚留白消费，
+   改这里即可全局生效。
+   ========================================================================== */
+@media (max-width: 560px) {
+  :root {
+    --n-header-height: 56px;
+    --n-player-height: 64px;
+    /* 手机上内容区留白收紧一档 */
+    --n-content-gutter: 16px;
+  }
+}

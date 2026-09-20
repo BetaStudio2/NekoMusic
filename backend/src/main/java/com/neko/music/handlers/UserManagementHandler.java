@@ -1,7 +1,12 @@
 package com.neko.music.handlers;
 
+import com.neko.music.util.PermissionHelper;
+
+import com.neko.music.model.SuccessResponse;
+import com.neko.music.model.ErrorResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
+import com.neko.music.util.HandlerResponses;
 import com.neko.music.util.VipUtil;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -33,11 +38,7 @@ public class UserManagementHandler extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         // 检查管理员权限
-        if (!isAdminAuthorized(request)) {
-            response.setStatus(HttpStatus.UNAUTHORIZED_401);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("未授权访问");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+        if (HandlerResponses.rejectIfUnauthorized(request, response)) {
             return;
         }
         
@@ -54,28 +55,18 @@ public class UserManagementHandler extends HttpServlet {
             // 获取所有普通用户
             List<RegularUser> regularUsers = getAllRegularUsers();
 
-            response.setStatus(HttpStatus.OK_200);
-            response.setContentType("application/json;charset=utf-8");
-            RegularUsersResponse regularUsersResponse = new RegularUsersResponse(true, "获取用户列表成功", regularUsers);
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(regularUsersResponse));
+            HandlerResponses.writeJson(response, HttpStatus.OK_200, new RegularUsersResponse(true, "获取用户列表成功", regularUsers));
             return;
         }
 
         // 其他路径处理（如果需要）
-        response.setStatus(HttpStatus.NOT_FOUND_404);
-        response.setContentType("application/json;charset=utf-8");
-        ErrorResponse errorResponse = new ErrorResponse("未找到请求的资源");
-        response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+        HandlerResponses.writeJson(response, HttpStatus.NOT_FOUND_404, new ErrorResponse("未找到请求的资源"));
     }
 
     @Override
     protected void doPut(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         // 检查管理员权限
-        if (!isAdminAuthorized(request)) {
-            response.setStatus(HttpStatus.UNAUTHORIZED_401);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("未授权访问");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+        if (HandlerResponses.rejectIfUnauthorized(request, response)) {
             return;
         }
         
@@ -87,10 +78,7 @@ public class UserManagementHandler extends HttpServlet {
 
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || !pathInfo.endsWith("/edit")) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("无效的请求路径");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("无效的请求路径"));
             return;
         }
 
@@ -101,10 +89,7 @@ public class UserManagementHandler extends HttpServlet {
         try {
             userId = Integer.parseInt(idStr);
         } catch (NumberFormatException e) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("无效的用户ID");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("无效的用户ID"));
             return;
         }
 
@@ -119,10 +104,7 @@ public class UserManagementHandler extends HttpServlet {
         try {
             root = Main.getObjectMapper().readTree(requestBody.toString());
         } catch (Exception e) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("无效的请求格式");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("无效的请求格式"));
             return;
         }
 
@@ -130,45 +112,29 @@ public class UserManagementHandler extends HttpServlet {
         boolean hasPassword = root.has("password") && !pwdField.isBlank();
         boolean hasVip = root.has("vipExpiresAt");
         if (!hasPassword && !hasVip) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("请提供非空 password 和/或 vipExpiresAt");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("请提供非空 password 和/或 vipExpiresAt"));
             return;
         }
 
         try {
             boolean success = updateUserFields(userId, root);
             if (!success) {
-                response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
-                response.setContentType("application/json;charset=utf-8");
-                ErrorResponse errorResponse = new ErrorResponse("修改用户信息失败");
-                response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+                HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("修改用户信息失败"));
                 return;
             }
         } catch (IllegalArgumentException e) {
             logger.warn("修改用户 VIP 参数无效: {}", e.getMessage());
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse(e.getMessage());
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse(e.getMessage()));
             return;
         }
 
-        response.setStatus(HttpStatus.OK_200);
-        response.setContentType("application/json;charset=utf-8");
-        SuccessResponse successResponse = new SuccessResponse(true, "修改用户信息成功");
-        response.getWriter().println(Main.getObjectMapper().writeValueAsString(successResponse));
+        HandlerResponses.writeJson(response, HttpStatus.OK_200, new SuccessResponse(true, "修改用户信息成功"));
     }
 
     @Override
     protected void doDelete(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         // 检查管理员权限
-        if (!isAdminAuthorized(request)) {
-            response.setStatus(HttpStatus.UNAUTHORIZED_401);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("未授权访问");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+        if (HandlerResponses.rejectIfUnauthorized(request, response)) {
             return;
         }
         
@@ -180,10 +146,7 @@ public class UserManagementHandler extends HttpServlet {
 
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("用户ID不能为空");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("用户ID不能为空"));
             return;
         }
 
@@ -193,10 +156,7 @@ public class UserManagementHandler extends HttpServlet {
         try {
             userId = Integer.parseInt(idStr);
         } catch (NumberFormatException e) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("无效的用户ID");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("无效的用户ID"));
             return;
         }
 
@@ -204,29 +164,14 @@ public class UserManagementHandler extends HttpServlet {
         boolean success = deleteUser(userId);
         
         if (!success) {
-            response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("删除用户失败");
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("删除用户失败"));
             return;
         }
 
-        response.setStatus(HttpStatus.OK_200);
-        response.setContentType("application/json;charset=utf-8");
-        SuccessResponse successResponse = new SuccessResponse(true, "删除用户成功");
-        response.getWriter().println(Main.getObjectMapper().writeValueAsString(successResponse));
+        HandlerResponses.writeJson(response, HttpStatus.OK_200, new SuccessResponse(true, "删除用户成功"));
     }
 
     // 检查管理员权限
-    private boolean isAdminAuthorized(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return false;
-        }
-
-        String token = authHeader.substring(7);
-        return Main.getAdminAuthService().validateAdminToken(token);
-    }
 
     // 获取所有普通用户
     private List<RegularUser> getAllRegularUsers() {
@@ -238,21 +183,15 @@ public class UserManagementHandler extends HttpServlet {
                 ResultSet rs = stmt.executeQuery();
                 
                 while (rs.next()) {
-                    RegularUser regularUser = new RegularUser();
-                    regularUser.setId(rs.getInt("id"));
-                    regularUser.setUsername(rs.getString("username"));
-                    regularUser.setEmail(rs.getString("email"));
-                    regularUser.setRegisterTime(rs.getTimestamp("created_at").toString());
                     Timestamp vip = rs.getTimestamp("vip_expires_at");
-                    if (rs.wasNull()) {
-                        regularUser.setVipExpiresAt(null);
-                        regularUser.setVip(false);
-                    } else {
-                        regularUser.setVipExpiresAt(vip.toInstant().toString());
-                        regularUser.setVip(VipUtil.isVipActiveNow(vip));
-                    }
-                    
-                    regularUsers.add(regularUser);
+                    boolean hasVip = !rs.wasNull();
+                    regularUsers.add(new RegularUser(
+                            rs.getInt("id"),
+                            rs.getString("username"),
+                            rs.getString("email"),
+                            rs.getTimestamp("created_at").toString(),
+                            hasVip && VipUtil.isVipActiveNow(vip),
+                            hasVip ? vip.toInstant().toString() : null));
                 }
             }
         } catch (Exception e) {
@@ -375,73 +314,12 @@ public class UserManagementHandler extends HttpServlet {
     }
 
     // 内部类：普通用户
-    public static class RegularUser {
-        private int id;
-        private String username;
-        private String email;
-        private String registerTime;
-        private boolean vip;
-        private String vipExpiresAt;
-
-        public int getId() { return id; }
-        public void setId(int id) { this.id = id; }
-        public String getUsername() { return username; }
-        public void setUsername(String username) { this.username = username; }
-        public String getEmail() { return email; }
-        public void setEmail(String email) { this.email = email; }
-        public String getRegisterTime() { return registerTime; }
-        public void setRegisterTime(String registerTime) { this.registerTime = registerTime; }
-        public boolean isVip() { return vip; }
-        public void setVip(boolean vip) { this.vip = vip; }
-        public String getVipExpiresAt() { return vipExpiresAt; }
-        public void setVipExpiresAt(String vipExpiresAt) { this.vipExpiresAt = vipExpiresAt; }
+    public record RegularUser(int id, String username, String email, String registerTime, boolean vip, String vipExpiresAt) {
     }
-
     // 内部类：普通用户列表响应
-    private static class RegularUsersResponse {
-        private boolean success;
-        private String message;
-        private List<RegularUser> data;
-
-        public RegularUsersResponse(boolean success, String message, List<RegularUser> data) {
-            this.success = success;
-            this.message = message;
-            this.data = data;
-        }
-
-        public boolean isSuccess() { return success; }
-        public void setSuccess(boolean success) { this.success = success; }
-        public String getMessage() { return message; }
-        public void setMessage(String message) { this.message = message; }
-        public List<RegularUser> getData() { return data; }
-        public void setData(List<RegularUser> data) { this.data = data; }
+    private record RegularUsersResponse(boolean success, String message, List<RegularUser> data) {
     }
-
     // 内部类：成功响应
-    private static class SuccessResponse {
-        private boolean success;
-        private String message;
-
-        public SuccessResponse(boolean success, String message) {
-            this.success = success;
-            this.message = message;
-        }
-
-        public boolean isSuccess() { return success; }
-        public void setSuccess(boolean success) { this.success = success; }
-        public String getMessage() { return message; }
-        public void setMessage(String message) { this.message = message; }
-    }
 
     // 内部类：错误响应
-    private static class ErrorResponse {
-        private String error;
-
-        public ErrorResponse(String error) {
-            this.error = error;
-        }
-
-        public String getError() { return error; }
-        public void setError(String error) { this.error = error; }
-    }
 }

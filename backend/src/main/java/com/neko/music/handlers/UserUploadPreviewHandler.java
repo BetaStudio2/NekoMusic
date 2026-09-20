@@ -21,9 +21,6 @@ public class UserUploadPreviewHandler extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         // 设置CORS响应头
-        response.setHeader("Access-Control-Allow-Origin", "*");
-        response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
         
         // 处理OPTIONS预检请求
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
@@ -119,9 +116,6 @@ public class UserUploadPreviewHandler extends HttpServlet {
     @Override
     protected void doOptions(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         // 设置CORS响应头
-        response.setHeader("Access-Control-Allow-Origin", "*");
-        response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-        response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
         response.setStatus(HttpServletResponse.SC_OK);
     }
     

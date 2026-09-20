@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
-import com.neko.music.Main;
+import com.neko.music.util.MusicLookup;
+
 import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.MusicAssetLocator;
 import org.eclipse.jetty.http.HttpStatus;
@@ -12,9 +13,6 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.*;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
@@ -46,7 +44,7 @@ public class MusicFileHandler extends HttpServlet {
             return;
         }
 
-        if (!musicRowExists(musicId)) {
+        if (!MusicLookup.musicRowExists(musicId)) {
             response.setStatus(HttpStatus.NOT_FOUND_404);
             response.setContentType("text/plain;charset=utf-8");
             response.getWriter().println("音乐文件不存在");
@@ -80,18 +78,6 @@ public class MusicFileHandler extends HttpServlet {
         response.getWriter().println("音乐文件不存在");
     }
 
-    private boolean musicRowExists(int musicId) {
-        try (Connection conn = Main.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement("SELECT 1 FROM music WHERE id = ? LIMIT 1")) {
-            stmt.setInt(1, musicId);
-            try (ResultSet rs = stmt.executeQuery()) {
-                return rs.next();
-            }
-        } catch (Exception e) {
-            logger.error("校验音乐记录时出错，音乐ID: {}", musicId, e);
-            return false;
-        }
-    }
     
     private void sendMusicFile(Path musicPath, HttpServletRequest request, HttpServletResponse response) throws IOException {
         String fileName = musicPath.getFileName().toString().toLowerCase();

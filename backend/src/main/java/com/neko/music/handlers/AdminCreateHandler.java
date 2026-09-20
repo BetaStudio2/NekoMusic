@@ -1,5 +1,7 @@
 package com.neko.music.handlers;
 
+import com.neko.music.util.PermissionHelper;
+
 import com.neko.music.Main;
 import com.neko.music.model.Admin;
 import org.eclipse.jetty.http.HttpStatus;
@@ -7,18 +9,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
-import java.util.HashMap;
-import java.util.Map;
 
-public class AdminCreateHandler extends HttpServlet {
+public class AdminCreateHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(AdminCreateHandler.class);
 
     @Override
@@ -26,7 +24,7 @@ public class AdminCreateHandler extends HttpServlet {
         response.setContentType("application/json;charset=UTF-8");
         
         // 检查管理员权限
-        if (!isAdminAuthorized(request)) {
+        if (!PermissionHelper.isAdminAuthorized(request)) {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
             sendErrorResponse(response, "未授权访问");
             return;
@@ -49,11 +47,7 @@ public class AdminCreateHandler extends HttpServlet {
         }
         
         // 读取请求体
-        StringBuilder requestBody = new StringBuilder();
-        String line;
-        while ((line = request.getReader().readLine()) != null) {
-            requestBody.append(line);
-        }
+        String requestBody = readBody(request);
         
         CreateAdminRequest createRequest;
         try {
@@ -65,26 +59,26 @@ public class AdminCreateHandler extends HttpServlet {
         }
         
         // 验证请求参数
-        if (createRequest.getUsername() == null || createRequest.getUsername().trim().isEmpty()) {
+        if (createRequest.username() == null || createRequest.username().trim().isEmpty()) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             sendErrorResponse(response, "用户名不能为空");
             return;
         }
         
-        if (createRequest.getPassword() == null || createRequest.getPassword().length() < 6) {
+        if (createRequest.password() == null || createRequest.password().length() < 6) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             sendErrorResponse(response, "密码长度不能少于6位");
             return;
         }
         
-        if (createRequest.getRole() == null) {
+        if (createRequest.role() == null) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             sendErrorResponse(response, "角色不能为空");
             return;
         }
         
         // 检查用户名是否已存在
-        if (Main.getAdminAuthService().adminExists(createRequest.getUsername())) {
+        if (Main.getAdminAuthService().adminExists(createRequest.username())) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             sendErrorResponse(response, "用户名已存在");
             return;
@@ -92,19 +86,19 @@ public class AdminCreateHandler extends HttpServlet {
         
         // 创建管理员账号
         boolean success = Main.getAdminAuthService().createAdmin(
-            createRequest.getUsername(),
-            createRequest.getPassword(),
-            createRequest.getEmail()
+            createRequest.username(),
+            createRequest.password(),
+            createRequest.email()
         );
         
         if (success) {
             // 更新角色
-            if (!"admin".equals(createRequest.getRole())) {
+            if (!"admin".equals(createRequest.role())) {
                 try (Connection conn = Main.getDatabaseManager().getConnection()) {
                     String sql = "UPDATE admins SET role = ? WHERE username = ?";
                     try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                        stmt.setString(1, createRequest.getRole());
-                        stmt.setString(2, createRequest.getUsername());
+                        stmt.setString(1, createRequest.role());
+                        stmt.setString(2, createRequest.username());
                         stmt.executeUpdate();
                     }
                 } catch (Exception e) {
@@ -112,7 +106,7 @@ public class AdminCreateHandler extends HttpServlet {
                 }
             }
             
-            logger.info("成功创建管理员账号: {}, 角色: {}", createRequest.getUsername(), createRequest.getRole());
+            logger.info("成功创建管理员账号: {}, 角色: {}", createRequest.username(), createRequest.role());
             response.setStatus(HttpStatus.OK_200);
             sendSuccessResponse(response, "管理员账号创建成功");
         } else {
@@ -121,44 +115,11 @@ public class AdminCreateHandler extends HttpServlet {
         }
     }
     
-    private void sendSuccessResponse(HttpServletResponse response, String message) throws IOException {
-        Map<String, Object> result = new HashMap<>();
-        result.put("success", true);
-        result.put("message", message);
-        response.getWriter().println(Main.getObjectMapper().writeValueAsString(result));
-    }
     
-    private void sendErrorResponse(HttpServletResponse response, String message) throws IOException {
-        Map<String, Object> result = new HashMap<>();
-        result.put("success", false);
-        result.put("message", message);
-        response.getWriter().println(Main.getObjectMapper().writeValueAsString(result));
-    }
     
-    private boolean isAdminAuthorized(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return false;
-        }
-        
-        String token = authHeader.substring(7);
-        return Main.getAdminAuthService().validateAdminToken(token);
-    }
     
     // 内部类：创建管理员请求
-    private static class CreateAdminRequest {
-        private String username;
-        private String email;
-        private String password;
-        private String role;
-        
-        public String getUsername() { return username; }
-        public void setUsername(String username) { this.username = username; }
-        public String getEmail() { return email; }
-        public void setEmail(String email) { this.email = email; }
-        public String getPassword() { return password; }
-        public void setPassword(String password) { this.password = password; }
-        public String getRole() { return role; }
-        public void setRole(String role) { this.role = role; }
+    // 创建管理员请求（Jackson 反序列化，只读）
+    private record CreateAdminRequest(String username, String email, String password, String role) {
     }
 }

@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Properties;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -42,6 +41,13 @@ public class EmailService {
     /** 超过此长度时正文不内嵌歌词，改为 UTF-8 附件（不截断） */
     private static final int NETEASE_LYRICS_INLINE_MAX_CHARS = 48_000;
 
+    /** 邮件正文中「审核时间 / 生成时间 / 通知时间」统一格式。 */
+    private static final DateTimeFormatter TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    private static String nowTimestamp() {
+        return LocalDateTime.now().format(TIMESTAMP_FORMAT);
+    }
+
     private static final ExecutorService ASYNC_MAIL_EXECUTOR = Executors.newSingleThreadExecutor(new ThreadFactory() {
         private final AtomicInteger n = new AtomicInteger();
 
@@ -55,74 +61,33 @@ public class EmailService {
 
     public EmailService(ConfigManager configManager) {
         this.configManager = configManager;
-        this.emailTemplate = loadEmailTemplate();
-        this.reviewTemplate = loadReviewTemplate();
-        this.reviewApprovedTemplate = loadReviewApprovedTemplate();
-        this.videoRenderCompleteTemplate = loadVideoRenderCompleteTemplate();
-        this.neteaseLyricsValidationFailedTemplate = loadNeteaseLyricsValidationFailedTemplate();
+        this.emailTemplate = loadTemplate("email.html",
+                "无法加载邮件模板 email.html", "加载邮件模板失败", getDefaultEmailTemplate());
+        this.reviewTemplate = loadTemplate("Review.html",
+                "无法加载审核邮件模板 Review.html", "加载审核邮件模板失败", getDefaultReviewTemplate());
+        this.reviewApprovedTemplate = loadTemplate("ReviewApproved.html",
+                "无法加载审核通过邮件模板 ReviewApproved.html", "加载审核通过邮件模板失败",
+                getDefaultReviewApprovedTemplate());
+        this.videoRenderCompleteTemplate = loadTemplate("VideoRenderComplete.html",
+                "无法加载邮件模板 VideoRenderComplete.html", "加载视频渲染完成邮件模板失败",
+                getDefaultVideoRenderCompleteTemplate());
+        this.neteaseLyricsValidationFailedTemplate = loadTemplate("NeteaseLyricsValidationFailed.html",
+                "无法加载邮件模板 NeteaseLyricsValidationFailed.html", "加载网易云歌词校验失败邮件模板失败",
+                getDefaultNeteaseLyricsValidationFailedTemplate());
     }
 
-    /**
-     * 加载邮件模板
-     */
-    private String loadEmailTemplate() {
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream("email.html")) {
+    /** 从 classpath 读取 UTF-8 模板；缺失或读取失败时记录日志并回退到内置默认模板。 */
+    private String loadTemplate(String resource, String missingLogMessage,
+                                String failureLogMessage, String defaultTemplate) {
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream(resource)) {
             if (is == null) {
-                logger.error("无法加载邮件模板 email.html");
-                return getDefaultEmailTemplate();
+                logger.error(missingLogMessage);
+                return defaultTemplate;
             }
-            return new String(is.readAllBytes(), "UTF-8");
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
-            logger.error("加载邮件模板失败", e);
-            return getDefaultEmailTemplate();
-        }
-    }
-
-    /**
-     * 加载审核邮件模板
-     */
-    private String loadReviewTemplate() {
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream("Review.html")) {
-            if (is == null) {
-                logger.error("无法加载审核邮件模板 Review.html");
-                return getDefaultReviewTemplate();
-            }
-            return new String(is.readAllBytes(), "UTF-8");
-        } catch (IOException e) {
-            logger.error("加载审核邮件模板失败", e);
-            return getDefaultReviewTemplate();
-        }
-    }
-
-    /**
-     * 加载视频渲染完成邮件模板
-     */
-    private String loadVideoRenderCompleteTemplate() {
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream("VideoRenderComplete.html")) {
-            if (is == null) {
-                logger.error("无法加载邮件模板 VideoRenderComplete.html");
-                return getDefaultVideoRenderCompleteTemplate();
-            }
-            return new String(is.readAllBytes(), "UTF-8");
-        } catch (IOException e) {
-            logger.error("加载视频渲染完成邮件模板失败", e);
-            return getDefaultVideoRenderCompleteTemplate();
-        }
-    }
-
-    /**
-     * 加载审核通过邮件模板
-     */
-    private String loadReviewApprovedTemplate() {
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream("ReviewApproved.html")) {
-            if (is == null) {
-                logger.error("无法加载审核通过邮件模板 ReviewApproved.html");
-                return getDefaultReviewApprovedTemplate();
-            }
-            return new String(is.readAllBytes(), "UTF-8");
-        } catch (IOException e) {
-            logger.error("加载审核通过邮件模板失败", e);
-            return getDefaultReviewApprovedTemplate();
+            logger.error(failureLogMessage, e);
+            return defaultTemplate;
         }
     }
 
@@ -193,10 +158,7 @@ public class EmailService {
      */
     public boolean sendVideoRenderCompleteEmail(String toEmail, String musicName, String artistName,
                                                 double durationSec, String downloadUrl, boolean watermarked) {
-        java.time.LocalDateTime now = java.time.LocalDateTime.now();
-        java.time.format.DateTimeFormatter formatter =
-                java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-        String completedAt = now.format(formatter);
+        String completedAt = nowTimestamp();
         String durationText = String.format(java.util.Locale.ROOT, "%.0f", durationSec);
 
         String content = videoRenderCompleteTemplate
@@ -223,19 +185,6 @@ public class EmailService {
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;");
-    }
-
-    private String loadNeteaseLyricsValidationFailedTemplate() {
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream("NeteaseLyricsValidationFailed.html")) {
-            if (is == null) {
-                logger.error("无法加载邮件模板 NeteaseLyricsValidationFailed.html");
-                return getDefaultNeteaseLyricsValidationFailedTemplate();
-            }
-            return new String(is.readAllBytes(), "UTF-8");
-        } catch (IOException e) {
-            logger.error("加载网易云歌词校验失败邮件模板失败", e);
-            return getDefaultNeteaseLyricsValidationFailedTemplate();
-        }
     }
 
     private String getDefaultNeteaseLyricsValidationFailedTemplate() {
@@ -299,7 +248,7 @@ public class EmailService {
                     + "</strong> 备份，未截断）</p>";
         }
 
-        String notifiedAt = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        String notifiedAt = nowTimestamp();
         String content = neteaseLyricsValidationFailedTemplate
                 .replace("{{musicId}}", escapeHtml(String.valueOf(ingestedMusicId)))
                 .replace("{{songId}}", escapeHtml(String.valueOf(neteaseSongId)))
@@ -341,25 +290,7 @@ public class EmailService {
             return false;
         }
         try {
-            Properties props = new Properties();
-            props.put("mail.smtp.host", configManager.getSmtpHost());
-            props.put("mail.smtp.port", String.valueOf(configManager.getSmtpPort()));
-            props.put("mail.smtp.auth", "true");
-            if (configManager.isSmtpSsl()) {
-                props.put("mail.smtp.ssl.enable", "true");
-            } else if (configManager.isSmtpTls()) {
-                props.put("mail.smtp.starttls.enable", "true");
-            }
-
-            Session session = Session.getInstance(props, new Authenticator() {
-                @Override
-                protected PasswordAuthentication getPasswordAuthentication() {
-                    return new PasswordAuthentication(
-                            configManager.getSmtpUsername(),
-                            configManager.getSmtpPassword()
-                    );
-                }
-            });
+            Session session = createSession();
 
             String from = configManager.getSmtpUsername();
             MimeMessage message = new MimeMessage(session);
@@ -408,9 +339,7 @@ public class EmailService {
         // 使用缓存的模板
         
         // 格式化日期
-        java.time.LocalDateTime now = java.time.LocalDateTime.now();
-        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-        String auditDate = now.format(formatter);
+        String auditDate = nowTimestamp();
         
         // 替换模板变量
         String content = reviewTemplate
@@ -437,9 +366,7 @@ public class EmailService {
         // 使用缓存的模板
         
         // 格式化日期
-        java.time.LocalDateTime now = java.time.LocalDateTime.now();
-        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-        String auditDate = now.format(formatter);
+        String auditDate = nowTimestamp();
         
         // 替换模板变量
         String content = reviewApprovedTemplate
@@ -451,32 +378,34 @@ public class EmailService {
         return sendEmail(toEmail, subject, content);
     }
 
+    /** 按当前 SMTP 配置构造会话（SSL/TLS 与认证方式与原各发送方法内联写法一致）。 */
+    private Session createSession() {
+        Properties props = new Properties();
+        props.put("mail.smtp.host", configManager.getSmtpHost());
+        props.put("mail.smtp.port", String.valueOf(configManager.getSmtpPort()));
+        props.put("mail.smtp.auth", "true");
+        if (configManager.isSmtpSsl()) {
+            props.put("mail.smtp.ssl.enable", "true");
+        } else if (configManager.isSmtpTls()) {
+            props.put("mail.smtp.starttls.enable", "true");
+        }
+        return Session.getInstance(props, new Authenticator() {
+            @Override
+            protected PasswordAuthentication getPasswordAuthentication() {
+                return new PasswordAuthentication(
+                        configManager.getSmtpUsername(),
+                        configManager.getSmtpPassword()
+                );
+            }
+        });
+    }
+
     /**
      * 发送邮件
      */
     private boolean sendEmail(String to, String subject, String content) {
         try {
-            Properties props = new Properties();
-            props.put("mail.smtp.host", configManager.getSmtpHost());
-            props.put("mail.smtp.port", String.valueOf(configManager.getSmtpPort()));
-            props.put("mail.smtp.auth", "true");
-
-            // 根据配置设置SSL或TLS
-            if (configManager.isSmtpSsl()) {
-                props.put("mail.smtp.ssl.enable", "true");
-            } else if (configManager.isSmtpTls()) {
-                props.put("mail.smtp.starttls.enable", "true");
-            }
-
-            Session session = Session.getInstance(props, new Authenticator() {
-                @Override
-                protected PasswordAuthentication getPasswordAuthentication() {
-                    return new PasswordAuthentication(
-                        configManager.getSmtpUsername(),
-                        configManager.getSmtpPassword()
-                    );
-                }
-            });
+            Session session = createSession();
 
             Message message = new MimeMessage(session);
             message.setFrom(new InternetAddress(configManager.getSmtpUsername()));

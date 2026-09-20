@@ -199,72 +199,54 @@ public class ExternalImportService {
                              Listener listener) throws IOException {
         QQMusicClient.QqPlaylist playlist = qqMusicClient.fetchPlaylist(disstid);
         List<QQMusicClient.QqTrack> qqTracks = playlist.tracks();
-        if (qqTracks.isEmpty()) {
-            listener.onError("QQ 歌单为空或不可访问");
-            return;
-        }
-
-        final int total = qqTracks.size();
-        List<Track> tracks = new ArrayList<>(total);
+        List<Track> tracks = new ArrayList<>(qqTracks.size());
         for (QQMusicClient.QqTrack qqTrack : qqTracks) {
             tracks.add(new Track(qqTrack.mid(), qqTrack.title(), qqTrack.artist()));
         }
-        listener.onStart(SOURCE_QQ, total, targetPlaylistId, targetPlaylistCreated);
-        executeTracks(SOURCE_QQ, tracks, listener, (index, track, trackListener) -> {
-            trackListener.onTrackStarted(result(SOURCE_QQ, index, total, track,
-                    "matching", null, false, null));
-
-            Optional<AdminMusicIngestService.IngestedMusic> matched = matchLocal(track.title(), track.artist());
-            if (matched.isPresent()) {
-                boolean added = addToPlaylist(targetPlaylistId, matched.get().id());
-                return result(SOURCE_QQ, index, total, track,
-                        STATUS_EXISTED, matched.get().id(), added, null);
-            }
-
-            NeteaseSearchFillService.FillAttempt attempt = fillService.tryFillFromNetease(track.title(), track.artist());
-            if (attempt.music().isPresent()) {
-                boolean added = addToPlaylist(targetPlaylistId, attempt.music().get().id());
-                return result(SOURCE_QQ, index, total, track,
-                        STATUS_IMPORTED, attempt.music().get().id(), added, null);
-            }
-            return result(SOURCE_QQ, index, total, track,
-                    STATUS_FAILED, null, false, fillReasonMessage(attempt.reason()));
-        });
+        runMatchedImport(SOURCE_QQ, "QQ 歌单为空或不可访问", tracks,
+                targetPlaylistId, targetPlaylistCreated, listener);
     }
 
     private void runKugouImport(String listId, int targetPlaylistId, boolean targetPlaylistCreated,
                                 Listener listener) throws IOException {
         KugouMusicClient.KugouPlaylist playlist = kugouMusicClient.fetchPlaylist(listId);
         List<KugouMusicClient.KugouTrack> kugouTracks = playlist.tracks();
-        if (kugouTracks.isEmpty()) {
-            listener.onError("酷狗歌单为空或不可访问");
-            return;
-        }
-
-        final int total = kugouTracks.size();
-        List<Track> tracks = new ArrayList<>(total);
+        List<Track> tracks = new ArrayList<>(kugouTracks.size());
         for (KugouMusicClient.KugouTrack kugouTrack : kugouTracks) {
             tracks.add(new Track(kugouTrack.hash(), kugouTrack.title(), kugouTrack.artist()));
         }
-        listener.onStart(SOURCE_KUGOU, total, targetPlaylistId, targetPlaylistCreated);
-        executeTracks(SOURCE_KUGOU, tracks, listener, (index, track, trackListener) -> {
-            trackListener.onTrackStarted(result(SOURCE_KUGOU, index, total, track,
+        runMatchedImport(SOURCE_KUGOU, "酷狗歌单为空或不可访问", tracks,
+                targetPlaylistId, targetPlaylistCreated, listener);
+    }
+
+    /** QQ / 酷狗等只提供元数据的歌单：先在站内曲库匹配，未命中再尝试网易云补全。 */
+    private void runMatchedImport(String source, String emptyMessage, List<Track> tracks,
+                                  int targetPlaylistId, boolean targetPlaylistCreated, Listener listener) {
+        if (tracks.isEmpty()) {
+            listener.onError(emptyMessage);
+            return;
+        }
+
+        final int total = tracks.size();
+        listener.onStart(source, total, targetPlaylistId, targetPlaylistCreated);
+        executeTracks(source, tracks, listener, (index, track, trackListener) -> {
+            trackListener.onTrackStarted(result(source, index, total, track,
                     "matching", null, false, null));
 
             Optional<AdminMusicIngestService.IngestedMusic> matched = matchLocal(track.title(), track.artist());
             if (matched.isPresent()) {
                 boolean added = addToPlaylist(targetPlaylistId, matched.get().id());
-                return result(SOURCE_KUGOU, index, total, track,
+                return result(source, index, total, track,
                         STATUS_EXISTED, matched.get().id(), added, null);
             }
 
             NeteaseSearchFillService.FillAttempt attempt = fillService.tryFillFromNetease(track.title(), track.artist());
             if (attempt.music().isPresent()) {
                 boolean added = addToPlaylist(targetPlaylistId, attempt.music().get().id());
-                return result(SOURCE_KUGOU, index, total, track,
+                return result(source, index, total, track,
                         STATUS_IMPORTED, attempt.music().get().id(), added, null);
             }
-            return result(SOURCE_KUGOU, index, total, track,
+            return result(source, index, total, track,
                     STATUS_FAILED, null, false, fillReasonMessage(attempt.reason()));
         });
     }

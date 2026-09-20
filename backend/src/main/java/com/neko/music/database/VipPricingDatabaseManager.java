@@ -102,9 +102,9 @@ public class VipPricingDatabaseManager {
                 try (PreparedStatement ps = conn.prepareStatement(ins)) {
                     int order = 0;
                     for (VipPriceItem it : items) {
-                        ps.setInt(1, it.getMonths());
-                        ps.setInt(2, it.getDays());
-                        ps.setBigDecimal(3, java.math.BigDecimal.valueOf(it.getPriceYuan()));
+                        ps.setInt(1, it.months());
+                        ps.setInt(2, it.days());
+                        ps.setBigDecimal(3, java.math.BigDecimal.valueOf(it.priceYuan()));
                         ps.setInt(4, order++);
                         ps.executeUpdate();
                     }
@@ -121,18 +121,16 @@ public class VipPricingDatabaseManager {
     }
 
     private VipPriceItem mapRow(ResultSet rs) throws SQLException {
-        VipPriceItem it = new VipPriceItem();
-        it.setId(rs.getInt("id"));
-        it.setMonths(rs.getInt("months"));
-        it.setDays(rs.getInt("days"));
-        it.setPriceYuan(rs.getBigDecimal("price_yuan").doubleValue());
-        it.setSortOrder(rs.getInt("sort_order"));
         Timestamp ts = rs.getTimestamp("updated_at");
-        if (ts != null) {
-            it.setUpdatedAt(ts.toInstant().atZone(ZoneId.of("Asia/Shanghai")).format(TS_FMT));
-        } else {
-            it.setUpdatedAt("");
-        }
-        return it;
+        String updatedAt = ts != null
+                ? ts.toInstant().atZone(ZoneId.of("Asia/Shanghai")).format(TS_FMT)
+                : "";
+        return new VipPriceItem(
+                rs.getInt("id"),
+                rs.getInt("months"),
+                rs.getInt("days"),
+                rs.getBigDecimal("price_yuan").doubleValue(),
+                rs.getInt("sort_order"),
+                updatedAt);
     }
 }

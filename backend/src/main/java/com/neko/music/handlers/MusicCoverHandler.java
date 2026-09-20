@@ -1,10 +1,12 @@
 package com.neko.music.handlers;
 
-import com.neko.music.Main;
+import com.neko.music.util.ClientAborts;
+
+import com.neko.music.util.MusicLookup;
+
 import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.MusicAssetLocator;
 import org.eclipse.jetty.http.HttpStatus;
-import org.eclipse.jetty.io.EofException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,9 +15,6 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.*;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
@@ -45,7 +44,7 @@ public class MusicCoverHandler extends HttpServlet {
             return;
         }
 
-        if (!musicRowExists(musicId)) {
+        if (!MusicLookup.musicRowExists(musicId)) {
             sendDefaultIcon(request, response);
             return;
         }
@@ -62,18 +61,6 @@ public class MusicCoverHandler extends HttpServlet {
         sendDefaultIcon(request, response);
     }
 
-    private boolean musicRowExists(int musicId) {
-        try (Connection conn = Main.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement("SELECT 1 FROM music WHERE id = ? LIMIT 1")) {
-            stmt.setInt(1, musicId);
-            try (ResultSet rs = stmt.executeQuery()) {
-                return rs.next();
-            }
-        } catch (Exception e) {
-            logger.error("校验音乐记录时出错，音乐ID: {}", musicId, e);
-            return false;
-        }
-    }
     
     private void sendImageFile(HttpServletRequest request, Path imagePath, HttpServletResponse response) throws IOException {
         String etag = HttpResourceCache.strongEtagForFile(imagePath);
@@ -90,7 +77,7 @@ public class MusicCoverHandler extends HttpServlet {
              OutputStream outputStream = response.getOutputStream()) {
             copyStream(inputStream, outputStream);
         } catch (IOException e) {
-            if (isClientAbort(e)) {
+            if (ClientAborts.isClientAbort(e)) {
                 logger.debug("客户端在封面发送完成前断开连接: {}", imagePath);
                 return;
             }
@@ -119,7 +106,7 @@ public class MusicCoverHandler extends HttpServlet {
              OutputStream outputStream = response.getOutputStream()) {
             copyStream(inputStream, outputStream);
         } catch (IOException e) {
-            if (isClientAbort(e)) {
+            if (ClientAborts.isClientAbort(e)) {
                 logger.debug("客户端在默认封面发送完成前断开连接");
                 return;
             }
@@ -138,20 +125,6 @@ public class MusicCoverHandler extends HttpServlet {
         outputStream.flush();
     }
 
-    private boolean isClientAbort(Throwable throwable) {
-        Throwable current = throwable;
-        while (current != null) {
-            if (current instanceof EofException) {
-                return true;
-            }
-            String message = current.getMessage();
-            if (message != null && message.toLowerCase().contains("broken pipe")) {
-                return true;
-            }
-            current = current.getCause();
-        }
-        return false;
-    }
     
     private String getMimeType(String filePath) {
         String extension = getFileExtension(filePath).toLowerCase();

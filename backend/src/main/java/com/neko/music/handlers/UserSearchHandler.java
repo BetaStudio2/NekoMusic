@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.model.ErrorResponse;
 import com.neko.music.Main;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -9,7 +10,6 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -66,13 +66,11 @@ public class UserSearchHandler extends HttpServlet {
                 ResultSet rs = stmt.executeQuery();
                 
                 while (rs.next()) {
-                    User user = new User();
-                    user.setId(rs.getInt("id"));
-                    user.setUsername(rs.getString("username"));
-                    user.setEmail(rs.getString("email"));
-                    user.setCreatedAt(rs.getTimestamp("created_at").toString());
-                    
-                    results.add(user);
+                    results.add(new User(
+                            rs.getInt("id"),
+                            rs.getString("username"),
+                            rs.getString("email"),
+                            rs.getTimestamp("created_at").toString()));
                 }
             }
         } catch (Exception e) {
@@ -83,52 +81,12 @@ public class UserSearchHandler extends HttpServlet {
     }
     
     // 内部类用于表示用户对象
-    private static class User {
-        private int id;
-        private String username;
-        private String email;
-        private String createdAt;
-        
-        // Getters and Setters
-        public int getId() { return id; }
-        public void setId(int id) { this.id = id; }
-        public String getUsername() { return username; }
-        public void setUsername(String username) { this.username = username; }
-        public String getEmail() { return email; }
-        public void setEmail(String email) { this.email = email; }
-        public String getCreatedAt() { return createdAt; }
-        public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+    private record User(int id, String username, String email, String createdAt) {
     }
     
     // 内部类用于表示搜索响应
-    private static class UserSearchResponse {
-        private boolean success;
-        private String message;
-        private List<User> users;
-        
-        public UserSearchResponse(boolean success, String message, List<User> users) {
-            this.success = success;
-            this.message = message;
-            this.users = users;
-        }
-        
-        public boolean isSuccess() { return success; }
-        public void setSuccess(boolean success) { this.success = success; }
-        public String getMessage() { return message; }
-        public void setMessage(String message) { this.message = message; }
-        public List<User> getUsers() { return users; }
-        public void setUsers(List<User> users) { this.users = users; }
+    private record UserSearchResponse(boolean success, String message, List<User> users) {
     }
     
     // 内部类用于表示错误响应
-    private static class ErrorResponse {
-        private String error;
-        
-        public ErrorResponse(String error) {
-            this.error = error;
-        }
-        
-        public String getError() { return error; }
-        public void setError(String error) { this.error = error; }
-    }
 }

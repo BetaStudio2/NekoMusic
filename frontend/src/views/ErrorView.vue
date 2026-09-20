@@ -1,206 +1,135 @@
-<template>
-  <div class="glass-page">
-    <div class="ambient" aria-hidden="true">
-      <div class="ambient__blob ambient__blob--a" />
-      <div class="ambient__blob ambient__blob--b" />
-      <div class="ambient__blob ambient__blob--c" />
-      <div class="ambient__grid" />
-    </div>
-    <main class="shell shell--center">
-      <section class="panel err-card">
-        <div class="err-code" aria-hidden="true">404</div>
-        <h1 class="err-title">页面未找到</h1>
-        <p class="err-desc">抱歉，您访问的页面不存在或已被移除。</p>
-        <div class="err-actions">
-          <router-link to="/" class="btn btn-primary">返回首页</router-link>
-          <button type="button" class="btn btn-ghost" @click="goBack">返回上一页</button>
-        </div>
-        <div class="err-notes" aria-hidden="true">
-          <span class="n">♪</span>
-          <span class="n n2">♫</span>
-          <span class="n n3">♪</span>
-        </div>
-      </section>
-    </main>
-  </div>
-</template>
-
 <script setup>
+/**
+ * ErrorView —— 404 页面
+ * ------------------------------------------------------------
+ * 黑偏青 + 圆角矩形；无高亮条。
+ */
 import { useRouter } from 'vue-router'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NCard } from '@/ui'
+import { PageShell, AmbientBackdrop } from '@/layouts'
 
 const router = useRouter()
 
-const goBack = () => {
-  if (window.history.length > 1) {
-    router.back()
-  } else {
-    router.push('/')
-  }
+function goBack() {
+  if (window.history.length > 1) router.back()
+  else router.push('/')
 }
 </script>
 
-<style scoped>
-.shell--center {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: min(70vh, 720px);
-}
+<template>
+  <AmbientBackdrop />
 
-.err-card {
+  <PageShell width="narrow" centered>
+    <NCard pad="lg" class="err">
+      <p class="err__code" aria-hidden="true">404</p>
+      <h1 class="err__title">页面未找到</h1>
+      <p class="err__desc">抱歉，您访问的页面不存在或已被移除。</p>
+
+      <div class="err__actions">
+        <NButton variant="primary" icon="home" to="/">返回首页</NButton>
+        <NButton variant="secondary" icon="arrow-left" @click="goBack">返回上一页</NButton>
+      </div>
+
+      <div class="err__notes" aria-hidden="true">
+        <NIcon name="music" :size="20" class="err__note err__note--a" />
+        <NIcon name="music-2" :size="16" class="err__note err__note--b" />
+        <NIcon name="audio-lines" :size="18" class="err__note err__note--c" />
+      </div>
+    </NCard>
+  </PageShell>
+</template>
+
+<style scoped>
+.err {
   width: min(520px, 100%);
   text-align: center;
   padding: clamp(36px, 5vw, 52px) clamp(22px, 4vw, 36px);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(105, 200, 223, 0.14), rgba(255, 255, 255, 0.05));
-  box-shadow: var(--shadow);
-  animation: err-in 0.5s var(--ease) both;
 }
 
-@keyframes err-in {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.err-code {
+.err__code {
+  margin: 0 0 var(--n-space-3);
   font-size: clamp(4rem, 14vw, 6.5rem);
-  font-weight: 800;
+  font-weight: var(--n-weight-bold);
   line-height: 1;
-  margin-bottom: 12px;
-  background: linear-gradient(120deg, #fbcfe8, #9beaff, #c8f7ff);
+  background: var(--n-gradient-text);
   -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.err-title {
-  margin: 0 0 10px;
+.err__title {
+  margin: 0 0 var(--n-space-2);
   font-size: clamp(1.25rem, 3vw, 1.6rem);
-  font-weight: 800;
-  color: var(--text);
+  font-weight: var(--n-weight-bold);
 }
 
-.err-desc {
-  margin: 0 0 28px;
-  font-size: 0.95rem;
-  color: var(--muted);
-  line-height: 1.55;
+.err__desc {
+  margin: 0 0 var(--n-space-8);
+  color: var(--n-text-muted);
+  line-height: var(--n-leading-normal);
 }
 
-.err-actions {
+.err__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--n-space-3);
   justify-content: center;
 }
 
-.btn {
-  font-family: inherit;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 11px 22px;
-  border-radius: 999px;
-  font-size: 0.88rem;
-  font-weight: 700;
-  cursor: pointer;
-  text-decoration: none;
-  border: none;
-  transition: filter 0.15s var(--ease), background 0.15s var(--ease);
-}
-
-.btn-primary {
-  color: #0c0a14;
-  background: linear-gradient(135deg, #9beaff, var(--accent2));
-  box-shadow: 0 8px 24px rgba(105, 200, 223, 0.3);
-}
-
-.btn-primary:hover {
-  filter: brightness(1.05);
-}
-
-.btn-ghost {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-}
-
-.btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.err-notes {
+.err__notes {
   position: relative;
-  height: 48px;
-  margin-top: 28px;
-  opacity: 0.45;
+  height: 40px;
+  margin-top: var(--n-space-8);
+  color: var(--n-accent);
+  opacity: 0.4;
 }
 
-.err-notes .n {
+.err__note {
   position: absolute;
-  font-size: 1.5rem;
-  animation: float 3s ease-in-out infinite;
+  animation: err-float 3s var(--n-ease-in-out) infinite;
 }
 
-.err-notes .n {
-  left: 18%;
-  color: #fbcfe8;
+.err__note--a {
+  left: 20%;
+  top: 4px;
 }
-
-.err-notes .n2 {
-  left: auto;
-  right: 18%;
-  top: 6px;
-  color: #9beaff;
+.err__note--b {
+  right: 20%;
+  top: 10px;
   animation-delay: 0.8s;
 }
-
-.err-notes .n3 {
+.err__note--c {
   left: 50%;
+  top: 0;
   transform: translateX(-50%);
-  top: 2px;
-  color: #c8f7ff;
   animation-delay: 1.6s;
 }
 
-@keyframes float {
+@keyframes err-float {
   0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
+  100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
 }
 
-.err-notes .n3 {
-  animation-name: float-mid;
+.err__note--c {
+  animation-name: err-float-mid;
 }
 
-@keyframes float-mid {
+@keyframes err-float-mid {
   0%,
-  100% {
-    transform: translateX(-50%) translateY(0);
-  }
-  50% {
-    transform: translateX(-50%) translateY(-8px);
-  }
+  100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-8px); }
 }
 
-@media (max-width: 520px) {
-  .err-actions {
-    flex-direction: column;
-  }
+@media (prefers-reduced-motion: reduce) {
+  .err__note { animation: none; }
+}
 
-  .btn {
+@media (max-width: 560px) {
+  .err__actions :deep(.n-btn) {
     width: 100%;
+    justify-content: center;
   }
 }
 </style>

@@ -1,120 +1,24 @@
-<template>
-  <div class="glass-page">
-    <div class="ambient" aria-hidden="true">
-      <div class="ambient__blob ambient__blob--a" />
-      <div class="ambient__blob ambient__blob--b" />
-      <div class="ambient__blob ambient__blob--c" />
-      <div class="ambient__grid" />
-    </div>
-    <main class="shell auth-main">
-      <div class="panel forgot-card">
-        <h2 class="forgot-title">忘记密码</h2>
-
-        <div class="steps-indicator">
-          <div :class="['step', { active: step === 1 }, { completed: step > 1 }]">
-            <span class="step-number">1</span>
-            <span class="step-label">验证邮箱</span>
-          </div>
-          <div class="step-divider" />
-          <div :class="['step', { active: step === 2 }, { completed: step > 2 }]">
-            <span class="step-number">2</span>
-            <span class="step-label">重置密码</span>
-          </div>
-        </div>
-
-        <div v-if="step === 1" class="step-content">
-          <form class="forgot-form" @submit.prevent="handleSendCode">
-            <div class="form-group">
-              <input
-                v-model="email"
-                type="email"
-                class="form-input"
-                placeholder="请输入注册邮箱"
-                required
-              />
-            </div>
-            <button type="submit" class="submit-btn" :disabled="loading">
-              <span v-if="loading">发送中…</span>
-              <span v-else>发送验证码</span>
-            </button>
-          </form>
-          <div class="back-link">
-            <a href="#" @click.prevent="goToLogin">返回登录</a>
-          </div>
-        </div>
-
-        <div v-if="step === 2" class="step-content">
-          <form class="forgot-form" @submit.prevent="handleResetPassword">
-            <div class="form-group">
-              <input v-model="email" type="email" class="form-input" placeholder="注册邮箱" disabled />
-            </div>
-            <div class="form-group">
-              <div class="code-input-group">
-                <input
-                  v-model="verificationCode"
-                  type="text"
-                  class="form-input code-input"
-                  placeholder="请输入验证码"
-                  required
-                  maxlength="6"
-                />
-                <button
-                  type="button"
-                  class="resend-btn"
-                  :disabled="countdown > 0 || resendLoading"
-                  @click="handleResendCode"
-                >
-                  <span v-if="countdown > 0">{{ countdown }}秒后重发</span>
-                  <span v-else-if="resendLoading">发送中…</span>
-                  <span v-else>重新发送</span>
-                </button>
-              </div>
-            </div>
-            <div class="form-group">
-              <input
-                v-model="newPassword"
-                type="password"
-                class="form-input"
-                placeholder="请输入新密码（6-30位）"
-                required
-                minlength="6"
-                maxlength="30"
-              />
-            </div>
-            <div class="form-group">
-              <input
-                v-model="confirmPassword"
-                type="password"
-                class="form-input"
-                placeholder="请确认新密码"
-                required
-                minlength="6"
-                maxlength="30"
-              />
-            </div>
-            <button type="submit" class="submit-btn" :disabled="loading">
-              <span v-if="loading">重置中…</span>
-              <span v-else>重置密码</span>
-            </button>
-          </form>
-          <div class="back-link">
-            <a href="#" @click.prevent="goToLogin">返回登录</a>
-          </div>
-        </div>
-      </div>
-    </main>
-  </div>
-</template>
-
 <script setup>
+/**
+ * ForgotPasswordView —— 两步式找回密码
+ * ------------------------------------------------------------
+ * 契约（保持与旧实现一致）：
+ *  - POST /api/user/send-reset-code（发送/重发）
+ *  - POST /api/user/reset-password
+ *  - 成功后 1.5s 跳转登录
+ */
 import { ref, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
-import { useToast } from 'vue-toastification'
-import API_CONFIG from "@/config/apiConfig.js";
+import API_CONFIG from '@/config/apiConfig.js'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NCard, NInput } from '@/ui'
+import { PageShell, AmbientBackdrop } from '@/layouts'
+import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
 const router = useRouter()
+
 const step = ref(1)
 const email = ref('')
 const verificationCode = ref('')
@@ -125,14 +29,28 @@ const resendLoading = ref(false)
 const countdown = ref(0)
 let countdownTimer = null
 
-// 发送验证码
-const handleSendCode = async () => {
+function startCountdown() {
+  countdown.value = 60
+  if (countdownTimer) clearInterval(countdownTimer)
+  countdownTimer = setInterval(() => {
+    countdown.value--
+    if (countdown.value <= 0) clearInterval(countdownTimer)
+  }, 1000)
+}
+
+function stopCountdown() {
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+    countdownTimer = null
+  }
+}
+
+async function handleSendCode() {
   loading.value = true
   try {
     const response = await axios.post(`${API_CONFIG.BASE_URL}/api/user/send-reset-code`, {
-      email: email.value
+      email: email.value,
     })
-    
     if (response.data.success) {
       toast.success(response.data.message || '验证码已发送')
       step.value = 2
@@ -142,24 +60,18 @@ const handleSendCode = async () => {
     }
   } catch (error) {
     console.error('发送验证码失败:', error)
-    if (error.response) {
-      toast.error(error.response.data.message || '发送失败')
-    } else {
-      toast.error('网络错误，请检查服务器连接')
-    }
+    toast.error(error.response?.data?.message || (error.response ? '发送失败' : '网络错误，请检查服务器连接'))
   } finally {
     loading.value = false
   }
 }
 
-// 重新发送验证码
-const handleResendCode = async () => {
+async function handleResendCode() {
   resendLoading.value = true
   try {
     const response = await axios.post(`${API_CONFIG.BASE_URL}/api/user/send-reset-code`, {
-      email: email.value
+      email: email.value,
     })
-    
     if (response.data.success) {
       toast.success(response.data.message || '验证码已重新发送')
       startCountdown()
@@ -168,302 +80,259 @@ const handleResendCode = async () => {
     }
   } catch (error) {
     console.error('重新发送验证码失败:', error)
-    if (error.response) {
-      toast.error(error.response.data.message || '发送失败')
-    } else {
-      toast.error('网络错误，请检查服务器连接')
-    }
+    toast.error(error.response?.data?.message || (error.response ? '发送失败' : '网络错误，请检查服务器连接'))
   } finally {
     resendLoading.value = false
   }
 }
 
-// 开始倒计时
-const startCountdown = () => {
-  countdown.value = 60
-  if (countdownTimer) {
-    clearInterval(countdownTimer)
-  }
-  countdownTimer = setInterval(() => {
-    countdown.value--
-    if (countdown.value <= 0) {
-      clearInterval(countdownTimer)
-    }
-  }, 1000)
-}
-
-// 重置密码
-const handleResetPassword = async () => {
-  // 验证密码是否一致
+async function handleResetPassword() {
   if (newPassword.value !== confirmPassword.value) {
     toast.error('两次输入的密码不一致')
     return
   }
-  
-  // 验证密码长度
   if (newPassword.value.length < 6 || newPassword.value.length > 30) {
     toast.error('密码长度必须在6-30位之间')
     return
   }
-  
+
   loading.value = true
   try {
     const response = await axios.post(`${API_CONFIG.BASE_URL}/api/user/reset-password`, {
       email: email.value,
       code: verificationCode.value,
-      newPassword: newPassword.value
+      newPassword: newPassword.value,
     })
-    
     if (response.data.success) {
       toast.success(response.data.message || '密码重置成功')
-      // 清除倒计时
-      if (countdownTimer) {
-        clearInterval(countdownTimer)
-        countdown.value = 0
-      }
-      // 跳转到登录页面
-      setTimeout(() => {
-        router.push('/login')
-      }, 1500)
+      stopCountdown()
+      countdown.value = 0
+      setTimeout(() => router.push('/login'), 1500)
     } else {
       toast.error(response.data.message || '重置失败')
     }
   } catch (error) {
     console.error('重置密码失败:', error)
-    if (error.response) {
-      toast.error(error.response.data.message || '重置失败')
-    } else {
-      toast.error('网络错误，请检查服务器连接')
-    }
+    toast.error(error.response?.data?.message || (error.response ? '重置失败' : '网络错误，请检查服务器连接'))
   } finally {
     loading.value = false
   }
 }
 
-// 返回登录
-const goToLogin = () => {
-  // 清除倒计时
-  if (countdownTimer) {
-    clearInterval(countdownTimer)
-    countdown.value = 0
-  }
+function goToLogin() {
+  stopCountdown()
+  countdown.value = 0
   router.push('/login')
 }
 
-onUnmounted(() => {
-  if (countdownTimer) {
-    clearInterval(countdownTimer)
-  }
-})
+onUnmounted(stopCountdown)
 </script>
 
-<style scoped>
-.panel {
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--line);
-  background: linear-gradient(145deg, rgba(105, 200, 223, 0.14), rgba(255, 255, 255, 0.04));
-  box-shadow: var(--shadow);
-}
+<template>
+  <AmbientBackdrop />
 
-.forgot-card {
+  <PageShell width="narrow" centered>
+    <NCard pad="lg" class="forgot">
+      <h1 class="forgot__title">忘记密码</h1>
+
+      <!-- 步骤指示 -->
+      <ol class="steps">
+        <li class="step" :class="{ 'step--active': step === 1, 'step--done': step > 1 }">
+          <span class="step__num">
+            <NIcon v-if="step > 1" name="check" :size="16" />
+            <template v-else>1</template>
+          </span>
+          <span class="step__label">验证邮箱</span>
+        </li>
+        <li class="steps__divider" aria-hidden="true" />
+        <li class="step" :class="{ 'step--active': step === 2 }">
+          <span class="step__num">2</span>
+          <span class="step__label">重置密码</span>
+        </li>
+      </ol>
+
+      <!-- 第一步 -->
+      <form v-if="step === 1" class="form" @submit.prevent="handleSendCode">
+        <NInput
+          v-model="email"
+          type="email"
+          icon="mail"
+          placeholder="请输入注册邮箱"
+          required
+        />
+        <NButton type="submit" variant="primary" size="lg" block :loading="loading">
+          发送验证码
+        </NButton>
+        <p class="form__back">
+          <a href="#" @click.prevent="goToLogin">返回登录</a>
+        </p>
+      </form>
+
+      <!-- 第二步 -->
+      <form v-else class="form" @submit.prevent="handleResetPassword">
+        <NInput v-model="email" type="email" icon="mail" placeholder="注册邮箱" disabled />
+
+        <div class="code-row">
+          <NInput
+            v-model="verificationCode"
+            icon="shield-check"
+            placeholder="请输入验证码"
+            maxlength="6"
+            required
+          />
+          <NButton
+            variant="secondary"
+            :disabled="countdown > 0 || resendLoading"
+            @click="handleResendCode"
+          >
+            <template v-if="countdown > 0">{{ countdown }}s 后重发</template>
+            <template v-else-if="resendLoading">发送中…</template>
+            <template v-else>重新发送</template>
+          </NButton>
+        </div>
+
+        <NInput
+          v-model="newPassword"
+          type="password"
+          icon="lock"
+          placeholder="请输入新密码（6-30位）"
+          minlength="6"
+          maxlength="30"
+          required
+        />
+        <NInput
+          v-model="confirmPassword"
+          type="password"
+          icon="lock"
+          placeholder="请确认新密码"
+          minlength="6"
+          maxlength="30"
+          required
+        />
+
+        <NButton type="submit" variant="primary" size="lg" block :loading="loading">
+          重置密码
+        </NButton>
+        <p class="form__back">
+          <a href="#" @click.prevent="goToLogin">返回登录</a>
+        </p>
+      </form>
+    </NCard>
+  </PageShell>
+</template>
+
+<style scoped>
+.forgot {
   width: 100%;
   max-width: 460px;
-  padding: clamp(26px, 4vw, 38px) clamp(20px, 4vw, 30px);
 }
 
-.forgot-title {
-  margin: 0 0 22px;
+.forgot__title {
+  margin: 0 0 var(--n-space-6);
   text-align: center;
   font-size: clamp(1.35rem, 3vw, 1.65rem);
-  font-weight: 800;
+  font-weight: var(--n-weight-bold);
   letter-spacing: -0.02em;
-  background: linear-gradient(120deg, #d7edf5, #c8f7ff, #9beaff);
+  background: var(--n-gradient-text);
   -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.steps-indicator {
+/* ===== 步骤 ===== */
+.steps {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  margin-bottom: 24px;
+  gap: var(--n-space-2);
+  margin: 0 0 var(--n-space-6);
+  padding: 0;
+  list-style: none;
 }
 
 .step {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: var(--n-space-2);
 }
 
-.step-number {
+.step__num {
+  display: grid;
+  place-items: center;
   width: 34px;
   height: 34px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  border: 2px solid rgba(255, 255, 255, 0.16);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 0.9rem;
-  color: var(--muted);
-  transition: border-color 0.2s var(--ease), background 0.2s var(--ease), transform 0.2s var(--ease);
+  border-radius: var(--n-radius-sm);
+  background: var(--n-surface-soft);
+  border: 1px solid var(--n-line);
+  color: var(--n-text-muted);
+  font-weight: var(--n-weight-semibold);
+  font-size: var(--n-text-sm);
+  transition:
+    background var(--n-duration) var(--n-ease),
+    border-color var(--n-duration) var(--n-ease),
+    color var(--n-duration) var(--n-ease);
 }
 
-.step.active .step-number {
-  background: linear-gradient(135deg, #69c8df, #69c8df);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: #fff;
-  transform: scale(1.06);
-  box-shadow: 0 6px 20px rgba(105, 200, 223, 0.35);
+.step--active .step__num {
+  background: var(--n-accent-soft);
+  border-color: var(--n-accent-line);
+  color: var(--n-accent-strong);
 }
 
-.step.completed .step-number {
-  background: rgba(155, 234, 255, 0.35);
-  border-color: rgba(155, 234, 255, 0.55);
-  color: #ecfdf5;
+.step--done .step__num {
+  background: var(--n-accent);
+  border-color: transparent;
+  color: var(--n-text-inverse);
 }
 
-.step-label {
-  font-size: 0.8rem;
-  color: var(--faint);
+.step__label {
+  font-size: var(--n-text-xs);
+  color: var(--n-text-faint);
 }
 
-.step.active .step-label {
-  color: var(--accent2);
-  font-weight: 600;
+.step--active .step__label {
+  color: var(--n-accent-strong);
+  font-weight: var(--n-weight-semibold);
 }
 
-.step-divider {
-  width: 56px;
-  height: 2px;
-  background: rgba(255, 255, 255, 0.1);
-  margin: 0 10px 18px;
+.steps__divider {
+  width: 48px;
+  height: 1px;
+  margin-top: 17px;
+  background: var(--n-line);
 }
 
-.forgot-form {
+/* ===== 表单 ===== */
+.form {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: var(--n-space-4);
 }
 
-.form-group {
-  margin: 0;
-}
-
-.form-input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 12px 14px;
-  border-radius: var(--radius);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.22);
-  color: var(--text);
-  font-size: 0.95rem;
-  font-family: inherit;
-  transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
-}
-
-.form-input::placeholder {
-  color: var(--faint);
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: rgba(105, 200, 223, 0.45);
-  box-shadow: 0 0 0 3px rgba(105, 200, 223, 0.12);
-}
-
-.form-input:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.code-input-group {
+.code-row {
   display: flex;
-  gap: 10px;
-  align-items: stretch;
+  gap: var(--n-space-3);
 }
 
-.code-input {
+.code-row :deep(.n-input) {
   flex: 1;
   min-width: 0;
 }
 
-.resend-btn {
-  font-family: inherit;
-  padding: 12px 14px;
-  border-radius: var(--radius);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  min-width: 108px;
-  transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
-}
-
-.resend-btn:hover:not(:disabled) {
-  background: rgba(105, 200, 223, 0.22);
-  border-color: rgba(105, 200, 223, 0.4);
-}
-
-.resend-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.submit-btn {
-  font-family: inherit;
-  margin-top: 4px;
-  padding: 12px 20px;
-  width: 100%;
-  border: none;
-  border-radius: 999px;
-  font-size: 0.95rem;
-  font-weight: 700;
-  cursor: pointer;
-  color: #0c0a14;
-  background: linear-gradient(135deg, #9beaff, var(--accent2));
-  box-shadow: 0 8px 24px rgba(105, 200, 223, 0.3);
-}
-
-.submit-btn:hover:not(:disabled) {
-  filter: brightness(1.05);
-}
-
-.submit-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.back-link {
+.form__back {
+  margin: var(--n-space-1) 0 0;
   text-align: center;
-  margin-top: 18px;
-  font-size: 0.88rem;
+  font-size: var(--n-text-sm);
 }
 
-.back-link a {
-  color: var(--accent2);
-  font-weight: 600;
-  text-decoration: none;
+.form__back a {
+  font-weight: var(--n-weight-semibold);
 }
 
-.back-link a:hover {
-  text-decoration: underline;
-}
-
-@media (max-width: 768px) {
-  .code-input-group {
+@media (max-width: 560px) {
+  .code-row {
     flex-direction: column;
-  }
-
-  .resend-btn {
-    width: 100%;
   }
 }
 </style>
