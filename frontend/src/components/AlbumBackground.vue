@@ -142,17 +142,26 @@ watch(lite, (v) => {
   inset: -10%;
   background-size: cover;
   background-position: center;
-  filter: blur(56px) saturate(1.5);
+  /* 静态模糊很容易糊成一团灰：提高饱和与亮度把它「提起来」 */
+  filter: blur(56px) saturate(1.7) brightness(1.08);
   transform: scale(1.08);
-  opacity: 0.6;
+  opacity: 0.9;
 }
 
-/* 压一层主题色，保证与 WebGL 背景的明暗观感一致 */
+/* 上下压暗、中间留亮：
+   顶/底栏文字需要对比度，而中间要真的看得到背景。
+   之前是一层均匀的深色渐变，等于把背景整片盖掉。 */
 .bg__tint {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(1100px 700px at 18% 0%, rgba(95, 208, 224, 0.16), transparent 60%),
-    linear-gradient(180deg, rgba(4, 9, 11, 0.34), rgba(4, 9, 11, 0.5));
+    radial-gradient(1200px 760px at 20% 0%, rgba(95, 208, 224, 0.16), transparent 62%),
+    linear-gradient(
+      180deg,
+      rgba(4, 9, 11, 0.52) 0%,
+      rgba(4, 9, 11, 0.14) 24%,
+      rgba(4, 9, 11, 0.14) 64%,
+      rgba(4, 9, 11, 0.56) 100%
+    );
 }
 </style>

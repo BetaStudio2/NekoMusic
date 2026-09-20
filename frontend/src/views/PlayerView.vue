@@ -5,7 +5,7 @@
       <div
         v-show="!closing"
         class="np"
-        :class="{ 'np--dragging': dragging }"
+        :class="{ 'np--dragging': dragging, 'np--lite-bg': lite }"
         :style="dragY ? { transform: `translateY(${dragY}px)` } : undefined"
         role="dialog"
         aria-modal="true"
@@ -317,6 +317,7 @@ import SpectrumCanvas from '@/components/SpectrumCanvas.vue'
 import LyricsWall from '@/components/LyricsWall.vue'
 import AlbumBackground from '@/components/AlbumBackground.vue'
 import MobileAppBanner from '@/components/MobileAppBanner.vue'
+import { useLiteMode } from '@/composables/useLiteMode'
 import { isMobileDevice } from '@/utils/mobile.js'
 import { usePlaybackBridge } from '@/composables/usePlaybackBridge'
 
@@ -330,6 +331,9 @@ const router = useRouter()
  * 状态则从它广播的 playerStateChange / localStorage 回流。
  */
 const { playback, sendPlayerCommand } = usePlaybackBridge()
+
+/** 与 AlbumBackground 同源：轻量模式下背景是静态模糊封面，需要另配压暗强度 */
+const { lite } = useLiteMode()
 
 const currentMusic = ref(null)
 const isPlaying = ref(false)
@@ -1287,6 +1291,14 @@ onUnmounted(() => {
   z-index: 1;
   pointer-events: none;
   background: linear-gradient(180deg, rgba(4, 9, 11, 0.68), rgba(4, 9, 11, 0.9));
+}
+
+/* 轻量模式（手机 / 无浮点渲染目标）下背景是【静态模糊封面】，本身就不亮。
+   这一层是按 WebGL 那种高亮动态背景调的，0.68→0.9 会把静态封面彻底盖掉，
+   实测只透出 3%–13%，看起来就像「没有背景」。这里减半，
+   顶/底栏的对比度交给 AlbumBackground 的 .bg__tint 上下压暗去保证。 */
+.np--lite-bg .np__scrim {
+  background: linear-gradient(180deg, rgba(4, 9, 11, 0.28), rgba(4, 9, 11, 0.46));
 }
 
 /* ===== 进出场：自底部滑入 / 滑出 ===== */
