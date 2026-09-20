@@ -787,9 +787,14 @@ const toggleClipPreview = async () => {
     clipPreviewPlaying.value = true
     await audio.play()
   } catch (e) {
-    console.error('clip preview failed:', e)
+    // 用户拖动「成片起始」会 stopClipPreview() → 对试听音频触发新的 load，
+    // 从而打断本次 play() 返回的 Promise —— 这是正常交互，不是失败，
+    // 不该弹「试听失败」。
+    if (e?.name !== 'AbortError') {
+      console.error('clip preview failed:', e)
+      toast.error('试听失败，请稍后重试')
+    }
     stopClipPreview()
-    toast.error('试听失败，请稍后重试')
   } finally {
     clipPreviewLoading = false
   }

@@ -7,6 +7,7 @@ import './design/reset.css'
 import VueToastification from 'vue-toastification'
 import 'vue-toastification/dist/index.css'
 import { installDevAdminBypass } from './config/devAdmin'
+import { installBenignPlayAbortGuard } from './utils/benignPlayAbort'
 
 // 开发环境：注入模拟管理员，便于直接查看管理后台（生产构建会被剔除）
 installDevAdminBypass()
@@ -39,6 +40,12 @@ if (import.meta.env.DEV) {
     rawWarn(...args)
   }
 }
+
+/**
+ * 收敛「play() 被新的 load 请求打断」的 AbortError（详见该模块内注释）。
+ * 应用层的 play() 已全部经 GlobalPlayer 的 safePlay 收敛，这里是最后一道兜底。
+ */
+installBenignPlayAbortGuard()
 
 app.use(router)
 app.use(VueToastification, {

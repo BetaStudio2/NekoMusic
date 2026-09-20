@@ -1435,63 +1435,43 @@ const handleStorageChange = (e) => {
 }
 
 // 强制播放处理函数
-const handleForcePlay = () => {
-  if (audioPlayer.value && currentMusic.value) {
-    // 确保时间从0.1开始
-    audioPlayer.value.currentTime = 0.1;
-    currentTime.value = 0.1;
-    progress.value = 0.1;
-    updateGlobalPlayerState();
-    
-    // 确保播放状态为true
-    isPlaying.value = true;
-    
-    // 确保音频源已经设置为当前音乐
-    const expectedSrc = `${API_CONFIG.BASE_URL}/api/music/file/${currentMusic.value.id}`;
-    
-    if (!audioPlayer.value.src || !audioPlayer.value.src.includes(currentMusic.value.id.toString())) {
-      // 如果音频源不是当前音乐，则设置为当前音乐
-      audioPlayer.value.src = expectedSrc;
-      
-      const onCanPlay = () => {
-        audioPlayer.value.currentTime = 0.1; // 再次确保从0.1开始
-        currentTime.value = 0.1;
-        progress.value = 0.1;
-        updateGlobalPlayerState();
-        
-        fadeIn(audioPlayer.value);
-        safePlay(audioPlayer.value);
-        audioPlayer.value.removeEventListener('canplay', onCanPlay);
-        
-        // 更新播放状态
-        updateGlobalPlayerState();
-        broadcastPlayerStateChange();
-        updateMediaSessionPlaybackState();
-      };
-      
-      // 添加错误处理
-      const onError = (e) => {
-        console.error('音频加载失败:', e);
-        isPlaying.value = false;
-        updateGlobalPlayerState();
-        broadcastPlayerStateChange();
-        audioPlayer.value.removeEventListener('error', onError);
-      };
-      
-      audioPlayer.value.addEventListener('canplay', onCanPlay);
-      audioPlayer.value.addEventListener('error', onError);
-      audioPlayer.value.load();
-    } else {
-      // 音频源已经是当前音乐，直接播放
-      fadeIn(audioPlayer.value);
-      safePlay(audioPlayer.value);
-      
-      // 更新播放状态
-      updateGlobalPlayerState();
-      broadcastPlayerStateChange();
-      updateMediaSessionPlaybackState();
+/**
+ * 强制播放当前曲目（分享链接的 #play= / forcePlay 事件会走到这里）。
+ *
+ * 关键：<audio> 的 src 由模板的 :src 绑定到 currentMusic.id，Vue 会在
+ * 下一次 DOM 补丁里写入。这里【不要】再手动 `src = ...` 或 `load()` ——
+ * 那会和 Vue 的补丁互相打断：浏览器一开始新的资源加载，上一次挂起的
+ * play() Promise 就会以
+ *   AbortError: The play() request was interrupted by a new load request
+ * 拒绝（而且可能谁都没在播）。等 DOM 打完补丁再起播即可。
+ */
+const handleForcePlay = async () => {
+  await nextTick()
+  const el = audioPlayer.value
+  if (!el || !currentMusic.value) return
+
+  isPlaying.value = true
+  currentTime.value = 0.1
+  progress.value = 0.1
+  updateGlobalPlayerState()
+
+  // 元数据未就绪时设置 currentTime 可能抛 InvalidStateError，等 loadedmetadata 再补
+  const applyStart = () => {
+    try {
+      el.currentTime = 0.1
+    } catch {
+      /* ignore */
     }
   }
+  applyStart()
+  if (el.readyState < 1) {
+    el.addEventListener('loadedmetadata', applyStart, { once: true })
+  }
+
+  fadeIn(el)
+  safePlay(el)
+  broadcastPlayerStateChange()
+  updateMediaSessionPlaybackState()
 }
 
 // 处理自定义播放状态变化事件
