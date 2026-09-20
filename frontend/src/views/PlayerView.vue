@@ -109,16 +109,6 @@
                 :active="isPlaying"
               />
 
-              <div class="np__aside-actions">
-                <NButton
-                  :variant="isFavorite(currentMusic.id) ? 'primary' : 'secondary'"
-                  icon="heart"
-                  @click="toggleFavorite"
-                >
-                  {{ isFavorite(currentMusic.id) ? '已收藏' : '收藏' }}
-                </NButton>
-              </div>
-
               <p v-if="isLoggedIn()" class="np__hint">
                 <NIcon name="sparkles" :size="14" />
                 <template v-if="userIsVip">会员：整首横屏成片，无水印、不限次数</template>
@@ -1541,13 +1531,6 @@ watch(
   width: min(100%, 38vh);
 }
 
-.np__aside-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--n-space-2);
-}
-
 .np__hint {
   margin: 0;
   display: flex;
@@ -1797,7 +1780,6 @@ watch(
     width: min(100%, 32vh);
   }
 
-  .np__aside-actions,
   .np__hint,
   .np__album,
   .np__dur {
@@ -1860,8 +1842,7 @@ watch(
     display: none;
   }
 
-  /* 收藏在顶栏、播放在底栏，封面旁这排按钮纯属重复，手机上去掉 */
-  .np__aside-actions,
+  /* 提示行在手机上省掉，把高度让给歌词 */
   .np__hint {
     display: none;
   }
