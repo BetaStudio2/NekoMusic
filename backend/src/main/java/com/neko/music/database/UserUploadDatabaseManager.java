@@ -10,6 +10,12 @@ import java.util.List;
 
 public class UserUploadDatabaseManager {
     private static final Logger logger = LoggerFactory.getLogger(UserUploadDatabaseManager.class);
+    private static final String APPROVE_UPLOAD_SQL = """
+        UPDATE user_uploads
+        SET status = 'approved'
+        WHERE id = ?
+        """;
+
     private DatabaseManager databaseManager;
     
     public UserUploadDatabaseManager(DatabaseManager databaseManager) {
@@ -137,70 +143,51 @@ public class UserUploadDatabaseManager {
     
     /**
      * 审核通过上传
+     *
+     * <p>使用独立连接（自动提交）。需要与其它写操作同事务时，改用
+     * {@link #approveUpload(Connection, int)}。
      */
     public boolean approveUpload(int uploadId, int adminId) {
-        String sql = """
-            UPDATE user_uploads 
-            SET status = 'approved'
-            WHERE id = ?
-            """;
-        
         try (Connection conn = databaseManager.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            
-            pstmt.setInt(1, uploadId);
-            
-            return pstmt.executeUpdate() > 0;
-            
+             PreparedStatement pstmt = conn.prepareStatement(APPROVE_UPLOAD_SQL)) {
+            return executeApprove(pstmt, uploadId);
         } catch (SQLException e) {
             logger.error("审核通过失败", e);
             return false;
         }
     }
+
+    /**
+     * 审核通过上传，复用调用方连接，使状态更新与同一事务内的其它写操作一起提交/回滚。
+     */
+    public boolean approveUpload(Connection conn, int uploadId) throws SQLException {
+        try (PreparedStatement pstmt = conn.prepareStatement(APPROVE_UPLOAD_SQL)) {
+            return executeApprove(pstmt, uploadId);
+        }
+    }
+
+    private static boolean executeApprove(PreparedStatement pstmt, int uploadId) throws SQLException {
+        pstmt.setInt(1, uploadId);
+        return pstmt.executeUpdate() > 0;
+    }
     
     /**
-     * 删除用户上传记录
+     * 删除用户上传记录（只删数据库行，不动文件）。
+     *
+     * <p>文件删除由调用方在事务提交成功后自行处理：反过来「先删文件再删记录」一旦
+     * 删记录失败，就会留下一条永远无法再处理的 pending 记录。
      */
     public boolean deleteUserUpload(int uploadId) {
-        String sql = "DELETE FROM user_uploads WHERE id = ?";
-        
         try (Connection conn = databaseManager.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            
-            // 先获取上传记录，删除相关文件
-            UserUpload upload = getUserUploadById(uploadId);
-            if (upload != null) {
-                deleteUploadFiles(upload);
-            }
-            
+             PreparedStatement pstmt = conn.prepareStatement("DELETE FROM user_uploads WHERE id = ?")) {
             pstmt.setInt(1, uploadId);
             return pstmt.executeUpdate() > 0;
-            
         } catch (SQLException e) {
             logger.error("删除用户上传记录失败", e);
             return false;
         }
     }
-    
-    /**
-     * 删除上传的文件
-     */
-    private void deleteUploadFiles(UserUpload upload) {
-        try {
-            if (upload.getMusicFilePath() != null) {
-                java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get(upload.getMusicFilePath()));
-            }
-            if (upload.getCoverFilePath() != null) {
-                java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get(upload.getCoverFilePath()));
-            }
-            if (upload.getLyricsFilePath() != null) {
-                java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get(upload.getLyricsFilePath()));
-            }
-        } catch (Exception e) {
-            logger.error("删除文件失败", e);
-        }
-    }
-    
+
     /**
      * 将ResultSet映射为UserUpload对象
      */

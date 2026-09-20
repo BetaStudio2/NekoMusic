@@ -6,6 +6,7 @@ import com.neko.music.model.ErrorResponse;
 import com.neko.music.Main;
 import com.neko.music.service.EmbeddedMetadataSyncService;
 import com.neko.music.service.MusicIngestSupport;
+import com.neko.music.util.AtomicFiles;
 import com.neko.music.util.MusicAssetLocator;
 import com.neko.music.util.MusicPinyinColumns;
 import com.neko.music.util.RuntimeDiskGuard;
@@ -111,7 +112,8 @@ public class FileUploadHandler extends HttpServlet {
                 }
             }
 
-            // 音乐：先写入系统临时目录校验，通过后再入库并落盘（失败无库行、不写 Music/music）
+            // 音乐：先写入系统临时目录校验，通过后再入库并落盘；封面/歌词属于同一次入库，
+            // 任一环节失败都回滚已写入的库行与文件
             String musicFileName = getFileName(musicFilePart);
             String fileExtension = getFileExtension(musicFileName).toLowerCase();
             Path musicTemp = Files.createTempFile("neko_admin_music_", "." + fileExtension);
@@ -148,19 +150,31 @@ public class FileUploadHandler extends HttpServlet {
                 TempAudioSpool.commitReplace(musicTemp, Paths.get(musicFilePath));
                 deleteMusicTempIfPresent = false;
                 logger.info("音乐文件已保存到: {}", musicFilePath);
+
+                if (coverFilePart != null) {
+                    AtomicFiles.writeAndReplace(coverFilePart.getInputStream(), Paths.get(coverFilePath));
+                    logger.info("封面文件已保存到: {}", coverFilePath);
+                }
+
+                // 歌词保存失败必须让整个请求失败，否则会返回「上传成功」但歌词没入库
+                saveLyricsToDatabase(musicId, form.lyricsFilePart);
+
+                if (duration == 0) {
+                    int probedDuration = readAudioDurationFromPath(musicFilePath);
+                    if (probedDuration > 0) {
+                        duration = probedDuration;
+                        updateDurationInDatabase(musicId, duration);
+                    }
+                }
             } catch (Exception e) {
                 if (musicId > 0) {
                     deleteMusicRecordById(musicId);
-                    if (musicFilePath != null) {
-                        try {
-                            Files.deleteIfExists(Paths.get(musicFilePath));
-                        } catch (IOException io) {
-                            logger.warn("删除不完整音乐文件失败: {}", musicFilePath, io);
-                        }
-                    }
+                    deleteQuietly(musicFilePath);
+                    deleteQuietly(coverFilePath);
                 }
                 logger.error("处理管理员上传音乐文件失败", e);
-                HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("上传音乐失败: " + e.getMessage()));
+                HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500,
+                        new ErrorResponse("上传音乐失败，请稍后重试或联系管理员"));
                 return;
             } finally {
                 if (deleteMusicTempIfPresent) {
@@ -171,25 +185,6 @@ public class FileUploadHandler extends HttpServlet {
                     }
                 }
             }
-
-            if (duration == 0 && musicFilePath != null) {
-                duration = readAudioDurationFromPath(musicFilePath);
-                if (duration > 0) {
-                    updateDurationInDatabase(musicId, duration);
-                }
-            }
-            
-            // 保存封面文件（如果存在）
-            if (coverFilePart != null) {
-                Path coverFile = Paths.get(coverFilePath);
-                try (InputStream inputStream = coverFilePart.getInputStream()) {
-                    Files.copy(inputStream, coverFile);
-                    logger.info("封面文件已保存到: " + coverFilePath);
-                }
-            }
-            
-            // 保存歌词到数据库
-            saveLyricsToDatabase(musicId, form.lyricsFilePart);
 
             // 歌词/封面/基础标签同步进音频文件（保留广告元数据）
             EmbeddedMetadataSyncService.syncOne(musicId);
@@ -202,7 +197,8 @@ public class FileUploadHandler extends HttpServlet {
             
         } catch (Exception e) {
             logger.error("上传音乐时出错", e);
-            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("上传音乐失败: " + e.getMessage()));
+            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500,
+                    new ErrorResponse("上传音乐失败，请稍后重试或联系管理员"));
         }
     }
     
@@ -281,15 +277,17 @@ public class FileUploadHandler extends HttpServlet {
                     MusicAdMetadataPatcher.patchQuietly(musicTemp);
 
                     musicFilePath = MUSIC_DIR + File.separator + id + "." + fileFormat;
-                    MusicAssetLocator.deleteAudioVariants(id);
+                    // 先原子替换新音频，成功后再清理旧扩展名残留：覆盖失败时旧文件仍在
                     TempAudioSpool.commitReplace(musicTemp, Paths.get(musicFilePath));
                     deleteMusicTempIfPresent = false;
+                    MusicAssetLocator.deleteAudioVariantsExcept(id, Paths.get(musicFilePath));
                     logger.info("音乐文件已保存到: {}", musicFilePath);
 
                     updateFileFormatInDatabase(id, fileFormat);
                 } catch (Exception e) {
                     logger.error("更新音乐文件失败 id={}", id, e);
-                    HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("更新音乐文件失败: " + e.getMessage()));
+                    HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500,
+                            new ErrorResponse("更新音乐文件失败，请稍后重试或联系管理员"));
                     return;
                 } finally {
                     if (deleteMusicTempIfPresent) {
@@ -316,16 +314,12 @@ public class FileUploadHandler extends HttpServlet {
                 
                 // 获取文件扩展名
                 String extension = coverImageValidation.getExtensionWithoutDot();
-                String coverFilePath = COVER_DIR + File.separator + id + "." + extension;
+                Path coverFile = Paths.get(COVER_DIR, id + "." + extension);
 
-                MusicAssetLocator.deleteCoverVariants(id);
-                
-                // 保存封面文件
-                Path coverFile = Paths.get(coverFilePath);
-                try (InputStream inputStream = coverFilePart.getInputStream()) {
-                    Files.copy(inputStream, coverFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                    logger.info("封面文件已保存到: " + coverFilePath);
-                }
+                // 先原子写入新封面，成功后再清理旧扩展名残留
+                AtomicFiles.writeAndReplace(coverFilePart.getInputStream(), coverFile);
+                MusicAssetLocator.deleteCoverVariantsExcept(id, coverFile);
+                logger.info("封面文件已保存到: {}", coverFile);
             }
             
             // 保存歌词到数据库
@@ -345,7 +339,8 @@ public class FileUploadHandler extends HttpServlet {
             
         } catch (Exception e) {
             logger.error("更新音乐时出错", e);
-            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("更新音乐失败: " + e.getMessage()));
+            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500,
+                    new ErrorResponse("更新音乐失败，请稍后重试或联系管理员"));
         }
     }
 
@@ -374,7 +369,8 @@ public class FileUploadHandler extends HttpServlet {
             }
         } catch (Exception e) {
             logger.error("校验歌词文件时出错", e);
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("校验歌词文件时出错: " + e.getMessage()));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400,
+                    new ErrorResponse("校验歌词文件时出错，请检查文件后重试"));
             return false;
         }
         return true;
@@ -731,19 +727,24 @@ public class FileUploadHandler extends HttpServlet {
         return true;
     }
 
-    // 内部类用于表示错误响应
-    
-    // 保存歌词到数据库
-    private void saveLyricsToDatabase(int musicId, Part lyricsFilePart) {
-        try {
-            String lyricsContent;
-            try (InputStream inputStream = lyricsFilePart.getInputStream()) {
-                lyricsContent = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
-            }
+    // 保存歌词到数据库：失败时抛异常，由调用方回滚本次入库
+    private void saveLyricsToDatabase(int musicId, Part lyricsFilePart) throws IOException {
+        String lyricsContent;
+        try (InputStream inputStream = lyricsFilePart.getInputStream()) {
+            lyricsContent = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        MusicIngestSupport.saveLyricsAndRebuild(musicId, lyricsContent, "admin_upload", logger);
+    }
 
-            MusicIngestSupport.saveLyricsAndRebuild(musicId, lyricsContent, "admin_upload", logger);
-        } catch (Exception e) {
-            logger.error("保存数据库歌词失败", e);
+    /** 尽力删除文件，失败只打 WARN（用于回滚已落盘但不完整的产物）。 */
+    private void deleteQuietly(String filePath) {
+        if (filePath == null || filePath.isEmpty()) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(Paths.get(filePath));
+        } catch (IOException e) {
+            logger.warn("删除文件失败: {}", filePath, e);
         }
     }
 }
