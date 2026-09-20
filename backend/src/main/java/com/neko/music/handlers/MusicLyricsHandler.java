@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
+import com.neko.music.service.EmbeddedMetadataSyncService;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -135,6 +136,9 @@ public class MusicLyricsHandler extends HttpServlet {
         if (Main.getLyricsSearchIndex() != null) {
             Main.getLyricsSearchIndex().rebuildOne(musicId);
         }
+
+        // 同步内嵌歌词到音频文件（保留广告元数据与横幅）
+        EmbeddedMetadataSyncService.syncOne(musicId);
         
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");

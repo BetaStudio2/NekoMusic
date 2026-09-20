@@ -2,6 +2,7 @@ package com.neko.music.handlers;
 
 import com.neko.music.Main;
 import com.neko.music.model.UserUpload;
+import com.neko.music.service.EmbeddedMetadataSyncService;
 import com.neko.music.util.PinyinUtil;
 import com.neko.music.util.MusicAdMetadataPatcher;
 import jakarta.servlet.ServletException;
@@ -331,6 +332,9 @@ public class AdminUploadAuditHandler extends HttpServlet {
             
             // 提交事务
             conn.commit();
+
+            // 审核通过后把歌词/封面/基础标签同步进音频文件（保留广告元数据）
+            EmbeddedMetadataSyncService.syncOne(musicId);
 
             // 仅在审核通过并正式进入曲库后，异步生成并发布新的声纹索引。
             if (Main.getMusicRecognitionService() != null) {

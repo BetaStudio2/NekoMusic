@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
+import com.neko.music.service.EmbeddedMetadataSyncService;
 import com.neko.music.util.MusicAssetLocator;
 import com.neko.music.util.RuntimeDiskGuard;
 import com.neko.music.util.AudioFileValidator;
@@ -314,7 +315,10 @@ public class FileUploadHandler extends HttpServlet {
             
             // 保存歌词到数据库
             saveLyricsToDatabase(musicId, lyricsFilePart);
-            
+
+            // 歌词/封面/基础标签同步进音频文件（保留广告元数据）
+            EmbeddedMetadataSyncService.syncOne(musicId);
+
             // 获取完整的音乐信息
             Music music = getMusicById(musicId);
 
@@ -600,7 +604,10 @@ public class FileUploadHandler extends HttpServlet {
             
             // 更新数据库中的音乐信息
             updateMusicInDatabase(id, title, artist, album, language, tags, duration, uploadUserId);
-            
+
+            // 歌词/封面/基础标签同步进音频文件（保留广告元数据）
+            EmbeddedMetadataSyncService.syncOne(id);
+
             // 获取更新后的音乐信息
             Music updatedMusic = getMusicById(id);
 
