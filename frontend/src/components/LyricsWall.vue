@@ -29,6 +29,37 @@ const props = defineProps({
   tailMs: { type: Number, default: 8000 },
 })
 
+/** 点击某行歌词 → emit('seek', 秒) */
+const emit = defineEmits(['seek'])
+
+/**
+ * 点击歌词行跳转到该行起点。
+ *
+ * AMLL 的 LyricPlayer 在 click 时派发 `line-click`（vue 包装层转成
+ * `lineClick`），载荷是 LyricLineMouseEvent：{ lineIndex, line, bgLine }。
+ * line.startTime 是毫秒。这里对「数字」与「MediaTime 包装」两种形态都兜一下，
+ * 最后再按 lineIndex 回原始 lines 取 time —— 保证换了 AMLL 版本也不会静默失效。
+ */
+function onLineClick(e) {
+  let seconds = null
+
+  const raw = e?.line?.startTime
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    seconds = raw / 1000
+  } else if (raw && typeof raw.value === 'number' && Number.isFinite(raw.value)) {
+    seconds = raw.value / 1000
+  }
+
+  if (seconds === null) {
+    const idx = e?.lineIndex
+    const fallback = Number.isInteger(idx) ? props.lines[idx] : null
+    if (fallback) seconds = Number(fallback.time) || 0
+  }
+
+  if (seconds === null || !Number.isFinite(seconds) || seconds < 0) return
+  emit('seek', seconds)
+}
+
 /** 秒 → 毫秒（AMLL 要求整数毫秒） */
 const toMs = (sec) => Math.max(0, Math.round((Number(sec) || 0) * 1000))
 
@@ -61,6 +92,7 @@ const currentMs = computed(() => toMs(props.currentTime))
       :lyric-lines="lyricLines"
       :current-time="currentMs"
       :playing="playing"
+      @line-click="onLineClick"
     />
     <div v-else class="wall__empty">
       <NIcon name="file-text" :size="24" />
@@ -83,6 +115,8 @@ const currentMs = computed(() => toMs(props.currentTime))
 .wall__player {
   width: 100%;
   height: 100%;
+  /* 提示「歌词行可点」——点击会跳转到该行 */
+  cursor: pointer;
 }
 
 .wall__empty {
