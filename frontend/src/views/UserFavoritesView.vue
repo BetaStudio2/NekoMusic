@@ -8,16 +8,17 @@
  *  - 播放：写 globalPlaylist / currentPlayingMusic / globalPlayerState，
  *    并广播 playlistUpdated / playerStateChange / forcePlay
  */
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, watch } from 'vue'
 import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NModal, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
+import { openAuthDialog } from '@/composables/useAuthDialog'
+import { useAuth } from '@/composables/useAuth'
 
 const toast = useToast()
-const router = useRouter()
+const { token: authToken } = useAuth()
 
 const favorites = ref([])
 const loading = ref(true)
@@ -28,7 +29,8 @@ const getToken = () => localStorage.getItem('userToken')
 
 async function fetchFavorites() {
   if (!getToken()) {
-    router.push('/login')
+    loading.value = false
+    openAuthDialog('login')
     return
   }
   loading.value = true
@@ -45,7 +47,7 @@ async function fetchFavorites() {
       if (response.status === 401) {
         localStorage.removeItem('userToken')
         localStorage.removeItem('userInfo')
-        router.push('/login')
+        openAuthDialog('login')
       }
     }
   } catch (error) {
@@ -139,6 +141,11 @@ function handleImageError(event) {
 }
 
 onMounted(fetchFavorites)
+
+// 在弹窗里登录成功后自动加载收藏
+watch(authToken, (token) => {
+  if (token) fetchFavorites()
+})
 </script>
 
 <template>

@@ -15,6 +15,7 @@ import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NInput } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
+import { openAuthDialog } from '@/composables/useAuthDialog'
 
 const toast = useToast()
 const router = useRouter()
@@ -107,7 +108,7 @@ async function handleResetPassword() {
       toast.success(response.data.message || '密码重置成功')
       stopCountdown()
       countdown.value = 0
-      setTimeout(() => router.push('/login'), 1500)
+      setTimeout(() => openAuthDialog('login'), 1500)
     } else {
       toast.error(response.data.message || '重置失败')
     }
@@ -122,7 +123,7 @@ async function handleResetPassword() {
 function goToLogin() {
   stopCountdown()
   countdown.value = 0
-  router.push('/login')
+  openAuthDialog('login')
 }
 
 onUnmounted(stopCountdown)

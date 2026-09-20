@@ -167,7 +167,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+
 import QRCode from 'qrcode'
 import { formatVipExpiresAt, syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
 import { fetchVipPricing, createVipPayOrder } from '@/api/vipPricing.js'
@@ -175,8 +175,10 @@ import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
+import { openAuthDialog } from '@/composables/useAuthDialog'
+import { useAuth } from '@/composables/useAuth'
 
-const router = useRouter()
+const { token: authToken } = useAuth()
 const vipTick = ref(0)
 const avatarBroken = ref(false)
 const pricingRows = ref([])
@@ -360,11 +362,7 @@ async function startPay(row, payType) {
   }
 }
 
-onMounted(async () => {
-  if (!localStorage.getItem('userToken')) {
-    router.replace('/login')
-    return
-  }
+async function initVipPage() {
   window.addEventListener(USER_VIP_SYNC_EVENT, bump)
   await syncUserVipFromPlaylistsApi()
   bump()
@@ -376,6 +374,19 @@ onMounted(async () => {
   } finally {
     pricingLoading.value = false
   }
+}
+
+onMounted(() => {
+  if (!localStorage.getItem('userToken')) {
+    openAuthDialog('login')
+    return
+  }
+  initVipPage()
+})
+
+// 在弹窗里登录成功后接着把页面初始化起来
+watch(authToken, (token) => {
+  if (token && !pricingRows.value.length) initVipPage()
 })
 
 onUnmounted(() => {

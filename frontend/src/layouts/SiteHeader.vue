@@ -11,6 +11,7 @@
  *  - 回车：跳 /search/:query
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { openAuthDialog } from '@/composables/useAuthDialog'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
@@ -32,7 +33,7 @@ let searchSeq = 0
 
 const isLoggedIn = ref(false)
 const user = ref(null)
-const username = ref('')
+const nickname = ref('')
 
 function initializeUserState() {
   const token = localStorage.getItem('userToken')
@@ -41,16 +42,16 @@ function initializeUserState() {
   const userStr = localStorage.getItem('user')
   if (!userStr || userStr === 'undefined' || userStr === 'null') {
     user.value = null
-    username.value = ''
+    nickname.value = ''
     return
   }
   try {
     user.value = JSON.parse(userStr)
-    username.value = user.value ? user.value.nickname : ''
+    nickname.value = user.value ? user.value.nickname : ''
   } catch (e) {
     console.error('解析用户信息失败:', e)
     user.value = null
-    username.value = ''
+    nickname.value = ''
   }
 }
 
@@ -140,7 +141,7 @@ function goHome() {
 }
 
 function goToLogin() {
-  router.push('/login')
+  openAuthDialog('login')
 }
 
 function logout() {
@@ -227,7 +228,7 @@ onUnmounted(() => {
         <template v-if="isLoggedIn">
           <RouterLink to="/account" class="site-header__user" title="个人中心">
             <img :src="userAvatar" alt="用户头像" class="site-header__avatar" @error="handleAvatarError" />
-            <span class="site-header__username">{{ username }}</span>
+            <span class="site-header__nickname">{{ nickname }}</span>
           </RouterLink>
 
           <RouterLink
@@ -412,7 +413,7 @@ onUnmounted(() => {
   flex: none;
 }
 
-.site-header__username {
+.site-header__nickname {
   max-width: 110px;
   white-space: nowrap;
   overflow: hidden;
@@ -475,7 +476,7 @@ onUnmounted(() => {
 
   /* 用户名与 VIP 入口收进个人中心：一行放不下 5 个元素，
      且这两项在 /account 里都能看到 */
-  .site-header__username,
+  .site-header__nickname,
   .site-header__vip {
     display: none;
   }
