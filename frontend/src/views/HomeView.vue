@@ -888,4 +888,45 @@ onUnmounted(() => {
     justify-content: center;
   }
 }
+
+/* ==================== 手机竖屏：横向卡片栏 ====================
+   原来卡片是 4px 内边距 + 152px 固定宽，在 375px 屏上只能露出 2 张，
+   既看不出「还能往右滑」，卡片又没贴到屏幕边缘、与上方标题差 4px。
+   改为手机上通行的「出血滚动」：负外边距抵消页面留白，让卡片能滑到
+   屏幕边缘，再靠 padding-inline + scroll-padding-inline 把首尾两张
+   对齐回正文左边界。 */
+@media (max-width: 560px) {
+  .rail {
+    gap: var(--n-space-3);
+    /* 抵消 PageShell 的内容留白（.section 本身无内边距，故可直接出血） */
+    margin-inline: calc(-1 * var(--n-content-gutter));
+    padding-inline: var(--n-content-gutter);
+    /* 吸附位置也按留白计算，滑停时首张与标题对齐 */
+    scroll-padding-inline: var(--n-content-gutter);
+    /* 触摸端不用横向滚动条：占高度、且手指本来也拖不到它 */
+    scrollbar-width: none;
+  }
+
+  .rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 128px 可露出约 2.5 张 —— 露出的半张本身就是「可横滑」的提示 */
+  .cover-card {
+    width: 128px;
+  }
+
+  .cover-card__play {
+    width: 40px;
+    height: 40px;
+  }
+
+  .cover-card__title {
+    margin-top: var(--n-space-2);
+  }
+
+  .quick__card {
+    gap: var(--n-space-3);
+  }
+}
 </style>

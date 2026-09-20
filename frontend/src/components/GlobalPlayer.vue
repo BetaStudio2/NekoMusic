@@ -228,7 +228,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import { useToast } from 'vue-toastification'
@@ -398,7 +398,7 @@ const togglePlayPause = () => {
       // 广播播放状态变化
       broadcastPlayerStateChange()
       fadeIn(audioPlayer.value)
-      audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
+      safePlay(audioPlayer.value);
       // 更新媒体会话播放状态
       updateMediaSessionPlaybackState()
     }
@@ -433,6 +433,61 @@ const fadeIn = (audioElement) => {
   tick()
 }
 
+/**
+ * 安全的 play()：必须消费返回的 Promise。
+ *
+ * 不 catch 的话，任何「被后续 load/play 打断」都会变成
+ *   Uncaught (in promise) AbortError: The play() request was interrupted
+ *   by a new load request
+ * 这是浏览器正常行为（比如 <audio> 的 :src 刚被 Vue 改写），不是故障。
+ *
+ * NotAllowedError 才是真问题（无用户手势时的自动播放限制），
+ * 此时要把播放态回滚，否则界面会显示「正在播放」却毫无声音。
+ */
+const safePlay = (el) => {
+  if (!el) return
+  let result
+  try {
+    result = el.play()
+  } catch (err) {
+    console.log('播放被阻止:', err)
+    isPlaying.value = false
+    updateGlobalPlayerState()
+    broadcastPlayerStateChange()
+    return
+  }
+  if (result?.catch) {
+    result.catch((err) => {
+      if (err?.name === 'AbortError') return // 被新的 load/play 取代，正常
+      console.log('播放被阻止:', err)
+      isPlaying.value = false
+      updateGlobalPlayerState()
+      broadcastPlayerStateChange()
+    })
+  }
+}
+
+/**
+ * 切歌/指定曲目后的统一「起播」入口。
+ *
+ * 为什么必须等 nextTick：<audio> 是 v-if="currentMusic" 渲染的，
+ * 刚把 currentMusic 写下去时元素可能还不存在；而它的 src 又绑定在
+ * currentMusic.id 上，Vue 会在同一个 tick 内把 src 改写掉 ——
+ * 若在这之前手动 load()+play()，随后的 src 改写会立刻打断 play()，
+ * 既报 AbortError，也可能最终谁都没在播。
+ * 等 DOM 打完补丁再起播，就没有这个问题，也就不需要手动 load()。
+ */
+const playCurrentTrack = async () => {
+  await nextTick()
+  const el = audioPlayer.value
+  if (!el) return
+  isPlaying.value = true
+  updateGlobalPlayerState()
+  fadeIn(el)
+  safePlay(el)
+  updateMediaSessionPlaybackState()
+}
+
 // 音频结束事件
 // 音频结束事件 - 现在根据播放模式处理
 const onAudioEnded = () => {
@@ -440,7 +495,7 @@ const onAudioEnded = () => {
     // 单曲循环：重新播放当前歌曲
     if (audioPlayer.value && currentMusic.value) {
       audioPlayer.value.currentTime = 0.2
-      audioPlayer.value.play()
+      safePlay(audioPlayer.value)
       // 更新媒体会话播放状态
       updateMediaSessionPlaybackState()
     }
@@ -919,7 +974,7 @@ const playNext = (fromEnded = false) => {
           progress.value = 0.2
           updateGlobalPlayerState()
           updateMediaSessionPositionState()
-          audioPlayer.value.play()
+          safePlay(audioPlayer.value)
           // 移除事件监听器
           audioPlayer.value.removeEventListener('canplay', onCanPlay)
         }
@@ -1015,7 +1070,7 @@ const playPrevious = (fromEnded = false) => {
           progress.value = 0.2
           updateGlobalPlayerState()
           updateMediaSessionPositionState()
-          audioPlayer.value.play()
+          safePlay(audioPlayer.value)
           // 移除事件监听器
           audioPlayer.value.removeEventListener('canplay', onCanPlay)
         }
@@ -1117,7 +1172,7 @@ const playNextInShuffle = (fromEnded = false) => {
           progress.value = 0.2
           updateGlobalPlayerState()
           updateMediaSessionPositionState()
-          audioPlayer.value.play()
+          safePlay(audioPlayer.value)
           // 移除事件监听器
           audioPlayer.value.removeEventListener('canplay', onCanPlay)
         }
@@ -1243,7 +1298,7 @@ const handleStorageChange = (e) => {
             // 设置播放状态
             isPlaying.value = true;
             fadeIn(audioPlayer.value);
-            audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
+            safePlay(audioPlayer.value);
             broadcastPlayerStateChange(); // 确保其他组件同步状态
           } else {
             // 如果不应该播放，确保播放状态为 false
@@ -1327,7 +1382,7 @@ const handleStorageChange = (e) => {
             if (state.isPlaying && !previousIsPlaying) {
               // 如果状态从暂停变为播放，则开始播放音频
               fadeIn(audioPlayer.value);
-              audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
+              safePlay(audioPlayer.value);
             } else if (!state.isPlaying) {
               // 如果状态变为暂停，则暂停音频
               audioPlayer.value.volume = 0;
@@ -1352,7 +1407,7 @@ const handleStorageChange = (e) => {
             if (state.isPlaying && !previousIsPlaying) {
               // 如果状态从暂停变为播放，则开始播放音频
               fadeIn(audioPlayer.value);
-              audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
+              safePlay(audioPlayer.value);
             } else if (!state.isPlaying) {
               // 如果状态变为暂停，则暂停音频
               audioPlayer.value.volume = 0;
@@ -1405,13 +1460,7 @@ const handleForcePlay = () => {
         updateGlobalPlayerState();
         
         fadeIn(audioPlayer.value);
-        audioPlayer.value.play().catch(e => {
-          console.log('播放被阻止:', e);
-          // 如果播放失败，重置播放状态
-          isPlaying.value = false;
-          updateGlobalPlayerState();
-          broadcastPlayerStateChange();
-        });
+        safePlay(audioPlayer.value);
         audioPlayer.value.removeEventListener('canplay', onCanPlay);
         
         // 更新播放状态
@@ -1435,13 +1484,7 @@ const handleForcePlay = () => {
     } else {
       // 音频源已经是当前音乐，直接播放
       fadeIn(audioPlayer.value);
-      audioPlayer.value.play().catch(e => {
-        console.log('播放被阻止:', e);
-        // 如果播放失败，重置播放状态
-        isPlaying.value = false;
-        updateGlobalPlayerState();
-        broadcastPlayerStateChange();
-      });
+      safePlay(audioPlayer.value);
       
       // 更新播放状态
       updateGlobalPlayerState();
@@ -1480,7 +1523,7 @@ const handlePlayerStateChange = (e) => {
         if (state.isPlaying) {
           isPlaying.value = true;
           fadeIn(audioPlayer.value);
-          audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
+          safePlay(audioPlayer.value);
         }
         
         audioPlayer.value.removeEventListener('canplay', onCanPlay);
@@ -1516,7 +1559,7 @@ const handlePlayerStateChange = (e) => {
         if (state.isPlaying && !previousIsPlaying) {
           // 如果状态从暂停变为播放，则开始播放音频
           fadeIn(audioPlayer.value);
-          audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
+          safePlay(audioPlayer.value);
         } else if (!state.isPlaying) {
           // 如果是暂停状态，立即暂停并静音，避免重音
           if (audioPlayer.value) {
@@ -1548,7 +1591,7 @@ const handlePlayerStateChange = (e) => {
         if (state.isPlaying && !previousIsPlaying) {
           // 如果状态从暂停变为播放，则开始播放音频
           fadeIn(audioPlayer.value);
-          audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
+          safePlay(audioPlayer.value);
         } else if (!state.isPlaying) {
           // 如果是暂停状态，立即暂停并静音，避免重音
           if (audioPlayer.value) {
@@ -1690,12 +1733,11 @@ const handleHashChange = () => {
       }
 
       // 加载歌词并开始播放
+      // 不要手动 load()：<audio> 的 src 绑定在 currentMusic.id 上，
+      // Vue 会在本次 tick 改写 src 并自行发起加载，手动 load() 只会
+      // 打断紧接着的 play()。统一交给 playCurrentTrack（内部等 nextTick）。
       loadLyrics(musicData.id)
-      if (audioPlayer.value) {
-        audioPlayer.value.load()
-        audioPlayer.value.play()
-      }
-      isPlaying.value = true
+      playCurrentTrack()
 
       // 清除hash（保留 vue-router 写入的 history.state，否则下次导航报 R0121）
       clearUrlHash()
@@ -1719,11 +1761,7 @@ const handleHashChange = () => {
         localStorage.setItem('currentPlayingMusic', JSON.stringify(playlistData[startIndex]))
 
         loadLyrics(playlistData[startIndex].id)
-        if (audioPlayer.value) {
-          audioPlayer.value.load()
-          audioPlayer.value.play()
-        }
-        isPlaying.value = true
+        playCurrentTrack()
       }
 
       // 清除hash（保留 vue-router 写入的 history.state，否则下次导航报 R0121）
@@ -1768,7 +1806,7 @@ const initializeMediaSession = (music = null) => {
           updateGlobalPlayerState()
           fadeIn(audioPlayer.value)
           // 调用play()来开始播放
-          audioPlayer.value.play().catch(e => console.log('播放被阻止:', e));
+          safePlay(audioPlayer.value);
         }
       })
       
