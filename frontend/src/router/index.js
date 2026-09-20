@@ -89,10 +89,11 @@ const router = createRouter({
       }
     },
     {
+      // 查询词走查询串：放进路径时 encodeURIComponent 会把 / 编成 %2F，
+      // Jetty 会以「Ambiguous URI path separator」直接 400，请求根本到不了前端。
       path: '/search',
       name: 'search',
       component: () => import('@/views/SearchResultsView.vue'),
-      props: true,
       meta: {
         title: '搜索音乐 - Neko歌姬计划 | 免费音乐搜索',
         description: '在Neko歌姬计划免费搜索您喜爱的音乐，发现更多精彩免费音乐内容。完全免费，无需付费。',
@@ -100,15 +101,9 @@ const router = createRouter({
       }
     },
     {
+      // 兼容历史分享链接 /search/{query}，统一转到查询串形式
       path: '/search/:query',
-      name: 'search-query',
-      component: () => import('@/views/SearchResultsView.vue'),
-      props: true,
-      meta: {
-        title: '搜索结果 - Neko歌姬计划 | 免费音乐',
-        description: '查看免费音乐搜索结果，找到您想要的免费音乐。Neko歌姬计划提供完全免费的音乐播放服务。',
-        keywords: '音乐搜索,搜索结果,免费音乐,免费听歌'
-      }
+      redirect: (to) => ({ path: '/search', query: { q: to.params.query } })
     },
     {
       // 登录已改为全局弹窗：旧链接/书签仍可用，落到首页并弹出登录
