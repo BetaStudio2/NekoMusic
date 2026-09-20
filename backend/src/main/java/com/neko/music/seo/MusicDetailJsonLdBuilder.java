@@ -26,7 +26,7 @@ public final class MusicDetailJsonLdBuilder {
             searchAction.put("@type", "SearchAction");
             ObjectNode target = searchAction.putObject("target");
             target.put("@type", "EntryPoint");
-            target.put("urlTemplate", c.siteBase + "/search/{search_term_string}");
+            target.put("urlTemplate", c.siteBase + "/search?q={search_term_string}");
             searchAction.put("query-input", "required name=search_term_string");
             graph.add(webSite);
 

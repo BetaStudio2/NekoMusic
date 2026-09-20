@@ -8,7 +8,7 @@
  *  - localStorage：userToken / user
  *  - window 事件：storage、USER_VIP_SYNC_EVENT
  *  - 选中搜索结果：写 currentPlayingMusic 并跳 /detail/:id
- *  - 回车：跳 /search/:query
+ *  - 回车：跳 /search?q=...（查询词走查询串，避免 / 被编码成 %2F 被 Jetty 400）
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { openAuthDialog } from '@/composables/useAuthDialog'
@@ -121,7 +121,8 @@ async function performSearch() {
   searchSeq++
   searchResults.value = null
   showResults.value = false
-  router.push(`/search/${encodeURIComponent(query)}`)
+  // 查询串形式：查询词里的 / 编码成 %2F 在 path 里会被 Jetty 拒绝
+  router.push({ name: 'search', query: { q: query } })
 }
 
 function selectResult(result) {

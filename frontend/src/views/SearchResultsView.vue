@@ -32,9 +32,19 @@ const artistPayload = ref({ name: '', musicCount: 0, musicList: [] })
 const favoriteMusicIds = ref(new Set())
 const tab = ref('tracks')
 
-if (route.params.query) {
-  searchQuery.value = decodeURIComponent(route.params.query)
-}
+/**
+ * 查询词来源：优先 ?q= 查询串，兼容历史 /search/{query} 路径。
+ *  - 走查询串的原因：路径形式下 encodeURIComponent 会把查询词里的 / 编成 %2F，
+ *    Jetty 视为「歧义路径分隔符」直接返回 400，请求根本到不了前端。
+ *  - vue-router 已对参数解码，这里不能再 decodeURIComponent（查询词含 % 会抛错）。
+ */
+const routeQuery = computed(() => {
+  const raw = route.query.q ?? route.params.query
+  const value = Array.isArray(raw) ? raw[0] : raw
+  return typeof value === 'string' ? value.trim() : ''
+})
+
+searchQuery.value = routeQuery.value
 
 const hasAnyResults = computed(
   () =>
@@ -313,21 +323,18 @@ function handleImageError(event) {
   event.target.src = `${API_CONFIG.BASE_URL}/api/music/cover/0`
 }
 
-watch(
-  () => route.params.query,
-  (newQuery) => {
-    if (newQuery) {
-      searchQuery.value = decodeURIComponent(newQuery)
-      runSearch(searchQuery.value)
-    } else {
-      searchQuery.value = ''
-      searchLoading.value = false
-      musicResults.value = []
-      playlistResults.value = []
-      artistPayload.value = { name: '', musicCount: 0, musicList: [] }
-    }
+watch(routeQuery, (query) => {
+  if (query) {
+    searchQuery.value = query
+    runSearch(query)
+  } else {
+    searchQuery.value = ''
+    searchLoading.value = false
+    musicResults.value = []
+    playlistResults.value = []
+    artistPayload.value = { name: '', musicCount: 0, musicList: [] }
   }
-)
+})
 
 onMounted(async () => {
   if (searchQuery.value && searchQuery.value !== 'undefined') {

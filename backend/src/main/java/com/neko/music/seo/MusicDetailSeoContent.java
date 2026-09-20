@@ -83,7 +83,9 @@ public final class MusicDetailSeoContent {
         String updatedAt = music.updatedAt != null ? music.updatedAt : "";
 
         String searchQuery = URLEncoder.encode(title + " " + artist, StandardCharsets.UTF_8);
-        String searchUrl = base + "/search/" + searchQuery;
+        // 查询词走查询串：放进 path 时 URLEncoder 会把标题里的 / 编成 %2F，
+        // Jetty 会以「Ambiguous URI path separator」400 掉整个页面。
+        String searchUrl = base + "/search?q=" + searchQuery;
 
         String albumZh = album.isEmpty() ? "" : "，专辑《" + album + "》";
         String albumEn = album.isEmpty() ? "" : ", album \"" + album + "\"";
