@@ -146,7 +146,6 @@ const fetchPlaylists = async () => {
         }
       })
       
-      console.log('歌单列表数据:', playlists.value)
     } else {
       toast.error(data.message || '获取歌单列表失败')
     }

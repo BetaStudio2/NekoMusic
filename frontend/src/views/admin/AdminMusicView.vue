@@ -320,7 +320,6 @@ const handleMusicFileChange = async (event) => {
       return
     }
 
-    console.log('检测到文件格式:', fileExtension, '文件类型:', file.type)
 
     newMusic.value.file = file
     newMusic.value.fileName = file.name
@@ -330,17 +329,13 @@ const handleMusicFileChange = async (event) => {
     audio.src = URL.createObjectURL(file)
     audio.onloadedmetadata = async () => {
       newMusic.value.duration = Math.floor(audio.duration)
-      console.log('音频时长:', newMusic.value.duration, '秒')
 
       // 根据文件扩展名解析元数据
       if (fileExtension === 'mp3') {
-        console.log('开始解析 MP3 元数据')
         await parseMP3Metadata(file)
       } else if (fileExtension === 'flac') {
-        console.log('开始解析 FLAC 元数据')
         await parseFlacMetadata(file)
       } else if (fileExtension === 'wav') {
-        console.log('开始解析 WAV 元数据')
         await parseWavMetadata(file)
       }
       URL.revokeObjectURL(audio.src) // 释放对象URL
@@ -350,15 +345,12 @@ const handleMusicFileChange = async (event) => {
 
 // 解析MP3文件的元数据
 const parseMP3Metadata = async (file) => {
-  console.log('开始解析MP3文件:', file.name)
   try {
     const arrayBuffer = await file.arrayBuffer()
     const dataView = new DataView(arrayBuffer)
-    console.log('文件大小:', arrayBuffer.length, 'bytes')
 
     // 检查文件头
     const header = dataView.getString(0, 3)
-    console.log('文件头标识:', header)
 
     // 查找ID3v2标签
     if (header === 'ID3') {
@@ -367,9 +359,6 @@ const parseMP3Metadata = async (file) => {
       const flags = dataView.getUint8(5)
       const size = dataView.getUint32(6)
 
-      console.log('ID3版本:', version, '.', revision)
-      console.log('ID3标志:', flags.toString(2))
-      console.log('ID3标签大小:', size, 'bytes')
 
       const headerSize = 10
       let offset = headerSize
@@ -381,17 +370,14 @@ const parseMP3Metadata = async (file) => {
         cover: null
       }
 
-      console.log('开始解析帧...')
 
       while (offset < headerSize + size) {
         const frameId = dataView.getString(offset, 4)
         const frameSize = dataView.getUint32(offset + 4)
         const frameFlags = dataView.getUint16(offset + 8)
 
-        console.log('帧ID:', frameId, '大小:', frameSize)
 
         if (frameSize === 0) {
-          console.log('帧大小为0，停止解析')
           break
         }
 
@@ -401,20 +387,15 @@ const parseMP3Metadata = async (file) => {
 
         if (frameId === 'TIT2') {
           metadata.title = dataView.decodeTextFrame(frameDataOffset, frameDataSize)
-          console.log('解析到音乐名称:', metadata.title)
         } else if (frameId === 'TPE1') {
           metadata.artist = dataView.decodeTextFrame(frameDataOffset, frameDataSize)
-          console.log('解析到艺术家:', metadata.artist)
         } else if (frameId === 'TALB') {
           metadata.album = dataView.decodeTextFrame(frameDataOffset, frameDataSize)
-          console.log('解析到专辑:', metadata.album)
         } else if (frameId === 'APIC') {
           // 解析封面图片
-          console.log('开始解析封面图片...')
 
           const picOffset = frameDataOffset
           const textEncoding = dataView.getUint8(picOffset)
-          console.log('封面文本编码:', textEncoding)
 
           let currentOffset = picOffset + 1
 
@@ -425,12 +406,10 @@ const parseMP3Metadata = async (file) => {
           }
           const mimeType = dataView.getString(currentOffset, mimeTypeEnd - currentOffset)
           currentOffset = mimeTypeEnd + 1
-          console.log('封面MIME类型:', mimeType)
 
           // 跳过图片类型
           const pictureType = dataView.getUint8(currentOffset)
           currentOffset += 1
-          console.log('封面图片类型:', pictureType)
 
           // 读取描述
           let descEnd = currentOffset
@@ -439,47 +418,37 @@ const parseMP3Metadata = async (file) => {
           }
           const description = dataView.decodeTextString(currentOffset, descEnd - currentOffset, textEncoding)
           currentOffset = descEnd + 1
-          console.log('封面描述:', description)
 
           // 读取图片数据
           const imageSize = frameDataSize - (currentOffset - frameDataOffset)
-          console.log('封面图片大小:', imageSize, 'bytes')
 
           if (imageSize > 0) {
             const imageData = new Uint8Array(arrayBuffer, currentOffset, imageSize)
             metadata.cover = new Blob([imageData], { type: mimeType })
-            console.log('封面图片解析成功')
           }
         }
 
         offset += 10 + frameSize
       }
 
-      console.log('解析完成，开始填充表单...')
 
       // 自动填充表单
       if (metadata.title) {
         newMusic.value.title = metadata.title
-        console.log('已填充音乐名称:', metadata.title)
       }
       if (metadata.artist) {
         newMusic.value.artist = metadata.artist
-        console.log('已填充艺术家:', metadata.artist)
       }
       if (metadata.album) {
         newMusic.value.album = metadata.album
-        console.log('已填充专辑:', metadata.album)
       }
       if (metadata.cover) {
         newMusic.value.coverFile = new File([metadata.cover], 'cover.jpg', { type: metadata.cover.type })
         newMusic.value.coverFileName = 'cover.jpg'
-        console.log('已填充封面图片')
       }
 
-      console.log('MP3文件信息解析成功')
       toast.success('已自动解析MP3文件信息')
     } else {
-      console.log('未找到ID3标签，无法解析元数据')
       toast.warning('该MP3文件不包含ID3标签，无法自动解析信息')
     }
   } catch (error) {
@@ -644,7 +613,6 @@ DataView.prototype.decodeTextString = function(offset, length, encoding) {
 
 // 解析FLAC文件的元数据
 const parseFlacMetadata = async (file, targetMusic = newMusic) => {
-  console.log('开始解析FLAC文件:', file.name, '目标对象:', targetMusic === newMusic ? 'newMusic' : 'editingMusic')
   try {
     const arrayBuffer = await file.arrayBuffer()
     const dataView = new DataView(arrayBuffer)
@@ -658,16 +626,12 @@ const parseFlacMetadata = async (file, targetMusic = newMusic) => {
     const byte3 = dataView.getUint8(3)
 
     const header = String.fromCharCode(byte0, byte1, byte2, byte3)
-    console.log('FLAC文件头:', header, `[${byte0.toString(16)}, ${byte1.toString(16)}, ${byte2.toString(16)}, ${byte3.toString(16)}]`)
 
     if (header !== 'fLaC') {
-      console.log('不是有效的FLAC文件')
       toast.warning('该FLAC文件不包含元数据标签，无法自动解析信息')
       return
     }
 
-    console.log('找到FLAC文件头')
-    console.log('文件总大小:', arrayBuffer.byteLength, 'bytes')
 
     // FLAC元数据块解析
     let offset = 4 // 跳过"fLaC"标识
@@ -681,15 +645,11 @@ const parseFlacMetadata = async (file, targetMusic = newMusic) => {
     let blockCount = 0
     const maxBlocks = 100 // 防止无限循环
 
-    console.log('开始遍历元数据块，初始 offset:', offset)
-    console.log('循环条件检查: offset < arrayBuffer.byteLength?', offset < arrayBuffer.byteLength)
-    console.log('循环条件检查: blockCount < maxBlocks?', blockCount < maxBlocks)
 
     // 遍历元数据块
     while (offset < arrayBuffer.byteLength && blockCount < maxBlocks) {
       blockCount++
 
-      console.log(`当前 offset: ${offset}, 文件总长度: ${arrayBuffer.byteLength}`)
 
       // 读取块头
       const blockHeader = dataView.getUint8(offset)
@@ -702,8 +662,6 @@ const parseFlacMetadata = async (file, targetMusic = newMusic) => {
       const byte3 = dataView.getUint8(offset + 3)
       const blockSize = (byte1 << 16) | (byte2 << 8) | byte3
 
-      console.log(`元数据块 #${blockCount}: 类型=${blockType}, 大小=${blockSize}, 最后=${isLast}`)
-      console.log(`块头字节: [${blockHeader.toString(16)}, ${byte1.toString(16)}, ${byte2.toString(16)}, ${byte3.toString(16)}]`)
 
       offset += 4 // 跳过块头
 
@@ -715,13 +673,11 @@ const parseFlacMetadata = async (file, targetMusic = newMusic) => {
 
       // VORBIS_COMMENT块（类型4）包含元数据
       if (blockType === 4) {
-        console.log('>>> 找到 VORBIS_COMMENT 块！开始解析...')
 
         // 读取vendor length和vendor string
         let dataOffset = 0
         const vendorLength = dataView.getUint32(offset + dataOffset, true)
         dataOffset += 4
-        console.log(`Vendor 长度: ${vendorLength}`)
 
         dataOffset += vendorLength // 跳过vendor string
 
@@ -729,7 +685,6 @@ const parseFlacMetadata = async (file, targetMusic = newMusic) => {
         const commentsCount = dataView.getUint32(offset + dataOffset, true)
         dataOffset += 4
 
-        console.log(`>>> 找到 ${commentsCount} 个注释`)
 
         // 解析每个comment
         for (let i = 0; i < commentsCount; i++) {
@@ -746,7 +701,6 @@ const parseFlacMetadata = async (file, targetMusic = newMusic) => {
           const comment = textDecoder.decode(commentBytes)
           dataOffset += commentLength
 
-          console.log(`>>> 注释 ${i + 1}: ${comment}`)
 
           // 解析comment格式: FIELD=value
           const equalIndex = comment.indexOf('=')
@@ -754,37 +708,29 @@ const parseFlacMetadata = async (file, targetMusic = newMusic) => {
             const field = comment.substring(0, equalIndex).toUpperCase()
             const value = comment.substring(equalIndex + 1)
 
-            console.log(`>>> 解析字段: ${field} = ${value}`)
 
             if (field === 'TITLE') {
               metadata.title = value
-              console.log('>>> ✓ 解析到音乐名称:', value)
             } else if (field === 'ARTIST') {
               metadata.artist = value
-              console.log('>>> ✓ 解析到艺术家:', value)
             } else if (field === 'ALBUM') {
               metadata.album = value
-              console.log('>>> ✓ 解析到专辑:', value)
             }
           }
         }
       }
       // PICTURE块（类型6）包含封面图片
       else if (blockType === 6) {
-        console.log('>>> 找到 PICTURE 块，开始解析封面...')
 
         let picOffset = offset
-        console.log(`>>> PICTURE 块起始位置: ${picOffset}, 块大小: ${blockSize}`)
 
         // 读取图片类型（大端序）
         const pictureType = dataView.getUint32(picOffset, false)
         picOffset += 4
-        console.log(`>>> 图片类型: ${pictureType}`)
 
         // 读取MIME类型长度和MIME类型（大端序）
         const mimeLength = dataView.getUint32(picOffset, false)
         picOffset += 4
-        console.log(`>>> MIME类型长度: ${mimeLength}, 当前位置: ${picOffset}`)
 
         if (picOffset + mimeLength > offset + blockSize) {
           console.warn('>>> MIME类型长度超出块范围')
@@ -793,14 +739,11 @@ const parseFlacMetadata = async (file, targetMusic = newMusic) => {
           const mimeBytes = new Uint8Array(arrayBuffer, picOffset, mimeLength)
           const mimeType = textDecoder.decode(mimeBytes)
           picOffset += mimeLength
-          console.log(`>>> MIME类型: ${mimeType}, 解码后位置: ${picOffset}`)
 
           // 读取描述长度和描述（大端序）
           const descLength = dataView.getUint32(picOffset, false)
           picOffset += 4
-          console.log(`>>> 描述长度: ${descLength}, 当前位置: ${picOffset}`)
           picOffset += descLength // 跳过描述
-          console.log(`>>> 跳过描述后位置: ${picOffset}`)
 
           // 读取宽度、高度、颜色深度、颜色数（大端序）
           const width = dataView.getUint32(picOffset, false)
@@ -811,21 +754,15 @@ const parseFlacMetadata = async (file, targetMusic = newMusic) => {
           picOffset += 4
           const colorCount = dataView.getUint32(picOffset, false)
           picOffset += 4
-          console.log(`>>> 图片尺寸: ${width}x${height}, 颜色深度: ${colorDepth}, 颜色数: ${colorCount}`)
-          console.log(`>>> 读取图片属性后位置: ${picOffset}`)
 
           // 读取图片数据长度和图片数据（大端序）
           const pictureLength = dataView.getUint32(picOffset, false)
           picOffset += 4
-          console.log(`>>> 图片数据长度: ${pictureLength}, 当前位置: ${picOffset}`)
-          console.log(`>>> 块结束位置: ${offset + blockSize}, 剩余空间: ${offset + blockSize - picOffset}`)
 
-          console.log(`>>> 封面MIME类型: ${mimeType}, 大小: ${pictureLength} bytes`)
 
           if (pictureLength > 0 && picOffset + pictureLength <= offset + blockSize) {
             const imageData = new Uint8Array(arrayBuffer, picOffset, pictureLength)
             metadata.cover = new Blob([imageData], { type: mimeType })
-            console.log('>>> ✓ 封面图片解析成功，Blob 大小:', metadata.cover.size)
           } else {
             console.warn(`>>> ❌ 封面图片数据超出范围: ${picOffset + pictureLength} > ${offset + blockSize}`)
           }
@@ -833,49 +770,35 @@ const parseFlacMetadata = async (file, targetMusic = newMusic) => {
       }
       // 其他块类型
       else {
-        console.log(`>>> 跳过块类型 ${blockType}`)
       }
 
       offset += blockSize
 
       if (isLast) {
-        console.log('>>> 到达最后一个元数据块')
         break
       }
     }
 
     // 自动填充表单
-    console.log('准备填充表单，元数据:', metadata)
-    console.log('当前目标对象值:', JSON.parse(JSON.stringify(targetMusic.value)))
 
     if (metadata.title) {
       targetMusic.value.title = metadata.title
-      console.log('✓ 已填充音乐名称:', metadata.title)
     } else {
-      console.log('✗ 未找到音乐名称')
     }
     if (metadata.artist) {
       targetMusic.value.artist = metadata.artist
-      console.log('✓ 已填充艺术家:', metadata.artist)
     } else {
-      console.log('✗ 未找到艺术家')
     }
     if (metadata.album) {
       targetMusic.value.album = metadata.album
-      console.log('✓ 已填充专辑:', metadata.album)
     } else {
-      console.log('✗ 未找到专辑')
     }
     if (metadata.cover) {
       targetMusic.value.coverFile = new File([metadata.cover], 'cover.jpg', { type: metadata.cover.type })
       targetMusic.value.coverFileName = 'cover.jpg'
-      console.log('✓ 已填充封面图片')
     } else {
-      console.log('✗ 未找到封面图片')
     }
 
-    console.log('填充后的目标对象值:', JSON.parse(JSON.stringify(targetMusic.value)))
-    console.log('FLAC文件信息解析成功')
     toast.success('已自动解析FLAC文件信息')
   } catch (error) {
     console.error('解析FLAC元数据失败:', error)
@@ -886,7 +809,6 @@ const parseFlacMetadata = async (file, targetMusic = newMusic) => {
 
 // 解析WAV文件的元数据（WAV格式通常不包含ID3标签，但有一些变种支持）
 const parseWavMetadata = async (file) => {
-  console.log('开始解析WAV文件:', file.name)
   try {
     const arrayBuffer = await file.arrayBuffer()
     const dataView = new DataView(arrayBuffer)
@@ -894,7 +816,6 @@ const parseWavMetadata = async (file) => {
     // 检查RIFF文件头
     const riffHeader = dataView.getString(0, 4)
     if (riffHeader !== 'RIFF') {
-      console.log('不是有效的WAV文件')
       toast.warning('该WAV文件不包含元数据标签，无法自动解析信息')
       return
     }
@@ -902,12 +823,10 @@ const parseWavMetadata = async (file) => {
     // 检查WAVE格式
     const waveHeader = dataView.getString(8, 4)
     if (waveHeader !== 'WAVE') {
-      console.log('不是WAVE格式')
       toast.warning('该WAV文件不包含元数据标签，无法自动解析信息')
       return
     }
 
-    console.log('找到WAV文件头')
 
     // WAV文件通常不包含ID3标签，但有些变种支持INFO LIST或ID3标签
     // 这里我们尝试查找ID3标签（某些WAV文件可能包含）
@@ -918,12 +837,10 @@ const parseWavMetadata = async (file) => {
       const chunkId = dataView.getString(offset, 4)
       const chunkSize = dataView.getUint32(offset + 4, true)
 
-      console.log(`块: ${chunkId}, 大小: ${chunkSize}`)
 
       if (chunkId === 'LIST') {
         const listType = dataView.getString(offset + 8, 4)
         if (listType === 'INFO') {
-          console.log('找到INFO LIST块')
           const metadata = {
             title: '',
             artist: '',
@@ -942,17 +859,14 @@ const parseWavMetadata = async (file) => {
               // Title
               const titleBytes = new Uint8Array(arrayBuffer, infoOffset, infoSize)
               metadata.title = dataView.decodeUTF8(titleBytes).replace(/\0/g, '')
-              console.log('解析到音乐名称:', metadata.title)
             } else if (infoId === 'IART') {
               // Artist
               const artistBytes = new Uint8Array(arrayBuffer, infoOffset, infoSize)
               metadata.artist = dataView.decodeUTF8(artistBytes).replace(/\0/g, '')
-              console.log('解析到艺术家:', metadata.artist)
             } else if (infoId === 'IPRD') {
               // Album
               const albumBytes = new Uint8Array(arrayBuffer, infoOffset, infoSize)
               metadata.album = dataView.decodeUTF8(albumBytes).replace(/\0/g, '')
-              console.log('解析到专辑:', metadata.album)
             }
 
             infoOffset += infoSize
@@ -973,13 +887,11 @@ const parseWavMetadata = async (file) => {
             newMusic.value.album = metadata.album
           }
 
-          console.log('WAV文件信息解析成功')
           toast.success('已自动解析WAV文件信息')
           return
         }
       } else if (chunkId === 'ID3 ' || chunkId === 'id3 ') {
         // 某些WAV文件可能包含ID3标签
-        console.log('找到ID3标签块')
         // 可以复用parseMP3Metadata的逻辑
         const id3Data = arrayBuffer.slice(offset + 8, offset + 8 + chunkSize)
         // 这里简化处理，WAV的ID3标签较少见
@@ -994,7 +906,6 @@ const parseWavMetadata = async (file) => {
       }
     }
 
-    console.log('未找到元数据标签')
     toast.warning('该WAV文件不包含元数据标签，无法自动解析信息')
   } catch (error) {
     console.error('解析WAV元数据失败:', error)
@@ -1034,7 +945,6 @@ const handleEditMusicFileChange = async (event) => {
       return
     }
 
-    console.log('编辑模式 - 检测到文件格式:', fileExtension, '文件类型:', file.type)
 
     editingMusic.value.file = file
     editingMusic.value.fileName = file.name
@@ -1044,17 +954,13 @@ const handleEditMusicFileChange = async (event) => {
     audio.src = URL.createObjectURL(file)
     audio.onloadedmetadata = async () => {
       editingMusic.value.duration = Math.floor(audio.duration)
-      console.log('编辑模式 - 音频时长:', editingMusic.value.duration, '秒')
 
       // 根据文件扩展名解析元数据
       if (fileExtension === 'mp3') {
-        console.log('编辑模式 - 开始解析 MP3 元数据')
         await parseMP3Metadata(file, editingMusic)
       } else if (fileExtension === 'flac') {
-        console.log('编辑模式 - 开始解析 FLAC 元数据')
         await parseFlacMetadata(file, editingMusic)
       } else if (fileExtension === 'wav') {
-        console.log('编辑模式 - 开始解析 WAV 元数据')
         await parseWavMetadata(file, editingMusic)
       }
       URL.revokeObjectURL(audio.src) // 释放对象URL

@@ -236,7 +236,6 @@ onMounted(() => {
       
       // 临时修复：如果没有role字段，从后端重新获取管理员信息
       if (!parsedInfo.role) {
-        console.log('没有role字段，重新获取管理员信息')
         fetchCurrentAdminInfo()
       }
       
@@ -263,7 +262,6 @@ const fetchCurrentAdminInfo = async () => {
     if (data.success && data.admin) {
       adminInfo.value = data.admin
       localStorage.setItem('adminInfo', JSON.stringify(data.admin))
-      console.log('已更新管理员信息:', adminInfo.value)
     }
   } catch (error) {
     console.error('获取管理员信息失败:', error)
@@ -340,8 +338,6 @@ const regularUsers = ref([])
 // 获取管理员用户列表
 const fetchAdminUsers = async () => {
   const role = adminInfo.value?.role || 'admin'
-  console.log('fetchAdminUsers - 当前角色:', role)
-  console.log('fetchAdminUsers - adminInfo.value:', adminInfo.value)
   
   // 审核员只显示自己的账号
   if (role === 'auditor') {
@@ -363,13 +359,11 @@ const fetchAdminUsers = async () => {
       }
     })
     const data = await response.json()
-    console.log('管理员用户数据:', data)
     if (data.success) {
       adminUsers.value = data.data.map(user => ({
         ...user,
         accountType: 'admin'
       }))
-      console.log('处理后的管理员用户:', adminUsers.value)
     } else {
       console.error('获取管理员用户失败:', data.message)
     }

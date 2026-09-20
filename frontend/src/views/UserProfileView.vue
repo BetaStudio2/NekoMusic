@@ -297,7 +297,6 @@ const handleAvatarUpload = (event) => {
   if (!file) return;
   
   // 这里可以实现上传头像的逻辑
-  console.log('选择的头像文件:', file.name);
   toast.info('头像上传功能将在后续版本中实现');
 }
 
@@ -326,10 +325,6 @@ const changePassword = async () => {
   changePasswordLoading.value = true;
   try {
     // 这里可以实现修改密码的API调用
-    console.log('修改密码请求:', {
-      currentPassword: currentPassword.value,
-      newPassword: newPassword.value
-    });
     
     toast.info('修改密码功能将在后续版本中实现');
   } catch (error) {

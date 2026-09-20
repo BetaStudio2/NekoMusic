@@ -450,7 +450,6 @@ const safePlay = (el) => {
   try {
     result = el.play()
   } catch (err) {
-    console.log('播放被阻止:', err)
     isPlaying.value = false
     updateGlobalPlayerState()
     broadcastPlayerStateChange()
@@ -459,7 +458,6 @@ const safePlay = (el) => {
   if (result?.catch) {
     result.catch((err) => {
       if (err?.name === 'AbortError') return // 被新的 load/play 取代，正常
-      console.log('播放被阻止:', err)
       isPlaying.value = false
       updateGlobalPlayerState()
       broadcastPlayerStateChange()
@@ -1721,7 +1719,6 @@ const initializeMediaSession = (music = null) => {
         updateMediaSessionMetadata(music || currentMusic.value)
       }
     } catch (error) {
-      console.log('媒体会话API初始化失败:', error)
     }
   }
 }
@@ -1749,7 +1746,6 @@ const updateMediaSessionMetadata = (music) => {
       // 更新播放状态
       navigator.mediaSession.playbackState = isPlaying.value ? 'playing' : 'paused'
     } catch (error) {
-      console.log('更新媒体会话元数据失败:', error)
     }
   }
 }
@@ -1760,7 +1756,6 @@ const updateMediaSessionPlaybackState = () => {
     try {
       navigator.mediaSession.playbackState = isPlaying.value ? 'playing' : 'paused'
     } catch (error) {
-      console.log('更新媒体会话播放状态失败:', error)
     }
   }
 }
@@ -1777,7 +1772,6 @@ const updateMediaSessionPositionState = () => {
         position: safeCurrentTime
       });
     } catch (error) {
-      console.log('更新媒体会话播放位置失败:', error)
     }
   }
 }

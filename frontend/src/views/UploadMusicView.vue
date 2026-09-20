@@ -262,10 +262,6 @@ const parseDuration = async () => {
   }
 
   parsingDuration.value = true
-  console.log('========== 开始手动解析时长 ==========')
-  console.log('文件名:', musicFile.value.name)
-  console.log('文件类型:', musicFile.value.type)
-  console.log('文件大小:', musicFile.value.size, 'bytes')
 
   try {
     const audio = new Audio()
@@ -278,8 +274,6 @@ const parseDuration = async () => {
     // 设置超时（10秒）
     const timeout = setTimeout(() => {
       console.warn('[手动时长解析] 10秒超时')
-      console.log('[手动时长解析] audio.readyState:', audio.readyState)
-      console.log('[手动时长解析] audio.duration:', audio.duration)
       if (!metadataLoaded && !canPlayLoaded) {
         URL.revokeObjectURL(objectUrl)
         toast.error('解析超时，请尝试手动输入时长')
@@ -291,8 +285,6 @@ const parseDuration = async () => {
     audio.onloadedmetadata = () => {
       clearTimeout(timeout)
       metadataLoaded = true
-      console.log('[手动时长解析] onloadedmetadata 触发')
-      console.log('[手动时长解析] audio.duration:', audio.duration)
       checkAndSaveDurationManual(audio, objectUrl)
     }
 
@@ -300,8 +292,6 @@ const parseDuration = async () => {
       if (!metadataLoaded && !canPlayLoaded) {
         clearTimeout(timeout)
         canPlayLoaded = true
-        console.log('[手动时长解析] oncanplay 触发')
-        console.log('[手动时长解析] audio.duration:', audio.duration)
         checkAndSaveDurationManual(audio, objectUrl)
       }
     }
@@ -310,8 +300,6 @@ const parseDuration = async () => {
       if (!metadataLoaded && !canPlayLoaded) {
         clearTimeout(timeout)
         canPlayLoaded = true
-        console.log('[手动时长解析] oncanplaythrough 触发')
-        console.log('[手动时长解析] audio.duration:', audio.duration)
         checkAndSaveDurationManual(audio, objectUrl)
       }
     }
@@ -328,8 +316,6 @@ const parseDuration = async () => {
     }
 
     audio.onloadeddata = () => {
-      console.log('[手动时长解析] onloadeddata 触发')
-      console.log('[手动时长解析] audio.duration:', audio.duration)
     }
 
   } catch (error) {
@@ -341,20 +327,13 @@ const parseDuration = async () => {
 
 // 检查并保存时长（手动版本）
 const checkAndSaveDurationManual = (audio, objectUrl) => {
-  console.log('[手动时长解析] 开始检查时长...')
-  console.log('[手动时长解析] audio.duration:', audio.duration)
-  console.log('[手动时长解析] audio.readyState:', audio.readyState)
 
   // 尝试多次读取duration
   const checkDuration = (attempts = 0) => {
     const duration = audio.duration
-    console.log(`[手动时长解析] 尝试 ${attempts + 1}: duration = ${duration}`)
 
     if (duration && duration > 0 && duration !== Infinity && !isNaN(duration)) {
       formData.value.duration = Math.round(duration)
-      console.log('[手动时长解析] ✓✓✓ 解析成功:', duration, '秒')
-      console.log('[手动时长解析] ✓✓✓ 格式化时长:', formatDuration(formData.value.duration))
-      console.log('[手动时长解析] ✓✓✓ 已保存到formData.duration')
       URL.revokeObjectURL(objectUrl)
       toast.success(`时长解析成功: ${formatDuration(formData.value.duration)}`)
       parsingDuration.value = false
@@ -393,10 +372,6 @@ const handleMusicFileChange = async (event) => {
 
     musicFile.value = file
 
-    console.log('========== 音乐文件解析开始 ==========')
-    console.log('文件名:', file.name)
-    console.log('文件大小:', (file.size / 1024 / 1024).toFixed(2), 'MB')
-    console.log('文件类型:', fileExtension.toUpperCase())
 
     // 立即解析元数据
     await parseMetadata(fileExtension, file)
@@ -405,14 +380,12 @@ const handleMusicFileChange = async (event) => {
 
 // 解析MP3文件的元数据
 const parseMP3Metadata = async (file) => {
-  console.log('[MP3解析] 开始解析MP3文件元数据')
   try {
     const arrayBuffer = await file.arrayBuffer()
     const dataView = new DataView(arrayBuffer)
 
     // 检查文件头
     const header = dataView.getString(0, 3)
-    console.log('[MP3解析] 文件头:', header)
 
     if (header === 'ID3') {
       const size = dataView.getUint32(6)
@@ -485,15 +458,8 @@ const parseMP3Metadata = async (file) => {
         coverPreview.value = URL.createObjectURL(metadata.cover)
       }
 
-      console.log('[MP3解析] 解析结果:', {
-        title: metadata.title,
-        artist: metadata.artist,
-        album: metadata.album,
-        hasCover: !!metadata.cover
-      })
       toast.success('已自动解析MP3文件信息')
     } else {
-      console.log('[MP3解析] 文件不是ID3格式，跳过元数据解析')
     }
   } catch (error) {
     console.error('[MP3解析] 解析失败:', error)
@@ -502,7 +468,6 @@ const parseMP3Metadata = async (file) => {
 
 // 解析FLAC文件的元数据
 const parseFlacMetadata = async (file) => {
-  console.log('[FLAC解析] 开始解析FLAC文件元数据')
   try {
     const arrayBuffer = await file.arrayBuffer()
     const dataView = new DataView(arrayBuffer)
@@ -516,10 +481,8 @@ const parseFlacMetadata = async (file) => {
       dataView.getUint8(3)
     )
 
-    console.log('[FLAC解析] 文件头:', header)
 
     if (header !== 'fLaC') {
-      console.log('[FLAC解析] 不是有效的FLAC文件')
       toast.warning('该FLAC文件不包含元数据标签')
       return
     }
@@ -653,12 +616,6 @@ const parseFlacMetadata = async (file) => {
       coverPreview.value = URL.createObjectURL(metadata.cover)
     }
 
-    console.log('[FLAC解析] 解析结果:', {
-      title: metadata.title,
-      artist: metadata.artist,
-      album: metadata.album,
-      hasCover: !!metadata.cover
-    })
     toast.success('已自动解析FLAC文件信息')
   } catch (error) {
     console.error('[FLAC解析] 解析失败:', error)
@@ -668,7 +625,6 @@ const parseFlacMetadata = async (file) => {
 
 // 解析WAV文件的元数据（简化版）
 const parseWavMetadata = async (file) => {
-  console.log('[WAV解析] WAV文件暂不支持自动解析元数据')
   // WAV文件通常不包含ID3标签，这里只做简单处理
   toast.warning('WAV文件暂不支持自动解析元数据，请手动填写')
 }
@@ -751,7 +707,6 @@ const formatDuration = (seconds) => {
 
 // 解析元数据的辅助函数
 const parseMetadata = async (fileExtension, file) => {
-  console.log('---------- 开始解析元数据 ----------')
   
   try {
     if (fileExtension === 'mp3') {
@@ -762,9 +717,6 @@ const parseMetadata = async (fileExtension, file) => {
       await parseWavMetadata(file)
     }
     
-    console.log('---------- 元数据解析完成 ----------')
-    console.log('解析后的formData:', JSON.stringify(formData.value, null, 2))
-    console.log('========== 音乐文件解析完成 ==========')
   } catch (error) {
     console.error('[元数据解析] 解析过程出错:', error)
   }
@@ -942,7 +894,6 @@ const showUploadNotice = (type, message) => {
 
 const showUploadResultToast = (result, fallbackMessage) => {
   const message = result?.message || fallbackMessage || '上传失败'
-  console.log('上传接口解析结果:', result)
   if (result?.success === true) {
     showUploadNotice('success', message)
     return true
@@ -952,11 +903,6 @@ const showUploadResultToast = (result, fallbackMessage) => {
 }
 
 const handleSubmit = async () => {
-  console.log('========== 开始提交上传 ==========')
-  console.log('提交的数据:', JSON.stringify(formData.value, null, 2))
-  console.log('音乐文件:', musicFile.value ? musicFile.value.name : '未选择')
-  console.log('封面文件:', coverFile.value ? coverFile.value.name : '未选择')
-  console.log('歌词文件:', lyricsFile.value ? lyricsFile.value.name : '未选择')
   
   if (!musicFile.value) {
     showUploadNotice('error', '请选择音乐文件')
