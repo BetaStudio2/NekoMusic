@@ -46,7 +46,7 @@ function initializeUserState() {
   }
   try {
     user.value = JSON.parse(userStr)
-    username.value = user.value ? user.value.username : ''
+    username.value = user.value ? user.value.nickname : ''
   } catch (e) {
     console.error('解析用户信息失败:', e)
     user.value = null

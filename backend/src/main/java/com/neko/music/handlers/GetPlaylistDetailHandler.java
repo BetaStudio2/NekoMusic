@@ -72,7 +72,7 @@ public class GetPlaylistDetailHandler extends ApiServlet {
             // 添加创建者信息
             JsonObject creator = new JsonObject();
             creator.addProperty("id", playlist.userId());
-            creator.addProperty("username", UserLookup.getUserName(playlist.userId()));
+            creator.addProperty("nickname", UserLookup.getNickname(playlist.userId()));
             playlistJson.add("creator", creator);
             
             response.add("playlist", playlistJson);

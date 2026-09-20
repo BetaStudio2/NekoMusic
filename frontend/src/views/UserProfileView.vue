@@ -15,7 +15,7 @@
 
         <div class="profile__ident">
           <h1 class="profile__name">
-            {{ user.username }}
+            {{ user.nickname }}
             <RouterLink v-if="user.isVip" to="/vip" class="profile__vip">VIP</RouterLink>
           </h1>
           <p class="profile__email">{{ user.email }}</p>
@@ -50,7 +50,7 @@
           <span class="info__label">昵称</span>
           <div class="info__value">
             <template v-if="!editingNickname">
-              <span class="info__text">{{ user.username }}</span>
+              <span class="info__text">{{ user.nickname }}</span>
               <NButton size="sm" variant="secondary" icon="pencil" @click="startEditNickname">修改</NButton>
             </template>
             <template v-else>
@@ -208,7 +208,7 @@ const changeTab = (tabKey) => {
 
 // 开始修改昵称
 const startEditNickname = async () => {
-  nicknameInput.value = user.value?.username || ''
+  nicknameInput.value = user.value?.nickname || ''
   editingNickname.value = true
   await nextTick()
   nicknameInputEl.value?.focus()
@@ -233,7 +233,7 @@ const saveNickname = async () => {
     toast.error('昵称长度需在1-20之间')
     return
   }
-  if (nickname === user.value?.username) {
+  if (nickname === user.value?.nickname) {
     toast.info('昵称没有变化')
     cancelEditNickname()
     return
@@ -265,7 +265,7 @@ const saveNickname = async () => {
         const stored = localStorage.getItem('user')
         if (stored) {
           const parsed = JSON.parse(stored)
-          parsed.username = savedNickname
+          parsed.nickname = savedNickname
           localStorage.setItem('user', JSON.stringify(parsed))
         }
       } catch (e) {

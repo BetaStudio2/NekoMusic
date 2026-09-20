@@ -50,8 +50,8 @@ public class UserAuthService {
     /**
      * 用户注册（仅邮箱必须唯一，昵称可重复）
      */
-    public boolean registerUser(String username, String password, String email) {
-        logger.info("开始注册用户: {}", username);
+    public boolean registerUser(String nickname, String password, String email) {
+        logger.info("开始注册用户: {}", nickname);
 
         if (emailExists(email)) {
             logger.warn("邮箱已存在: {}", email);
@@ -60,13 +60,13 @@ public class UserAuthService {
 
         String hashedPassword = hashPassword(password);
 
-        String sql = "INSERT INTO users (username, password, email, created_at) VALUES (?, ?, ?, "
+        String sql = "INSERT INTO users (nickname, password, email, created_at) VALUES (?, ?, ?, "
                 + DbTimeUtil.SQL_NOW_SHANGHAI + ")";
 
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
-            stmt.setString(1, username);
+            stmt.setString(1, nickname);
             stmt.setString(2, hashedPassword);
             stmt.setString(3, email);
 
@@ -87,7 +87,7 @@ public class UserAuthService {
                 }
             }
             logger.info("用户注册结果: {}, 昵称: {}, created_at(+08)={}",
-                    affectedRows > 0, username, storedCreatedAt != null ? storedCreatedAt : DbTimeUtil.nowShanghaiWallClock());
+                    affectedRows > 0, nickname, storedCreatedAt != null ? storedCreatedAt : DbTimeUtil.nowShanghaiWallClock());
             return affectedRows > 0;
         } catch (SQLException e) {
             logger.error("用户注册失败: {}", e.getMessage(), e);
@@ -102,7 +102,7 @@ public class UserAuthService {
     public Optional<User> authenticate(String email, String password) {
         logger.info("用户登录尝试: {}", email);
 
-        String sql = "SELECT id, username, password, email, created_at, vip_expires_at FROM users WHERE email = ?";
+        String sql = "SELECT id, nickname, password, email, created_at, vip_expires_at FROM users WHERE email = ?";
 
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -133,7 +133,7 @@ public class UserAuthService {
      * 按用户 ID 查询用户信息（不含密码字段），用于扫码登录等需要回传用户资料的场景。
      */
     public Optional<User> findUserById(int userId) {
-        String sql = "SELECT id, username, email, created_at, vip_expires_at FROM users WHERE id = ?";
+        String sql = "SELECT id, nickname, email, created_at, vip_expires_at FROM users WHERE id = ?";
 
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -154,14 +154,14 @@ public class UserAuthService {
     }
 
     /**
-     * 将 users 查询结果行映射为 {@link User}（读取 id/username/email/created_at/vip_expires_at）。
+     * 将 users 查询结果行映射为 {@link User}（读取 id/nickname/email/created_at/vip_expires_at）。
      */
     private static User mapUser(ResultSet rs) throws SQLException {
         java.sql.Timestamp vipTs = rs.getTimestamp("vip_expires_at");
         boolean hasVip = !rs.wasNull();
         return new User(
                 rs.getInt("id"),
-                rs.getString("username"),
+                rs.getString("nickname"),
                 null,
                 rs.getString("email"),
                 false,
@@ -173,18 +173,18 @@ public class UserAuthService {
     /**
      * 发送注册验证码；同邮箱有发信冷却。
      */
-    public SendVerificationCodeResult sendVerificationCode(String email, String username) {
-        return sendVerificationCode(email, username, VERIFICATION_PURPOSE_REGISTER);
+    public SendVerificationCodeResult sendVerificationCode(String email, String nickname) {
+        return sendVerificationCode(email, nickname, VERIFICATION_PURPOSE_REGISTER);
     }
 
     /**
      * 发送密码重置验证码；与注册验证码隔离，避免跨流程复用。
      */
-    public SendVerificationCodeResult sendResetPasswordCode(String email, String username) {
-        return sendVerificationCode(email, username, VERIFICATION_PURPOSE_PASSWORD_RESET);
+    public SendVerificationCodeResult sendResetPasswordCode(String email, String nickname) {
+        return sendVerificationCode(email, nickname, VERIFICATION_PURPOSE_PASSWORD_RESET);
     }
 
-    private SendVerificationCodeResult sendVerificationCode(String email, String username, String purpose) {
+    private SendVerificationCodeResult sendVerificationCode(String email, String nickname, String purpose) {
         logger.info("发送验证码至: {}", email);
 
         var cooldown = verificationCodeRateLimitService.tryAcquireSendSlot(email);
@@ -194,7 +194,7 @@ public class UserAuthService {
 
         String verificationCode = emailService.generateVerificationCode();
 
-        boolean emailSent = emailService.sendVerificationCode(email, username, verificationCode);
+        boolean emailSent = emailService.sendVerificationCode(email, nickname, verificationCode);
 
         if (emailSent) {
             String key = verificationCodeKey(purpose, email);
@@ -523,10 +523,10 @@ public class UserAuthService {
     }
 
     /**
-     * 修改昵称（用户名，允许重复），成功后不影响现有会话。
+     * 修改昵称（允许重复），成功后不影响现有会话。
      */
     public boolean changeNickname(int userId, String newNickname) {
-        String sql = "UPDATE users SET username = ? WHERE id = ?";
+        String sql = "UPDATE users SET nickname = ? WHERE id = ?";
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, newNickname);

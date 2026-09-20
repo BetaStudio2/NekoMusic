@@ -319,7 +319,7 @@ public class UserQrLoginHandler extends ApiServlet {
     private Map<String, Object> toUserMap(User user) {
         Map<String, Object> userData = new HashMap<>();
         userData.put("id", user.id());
-        userData.put("username", user.username());
+        userData.put("nickname", user.nickname());
         userData.put("email", user.email());
         userData.put("createdAt", user.createdAt());
         userData.put("isVip", VipUtil.isVipActiveNow(user.vipExpiresAt()));

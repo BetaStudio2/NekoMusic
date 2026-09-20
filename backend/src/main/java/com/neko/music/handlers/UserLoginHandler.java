@@ -50,8 +50,8 @@ public class UserLoginHandler extends ApiServlet {
             String password = null;
 
             if (requestData != null) {
-                if (requestData.has("username")) {
-                    email = requestData.get("username").asText();
+                if (requestData.has("nickname")) {
+                    email = requestData.get("nickname").asText();
                 }
                 if (requestData.has("password")) {
                     password = requestData.get("password").asText();
@@ -91,7 +91,7 @@ public class UserLoginHandler extends ApiServlet {
                 // 返回用户信息（不包含密码）和token
                 Map<String, Object> userData = new HashMap<>();
                 userData.put("id", user.id());
-                userData.put("username", user.username());
+                userData.put("nickname", user.nickname());
                 userData.put("email", user.email());
                 userData.put("createdAt", user.createdAt());
                 userData.put("isVip", VipUtil.isVipActiveNow(user.vipExpiresAt()));

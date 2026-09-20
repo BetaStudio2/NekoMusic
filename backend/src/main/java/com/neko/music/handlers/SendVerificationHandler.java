@@ -43,14 +43,14 @@ public class SendVerificationHandler extends ApiServlet {
             JsonNode requestData = Main.getObjectMapper().readTree(requestBody.toString());
 
             String email = null;
-            String username = "用户";
+            String nickname = "用户";
             String captchaPassToken = null;
             if (requestData != null) {
                 if (requestData.has("email")) {
                     email = requestData.get("email").asText();
                 }
-                if (requestData.has("username")) {
-                    username = requestData.get("username").asText();
+                if (requestData.has("nickname")) {
+                    nickname = requestData.get("nickname").asText();
                 }
                 if (requestData.has("captchaPassToken")) {
                     captchaPassToken = requestData.get("captchaPassToken").asText().trim();
@@ -86,7 +86,7 @@ public class SendVerificationHandler extends ApiServlet {
                 return;
             }
 
-            SendVerificationCodeResult result = userAuthService.sendVerificationCode(email, username);
+            SendVerificationCodeResult result = userAuthService.sendVerificationCode(email, nickname);
 
             if (result.rateLimited()) {
                 sendCooldownResponse(response, result.retryAfterSec());

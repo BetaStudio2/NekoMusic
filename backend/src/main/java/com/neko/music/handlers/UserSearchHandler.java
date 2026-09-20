@@ -57,7 +57,7 @@ public class UserSearchHandler extends HttpServlet {
         List<User> results = new ArrayList<>();
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, username, email, created_at FROM users WHERE username LIKE ? OR email LIKE ? ORDER BY created_at DESC LIMIT 20";
+            String sql = "SELECT id, nickname, email, created_at FROM users WHERE nickname LIKE ? OR email LIKE ? ORDER BY created_at DESC LIMIT 20";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 String likeQuery = "%" + query + "%";
                 stmt.setString(1, likeQuery);
@@ -68,7 +68,7 @@ public class UserSearchHandler extends HttpServlet {
                 while (rs.next()) {
                     results.add(new User(
                             rs.getInt("id"),
-                            rs.getString("username"),
+                            rs.getString("nickname"),
                             rs.getString("email"),
                             rs.getTimestamp("created_at").toString()));
                 }
@@ -81,7 +81,7 @@ public class UserSearchHandler extends HttpServlet {
     }
     
     // 内部类用于表示用户对象
-    private record User(int id, String username, String email, String createdAt) {
+    private record User(int id, String nickname, String email, String createdAt) {
     }
     
     // 内部类用于表示搜索响应
