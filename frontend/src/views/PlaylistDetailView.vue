@@ -196,7 +196,6 @@ const fetchPlaylistInfo = async () => {
     const data = await response.json()
     if (data.success && data.playlist) {
       playlist.value = data.playlist
-      console.log('歌单信息加载成功:', playlist.value)
     } else {
       console.warn('未找到歌单:', playlistId.value)
       toast.error('歌单不存在')
@@ -303,7 +302,6 @@ const handleCoverError = (event) => {
 }
 
 const handlePlaylistCoverError = (event) => {
-  console.log('歌单封面加载失败，使用默认头像')
   const userId = currentUser.value ? currentUser.value.id : 'default';
   event.target.src = `${API_CONFIG.BASE_URL}/api/user/avatar/${userId}`;
 }
