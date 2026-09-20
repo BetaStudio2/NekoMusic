@@ -2,8 +2,19 @@
   <Teleport to="body">
     <!-- 全屏播放页：自底部滑入 / 滑出（关闭前先播完退出动效再换路由） -->
     <Transition name="np" appear @after-leave="onAfterLeave">
-      <div v-show="!closing" class="np" role="dialog" aria-modal="true" aria-label="正在播放">
-        <!-- 专辑流动背景（AMLL BackgroundRender，随低频起伏） -->
+      <div
+        v-show="!closing"
+        class="np"
+        :class="{ 'np--dragging': dragging }"
+        :style="dragY ? { transform: `translateY(${dragY}px)` } : undefined"
+        role="dialog"
+        aria-modal="true"
+        aria-label="正在播放"
+        @touchstart.passive="onTouchStart"
+        @touchmove.passive="onTouchMove"
+        @touchend="onTouchEnd"
+        @touchcancel="onTouchEnd"
+      >        <!-- 专辑流动背景（AMLL BackgroundRender，随低频起伏） -->
         <AlbumBackground
           v-if="currentMusic"
           :album="getCoverUrl(currentMusic.id)"
@@ -1127,6 +1138,65 @@ const onAfterLeave = () => {
   }
 }
 
+/* ============================================================================
+   手机端手势：下拉收起
+   ----------------------------------------------------------------------------
+   全屏播放页在手机上「下滑关闭」是通用预期。仅在窄屏启用：
+   桌面拖拽没有意义，还会干扰文本选中与滑块操作。
+   ========================================================================== */
+
+/** 触发收起的下拉距离阈值（px） */
+const SWIPE_CLOSE_THRESHOLD = 96
+
+/** 仅在窄屏启用（随窗口尺寸变化） */
+let swipeEnabled = false
+/** 当前手指下拉位移，0 = 未在拖动 */
+const dragY = ref(0)
+/** 是否正在拖动（拖动期间关掉 transition，让画面即时跟手） */
+const dragging = ref(false)
+let touchStartY = 0
+let touchStartX = 0
+
+/** 从这些区域起手不参与下拉收起（进度条、控制键、链接等） */
+const SWIPE_IGNORE_SELECTOR = '.np__bottom, input, button, a, [role="slider"]'
+
+function syncSwipeEnabled() {
+  swipeEnabled = !!window.matchMedia?.('(max-width: 900px)')?.matches
+}
+
+function onTouchStart(e) {
+  if (!swipeEnabled || closing.value || e.touches.length !== 1) return
+  // 底栏与可交互控件自己要用触摸事件，别抢
+  if (e.target?.closest?.(SWIPE_IGNORE_SELECTOR)) return
+  touchStartY = e.touches[0].clientY
+  touchStartX = e.touches[0].clientX
+  dragY.value = 0
+  dragging.value = false
+}
+
+function onTouchMove(e) {
+  if (!swipeEnabled || closing.value || e.touches.length !== 1) return
+  const dy = e.touches[0].clientY - touchStartY
+  const dx = Math.abs(e.touches[0].clientX - touchStartX)
+  // 向上滑，或横向位移更大 → 交还给内部滚动 / 不接管
+  if (dy <= 0 || dx > Math.abs(dy)) {
+    if (dragY.value !== 0) dragY.value = 0
+    dragging.value = false
+    return
+  }
+  dragging.value = true
+  // 阻尼：越往下越沉，避免「一根手指把整页拽走」的失重感
+  dragY.value = Math.min(dy * 0.55, 200)
+}
+
+function onTouchEnd() {
+  if (!swipeEnabled) return
+  const shouldClose = dragY.value > SWIPE_CLOSE_THRESHOLD
+  dragging.value = false
+  dragY.value = 0
+  if (shouldClose) close()
+}
+
 // 初始化
 onMounted(async () => {
   // 检测是否是移动设备
@@ -1135,6 +1205,10 @@ onMounted(async () => {
   // 全屏播放页期间锁定页面滚动（背景仍在，但不该被滚动）
   previousBodyOverflow = document.body.style.overflow
   document.body.style.overflow = 'hidden'
+
+  // 下拉收起手势只在窄屏启用，窗口尺寸变化时同步
+  syncSwipeEnabled()
+  window.addEventListener('resize', syncSwipeEnabled)
 
   // 监听自定义事件，以响应全局播放器的状态变化
   window.addEventListener('playerStateChange', handlePlayerStateChange)
@@ -1169,6 +1243,7 @@ onUnmounted(() => {
   stopClipPreview()
   revokeClipPreviewBlobs()
   document.body.style.overflow = previousBodyOverflow
+  window.removeEventListener('resize', syncSwipeEnabled)
   window.removeEventListener('playerStateChange', handlePlayerStateChange)
   window.removeEventListener(USER_VIP_SYNC_EVENT, handleVipSync)
   if (timeUpdateInterval) {
@@ -1195,6 +1270,8 @@ onUnmounted(() => {
   overflow: hidden;
   color: var(--n-text);
   background: var(--n-bg);
+  /* 下拉收起：跟手时由 .np--dragging 关掉过渡，松手后靠它回弹 */
+  transition: transform 240ms var(--n-ease);
 }
 
 /* 层叠：背景 0 · 压暗 1 · 内容 2 */
@@ -1216,6 +1293,11 @@ onUnmounted(() => {
 .np-leave-to {
   transform: translateY(100%);
   opacity: 0.55;
+}
+
+/* 手指按住拖动期间必须即时跟手，不能有过渡 */
+.np--dragging {
+  transition: none;
 }
 
 /* ===== 顶栏 ===== */
@@ -1739,16 +1821,22 @@ onUnmounted(() => {
   }
 
   .np__body {
+    /* 手机上整页不再滚动：封面滑走、只剩歌词的体验很别扭。
+       改为封面按【可用高度】收敛，歌词吃掉剩余空间。 */
+    overflow: hidden;
+    overscroll-behavior: none;
     gap: var(--n-space-3);
     padding: 0 var(--n-space-4);
   }
 
   .np__aside {
-    gap: var(--n-space-3);
+    gap: var(--n-space-2);
+    padding: var(--n-space-1) 0;
   }
 
+  /* 同时受宽度与高度约束：短屏（如 568px 高的 iPhone SE）才不会被挤爆 */
   .np__cover {
-    width: min(44%, 160px);
+    width: min(48%, 22vh, 168px);
   }
 
   .np__title {
@@ -1759,6 +1847,12 @@ onUnmounted(() => {
     font-size: var(--n-text-sm);
   }
 
+  /* 专辑名与时长在手机上省掉，把高度让给歌词 */
+  .np__album,
+  .np__dur {
+    display: none;
+  }
+
   /* 收藏在顶栏、播放在底栏，封面旁这排按钮纯属重复，手机上去掉 */
   .np__aside-actions,
   .np__hint {
@@ -1766,7 +1860,8 @@ onUnmounted(() => {
   }
 
   .np__lyrics {
-    min-height: 200px;
+    min-height: 0;
+    padding: 0 0 var(--n-space-2);
   }
 
   .np__seek {
