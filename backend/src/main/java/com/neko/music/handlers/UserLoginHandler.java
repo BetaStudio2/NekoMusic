@@ -50,8 +50,8 @@ public class UserLoginHandler extends ApiServlet {
             String password = null;
 
             if (requestData != null) {
-                if (requestData.has("nickname")) {
-                    email = requestData.get("nickname").asText();
+                if (requestData.has("email")) {
+                    email = requestData.get("email").asText();
                 }
                 if (requestData.has("password")) {
                     password = requestData.get("password").asText();

@@ -20,12 +20,14 @@
                 注册
               </button>
             </div>
-            <h1 class="auth__title">登录 Neko歌姬计划</h1>
-            <p class="auth__subtitle">请输入您的凭据</p>
+            <h1 class="auth__title">{{ loginMode === 'qr' ? '扫码登录' : '登录 Neko歌姬计划' }}</h1>
+            <p class="auth__subtitle">
+              {{ loginMode === 'qr' ? '使用手机扫码，快速安全地登录' : '请输入您的凭据' }}
+            </p>
           </header>
 
           <div class="auth__body">
-            <form class="auth__form" @submit.prevent="handleLogin">
+            <form v-if="loginMode === 'password'" class="auth__form" @submit.prevent="handleLogin">
               <div class="auth__field">
                 <label class="auth__label" for="login-email">邮箱</label>
                 <NInput
@@ -54,10 +56,37 @@
                 登录
               </NButton>
             </form>
+
+            <!-- 扫码登录：手机端 NekoMusic 扫码并在手机上确认 -->
+            <div v-else class="auth__qr">
+              <div class="auth__qr-box">
+                <img v-if="qrImageUrl" class="auth__qr-img" :src="qrImageUrl" alt="登录二维码" />
+                <div v-else class="auth__qr-skeleton" aria-hidden="true">
+                  <NIcon name="qrcode" :size="44" />
+                </div>
+                <div v-if="qrRefreshable" class="auth__qr-mask">
+                  <NButton variant="secondary" size="sm" block @click="startQrLogin">
+                    <NIcon name="refresh" :size="14" />
+                    刷新二维码
+                  </NButton>
+                </div>
+              </div>
+
+              <p class="auth__qr-status" :class="`auth__qr-status--${qrStatus}`" role="status">
+                {{ qrStatusText || '\u00A0' }}
+              </p>
+              <p class="auth__qr-hint">
+                打开手机端 NekoMusic，点「我的」右上角「扫一扫」，扫码后在手机上确认登录
+              </p>
+            </div>
           </div>
 
           <p class="auth__link-row">
-            <RouterLink to="/forgot-password" class="auth__link">
+            <button type="button" class="auth__link auth__link--btn" @click="toggleLoginMode">
+              <NIcon :name="loginMode === 'qr' ? 'key' : 'qrcode'" :size="14" />
+              {{ loginMode === 'qr' ? '账号密码登录' : '扫码登录' }}
+            </button>
+            <RouterLink v-if="loginMode === 'password'" to="/forgot-password" class="auth__link">
               <NIcon name="key" :size="14" />
               忘记密码？
             </RouterLink>
@@ -258,6 +287,7 @@
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
+import QRCode from 'qrcode'
 import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NInput } from '@/ui'
@@ -295,6 +325,7 @@ function measurePanel() {
 
 function switchTab(tab) {
   if (tab === activeTab.value || transitioning.value) return
+  if (loginMode.value === 'qr') resetLoginMode()
   loginError.value = ''
   regError.value = ''
   transitioning.value = true
@@ -328,6 +359,25 @@ const loginPassword = ref('')
 const loginLoading = ref(false)
 const loginError = ref('')
 
+/** 登录成功后的落地逻辑（密码登录与扫码登录共用） */
+function applyLogin(token, user) {
+  const previousToken = localStorage.getItem('userToken')
+  localStorage.setItem('userToken', token)
+  localStorage.setItem('user', JSON.stringify(user))
+
+  if (!previousToken) {
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: 'userToken',
+        oldValue: null,
+        newValue: token,
+      })
+    )
+  }
+  toast.success('登录成功')
+  router.push('/')
+}
+
 async function handleLogin() {
   if (loginLoading.value) return
   loginError.value = ''
@@ -344,26 +394,12 @@ async function handleLogin() {
   loginLoading.value = true
   try {
     const response = await axios.post(`${API_CONFIG.BASE_URL}/api/user/login`, {
-      nickname: loginEmail.value,
+      email: loginEmail.value,
       password: loginPassword.value,
     })
 
     if (response.data.success) {
-      toast.success('登录成功')
-      const previousToken = localStorage.getItem('userToken')
-      localStorage.setItem('userToken', response.data.data.token)
-      localStorage.setItem('user', JSON.stringify(response.data.data.user))
-
-      if (!previousToken) {
-        window.dispatchEvent(
-          new StorageEvent('storage', {
-            key: 'userToken',
-            oldValue: null,
-            newValue: response.data.data.token,
-          })
-        )
-      }
-      router.push('/')
+      applyLogin(response.data.data.token, response.data.data.user)
     } else {
       loginError.value = response.data.message || '登录失败'
       toast.error(loginError.value)
@@ -374,6 +410,186 @@ async function handleLogin() {
     toast.error(loginError.value)
   } finally {
     loginLoading.value = false
+  }
+}
+
+/* ==================================================================
+   扫码登录
+   ------------------------------------------------------------------
+   登录 POST /api/user/qrlogin/create                  新建会话，取二维码内容
+   订阅 GET  /api/user/qrlogin/status?sessionId=xxx     SSE，状态变化即时推
+   状态：pending（等待扫码）→ scanned（已扫码待确认）→ confirmed（带一次性 token）
+        canceled / expired 时提示刷新
+   ================================================================== */
+const loginMode = ref('password') // password | qr
+const qrImageUrl = ref('')
+const qrStatus = ref('idle') // idle | loading | pending | scanned | canceled | expired | failed
+const qrRefreshable = ref(false)
+
+let qrEventSource = null
+let qrExpireTimer = null
+let qrGeneration = 0
+
+const qrStatusText = computed(() => {
+  switch (qrStatus.value) {
+    case 'loading':
+      return '正在生成二维码…'
+    case 'pending':
+      return '正在等待扫码…'
+    case 'scanned':
+      return '已扫码，请在手机上确认'
+    case 'canceled':
+      return '已在手机上取消登录'
+    case 'expired':
+      return '二维码已过期，请刷新'
+    case 'failed':
+      return '二维码加载失败，请重试'
+    default:
+      return ''
+  }
+})
+
+/** 关闭当前会话（递增 generation 让在途回调失效） */
+function stopQrSession() {
+  qrGeneration += 1
+  if (qrEventSource) {
+    qrEventSource.close()
+    qrEventSource = null
+  }
+  if (qrExpireTimer) {
+    window.clearTimeout(qrExpireTimer)
+    qrExpireTimer = null
+  }
+}
+
+function resetLoginMode() {
+  stopQrSession()
+  loginMode.value = 'password'
+  qrImageUrl.value = ''
+  qrStatus.value = 'idle'
+  qrRefreshable.value = false
+}
+
+function toggleLoginMode() {
+  loginError.value = ''
+  if (loginMode.value === 'password') {
+    loginMode.value = 'qr'
+    startQrLogin()
+  } else {
+    resetLoginMode()
+  }
+  measurePanel()
+}
+
+function markQrNeedsRefresh() {
+  qrRefreshable.value = true
+  measurePanel()
+}
+
+async function startQrLogin() {
+  stopQrSession()
+  const generation = qrGeneration
+
+  qrImageUrl.value = ''
+  qrStatus.value = 'loading'
+  qrRefreshable.value = false
+  measurePanel()
+
+  try {
+    const response = await axios.post(`${API_CONFIG.BASE_URL}/api/user/qrlogin/create`)
+    if (generation !== qrGeneration) return
+
+    const payload = response.data?.data
+    if (!response.data?.success || !payload?.sessionId || !payload?.qrContent) {
+      throw new Error(response.data?.message || '二维码生成失败')
+    }
+
+    qrImageUrl.value = await QRCode.toDataURL(payload.qrContent, {
+      width: 208,
+      margin: 1,
+      errorCorrectionLevel: 'M',
+      color: { dark: '#0f1524', light: '#ffffff' },
+    })
+    if (generation !== qrGeneration) return
+
+    qrStatus.value = 'pending'
+    measurePanel()
+
+    const ttlSeconds = Number(payload.expiresIn) > 0 ? Number(payload.expiresIn) : 180
+    qrExpireTimer = window.setTimeout(() => {
+      if (generation !== qrGeneration) return
+      stopQrSession()
+      qrStatus.value = 'expired'
+      markQrNeedsRefresh()
+    }, ttlSeconds * 1000)
+
+    watchQrSession(payload.sessionId, generation)
+  } catch (err) {
+    if (generation !== qrGeneration) return
+    console.error('扫码登录初始化失败:', err)
+    qrStatus.value = 'failed'
+    markQrNeedsRefresh()
+  }
+}
+
+function watchQrSession(sessionId, generation) {
+  const source = new EventSource(
+    `${API_CONFIG.BASE_URL}/api/user/qrlogin/status?sessionId=${encodeURIComponent(sessionId)}`
+  )
+  qrEventSource = source
+
+  source.addEventListener('status', (event) => {
+    if (generation !== qrGeneration) {
+      source.close()
+      return
+    }
+
+    let data
+    try {
+      data = JSON.parse(event.data)
+    } catch {
+      return
+    }
+
+    switch (data?.status) {
+      case 'pending':
+        qrStatus.value = 'pending'
+        measurePanel()
+        break
+      case 'scanned':
+        qrStatus.value = 'scanned'
+        measurePanel()
+        break
+      case 'confirmed':
+        // 数据不完整时按过期处理，避免卡在「已确认」
+        if (!data.token || !data.user) {
+          stopQrSession()
+          qrStatus.value = 'expired'
+          markQrNeedsRefresh()
+          return
+        }
+        stopQrSession()
+        applyLogin(data.token, data.user)
+        break
+      case 'canceled':
+      case 'expired':
+        stopQrSession()
+        qrStatus.value = data.status
+        markQrNeedsRefresh()
+        break
+      default:
+        break
+    }
+  })
+
+  source.onerror = () => {
+    if (generation !== qrGeneration) return
+    // EventSource 默认会自动重连；只有彻底关闭时才让用户手动刷新
+    if (source.readyState === EventSource.CLOSED) {
+      qrEventSource = null
+      qrStatus.value = 'failed'
+      markQrNeedsRefresh()
+    }
   }
 }
 
@@ -729,6 +945,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  stopQrSession()
   window.removeEventListener('resize', measurePanel)
   if (countdownInterval.value) clearInterval(countdownInterval.value)
   detachThumbRailListeners()
@@ -936,9 +1153,23 @@ onUnmounted(() => {
 }
 
 .auth__link-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--n-space-4);
   margin: 0;
   padding: var(--n-space-5) var(--n-space-8) 0;
   text-align: center;
+}
+
+/* 「扫码登录 / 账号密码登录」用按钮实现，保持与链接一致的观感 */
+.auth__link--btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
 }
 
 .auth__link {
@@ -954,6 +1185,80 @@ onUnmounted(() => {
   .auth__link:hover {
     color: var(--n-accent-strong);
   }
+}
+
+/* ==================== 扫码登录 ==================== */
+.auth__qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.auth__qr-box {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 208px;
+  height: 208px;
+  padding: 10px;
+  box-sizing: border-box;
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius);
+  background: #fff;
+  overflow: hidden;
+}
+
+.auth__qr-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.auth__qr-skeleton {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--n-text-muted);
+  animation: authQrPulse 1.2s var(--n-ease-in-out) infinite;
+}
+
+@keyframes authQrPulse {
+  0%,
+  100% { opacity: 0.45; }
+  50% { opacity: 0.9; }
+}
+
+.auth__qr-mask {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--n-space-6);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.auth__qr-status {
+  min-height: 18px;
+  margin: var(--n-space-4) 0 0;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-medium);
+  text-align: center;
+}
+
+.auth__qr-status--scanned {
+  color: var(--n-accent-strong);
+}
+
+.auth__qr-hint {
+  margin: var(--n-space-2) 0 var(--n-space-5);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-xs);
+  line-height: 1.6;
+  text-align: center;
 }
 
 /* 验证码弹窗内的 form-group 仅作占位 */
