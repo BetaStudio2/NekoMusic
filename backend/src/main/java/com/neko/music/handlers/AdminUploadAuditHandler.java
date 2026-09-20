@@ -22,7 +22,9 @@ import java.nio.file.StandardCopyOption;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.Timestamp;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,7 +73,10 @@ public class AdminUploadAuditHandler extends ApiServlet {
                 logger.warn("权限不足，无审核通过权限");
                 return;
             }
-            int uploadId = Integer.parseInt(pathInfo.substring(9));
+            int uploadId = parseUploadId(pathInfo.substring(9), response);
+            if (uploadId < 0) {
+                return;
+            }
             handleApproveUpload(uploadId, request, response);
         } else if (pathInfo != null && pathInfo.startsWith("/reject/")) {
             // 审核拒绝
@@ -80,7 +85,10 @@ public class AdminUploadAuditHandler extends ApiServlet {
                 logger.warn("权限不足，无审核拒绝权限");
                 return;
             }
-            int uploadId = Integer.parseInt(pathInfo.substring(8));
+            int uploadId = parseUploadId(pathInfo.substring(8), response);
+            if (uploadId < 0) {
+                return;
+            }
             handleRejectUpload(uploadId, request, response);
         } else {
             sendErrorResponse(response, 404, "请求的资源不存在");
@@ -158,7 +166,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
             
         } catch (Exception e) {
             logger.error("获取待审核列表失败: " + e.getMessage(), e);
-            sendErrorResponse(response, 500, "服务器错误: " + e.getMessage());
+            sendErrorResponse(response, 500, "获取待审核列表失败，请稍后重试");
         }
     }
     
@@ -168,8 +176,9 @@ public class AdminUploadAuditHandler extends ApiServlet {
     private void handleApproveUpload(int uploadId, HttpServletRequest request, HttpServletResponse response) throws IOException {
         Connection conn = null;
         int musicId = 0;
-        String newMusicPath = null;
-        String newCoverPath = null;
+        boolean committed = false;
+        // 记录每一次文件迁移的反向操作：事务失败时按逆序还原，避免源文件已移走而库里没有记录
+        Deque<Runnable> fileUndoLog = new ArrayDeque<>();
         
         try {
             // 获取管理员ID
@@ -210,23 +219,22 @@ public class AdminUploadAuditHandler extends ApiServlet {
             // 验证源文件存在并迁移到临时位置
             if (!Files.exists(Paths.get(upload.getMusicFilePath()))) {
                 conn.rollback();
-                sendErrorResponse(response, 500, "音乐文件不存在: " + upload.getMusicFilePath());
+                sendErrorResponse(response, 500, "待审核的音乐文件不存在，无法完成审核");
                 return;
             }
             
-            Files.move(Paths.get(upload.getMusicFilePath()), Paths.get(tempMusicPath), StandardCopyOption.REPLACE_EXISTING);
+            moveWithUndo(Paths.get(upload.getMusicFilePath()), Paths.get(tempMusicPath), fileUndoLog);
             logger.info("迁移音乐文件到临时位置: {} -> {}", upload.getMusicFilePath(), tempMusicPath);
             
             // 迁移封面文件到临时位置（如果有）
             if (upload.getCoverFilePath() != null && !upload.getCoverFilePath().isEmpty()) {
                 if (!Files.exists(Paths.get(upload.getCoverFilePath()))) {
                     conn.rollback();
-                    // 回滚音乐文件
-                    Files.move(Paths.get(tempMusicPath), Paths.get(upload.getMusicFilePath()), StandardCopyOption.REPLACE_EXISTING);
-                    sendErrorResponse(response, 500, "封面文件不存在: " + upload.getCoverFilePath());
+                    undoFileMoves(fileUndoLog);
+                    sendErrorResponse(response, 500, "待审核的封面文件不存在，无法完成审核");
                     return;
                 }
-                Files.move(Paths.get(upload.getCoverFilePath()), Paths.get(tempCoverPath), StandardCopyOption.REPLACE_EXISTING);
+                moveWithUndo(Paths.get(upload.getCoverFilePath()), Paths.get(tempCoverPath), fileUndoLog);
                 logger.info("迁移封面文件到临时位置: {} -> {}", upload.getCoverFilePath(), tempCoverPath);
             }
             
@@ -271,12 +279,8 @@ public class AdminUploadAuditHandler extends ApiServlet {
 
             if (musicId == 0) {
                 conn.rollback();
-                // 回滚文件迁移
-                Files.move(Paths.get(tempMusicPath), Paths.get(upload.getMusicFilePath()), StandardCopyOption.REPLACE_EXISTING);
-                if (upload.getCoverFilePath() != null && !upload.getCoverFilePath().isEmpty()) {
-                    Files.move(Paths.get(tempCoverPath), Paths.get(upload.getCoverFilePath()), StandardCopyOption.REPLACE_EXISTING);
-                }
-                sendErrorResponse(response, 500, "插入音乐记录失败");
+                undoFileMoves(fileUndoLog);
+                sendErrorResponse(response, 500, "写入音乐记录失败，请稍后重试");
                 return;
             }
 
@@ -286,16 +290,16 @@ public class AdminUploadAuditHandler extends ApiServlet {
                     ? musicId + getFileExtension(upload.getCoverFilePath())
                     : null;
 
-            // 将临时文件重命名为最终文件名
-            newMusicPath = Paths.get(MUSIC_AUDIO_DIR, newMusicFileName).toString();
-            Files.move(Paths.get(tempMusicPath), Paths.get(newMusicPath), StandardCopyOption.REPLACE_EXISTING);
+            // 将临时文件重命名为最终文件名；先在临时位置写入内嵌元数据，失败时还原成本更低
+            MusicAdMetadataPatcher.patchQuietly(Paths.get(tempMusicPath));
+            String newMusicPath = Paths.get(MUSIC_AUDIO_DIR, newMusicFileName).toString();
+            moveWithUndo(Paths.get(tempMusicPath), Paths.get(newMusicPath), fileUndoLog);
             logger.info("重命名音乐文件: {} -> {}", tempMusicPath, newMusicPath);
-            MusicAdMetadataPatcher.patchQuietly(Paths.get(newMusicPath));
 
             // 重命名封面文件（如果有）
             if (upload.getCoverFilePath() != null && !upload.getCoverFilePath().isEmpty() && newCoverFileName != null) {
-                newCoverPath = Paths.get(MUSIC_COVERS_DIR, newCoverFileName).toString();
-                Files.move(Paths.get(tempCoverPath), Paths.get(newCoverPath), StandardCopyOption.REPLACE_EXISTING);
+                String newCoverPath = Paths.get(MUSIC_COVERS_DIR, newCoverFileName).toString();
+                moveWithUndo(Paths.get(tempCoverPath), Paths.get(newCoverPath), fileUndoLog);
                 logger.info("重命名封面文件: {} -> {}", tempCoverPath, newCoverPath);
             }
 
@@ -304,19 +308,28 @@ public class AdminUploadAuditHandler extends ApiServlet {
                 String lyricsContent = Files.readString(Paths.get(upload.getLyricsFilePath()), StandardCharsets.UTF_8);
                 Main.getLyricsDatabaseManager().upsert(conn, musicId, lyricsContent, "user_upload");
                 logger.info("审核通过歌词已保存到数据库 musicId={}", musicId);
-                if (Main.getLyricsSearchIndex() != null) {
-                    Main.getLyricsSearchIndex().rebuildOne(musicId);
-                }
             }
 
-            // 在事务内更新user_uploads表状态为approved
-            uploadManager.approveUpload(uploadId, adminId);
+            // 状态更新必须复用同一连接，否则它会在 conn.commit() 之前单独提交，
+            // 后续提交失败时就会出现「music 行回滚了、上传记录却已是 approved」
+            if (!uploadManager.approveUpload(conn, uploadId)) {
+                throw new IOException("更新审核状态失败 uploadId=" + uploadId);
+            }
             
             // 提交事务
             conn.commit();
+            committed = true;
+            fileUndoLog.clear();
 
-            // 审核通过后把歌词/封面/基础标签同步进音频文件（保留广告元数据）
-            EmbeddedMetadataSyncService.syncOne(musicId);
+            // 事务已提交，以下均为尽力而为的后置动作，失败不影响审核结果
+            try {
+                if (Main.getLyricsSearchIndex() != null) {
+                    Main.getLyricsSearchIndex().rebuildOne(musicId);
+                }
+            } catch (Exception e) {
+                logger.warn("重建歌词索引失败 musicId={}", musicId, e);
+            }
+            syncEmbeddedMetadataQuietly(musicId);
 
             // 仅在审核通过并正式进入曲库后，异步生成并发布新的声纹索引。
             MusicIngestSupport.invalidateRecognitionIndex();
@@ -375,7 +388,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
             logger.info("审核通过成功，上传ID: {}", uploadId);
             
         } catch (Exception e) {
-            logger.error("审核通过失败: " + e.getMessage(), e);
+            logger.error("审核通过失败 uploadId={}", uploadId, e);
             
             // 回滚事务
             try {
@@ -383,10 +396,15 @@ public class AdminUploadAuditHandler extends ApiServlet {
                     conn.rollback();
                 }
             } catch (Exception rollbackEx) {
-                logger.error("事务回滚失败: " + rollbackEx.getMessage(), rollbackEx);
+                logger.error("事务回滚失败 uploadId={}", uploadId, rollbackEx);
             }
-            
-            sendErrorResponse(response, 500, "服务器错误: " + e.getMessage());
+
+            if (!committed) {
+                undoFileMoves(fileUndoLog);
+            }
+            if (!response.isCommitted()) {
+                sendErrorResponse(response, 500, "审核通过失败，请稍后重试");
+            }
         } finally {
             // 关闭连接
             try {
@@ -430,7 +448,17 @@ public class AdminUploadAuditHandler extends ApiServlet {
                 return;
             }
             
-            // 1. 先获取用户邮箱并发送邮件（在删除记录之前）
+            // 1. 先删数据库记录：删记录失败时文件还在，重试仍可处理；
+            //    反过来先删文件再删记录，失败就会留下一条再也无法处理的 pending 记录
+            if (!uploadManager.deleteUserUpload(uploadId)) {
+                sendErrorResponse(response, 500, "删除上传记录失败，请稍后重试");
+                return;
+            }
+
+            // 2. 记录已删除，文件属于尽力清理
+            deleteUploadFiles(upload);
+
+            // 3. 发送拒绝通知邮件（失败不影响审核结果）
             try {
                 String userEmail = getUserEmailById(upload.getUserId());
                 
@@ -452,14 +480,8 @@ public class AdminUploadAuditHandler extends ApiServlet {
                 }
             } catch (Exception e) {
                 logger.error("获取用户邮箱或发送邮件失败: " + e.getMessage(), e);
-                // 邮件发送失败不影响后续删除操作
+                // 邮件发送失败不影响审核结果
             }
-            
-            // 2. 删除上传的文件
-            deleteUploadFiles(upload);
-            
-            // 3. 删除数据库记录
-            uploadManager.deleteUserUpload(uploadId);
             
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);
@@ -474,8 +496,10 @@ public class AdminUploadAuditHandler extends ApiServlet {
             logger.info("审核拒绝成功，上传ID: {}, 原因: {}", uploadId, reason);
             
         } catch (Exception e) {
-            logger.error("审核拒绝失败: " + e.getMessage(), e);
-            sendErrorResponse(response, 500, "服务器错误: " + e.getMessage());
+            logger.error("审核拒绝失败 uploadId={}", uploadId, e);
+            if (!response.isCommitted()) {
+                sendErrorResponse(response, 500, "审核拒绝失败，请稍后重试");
+            }
         }
     }
     
@@ -529,6 +553,51 @@ public class AdminUploadAuditHandler extends ApiServlet {
     private String getFileExtensionWithoutDot(String filePath) {
         String ext = getFileExtension(filePath);
         return ext.isEmpty() ? "" : ext.substring(1);
+    }
+
+    /**
+     * 解析路径中的上传 ID，非法时写出 400 并返回 -1，避免 {@link NumberFormatException}
+     * 冒泡成容器默认的 500 响应。
+     */
+    private int parseUploadId(String raw, HttpServletResponse response) throws IOException {
+        try {
+            int uploadId = Integer.parseInt(raw.trim());
+            if (uploadId <= 0) {
+                throw new NumberFormatException("非正数");
+            }
+            return uploadId;
+        } catch (NumberFormatException e) {
+            sendErrorResponse(response, 400, "上传ID格式错误");
+            return -1;
+        }
+    }
+
+    /** 移动文件并登记反向操作，供事务失败时还原。 */
+    private void moveWithUndo(Path from, Path to, Deque<Runnable> undoLog) throws IOException {
+        Files.move(from, to, StandardCopyOption.REPLACE_EXISTING);
+        undoLog.push(() -> {
+            try {
+                Files.move(to, from, StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e) {
+                logger.error("回滚文件迁移失败: {} -> {}", to, from, e);
+            }
+        });
+    }
+
+    /** 按逆序执行登记的反向操作，尽力还原到审核前的文件状态。 */
+    private void undoFileMoves(Deque<Runnable> undoLog) {
+        while (!undoLog.isEmpty()) {
+            undoLog.pop().run();
+        }
+    }
+
+    /** 内嵌元数据同步是后置增强，失败只记日志，不影响审核结果。 */
+    private void syncEmbeddedMetadataQuietly(int musicId) {
+        try {
+            EmbeddedMetadataSyncService.syncOne(musicId);
+        } catch (Exception e) {
+            logger.warn("同步内嵌元数据失败 musicId={}", musicId, e);
+        }
     }
 
     /** 审核通过/拒绝共用的前置校验：令牌有效。返回 adminId；无效时写出 401 并返回 -1。 */

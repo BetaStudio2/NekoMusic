@@ -115,6 +115,20 @@ public final class MusicAssetLocator {
         deleteIdNamedFiles(coverDir(), musicId, "cover");
     }
 
+    /**
+     * 尽力删除 {@code Music/music/{musicId}.*} 中除 {@code keep} 之外的变体。
+     *
+     * <p>替换音频时先写入新文件、再清理旧扩展名的残留，避免新文件写失败时旧文件已被删除。
+     */
+    public static void deleteAudioVariantsExcept(int musicId, Path keep) {
+        deleteIdNamedFilesExcept(audioDir(), musicId, keep, "audio");
+    }
+
+    /** 尽力删除 {@code Music/covers/{musicId}.*} 中除 {@code keep} 之外的变体。 */
+    public static void deleteCoverVariantsExcept(int musicId, Path keep) {
+        deleteIdNamedFilesExcept(coverDir(), musicId, keep, "cover");
+    }
+
     /** 防止路径逃逸：仅当 {@code file} 规范化后位于 {@code expectedDir} 下时返回 true。 */
     public static boolean isUnderDirectory(Path file, Path expectedDir) {
         Path base = expectedDir.toAbsolutePath().normalize();
@@ -176,6 +190,29 @@ public final class MusicAssetLocator {
         try (Stream<Path> stream = Files.list(dir)) {
             stream.filter(Files::isRegularFile)
                     .filter(p -> isSingleSegmentExtension(p.getFileName().toString(), prefix))
+                    .forEach(p -> {
+                try {
+                    Files.deleteIfExists(p);
+                } catch (IOException e) {
+                    log.warn("删除{}文件失败 musicId={} path={}: {}", kind, musicId, p, e.toString());
+                }
+            });
+        } catch (IOException e) {
+            log.warn("列出{}目录失败 musicId={}: {}", kind, musicId, e.toString());
+        }
+    }
+
+    private static void deleteIdNamedFilesExcept(Path dir, int musicId, Path keep, String kind) {
+        if (!Files.isDirectory(dir)) {
+            return;
+        }
+        Path keepNormalized = keep == null ? null : keep.toAbsolutePath().normalize();
+        String prefix = musicId + ".";
+        try (Stream<Path> stream = Files.list(dir)) {
+            stream.filter(Files::isRegularFile)
+                    .filter(p -> isSingleSegmentExtension(p.getFileName().toString(), prefix))
+                    .filter(p -> keepNormalized == null
+                            || !p.toAbsolutePath().normalize().equals(keepNormalized))
                     .forEach(p -> {
                 try {
                     Files.deleteIfExists(p);

@@ -333,9 +333,16 @@ public class MusicManagementHandler extends HttpServlet {
                     rowsUpdated = stmt.executeUpdate();
                 }
                 
-                // 保存歌词到数据库
+                // 保存歌词到数据库；失败必须让请求失败，不能返回「编辑成功」但歌词没入库
                 if (rowsUpdated > 0) {
-                    saveLyricsToDatabase(editRequest.id(), editRequest.lyrics());
+                    try {
+                        saveLyricsToDatabase(editRequest.id(), editRequest.lyrics());
+                    } catch (Exception lyricsEx) {
+                        logger.error("保存歌词失败 musicId={}", editRequest.id(), lyricsEx);
+                        HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500,
+                                new ErrorResponse("保存歌词失败，请稍后重试"));
+                        return;
+                    }
                 }
             }
             
@@ -436,13 +443,9 @@ public class MusicManagementHandler extends HttpServlet {
     private record MusicResponse(boolean success, String message, Music data) {
     }
     
-    // 保存歌词到数据库
+    // 保存歌词到数据库（失败时抛异常，由调用方返回明确错误）
     private void saveLyricsToDatabase(Integer musicId, String lyricsContent) {
-        try {
-            MusicIngestSupport.saveLyricsAndRebuild(musicId, lyricsContent, "admin", logger);
-        } catch (Exception e) {
-            logger.error("保存数据库歌词失败: {}", e.getMessage(), e);
-        }
+        MusicIngestSupport.saveLyricsAndRebuild(musicId, lyricsContent, "admin", logger);
     }
     
     // 内部类用于表示成功响应

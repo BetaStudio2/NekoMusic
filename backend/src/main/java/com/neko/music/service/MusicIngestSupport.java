@@ -90,11 +90,16 @@ public final class MusicIngestSupport {
         }
     }
 
-    /** 歌词 upsert 成功则重建检索索引；日志走调用方 logger，与各调用处原始文案一致。 */
+    /**
+     * 歌词 upsert 成功则重建检索索引；日志走调用方 logger，与各调用处原始文案一致。
+     *
+     * <p>写入失败时抛出 {@link IllegalStateException}，由调用方决定回滚或返回错误，
+     * 避免「接口返回成功但歌词没入库」的静默失败。
+     */
     public static void saveLyricsAndRebuild(int musicId, String lyricsContent, String source, Logger logger) {
         if (!Main.getLyricsDatabaseManager().upsert(musicId, lyricsContent, source)) {
             logger.error("保存数据库歌词失败 musicId={}", musicId);
-            return;
+            throw new IllegalStateException("保存歌词到数据库失败 musicId=" + musicId);
         }
         logger.info("歌词已保存到数据库 musicId={}", musicId);
         if (Main.getLyricsSearchIndex() != null) {
