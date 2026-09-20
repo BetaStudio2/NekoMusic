@@ -1227,7 +1227,8 @@ onUnmounted(() => {
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--n-space-4);
-  padding: var(--n-space-4) clamp(20px, 4vw, 56px) var(--n-space-2);
+  /* 刘海屏：顶栏内容下沉到状态栏下面 */
+  padding: calc(var(--n-space-4) + var(--n-safe-top)) clamp(20px, 4vw, 56px) var(--n-space-2);
 }
 
 .np__top-title {
@@ -1543,7 +1544,9 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   gap: var(--n-space-2);
-  padding: var(--n-space-3) clamp(20px, 4vw, 56px) clamp(14px, 2.4vh, 26px);
+  /* 手势条：底栏内容上抬到安全区之上 */
+  padding: var(--n-space-3) clamp(20px, 4vw, 56px)
+    calc(clamp(14px, 2.4vh, 26px) + var(--n-safe-bottom));
 }
 
 .np__seek {
@@ -1655,13 +1658,15 @@ onUnmounted(() => {
   width: 48px;
 }
 
-/* ===== 响应式 ===== */
+/* ===== 响应式 =====
+   断点约定见 design/tokens.css：560 手机竖屏 / 900 平板 / 1200 桌面 */
 @media (max-width: 900px) {
   .np__body {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
     gap: var(--n-space-4);
     overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .np__aside {
@@ -1683,13 +1688,86 @@ onUnmounted(() => {
   }
 }
 
-@media (max-width: 620px) {
+/* 手机横屏（高度很扁）：改回左右分栏，把有限的高度让给歌词 */
+@media (max-width: 900px) and (orientation: landscape) {
+  .np__body {
+    grid-template-columns: minmax(0, 38%) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .np__cover {
+    width: min(100%, 32vh);
+  }
+
+  .np__aside-actions,
+  .np__hint,
+  .np__album,
+  .np__dur {
+    display: none;
+  }
+
+  .np__lyrics {
+    min-height: 0;
+  }
+}
+
+/* 手机竖屏 */
+@media (max-width: 560px) {
+  .np__top {
+    gap: var(--n-space-2);
+    padding-left: var(--n-space-4);
+    padding-right: var(--n-space-4);
+  }
+
   .np__top-title {
     text-align: left;
   }
 
-  .np__aside-actions :deep(.n-btn) {
-    flex: 1;
+  .np__bottom {
+    padding-left: var(--n-space-4);
+    padding-right: var(--n-space-4);
+    padding-top: var(--n-space-2);
+  }
+
+  .np__body {
+    gap: var(--n-space-3);
+    padding: 0 var(--n-space-4);
+  }
+
+  .np__aside {
+    gap: var(--n-space-3);
+  }
+
+  .np__cover {
+    width: min(44%, 160px);
+  }
+
+  .np__title {
+    font-size: 1.05rem;
+  }
+
+  .np__artist {
+    font-size: var(--n-text-sm);
+  }
+
+  /* 收藏在顶栏、播放在底栏，封面旁这排按钮纯属重复，手机上去掉 */
+  .np__aside-actions,
+  .np__hint {
+    display: none;
+  }
+
+  .np__lyrics {
+    min-height: 200px;
+  }
+
+  .np__seek {
+    width: 100%;
+    gap: var(--n-space-2);
+  }
+
+  .np__time {
+    min-width: 36px;
   }
 
   .np-icon--lg {
@@ -1700,6 +1778,11 @@ onUnmounted(() => {
   .np-play {
     width: 52px;
     height: 52px;
+    margin: 0 var(--n-space-1);
+  }
+
+  .np__controls-spacer {
+    display: none;
   }
 }
 

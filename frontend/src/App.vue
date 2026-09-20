@@ -169,7 +169,8 @@ main.main--flush {
 }
 
 .app-footer--raised {
-  padding-bottom: var(--n-player-height);
+  /* 播放条高度 + 手机底部安全区（手势条），避免最后一行被遮住 */
+  padding-bottom: calc(var(--n-player-height) + var(--n-safe-bottom));
 }
 
 /* ===== 播放条：停靠底部，空闲时下移淡出 ===== */

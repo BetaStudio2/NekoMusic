@@ -144,7 +144,39 @@
   --n-player-height: 88px;
   --n-content-gutter: clamp(16px, 4vw, 32px);
 
+  /* ===== 安全区（刘海屏 / 手势条）=====
+     必须配合 index.html 里的 viewport-fit=cover，否则恒为 0。
+     固定贴边的元素（顶栏、播放条、全屏播放页）用它做内边距，
+     避免被刘海或 Home 指示条遮住。 */
+  --n-safe-top: env(safe-area-inset-top, 0px);
+  --n-safe-right: env(safe-area-inset-right, 0px);
+  --n-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --n-safe-left: env(safe-area-inset-left, 0px);
+
+  /* ===== 响应式断点（约定）=====
+     CSS 变量不能用在媒体查询里，这里只作统一约定，写媒体查询时请照抄数值：
+       sm  560px   手机竖屏——多列栅格转单列的主断点
+       md  900px   平板竖屏 / 手机横屏
+       lg  1200px  桌面（宽屏再收窄）
+     新增样式请优先使用这三个值，不要继续引入新断点。 */
+
   /* ===== 焦点环 ===== */
   --n-focus-ring: 2px solid var(--n-accent);
   --n-focus-offset: 3px;
+}
+
+/* ==========================================================================
+   手机竖屏（≤560px）
+   --------------------------------------------------------------------------
+   顶栏与播放条都能收窄：手机屏幕纵向宝贵，这两个固定条各减一档，
+   把空间还给内容。--n-player-height 同时被 App 的页脚留白消费，
+   改这里即可全局生效。
+   ========================================================================== */
+@media (max-width: 560px) {
+  :root {
+    --n-header-height: 56px;
+    --n-player-height: 64px;
+    /* 手机上内容区留白收紧一档 */
+    --n-content-gutter: 16px;
+  }
 }

@@ -20,35 +20,38 @@
     <div class="gp-grid">
       <!-- 左：封面 + 曲名/歌手 + 收藏 -->
       <div class="gp-track">
+        <!-- 封面与文字合成同一个按钮：手机上触摸目标更大（整块可点开播放页） -->
         <button
           type="button"
-          class="gp-track__cover"
-          :aria-label="currentMusic ? `查看 ${currentMusic.title}` : '暂无播放'"
+          class="gp-track__open"
           :disabled="!currentMusic"
+          :aria-label="currentMusic ? `打开播放页：${currentMusic.title}` : '暂无播放'"
           @click="goToDetails"
         >
-          <img
-            v-if="currentMusic"
-            :src="getCoverUrl(currentMusic.id)"
-            :alt="currentMusic.title"
-            class="gp-track__img"
-            @error="handleImageError"
-          />
-          <span v-else class="gp-track__ph"><NIcon name="music-2" :size="20" /></span>
-        </button>
+          <span class="gp-track__cover">
+            <img
+              v-if="currentMusic"
+              :src="getCoverUrl(currentMusic.id)"
+              :alt="currentMusic.title"
+              class="gp-track__img"
+              @error="handleImageError"
+            />
+            <span v-else class="gp-track__ph"><NIcon name="music-2" :size="20" /></span>
+          </span>
 
-        <div class="gp-track__meta">
-          <span class="gp-track__title" :class="{ 'is-placeholder': !currentMusic }">
-            {{ currentMusic ? currentMusic.title : '请选择音乐播放' }}
+          <span class="gp-track__meta">
+            <span class="gp-track__title" :class="{ 'is-placeholder': !currentMusic }">
+              {{ currentMusic ? currentMusic.title : '请选择音乐播放' }}
+            </span>
+            <span class="gp-track__artist" :class="{ 'is-placeholder': !currentMusic }">
+              {{ currentMusic ? currentMusic.artist : '—' }}
+            </span>
           </span>
-          <span class="gp-track__artist" :class="{ 'is-placeholder': !currentMusic }">
-            {{ currentMusic ? currentMusic.artist : '—' }}
-          </span>
-        </div>
+        </button>
 
         <button
           type="button"
-          class="gp-icon"
+          class="gp-icon gp-track__fav"
           :class="{ 'is-on': isFavorite }"
           :disabled="!currentMusic"
           :aria-label="isFavorite ? '取消收藏' : '收藏'"
@@ -1914,7 +1917,9 @@ onUnmounted(() => {
   right: 0;
   bottom: 0;
   z-index: var(--n-z-player);
-  height: var(--n-player-height);
+  /* 高度 = 内容高度 + 底部安全区：手势条/Home 指示条不会遮住控件 */
+  height: calc(var(--n-player-height) + var(--n-safe-bottom));
+  padding-bottom: var(--n-safe-bottom);
   color: var(--n-text);
   user-select: none;
   background:
@@ -2000,20 +2005,37 @@ onUnmounted(() => {
 .gp-track {
   display: flex;
   align-items: center;
-  gap: var(--n-space-3);
+  gap: var(--n-space-2);
   min-width: 0;
+}
+
+/* 封面 + 文字合成同一个按钮：触摸目标覆盖整块（手机上尤其重要） */
+.gp-track__open {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-3);
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gp-track__open:disabled {
+  cursor: default;
 }
 
 .gp-track__cover {
   flex: none;
   width: 52px;
   height: 52px;
-  padding: 0;
   border: 1px solid var(--n-line);
   border-radius: var(--n-radius-control);
   background: var(--n-surface-sunken);
   overflow: hidden;
-  cursor: pointer;
   display: grid;
   place-items: center;
   color: var(--n-text-faint);
@@ -2021,13 +2043,13 @@ onUnmounted(() => {
     border-color var(--n-duration-fast) var(--n-ease);
 }
 
-.gp-track__cover:hover:not(:disabled) {
+.gp-track__open:hover:not(:disabled) .gp-track__cover {
   transform: translateY(-1px);
   border-color: var(--n-accent-line);
 }
 
-.gp-track__cover:disabled {
-  cursor: default;
+.gp-track__fav {
+  flex: none;
 }
 
 .gp-track__img {
@@ -2406,8 +2428,9 @@ onUnmounted(() => {
   transform: translateY(10px) scale(0.98);
 }
 
-/* ===== 响应式 ===== */
-@media (max-width: 1080px) {
+/* ===== 响应式 =====
+   断点约定见 design/tokens.css：560 手机竖屏 / 900 平板 / 1200 桌面 */
+@media (max-width: 1200px) {
   .gp-now {
     width: 112px;
   }
@@ -2418,10 +2441,10 @@ onUnmounted(() => {
   }
 }
 
-@media (max-width: 860px) {
+@media (max-width: 900px) {
   .gp-grid {
     gap: var(--n-space-2);
-    padding: 0 var(--n-space-3);
+    padding: 0 var(--n-space-4);
   }
 
   .gp-track__artist,
@@ -2430,18 +2453,50 @@ onUnmounted(() => {
   }
 }
 
-@media (max-width: 620px) {
-  .gp-track__meta {
+/* 手机竖屏：压成「封面+曲名 · 上一曲/播放/下一曲 · 列表」，
+   次级操作（播放模式、收藏）收进播放页，避免一排按钮挤爆 */
+@media (max-width: 560px) {
+  .gp-grid {
+    /* 左栏吃掉剩余宽度，右栏按内容收紧（1fr/1fr 会把空间浪费在只有一个按钮的右栏） */
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: var(--n-space-1);
+    padding: 0 var(--n-space-3);
+  }
+
+  .gp-controls .gp-icon:first-child,
+  .gp-track__fav {
     display: none;
   }
 
-  .gp-track__cover {
-    width: 44px;
-    height: 44px;
+  .gp-track__open {
+    gap: var(--n-space-2);
   }
 
-  .gp-right {
-    gap: var(--n-space-2);
+  .gp-track__cover {
+    width: 40px;
+    height: 40px;
+  }
+
+  .gp-icon--lg {
+    width: 38px;
+    height: 38px;
+  }
+
+  .gp-play {
+    width: 42px;
+    height: 42px;
+    margin: 0 var(--n-space-1);
+  }
+
+  /* 顶部进度线加厚一点，手指更好按 */
+  .gp-seek {
+    height: 18px;
+    transform: translateY(-9px);
+  }
+
+  .gp-seek__track {
+    height: 4px;
+    margin-top: -2px;
   }
 }
 
