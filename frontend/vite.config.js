@@ -1,11 +1,20 @@
 import { fileURLToPath, URL } from 'node:url'
 
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
+/** 本地后端默认地址（backend/src/main/resources/config.yml 的 port 默认 65535） */
+const DEFAULT_DEV_PROXY_TARGET = 'http://localhost:65535'
+
 // https://vite.dev/config/
-export default defineConfig(({ command }) => {
+export default defineConfig(({ command, mode }) => {
+  // 开发联调代理：把 /api、/version 转发到本地后端，前端与接口/音频/封面变成同源，
+  // 无需后端为浏览器放开 CORS。仅 dev server 生效，生产构建不受影响。
+  // 目标可用 VITE_DEV_PROXY_TARGET 覆盖（如指向线上 https://music.cnmsb.xin）。
+  const env = loadEnv(mode, process.cwd(), '')
+  const proxyTarget = env.VITE_DEV_PROXY_TARGET || DEFAULT_DEV_PROXY_TARGET
+
   return {
     plugins: [
       vue(),
@@ -64,6 +73,14 @@ export default defineConfig(({ command }) => {
       allowedHosts: ['music.cnmsb.xin', 'localhost'],
       // 开发环境也启用生产级别的优化
       hmr: true,
+      // 仅在 dev server 注册；生产构建 command 为 build，不会带上代理
+      proxy:
+        command === 'serve'
+          ? {
+              '/api': { target: proxyTarget, changeOrigin: true, secure: false },
+              '/version': { target: proxyTarget, changeOrigin: true, secure: false },
+            }
+          : undefined,
     },
     // 确保开发和生产环境行为一致
     define: {
