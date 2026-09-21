@@ -10,6 +10,7 @@ import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
+import { coverSrcset } from '@/utils/coverImage'
 
 const toast = useToast()
 
@@ -136,6 +137,10 @@ onMounted(fetchLatest)
         <span class="row__num">{{ index + 1 }}</span>
         <img
           :src="item.coverUrl"
+          :srcset="coverSrcset(item.coverUrl)"
+          sizes="56px"
+          width="56"
+          height="56"
           :alt="item.title"
           class="row__cover"
           loading="lazy"

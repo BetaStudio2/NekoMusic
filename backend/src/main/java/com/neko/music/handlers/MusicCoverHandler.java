@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.util.ClientAborts;
+import com.neko.music.util.CoverThumbnails;
 
 import com.neko.music.util.MusicLookup;
 
@@ -26,8 +27,11 @@ public class MusicCoverHandler extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         String pathInfo = request.getPathInfo();
         
+        // ?size= 命中白名单时返回方形缩略图（按需生成并缓存），否则原图
+        int size = parseSize(request);
+
         if (pathInfo == null || pathInfo.equals("/")) {
-            sendDefaultIcon(request, response);
+            sendDefaultIcon(request, size, response);
             return;
         }
         
@@ -45,7 +49,7 @@ public class MusicCoverHandler extends HttpServlet {
         }
 
         if (!MusicLookup.musicRowExists(musicId)) {
-            sendDefaultIcon(request, response);
+            sendDefaultIcon(request, size, response);
             return;
         }
 
@@ -53,12 +57,29 @@ public class MusicCoverHandler extends HttpServlet {
         if (coverOpt.isPresent()) {
             Path coverFile = coverOpt.get();
             if (MusicAssetLocator.isUnderDirectory(coverFile, MusicAssetLocator.coverDir()) && Files.exists(coverFile)) {
-                sendImageFile(request, coverFile, response);
+                Path servePath = size > 0
+                        ? CoverThumbnails.fromFile(coverFile, size).orElse(coverFile)
+                        : coverFile;
+                sendImageFile(request, servePath, response);
                 return;
             }
         }
 
-        sendDefaultIcon(request, response);
+        sendDefaultIcon(request, size, response);
+    }
+
+    /** 解析 ?size=，不在白名单内按 0（原图）处理。 */
+    private static int parseSize(HttpServletRequest request) {
+        String raw = request.getParameter("size");
+        if (raw == null || raw.isBlank()) {
+            return 0;
+        }
+        try {
+            int size = Integer.parseInt(raw.trim());
+            return CoverThumbnails.isAllowedSize(size) ? size : 0;
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     
@@ -85,7 +106,14 @@ public class MusicCoverHandler extends HttpServlet {
         }
     }
     
-    private void sendDefaultIcon(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    private void sendDefaultIcon(HttpServletRequest request, int size, HttpServletResponse response) throws IOException {
+        if (size > 0) {
+            Optional<Path> thumb = CoverThumbnails.fromResource("DefaultIcon.png", size);
+            if (thumb.isPresent()) {
+                sendImageFile(request, thumb.get(), response);
+                return;
+            }
+        }
         if (HttpResourceCache.sendNotModifiedDefaultIcon(request, response)) {
             return;
         }

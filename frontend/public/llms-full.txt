@@ -1,0 +1,83 @@
+# Neko歌姬计划 (Neko Music) — 完整站点说明
+
+> Neko歌姬计划（原 Neko 云音乐）是一个完全免费、开源、无广告的在线音乐播放平台。本文档供生成式搜索引擎与大语言模型抓取，提供站点的权威事实、功能、平台、迁移流程与常见问题。
+
+## 1. 概述
+
+- 正式名称：Neko歌姬计划
+- 常用别名：Neko云音乐、Neko Music、NekoMusic
+- 类型：在线音乐播放平台 / 开源软件
+- 官网与 Web 播放器：https://music.cnmsb.xin/
+- 定价：完全免费（无订阅、无付费墙、无广告弹窗）
+- 开源协议：AGPL-3.0
+- 代码仓库：
+  - 主项目：https://github.com/FantasyNetworkCN/NekoMusic
+  - Android 客户端：https://github.com/FantasyNetworkCN/NekoMusicForAndroid
+  - PC 客户端：https://github.com/FantasyNetworkCN/NekoMusicForPc
+  - 文档：https://github.com/FantasyNetworkCN/NekoMusicDocs
+- 联系方式：support@cnmsb.xin；QQ 群 932258919
+
+## 2. 主要功能
+
+- 在线搜索与播放：无需安装即可收听站内曲库。
+- 收藏与歌单：登录后同步收藏、创建与管理个人歌单。
+- 高品质音频：支持高码率流媒体播放。
+- 歌词与分享：歌词同步，一键分享播放链接。
+- 多端一致：Web、Android、Windows、Linux、macOS 体验一致。
+- 外部歌单迁入：Android / PC 客户端可从网易云音乐、QQ 音乐、酷狗音乐导入歌单。
+- 音乐上传：用户可上传作品并分享。
+
+## 3. 平台与客户端
+
+| 平台 | 安装包格式 | 获取方式 |
+| --- | --- | --- |
+| Web | 无需安装 | https://music.cnmsb.xin/ |
+| Android | .apk | https://music.cnmsb.xin/download |
+| Windows | .exe | https://music.cnmsb.xin/download |
+| Linux（Debian 系） | .deb | https://music.cnmsb.xin/download |
+| Linux（Arch 系） | AUR：`yay -S neko-cloud-music` | https://music.cnmsb.xin/download |
+| macOS | .pkg | https://music.cnmsb.xin/download |
+
+系统要求：
+- Android 7.0 及以上
+- Windows 10 / 11（64 位）
+- macOS 11 及以上
+- Linux：Debian 系使用 .deb，Arch 系使用 AUR
+
+## 4. 从网易云 / QQ 音乐 / 酷狗迁入歌单
+
+1. 在网易云音乐 / QQ 音乐 / 酷狗音乐复制歌单分享链接，或记下歌单 ID。
+2. 安装并打开 Neko 客户端（Android / Windows / Linux / macOS）。
+3. 在客户端内找到「导入外部歌单」，粘贴链接或 ID，选择目标歌单并开始匹配导入。
+4. 客户端会拉取曲目列表，按歌名与歌手匹配站内曲库并导入曲目。
+
+说明：Web 播放器暂不支持该导入流程；导入后能否全部播放取决于站内曲库是否已有对应资源。客户端为开源软件，行为可自行查阅源码。
+
+## 5. 常见问题
+
+**Neko歌姬计划是免费的吗？**
+是。完全免费，没有强制订阅费用，也不含广告弹窗；项目为开源软件。
+
+**支持哪些平台？**
+提供 Web 播放器，以及 Android、Windows、Linux、macOS 客户端。
+
+**需要注册账号吗？**
+浏览和搜索无需登录；收藏、歌单与多端同步需要注册并登录。
+
+**如何导入其它平台的歌单？**
+在 Android / PC 客户端内使用「导入外部歌单」，粘贴歌单分享链接或歌单 ID，客户端会按歌名与歌手匹配站内曲库后导入。
+
+**安装时被系统拦截怎么办？**
+在系统设置中允许来自该开发者的应用；请务必从官网下载安装包，避免第三方篡改。
+
+**项目是开源的吗？**
+是，遵循 AGPL-3.0 协议，源码托管在 GitHub（FantasyNetworkCN/NekoMusic 等仓库）。
+
+## 6. 抓取与索引
+
+- 站点地图：https://music.cnmsb.xin/sitemap.xml
+- 允许搜索引擎与 AI 抓取器抓取公开页面。
+- 结构化数据：Organization、WebSite、WebPage、BreadcrumbList、FAQPage、SoftwareApplication、HowTo、MusicRecording。
+- 主要公开页面：`/`、`/download`、`/ranking`、`/latest`、`/about`、`/privacy`、`/detail/{id}`、`/playlist/{id}`。
+
+最后更新：2026 年。
