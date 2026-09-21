@@ -188,6 +188,13 @@
             <artifactId>apk-parser</artifactId>
             <version>2.6.10</version>
         </dependency>
+
+        <!-- IP归属地解析 -->
+        <dependency>
+            <groupId>com.maxmind.geoip2</groupId>
+            <artifactId>geoip2</artifactId>
+            <version>5.2.0</version>
+        </dependency>
     </dependencies>
 
     <build>

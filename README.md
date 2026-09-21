@@ -173,6 +173,32 @@ curl -s -X POST 'https://music.cnmsb.xin/api/sensitive-word/check' \
 - 本接口仅做检测，不写库；实际上传、注册、歌单等接口仍会再次校验。
 - 修改词表后需重新部署后端 jar 后生效。
 
+## 歌曲评论
+
+每首歌都有评论与楼层回复（Web 播放页顶栏的评论按钮打开；回复再回复仍归入同一楼层并标记 @ 对象）。接口只有 **一个端点** `/api/comments`：
+
+- `GET /api/comments?musicId=&page=&pageSize=` 列表（含回复）
+- `POST /api/comments` `{musicId, content, parentId?}` 发表 / 回复（需登录）
+- `DELETE /api/comments?id=` 删除自己的评论（管理员可删任意一条）
+
+评论返回发表时间（东八区墙钟）、IP 归属地与作者，头像由客户端按 `/api/user/avatar/{userId}` 取。完整字段与示例见 [Neko歌姬计划文档/README.md](Neko歌姬计划文档/README.md#歌曲评论-api)。
+
+### IP 归属地（本地 MaxMind，v4/v6）
+
+归属地**不使用任何第三方接口**，直接用 MaxMind GeoIP2 读取本地 GeoLite2 数据库，IPv4 / IPv6 共用一份 City 库。服务启动时按顺序自动找库：
+
+`GeoIP/GeoLite2-City.mmdb` → `/app/GeoIP/GeoLite2-City.mmdb` → `/usr/share/GeoIP/…` → JAR 内 `/GeoIP/GeoLite2-City.mmdb`
+
+准备数据库（二选一）：
+
+```bash
+cd backend
+bash scripts/fetch-geolite2.sh          # 下载到 backend/GeoIP/GeoLite2-City.mmdb
+# 或手动放置官方 GeoLite2-City.mmdb 到 backend/GeoIP/
+```
+
+数据库由运维放到上述任一位置（容器内即 `/app/GeoIP/GeoLite2-City.mmdb`，或镜像/宿主机既有路径）。没有数据库时服务照常运行，归属地显示为「未知」（内网/回环地址显示「本地」），不涉及任何配置开关与外部接口。
+
 ## 每日推荐（AI + Redis）
 
 后端已接入每日推荐能力，按用户收藏风格生成推荐列表，默认使用 OpenAI 兼容接口做重排。

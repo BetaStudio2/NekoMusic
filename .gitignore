@@ -145,3 +145,6 @@ backend/src/main/resources/site/logo.svg
 # 汽水音乐登录 Cookie（运行时生成）
 qishui_cookies.json
 backend/qishui_cookies.json
+
+# MaxMind GeoLite2 数据库（评论 IP 归属地，体积大不入库；用 scripts/fetch-geolite2.sh 获取）
+backend/GeoIP/*.mmdb
