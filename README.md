@@ -196,23 +196,19 @@ curl -s -X POST 'https://music.cnmsb.xin/api/sensitive-word/check' \
 - `POST /api/comments` `{musicId, content, parentId?}` 发表 / 回复（需登录）
 - `DELETE /api/comments?id=` 删除自己的评论（管理员可删任意一条）
 
+删除是**物理删除**：删楼层会连同该楼层下的全部回复一起删掉，列表里不会再出现「该评论已删除」这类占位。
+
 评论返回发表时间（东八区墙钟）、IP 归属地与作者，头像由客户端按 `/api/user/avatar/{userId}` 取。完整字段与示例见 [Neko歌姬计划文档/README.md](Neko歌姬计划文档/README.md#歌曲评论-api)。
 
 ### IP 归属地（本地 MaxMind，v4/v6）
 
-归属地**不使用任何第三方接口**，直接用 MaxMind GeoIP2 读取本地 GeoLite2 数据库，IPv4 / IPv6 共用一份 City 库。服务启动时按顺序自动找库：
+归属地**不使用任何第三方接口**，直接用 MaxMind GeoIP2 读取本地 GeoLite2 数据库，IPv4 / IPv6 共用一份 City 库。数据库随 JAR 分发（源码放在 `backend/src/main/resources/GeoLite2-City.mmdb`），服务启动时按以下顺序找库：
 
-`GeoIP/GeoLite2-City.mmdb` → `/app/GeoIP/GeoLite2-City.mmdb` → `/usr/share/GeoIP/…` → JAR 内 `/GeoIP/GeoLite2-City.mmdb`
+`GeoIP/GeoLite2-City.mmdb`（运行目录）→ `/app/GeoIP/…` → `/usr/share/GeoIP/…` → JAR 内 `/GeoLite2-City.mmdb`
 
-准备数据库（二选一）：
+运行目录里没有库文件时，启动阶段会自动把 JAR 内置的库**释放**到 `GeoIP/GeoLite2-City.mmdb`（容器内即 `/app/GeoIP/GeoLite2-City.mmdb`）再加载；磁盘不可写时直接从 JAR 流式读取。运维也可以自行把官方 `GeoLite2-City.mmdb` 放到上述任一位置覆盖内置库。
 
-```bash
-cd backend
-bash scripts/fetch-geolite2.sh          # 下载到 backend/GeoIP/GeoLite2-City.mmdb
-# 或手动放置官方 GeoLite2-City.mmdb 到 backend/GeoIP/
-```
-
-数据库由运维放到上述任一位置（容器内即 `/app/GeoIP/GeoLite2-City.mmdb`，或镜像/宿主机既有路径）。没有数据库时服务照常运行，归属地显示为「未知」（内网/回环地址显示「本地」），不涉及任何配置开关与外部接口。
+展示规则：国内只显示市级（无市级时退到省 / 自治区名，如 `上海`、`贵州`）；港澳台统一带「中国」前缀（`中国香港` / `中国澳门` / `中国台湾`）；国外显示国家名；内网 / 回环地址显示「本地」。没有数据库时服务照常运行，归属地显示为「未知」。
 
 ## 每日推荐（AI + Redis）
 

@@ -26,9 +26,9 @@ import java.util.concurrent.ConcurrentMap;
  *
  * <p>数据库按以下顺序自动发现（IPv4 与 IPv6 同一份 City/Country 库即可覆盖）：
  * <ol>
- *   <li>工作目录下的 {@code GeoIP/GeoLite2-City.mmdb}（推荐，见 {@code scripts/fetch-geolite2.sh}）</li>
+ *   <li>运行目录下的 {@code GeoIP/GeoLite2-City.mmdb}（JAR 内置库释放出来的位置）</li>
  *   <li>{@code /app/GeoIP/}、{@code /usr/share/GeoIP/}、{@code /usr/local/share/GeoIP/}、{@code /var/lib/GeoIP/}</li>
- *   <li>类路径 {@code /GeoIP/GeoLite2-City.mmdb}（数据库随 JAR 分发时，先释放到磁盘再加载）</li>
+ *   <li>类路径 {@code /GeoLite2-City.mmdb}（{@code src/main/resources/} 根目录，随 JAR 分发）</li>
  * </ol>
  *
  * <p>数据库随 JAR 分发（源码在 {@code src/main/resources/GeoLite2-City.mmdb}）。若运行目录里还没有库文件，
@@ -283,19 +283,67 @@ public class IpRegionService {
         return value == null ? "" : value.trim();
     }
 
-    /** 国内返回「省+市」，国外返回国家名。 */
+    /** 国内返回市级归属地（无市级时退到省 / 自治区名），港澳台带「中国」前缀，国外返回国家名。 */
     static String format(String country, String subdivision, String city) {
         String c = country == null ? "" : country.trim();
-        String s = subdivision == null ? "" : subdivision.trim();
-        String t = city == null ? "" : city.trim();
-        if (s.equals(t)) {
-            t = "";
+        String hmt = hmtName(c);
+        if (!hmt.isEmpty()) {
+            return hmt;
         }
         if (!c.isEmpty() && !"中国".equals(c) && !"China".equalsIgnoreCase(c)) {
             return c;
         }
-        String result = (s + t).trim();
-        return result.isEmpty() ? c : result;
+        String cityName = shortenRegionName(city);
+        if (!cityName.isEmpty()) {
+            return cityName;
+        }
+        String province = shortenRegionName(subdivision);
+        if (!province.isEmpty()) {
+            return province;
+        }
+        return c;
+    }
+
+    /**
+     * 港澳台统一显示为「中国香港」「中国澳门」「中国台湾」：
+     * GeoLite2 的本地化名称只给裸名（香港 / 澳门 / 台湾），这里补上「中国」前缀。
+     */
+    private static String hmtName(String country) {
+        if (country == null || country.isBlank()) {
+            return "";
+        }
+        if (country.contains("香港") || country.equalsIgnoreCase("Hong Kong")) {
+            return "中国香港";
+        }
+        if (country.contains("澳门") || country.contains("澳門")
+                || country.equalsIgnoreCase("Macao") || country.equalsIgnoreCase("Macau")) {
+            return "中国澳门";
+        }
+        if (country.contains("台湾") || country.contains("台灣") || country.equalsIgnoreCase("Taiwan")) {
+            return "中国台湾";
+        }
+        return "";
+    }
+
+    /**
+     * 去掉行政区划后缀，避免出现「上海市上海」这类重复拼接：
+     * 上海市→上海、贵州省→贵州、广西壮族自治区→广西、延边朝鲜族自治州→延边、香港特别行政区→香港。
+     */
+    private static String shortenRegionName(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String name = raw.trim();
+        if (name.isEmpty()) {
+            return "";
+        }
+        name = name.replaceFirst("(特别行政区|自治区|自治州|省|市|地区|盟)$", "");
+        name = name.replaceFirst(
+                "(维吾尔|壮族|回族|蒙古族|朝鲜族|苗族|侗族|藏族|彝族|白族|傣族|哈尼族|布依族|土家族"
+                        + "|傈僳族|拉祜族|佤族|纳西族|景颇族|羌族|水族|仡佬族|畲族|黎族|瑶族|满族|土族|达斡尔族"
+                        + "|仫佬族|毛南族|京族|裕固族|锡伯族|鄂温克族|鄂伦春族|赫哲族|门巴族|珞巴族|基诺族"
+                        + "|德昂族|阿昌族|普米族|怒族|独龙族|布朗族|撒拉族|保安族|东乡族)+$", "");
+        return name.trim();
     }
 
     /** 去掉端口、IPv6 方括号与 IPv4-mapped 前缀。 */

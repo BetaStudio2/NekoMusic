@@ -28,7 +28,8 @@ import java.util.Map;
  * <ul>
  *   <li>{@code GET  /api/comments?musicId=&page=&pageSize=} 拉取楼层（含回复），无需登录</li>
  *   <li>{@code POST /api/comments} body {@code {musicId, content, parentId?}} 发表评论或回复，需登录</li>
- *   <li>{@code DELETE /api/comments?id=} 删除自己的评论（管理员令牌可删任意一条）</li>
+ *   <li>{@code DELETE /api/comments?id=} 删除自己的评论（管理员令牌可删任意一条）；
+ *       物理删除，删楼层会连带删除该楼层下的全部回复</li>
  * </ul>
  *
  * <p>评论只做两层：顶层楼层 + 楼层内回复，回复再回复仍归到同一楼层并用 {@code replyToUser} 标记 @ 对象，
@@ -168,10 +169,6 @@ public class MusicCommentHandler extends ApiServlet {
                 sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "要回复的评论不存在");
                 return;
             }
-            if (parent.deleted) {
-                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "该评论已被删除，无法回复");
-                return;
-            }
             rootId = parent.parentId != null ? parent.parentId : parent.id;
             replyToUserId = parent.userId;
         }
@@ -236,15 +233,7 @@ public class MusicCommentHandler extends ApiServlet {
             sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "只能删除自己的评论");
             return;
         }
-        if (row.deleted) {
-            JsonObject body = new JsonObject();
-            body.addProperty("success", true);
-            body.addProperty("message", "评论已删除");
-            sendSuccessResponse(resp, body);
-            return;
-        }
-
-        int affected = db.softDelete(id, userId == null ? 0 : userId, admin);
+        int affected = db.delete(id, row.parentId, userId == null ? 0 : userId, admin);
         if (affected <= 0) {
             sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "删除失败，请稍后再试");
             return;
@@ -252,6 +241,7 @@ public class MusicCommentHandler extends ApiServlet {
 
         JsonObject data = new JsonObject();
         data.addProperty("id", id);
+        data.addProperty("repliesDeleted", row.parentId == null ? Math.max(0, affected - 1) : 0);
         JsonObject body = new JsonObject();
         body.addProperty("success", true);
         body.addProperty("message", "删除成功");
@@ -264,8 +254,7 @@ public class MusicCommentHandler extends ApiServlet {
         JsonObject json = new JsonObject();
         json.addProperty("id", row.id);
         json.addProperty("musicId", row.musicId);
-        json.addProperty("content", row.deleted ? "" : row.content);
-        json.addProperty("deleted", row.deleted);
+        json.addProperty("content", row.content);
         json.addProperty("createdAt", row.createdAt);
         json.addProperty("ipRegion", row.ipRegion == null ? "" : row.ipRegion);
         json.addProperty("canDelete", admin || (viewerId != null && viewerId == row.userId));
