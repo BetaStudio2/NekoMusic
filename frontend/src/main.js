@@ -7,6 +7,7 @@ import './design/reset.css'
 import VueToastification from 'vue-toastification'
 import 'vue-toastification/dist/index.css'
 import { installBenignPlayAbortGuard } from './utils/benignPlayAbort'
+import { getToken, loadUserInfo } from './utils/userStore.js'
 
 const app = createApp(App)
 
@@ -75,4 +76,19 @@ app.use(VueToastification, {
   rtl: false
 })
 
-app.mount('#app')
+/**
+ * 昵称等用户资料不再写进 localStorage：已登录时先拉一次
+ * GET /api/user/info 再挂载，保证首屏各页面读到的都是服务端最新资料。
+ * 网络慢最多等 3 秒，拉不到就照常挂载（页面会显示兜底提示）。
+ */
+async function bootstrap() {
+  if (getToken()) {
+    await Promise.race([
+      loadUserInfo(),
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+    ])
+  }
+  app.mount('#app')
+}
+
+bootstrap()

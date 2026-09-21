@@ -156,6 +156,7 @@ import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NInput, NModal, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { tryOpenPlaylistInApp } from '@/utils/nativeAppOpen.js'
+import { getUser } from '@/utils/userStore.js'
 import { coverSrcset } from '@/utils/coverImage'
 import { avatarUrl } from '@/utils/userAvatar.js'
 
@@ -172,10 +173,7 @@ const searchResults = ref([])
 
 const playlistId = computed(() => route.params.id)
 
-const currentUser = computed(() => {
-  const userStr = localStorage.getItem('user')
-  return userStr ? JSON.parse(userStr) : null
-})
+const currentUser = computed(() => getUser())
 
 const isOwner = computed(() => {
   if (!currentUser.value || !playlist.value) return false

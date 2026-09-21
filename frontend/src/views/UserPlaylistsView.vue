@@ -84,6 +84,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import { applyVipFromPlaylistsResponse } from '@/utils/userVip.js'
+import { getUser } from '@/utils/userStore.js'
 import { avatarUrl } from '@/utils/userAvatar.js'
 import { useToast } from '@/composables/useToast'
 import NIcon from '@/icons/NIcon.vue'
@@ -107,10 +108,7 @@ const editForm = ref({
 })
 
 // 获取当前用户信息
-const getCurrentUser = () => {
-  const userStr = localStorage.getItem('user')
-  return userStr ? JSON.parse(userStr) : null
-}
+const getCurrentUser = () => getUser()
 
 // 检查是否是歌单所有者
 const isPlaylistOwner = (playlistUserId) => {

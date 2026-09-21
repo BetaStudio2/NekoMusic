@@ -277,6 +277,7 @@ import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NInput } from '@/ui'
 import { useToast } from '@/composables/useToast'
+import { setUser } from '@/utils/userStore.js'
 
 const emit = defineEmits(['authenticated', 'close'])
 
@@ -322,7 +323,8 @@ const loginError = ref('')
 function applyLogin(token, user) {
   const previousToken = localStorage.getItem('userToken')
   localStorage.setItem('userToken', token)
-  localStorage.setItem('user', JSON.stringify(user))
+  // 用户资料只在内存中保存（不落盘）
+  setUser(user)
 
   // 同标签页内不会收到原生 storage 事件，主动广播一次让各页面刷新登录态
   if (previousToken !== token) {
