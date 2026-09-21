@@ -157,6 +157,7 @@ import { NButton, NCard, NInput, NModal, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { tryOpenPlaylistInApp } from '@/utils/nativeAppOpen.js'
 import { coverSrcset } from '@/utils/coverImage'
+import { avatarUrl } from '@/utils/userAvatar.js'
 
 const toast = useToast()
 const router = useRouter()
@@ -322,7 +323,7 @@ const getPlaylistCover = () => {
   }
   // 如果没有音乐，使用用户头像
   const userId = currentUser.value ? currentUser.value.id : 'default';
-  return `${API_CONFIG.BASE_URL}/api/user/avatar/${userId}`;
+  return avatarUrl(userId);
 }
 
 const handleCoverError = (event) => {
@@ -331,7 +332,7 @@ const handleCoverError = (event) => {
 
 const handlePlaylistCoverError = (event) => {
   const userId = currentUser.value ? currentUser.value.id : 'default';
-  event.target.src = `${API_CONFIG.BASE_URL}/api/user/avatar/${userId}`;
+  event.target.src = avatarUrl(userId);
 }
 
 const showAddMusicDialog = () => {

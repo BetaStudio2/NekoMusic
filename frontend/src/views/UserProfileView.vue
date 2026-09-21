@@ -6,10 +6,28 @@
       <!-- 头部 -->
       <header class="profile__head">
         <div class="profile__avatar-wrap">
-          <img :src="userAvatar" alt="用户头像" class="profile__avatar" @error="handleAvatarError" />
-          <input id="avatar-upload" type="file" accept="image/*" class="profile__file" @change="handleAvatarUpload" />
-          <label for="avatar-upload" class="profile__avatar-btn" title="更换头像">
-            <NIcon name="image-plus" :size="16" />
+          <img
+            :src="userAvatar"
+            alt="用户头像"
+            class="profile__avatar"
+            :class="{ 'profile__avatar--busy': avatarUploading }"
+            @error="handleAvatarError"
+          />
+          <input
+            id="avatar-upload"
+            type="file"
+            accept="image/*"
+            class="profile__file"
+            :disabled="avatarUploading"
+            @change="handleAvatarUpload"
+          />
+          <label
+            for="avatar-upload"
+            class="profile__avatar-btn"
+            :class="{ 'profile__avatar-btn--busy': avatarUploading }"
+            :title="avatarUploading ? '头像上传中…' : '更换头像'"
+          >
+            <NIcon :name="avatarUploading ? 'loader-circle' : 'image-plus'" :size="16" />
           </label>
         </div>
 
@@ -123,6 +141,7 @@ import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NInput, NModal, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { formatVipExpiresAt, syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
+import { avatarUrl, useAvatarVersion, bumpAvatarVersion } from '@/utils/userAvatar.js'
 import { openAuthDialog } from '@/composables/useAuthDialog'
 import { useAuth } from '@/composables/useAuth'
 
@@ -146,6 +165,7 @@ const user = computed(() => {
 })
 
 const { token: authToken } = useAuth()
+const avatarVersion = useAvatarVersion()
 
 // 检查用户是否登录（用响应式 token，弹窗里登录后能立刻更新）
 const isLoggedIn = computed(() => !!authToken.value)
@@ -177,9 +197,9 @@ onUnmounted(() => {
 })
 
 const userAvatar = computed(() => {
-  // 使用用户 ID 获取头像
-  const userId = user.value ? user.value.id : 'default';
-  return `${API_CONFIG.BASE_URL}/api/user/avatar/${userId}`;
+  // 使用用户 ID 获取头像；版本号让换头像后 URL 变化，绕过浏览器缓存
+  const userId = user.value ? user.value.id : 'default'
+  return avatarUrl(userId, avatarVersion.value)
 })
 
 const activeTab = ref('profile')
@@ -300,13 +320,66 @@ const saveNickname = async () => {
   }
 }
 
+// 头像上传：最大 10MiB（与后端 ImageUploadValidator 限制保持一致）
+const MAX_AVATAR_BYTES = 10 * 1024 * 1024
+const avatarUploading = ref(false)
+
 // 处理头像上传
-const handleAvatarUpload = (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
-  
-  // 这里可以实现上传头像的逻辑
-  toast.info('头像上传功能将在后续版本中实现');
+const handleAvatarUpload = async (event) => {
+  const input = event.target
+  const file = input.files && input.files[0]
+  if (!file) return
+
+  // 清空 input，保证连续选择同一张图片也能触发 change
+  const resetInput = () => {
+    input.value = ''
+  }
+
+  if (!file.type || !file.type.startsWith('image/')) {
+    toast.error('请选择图片文件')
+    resetInput()
+    return
+  }
+  if (file.size > MAX_AVATAR_BYTES) {
+    toast.error('头像大小不能超过 10MiB')
+    resetInput()
+    return
+  }
+
+  const token = localStorage.getItem('userToken')
+  if (!token) {
+    toast.error('登录状态已失效，请重新登录')
+    resetInput()
+    return
+  }
+
+  avatarUploading.value = true
+  try {
+    const form = new FormData()
+    form.append('avatar', file)
+
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/user/avatar/upload`, {
+      method: 'POST',
+      // 不要手动设置 Content-Type，交给浏览器带 multipart boundary
+      headers: { Authorization: `Bearer ${token}` },
+      body: form
+    })
+
+    const data = await response.json().catch(() => ({}))
+    if (response.ok && data.success) {
+      // 版本号变化 => 头像 URL 变化，页面与会话内其它头像同步刷新
+      bumpAvatarVersion()
+      toast.success(data.message || '头像更新成功')
+    } else {
+      toast.error(data.message || data.error || '头像上传失败')
+    }
+  } catch (error) {
+    console.error('上传头像失败:', error)
+    toast.error('头像上传失败，请稍后重试')
+  } finally {
+    avatarUploading.value = false
+    resetInput()
+  }
 }
 
 // 处理头像加载错误
@@ -403,6 +476,30 @@ const changePassword = async () => {
   .profile__avatar-btn:hover {
     transform: translateY(-1px);
     background: var(--n-accent-strong);
+  }
+}
+
+.profile__avatar--busy {
+  opacity: 0.55;
+}
+
+.profile__avatar-btn--busy {
+  cursor: progress;
+}
+
+.profile__avatar-btn--busy :deep(.n-icon) {
+  animation: profile-avatar-spin 0.8s linear infinite;
+}
+
+@keyframes profile-avatar-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile__avatar-btn--busy :deep(.n-icon) {
+    animation-duration: 1.6s;
   }
 }
 

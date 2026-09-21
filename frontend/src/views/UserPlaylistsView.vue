@@ -84,6 +84,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import { applyVipFromPlaylistsResponse } from '@/utils/userVip.js'
+import { avatarUrl } from '@/utils/userAvatar.js'
 import { useToast } from '@/composables/useToast'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NInput, NModal, NSpinner } from '@/ui'
@@ -267,7 +268,7 @@ const getPlaylistCover = (playlist) => {
   }
   const u = getCurrentUser()
   const userId = u ? u.id : 'default'
-  return `${API_CONFIG.BASE_URL}/api/user/avatar/${userId}`
+  return avatarUrl(userId)
 }
 
 // 异步获取歌单第一首音乐的封面
@@ -299,7 +300,7 @@ const fetchPlaylistFirstMusicCover = async (playlistId) => {
 const handleCoverError = (event) => {
   const u = getCurrentUser()
   const userId = u ? u.id : 'default'
-  event.target.src = `${API_CONFIG.BASE_URL}/api/user/avatar/${userId}`
+  event.target.src = avatarUrl(userId)
 }
 
 // 格式化时间
