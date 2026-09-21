@@ -4,6 +4,7 @@ import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
 import com.maxmind.geoip2.record.Subdivision;
+import com.neko.music.util.AtomicFiles;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,8 +28,12 @@ import java.util.concurrent.ConcurrentMap;
  * <ol>
  *   <li>工作目录下的 {@code GeoIP/GeoLite2-City.mmdb}（推荐，见 {@code scripts/fetch-geolite2.sh}）</li>
  *   <li>{@code /app/GeoIP/}、{@code /usr/share/GeoIP/}、{@code /usr/local/share/GeoIP/}、{@code /var/lib/GeoIP/}</li>
- *   <li>类路径 {@code /GeoIP/GeoLite2-City.mmdb}（若数据库被打进 JAR）</li>
+ *   <li>类路径 {@code /GeoIP/GeoLite2-City.mmdb}（数据库随 JAR 分发时，先释放到磁盘再加载）</li>
  * </ol>
+ *
+ * <p>数据库随 JAR 分发（源码在 {@code src/main/resources/GeoLite2-City.mmdb}）。若运行目录里还没有库文件，
+ * 服务启动时会自动把 JAR 内置的库释放到 {@code GeoIP/GeoLite2-City.mmdb} 再加载，无需人工放置文件；
+ * 磁盘不可写时退化为直接从 JAR 流式读取。
  *
  * <p>库缺失或解析失败时统一返回「未知」，不影响评论发表；内网 / 回环地址返回「本地」。
  */
@@ -40,6 +45,10 @@ public class IpRegionService {
     private static final String LOCAL = "本地";
     private static final String ZH = "zh-CN";
     private static final int MEMORY_CACHE_MAX = 8192;
+
+    /** 从 JAR 释放数据库时的落盘位置（相对运行目录；容器内即 /app/GeoIP/...），与 FILE_CANDIDATES 首项一致 */
+    private static final Path PRIMARY_DATABASE = Paths.get("GeoIP", "GeoLite2-City.mmdb");
+    private static final Path CONTAINER_DATABASE = Paths.get("/app", "GeoIP", "GeoLite2-City.mmdb");
 
     /** 外部文件候选路径，按优先级排列。 */
     private static final String[] FILE_CANDIDATES = {
@@ -57,8 +66,10 @@ public class IpRegionService {
             "/var/lib/GeoIP/GeoLite2-City.mmdb",
     };
 
-    /** 类路径候选资源（数据库随 JAR 分发时使用）。 */
+    /** 类路径候选资源：数据库放在 {@code src/main/resources/} 根目录（推荐），也兼容 GeoIP/ 子目录。 */
     private static final String[] CLASSPATH_CANDIDATES = {
+            "/GeoLite2-City.mmdb",
+            "/GeoLite2-Country.mmdb",
             "/GeoIP/GeoLite2-City.mmdb",
             "/GeoIP/GeoLite2-Country.mmdb",
     };
@@ -394,18 +405,57 @@ public class IpRegionService {
         return value == null || value.isBlank() || "unknown".equalsIgnoreCase(value.trim());
     }
 
-    /** 依次尝试外部文件与类路径资源，全部失败返回 null。 */
+    /** 依次尝试外部文件与类路径资源；JAR 内置库会在启动时释放到磁盘。全部失败返回 null。 */
     private static DatabaseReader openDatabase() {
+        DatabaseReader db = openFromFiles();
+        if (db != null) {
+            return db;
+        }
+        db = openFromClasspath();
+        if (db != null) {
+            return db;
+        }
+        logDatabaseMissing();
+        return null;
+    }
+
+    private static DatabaseReader openFromFiles() {
         for (String candidate : FILE_CANDIDATES) {
             Path path = Paths.get(candidate);
             if (Files.isRegularFile(path)) {
-                try {
-                    DatabaseReader db = new DatabaseReader.Builder(path.toFile()).build();
+                DatabaseReader db = buildReader(path.toFile());
+                if (db != null) {
                     logger.info("IP 归属地数据库已加载: {} ({}), IPv4/IPv6 均使用该库",
-                            path.toAbsolutePath(), db.metadata().databaseType());
+                            path.toAbsolutePath(), databaseType(db));
                     return db;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** 类路径候选：把 JAR 内置库释放到磁盘（后端目录里就有一份），磁盘不可写时直接从 JAR 读取。 */
+    private static DatabaseReader openFromClasspath() {
+        Path target = writableDatabaseTarget();
+        IOException releaseFailure = null;
+        if (target != null) {
+            for (String resource : CLASSPATH_CANDIDATES) {
+                try (InputStream in = IpRegionService.class.getResourceAsStream(resource)) {
+                    if (in == null) {
+                        continue;
+                    }
+                    AtomicFiles.writeAndReplace(in, target);
+                    DatabaseReader db = buildReader(target.toFile());
+                    if (db != null) {
+                        logger.info("已从 JAR 释放 IP 归属地数据库: {} ({})",
+                                target.toAbsolutePath(), databaseType(db));
+                        return db;
+                    }
                 } catch (IOException e) {
-                    logger.warn("IP 归属地数据库无法读取: {} - {}", path, e.getMessage());
+                    releaseFailure = e;
+                    logger.warn("释放 JAR 内 IP 归属地数据库失败: {} - {}", resource, e.getMessage());
+                } catch (Exception e) {
+                    logger.warn("加载 JAR 内 IP 归属地数据库失败: {} - {}", resource, e.getMessage());
                 }
             }
         }
@@ -415,15 +465,62 @@ public class IpRegionService {
                     continue;
                 }
                 DatabaseReader db = new DatabaseReader.Builder(in).build();
-                logger.info("IP 归属地数据库已从 JAR 内加载: {} ({})", resource, db.metadata().databaseType());
+                logger.info("IP 归属地数据库已从 JAR 内加载: {} ({})", resource, databaseType(db));
                 return db;
             } catch (Exception e) {
                 logger.warn("JAR 内 IP 归属地数据库加载失败: {} - {}", resource, e.getMessage());
             }
         }
-        logger.warn("未找到 MaxMind GeoLite2 数据库，评论归属地将显示为「未知」。"
-                + "请把 GeoLite2-City.mmdb 放到 {} 或 /app/GeoIP/GeoLite2-City.mmdb。",
-                new File("GeoIP/GeoLite2-City.mmdb").getAbsolutePath());
+        if (releaseFailure != null) {
+            logger.warn("JAR 内 IP 归属地数据库未能释放到磁盘: {}", releaseFailure.getMessage());
+        }
         return null;
+    }
+
+    /** 优先运行目录下的 GeoIP/，容器里退到 /app/GeoIP/；都不可写返回 null。 */
+    private static Path writableDatabaseTarget() {
+        if (ensureWritableDir(PRIMARY_DATABASE.toAbsolutePath().getParent())) {
+            return PRIMARY_DATABASE;
+        }
+        if (ensureWritableDir(CONTAINER_DATABASE.getParent())) {
+            return CONTAINER_DATABASE;
+        }
+        return null;
+    }
+
+    private static boolean ensureWritableDir(Path dir) {
+        if (dir == null) {
+            return false;
+        }
+        try {
+            Files.createDirectories(dir);
+            return Files.isWritable(dir);
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private static DatabaseReader buildReader(File file) {
+        try {
+            return new DatabaseReader.Builder(file).build();
+        } catch (IOException e) {
+            logger.warn("IP 归属地数据库无法读取: {} - {}", file, e.getMessage());
+            return null;
+        }
+    }
+
+    private static String databaseType(DatabaseReader db) {
+        try {
+            return db.metadata().databaseType();
+        } catch (Exception e) {
+            return "unknown";
+        }
+    }
+
+    private static void logDatabaseMissing() {
+        logger.warn("未找到 MaxMind GeoLite2 数据库，评论归属地将显示为「未知」。"
+                        + "请确认 JAR 内包含 /GeoLite2-City.mmdb（源码位于 src/main/resources/），"
+                        + "或把数据库放到 {} 或 /app/GeoIP/GeoLite2-City.mmdb。",
+                PRIMARY_DATABASE.toAbsolutePath());
     }
 }
