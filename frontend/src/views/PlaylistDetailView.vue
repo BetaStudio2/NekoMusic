@@ -17,7 +17,15 @@
 
         <div class="hero__main">
           <div class="hero__cover">
-            <img :src="getPlaylistCover()" alt="" @error="handlePlaylistCoverError" />
+            <img
+              :src="getPlaylistCover()"
+              :srcset="coverSrcset(getPlaylistCover())"
+              sizes="160px"
+              width="160"
+              height="160"
+              alt=""
+              @error="handlePlaylistCoverError"
+            />
           </div>
           <div class="hero__text">
             <h1 class="hero__title">{{ playlist?.name || '歌单' }}</h1>
@@ -54,7 +62,16 @@
         <article v-for="(music, index) in musicList" :key="music.id" class="row">
           <span class="row__idx">{{ index + 1 }}</span>
           <button type="button" class="row__cover-btn" @click="playMusic(music)">
-            <img :src="getCoverUrl(music.id)" :alt="music.title" loading="lazy" @error="handleCoverError" />
+            <img
+              :src="getCoverUrl(music.id)"
+              :srcset="coverSrcset(getCoverUrl(music.id))"
+              sizes="48px"
+              width="48"
+              height="48"
+              :alt="music.title"
+              loading="lazy"
+              @error="handleCoverError"
+            />
             <span class="row__cover-play"><NIcon name="play" :size="14" /></span>
           </button>
           <button type="button" class="row__info" @click="playMusic(music)">
@@ -106,7 +123,17 @@
           class="results__row"
           @click="addMusicToPlaylist(music)"
         >
-          <img class="results__cover" :src="getCoverUrl(music.id)" alt="" loading="lazy" @error="handleCoverError" />
+          <img
+            class="results__cover"
+            :src="getCoverUrl(music.id)"
+            :srcset="coverSrcset(getCoverUrl(music.id))"
+            sizes="44px"
+            width="44"
+            height="44"
+            alt=""
+            loading="lazy"
+            @error="handleCoverError"
+          />
           <span class="results__text">
             <span class="results__title">{{ music.title }}</span>
             <span class="results__artist">{{ music.artist }}</span>
@@ -129,6 +156,7 @@ import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NInput, NModal, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { tryOpenPlaylistInApp } from '@/utils/nativeAppOpen.js'
+import { coverSrcset } from '@/utils/coverImage'
 
 const toast = useToast()
 const router = useRouter()
