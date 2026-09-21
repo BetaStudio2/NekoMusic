@@ -19,6 +19,7 @@ import { NButton, NCard, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
 import { coverSrcset } from '@/utils/coverImage'
+import { getUser } from '@/utils/userStore.js'
 
 const toast = useToast()
 
@@ -36,12 +37,7 @@ const dailyDate = ref('')
 
 const syncLoginState = () => {
   isLoggedIn.value = !!localStorage.getItem('userToken')
-  try {
-    const u = JSON.parse(localStorage.getItem('user') || 'null')
-    nickname.value = u?.nickname || ''
-  } catch {
-    nickname.value = ''
-  }
+  nickname.value = getUser()?.nickname || ''
 }
 
 /** 按时段问候 */

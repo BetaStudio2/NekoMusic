@@ -177,6 +177,7 @@ import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { openAuthDialog } from '@/composables/useAuthDialog'
+import { getUser } from '@/utils/userStore.js'
 import { useAuth } from '@/composables/useAuth'
 
 const { token: authToken } = useAuth()
@@ -199,13 +200,7 @@ const payInline = ref({
 
 const user = computed(() => {
   vipTick.value
-  const raw = localStorage.getItem('user')
-  if (!raw || raw === 'undefined' || raw === 'null') return null
-  try {
-    return JSON.parse(raw)
-  } catch {
-    return null
-  }
+  return getUser()
 })
 
 const displayName = computed(() => {

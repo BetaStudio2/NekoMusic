@@ -5,7 +5,7 @@
  * 组成：Logo + 搜索（防抖下拉）+ 用户区。
  * 设计：黑偏青 + 圆角矩形；不使用高亮条。
  * 行为契约（保持与旧实现一致，勿随意改动）：
- *  - localStorage：userToken / user
+ *  - localStorage：userToken（用户资料只在内存中，不落盘）
  *  - window 事件：storage、USER_VIP_SYNC_EVENT
  *  - 选中搜索结果：写 currentPlayingMusic 并跳 /detail/:id
  *  - 回车：跳 /search?q=...（查询词走查询串，避免 / 被编码成 %2F 被 Jetty 400）
@@ -18,6 +18,7 @@ import NIcon from '@/icons/NIcon.vue'
 import { NInput, NButton } from '@/ui'
 import { syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
 import { avatarUrl, useAvatarVersion } from '@/utils/userAvatar.js'
+import { getUser, clearUser, loadUserInfo } from '@/utils/userStore.js'
 
 const router = useRouter()
 
@@ -40,24 +41,20 @@ function initializeUserState() {
   const token = localStorage.getItem('userToken')
   isLoggedIn.value = token !== null && token !== undefined
 
-  const userStr = localStorage.getItem('user')
-  if (!userStr || userStr === 'undefined' || userStr === 'null') {
-    user.value = null
-    nickname.value = ''
-    return
-  }
-  try {
-    user.value = JSON.parse(userStr)
-    nickname.value = user.value ? user.value.nickname : ''
-  } catch (e) {
-    console.error('解析用户信息失败:', e)
-    user.value = null
-    nickname.value = ''
-  }
+  // 用户资料只放在内存里（不落盘），由 main.js 启动时用 /api/user/info 拉取
+  const cached = getUser()
+  user.value = cached
+  nickname.value = cached?.nickname || ''
 }
 
 function handleStorageChange(event) {
-  if (event.key === 'userToken' || event.key === 'user') initializeUserState()
+  if (event.key === 'userToken') {
+    // 登录 / 登出 / 换账号：资料只在内存里，Token 变了就重新拉一次
+    initializeUserState()
+    loadUserInfo({ force: true })
+    return
+  }
+  if (event.key === 'user') initializeUserState()
 }
 
 const avatarVersion = useAvatarVersion()
@@ -151,7 +148,7 @@ function goToLogin() {
 function logout() {
   const previousToken = localStorage.getItem('userToken')
   localStorage.removeItem('userToken')
-  localStorage.removeItem('user')
+  clearUser()
   if (previousToken) {
     window.dispatchEvent(
       new StorageEvent('storage', { key: 'userToken', oldValue: previousToken, newValue: null })

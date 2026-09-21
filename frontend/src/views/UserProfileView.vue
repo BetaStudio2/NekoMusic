@@ -130,6 +130,11 @@
         </NButton>
       </div>
     </div>
+
+    <div v-else class="profile profile--loading">
+      <p class="profile__hint">用户资料加载失败，可能是网络问题或登录已失效</p>
+      <NButton variant="primary" icon="refresh-cw" @click="reloadUserInfo">重新加载</NButton>
+    </div>
   </PageShell>
 </template>
 
@@ -144,24 +149,17 @@ import { formatVipExpiresAt, syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } 
 import { avatarUrl, useAvatarVersion, bumpAvatarVersion } from '@/utils/userAvatar.js'
 import { openAuthDialog } from '@/composables/useAuthDialog'
 import { useAuth } from '@/composables/useAuth'
+import { getUser, patchUser, loadUserInfo } from '@/utils/userStore.js'
 
 const toast = useToast()
 
 const vipSyncTick = ref(0)
 
-// 获取用户信息（vipSyncTick 用于在歌单接口合并 VIP 后触发重读 localStorage）
+// 用户资料只放在内存里（不落盘），进入本页会重新拉一次
+// vipSyncTick 用于在歌单接口合并 VIP / 资料刷新后触发重算
 const user = computed(() => {
   vipSyncTick.value
-  const userStr = localStorage.getItem('user');
-  if (!userStr || userStr === 'undefined' || userStr === 'null') {
-    return null;
-  }
-  try {
-    return JSON.parse(userStr);
-  } catch (e) {
-    console.error('解析用户信息失败:', e);
-    return null;
-  }
+  return getUser()
 })
 
 const { token: authToken } = useAuth()
@@ -188,9 +186,18 @@ watch(authToken, (token) => {
 
 onMounted(async () => {
   window.addEventListener(USER_VIP_SYNC_EVENT, bumpUserFromStorage)
+  // 昵称等资料不落盘：进页面时用 Token 拉一次最新值
+  await loadUserInfo({ force: true })
+  bumpUserFromStorage()
   await syncUserVipFromPlaylistsApi()
   bumpUserFromStorage()
 })
+
+/** 资料没拉到时手动重试 */
+async function reloadUserInfo() {
+  await loadUserInfo({ force: true })
+  bumpUserFromStorage()
+}
 
 onUnmounted(() => {
   window.removeEventListener(USER_VIP_SYNC_EVENT, bumpUserFromStorage)
@@ -288,25 +295,9 @@ const saveNickname = async () => {
     const data = await response.json().catch(() => ({}))
     if (response.ok && data.success) {
       const savedNickname = data.data?.nickname || nickname
-      // 同步更新本地缓存的用户信息，页面头部/个人信息即时刷新
-      const previousUser = localStorage.getItem('user')
-      try {
-        const stored = localStorage.getItem('user')
-        if (stored) {
-          const parsed = JSON.parse(stored)
-          parsed.nickname = savedNickname
-          localStorage.setItem('user', JSON.stringify(parsed))
-        }
-      } catch (e) {
-        console.error('更新本地用户信息失败:', e)
-      }
+      // 只更新内存中的用户资料（不落盘），并广播一次让导航栏等组件刷新昵称
+      patchUser({ nickname: savedNickname })
       bumpUserFromStorage()
-      // 通知导航栏等监听 storage 的组件更新昵称显示
-      window.dispatchEvent(new StorageEvent('storage', {
-        key: 'user',
-        oldValue: previousUser,
-        newValue: localStorage.getItem('user')
-      }))
       toast.success(data.message || '昵称修改成功')
       cancelEditNickname()
     } else {
@@ -421,6 +412,22 @@ const changePassword = async () => {
 <style scoped>
 .profile {
   width: 100%;
+}
+
+/* 资料没拉到时（网络异常 / 登录失效）的兜底 */
+.profile--loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--n-space-4);
+  padding: clamp(32px, 6vw, 64px) clamp(20px, 3vw, 28px);
+  text-align: center;
+}
+
+.profile__hint {
+  margin: 0;
+  color: var(--n-text-dim);
 }
 
 /* ==================== 头部 ==================== */

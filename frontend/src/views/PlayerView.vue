@@ -333,6 +333,7 @@ import API_CONFIG from '@/config/apiConfig.js'
 import { createVideoRenderJob, fetchVideoRenderStatus, downloadVideoRenderFile } from '@/api/videoRender.js'
 import { syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
 import { tryOpenMusicDetailInApp } from '@/utils/nativeAppOpen.js'
+import { getUser } from '@/utils/userStore.js'
 import { useToast } from '@/composables/useToast'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NModal, NSpinner } from '@/ui'
@@ -622,12 +623,7 @@ const isLoggedIn = () => {
 }
 
 const loadUserVipFromStorage = () => {
-  try {
-    const u = JSON.parse(localStorage.getItem('user') || 'null')
-    userIsVip.value = !!u?.isVip
-  } catch {
-    userIsVip.value = false
-  }
+  userIsVip.value = !!getUser()?.isVip
 }
 
 const handleVipSync = () => {

@@ -1,4 +1,5 @@
 import API_CONFIG from '@/config/apiConfig.js'
+import { patchUser } from '@/utils/userStore.js'
 
 /** 全站会员相关时间统一按东八区展示与编辑 */
 export const VIP_TIMEZONE = 'Asia/Shanghai'
@@ -7,21 +8,13 @@ export const VIP_TIMEZONE = 'Asia/Shanghai'
 export const USER_VIP_SYNC_EVENT = 'neko-user-vip-sync'
 
 /**
- * 将 GET /api/user/playlists 根级返回的 isVip、vipExpiresAt 写入 localStorage.user
+ * 将 GET /api/user/playlists 根级返回的 isVip、vipExpiresAt 合并进内存中的用户资料
  */
 export function applyVipFromPlaylistsResponse(data) {
   if (!data || typeof data.isVip !== 'boolean') return
-  const raw = localStorage.getItem('user')
-  if (!raw) return
-  try {
-    const u = JSON.parse(raw)
-    u.isVip = data.isVip
-    u.vipExpiresAt = data.vipExpiresAt ?? null
-    localStorage.setItem('user', JSON.stringify(u))
-    window.dispatchEvent(new Event(USER_VIP_SYNC_EVENT))
-  } catch {
-    /* ignore */
-  }
+  // 用户资料只在内存里（不落盘）
+  patchUser({ isVip: data.isVip, vipExpiresAt: data.vipExpiresAt ?? null })
+  window.dispatchEvent(new Event(USER_VIP_SYNC_EVENT))
 }
 
 /** 已登录时拉歌单接口，用于刷新 VIP（与「我的歌单」页复用同一 API） */
