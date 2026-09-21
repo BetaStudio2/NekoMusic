@@ -374,8 +374,31 @@ let clipPreviewLoading = false
 const checkMobile = () => isMobileDevice()
 
 // 关闭横幅
+/** 详情请求序号：连续快速切歌时，只允许最后一次请求写回，避免慢的旧响应覆盖新曲目 */
+let detailRequestSeq = 0
+
+/**
+ * 取一首曲目的轻量信息。切歌瞬间 GlobalPlayer 已经把新曲目广播给了桥接层，
+ * 先拿它把界面切过去，就不必等 /api/music/info 返回 —— 否则请求期间界面
+ * 会一直停在上一次的曲目上（封面 / 曲名 / 背景都是上一首）。
+ */
+const getCachedTrack = (musicId) => {
+  const id = String(musicId)
+  if (playback.currentMusic && String(playback.currentMusic.id) === id) {
+    return playback.currentMusic
+  }
+  try {
+    const stored = JSON.parse(localStorage.getItem('currentPlayingMusic') || 'null')
+    if (stored && String(stored.id) === id) return stored
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
 // 获取音乐详情
 const fetchMusicDetail = async (musicId) => {
+  const seq = ++detailRequestSeq
   try {
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/info/${musicId}`, {
       method: 'GET',
@@ -385,6 +408,8 @@ const fetchMusicDetail = async (musicId) => {
     })
     
     const data = await response.json()
+    // 期间已经切到了别的曲目：丢弃这次过期结果
+    if (seq !== detailRequestSeq) return
     if (data.success) {
       currentMusic.value = data.data
       syncPlayStateFromStorage()
@@ -394,7 +419,7 @@ const fetchMusicDetail = async (musicId) => {
       console.error('获取音乐详情失败:', data.message)
     }
   } catch (error) {
-    console.error('请求音乐详情时出错:', error)
+    if (seq === detailRequestSeq) console.error('请求音乐详情时出错:', error)
   }
 }
 
@@ -403,12 +428,23 @@ const fetchMusicDetail = async (musicId) => {
  * 首帧进页与后续切歌（路由变化 / 全局播放器换曲）都走这里。
  */
 const loadMusicById = async (musicId) => {
+  const id = String(musicId)
+
+  // 切歌先把上一首的信息撤干净：有缓存就直接显示新曲目，没有就回到
+  // 「加载曲目中…」占位。不能一边请求新曲目、一边继续展示上一首。
+  const cached = getCachedTrack(id)
+  if (cached) {
+    currentMusic.value = cached
+  } else if (String(currentMusic.value?.id) !== id) {
+    currentMusic.value = null
+  }
+
   lyrics.value = ''
   parsedLyrics.value = []
   videoRenderSubmitted.value = false
   videoRenderReady.value = false
   videoRenderJobId.value = ''
-  await fetchMusicDetail(musicId)
+  await fetchMusicDetail(id)
   // 启动定时器以持续更新歌词 / 对齐全局播放状态
   startTimer()
 }
@@ -422,6 +458,8 @@ const getLyricsUrl = (musicId) => {
 const loadLyrics = async (musicId) => {
   try {
     const response = await fetch(getLyricsUrl(musicId))
+    // 期间已经切歌：丢弃过期歌词，别把新曲目的歌词覆盖成上一首的
+    if (String(currentMusic.value?.id) !== String(musicId)) return
     if (response.ok) {
       const data = await response.json()
       if (data.success) {
