@@ -170,6 +170,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 
 import QRCode from 'qrcode'
 import { formatVipExpiresAt, syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
+import { avatarUrl, useAvatarVersion } from '@/utils/userAvatar.js'
 import { fetchVipPricing, createVipPayOrder } from '@/api/vipPricing.js'
 import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
@@ -179,6 +180,7 @@ import { openAuthDialog } from '@/composables/useAuthDialog'
 import { useAuth } from '@/composables/useAuth'
 
 const { token: authToken } = useAuth()
+const avatarVersion = useAvatarVersion()
 const vipTick = ref(0)
 const avatarBroken = ref(false)
 const pricingRows = ref([])
@@ -224,7 +226,7 @@ const userInitial = computed(() => {
 const userAvatarUrl = computed(() => {
   const u = user.value
   const id = u?.id != null ? u.id : 'default'
-  return `${API_CONFIG.BASE_URL}/api/user/avatar/${id}`
+  return avatarUrl(id, avatarVersion.value)
 })
 
 watch(
@@ -233,6 +235,11 @@ watch(
     avatarBroken.value = false
   }
 )
+
+// 换过头像后 URL 会变，重新给 img 一次加载机会
+watch(avatarVersion, () => {
+  avatarBroken.value = false
+})
 
 const selectedPlan = computed(() => {
   const rows = pricingRows.value

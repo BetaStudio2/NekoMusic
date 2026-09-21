@@ -1,11 +1,62 @@
+# Neko歌姬计划 / Neko Music
+# 内容页、搜索页与下载页允许抓取；仅排除后台、接口与二进制安装包直链。
+
 User-agent: *
 Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /search?
+Disallow: /update/
 
-# 禁止爬取管理后台
+# ---- 生成式引擎 / AI 抓取器（GEO）----
+User-agent: GPTBot
+Allow: /
 Disallow: /admin/
 Disallow: /api/
 
-Disallow: /search
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
 
-# 网站地图
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+
+User-agent: Bytespider
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+
+User-agent: Amazonbot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: meta-externalagent
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+
 Sitemap: https://music.cnmsb.xin/sitemap.xml

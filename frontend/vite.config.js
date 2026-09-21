@@ -34,17 +34,19 @@ export default defineConfig(({ command }) => {
         output: {
           manualChunks(id) {
             if (!id.includes('node_modules')) return
+            // Vue 生态必须最先归类：@vue/*（runtime-core/reactivity 等）如果漏掉，
+            // 会被并进 AMLL/Pixi 大块，导致入口静态依赖 477KB 的 amll-vendor。
+            if (
+              id.includes('vue-router') ||
+              id.includes('/@vue/') ||
+              /node_modules[/\\]vue[/\\]/.test(id)
+            ) {
+              return 'vue-vendor'
+            }
             if (id.includes('chart.js')) return 'chart-vendor'
             if (id.includes('/axios/')) return 'axios-vendor'
             if (id.includes('qrcode')) return 'qrcode-vendor'
             if (id.includes('vue-toastification')) return 'ui-vendor'
-            // AMLL 歌词墙 + PixiJS：仅在播放页用到，单独成块便于缓存
-            if (/node_modules[/\\](@applemusic-like-lyrics|@pixi|gl-matrix|bezier-easing|deep-freeze|@ungap)[/\\]/.test(id)) {
-              return 'amll-vendor'
-            }
-            if (id.includes('vue-router') || /node_modules[/\\]vue[/\\]/.test(id)) {
-              return 'vue-vendor'
-            }
           },
           // 文件名哈希，利于缓存
           chunkFileNames: 'assets/js/[name]-[hash].js',

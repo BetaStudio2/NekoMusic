@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.seo.MusicDetailPageRenderer;
+import com.neko.music.seo.UserAgentClassifier;
 import com.neko.music.util.PublicMusicLookup;
 import com.neko.music.util.SiteUrlResolver;
 import org.eclipse.jetty.http.HttpStatus;
@@ -22,23 +23,6 @@ import java.util.regex.Pattern;
 public class MusicDetailPageHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicDetailPageHandler.class);
     private static final Pattern ID_PATTERN = Pattern.compile("^/?([0-9]+)/?$");
-    /**
-     * Details are server-rendered for crawlers and link previews, but a normal
-     * browser must receive the SPA shell so Vue Router can render PlayerView.
-     * Keep this list deliberately conservative: non-browser clients (curl,
-     * search fetchers, etc.) still get useful HTML for indexing/debugging.
-     * QQ 分享链接预览（QQShareProxy）自带 Mozilla 前缀，只能靠关键词识别。
-     */
-    private static final Pattern CRAWLER_PATTERN = Pattern.compile(
-            "(?i)(?:bot|crawler|spider|slurp|bingpreview|googlebot|google-extended|googleother|"
-                    + "google-inspectiontool|bingbot|adidxbot|duckduckbot|facebookexternalhit|facebot|"
-                    + "linkedinbot|twitterbot|discordbot|telegrambot|whatsapp|pinterest|qqshareproxy|"
-                    + "bytespider|yandex|baiduspider|sogou|360spider|yisouspider|sosospider|youdaobot|"
-                    + "petalbot|semrush|ahrefs|mj12bot|applebot|dotbot|rogerbot|megaindex|serpstatbot|"
-                    + "dataforseo|commoncrawl|ia_archiver|archive\\.org_bot|uptimerobot|pingdom|statuscake|"
-                    + "curl|wget|httpclient|okhttp|python-requests|python-urllib|aiohttp|libwww-perl|"
-                    + "go-http-client|scrapy|mechanize|headlesschrome|phantomjs|selenium|playwright|puppeteer)"
-    );
 
     private final MusicDetailPageRenderer renderer = new MusicDetailPageRenderer();
 
@@ -92,16 +76,7 @@ public class MusicDetailPageHandler extends HttpServlet {
     }
 
     static boolean shouldRenderSeo(String userAgent) {
-        if (userAgent == null || userAgent.isBlank()) {
-            return true;
-        }
-        String normalized = userAgent.trim();
-        if (CRAWLER_PATTERN.matcher(normalized).find()) {
-            return true;
-        }
-        // Real browsers conventionally identify themselves with Mozilla. A
-        // non-Mozilla client is treated as a fetcher and receives SEO HTML.
-        return !normalized.contains("Mozilla/");
+        return UserAgentClassifier.shouldRenderSeo(userAgent);
     }
 
     private static void sendHtml(HttpServletResponse response, int status, String html) throws IOException {
