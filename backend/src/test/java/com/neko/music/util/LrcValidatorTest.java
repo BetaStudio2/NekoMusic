@@ -40,6 +40,26 @@ class LrcValidatorTest {
         assertFalse(validate(lrc).isValid());
     }
 
+    @Test
+    void acceptsBilingualTranslationLines() {
+        String lrc = """
+                [00:12.50]Original line
+                {"Translation line"}
+                [00:18.00]Another line
+                {'Another translation'}
+                """;
+        assertTrue(validate(lrc).isValid());
+    }
+
+    @Test
+    void rejectsTranslationWithoutQuotes() {
+        String lrc = """
+                [00:12.50]Original line
+                {Translation line}
+                """;
+        assertFalse(validate(lrc).isValid());
+    }
+
     private static LrcValidator.ValidationResult validate(String content) {
         byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
         return LrcValidator.validate(new ByteArrayInputStream(bytes), bytes.length);

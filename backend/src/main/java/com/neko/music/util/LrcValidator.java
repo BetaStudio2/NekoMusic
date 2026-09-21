@@ -22,8 +22,8 @@ public class LrcValidator {
     // 时间戳正则表达式：[mm:ss.x] 到 [mm:ss.xxxxx] (1-5位毫秒)
     private static final Pattern TIME_STAMP_PATTERN = Pattern.compile("\\[(\\d{2}):(\\d{2})\\.(\\d{1,5})\\]");
 
-    // 翻译行正则表达式：{"翻译内容"}
-    private static final Pattern TRANSLATION_PATTERN = Pattern.compile("^\\{\"\'(.+)[\"\']\\}$");
+    // 翻译行正则表达式：{"翻译内容"} 或 {'翻译内容'}
+    private static final Pattern TRANSLATION_PATTERN = Pattern.compile("^\\{[\"'](.+)[\"']\\}$");
 
     /** LRC 元数据标签行，如 [ti:歌名]、[ar:歌手]（不含 [mm:ss.xx] 时间轴） */
     private static final Pattern METADATA_TAG_PATTERN = Pattern.compile(
@@ -200,6 +200,13 @@ public class LrcValidator {
                 // 允许 JSON 翻译行（须跟在时间戳行之后，由上文逻辑校验内容）
                 if (TRANSLATION_PATTERN.matcher(line).matches()) {
                     continue;
+                }
+
+                // 看起来像翻译行但没加引号：给出明确提示，别只说「不是合法的 LRC 歌词行」
+                if (line.startsWith("{") && line.endsWith("}")) {
+                    return ValidationResult.fail(
+                            String.format("第%d行翻译格式错误，应写为 {\"翻译内容\"}（翻译文本需用引号包裹）", i + 1)
+                    );
                 }
 
                 // 如果这一行不包含合法的时间戳，检查是否包含非法的时间戳格式
