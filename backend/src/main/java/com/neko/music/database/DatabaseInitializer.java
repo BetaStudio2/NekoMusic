@@ -78,6 +78,29 @@ public class DatabaseInitializer {
             
             executeTableDdl(stmt, createUserUploadsTable,
                     "user_uploads 表创建成功", "创建 user_uploads 表失败（可能是表已存在）");
+
+            // 创建歌曲评论表（每首歌的评论与楼层回复）
+            String createMusicCommentsTable = """
+                CREATE TABLE IF NOT EXISTS music_comments (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    music_id INT NOT NULL,
+                    user_id INT NOT NULL,
+                    parent_id INT NULL,
+                    reply_to_user_id INT NULL,
+                    content VARCHAR(500) NOT NULL,
+                    ip_region VARCHAR(64) NOT NULL DEFAULT '',
+                    deleted TINYINT(1) NOT NULL DEFAULT 0,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (music_id) REFERENCES music(id) ON DELETE CASCADE,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    INDEX idx_music_comments_music (music_id, parent_id, created_at),
+                    INDEX idx_music_comments_user (user_id),
+                    INDEX idx_music_comments_parent (parent_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """;
+
+            executeTableDdl(stmt, createMusicCommentsTable,
+                    "music_comments 表创建成功", "创建 music_comments 表失败（可能是表已存在）");
             
             // 回填拼音索引列：为 title_pinyin 等字段为 NULL 的记录计算拼音
             backfillPinyin(conn,

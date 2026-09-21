@@ -137,6 +137,10 @@ public final class ServletRegistrar {
         ServletHolder musicLyricsHolder = new ServletHolder(new MusicLyricsHandler());
         context.addServlet(musicLyricsHolder, "/api/music/lyrics/*");
 
+        // 歌曲评论：列表 / 发表 / 回复 / 删除复用同一个端点 /api/comments
+        ServletHolder musicCommentHolder = new ServletHolder(new MusicCommentHandler());
+        context.addServlet(musicCommentHolder, "/api/comments/*");
+
         ServletHolder sensitiveWordCheckHolder = new ServletHolder(new SensitiveWordCheckHandler());
         context.addServlet(sensitiveWordCheckHolder, "/api/sensitive-word/check");
 

@@ -39,6 +39,18 @@
             <button
               type="button"
               class="np-icon"
+              :class="{ 'is-on': commentsOpen }"
+              :disabled="!currentMusic"
+              :aria-label="commentsOpen ? '关闭评论' : '查看评论'"
+              :title="commentsOpen ? '关闭评论' : '查看评论'"
+              @click="commentsOpen = !commentsOpen"
+            >
+              <NIcon name="message" :size="18" />
+              <span v-if="commentCount" class="np__comment-badge">{{ commentCount > 99 ? '99+' : commentCount }}</span>
+            </button>
+            <button
+              type="button"
+              class="np-icon"
               :class="{ 'is-on': currentMusic && isFavorite(currentMusic.id) }"
               :disabled="!currentMusic"
               :aria-label="currentMusic && isFavorite(currentMusic.id) ? '取消收藏' : '收藏'"
@@ -231,6 +243,27 @@
             <span class="np__controls-spacer" aria-hidden="true" />
           </div>
         </footer>
+
+        <!-- 评论抽屉：每首歌的评论 + 楼层回复 -->
+        <Transition name="np-comments">
+          <div v-if="commentsOpen" class="np__comments-layer">
+            <div class="np__comments-mask" aria-hidden="true" @click="commentsOpen = false" />
+            <aside class="np__comments" aria-label="歌曲评论">
+              <header class="np__comments-head">
+                <span class="np__comments-title">评论</span>
+                <button type="button" class="np-icon" aria-label="关闭评论" @click="commentsOpen = false">
+                  <NIcon name="close" :size="18" />
+                </button>
+              </header>
+              <CommentPanel
+                v-if="currentMusic"
+                class="np__comments-body"
+                :music-id="currentMusic.id"
+                @count="commentCount = $event"
+              />
+            </aside>
+          </div>
+        </Transition>
       </div>
     </Transition>
   </Teleport>
@@ -307,6 +340,7 @@ import SpectrumCanvas from '@/components/SpectrumCanvas.vue'
 import LyricsWall from '@/components/LyricsWall.vue'
 import AlbumBackground from '@/components/AlbumBackground.vue'
 import MobileAppBanner from '@/components/MobileAppBanner.vue'
+import CommentPanel from '@/components/CommentPanel.vue'
 import { useLiteMode } from '@/composables/useLiteMode'
 import { isMobileDevice } from '@/utils/mobile.js'
 import { usePlaybackBridge } from '@/composables/usePlaybackBridge'
@@ -334,6 +368,8 @@ const parsedLyrics = ref([])
 const favoriteMusicIds = ref(new Set()) // 存储收藏的音乐ID
 const isMobile = ref(false)
 const userIsVip = ref(false)
+const commentsOpen = ref(false)
+const commentCount = ref(0)
 
 const videoModalOpen = ref(false)
 const videoRenderBusy = ref(false)
@@ -1986,5 +2022,80 @@ watch(
   color: var(--n-text-faint);
   font-size: var(--n-text-sm);
   line-height: var(--n-leading-normal);
+}
+
+/* ===== 评论抽屉 ===== */
+.np__top-actions .np-icon {
+  position: relative;
+}
+
+.np__comment-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--n-radius-pill);
+  background: var(--n-accent);
+  color: var(--n-text-inverse, #fff);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.np__comments-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.np__comments-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.np__comments {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--n-space-3);
+  width: min(420px, 100%);
+  height: 100%;
+  padding: var(--n-space-4);
+  background: var(--n-bg-elevated);
+  border-left: 1px solid var(--n-line);
+  box-shadow: -12px 0 32px rgba(0, 0, 0, 0.35);
+}
+
+.np__comments-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+}
+
+.np__comments-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.np__comments-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.np-comments-enter-active,
+.np-comments-leave-active {
+  transition: opacity var(--n-duration-fast, 160ms) var(--n-ease);
+}
+
+.np-comments-enter-from,
+.np-comments-leave-to {
+  opacity: 0;
 }
 </style>

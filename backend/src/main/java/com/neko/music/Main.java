@@ -6,6 +6,7 @@ import com.neko.music.config.ConfigManager;
 import com.neko.music.database.AdminDatabaseManager;
 import com.neko.music.database.DatabaseManager;
 import com.neko.music.database.DatabaseInitializer;
+import com.neko.music.database.CommentDatabaseManager;
 import com.neko.music.database.LyricsDatabaseManager;
 import com.neko.music.service.VideoRenderJobStore;
 import com.neko.music.database.VipPayOrderDatabaseManager;
@@ -24,6 +25,7 @@ import com.neko.music.service.RedisTokenStore;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.service.VerificationCodeRateLimitService;
 import com.neko.music.service.IPRateLimitService;
+import com.neko.music.service.IpRegionService;
 import com.neko.music.service.SliderCaptchaService;
 import com.neko.music.service.VideoRenderArtifactCleanup;
 import com.neko.music.service.VideoRenderQuotaService;
@@ -93,6 +95,8 @@ public class Main {
     private static PlaylistService playlistService;
     private static NotificationService notificationService;
     private static IPRateLimitService ipRateLimitService;
+    private static CommentDatabaseManager commentDatabaseManager;
+    private static IpRegionService ipRegionService;
     private static VipPricingDatabaseManager vipPricingDatabaseManager;
     private static VipPayOrderDatabaseManager vipPayOrderDatabaseManager;
     private static VideoRenderJobStore videoRenderJobStore;
@@ -157,6 +161,10 @@ public class Main {
         // 初始化Redis服务（视频配额依赖 Redis，须在 video 服务之前）
         redisService = new RedisService(configManager);
         ipRateLimitService = new IPRateLimitService(configManager, redisService);
+
+        // 歌曲评论：表读写 + 本地 MaxMind 归属地解析
+        commentDatabaseManager = new CommentDatabaseManager(databaseManager);
+        ipRegionService = new IpRegionService();
         RedisTokenStore tokenStore = new RedisTokenStore(redisService);
 
         VideoRenderArtifactCleanup videoRenderArtifactCleanup =
@@ -414,6 +422,14 @@ public class Main {
 
     public static IPRateLimitService getIPRateLimitService() {
         return ipRateLimitService;
+    }
+
+    public static CommentDatabaseManager getCommentDatabaseManager() {
+        return commentDatabaseManager;
+    }
+
+    public static IpRegionService getIpRegionService() {
+        return ipRegionService;
     }
 
     public static PlaylistService getPlaylistService() {
