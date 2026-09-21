@@ -89,7 +89,6 @@ public class DatabaseInitializer {
                     reply_to_user_id INT NULL,
                     content VARCHAR(500) NOT NULL,
                     ip_region VARCHAR(64) NOT NULL DEFAULT '',
-                    deleted TINYINT(1) NOT NULL DEFAULT 0,
                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (music_id) REFERENCES music(id) ON DELETE CASCADE,
                     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -101,6 +100,7 @@ public class DatabaseInitializer {
 
             executeTableDdl(stmt, createMusicCommentsTable,
                     "music_comments 表创建成功", "创建 music_comments 表失败（可能是表已存在）");
+            migrateMusicCommentsTable(stmt);
             
             // 回填拼音索引列：为 title_pinyin 等字段为 NULL 的记录计算拼音
             backfillPinyin(conn,
@@ -212,6 +212,27 @@ public class DatabaseInitializer {
             
         } catch (Exception e) {
             logger.error("初始化数据库表失败: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 评论改为物理删除：先清掉历史软删除留下的墓碑行，再把 {@code deleted} 列彻底移除。
+     * 老库执行一次即可，新库本就没有该列（两条语句都会因列不存在而失败，忽略即可）。
+     */
+    private static void migrateMusicCommentsTable(Statement stmt) {
+        try {
+            int purged = stmt.executeUpdate("DELETE FROM music_comments WHERE deleted = 1");
+            if (purged > 0) {
+                logger.info("已清理 {} 条软删除的评论墓碑", purged);
+            }
+        } catch (Exception e) {
+            logger.debug("music_comments 无 deleted 列，跳过墓碑清理: {}", e.getMessage());
+        }
+        try {
+            stmt.execute("ALTER TABLE music_comments DROP COLUMN deleted");
+            logger.info("music_comments 已移除 deleted 列，评论删除改为物理删除（含级联删除回复）");
+        } catch (Exception e) {
+            logger.debug("music_comments 移除 deleted 列: {}", e.getMessage());
         }
     }
 

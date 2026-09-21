@@ -20,7 +20,7 @@ import java.util.Map;
  *
  * <p>结构上只有两层：{@code parent_id IS NULL} 为顶层楼层，否则为该楼层的回复；
  * 回复再回复仍然挂回同一楼层，用 {@code reply_to_user_id} 记录被 @ 的人。
- * 删除采用软删除（{@code deleted=1} 且清空正文），这样楼层与回复不会出现空洞。
+ * 删除是物理删除：删楼层会连带删掉该楼层下全部回复，删回复只删该条。
  */
 public class CommentDatabaseManager {
 
@@ -28,7 +28,7 @@ public class CommentDatabaseManager {
 
     private static final String SQL_SELECT_BASE = """
             SELECT c.id, c.music_id, c.user_id, c.parent_id, c.reply_to_user_id,
-                   c.content, c.ip_region, c.deleted, c.created_at,
+                   c.content, c.ip_region, c.created_at,
                    u.nickname AS nickname,
                    ru.nickname AS reply_to_nickname
             FROM music_comments c
@@ -51,7 +51,6 @@ public class CommentDatabaseManager {
         public Integer replyToUserId;
         public String content;
         public String ipRegion;
-        public boolean deleted;
         public String createdAt;
         public String nickname;
         public String replyToNickname;
@@ -222,21 +221,48 @@ public class CommentDatabaseManager {
     }
 
     /**
-     * 软删除评论：本人可删，管理员 {@code admin=true} 可删任意一条。
+     * 物理删除评论：本人可删，管理员 {@code admin=true} 可删任意一条。
      *
-     * @return 受影响行数
+     * <p>{@code parentId} 为 null 表示楼层，删除时会在同一事务里把该楼层下的回复一并删除，
+     * 避免留下查不到、却仍计入总数的孤儿回复。
+     *
+     * @return 实际删除的行数（楼层含被连带删除的回复），无权限或不存在返回 0
      */
-    public int softDelete(int commentId, int userId, boolean admin) {
+    public int delete(int commentId, Integer parentId, int userId, boolean admin) {
         String sql = admin
-                ? "UPDATE music_comments SET deleted = 1, content = '' WHERE id = ? AND deleted = 0"
-                : "UPDATE music_comments SET deleted = 1, content = '' WHERE id = ? AND user_id = ? AND deleted = 0";
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, commentId);
-            if (!admin) {
-                stmt.setInt(2, userId);
+                ? "DELETE FROM music_comments WHERE id = ?"
+                : "DELETE FROM music_comments WHERE id = ? AND user_id = ?";
+        try (Connection conn = databaseManager.getConnection()) {
+            boolean autoCommit = conn.getAutoCommit();
+            conn.setAutoCommit(false);
+            try {
+                int affected;
+                try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                    stmt.setInt(1, commentId);
+                    if (!admin) {
+                        stmt.setInt(2, userId);
+                    }
+                    affected = stmt.executeUpdate();
+                }
+                if (affected <= 0) {
+                    conn.rollback();
+                    return 0;
+                }
+                if (parentId == null) {
+                    try (PreparedStatement stmt = conn.prepareStatement(
+                            "DELETE FROM music_comments WHERE parent_id = ?")) {
+                        stmt.setInt(1, commentId);
+                        affected += stmt.executeUpdate();
+                    }
+                }
+                conn.commit();
+                return affected;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(autoCommit);
             }
-            return stmt.executeUpdate();
         } catch (SQLException e) {
             logger.error("删除评论失败: id={}, {}", commentId, e.getMessage());
             return 0;
@@ -254,7 +280,6 @@ public class CommentDatabaseManager {
         row.replyToUserId = rs.wasNull() ? null : replyTo;
         row.content = rs.getString("content");
         row.ipRegion = rs.getString("ip_region");
-        row.deleted = rs.getInt("deleted") == 1;
         row.createdAt = DbTimeUtil.formatStoredWallClock(rs.getString("created_at"));
         row.nickname = rs.getString("nickname");
         row.replyToNickname = rs.getString("reply_to_nickname");

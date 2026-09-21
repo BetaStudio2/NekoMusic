@@ -202,32 +202,63 @@ async function remove(comment) {
       <p v-else-if="!floors.length" class="cmt__state">还没有评论，来抢沙发吧</p>
 
       <article v-for="floor in floors" :key="floor.id" class="cmt__floor">
-        <template v-if="floor.deleted">
-          <p class="cmt__deleted">该评论已删除</p>
-        </template>
-        <template v-else>
-          <div class="cmt__row">
-            <img class="cmt__avatar" :src="userAvatar(floor.user?.id)" :alt="floor.user?.nickname" loading="lazy" />
+        <div class="cmt__row">
+          <img class="cmt__avatar" :src="userAvatar(floor.user?.id)" :alt="floor.user?.nickname" loading="lazy" />
+          <div class="cmt__main">
+            <div class="cmt__meta">
+              <span class="cmt__nick">{{ floor.user?.nickname || '未知用户' }}</span>
+              <time class="cmt__time" :title="floor.createdAt">{{ formatTime(floor.createdAt) }}</time>
+              <span v-if="floor.ipRegion" class="cmt__ip">
+                <NIcon name="map-pin" :size="12" />
+                {{ floor.ipRegion }}
+              </span>
+            </div>
+            <p class="cmt__text">{{ floor.content }}</p>
+            <div class="cmt__actions">
+              <button type="button" class="cmt__action" @click="startReply(floor)">
+                <NIcon name="corner-down-left" :size="13" />
+                回复
+              </button>
+              <button
+                v-if="floor.canDelete"
+                type="button"
+                class="cmt__action cmt__action--danger"
+                @click="remove(floor)"
+              >
+                <NIcon name="trash" :size="13" />
+                删除
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="floor.replies && floor.replies.length" class="cmt__replies">
+          <div v-for="reply in floor.replies" :key="reply.id" class="cmt__reply">
+            <img class="cmt__avatar cmt__avatar--sm" :src="userAvatar(reply.user?.id)" :alt="reply.user?.nickname" loading="lazy" />
             <div class="cmt__main">
               <div class="cmt__meta">
-                <span class="cmt__nick">{{ floor.user?.nickname || '未知用户' }}</span>
-                <time class="cmt__time" :title="floor.createdAt">{{ formatTime(floor.createdAt) }}</time>
-                <span v-if="floor.ipRegion" class="cmt__ip">
+                <span class="cmt__nick">{{ reply.user?.nickname || '未知用户' }}</span>
+                <span v-if="reply.replyToUser" class="cmt__at">
+                  <NIcon name="corner-down-left" :size="12" />
+                  {{ reply.replyToUser.nickname }}
+                </span>
+                <time class="cmt__time" :title="reply.createdAt">{{ formatTime(reply.createdAt) }}</time>
+                <span v-if="reply.ipRegion" class="cmt__ip">
                   <NIcon name="map-pin" :size="12" />
-                  {{ floor.ipRegion }}
+                  {{ reply.ipRegion }}
                 </span>
               </div>
-              <p class="cmt__text">{{ floor.content }}</p>
+              <p class="cmt__text">{{ reply.content }}</p>
               <div class="cmt__actions">
-                <button type="button" class="cmt__action" @click="startReply(floor)">
+                <button type="button" class="cmt__action" @click="startReply(floor, reply)">
                   <NIcon name="corner-down-left" :size="13" />
                   回复
                 </button>
                 <button
-                  v-if="floor.canDelete"
+                  v-if="reply.canDelete"
                   type="button"
                   class="cmt__action cmt__action--danger"
-                  @click="remove(floor)"
+                  @click="remove(reply)"
                 >
                   <NIcon name="trash" :size="13" />
                   删除
@@ -235,48 +266,7 @@ async function remove(comment) {
               </div>
             </div>
           </div>
-
-          <div v-if="floor.replies && floor.replies.length" class="cmt__replies">
-            <div v-for="reply in floor.replies" :key="reply.id" class="cmt__reply">
-              <template v-if="reply.deleted">
-                <p class="cmt__deleted cmt__deleted--reply">该回复已删除</p>
-              </template>
-              <template v-else>
-                <img class="cmt__avatar cmt__avatar--sm" :src="userAvatar(reply.user?.id)" :alt="reply.user?.nickname" loading="lazy" />
-                <div class="cmt__main">
-                  <div class="cmt__meta">
-                    <span class="cmt__nick">{{ reply.user?.nickname || '未知用户' }}</span>
-                    <span v-if="reply.replyToUser" class="cmt__at">
-                      <NIcon name="corner-down-left" :size="12" />
-                      {{ reply.replyToUser.nickname }}
-                    </span>
-                    <time class="cmt__time" :title="reply.createdAt">{{ formatTime(reply.createdAt) }}</time>
-                    <span v-if="reply.ipRegion" class="cmt__ip">
-                      <NIcon name="map-pin" :size="12" />
-                      {{ reply.ipRegion }}
-                    </span>
-                  </div>
-                  <p class="cmt__text">{{ reply.content }}</p>
-                  <div class="cmt__actions">
-                    <button type="button" class="cmt__action" @click="startReply(floor, reply)">
-                      <NIcon name="corner-down-left" :size="13" />
-                      回复
-                    </button>
-                    <button
-                      v-if="reply.canDelete"
-                      type="button"
-                      class="cmt__action cmt__action--danger"
-                      @click="remove(reply)"
-                    >
-                      <NIcon name="trash" :size="13" />
-                      删除
-                    </button>
-                  </div>
-                </div>
-              </template>
-            </div>
-          </div>
-        </template>
+        </div>
       </article>
 
       <div v-if="hasMore" class="cmt__more">
@@ -521,16 +511,6 @@ async function remove(comment) {
   padding: 8px 10px;
   border-radius: var(--n-radius-sm, 8px);
   background: var(--n-surface-soft, rgba(255, 255, 255, 0.04));
-}
-
-.cmt__deleted {
-  margin: 0;
-  font-size: 13px;
-  color: var(--n-text-faint, rgba(255, 255, 255, 0.35));
-}
-
-.cmt__deleted--reply {
-  font-size: 12.5px;
 }
 
 .cmt__more {
