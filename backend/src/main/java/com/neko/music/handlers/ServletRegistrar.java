@@ -199,6 +199,10 @@ public final class ServletRegistrar {
         // 注册用户修改昵称API处理器
         ServletHolder userNicknameChangeHolder = new ServletHolder(new UserNicknameChangeHandler());
         context.addServlet(userNicknameChangeHolder, "/api/user/nickname/change");
+
+        // 注册用户信息API处理器（当前登录用户资料，客户端启动时刷新昵称等）
+        ServletHolder userInfoHolder = new ServletHolder(new UserInfoHandler());
+        context.addServlet(userInfoHolder, "/api/user/info");
         
         // 注册用户收藏API处理器
         ServletHolder userFavoriteHolder = new ServletHolder(new UserFavoriteHandler());
