@@ -32,6 +32,21 @@ curl -fsS http://127.0.0.1:65535/version
 默认配置使用 `video_render.pipeline: cuda_native`，需要 NVIDIA GPU、驱动和容器工具包，并要求 FFmpeg 具备 NVENC/CUDA。没有 GPU 时，将 `video_render.pipeline` 改为 `cpu_legacy`，将 `video_render.video_codec` 改为 `libx264`，并从 `backend/docker-compose.yaml` 删除 `gpus: all`；在 Docker Desktop 上还需将 `network_mode: host` 改为 `ports: ["65535:65535"]`，并按实际地址修改 MySQL/Redis 的 host。
 
 
+## 本地前端开发
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+dev server（默认 `http://localhost:5173`）会把 `/api`、`/version` 反向代理到本地后端，
+前端与接口/音频/封面保持同源，**不需要后端为浏览器放开 CORS**。代理目标默认取
+`frontend/.env.development` 的 `VITE_DEV_PROXY_TARGET`（`http://localhost:65535`，
+即后端默认端口）；需要指向别的地址（例如线上 `https://music.cnmsb.xin`）时，
+新建 `frontend/.env.development.local` 覆盖即可（该文件不入库）。
+
+
 ## 本地听歌识曲（后端）
 
 后端提供 `POST /api/music/recognize`，接收 `multipart/form-data` 的 `audio` 字段。服务端使用本地 FFmpeg 将录音转换为 PCM，并用本站 `Music/music/{id}.*` 曲库建立声纹索引；不会调用第三方识曲 API，也不会把音频转发到外部服务。服务启动时会主动预热索引；单曲声纹及可直接恢复的全曲库倒排索引持久化在 `Music/.fingerprints/`，音频或曲库元数据变更后会在后台重建并原子切换，重建期间继续使用上一份可用索引。
