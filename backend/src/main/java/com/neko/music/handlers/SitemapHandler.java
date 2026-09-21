@@ -74,7 +74,9 @@ public class SitemapHandler extends HttpServlet {
         appendUrl(sb, base + "/search", today, "weekly", "0.9");
         appendUrl(sb, base + "/ranking", today, "daily", "0.85");
         appendUrl(sb, base + "/latest", today, "daily", "0.85");
-        appendUrl(sb, base + "/download", today, "monthly", "0.7");
+        appendUrl(sb, base + "/download", today, "monthly", "0.8");
+        appendUrl(sb, base + "/about", today, "monthly", "0.6");
+        appendUrl(sb, base + "/privacy", today, "yearly", "0.3");
 
         for (MusicEntry e : musicEntries) {
             appendUrl(sb, base + "/detail/" + e.id, e.lastmod, "weekly", "0.8");

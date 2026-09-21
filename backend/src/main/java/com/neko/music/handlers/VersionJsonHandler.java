@@ -37,20 +37,25 @@ public class VersionJsonHandler extends HttpServlet {
         AppReleaseService.AppRelease r = release.get();
         String siteBase = SiteUrlResolver.resolvePublicSiteBase(request);
 
+        String androidApk = ClientReleaseStorage.androidApkFileName(r.androidVer());
         ObjectNode root = Main.getObjectMapper().createObjectNode();
         root.put("ver", r.androidVer());
-        root.put("updateUrl", ClientReleaseStorage.publicDownloadUrl(
-                siteBase, ClientReleaseStorage.androidApkFileName(r.androidVer())));
+        root.put("updateUrl", ClientReleaseStorage.publicDownloadUrl(siteBase, androidApk));
+        // 安装包体积（字节，0 表示暂未上传），下载页据此展示「大小」
+        root.put("size", ClientReleaseStorage.fileSizeOrZero(androidApk));
 
         ObjectNode pc = root.putObject("pc");
         String pcVer = r.pcVer();
+        String windowsExe = ClientReleaseStorage.windowsExeFileName(pcVer);
+        String linuxDeb = ClientReleaseStorage.linuxDebFileName(pcVer);
+        String macPkg = ClientReleaseStorage.macPkgFileName(pcVer);
         pc.put("pc_ver", pcVer);
-        pc.put("windows", ClientReleaseStorage.publicDownloadUrl(
-                siteBase, ClientReleaseStorage.windowsExeFileName(pcVer)));
-        pc.put("linux", ClientReleaseStorage.publicDownloadUrl(
-                siteBase, ClientReleaseStorage.linuxDebFileName(pcVer)));
-        pc.put("mac", ClientReleaseStorage.publicDownloadUrl(
-                siteBase, ClientReleaseStorage.macPkgFileName(pcVer)));
+        pc.put("windows", ClientReleaseStorage.publicDownloadUrl(siteBase, windowsExe));
+        pc.put("linux", ClientReleaseStorage.publicDownloadUrl(siteBase, linuxDeb));
+        pc.put("mac", ClientReleaseStorage.publicDownloadUrl(siteBase, macPkg));
+        pc.put("windows_size", ClientReleaseStorage.fileSizeOrZero(windowsExe));
+        pc.put("linux_size", ClientReleaseStorage.fileSizeOrZero(linuxDeb));
+        pc.put("mac_size", ClientReleaseStorage.fileSizeOrZero(macPkg));
 
         response.setStatus(HttpStatus.OK_200);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());

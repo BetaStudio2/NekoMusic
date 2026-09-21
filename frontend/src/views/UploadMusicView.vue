@@ -23,23 +23,22 @@
           <div
             class="dropzone dropzone--cover"
             :class="{ 'dropzone--filled': coverFile, 'dropzone--over': isCoverDragging }"
-            role="button"
-            tabindex="0"
-            @click="selectCoverFile"
-            @keydown.enter.prevent="selectCoverFile"
             @dragover.prevent="isCoverDragging = true"
             @dragleave.prevent="isCoverDragging = false"
             @drop.prevent="handleCoverDrop"
           >
             <input ref="coverFileInput" type="file" accept="image/*" class="dropzone__input" @change="handleCoverFileChange" />
-            <template v-if="!coverFile">
-              <NIcon name="image" :size="44" class="dropzone__icon" />
-              <p class="dropzone__title">上传封面</p>
-              <span class="dropzone__hint">点击或拖拽 · 建议 800×800</span>
-            </template>
-            <template v-else>
+            <button type="button" class="dropzone__hit" @click="selectCoverFile">
+              <span class="n-visually-hidden">选择封面图片</span>
+              <template v-if="!coverFile">
+                <NIcon name="image" :size="44" class="dropzone__icon" />
+                <span class="dropzone__title">上传封面</span>
+                <span class="dropzone__hint">点击或拖拽 · 建议 800×800</span>
+              </template>
+            </button>
+            <template v-if="coverFile">
               <img :src="coverPreview" alt="封面预览" class="cover-preview" />
-              <NButton class="cover-change" size="sm" variant="secondary" @click.stop="removeCoverFile">
+              <NButton class="cover-change" size="sm" variant="secondary" @click="removeCoverFile">
                 移除封面
               </NButton>
             </template>
@@ -51,23 +50,22 @@
           <div
             class="dropzone dropzone--file"
             :class="{ 'dropzone--filled': lyricsFile, 'dropzone--over': isLyricsDragging }"
-            role="button"
-            tabindex="0"
-            @click="selectLyricsFile"
-            @keydown.enter.prevent="selectLyricsFile"
             @dragover.prevent="isLyricsDragging = true"
             @dragleave.prevent="isLyricsDragging = false"
             @drop.prevent="handleLyricsFileDrop"
           >
             <input ref="lyricsFileInput" type="file" accept=".lrc" class="dropzone__input" @change="handleLyricsFileChange" />
-            <template v-if="!lyricsFile">
-              <NIcon name="file-text" :size="22" class="dropzone__icon" />
-              <span class="dropzone__hint">选择 .lrc 歌词文件</span>
-            </template>
-            <template v-else>
+            <button type="button" class="dropzone__hit" @click="selectLyricsFile">
+              <span class="n-visually-hidden">选择 .lrc 歌词文件</span>
+              <template v-if="!lyricsFile">
+                <NIcon name="file-text" :size="22" class="dropzone__icon" />
+                <span class="dropzone__hint">选择 .lrc 歌词文件</span>
+              </template>
+            </button>
+            <template v-if="lyricsFile">
               <NIcon name="file-text" :size="18" class="dropzone__icon" />
               <span class="dropzone__filename">{{ lyricsFile.name }}</span>
-              <button type="button" class="icon-x" aria-label="移除歌词" @click.stop="removeLyricsFile">
+              <button type="button" class="icon-x" aria-label="移除歌词" @click="removeLyricsFile">
                 <NIcon name="close" :size="14" />
               </button>
             </template>
@@ -100,24 +98,23 @@
           <div
             class="dropzone dropzone--audio"
             :class="{ 'dropzone--filled': musicFile, 'dropzone--over': isDragging }"
-            role="button"
-            tabindex="0"
-            @click="selectMusicFile"
-            @keydown.enter.prevent="selectMusicFile"
             @dragover.prevent="isDragging = true"
             @dragleave.prevent="isDragging = false"
             @drop.prevent="handleDrop"
           >
             <input ref="musicFileInput" type="file" accept="audio/*" class="dropzone__input" @change="handleMusicFileChange" />
-            <template v-if="!musicFile">
-              <NIcon name="upload" :size="28" class="dropzone__icon" />
-              <span class="dropzone__title">选择音频文件</span>
-              <span class="dropzone__hint">点击或拖拽音频到此处</span>
-            </template>
-            <template v-else>
+            <button type="button" class="dropzone__hit" @click="selectMusicFile">
+              <span class="n-visually-hidden">选择音频文件</span>
+              <template v-if="!musicFile">
+                <NIcon name="upload" :size="28" class="dropzone__icon" />
+                <span class="dropzone__title">选择音频文件</span>
+                <span class="dropzone__hint">点击或拖拽音频到此处</span>
+              </template>
+            </button>
+            <template v-if="musicFile">
               <NIcon name="file-music" :size="22" class="dropzone__icon" />
               <span class="dropzone__filename">{{ musicFile.name }}</span>
-              <button type="button" class="icon-x" aria-label="移除音频" @click.stop="removeMusicFile">
+              <button type="button" class="icon-x" aria-label="移除音频" @click="removeMusicFile">
                 <NIcon name="close" :size="14" />
               </button>
             </template>
@@ -1121,6 +1118,31 @@ const handleSubmit = async () => {
   display: none;
 }
 
+/* 覆盖整个拖拽区的真实按钮：避免 role="button" 与内部「移除」按钮嵌套交互 */
+.dropzone__hit {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--n-space-2);
+  padding: var(--n-space-5);
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.dropzone__hit:focus-visible {
+  outline: var(--n-focus-ring);
+  outline-offset: 3px;
+  border-radius: var(--n-radius-lg);
+}
+
 .dropzone__icon {
   color: var(--n-text-faint);
 }
@@ -1155,12 +1177,14 @@ const handleSubmit = async () => {
   position: absolute;
   right: var(--n-space-3);
   bottom: var(--n-space-3);
+  z-index: 2;
 }
 
 .icon-x {
   position: absolute;
   right: var(--n-space-2);
   top: var(--n-space-2);
+  z-index: 2;
   display: grid;
   place-items: center;
   width: 24px;

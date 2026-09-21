@@ -41,7 +41,9 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import com.neko.music.filter.IPRateLimitFilter;
+import com.neko.music.filter.StaticPageSeoFilter;
 import com.neko.music.util.ClientReleaseStorage;
 import com.neko.music.util.SiteResourceStorage;
 import org.slf4j.Logger;
@@ -69,6 +71,9 @@ public class Main {
         System.setProperty("sun.jnu.encoding", "UTF-8");
         System.setProperty("sun.stdout.encoding", "UTF-8");
         System.setProperty("sun.stderr.encoding", "UTF-8");
+        // 服务器无图形环境：必须显式 headless，否则 BufferedImage.createGraphics()
+        // 会在 X11GraphicsEnvironment 初始化时阻塞（封面缩略图会卡死请求线程）。
+        System.setProperty("java.awt.headless", "true");
     }
     
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
@@ -241,7 +246,26 @@ public class Main {
         // 创建上下文处理器
         ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
         context.setContextPath("/");
-        server.setHandler(context);
+
+        // 文本资源 gzip：前端 JS/CSS/HTML 传输体积可省 ~80%。
+        // 只压缩文本类 MIME；text/event-stream（SSE）、图片、音频、视频不在白名单内，
+        // 避免破坏流式响应或对已压缩内容二次压缩。
+        GzipHandler gzipHandler = new GzipHandler();
+        gzipHandler.setMinGzipSize(256);
+        gzipHandler.setIncludedMethods("GET", "HEAD");
+        gzipHandler.setIncludedMimeTypes(
+                "text/html",
+                "text/css",
+                "text/plain",
+                "text/javascript",
+                "application/javascript",
+                "application/json",
+                "application/xml",
+                "text/xml",
+                "image/svg+xml",
+                "application/manifest+json");
+        gzipHandler.setHandler(context);
+        server.setHandler(gzipHandler);
 
         // 注册服务到 ServletContext，供 Filter 使用
         context.setAttribute("configManager", configManager);
@@ -249,6 +273,9 @@ public class Main {
 
         // IP 限流需在嵌入式 Jetty 中显式注册（@WebFilter 不会生效）
         context.addFilter(IPRateLimitFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
+
+        // 静态路由（首页 / 下载 / 关于等）对爬虫返回服务端 SEO HTML，浏览器仍走 SPA
+        context.addFilter(StaticPageSeoFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
 
         // 前端静态资源 + 全部 API/页面路由（详见 ServletRegistrar）
         ServletRegistrar.register(context, configManager);

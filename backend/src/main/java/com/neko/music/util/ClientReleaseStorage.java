@@ -99,6 +99,17 @@ public final class ClientReleaseStorage {
         return base + "/update/" + encodePathSegment(fileName);
     }
 
+    /** 安装包体积（字节）；文件不存在或不可读时返回 0，供 /version 与页面展示 */
+    public static long fileSizeOrZero(String fileName) {
+        return resolveReadableFile(fileName).map(path -> {
+            try {
+                return Files.size(path);
+            } catch (IOException e) {
+                return 0L;
+            }
+        }).orElse(0L);
+    }
+
     public static Optional<Path> resolveReadableFile(String fileName) {
         if (!isSafeFileName(fileName)) {
             return Optional.empty();

@@ -18,6 +18,7 @@ import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
+import { coverSrcset } from '@/utils/coverImage'
 
 const toast = useToast()
 
@@ -272,14 +273,20 @@ onUnmounted(() => {
         type="button"
         class="hero__feature"
         :class="{ 'hero__feature--mosaic': hasDaily }"
-        :aria-label="hasDaily ? '播放每日推荐' : `播放 ${heroFeature.title}`"
         @click="playHero"
       >
+        <!-- 可见文本已含歌名/歌手，用视觉隐藏的「播放」补足动作语义：
+             可访问名由内容计算，避免 aria-label 与可见文本不一致（WCAG 2.5.3） -->
+        <span class="n-visually-hidden">播放</span>
         <span v-if="hasDaily" class="hero__mosaic">
           <img
             v-for="m in dailyMosaic"
             :key="m.id"
             :src="m.coverUrl"
+            :srcset="coverSrcset(m.coverUrl)"
+            sizes="110px"
+            width="110"
+            height="110"
             :alt="m.title"
             decoding="async"
             @error="handleImageError"
@@ -288,6 +295,10 @@ onUnmounted(() => {
         <img
           v-else
           :src="heroFeature.coverUrl"
+          :srcset="coverSrcset(heroFeature.coverUrl)"
+          sizes="220px"
+          width="220"
+          height="220"
           :alt="heroFeature.title"
           decoding="async"
           @error="handleImageError"
@@ -347,15 +358,14 @@ onUnmounted(() => {
             v-for="(m, i) in hotList"
             :key="m.id"
             class="cover-card"
-            tabindex="0"
-            role="button"
-            :aria-label="`播放 ${m.title}`"
-            @click="playMusic(m)"
-            @keydown.enter.prevent="playMusic(m)"
           >
             <div class="cover-card__art">
               <img
                 :src="m.coverUrl"
+                :srcset="coverSrcset(m.coverUrl)"
+                sizes="152px"
+                width="152"
+                height="152"
                 :alt="m.title"
                 loading="lazy"
                 decoding="async"
@@ -366,6 +376,12 @@ onUnmounted(() => {
             </div>
             <h3 class="cover-card__title">{{ m.title }}</h3>
             <p class="cover-card__artist">{{ m.artist }}</p>
+            <button
+              type="button"
+              class="cover-card__hit"
+              :aria-label="`播放 ${m.title}`"
+              @click="playMusic(m)"
+            ></button>
           </article>
         </div>
       </section>
@@ -385,15 +401,14 @@ onUnmounted(() => {
             v-for="m in latestGrid"
             :key="m.id"
             class="cover-card"
-            tabindex="0"
-            role="button"
-            :aria-label="`播放 ${m.title}`"
-            @click="playMusic(m)"
-            @keydown.enter.prevent="playMusic(m)"
           >
             <div class="cover-card__art">
               <img
                 :src="m.coverUrl"
+                :srcset="coverSrcset(m.coverUrl)"
+                sizes="152px"
+                width="152"
+                height="152"
                 :alt="m.title"
                 loading="lazy"
                 decoding="async"
@@ -403,6 +418,12 @@ onUnmounted(() => {
             </div>
             <h3 class="cover-card__title">{{ m.title }}</h3>
             <p class="cover-card__artist">{{ m.artist }}</p>
+            <button
+              type="button"
+              class="cover-card__hit"
+              :aria-label="`播放 ${m.title}`"
+              @click="playMusic(m)"
+            ></button>
           </article>
         </div>
       </section>
@@ -762,14 +783,28 @@ onUnmounted(() => {
 }
 
 .cover-card {
+  position: relative;
   flex: 0 0 auto;
   width: 152px;
   scroll-snap-align: start;
-  cursor: pointer;
   min-width: 0;
 }
 
-.cover-card:focus-visible {
+/* 整卡点击：用真实 button 覆盖，避免把 role="button" 加在 article 上（ARIA 角色不匹配） */
+.cover-card__hit {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: var(--n-radius-sm);
+  cursor: pointer;
+  z-index: 1;
+}
+
+.cover-card__hit:focus-visible {
   outline: var(--n-focus-ring);
   outline-offset: 3px;
   border-radius: var(--n-radius-sm);
