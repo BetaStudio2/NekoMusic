@@ -17,6 +17,7 @@ import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
 import { NInput, NButton } from '@/ui'
 import { syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
+import { avatarUrl, useAvatarVersion } from '@/utils/userAvatar.js'
 
 const router = useRouter()
 
@@ -59,9 +60,11 @@ function handleStorageChange(event) {
   if (event.key === 'userToken' || event.key === 'user') initializeUserState()
 }
 
+const avatarVersion = useAvatarVersion()
+
 const userAvatar = computed(() => {
   const userId = user.value ? user.value.id : 'default'
-  return `${API_CONFIG.BASE_URL}/api/user/avatar/${userId}`
+  return avatarUrl(userId, avatarVersion.value)
 })
 
 const getCoverUrl = (musicId) => `${API_CONFIG.BASE_URL}/api/music/cover/${musicId}`
