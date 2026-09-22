@@ -36,6 +36,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 汽水音乐（抖音音乐）账号客户端：封装 {@code api.qishui.com} 的 passport 登录接口。
@@ -79,6 +81,36 @@ public class QishuiMusicClient {
     private static final String DEFAULT_DEVICE_ID = "7000000000000000001";
     private static final String DEFAULT_INSTALL_ID = "7000000000000000002";
     private static final String DEFAULT_COOKIE_FILE = "qishui_cookies.json";
+
+    // ------------------------------------------------------------------ 歌单（PC luna 接口）
+
+    /** PC 端 luna 只读接口基址（歌单 / 榜单等）。 */
+    private static final String PC_API_BASE = "https://api.qishui.com/luna/pc";
+    /** 歌单网页分享页：PC 接口取不到时解析内嵌的 {@code _ROUTER_DATA} 兜底。 */
+    private static final String WEB_PLAYLIST_SHARE = "https://music.douyin.com/qishui/share/playlist";
+    private static final String PC_UA = "LunaPC/3.2.1(343009595)";
+    private static final String PC_VERSION_NAME = "3.2.1";
+    private static final String PC_VERSION_CODE = "30020100";
+    /** 分享页只对搜索引擎 UA 输出内嵌数据，浏览器 UA 不带。 */
+    private static final String WEB_SHARE_UA =
+            "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+    /** 单页曲目数；上游会在返回 has_more/next_cursor 时继续翻页。 */
+    private static final int PLAYLIST_PAGE_SIZE = 100;
+    /** 分页安全上限（100 页 × 100 首），防止异常游标导致死循环。 */
+    private static final int PLAYLIST_MAX_PAGES = 100;
+
+    private static final Pattern PLAYLIST_PATH_PATTERN =
+            Pattern.compile("playlist/(\\d+)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PLAYLIST_ID_PARAM_PATTERN =
+            Pattern.compile("[?&]playlist_id=(\\d+)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern ID_PARAM_PATTERN =
+            Pattern.compile("[?&]id=(\\d+)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern URL_PATTERN = Pattern.compile("https?://\\S+", Pattern.CASE_INSENSITIVE);
+    private static final Pattern DIGITS_PATTERN = Pattern.compile("\\d{1,20}");
+    private static final Pattern LONG_ID_PATTERN = Pattern.compile("\\b\\d{10,}\\b");
+    /** 汽水 / 抖音短链：需要跟随一次跳转才能拿到歌单 ID。 */
+    private static final Pattern SHORT_LINK_PATTERN =
+            Pattern.compile("qishui\\.douyin\\.com|douyin\\.com/s/", Pattern.CASE_INSENSITIVE);
 
     /** 从 check_qrconnect 响应里抠出来的二次验证参数（键名在响应里的位置不固定，需要归一化搜索） */
     private static final List<String> VERIFY_PARAM_KEYS = List.of(
@@ -125,8 +157,27 @@ public class QishuiMusicClient {
         }
     }
 
+    /**
+     * 歌单内的一首曲目（只含元数据，不含可下载直链）。
+     *
+     * @param durationMs 时长（毫秒），未知为 0
+     */
+    public record QishuiTrack(String id, String title, String artist, String album,
+                             long durationMs, String coverUrl) {
+    }
+
+    /** 汽水歌单：元信息 + 曲目列表（可能来自 PC 接口或分享页兜底）。 */
+    public record QishuiPlaylist(String id, String name, String owner, String coverUrl,
+                                 int trackCount, List<QishuiTrack> tracks) {
+    }
+
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    /** 短链解析用：禁止自动跟随，手动读取 Location 以提取歌单 ID。 */
+    private final HttpClient redirectClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .followRedirects(HttpClient.Redirect.NEVER)
+            .build();
     private final Path cookieFile;
     private final String deviceId;
     private final String installId;
@@ -225,6 +276,448 @@ public class QishuiMusicClient {
     /** 查询登录态（{@code /passport/account/info/v2/}，未登录返回 error_code 13）。 */
     public JsonNode checkLogin() throws IOException {
         return request("GET", "/passport/account/info/v2/", commonQuery(), null);
+    }
+
+    // ------------------------------------------------------------------ 歌单
+
+    /**
+     * 从用户输入解析歌单 ID：支持纯数字 ID、{@code .../playlist/{id}}、
+     * {@code ?playlist_id=} 参数，以及 {@code qishui.douyin.com/s/...} 短链（跟随一次跳转）。
+     *
+     * @return 歌单 ID；无法识别时返回 {@code null}
+     */
+    public String extractPlaylistId(String input) {
+        if (input == null) {
+            return null;
+        }
+        String trimmed = input.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        if (DIGITS_PATTERN.matcher(trimmed).matches()) {
+            return trimmed;
+        }
+        String direct = extractIdFromUrl(trimmed);
+        if (direct != null) {
+            return direct;
+        }
+        Matcher longId = LONG_ID_PATTERN.matcher(trimmed);
+        if (longId.find()) {
+            return longId.group();
+        }
+        Matcher urls = URL_PATTERN.matcher(trimmed);
+        while (urls.find()) {
+            String url = urls.group();
+            String urlId = extractIdFromUrl(url);
+            if (urlId != null) {
+                return urlId;
+            }
+            if (SHORT_LINK_PATTERN.matcher(url).find()) {
+                String resolved = resolveRedirectId(url, 0);
+                if (resolved != null) {
+                    return resolved;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** 从单个 URL / 文本里按 路径 → playlist_id → id 的顺序提取数字歌单 ID。 */
+    private static String extractIdFromUrl(String value) {
+        Matcher path = PLAYLIST_PATH_PATTERN.matcher(value);
+        if (path.find()) {
+            return path.group(1);
+        }
+        Matcher param = PLAYLIST_ID_PARAM_PATTERN.matcher(value);
+        if (param.find()) {
+            return param.group(1);
+        }
+        Matcher id = ID_PARAM_PATTERN.matcher(value);
+        if (id.find()) {
+            return id.group(1);
+        }
+        return null;
+    }
+
+    /** 手动跟随一次短链跳转，从 Location 里提取歌单 ID（最多 3 跳）。 */
+    private String resolveRedirectId(String url, int depth) {
+        if (depth > 3) {
+            return null;
+        }
+        try {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                    .header("user-agent", WEB_SHARE_UA)
+                    .GET()
+                    .build();
+            HttpResponse<String> response = HttpTransport.sendString(redirectClient, request,
+                    "请求汽水分享链接被中断");
+            String location = response.headers().firstValue("location").orElse("");
+            if (location.isEmpty()) {
+                return null;
+            }
+            String id = extractIdFromUrl(location);
+            if (id != null) {
+                return id;
+            }
+            if (SHORT_LINK_PATTERN.matcher(location).find()) {
+                return resolveRedirectId(location, depth + 1);
+            }
+        } catch (IllegalArgumentException | IOException e) {
+            logger.debug("解析汽水短链失败 url={}: {}", url, e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * 拉取歌单全量曲目：优先 PC {@code /playlist/detail} 分页接口，
+     * 失败或为空时回退解析网页分享页，仍为空则抛异常。
+     *
+     * <p>公开歌单无需登录；若本地已扫码登录，会自动带上 sessionid，
+     * 以便读取自己的私密歌单。</p>
+     */
+    public QishuiPlaylist fetchPlaylist(String input) throws IOException {
+        String playlistId = extractPlaylistId(input);
+        if (playlistId == null) {
+            throw new IOException("汽水歌单链接或 ID 无效");
+        }
+        QishuiPlaylist fromApi = fetchPlaylistFromApi(playlistId);
+        if (fromApi != null && !fromApi.tracks().isEmpty()) {
+            return fromApi;
+        }
+        QishuiPlaylist fromWeb = fetchPlaylistFromWeb(playlistId);
+        if (fromWeb != null && !fromWeb.tracks().isEmpty()) {
+            return fromWeb;
+        }
+        throw new IOException("汽水歌单为空或不可访问");
+    }
+
+    /**
+     * 歌单详情，整理成 {@code {code, playlist_id, name, owner, cover, songnum, songlist[]}} 结构，
+     * 供 {@code /loser/qishui/getSongListDetail} 代理与歌单导入共用。
+     *
+     * <p>歌单只提供元数据（歌名 / 歌手 / 专辑），不含可下载直链；导入时由上层站内匹配
+     * 或从网易云补全。</p>
+     */
+    public JsonNode fetchPlaylistDetailRaw(String input) throws IOException {
+        QishuiPlaylist playlist = fetchPlaylist(input);
+
+        ObjectNode response = objectMapper.createObjectNode();
+        response.put("code", 0);
+        response.put("playlist_id", playlist.id());
+        response.put("name", playlist.name());
+        response.put("owner", playlist.owner());
+        response.put("cover", playlist.coverUrl());
+        response.put("songnum", playlist.tracks().size());
+
+        ArrayNode songlist = response.putArray("songlist");
+        for (QishuiTrack track : playlist.tracks()) {
+            ObjectNode song = songlist.addObject();
+            song.put("id", track.id());
+            song.put("name", track.title());
+            song.put("album", track.album());
+            song.put("duration", track.durationMs());
+            song.put("cover", track.coverUrl());
+            ArrayNode singers = song.putArray("singer");
+            for (String artist : splitArtists(track.artist())) {
+                singers.addObject().put("name", artist);
+            }
+        }
+        return response;
+    }
+
+    /** PC 接口分页拉取：首页失败返回 {@code null}（交给网页兜底），后续页失败向上抛，避免交付半份歌单。 */
+    private QishuiPlaylist fetchPlaylistFromApi(String playlistId) throws IOException {
+        List<QishuiTrack> tracks = new ArrayList<>();
+        JsonNode playlistNode = null;
+        String cursor = "";
+        Set<String> visitedCursors = new LinkedHashSet<>();
+        for (int page = 0; page < PLAYLIST_MAX_PAGES; page++) {
+            Map<String, String> query = new LinkedHashMap<>();
+            query.put("playlist_id", playlistId);
+            query.put("cursor", cursor);
+            query.put("count", Integer.toString(PLAYLIST_PAGE_SIZE));
+
+            JsonNode data;
+            try {
+                data = pcGet("/playlist/detail", query);
+            } catch (IOException e) {
+                if (page == 0) {
+                    logger.warn("汽水 PC 歌单接口首页失败 playlistId={}: {}", playlistId, e.getMessage());
+                    return null;
+                }
+                throw e;
+            }
+            if (playlistNode == null && data.path("playlist").isObject()) {
+                playlistNode = data.path("playlist");
+            }
+            JsonNode resources = data.path("media_resources");
+            if (!resources.isArray()) {
+                if (page == 0) {
+                    return null;
+                }
+                throw new IOException("汽水歌单分页数据异常");
+            }
+            for (JsonNode resource : resources) {
+                QishuiTrack track = parsePlaylistTrack(resource);
+                if (track != null) {
+                    tracks.add(track);
+                }
+            }
+
+            String next = data.path("next_cursor").asText("");
+            boolean hasMore = data.path("has_more").asBoolean(false);
+            if (resources.isEmpty() || !hasMore || next.isEmpty()
+                    || next.equals(cursor) || !visitedCursors.add(next)) {
+                break;
+            }
+            cursor = next;
+        }
+        return buildPlaylist(playlistId, playlistNode, tracks);
+    }
+
+    /** 网页分享页兜底：解析 {@code _ROUTER_DATA.loaderData.playlist_page}。 */
+    private QishuiPlaylist fetchPlaylistFromWeb(String playlistId) {
+        try {
+            String url = WEB_PLAYLIST_SHARE + "?playlist_id="
+                    + URLEncoder.encode(playlistId, StandardCharsets.UTF_8);
+            HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                    .timeout(Duration.ofSeconds(20))
+                    .header("accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                    .header("user-agent", WEB_SHARE_UA)
+                    .GET()
+                    .build();
+            HttpResponse<String> response = HttpTransport.sendString(httpClient, request,
+                    "请求汽水歌单分享页被中断");
+            if (!HttpTransport.isSuccess(response.statusCode())) {
+                return null;
+            }
+            JsonNode router = extractRouterData(response.body());
+            if (router == null) {
+                return null;
+            }
+            JsonNode page = router.path("loaderData").path("playlist_page");
+            if (!page.isObject()) {
+                return null;
+            }
+            List<QishuiTrack> tracks = new ArrayList<>();
+            for (JsonNode media : page.path("medias")) {
+                QishuiTrack track = parsePlaylistTrack(media);
+                if (track != null) {
+                    tracks.add(track);
+                }
+            }
+            return buildPlaylist(playlistId, page.path("playlistInfo"), tracks);
+        } catch (IOException e) {
+            logger.warn("汽水歌单分享页解析失败 playlistId={}: {}", playlistId, e.getMessage());
+            return null;
+        }
+    }
+
+    /** 截取分享页里 {@code _ROUTER_DATA = {...};} 的 JSON 对象。 */
+    JsonNode extractRouterData(String html) {
+        if (html == null) {
+            return null;
+        }
+        String marker = "_ROUTER_DATA = ";
+        int markerIndex = html.indexOf(marker);
+        if (markerIndex < 0) {
+            return null;
+        }
+        int start = markerIndex + marker.length();
+        int end = html.indexOf(";\nfunction runWindowFn", start);
+        if (end < 0) {
+            end = html.indexOf(";</script>", start);
+        }
+        if (end < 0) {
+            return null;
+        }
+        try {
+            return objectMapper.readTree(html.substring(start, end));
+        } catch (JsonProcessingException e) {
+            return null;
+        }
+    }
+
+    /** 把 media_resource（或分享页 media）归一化成曲目；两种结构的实体层级不同，依次尝试。 */
+    QishuiTrack parsePlaylistTrack(JsonNode resource) {
+        if (resource == null || !resource.isObject()) {
+            return null;
+        }
+        JsonNode entity = resource.path("entity");
+        JsonNode track = entity.path("track_wrapper").path("track");
+        if (!isObjectNode(track)) {
+            track = entity.path("track");
+        }
+        if (!isObjectNode(track)) {
+            track = entity.path("video");
+        }
+        if (!isObjectNode(track)) {
+            track = entity.path("ugc_video");
+        }
+        if (!isObjectNode(track)) {
+            track = resource.path("track");
+        }
+        if (!isObjectNode(track)) {
+            track = resource;
+        }
+
+        String title = firstNonEmpty(track.path("name").asText(""), track.path("title").asText(""),
+                track.path("desc").asText(""));
+        if (title.isEmpty()) {
+            return null;
+        }
+        String id = firstNonEmpty(track.path("id").asText(""), track.path("video_id").asText(""));
+        String artist = joinArtistNames(track.path("artists"), track.path("author_info"));
+        String album = track.path("album").path("name").asText("");
+        long duration = track.path("duration").asLong(0);
+        String cover = buildCoverUrl(track.path("album").path("url_cover"));
+        if (cover.isEmpty()) {
+            cover = buildCoverUrl(track.path("cover_url"));
+        }
+        return new QishuiTrack(id, title, artist, album, duration, cover);
+    }
+
+    private static QishuiPlaylist buildPlaylist(String playlistId, JsonNode node, List<QishuiTrack> tracks) {
+        JsonNode playlist = isObjectNode(node) ? node : null;
+        if (playlist == null) {
+            return new QishuiPlaylist(playlistId, "", "", "", tracks.size(), tracks);
+        }
+        String id = firstNonEmpty(playlist.path("id").asText(""), playlistId);
+        String name = firstNonEmpty(playlist.path("title").asText(""),
+                playlist.path("public_title").asText(""), playlist.path("name").asText(""));
+        String owner = firstNonEmpty(playlist.path("owner").path("nickname").asText(""),
+                playlist.path("user_artist_info").path("user_brief").path("nickname").asText(""));
+        String cover = buildCoverUrl(playlist.path("url_cover"));
+        int count = playlist.path("count_tracks").asInt(tracks.size());
+        return new QishuiPlaylist(id, name, owner, cover, count, tracks);
+    }
+
+    /** 专辑 / 单曲 / 歌单封面：{@code urls[0] + uri + "~" + template_prefix + "-resize:960:960.png"}。 */
+    static String buildCoverUrl(JsonNode cover) {
+        if (cover == null || cover.isMissingNode() || cover.isNull()) {
+            return "";
+        }
+        if (cover.isTextual()) {
+            return cover.asText("").trim();
+        }
+        String uri = cover.path("uri").asText("").trim();
+        JsonNode urls = cover.path("urls");
+        String base = urls.isArray() && !urls.isEmpty() ? urls.get(0).asText("").trim() : "";
+        if (base.isEmpty()) {
+            return "";
+        }
+        if (uri.isEmpty()) {
+            return base;
+        }
+        String prefix = cover.path("template_prefix").asText("").trim();
+        String url = base + uri;
+        if (!prefix.isEmpty()) {
+            url = url + "~" + prefix + "-resize:960:960.png";
+        }
+        return url;
+    }
+
+    private static String joinArtistNames(JsonNode artists, JsonNode authorInfo) {
+        List<String> names = new ArrayList<>();
+        if (artists != null && artists.isArray()) {
+            for (JsonNode artist : artists) {
+                String name = firstNonEmpty(artist.path("name").asText(""),
+                        artist.path("user_info").path("nickname").asText(""));
+                if (!name.isEmpty()) {
+                    names.add(name);
+                }
+            }
+        }
+        if (names.isEmpty() && isObjectNode(authorInfo)) {
+            String name = authorInfo.path("name").asText("").trim();
+            if (!name.isEmpty()) {
+                names.add(name);
+            }
+        }
+        return String.join(" / ", names);
+    }
+
+    private static boolean isObjectNode(JsonNode node) {
+        return node != null && node.isObject() && !node.isEmpty();
+    }
+
+    private static List<String> splitArtists(String artist) {
+        List<String> names = new ArrayList<>();
+        if (artist == null || artist.isBlank()) {
+            return names;
+        }
+        for (String part : artist.split("\\s*/\\s*")) {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) {
+                names.add(trimmed);
+            }
+        }
+        return names;
+    }
+
+    /** PC luna 接口 GET：带完整 PC 参数与可选登录 Cookie，非 2xx 抛 IOException。 */
+    private JsonNode pcGet(String path, Map<String, String> extraQuery) throws IOException {
+        Map<String, String> query = pcCommonQuery();
+        if (extraQuery != null) {
+            query.putAll(extraQuery);
+        }
+        String url = PC_API_BASE + path + "?" + encodeForm(query);
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
+                .timeout(Duration.ofSeconds(30))
+                .header("accept", "*/*")
+                .header("user-agent", PC_UA)
+                .header("x-luna-background-type", "foreground")
+                .header("x-luna-is-background-req", "0")
+                .header("x-luna-is-local-user", "0")
+                .GET();
+        String cookie = cookieHeader();
+        if (!cookie.isEmpty()) {
+            builder.header("Cookie", cookie);
+        }
+        HttpResponse<String> response = HttpTransport.sendString(httpClient, builder.build(),
+                "请求汽水音乐接口被中断: " + path);
+        absorbCookies(response);
+        if (!HttpTransport.isSuccess(response.statusCode())) {
+            throw new IOException("汽水音乐接口 HTTP " + response.statusCode());
+        }
+        String body = response.body();
+        if (body == null || body.isBlank()) {
+            throw new IOException("汽水音乐接口返回为空");
+        }
+        JsonNode parsed = objectMapper.readTree(body);
+        if (parsed == null || parsed.isMissingNode()) {
+            throw new IOException("汽水音乐接口返回为空");
+        }
+        return parsed;
+    }
+
+    /** PC luna 接口的公共参数（设备标识沿用登录客户端的配置，保持同一设备会话）。 */
+    private Map<String, String> pcCommonQuery() {
+        Map<String, String> query = new LinkedHashMap<>();
+        query.put("aid", AID);
+        query.put("app_name", "luna_pc");
+        query.put("region", "cn");
+        query.put("geo_region", "cn");
+        query.put("os_region", "cn");
+        query.put("sim_region", "");
+        query.put("device_id", deviceId);
+        query.put("cdid", "");
+        query.put("iid", installId);
+        query.put("version_name", PC_VERSION_NAME);
+        query.put("version_code", PC_VERSION_CODE);
+        query.put("channel", "official");
+        query.put("build_mode", "master");
+        query.put("network_carrier", "");
+        query.put("ac", "wifi");
+        query.put("tz_name", "Asia/Shanghai");
+        query.put("resolution", "");
+        query.put("device_platform", "windows");
+        query.put("device_type", "Windows");
+        query.put("os_version", "Windows 11 Home China");
+        query.put("fp", deviceId);
+        return query;
     }
 
     // ------------------------------------------------------------------ 状态与 Cookie

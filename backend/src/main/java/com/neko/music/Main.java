@@ -225,7 +225,8 @@ public class Main {
                 adminMusicIngestService,
                 playlistService,
                 qqMusicClient,
-                kugouMusicClient);
+                kugouMusicClient,
+                qishuiMusicClient);
         Runtime.getRuntime().addShutdownHook(new Thread(externalImportService::shutdown, "external-import-shutdown"));
         
         // 初始化通知服务
