@@ -19,11 +19,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * 外部歌单导入：把 QQ / 网易云歌单的曲目入库并加入用户指定的歌单，SSE 进度由上层推送。
+ * 外部歌单导入：把网易云 / QQ / 酷狗 / 汽水歌单的曲目入库并加入用户指定的歌单，SSE 进度由上层推送。
  *
  * <ul>
  *   <li>网易云：按歌曲 ID 直接下载原曲入库（不经过站内搜索匹配）。</li>
- *   <li>QQ：QQ 歌单只提供元数据，因此先在站内曲库匹配，匹配不到再按「歌名 + 歌手」
+ *   <li>QQ / 酷狗 / 汽水：歌单只提供元数据，因此先在站内曲库匹配，匹配不到再按「歌名 + 歌手」
  *       从网易云补全下载。</li>
  * </ul>
  */
@@ -33,6 +33,7 @@ public class ExternalImportService {
     public static final String SOURCE_NETEASE = "netease";
     public static final String SOURCE_QQ = "qq";
     public static final String SOURCE_KUGOU = "kugou";
+    public static final String SOURCE_QISHUI = "qishui";
 
     public static final String STATUS_IMPORTED = "imported";
     public static final String STATUS_EXISTED = "existed";
@@ -50,6 +51,7 @@ public class ExternalImportService {
     private final PlaylistService playlistService;
     private final QQMusicClient qqMusicClient;
     private final KugouMusicClient kugouMusicClient;
+    private final QishuiMusicClient qishuiMusicClient;
 
     private final ExecutorService executor;
     private final ExecutorService trackExecutor;
@@ -89,13 +91,15 @@ public class ExternalImportService {
                                  AdminMusicIngestService ingestService,
                                  PlaylistService playlistService,
                                  QQMusicClient qqMusicClient,
-                                 KugouMusicClient kugouMusicClient) {
+                                 KugouMusicClient kugouMusicClient,
+                                 QishuiMusicClient qishuiMusicClient) {
         this.neteaseClient = neteaseClient;
         this.fillService = fillService;
         this.ingestService = ingestService;
         this.playlistService = playlistService;
         this.qqMusicClient = qqMusicClient;
         this.kugouMusicClient = kugouMusicClient;
+        this.qishuiMusicClient = qishuiMusicClient;
         AtomicInteger threadNo = new AtomicInteger();
         this.executor = Executors.newCachedThreadPool(r -> {
             Thread thread = new Thread(r, "external-import-" + threadNo.incrementAndGet());
@@ -129,6 +133,13 @@ public class ExternalImportService {
     public void startKugouImport(String listId, int targetPlaylistId, boolean targetPlaylistCreated,
                                  Listener listener) {
         submit(() -> runKugouImport(listId, targetPlaylistId, targetPlaylistCreated, listener),
+                listener);
+    }
+
+    /** 汽水音乐歌单导入。 */
+    public void startQishuiImport(String playlistInput, int targetPlaylistId, boolean targetPlaylistCreated,
+                                  Listener listener) {
+        submit(() -> runQishuiImport(playlistInput, targetPlaylistId, targetPlaylistCreated, listener),
                 listener);
     }
 
@@ -216,6 +227,17 @@ public class ExternalImportService {
             tracks.add(new Track(kugouTrack.hash(), kugouTrack.title(), kugouTrack.artist()));
         }
         runMatchedImport(SOURCE_KUGOU, "酷狗歌单为空或不可访问", tracks,
+                targetPlaylistId, targetPlaylistCreated, listener);
+    }
+
+    private void runQishuiImport(String playlistInput, int targetPlaylistId, boolean targetPlaylistCreated,
+                                 Listener listener) throws IOException {
+        QishuiMusicClient.QishuiPlaylist playlist = qishuiMusicClient.fetchPlaylist(playlistInput);
+        List<Track> tracks = new ArrayList<>(playlist.tracks().size());
+        for (QishuiMusicClient.QishuiTrack qishuiTrack : playlist.tracks()) {
+            tracks.add(new Track(qishuiTrack.id(), qishuiTrack.title(), qishuiTrack.artist()));
+        }
+        runMatchedImport(SOURCE_QISHUI, "汽水歌单为空或不可访问", tracks,
                 targetPlaylistId, targetPlaylistCreated, listener);
     }
 
