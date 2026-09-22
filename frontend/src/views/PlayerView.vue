@@ -2053,6 +2053,7 @@ watch(
   position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.42);
+  opacity: 1;
 }
 
 .np__comments {
@@ -2085,13 +2086,75 @@ watch(
   min-height: 0;
 }
 
-.np-comments-enter-active,
-.np-comments-leave-active {
+/* 抽屉动效：遮罩淡入，面板自右滑入；关闭比打开更快，手感更跟手 */
+.np-comments-enter-active .np__comments-mask,
+.np-comments-leave-active .np__comments-mask {
   transition: opacity var(--n-duration-fast, 160ms) var(--n-ease);
 }
 
-.np-comments-enter-from,
-.np-comments-leave-to {
+.np-comments-enter-from .np__comments-mask,
+.np-comments-leave-to .np__comments-mask {
   opacity: 0;
+}
+
+.np-comments-enter-active .np__comments {
+  transition: transform var(--n-duration, 240ms) var(--n-ease-out);
+  will-change: transform;
+}
+
+.np-comments-leave-active .np__comments {
+  transition: transform var(--n-duration-fast, 160ms) var(--n-ease-in-out);
+  will-change: transform;
+}
+
+.np-comments-enter-from .np__comments,
+.np-comments-leave-to .np__comments {
+  transform: translateX(100%);
+}
+
+/* 抽屉内容错开一拍入场，避免整块一起弹出的生硬感 */
+.np-comments-enter-active .np__comments-head,
+.np-comments-enter-active .np__comments-body {
+  transition:
+    opacity var(--n-duration, 240ms) var(--n-ease-out),
+    transform var(--n-duration, 240ms) var(--n-ease-out);
+}
+
+.np-comments-enter-from .np__comments-head,
+.np-comments-enter-from .np__comments-body {
+  opacity: 0;
+  transform: translateX(16px);
+}
+
+.np-comments-enter-from .np__comments-body {
+  transition-delay: 40ms;
+}
+
+/* 关闭时内容只跟随面板滑出，不再单独做位移 */
+.np-comments-leave-active .np__comments-head,
+.np-comments-leave-active .np__comments-body {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .np-comments-enter-active .np__comments,
+  .np-comments-leave-active .np__comments,
+  .np-comments-enter-active .np__comments-head,
+  .np-comments-enter-active .np__comments-body,
+  .np-comments-enter-active .np__comments-mask,
+  .np-comments-leave-active .np__comments-mask {
+    transition: opacity var(--n-duration-instant, 90ms) linear;
+  }
+
+  .np-comments-enter-from .np__comments-head,
+  .np-comments-enter-from .np__comments-body,
+  .np-comments-enter-from .np__comments,
+  .np-comments-leave-to .np__comments {
+    transform: none;
+  }
+
+  .np-comments-enter-from .np__comments-body {
+    transition-delay: 0ms;
+  }
 }
 </style>
