@@ -229,6 +229,22 @@
                         </configuration>
                     </execution>
 
+                    <!-- 获取 Geoip -->
+                    <execution>
+                        <id>download-geoip</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>bash</executable>
+                            <workingDirectory>${project.basedir}</workingDirectory>
+                            <arguments>
+                                <argument>${project.basedir}/scripts/download-geoip.sh</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+
                     <!-- 构建 Vue 前端 -->
                     <execution>
                         <id>build-frontend</id>
