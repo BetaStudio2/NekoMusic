@@ -167,13 +167,15 @@ async function remove(comment) {
 
     <div class="cmt__composer">
       <template v-if="isLoggedIn">
-        <div v-if="replyTarget" class="cmt__reply-chip">
-          <NIcon name="corner-down-left" :size="14" />
-          <span class="cmt__reply-name">回复 @{{ replyTarget.nickname || '该用户' }}</span>
-          <button type="button" class="cmt__reply-cancel" aria-label="取消回复" @click="cancelReply">
-            <NIcon name="close" :size="14" />
-          </button>
-        </div>
+        <Transition name="cmt-chip">
+          <div v-if="replyTarget" class="cmt__reply-chip">
+            <NIcon name="corner-down-left" :size="14" />
+            <span class="cmt__reply-name">回复 @{{ replyTarget.nickname || '该用户' }}</span>
+            <button type="button" class="cmt__reply-cancel" aria-label="取消回复" @click="cancelReply">
+              <NIcon name="close" :size="14" />
+            </button>
+          </div>
+        </Transition>
         <textarea
           ref="textareaRef"
           v-model="content"
@@ -312,6 +314,16 @@ async function remove(comment) {
   border: 1px solid var(--n-line, rgba(255, 255, 255, 0.1));
   border-radius: var(--n-radius, 12px);
   padding: 10px;
+  transition:
+    border-color var(--n-duration-fast, 160ms) var(--n-ease),
+    background var(--n-duration-fast, 160ms) var(--n-ease),
+    box-shadow var(--n-duration-fast, 160ms) var(--n-ease);
+}
+
+/* 输入聚焦时给整个输入区一点反馈，而不只是隐藏掉的原生 outline */
+.cmt__composer:focus-within {
+  border-color: var(--n-accent-line, rgba(95, 208, 224, 0.24));
+  box-shadow: 0 0 0 3px var(--n-accent-soft, rgba(95, 208, 224, 0.14));
 }
 
 .cmt__reply-chip {
@@ -340,6 +352,22 @@ async function remove(comment) {
   padding: 0;
   color: inherit;
   cursor: pointer;
+}
+
+/* 回复目标标签：出现/消失时轻微下滑淡入，并让输入区高度平滑变化 */
+.cmt-chip-enter-active,
+.cmt-chip-leave-active {
+  transition:
+    opacity var(--n-duration-fast, 160ms) var(--n-ease),
+    transform var(--n-duration-fast, 160ms) var(--n-ease),
+    margin-bottom var(--n-duration-fast, 160ms) var(--n-ease);
+}
+
+.cmt-chip-enter-from,
+.cmt-chip-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+  margin-bottom: 0;
 }
 
 .cmt__input {
@@ -517,5 +545,18 @@ async function remove(comment) {
   display: flex;
   justify-content: center;
   padding: 4px 0 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cmt-chip-enter-active,
+  .cmt-chip-leave-active,
+  .cmt__composer {
+    transition: opacity var(--n-duration-instant, 90ms) linear;
+  }
+
+  .cmt-chip-enter-from,
+  .cmt-chip-leave-to {
+    transform: none;
+  }
 }
 </style>
