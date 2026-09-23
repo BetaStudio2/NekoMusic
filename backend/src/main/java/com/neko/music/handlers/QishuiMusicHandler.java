@@ -30,9 +30,11 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>{@code POST /loser/qishui/login/expire} —— 作废当前二维码</li>
  *   <li>{@code GET /loser/qishui/login/state} —— 当前登录态与 Cookie 概况</li>
  *   <li>{@code POST /loser/qishui/login/logout} —— 删除后端保存的 Cookie</li>
+ *   <li>{@code GET|POST /loser/qishui/getSongListDetail} —— 歌单详情（{@code playlist_id} 支持纯 ID / 分享链接）</li>
  * </ul>
  *
- * <p>登录成功后 Cookie 由 {@link QishuiMusicClient} 持久化，后续汽水接口可直接复用。</p>
+ * <p>登录成功后 Cookie 由 {@link QishuiMusicClient} 持久化，后续汽水接口可直接复用。
+ * 歌单为只读元数据，公开歌单免登录；导入到站内歌单见 {@code /loser/qishui/pull}。</p>
  */
 public class QishuiMusicHandler extends ApiServlet {
 
@@ -85,6 +87,7 @@ public class QishuiMusicHandler extends ApiServlet {
                 case "/login/mfa/upsms" -> upsmsVerify(request, response);
                 case "/login/mfa/resend" -> resendAfterVerify(request, response);
                 case "/login/expire" -> expireQrcode(request, response);
+                case "/getSongListDetail", "/playlist/detail" -> fetchPlaylistDetail(request, response);
                 case "/login/state" -> sendState(response);
                 case "/login/logout", "/login/clear" -> logout(response);
                 default -> sendErrorData(response, HttpServletResponse.SC_NOT_FOUND, "接口不存在");
@@ -245,6 +248,29 @@ public class QishuiMusicHandler extends ApiServlet {
         Map<String, Object> payload = new LinkedHashMap<>();
         putQrcodeFields(payload, data);
         sendSuccess(response, "ok", payload);
+    }
+
+    /** 歌单详情：ID 支持纯数字、{@code playlist/{id}}、{@code playlist_id=} 与汽水/抖音短链。 */
+    private void fetchPlaylistDetail(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        String input = firstNonBlank(request.getParameter("playlist_id"),
+                request.getParameter("url"), request.getParameter("id"));
+        if (input == null || input.isBlank()) {
+            throw new IllegalArgumentException("缺少有效的 playlist_id（汽水歌单 ID 或分享链接）");
+        }
+        input = input.trim();
+        if (input.length() > 2048) {
+            throw new IllegalArgumentException("playlist_id 过长");
+        }
+        sendSuccess(response, "ok", client().fetchPlaylistDetailRaw(input));
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private void sendState(HttpServletResponse response) throws IOException {

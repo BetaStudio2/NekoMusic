@@ -256,13 +256,16 @@ public final class ServletRegistrar {
         ServletHolder kugouMusicSongListDetailHolder = new ServletHolder(new KugouMusicSongListDetailHandler());
         context.addServlet(kugouMusicSongListDetailHolder, "/loser/kugou/getSongListDetail");
 
-        // QQ / 网易云 / 酷狗歌单导入并加入指定歌单（SSE 进度），需要用户令牌
+        // QQ / 网易云 / 酷狗 / 汽水歌单导入并加入指定歌单（SSE 进度），需要用户令牌
         ServletHolder neteaseImportHolder = new ServletHolder(new ExternalImportHandler());
         context.addServlet(neteaseImportHolder, "/loser/netease/pull");
         ServletHolder qqImportHolder = new ServletHolder(new ExternalImportHandler());
         context.addServlet(qqImportHolder, "/loser/qq/pull");
         ServletHolder kugouImportHolder = new ServletHolder(new ExternalImportHandler());
         context.addServlet(kugouImportHolder, "/loser/kugou/pull");
+        // 精确路径优先于 /loser/qishui/*，因此 /pull 走导入、其余走登录/歌单代理
+        ServletHolder qishuiImportHolder = new ServletHolder(new ExternalImportHandler());
+        context.addServlet(qishuiImportHolder, "/loser/qishui/pull");
 
         // 汽水音乐（抖音音乐）登录页与账号 Cookie 管理：/loser/qishui/login
         ServletHolder qishuiMusicHolder = new ServletHolder(new QishuiMusicHandler());
