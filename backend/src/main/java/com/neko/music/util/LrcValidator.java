@@ -22,6 +22,14 @@ public class LrcValidator {
     // 时间戳正则表达式：[mm:ss.x] 到 [mm:ss.xxxxx] (1-5位毫秒)
     private static final Pattern TIME_STAMP_PATTERN = Pattern.compile("\\[(\\d{2}):(\\d{2})\\.(\\d{1,5})\\]");
 
+    /** 网易云偶发返回的 [mm:ss:ms] 时间轴，第三段实际仍是毫秒。 */
+    private static final Pattern NETEASE_COLON_TIMESTAMP_PATTERN =
+            Pattern.compile("\\[(\\d{2}):(\\d{2}):(\\d{1,5})\\]");
+    private static final Pattern NETEASE_MISSING_MILLISECONDS_PATTERN =
+            Pattern.compile("\\[(\\d{2}):(\\d{2})\\]");
+    private static final Pattern STANDARD_TIMESTAMP_TOKEN_PATTERN =
+            Pattern.compile("\\[\\d{2}:\\d{2}\\.\\d{1,5}\\]");
+
     // 翻译行正则表达式：{"翻译内容"} 或 {'翻译内容'}
     private static final Pattern TRANSLATION_PATTERN = Pattern.compile("^\\{[\"'](.+)[\"']\\}$");
 
@@ -52,6 +60,58 @@ public class LrcValidator {
 
         // 3. 校验歌词格式
         return validateLyricsFormat(lines);
+    }
+
+    /**
+     * 修复网易云歌词接口偶发返回的 [mm:ss:ms] 时间轴。
+     * 该格式只在网易云自动入库前使用，普通上传歌词仍按严格 LRC 规则校验。
+     */
+    public static String normalizeNeteaseTimestamps(String lyrics) {
+        if (lyrics == null || lyrics.isEmpty()) {
+            return lyrics;
+        }
+        Matcher matcher = NETEASE_COLON_TIMESTAMP_PATTERN.matcher(lyrics);
+        StringBuffer normalized = new StringBuffer();
+        while (matcher.find()) {
+            matcher.appendReplacement(normalized,
+                    Matcher.quoteReplacement("[" + matcher.group(1) + ":" + matcher.group(2)
+                            + "." + matcher.group(3) + "]"));
+        }
+        matcher.appendTail(normalized);
+
+        Matcher missingMilliseconds = NETEASE_MISSING_MILLISECONDS_PATTERN.matcher(normalized);
+        StringBuffer completed = new StringBuffer();
+        while (missingMilliseconds.find()) {
+            missingMilliseconds.appendReplacement(completed,
+                    Matcher.quoteReplacement("[" + missingMilliseconds.group(1) + ":"
+                            + missingMilliseconds.group(2) + ".0]"));
+        }
+        missingMilliseconds.appendTail(completed);
+
+        // 多时间戳行是合法 LRC（同一句歌词在多个时间点出现），展开后兼容严格校验器。
+        String[] lines = completed.toString().split("\\R", -1);
+        StringBuilder expanded = new StringBuilder(completed.length());
+        for (String line : lines) {
+            Matcher timestamps = STANDARD_TIMESTAMP_TOKEN_PATTERN.matcher(line);
+            List<String> tokens = new ArrayList<>();
+            int prefixEnd = 0;
+            while (timestamps.find() && timestamps.start() == prefixEnd) {
+                tokens.add(timestamps.group());
+                prefixEnd = timestamps.end();
+            }
+            if (tokens.size() > 1) {
+                String lyric = line.substring(prefixEnd);
+                for (String token : tokens) {
+                    expanded.append(token).append(lyric).append('\n');
+                }
+            } else {
+                expanded.append(line).append('\n');
+            }
+        }
+        if (expanded.length() > 0) {
+            expanded.setLength(expanded.length() - 1);
+        }
+        return expanded.toString();
     }
 
     /**
@@ -137,9 +197,9 @@ public class LrcValidator {
                                     String.format("第%d行时间戳的分钟数无效（0-59）", i + 1)
                             );
                         }
-                        if (seconds < 0 || seconds > 59) {
+                        if (seconds < 0 || seconds > 60) {
                             return ValidationResult.fail(
-                                    String.format("第%d行时间戳的秒数无效（0-59）", i + 1)
+                                    String.format("第%d行时间戳的秒数无效（0-60）", i + 1)
                             );
                         }
                         // 毫秒数根据位数判断范围
