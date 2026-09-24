@@ -11,6 +11,8 @@ import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class NotificationService {
     private static final Logger logger = LoggerFactory.getLogger(NotificationService.class);
@@ -20,6 +22,11 @@ public class NotificationService {
     private final String webhookUrl;
     private final String authToken;
     private final CloseableHttpClient httpClient;
+    private final ExecutorService asyncExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "webhook-notification");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     public NotificationService(ConfigManager configManager) {
         this.configManager = configManager;
@@ -84,18 +91,38 @@ public class NotificationService {
         }
     }
 
-    /**
-     * 发送音乐审核通过通知
-     * @param musicTitle 音乐标题
-     * @param artist 艺术家
-     * @param uploadUserId 上传用户ID
-     * @return 是否发送成功
-     */
-//    public boolean sendMusicApprovedNotification(String musicTitle, String artist, int uploadUserId) {
-//        String message = String.format("音乐审已通过！\n标题: %s\n艺术家: %s\n上传用户ID: %d",
-//            musicTitle, artist, uploadUserId);
-//        return sendNotification(message);
-//    }
+    /** 异步发送网易云歌词校验失败通知，不阻塞歌曲入库。 */
+    public void scheduleNeteaseInvalidLyricsNotification(
+            long neteaseSongId,
+            int ingestedMusicId,
+            String title,
+            String artist,
+            String rawLyrics,
+            String validationReason
+    ) {
+        asyncExecutor.execute(() -> {
+            String lyrics = rawLyrics == null ? "" : rawLyrics;
+            if (lyrics.length() > 8_000) {
+                lyrics = lyrics.substring(0, 8_000) + "\n...(歌词已截断)";
+            }
+            String message = "网易云自动爬虫 · 歌词 LRC 校验失败\n"
+                    + "歌曲：" + safe(title) + " — " + safe(artist) + "\n"
+                    + "曲库 ID：" + ingestedMusicId + "\n"
+                    + "网易云 ID：" + neteaseSongId + "\n"
+                    + "失败原因：" + safe(validationReason) + "\n\n"
+                    + "lrc 原文：\n" + lyrics;
+            try {
+                sendNotification(message);
+            } catch (Exception e) {
+                logger.warn("异步发送网易云歌词校验失败 Webhook 异常 neteaseSongId={} musicId={}: {}",
+                        neteaseSongId, ingestedMusicId, e.getMessage(), e);
+            }
+        });
+    }
+
+    private static String safe(String value) {
+        return value == null ? "" : value;
+    }
 
     private String sanitizeForNotification(String input) {
         if (input == null) {
