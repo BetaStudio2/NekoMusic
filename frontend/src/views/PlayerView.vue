@@ -1313,16 +1313,6 @@ onUnmounted(() => {
    上一首、播放条已经下一首」的错位。
    ========================================================================== */
 
-/** 全局当前曲目变化 → 把播放页地址切到新曲目（replace，不污染历史） */
-watch(
-  () => playback.currentMusic?.id,
-  (id) => {
-    if (!id) return
-    if (String(route.params.id) === String(id)) return
-    router.replace(`/detail/${id}`)
-  }
-)
-
 /** 路由曲目变化（含上面 replace 的结果）→ 重新载入详情与歌词 */
 watch(
   () => route.params.id,
