@@ -88,6 +88,14 @@ class LrcValidatorTest {
         assertTrue(validate("[00:60.00]歌词").isValid());
     }
 
+    @Test
+    void normalizesPaddedSeconds() {
+        String normalized = LrcValidator.normalizeNeteaseTimestamps("[02:033.58]歌词");
+
+        assertTrue(normalized.contains("[02:33.58]歌词"));
+        assertTrue(validate(normalized).isValid());
+    }
+
     private static LrcValidator.ValidationResult validate(String content) {
         byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
         return LrcValidator.validate(new ByteArrayInputStream(bytes), bytes.length);
