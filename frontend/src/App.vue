@@ -18,6 +18,7 @@ import GlobalPlayer from './components/GlobalPlayer.vue'
 import MobileAppBanner from './components/MobileAppBanner.vue'
 import AuthDialog from './components/AuthDialog.vue'
 import { isMobileDevice } from './utils/mobile.js'
+import PwaInstallPrompt from './components/PwaInstallPrompt.vue'
 
 const route = useRoute()
 
@@ -125,6 +126,7 @@ onUnmounted(() => {
     />
 
     <MobileAppBanner v-if="showAppBanner" />
+    <PwaInstallPrompt />
 
     <main :class="{ 'main--flush': isFlushMain }">
       <RouterView />
