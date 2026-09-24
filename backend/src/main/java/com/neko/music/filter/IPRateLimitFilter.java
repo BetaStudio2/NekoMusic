@@ -50,8 +50,7 @@ public class IPRateLimitFilter implements Filter {
 
         HttpServletRequest httpRequest = (HttpServletRequest) request;
 
-        if (isMusicUploadApiPath(httpRequest) || isZpayNotifyPath(httpRequest)
-                || isQishuiLoginPath(httpRequest)) {
+        if (isMusicUploadApiPath(httpRequest) || isZpayNotifyPath(httpRequest)) {
             chain.doFilter(request, response);
             return;
         }
@@ -101,15 +100,6 @@ public class IPRateLimitFilter implements Filter {
             return "/";
         }
         return path.startsWith("/") ? path : "/" + path;
-    }
-
-    /**
-     * 汽水音乐扫码登录全程需要前端每 2 秒轮询一次状态（扫码 / 二次验证 / 确认都要等），
-     * 会远超默认的每分钟限额，因此登录相关路径不参与 IP 限流。
-     */
-    private static boolean isQishuiLoginPath(HttpServletRequest req) {
-        String path = requestPath(req);
-        return path.equals("/loser/qishui/login") || path.startsWith("/loser/qishui/login/");
     }
 
     /** ZPay 异步通知由平台服务器回调，不参与 IP 限流，避免通知失败。 */

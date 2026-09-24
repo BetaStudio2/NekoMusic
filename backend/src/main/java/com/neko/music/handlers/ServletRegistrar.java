@@ -263,13 +263,9 @@ public final class ServletRegistrar {
         context.addServlet(qqImportHolder, "/loser/qq/pull");
         ServletHolder kugouImportHolder = new ServletHolder(new ExternalImportHandler());
         context.addServlet(kugouImportHolder, "/loser/kugou/pull");
-        // 精确路径优先于 /loser/qishui/*，因此 /pull 走导入、其余走登录/歌单代理
+        // 汽水歌单导入保留为独立接口；登录和其它汽水页面不再注册
         ServletHolder qishuiImportHolder = new ServletHolder(new ExternalImportHandler());
         context.addServlet(qishuiImportHolder, "/loser/qishui/pull");
-
-        // 汽水音乐（抖音音乐）登录页与账号 Cookie 管理：/loser/qishui/login
-        ServletHolder qishuiMusicHolder = new ServletHolder(new QishuiMusicHandler());
-        context.addServlet(qishuiMusicHolder, "/loser/qishui/*");
 
         // 网易云常用只读接口（兼容 NeteaseCloudMusicApi 路径），需要用户令牌
         ServletHolder neteaseCloudMusicHolder = new ServletHolder(new NeteaseCloudMusicHandler());

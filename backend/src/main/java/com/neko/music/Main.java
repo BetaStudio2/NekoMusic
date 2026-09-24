@@ -36,7 +36,6 @@ import com.neko.music.service.NeteaseSearchFillService;
 import com.neko.music.service.ExternalImportService;
 import com.neko.music.service.QQMusicClient;
 import com.neko.music.service.KugouMusicClient;
-import com.neko.music.service.QishuiMusicClient;
 import com.neko.music.service.MusicRecognitionService;
 import com.neko.music.service.VideoRenderService;
 import org.eclipse.jetty.server.Server;
@@ -109,7 +108,6 @@ public class Main {
     private static ExternalImportService externalImportService;
     private static QQMusicClient qqMusicClient;
     private static KugouMusicClient kugouMusicClient;
-    private static QishuiMusicClient qishuiMusicClient;
     private static AppReleaseService appReleaseService;
     private static DailyRecommendationService dailyRecommendationService;
     private static LyricsSearchIndex lyricsSearchIndex;
@@ -205,7 +203,6 @@ public class Main {
         Runtime.getRuntime().addShutdownHook(new Thread(neteaseSearchFillService::shutdown, "netease-fill-shutdown"));
         qqMusicClient = new QQMusicClient(objectMapper);
         kugouMusicClient = new KugouMusicClient(objectMapper);
-        qishuiMusicClient = new QishuiMusicClient(objectMapper);
         dailyRecommendationService = new DailyRecommendationService(
                 databaseManager, redisService, configManager, objectMapper);
         startDailyRecommendationScheduler();
@@ -226,7 +223,7 @@ public class Main {
                 playlistService,
                 qqMusicClient,
                 kugouMusicClient,
-                qishuiMusicClient);
+                new QishuiMusicClient(objectMapper));
         Runtime.getRuntime().addShutdownHook(new Thread(externalImportService::shutdown, "external-import-shutdown"));
         
         // 初始化通知服务
@@ -385,9 +382,6 @@ public class Main {
         return kugouMusicClient;
     }
 
-    public static QishuiMusicClient getQishuiMusicClient() {
-        return qishuiMusicClient;
-    }
 
     public static NeteaseCloudMusicClient getNeteaseCloudMusicClient() {
         return neteaseCloudMusicClient;
