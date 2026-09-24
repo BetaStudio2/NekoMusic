@@ -8,6 +8,7 @@ import VueToastification from 'vue-toastification'
 import 'vue-toastification/dist/index.css'
 import { installBenignPlayAbortGuard } from './utils/benignPlayAbort'
 import { getToken, loadUserInfo } from './utils/userStore.js'
+import { registerPwa } from './utils/pwa.js'
 
 const app = createApp(App)
 
@@ -63,6 +64,7 @@ if (import.meta.env.DEV) {
 installBenignPlayAbortGuard()
 
 app.use(router)
+registerPwa()
 app.use(VueToastification, {
   position: 'top-right',
   timeout: 3000,
