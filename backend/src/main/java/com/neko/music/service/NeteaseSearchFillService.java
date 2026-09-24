@@ -544,13 +544,22 @@ public class NeteaseSearchFillService {
         if (result.isPresent()) {
             int ingestedMusicId = result.get().id();
             lyricsPrep.invalidLyricsAlert().ifPresent(alert ->
-                    Main.getEmailService().scheduleNeteaseInvalidLyricsAlertToAdmins(
-                            alert.neteaseSongId(),
-                            ingestedMusicId,
-                            alert.title(),
-                            alert.artist(),
-                            alert.fullOriginalLyrics(),
-                            alert.reason()));
+                    {
+                        Main.getEmailService().scheduleNeteaseInvalidLyricsAlertToAdmins(
+                                alert.neteaseSongId(),
+                                ingestedMusicId,
+                                alert.title(),
+                                alert.artist(),
+                                alert.fullOriginalLyrics(),
+                                alert.reason());
+                        Main.getNotificationService().scheduleNeteaseInvalidLyricsNotification(
+                                alert.neteaseSongId(),
+                                ingestedMusicId,
+                                alert.title(),
+                                alert.artist(),
+                                alert.fullOriginalLyrics(),
+                                alert.reason());
+                    });
         }
         return result;
     }
