@@ -414,6 +414,9 @@ const checkMobile = () => isMobileDevice()
 /** 详情请求序号：连续快速切歌时，只允许最后一次请求写回，避免慢的旧响应覆盖新曲目 */
 let detailRequestSeq = 0
 
+/** 防止直接进入其它详情页时复用旧播放器曲目；URL 目标必须先成为当前曲目。 */
+let initialRouteMusicId = null
+
 /**
  * 取一首曲目的轻量信息。切歌瞬间 GlobalPlayer 已经把新曲目广播给了桥接层，
  * 先拿它把界面切过去，就不必等 /api/music/info 返回 —— 否则请求期间界面
@@ -421,6 +424,9 @@ let detailRequestSeq = 0
  */
 const getCachedTrack = (musicId) => {
   const id = String(musicId)
+  if (initialRouteMusicId !== null && id === initialRouteMusicId) {
+    return null
+  }
   if (playback.currentMusic && String(playback.currentMusic.id) === id) {
     return playback.currentMusic
   }
@@ -431,6 +437,13 @@ const getCachedTrack = (musicId) => {
     /* ignore */
   }
   return null
+}
+
+const playRouteMusic = () => {
+  const id = String(route.params.id || '')
+  if (!id) return
+  if (String(playback.currentMusic?.id || '') === id) return
+  sendPlayerCommand('playMusic', { musicId: id })
 }
 
 // 获取音乐详情
@@ -467,14 +480,8 @@ const fetchMusicDetail = async (musicId) => {
 const loadMusicById = async (musicId) => {
   const id = String(musicId)
 
-  // 切歌先把上一首的信息撤干净：有缓存就直接显示新曲目，没有就回到
-  // 「加载曲目中…」占位。不能一边请求新曲目、一边继续展示上一首。
-  const cached = getCachedTrack(id)
-  if (cached) {
-    currentMusic.value = cached
-  } else if (String(currentMusic.value?.id) !== id) {
-    currentMusic.value = null
-  }
+  // 详情页展示 URL 指定的曲目；播放引擎只在用户明确操作后切换。
+  currentMusic.value = null
 
   lyrics.value = ''
   parsedLyrics.value = []
@@ -1267,11 +1274,13 @@ onMounted(async () => {
   }
 
   const musicId = route.params.id
+  initialRouteMusicId = musicId ? String(musicId) : null
   if (checkMobile() && musicId) {
     tryOpenMusicDetailInApp(musicId)
   }
 
   if (musicId) {
+    playRouteMusic()
     await loadMusicById(String(musicId))
   }
 
@@ -1318,6 +1327,7 @@ watch(
   () => route.params.id,
   (id) => {
     if (!id) return
+    playRouteMusic()
     if (String(currentMusic.value?.id) === String(id)) return
     loadMusicById(String(id))
   }

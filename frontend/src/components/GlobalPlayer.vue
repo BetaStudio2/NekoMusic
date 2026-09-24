@@ -574,8 +574,26 @@ const seekTo = (seconds) => {
  * 因此不会改变既有契约与行为。
  */
 const handlePlayerCommand = (e) => {
-  const { action, time, index } = e?.detail || {}
+  const { action, time, index, musicId } = e?.detail || {}
   switch (action) {
+    case 'playMusic': {
+      const target = playlist.value.find((item) => String(item.id) === String(musicId))
+      if (target) {
+        const targetIndex = playlist.value.indexOf(target)
+        playFromPlaylist(targetIndex)
+      } else {
+        fetch(`${API_CONFIG.BASE_URL}/api/music/info/${musicId}`)
+          .then((response) => response.json())
+          .then((data) => {
+            if (!data.success || !data.data) return
+            playlist.value.push(data.data)
+            localStorage.setItem('globalPlaylist', JSON.stringify(playlist.value))
+            playFromPlaylist(playlist.value.length - 1)
+          })
+          .catch(() => {})
+      }
+      break
+    }
     case 'toggle':
       togglePlayPause()
       break
