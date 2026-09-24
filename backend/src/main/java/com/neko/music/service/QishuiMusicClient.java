@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -110,8 +111,37 @@ public class QishuiMusicClient {
         return id.find() ? id.group(1) : null;
     }
 
+    private static final Set<String> ALLOWED_SHORT_LINK_HOSTS = Set.of(
+            "qishui.com",
+            "www.qishui.com"
+    );
+
+    private static boolean isAllowedHost(String host) {
+        if (host == null || host.isBlank()) return false;
+        String normalized = host.toLowerCase(Locale.ROOT);
+        if (ALLOWED_SHORT_LINK_HOSTS.contains(normalized)) return true;
+        for (String allowed : ALLOWED_SHORT_LINK_HOSTS) {
+            if (normalized.endsWith("." + allowed)) return true;
+        }
+        return false;
+    }
+
+    private static boolean isAllowedRedirectUrl(String rawUrl) {
+        try {
+            URI uri = URI.create(rawUrl);
+            String scheme = uri.getScheme();
+            if (scheme == null) return false;
+            String normalizedScheme = scheme.toLowerCase(Locale.ROOT);
+            if (!"http".equals(normalizedScheme) && !"https".equals(normalizedScheme)) return false;
+            return isAllowedHost(uri.getHost());
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
     private String resolveRedirectId(String url, int depth) {
         if (depth > 3) return null;
+        if (!isAllowedRedirectUrl(url)) return null;
         try {
             HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                     .timeout(Duration.ofSeconds(10))
@@ -124,7 +154,7 @@ public class QishuiMusicClient {
             if (location.isEmpty()) return null;
             String id = extractIdFromUrl(location);
             if (id != null) return id;
-            return SHORT_LINK_PATTERN.matcher(location).find()
+            return SHORT_LINK_PATTERN.matcher(location).find() && isAllowedRedirectUrl(location)
                     ? resolveRedirectId(location, depth + 1) : null;
         } catch (IllegalArgumentException | IOException e) {
             logger.debug("解析汽水短链失败 url={}: {}", url, e.getMessage());
