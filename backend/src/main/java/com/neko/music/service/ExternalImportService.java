@@ -114,6 +114,10 @@ public class ExternalImportService {
         });
     }
 
+    public QishuiMusicClient getQishuiMusicClient() {
+        return qishuiMusicClient;
+    }
+
     /** 网易云歌单 / 指定歌曲导入。 */
     public void startNeteaseImport(Long neteasePlaylistId, List<Long> songIds, int targetPlaylistId,
                                    boolean targetPlaylistCreated, Listener listener) {
