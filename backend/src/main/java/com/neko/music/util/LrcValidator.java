@@ -29,6 +29,8 @@ public class LrcValidator {
             Pattern.compile("\\[(\\d{2}):(\\d{2})\\]");
     private static final Pattern STANDARD_TIMESTAMP_TOKEN_PATTERN =
             Pattern.compile("\\[\\d{2}:\\d{2}\\.\\d{1,5}\\]");
+    private static final Pattern NETEASE_PADDED_SECONDS_PATTERN =
+            Pattern.compile("\\[(\\d{2}):(\\d{1,3})\\.(\\d{1,5})\\]");
 
     // 翻译行正则表达式：{"翻译内容"} 或 {'翻译内容'}
     private static final Pattern TRANSLATION_PATTERN = Pattern.compile("^\\{[\"'](.+)[\"']\\}$");
@@ -88,9 +90,25 @@ public class LrcValidator {
         }
         missingMilliseconds.appendTail(completed);
 
+        // 网易云偶发返回三位秒数（如 033），去掉多余前导零并规范为两位。
+        Matcher paddedSeconds = NETEASE_PADDED_SECONDS_PATTERN.matcher(completed);
+        StringBuffer secondsNormalized = new StringBuffer();
+        while (paddedSeconds.find()) {
+            int seconds = Integer.parseInt(paddedSeconds.group(2));
+            if (seconds <= 60) {
+                paddedSeconds.appendReplacement(secondsNormalized,
+                        Matcher.quoteReplacement("[" + paddedSeconds.group(1) + ":"
+                                + String.format("%02d", seconds) + "." + paddedSeconds.group(3) + "]"));
+            } else {
+                paddedSeconds.appendReplacement(secondsNormalized,
+                        Matcher.quoteReplacement(paddedSeconds.group()));
+            }
+        }
+        paddedSeconds.appendTail(secondsNormalized);
+
         // 多时间戳行是合法 LRC（同一句歌词在多个时间点出现），展开后兼容严格校验器。
-        String[] lines = completed.toString().split("\\R", -1);
-        StringBuilder expanded = new StringBuilder(completed.length());
+        String[] lines = secondsNormalized.toString().split("\\R", -1);
+        StringBuilder expanded = new StringBuilder(secondsNormalized.length());
         for (String line : lines) {
             Matcher timestamps = STANDARD_TIMESTAMP_TOKEN_PATTERN.matcher(line);
             List<String> tokens = new ArrayList<>();
