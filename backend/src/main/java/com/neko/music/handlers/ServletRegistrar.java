@@ -266,6 +266,8 @@ public final class ServletRegistrar {
         // 汽水歌单导入保留为独立接口；登录和其它汽水页面不再注册
         ServletHolder qishuiImportHolder = new ServletHolder(new ExternalImportHandler());
         context.addServlet(qishuiImportHolder, "/loser/qishui/pull");
+        ServletHolder qishuiDetailHolder = new ServletHolder(new QishuiPlaylistDetailHandler());
+        context.addServlet(qishuiDetailHolder, "/loser/qishui/getSongListDetail");
 
         // 网易云常用只读接口（兼容 NeteaseCloudMusicApi 路径），需要用户令牌
         ServletHolder neteaseCloudMusicHolder = new ServletHolder(new NeteaseCloudMusicHandler());
