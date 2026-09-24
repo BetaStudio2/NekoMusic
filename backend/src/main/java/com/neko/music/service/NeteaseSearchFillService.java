@@ -598,6 +598,7 @@ public class NeteaseSearchFillService {
         }
 
         if (!lrc.isBlank()) {
+            lrc = LrcValidator.normalizeNeteaseTimestamps(lrc);
             Files.writeString(lyricsTemp, lrc);
             try (InputStream in = Files.newInputStream(lyricsTemp)) {
                 long size = Files.size(lyricsTemp);
