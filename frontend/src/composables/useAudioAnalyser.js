@@ -27,6 +27,8 @@ const state = {
   source: null,
   analyser: null,
   freq: null,
+  /** Float32 频域缓冲（dB 值），供频谱条使用，不受 min/maxDecibels 截断影响 */
+  floatFreq: null,
   attachedEl: null,
   builtEl: null,
   unlocked: false,
@@ -73,6 +75,7 @@ function build(el) {
       state.source = null
       state.analyser = null
       state.freq = null
+      state.floatFreq = null
       state.ready = false
       analyserReady.value = false
     }
@@ -181,6 +184,24 @@ export function useAudioAnalyser() {
       state.analyser.getByteFrequencyData(state.freq)
       const n = Math.min(target.length, state.freq.length)
       for (let i = 0; i < n; i++) target[i] = state.freq[i]
+      return true
+    },
+    /**
+     * 读取原始频域数据（dB 值，Float32）。与 read() 不同，这里不受
+     * AnalyserNode 的 min/maxDecibels 截断影响，调用方可自行选择合适的
+     * 动态范围做映射 —— 频谱条用它来避免大音量时整排满量程。
+     * @param {Float32Array} target
+     * @returns {boolean}
+     */
+    readFloat(target) {
+      if (!state.analyser || !target) return false
+      const bins = state.analyser.frequencyBinCount
+      if (!state.floatFreq || state.floatFreq.length !== bins) {
+        state.floatFreq = new Float32Array(bins)
+      }
+      state.analyser.getFloatFrequencyData(state.floatFreq)
+      const n = Math.min(target.length, state.floatFreq.length)
+      for (let i = 0; i < n; i++) target[i] = state.floatFreq[i]
       return true
     },
     /**

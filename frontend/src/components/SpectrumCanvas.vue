@@ -24,7 +24,32 @@ const props = defineProps({
 })
 
 const canvasRef = ref(null)
-const { read } = useAudioAnalyser()
+const { readFloat } = useAudioAnalyser()
+
+/**
+ * 频谱映射的 dB 动态范围。
+ * 浏览器默认 maxDecibels = -30，音乐在副歌/主歌时绝大多数频点都超过它，
+ * getByteFrequencyData 会把它们统统截成 255 —— 表现就是整排条子满量程。
+ * 这里改用原始 dB 值，并给出 ~80dB 的动态范围 + 软限幅，既保留细节又永不触顶。
+ */
+const MIN_DB = -90
+const MAX_DB = -10
+
+/** dB → 0..1，并裁掉范围外的值 */
+function dbToUnit(db) {
+  if (!Number.isFinite(db)) return 0
+  const v = (db - MIN_DB) / (MAX_DB - MIN_DB)
+  return v <= 0 ? 0 : v >= 1 ? 1 : v
+}
+
+/**
+ * 软限幅（soft-knee）：x≤knee 时近似线性，越接近上限压缩越强，
+ * 永远到不了 ceil，因此不会出现「满量程」的齐平顶。
+ */
+function softLimit(x, ceil = 0.92, knee = 0.72) {
+  if (x <= knee) return x
+  return knee + (ceil - knee) * (1 - Math.exp(-(x - knee) / (ceil - knee)))
+}
 
 let rafId = 0
 let resizeObserver = null
@@ -71,7 +96,7 @@ function ensureBuffers() {
     levels = new Array(props.bars).fill(0)
   }
   if (!freqBuf || freqBuf.length !== props.bars * 4) {
-    freqBuf = new Uint8Array(props.bars * 4)
+    freqBuf = new Float32Array(props.bars * 4)
   }
 }
 
@@ -94,7 +119,7 @@ function draw() {
 
   ensureBuffers()
 
-  const hasData = read(freqBuf)
+  const hasData = readFloat(freqBuf)
   let maxLevel = 0
 
   if (hasData) {
@@ -106,12 +131,12 @@ function draw() {
       let count = 0
       const start = i * step
       for (let j = start; j < start + step && j < freqBuf.length; j++) {
-        sum += freqBuf[j]
+        sum += dbToUnit(freqBuf[j])
         count++
       }
-      const avg = count ? sum / count / 255 : 0
-      // 低频增强，视觉更均衡
-      const boosted = Math.min(1, Math.pow(avg, 0.78) * 1.12)
+      const avg = count ? sum / count : 0
+      // 低频/小能量增强，视觉更均衡；再做软限幅，保证永远不满量程
+      const boosted = softLimit(Math.pow(avg, 0.82) * 1.05)
       // 快起慢落
       levels[i] = boosted > levels[i] ? boosted : levels[i] * 0.86 + boosted * 0.14
       if (levels[i] > maxLevel) maxLevel = levels[i]
