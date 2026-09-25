@@ -155,6 +155,7 @@ import { useToast } from '@/composables/useToast'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NInput, NModal, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
+import { playTracks, playTrackInList } from '@/composables/usePlaybackBridge'
 import { tryOpenPlaylistInApp } from '@/utils/nativeAppOpen.js'
 import { getUser } from '@/utils/userStore.js'
 import { coverSrcset } from '@/utils/coverImage'
@@ -233,39 +234,18 @@ const fetchPlaylistInfo = async () => {
   }
 }
 
+/** 把歌单里的曲目整理成全局播放器认识的曲目对象 */
+const toTrack = (music) => ({
+  id: music.id,
+  title: music.title,
+  artist: music.artist,
+  album: music.album || '',
+  duration: music.duration || 0,
+})
+
 const playMusic = (music) => {
-  const musicData = {
-    id: music.id,
-    title: music.title,
-    artist: music.artist,
-    album: music.album || '',
-    duration: music.duration || 0,
-    coverUrl: music.coverPath ? `${API_CONFIG.BASE_URL}${music.coverPath}` : null,
-    fileUrl: `${API_CONFIG.BASE_URL}/api/music/file/${music.id}`
-  }
-  
-  localStorage.setItem('currentPlayingMusic', JSON.stringify(musicData))
-  
-  const state = {
-    isPlaying: true,
-    currentTime: 0.1,
-    duration: musicData.duration
-  }
-  localStorage.setItem('globalPlayerState', JSON.stringify(state))
-  
-  const event = new CustomEvent('playerStateChange', {
-    detail: {
-      isPlaying: state.isPlaying,
-      currentTime: state.currentTime,
-      duration: state.duration,
-      currentMusic: musicData
-    }
-  })
-  window.dispatchEvent(event)
-  
-  setTimeout(() => {
-    window.dispatchEvent(new Event('forcePlay'))
-  }, 10)
+  // 以歌单为播放队列，保证「下一首」能接着播放
+  playTrackInList(toTrack(music), musicList.value.map(toTrack))
 }
 
 const playAll = () => {
@@ -273,34 +253,9 @@ const playAll = () => {
     toast.warning('歌单为空')
     return
   }
-  
-  // 将整个歌单设置为播放列表
-  const playlist = musicList.value.map(music => ({
-    id: music.id,
-    title: music.title,
-    artist: music.artist,
-    album: music.album || '',
-    duration: music.duration || 0,
-    coverUrl: music.coverPath ? `${API_CONFIG.BASE_URL}${music.coverPath}` : null,
-    fileUrl: `${API_CONFIG.BASE_URL}/api/music/file/${music.id}`
-  }))
-  
-  localStorage.setItem('globalPlaylist', JSON.stringify(playlist))
-  
-  // 广播播放列表更新事件
-  const playlistEvent = new CustomEvent('playlistUpdated', {
-    detail: {
-      playlist: playlist
-    }
-  })
-  window.dispatchEvent(playlistEvent)
-  
-  // 播放第一首
-  if (playlist.length > 0) {
-    playMusic(musicList.value[0])
-  }
-  
-  toast.success(`已开始播放全部 ${playlist.length} 首歌曲`)
+
+  playTracks(musicList.value.map(toTrack), 0)
+  toast.success(`已开始播放全部 ${musicList.value.length} 首歌曲`)
 }
 
 const formatDuration = (seconds) => {

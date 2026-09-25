@@ -56,15 +56,21 @@ public final class SiteResourceHandler extends HttpServlet {
         }
 
         long size = Files.size(resource);
-        String contentType = Files.probeContentType(resource);
+        // 已知扩展名优先用显式映射（如 .webmanifest 在部分系统上会被 probeContentType
+        // 误判为 text/plain），未知扩展名再回退到系统 MIME 探测。
+        String contentType = contentTypeFor(resource);
         if (contentType == null) {
-            contentType = contentTypeFor(resource);
+            contentType = Files.probeContentType(resource);
         }
         if (contentType != null) {
             response.setContentType(contentType);
         }
         response.setContentLengthLong(size);
-        if (fallback || resource.getFileName().toString().equals("index.html")) {
+        String fileName = resource.getFileName().toString().toLowerCase(Locale.ROOT);
+        // index.html / Service Worker / Web App Manifest 必须可及时更新：
+        // 缓存住 sw.js 会让新版本迟迟无法被发现；缓存住 manifest 会让图标与名称改动滞后。
+        if (fallback || fileName.equals("index.html")
+                || fileName.equals("sw.js") || fileName.endsWith(".webmanifest")) {
             response.setHeader("Cache-Control", "no-cache");
         } else if (requestPath.startsWith("/assets/")) {
             response.setHeader("Cache-Control", "public, max-age=31536000, immutable");
@@ -126,6 +132,7 @@ public final class SiteResourceHandler extends HttpServlet {
         if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
         if (name.endsWith(".png")) return "image/png";
         if (name.endsWith(".webp")) return "image/webp";
-        return "application/octet-stream";
+        // 未知扩展名交给 Files.probeContentType 兜底（字体等）
+        return null;
     }
 }

@@ -465,27 +465,6 @@ const safePlay = (el) => {
   }
 }
 
-/**
- * 切歌/指定曲目后的统一「起播」入口。
- *
- * 为什么必须等 nextTick：<audio> 是 v-if="currentMusic" 渲染的，
- * 刚把 currentMusic 写下去时元素可能还不存在；而它的 src 又绑定在
- * currentMusic.id 上，Vue 会在同一个 tick 内把 src 改写掉 ——
- * 若在这之前手动 load()+play()，随后的 src 改写会立刻打断 play()，
- * 既报 AbortError，也可能最终谁都没在播。
- * 等 DOM 打完补丁再起播，就没有这个问题，也就不需要手动 load()。
- */
-const playCurrentTrack = async () => {
-  await nextTick()
-  const el = audioPlayer.value
-  if (!el) return
-  isPlaying.value = true
-  updateGlobalPlayerState()
-  fadeIn(el)
-  safePlay(el)
-  updateMediaSessionPlaybackState()
-}
-
 // 音频结束事件
 // 音频结束事件 - 现在根据播放模式处理
 const onAudioEnded = () => {
@@ -574,26 +553,13 @@ const seekTo = (seconds) => {
  * 因此不会改变既有契约与行为。
  */
 const handlePlayerCommand = (e) => {
-  const { action, time, index, musicId } = e?.detail || {}
+  const { action, time, index, track, musicId } = e?.detail || {}
   switch (action) {
-    case 'playMusic': {
-      const target = playlist.value.find((item) => String(item.id) === String(musicId))
-      if (target) {
-        const targetIndex = playlist.value.indexOf(target)
-        playFromPlaylist(targetIndex)
-      } else {
-        fetch(`${API_CONFIG.BASE_URL}/api/music/info/${musicId}`)
-          .then((response) => response.json())
-          .then((data) => {
-            if (!data.success || !data.data) return
-            playlist.value.push(data.data)
-            localStorage.setItem('globalPlaylist', JSON.stringify(playlist.value))
-            playFromPlaylist(playlist.value.length - 1)
-          })
-          .catch(() => {})
-      }
+    case 'playMusic':
+      // 播放页直接进入 /detail/:id 时按 id 起播（上游契约）：
+      // 队列里有就切过去，没有就取详情补进队列再切。统一直落 switchToTrack。
+      playMusicById(musicId)
       break
-    }
     case 'toggle':
       togglePlayPause()
       break
@@ -614,6 +580,10 @@ const handlePlayerCommand = (e) => {
       break
     case 'cycleMode':
       togglePlaybackMode()
+      break
+    case 'playTrack':
+      // 全站统一入口：由页面经 usePlaybackBridge.playTrack/playTracks 发来
+      switchToTrack(track)
       break
     case 'playIndex':
       playFromPlaylist(index)
@@ -639,9 +609,13 @@ const updateGlobalPlayerState = () => {
 
 // 广播播放器状态变化
 const broadcastPlayerStateChange = () => {
-  // 创建自定义事件来通知播放状态变化
+  // 创建自定义事件来通知播放状态变化。
+  // source 标记：GlobalPlayer 自身也监听 playerStateChange（用于响应外部指令），
+  // 必须能区分「自己的广播」与「外部指令」，否则处理自己的广播会形成回声，
+  // 出现「界面已经切到新歌、又被旧事件拉回去」。
   const event = new CustomEvent('playerStateChange', {
     detail: {
+      source: 'globalPlayer',
       isPlaying: isPlaying.value,
       currentTime: currentTime.value,
       duration: duration.value,
@@ -683,8 +657,11 @@ const getLyricsUrl = (musicId) => {
 const loadLyrics = async (musicId) => {
   try {
     const response = await fetch(getLyricsUrl(musicId))
+    // 期间已经切歌：丢弃过期歌词，别把上一首的歌词盖到新曲目上
+    if (String(currentMusic.value?.id) !== String(musicId)) return
     if (response.ok) {
       const data = await response.json()
+      if (String(currentMusic.value?.id) !== String(musicId)) return
       if (data.success) {
         lyrics.value = data.data
         parseLrcLyrics(data.data)
@@ -894,36 +871,8 @@ const togglePlaylist = () => {
 // 从播放列表播放
 const playFromPlaylist = (index) => {
   if (playlist.value[index]) {
-    // 先暂停当前音频
-    if (audioPlayer.value && !audioPlayer.value.paused) {
-      audioPlayer.value.pause();
-    }
-    
-    // 重置播放时间并立即更新UI（从0.1开始）
-    currentTime.value = 0.1
-    duration.value = 0
-    progress.value = 0.1
-    updateGlobalPlayerState()
-    
-    // 设置为当前播放的音乐
-    localStorage.setItem('currentPlayingMusic', JSON.stringify(playlist.value[index]))
-    currentMusic.value = playlist.value[index]
-    isPlaying.value = true
-    
-    // 重新加载歌词
-    loadLyrics(playlist.value[index].id)
-    
-    // 切歌 + 起播统一交给 handleForcePlay：等 Vue 把 <audio> 的 :src 补成
-    // 新曲目后再起播。不要在这里手动 load()/play()，那会和 :src 绑定互抢，
-    // 既报 AbortError，也可能「界面在播、实际没播」（见 handleForcePlay 注释）。
-    handleForcePlay()
-    
-    // 更新媒体会话元数据
-    updateMediaSessionMetadata(playlist.value[index])
-    // 更新播放状态
-    updateMediaSessionPlaybackState()
-    // 广播：否则播放页等订阅方不知道当前曲目已经换了
-    broadcastPlayerStateChange()
+    // 切歌 + 起播统一走 switchToTrack（唯一写入点）
+    switchToTrack(playlist.value[index])
   }
   // 关闭播放列表
   showPlaylist.value = false
@@ -941,135 +890,45 @@ const loadPlaybackMode = () => {
   }
 }
 
-// 播放下一首
+/**
+ * 播放下一首。
+ * @param {boolean} fromEnded 是否由 ended 事件触发（仅影响随机模式是否单独处理）
+ */
 const playNext = (fromEnded = false) => {
   if (!currentMusic.value || playlist.value.length === 0) return
-  
+
   const currentIndex = playlist.value.findIndex(item => item.id === currentMusic.value.id)
   let nextIndex
-  
+
   if (playbackMode.value === 'shuffle') {
     nextIndex = getRandomIndex(currentIndex)
   } else {
-    nextIndex = (currentIndex + 1) % playlist.value.length
+    // currentIndex 为 -1（当前曲目不在列表里）时，从列表头开始
+    nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % playlist.value.length
   }
-  
+
   if (nextIndex !== -1 && playlist.value[nextIndex]) {
-    // 设置新音乐到localStorage
-    localStorage.setItem('currentPlayingMusic', JSON.stringify(playlist.value[nextIndex]))
-    currentMusic.value = playlist.value[nextIndex]
-    
-    // 加载新音乐的歌词
-    loadLyrics(playlist.value[nextIndex].id)
-    
-    // 关键区别：根据来源参数执行不同逻辑
-    if (fromEnded) {
-      // 来自 ended 事件：不暂停，直接换源并播放
-      if (audioPlayer.value) {
-        // 监听 canplay 事件，确保在音频可以播放后再播放
-        const onCanPlay = () => {
-          // 确保时间从0.2开始
-          audioPlayer.value.currentTime = 0.2
-          currentTime.value = 0.2
-          progress.value = 0.2
-          updateGlobalPlayerState()
-          updateMediaSessionPositionState()
-          safePlay(audioPlayer.value)
-          // 移除事件监听器
-          audioPlayer.value.removeEventListener('canplay', onCanPlay)
-        }
-        
-        // 设置新的音频源
-        audioPlayer.value.src = `${API_CONFIG.BASE_URL}/api/music/file/${playlist.value[nextIndex].id}`
-        // 添加事件监听器
-        audioPlayer.value.addEventListener('canplay', onCanPlay)
-      }
-    } else {
-      // 手动切歌：统一走 handleForcePlay —— 等 Vue 把 <audio> 的 :src
-      // 补成新曲目后再起播。不要在这里手动 load()/play()，那会和
-      // :src 绑定互抢，既报 AbortError，也可能「界面在播、实际没播」。
-      handleForcePlay()
-    }
-    
-    // 确保UI立即更新时间轴（从0.1开始）
-    currentTime.value = 0.1
-    duration.value = 0
-    progress.value = 0.1
-    updateGlobalPlayerState()
-    
-    // 更新媒体会话元数据
-    updateMediaSessionMetadata(playlist.value[nextIndex])
-    // 更新播放状态
-    updateMediaSessionPlaybackState()
-    // 手动切歌（含播放页「下一首」）：广播新曲目；
-    // 来自 ended 的情况由 onAudioEnded 统一广播，避免重复。
-    if (!fromEnded) broadcastPlayerStateChange()
+    switchToTrack(playlist.value[nextIndex])
   }
 }
 
 // 播放上一首
 const playPrevious = (fromEnded = false) => {
   if (!currentMusic.value || playlist.value.length === 0) return
-  
+
   const currentIndex = playlist.value.findIndex(item => item.id === currentMusic.value.id)
   let prevIndex
-  
+
   if (playbackMode.value === 'shuffle') {
     prevIndex = getRandomIndex(currentIndex)
   } else {
-    prevIndex = (currentIndex - 1 + playlist.value.length) % playlist.value.length
+    prevIndex = currentIndex === -1
+      ? playlist.value.length - 1
+      : (currentIndex - 1 + playlist.value.length) % playlist.value.length
   }
-  
+
   if (prevIndex !== -1 && playlist.value[prevIndex]) {
-    // 设置新音乐到localStorage
-    localStorage.setItem('currentPlayingMusic', JSON.stringify(playlist.value[prevIndex]))
-    currentMusic.value = playlist.value[prevIndex]
-    
-    // 加载新音乐的歌词
-    loadLyrics(playlist.value[prevIndex].id)
-    
-    // 关键区别：根据来源参数执行不同逻辑
-    if (fromEnded) {
-      // 来自 ended 事件：不暂停，直接换源并播放
-      if (audioPlayer.value) {
-        // 监听 canplay 事件，确保在音频可以播放后再播放
-        const onCanPlay = () => {
-          // 确保时间从0.2开始
-          audioPlayer.value.currentTime = 0.2
-          currentTime.value = 0.2
-          progress.value = 0.2
-          updateGlobalPlayerState()
-          updateMediaSessionPositionState()
-          safePlay(audioPlayer.value)
-          // 移除事件监听器
-          audioPlayer.value.removeEventListener('canplay', onCanPlay)
-        }
-        
-        // 设置新的音频源
-        audioPlayer.value.src = `${API_CONFIG.BASE_URL}/api/music/file/${playlist.value[prevIndex].id}`
-        // 添加事件监听器
-        audioPlayer.value.addEventListener('canplay', onCanPlay)
-      }
-    } else {
-      // 手动切歌：统一走 handleForcePlay —— 等 Vue 把 <audio> 的 :src
-      // 补成新曲目后再起播。不要在这里手动 load()/play()，那会和
-      // :src 绑定互抢，既报 AbortError，也可能「界面在播、实际没播」。
-      handleForcePlay()
-    }
-    
-    // 确保UI立即更新时间轴（从0.1开始）
-    currentTime.value = 0.1
-    duration.value = 0
-    progress.value = 0.1
-    updateGlobalPlayerState()
-    
-    // 更新媒体会话元数据
-    updateMediaSessionMetadata(playlist.value[prevIndex])
-    // 更新播放状态
-    updateMediaSessionPlaybackState()
-    // 手动切歌（含播放页「上一首」）：广播新曲目；
-    // 来自 ended 的情况由 onAudioEnded 统一广播，避免重复。
-    if (!fromEnded) broadcastPlayerStateChange()
+    switchToTrack(playlist.value[prevIndex])
   }
 }
 
@@ -1088,60 +947,12 @@ const getRandomIndex = (currentIndex) => {
 // 播放下一首（随机模式）
 const playNextInShuffle = (fromEnded = false) => {
   if (!currentMusic.value || playlist.value.length === 0) return
-  
+
   const currentIndex = playlist.value.findIndex(item => item.id === currentMusic.value.id)
   const nextIndex = getRandomIndex(currentIndex)
-  
+
   if (nextIndex !== -1 && playlist.value[nextIndex]) {
-    // 设置新音乐到localStorage
-    localStorage.setItem('currentPlayingMusic', JSON.stringify(playlist.value[nextIndex]))
-    currentMusic.value = playlist.value[nextIndex]
-    
-    // 加载新音乐的歌词
-    loadLyrics(playlist.value[nextIndex].id)
-    
-    // 关键区别：根据来源参数执行不同逻辑
-    if (fromEnded) {
-      // 来自 ended 事件：不暂停，直接换源并播放
-      if (audioPlayer.value) {
-        // 监听 canplay 事件，确保在音频可以播放后再播放
-        const onCanPlay = () => {
-          // 确保时间从0.2开始
-          audioPlayer.value.currentTime = 0.2
-          currentTime.value = 0.2
-          progress.value = 0.2
-          updateGlobalPlayerState()
-          updateMediaSessionPositionState()
-          safePlay(audioPlayer.value)
-          // 移除事件监听器
-          audioPlayer.value.removeEventListener('canplay', onCanPlay)
-        }
-        
-        // 设置新的音频源
-        audioPlayer.value.src = `${API_CONFIG.BASE_URL}/api/music/file/${playlist.value[nextIndex].id}`
-        // 添加事件监听器
-        audioPlayer.value.addEventListener('canplay', onCanPlay)
-      }
-    } else {
-      // 手动切歌：统一走 handleForcePlay —— 等 Vue 把 <audio> 的 :src
-      // 补成新曲目后再起播。不要在这里手动 load()/play()，那会和
-      // :src 绑定互抢，既报 AbortError，也可能「界面在播、实际没播」。
-      handleForcePlay()
-    }
-    
-    // 确保UI立即更新时间轴（从0.1开始）
-    currentTime.value = 0.1
-    duration.value = 0
-    progress.value = 0.1
-    updateGlobalPlayerState()
-    
-    // 更新媒体会话元数据
-    updateMediaSessionMetadata(playlist.value[nextIndex])
-    // 更新播放状态
-    updateMediaSessionPlaybackState()
-    // 手动切歌（含播放页「下一首」）：广播新曲目；
-    // 来自 ended 的情况由 onAudioEnded 统一广播，避免重复。
-    if (!fromEnded) broadcastPlayerStateChange()
+    switchToTrack(playlist.value[nextIndex])
   }
 }
 
@@ -1152,100 +963,32 @@ const handleStorageChange = (e) => {
   if (e.key === 'currentPlayingMusic') {
     // 只有在音乐实际改变时才重置播放器
     const newMusic = e.newValue ? JSON.parse(e.newValue) : null;
-    if (newMusic && (!currentMusic.value || newMusic.id !== currentMusic.value.id)) {
-      // 先暂停当前音频
-      if (audioPlayer.value && !audioPlayer.value.paused) {
-        audioPlayer.value.pause();
+    if (newMusic && (!currentMusic.value || String(newMusic.id) !== String(currentMusic.value.id))) {
+      // 跨标签页切歌：同样收敛到 switchToTrack，避免再手写 src/load 的竞态。
+      // 尊重另一个标签页写入的播放状态（可能是暂停着切歌）。
+      let shouldPlay = true
+      try {
+        const stored = JSON.parse(localStorage.getItem('globalPlayerState') || 'null')
+        if (stored && typeof stored.isPlaying === 'boolean') shouldPlay = stored.isPlaying
+      } catch {
+        /* ignore */
       }
-      
-      // 音乐改变了，更新当前音乐并重置播放器
-      currentMusic.value = newMusic;
-      
-      // 检查当前音乐是否在播放列表中，如果不在则添加进去
-      if (newMusic && playlist.value) {
-        const existingIndex = playlist.value.findIndex(item => item.id === newMusic.id);
-        if (existingIndex === -1) {
-          // 如果当前音乐不在播放列表中，则添加到列表中
-          playlist.value.push(newMusic);
-          // 同时保存到 localStorage
-          localStorage.setItem('globalPlaylist', JSON.stringify(playlist.value));
-        }
-      }
-      
-      // 重置播放时间并立即更新UI
-      currentTime.value = 0
-      duration.value = 0
-      progress.value = 0
-      updateGlobalPlayerState()
-      
-      // 更新媒体会话播放位置
-      updateMediaSessionPositionState()
-      
-      if (audioPlayer.value) {
-        // 设置新的音频源
-        audioPlayer.value.src = `${API_CONFIG.BASE_URL}/api/music/file/${newMusic.id}`;
-        
-        // 检查播放状态，如果应该播放则开始播放
-        const storedState = localStorage.getItem('globalPlayerState');
-        let shouldPlay = false;
-        
-        if (storedState) {
-          const state = JSON.parse(storedState);
-          shouldPlay = state.isPlaying;
-        } else {
-          // 如果没有播放状态信息，默认播放（因为用户点击了播放按钮）
-          shouldPlay = true;
-        }
-        
-        // 监听 canplay 事件，一旦音频可以播放就立即播放
-        const onCanPlay = () => {
-          audioPlayer.value.currentTime = 0.1; // 确保从0.1开始播放
-          currentTime.value = 0.1;
-          progress.value = 0.1;
-          updateGlobalPlayerState();
-          
-          if (shouldPlay) {
-            // 设置播放状态
-            isPlaying.value = true;
-            fadeIn(audioPlayer.value);
-            safePlay(audioPlayer.value);
-            broadcastPlayerStateChange(); // 确保其他组件同步状态
-          } else {
-            // 如果不应该播放，确保播放状态为 false
-            isPlaying.value = false;
-            broadcastPlayerStateChange();
+
+      switchToTrack(newMusic).then(() => {
+        if (!shouldPlay) {
+          isPlaying.value = false
+          if (audioPlayer.value) {
+            audioPlayer.value.volume = 0
+            audioPlayer.value.pause()
           }
-          // 移除事件监听器
-          audioPlayer.value.removeEventListener('canplay', onCanPlay);
-        };
-        
-        // 添加 canplay 事件监听器
-        audioPlayer.value.addEventListener('canplay', onCanPlay);
-        
-        // 调用 load() 来加载新资源
-        audioPlayer.value.load();
-      }
-      
-      // 加载新音乐的歌词
-      if (newMusic) {
-        loadLyrics(newMusic.id)
-        // 更新媒体会话元数据
-        updateMediaSessionMetadata(newMusic)
-        // 更新媒体会话播放位置
-        updateMediaSessionPositionState()
-        // 检查收藏状态
-        checkFavoriteStatus()
-      } else {
-        lyrics.value = ''
-        parsedLyrics.value = []
-        isFavorite.value = false
-        // 清除媒体会话元数据
-        if ('mediaSession' in navigator) {
-          navigator.mediaSession.metadata = null
+          updateGlobalPlayerState()
+          broadcastPlayerStateChange()
+          updateMediaSessionPlaybackState()
         }
-        // 更新媒体会话播放位置
-        updateMediaSessionPositionState()
-      }
+      })
+
+      // 检查收藏状态
+      checkFavoriteStatus()
     } else if (!e.newValue) {
       // 没有音乐了，暂停播放器
       currentMusic.value = null;
@@ -1384,55 +1127,95 @@ const handleForcePlay = async () => {
   updateMediaSessionPlaybackState()
 }
 
+/**
+ * 统一切歌 / 起播入口（本组件唯一允许改写「当前曲目」的地方）。
+ * ------------------------------------------------------------
+ * 为什么必须收敛到一处：此前「切歌」分散在 hash、外部 playerStateChange、
+ * forcePlay 以及各页面直接写 localStorage 等多条路径里，每条都在不同时机
+ * 改 currentMusic、手动改 <audio>.src 并调 load()，彼此抢同一个媒体元素，
+ * 既报 AbortError，也会「点新歌又跳回上一首」。现在：
+ *   - 只改响应式状态；
+ *   - 资源加载完全交给模板的 :src 绑定；
+ *   - 等 DOM 打完补丁再起播（handleForcePlay），不再手动 load()。
+ */
+const switchToTrack = async (track) => {
+  if (!track || track.id == null) return
+
+  const isSame = currentMusic.value && String(currentMusic.value.id) === String(track.id)
+
+  if (!isSame) {
+    currentMusic.value = track
+    duration.value = Number(track.duration) || 0
+    loadLyrics(track.id)
+    updateMediaSessionMetadata(track)
+  }
+
+  // 单曲入口（hash / 跨标签页）可能只给了曲目、没同步列表，这里补齐
+  if (!playlist.value.some((item) => String(item?.id) === String(track.id))) {
+    playlist.value.push(track)
+    localStorage.setItem('globalPlaylist', JSON.stringify(playlist.value))
+    window.dispatchEvent(
+      new CustomEvent('playlistUpdated', { detail: { playlist: playlist.value } })
+    )
+  }
+
+  localStorage.setItem('currentPlayingMusic', JSON.stringify(track))
+  currentTime.value = 0.1
+  progress.value = 0.1
+  if (!duration.value) duration.value = Number(track.duration) || 0
+  isPlaying.value = true
+  updateGlobalPlayerState()
+
+  // handleForcePlay 内部会 await nextTick、设置起始时间、淡入播放并广播
+  await handleForcePlay()
+}
+
+/**
+ * 按曲目 id 起播（播放页直接进入 /detail/:id 时由 playMusic 指令触发）。
+ * 队列里有就切；没有就取详情补进队列再切。最终都落在 switchToTrack。
+ */
+const playMusicById = async (musicId) => {
+  if (musicId == null || musicId === '') return
+
+  const target = playlist.value.find((item) => String(item?.id) === String(musicId))
+  if (target) {
+    await switchToTrack(target)
+    return
+  }
+
+  try {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/info/${musicId}`)
+    const data = await response.json()
+    if (!data?.success || !data.data) return
+    const track = data.data
+    if (!playlist.value.some((item) => String(item?.id) === String(track.id))) {
+      playlist.value.push(track)
+      localStorage.setItem('globalPlaylist', JSON.stringify(playlist.value))
+      window.dispatchEvent(
+        new CustomEvent('playlistUpdated', { detail: { playlist: playlist.value } })
+      )
+    }
+    await switchToTrack(track)
+  } catch (error) {
+    console.warn('[player] 按 id 起播失败', error)
+  }
+}
+
 // 处理自定义播放状态变化事件
 const handlePlayerStateChange = (e) => {
   const state = e.detail;
-  
-  // 检查是否正在切换到新音乐
-  if (currentMusic.value && state.currentMusic && currentMusic.value.id !== state.currentMusic.id) {
-    // 如果是切换到新音乐，更新当前音乐并切换音频源
-    currentMusic.value = state.currentMusic;
-    
-    // 重置播放时间（从0.1开始）
-    currentTime.value = 0.1;
-    duration.value = 0;
-    progress.value = 0.1;
-    updateGlobalPlayerState();
-    updateMediaSessionPositionState();
-    
-    // 切换音频源
-    if (audioPlayer.value) {
-      audioPlayer.value.src = `${API_CONFIG.BASE_URL}/api/music/file/${state.currentMusic.id}`;
-      
-      const onCanPlay = () => {
-        audioPlayer.value.currentTime = 0.1;
-        currentTime.value = 0.1;
-        progress.value = 0.1;
-        updateGlobalPlayerState();
-        
-        if (state.isPlaying) {
-          isPlaying.value = true;
-          fadeIn(audioPlayer.value);
-          safePlay(audioPlayer.value);
-        }
-        
-        audioPlayer.value.removeEventListener('canplay', onCanPlay);
-        updateMediaSessionPlaybackState();
-      };
-      
-      audioPlayer.value.addEventListener('canplay', onCanPlay);
-      audioPlayer.value.load();
-    }
-    
-    // 加载新音乐的歌词
-    loadLyrics(state.currentMusic.id);
-    // 更新媒体会话元数据
-    updateMediaSessionMetadata(state.currentMusic);
-    
-    return; // 处理完音乐切换后直接返回
+
+  // 跳过本组件的自身广播：那是「状态通知」，不是「切歌指令」。
+  // （此前会在这里处理自己刚发出的广播，与新曲目互相覆盖，是回声来源之一）
+  if (state?.source === 'globalPlayer') return
+
+  // 外部传入的 currentMusic 若与本组件当前曲目不一致，一律不在这里切歌：
+  // 所有切歌请求都必须走 playTrack 指令 → switchToTrack（唯一写入点）。
+  if (state.currentMusic && state.currentMusic.id != null) {
+    if (`${currentMusic.value?.id}` !== `${state.currentMusic.id}`) return
   }
-  
-  // 否则是同一首音乐的时间更新
+
+  // 同一首音乐的时间 / 播放态更新
   currentTime.value = state.currentTime;
   duration.value = state.duration;
   progress.value = state.currentTime;
@@ -1585,9 +1368,10 @@ onMounted(() => {
     
     // 如果全局播放器应该正在播放，则同步播放状态
     isPlaying.value = state.isPlaying;
-    
-    // 如果当前音乐存在且播放状态为播放，则尝试播放
-    if (currentMusic.value && isPlaying.value && audioPlayer.value) {
+
+    // 恢复上次的播放：<audio> 是 v-if 渲染的，挂载这一刻 ref 通常还是 null，
+    // 所以不能加 audioPlayer 判断；handleForcePlay 内部会 await nextTick 再取元素。
+    if (currentMusic.value && isPlaying.value) {
       setTimeout(() => {
         handleForcePlay();
       }, 100); // 稍微延迟确保组件完全加载
@@ -1610,24 +1394,9 @@ const handleHashChange = () => {
     // 单曲播放
     try {
       const musicData = JSON.parse(decodeURIComponent(hash.substring(6)))
-      currentMusic.value = musicData
-      localStorage.setItem('currentPlayingMusic', JSON.stringify(musicData))
 
-      // 确保音乐在播放列表中
-      if (playlist.value) {
-        const existingIndex = playlist.value.findIndex(item => item.id === musicData.id)
-        if (existingIndex === -1) {
-          playlist.value.push(musicData)
-          localStorage.setItem('globalPlaylist', JSON.stringify(playlist.value))
-        }
-      }
-
-      // 加载歌词并开始播放
-      // 不要手动 load()：<audio> 的 src 绑定在 currentMusic.id 上，
-      // Vue 会在本次 tick 改写 src 并自行发起加载，手动 load() 只会
-      // 打断紧接着的 play()。统一交给 playCurrentTrack（内部等 nextTick）。
-      loadLyrics(musicData.id)
-      playCurrentTrack()
+      // 统一切歌入口：内部会把曲目补进播放列表、写状态、等 DOM 补丁后起播
+      switchToTrack(musicData)
 
       // 清除hash（保留 vue-router 写入的 history.state，否则下次导航报 R0121）
       clearUrlHash()
@@ -1647,11 +1416,7 @@ const handleHashChange = () => {
 
       // 播放指定索引的音乐
       if (playlistData[startIndex]) {
-        currentMusic.value = playlistData[startIndex]
-        localStorage.setItem('currentPlayingMusic', JSON.stringify(playlistData[startIndex]))
-
-        loadLyrics(playlistData[startIndex].id)
-        playCurrentTrack()
+        switchToTrack(playlistData[startIndex])
       }
 
       // 清除hash（保留 vue-router 写入的 history.state，否则下次导航报 R0121）

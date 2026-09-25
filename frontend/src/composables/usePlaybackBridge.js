@@ -163,6 +163,102 @@ export function sendPlayerCommand(action, payload = {}) {
   window.dispatchEvent(new CustomEvent('playerCommand', { detail: { action, ...payload } }))
 }
 
+/** 读取当前播放列表（容错，损坏时回退空数组） */
+function readPlaylist() {
+  const list = safeParse(localStorage.getItem('globalPlaylist'), [])
+  return Array.isArray(list) ? list : []
+}
+
+/** 写入播放列表并广播，确保 GlobalPlayer 与桥接层同步 */
+function writePlaylist(list) {
+  localStorage.setItem('globalPlaylist', JSON.stringify(list))
+  window.dispatchEvent(new CustomEvent('playlistUpdated', { detail: { playlist: list } }))
+}
+
+/**
+ * 统一「开始播放某首曲目」入口。
+ * ------------------------------------------------------------
+ * 背景：此前各页面各自写 localStorage + 事件（甚至只写 localStorage 就跳路由），
+ * 与 GlobalPlayer 的响应式状态互相覆盖，会出现「点新歌跳回上一首」。
+ * 现在所有页面都调用这里：状态由本模块写入，真正的切歌/起播交给
+ * GlobalPlayer 的 `playTrack` 指令（唯一所有权），避免多路写状态竞态。
+ *
+ * @param {object} track 曲目对象（至少含 id；title/artist/album/duration 用于展示）
+ */
+export function playTrack(track) {
+  if (!track || track.id == null) return
+
+  const list = readPlaylist()
+  const existing = list.findIndex((item) => String(item?.id) === String(track.id))
+  let index = existing
+  if (existing === -1) {
+    list.push(track)
+    index = list.length - 1
+  } else {
+    // 用最新元数据覆盖旧条目（标题 / 时长可能已更新）
+    list[existing] = track
+  }
+  writePlaylist(list)
+
+  localStorage.setItem('currentPlayingMusic', JSON.stringify(track))
+  localStorage.setItem(
+    'globalPlayerState',
+    JSON.stringify({ isPlaying: true, currentTime: 0.1, duration: track.duration || 0 }),
+  )
+
+  window.dispatchEvent(
+    new CustomEvent('playerCommand', { detail: { action: 'playTrack', track, index } }),
+  )
+}
+
+/**
+ * 从「当前列表」起播指定曲目：整份列表成为播放队列，并从该曲目开始。
+ * ------------------------------------------------------------
+ * 列表页点单曲的通用语义：队列 = 当前列表。这样「上一首 / 下一首」能在
+ * 该列表内前后切换；若只把单曲塞进队列，会出现「点了一首却无法下一首」。
+ * 列表里找不到该曲目时退回单曲播放，保证仍能出声。
+ *
+ * @param {object} track 被点的曲目（至少含 id）
+ * @param {object[]} list 该曲目所在的列表
+ */
+export function playTrackInList(track, list) {
+  if (!track || track.id == null) return
+  const tracks = Array.isArray(list) ? list : []
+  const index = tracks.findIndex((item) => String(item?.id) === String(track.id))
+  if (index >= 0) {
+    playTracks(tracks, index)
+  } else {
+    playTrack(track)
+  }
+}
+
+/**
+ * 统一「开始播放整个列表」入口。
+ *
+ * @param {object[]} tracks 完整播放列表（会整体替换 globalPlaylist）
+ * @param {number} [startIndex=0] 起始下标
+ */
+export function playTracks(tracks, startIndex = 0) {
+  if (!Array.isArray(tracks) || tracks.length === 0) return
+
+  const list = tracks.slice()
+  const index = Math.max(0, Math.min(Number(startIndex) || 0, list.length - 1))
+  const track = list[index]
+  if (!track || track.id == null) return
+
+  writePlaylist(list)
+
+  localStorage.setItem('currentPlayingMusic', JSON.stringify(track))
+  localStorage.setItem(
+    'globalPlayerState',
+    JSON.stringify({ isPlaying: true, currentTime: 0.1, duration: track.duration || 0 }),
+  )
+
+  window.dispatchEvent(
+    new CustomEvent('playerCommand', { detail: { action: 'playTrack', track, index } }),
+  )
+}
+
 /**
  * 订阅播放状态并发送指令。
  * 必须在组件 setup 中调用（内部使用 onMounted / onUnmounted 管理引用计数）。
