@@ -5,8 +5,7 @@
  * 契约（保持与旧实现一致，勿改）：
  *  - GET /api/user/favorites（Authorization: 裸 userToken）
  *  - DELETE /api/user/favorites/{id}
- *  - 播放：写 globalPlaylist / currentPlayingMusic / globalPlayerState，
- *    并广播 playlistUpdated / playerStateChange / forcePlay
+ *  - 播放：经 usePlaybackBridge.playTrack / playTracks 统一驱动 GlobalPlayer
  */
 import { ref, onMounted, watch } from 'vue'
 import API_CONFIG from '@/config/apiConfig.js'
@@ -16,6 +15,7 @@ import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
 import { openAuthDialog } from '@/composables/useAuthDialog'
 import { useAuth } from '@/composables/useAuth'
+import { playTracks, playTrackInList } from '@/composables/usePlaybackBridge'
 
 const toast = useToast()
 const { token: authToken } = useAuth()
@@ -57,38 +57,9 @@ async function fetchFavorites() {
   }
 }
 
-/** 播放单曲：沿用旧契约（localStorage + 事件，非 hash） */
+/** 播放单曲：以收藏列表为播放队列，保证「下一首」能接着播放 */
 function playMusic(music) {
-  const playlist = JSON.parse(localStorage.getItem('globalPlaylist') || '[]')
-  const existingIndex = playlist.findIndex((item) => item.id === music.id)
-  if (existingIndex === -1) {
-    playlist.push(music)
-    localStorage.setItem('globalPlaylist', JSON.stringify(playlist))
-    window.dispatchEvent(new CustomEvent('playlistUpdated', { detail: { playlist } }))
-  }
-
-  localStorage.setItem('currentPlayingMusic', JSON.stringify(music))
-
-  const state = {
-    isPlaying: true,
-    currentTime: 0.1,
-    duration: music.duration || 0,
-  }
-  localStorage.setItem('globalPlayerState', JSON.stringify(state))
-
-  window.dispatchEvent(
-    new CustomEvent('playerStateChange', {
-      detail: {
-        isPlaying: state.isPlaying,
-        currentTime: state.currentTime,
-        duration: state.duration,
-        currentMusic: music,
-      },
-    })
-  )
-
-  setTimeout(() => window.dispatchEvent(new Event('forcePlay')), 10)
-  setTimeout(() => window.dispatchEvent(new Event('forcePlay')), 100)
+  playTrackInList(music, favorites.value)
 }
 
 function playAllFavorites() {
@@ -96,9 +67,7 @@ function playAllFavorites() {
     toast.warning('收藏列表为空')
     return
   }
-  localStorage.setItem('globalPlaylist', JSON.stringify(favorites.value))
-  window.dispatchEvent(new CustomEvent('playlistUpdated', { detail: { playlist: favorites.value } }))
-  playMusic(favorites.value[0])
+  playTracks(favorites.value, 0)
   toast.success(`已开始播放全部 ${favorites.value.length} 首收藏音乐`)
 }
 

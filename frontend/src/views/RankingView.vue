@@ -2,7 +2,7 @@
 /**
  * RankingView —— 热门音乐排行榜
  * ------------------------------------------------------------
- * 契约：GET /api/music/ranking；播放经 hash #play / #playlist。
+ * 契约：GET /api/music/ranking；播放经 usePlaybackBridge 统一入口。
  */
 import { ref, onMounted } from 'vue'
 import API_CONFIG from '@/config/apiConfig.js'
@@ -10,6 +10,7 @@ import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
+import { playTracks, playTrackInList } from '@/composables/usePlaybackBridge'
 import { coverSrcset } from '@/utils/coverImage'
 
 const toast = useToast()
@@ -47,14 +48,14 @@ const toTrack = (music) => ({
 })
 
 function playMusic(music) {
-  window.location.hash = `#play=${encodeURIComponent(JSON.stringify(toTrack(music)))}`
+  // 以当前列表为播放队列，保证「下一首」能接着播放
+  playTrackInList(toTrack(music), rankingList.value.map(toTrack))
   toast.success(`开始播放：${music.title}`)
 }
 
 function playAll() {
   if (!rankingList.value.length) return
-  const payload = encodeURIComponent(JSON.stringify(rankingList.value.map(toTrack)))
-  window.location.hash = `#playlist=${payload}&index=0`
+  playTracks(rankingList.value.map(toTrack), 0)
   toast.success(`开始播放全部 ${rankingList.value.length} 首`)
 }
 

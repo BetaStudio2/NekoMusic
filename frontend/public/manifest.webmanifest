@@ -1,20 +1,63 @@
 {
+  "id": "/",
   "name": "Neko歌姬计划",
-  "short_name": "Neko Music",
-  "description": "免费、开源的在线音乐播放平台",
+  "short_name": "Neko音乐",
+  "description": "完全免费、开源、无广告的在线音乐播放平台：搜索、播放、歌单收藏与多端同步。",
+  "lang": "zh-CN",
+  "dir": "ltr",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "orientation": "portrait-primary",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#04090b",
   "theme_color": "#04090b",
-  "background_color": "#07060d",
-  "lang": "zh-CN",
+  "categories": ["music", "entertainment"],
+  "prefer_related_applications": false,
   "icons": [
     {
-      "src": "/favicon.ico",
-      "sizes": "any",
-      "type": "image/x-icon",
-      "purpose": "any maskable"
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "搜索音乐",
+      "short_name": "搜索",
+      "url": "/search",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "我的收藏",
+      "short_name": "收藏",
+      "url": "/favorites",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "热门排行",
+      "short_name": "排行",
+      "url": "/ranking",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

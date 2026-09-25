@@ -10,7 +10,7 @@
  *  - 否则 → 展示品牌文案（热门第一首 + 播放热门）
  *
  * 设计：黑偏青 + 圆角矩形；不使用侧边高亮条与区块级动画渐变。
- * 全局契约：播放经 hash #play / #playlist 驱动 GlobalPlayer（与列表页一致）。
+ * 全局契约：播放经 usePlaybackBridge.playTrack / playTracks 统一驱动 GlobalPlayer。
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import API_CONFIG from '@/config/apiConfig.js'
@@ -18,6 +18,7 @@ import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
+import { playTracks, playTrackInList } from '@/composables/usePlaybackBridge'
 import { coverSrcset } from '@/utils/coverImage'
 import { getUser } from '@/utils/userStore.js'
 
@@ -162,20 +163,20 @@ const toTrack = (m) => ({
   duration: m.duration,
 })
 
-const playMusic = (m) => {
-  window.location.hash = `#play=${encodeURIComponent(JSON.stringify(toTrack(m)))}`
+/** 点单曲：以所在列表为播放队列，保证能接着听「下一首」 */
+const playMusic = (m, list) => {
+  playTrackInList(toTrack(m), (Array.isArray(list) ? list : []).map(toTrack))
   toast.success(`开始播放：${m.title}`)
 }
 
 const playList = (list, label) => {
   if (!list.length) return
-  const payload = encodeURIComponent(JSON.stringify(list.map(toTrack)))
-  window.location.hash = `#playlist=${payload}&index=0`
+  playTracks(list.map(toTrack), 0)
   toast.success(`开始播放${label ? '：' + label : ''} ${list.length} 首`)
 }
 
 const playHero = () => {
-  if (heroFeature.value) playMusic(heroFeature.value)
+  if (heroFeature.value) playMusic(heroFeature.value, heroList.value)
 }
 
 const playHeroList = () => {
@@ -376,7 +377,7 @@ onUnmounted(() => {
               type="button"
               class="cover-card__hit"
               :aria-label="`播放 ${m.title}`"
-              @click="playMusic(m)"
+              @click="playMusic(m, hotList)"
             ></button>
           </article>
         </div>
@@ -418,7 +419,7 @@ onUnmounted(() => {
               type="button"
               class="cover-card__hit"
               :aria-label="`播放 ${m.title}`"
-              @click="playMusic(m)"
+              @click="playMusic(m, latestGrid)"
             ></button>
           </article>
         </div>

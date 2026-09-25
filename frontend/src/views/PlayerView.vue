@@ -446,6 +446,16 @@ const playRouteMusic = () => {
   sendPlayerCommand('playMusic', { musicId: id })
 }
 
+/** 已持久化的「当前正在播放」曲目 id（权威来源，用于过滤过期状态） */
+const getPersistedCurrentMusicId = () => {
+  try {
+    const stored = JSON.parse(localStorage.getItem('currentPlayingMusic') || 'null')
+    return stored?.id ?? null
+  } catch {
+    return null
+  }
+}
+
 // 获取音乐详情
 const fetchMusicDetail = async (musicId) => {
   const seq = ++detailRequestSeq
@@ -1321,6 +1331,23 @@ onUnmounted(() => {
    无论哪条来源，播放页都要跟着切到新曲目 —— 否则会出现「页面还停在
    上一首、播放条已经下一首」的错位。
    ========================================================================== */
+
+/**
+ * 全局当前曲目变化（上一首 / 下一首 / 自动切歌）→ 播放页地址跟随。
+ *
+ * 守卫：只跟随「确实已经持久化的当前曲目」。避免桥接层因旧事件短暂持有
+ * 上一首时，把播放页 replace 回上一首（即「跳回原状态」）。replace 不污染历史。
+ */
+watch(
+  () => playback.currentMusic?.id,
+  (id) => {
+    if (!id) return
+    const persisted = getPersistedCurrentMusicId()
+    if (!persisted || String(persisted) !== String(id)) return
+    if (String(route.params.id) === String(id)) return
+    router.replace(`/detail/${id}`)
+  }
+)
 
 /** 路由曲目变化（含上面 replace 的结果）→ 重新载入详情与歌词 */
 watch(

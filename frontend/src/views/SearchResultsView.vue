@@ -10,7 +10,7 @@
  *  - POST /api/playlists/search -> results[]
  *  - POST /api/artists/search  -> artist{name,musicCount,musicList}
  *  - 收藏：GET/POST/DELETE /api/user/favorites（Authorization: 裸 userToken）
- *  - 播放：写 globalPlaylist/currentPlayingMusic/globalPlayerState + 事件
+ *  - 播放：经 usePlaybackBridge 起播；点单曲以搜索结果整份列表为播放队列
  */
 import { ref, watch, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -19,6 +19,7 @@ import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
+import { playTrack, playTracks } from '@/composables/usePlaybackBridge'
 
 const toast = useToast()
 const route = useRoute()
@@ -150,7 +151,6 @@ async function runSearch(query) {
   }
 }
 
-const goMusicDetail = (result) => router.push(`/detail/${result.id}`)
 const goPlaylist = (pl) => router.push(`/playlist/${pl.id}`)
 
 /** 艺人搜索返回的曲目字段与单曲接口略有差异，统一成播放器/收藏可用的形状 */
@@ -185,31 +185,31 @@ const trackCoverUrl = (m) => {
   return getCoverUrl(m.id)
 }
 
-/** 播放：沿用旧契约（localStorage + 事件） */
-function playMusic(result) {
-  const playlist = JSON.parse(localStorage.getItem('globalPlaylist') || '[]')
-  const existingIndex = playlist.findIndex((item) => item.id === result.id)
-  if (existingIndex === -1) {
-    playlist.push(result)
-    localStorage.setItem('globalPlaylist', JSON.stringify(playlist))
-    window.dispatchEvent(new CustomEvent('playlistUpdated', { detail: { playlist } }))
-  }
+/** 播放器只认识这些字段，顺便把搜索结果/艺人结果的差异抹平 */
+const toTrack = (m) => ({
+  id: m.id,
+  title: m.title,
+  artist: m.artist,
+  album: m.album ?? '',
+  duration: m.duration ?? 0,
+})
 
-  localStorage.setItem('currentPlayingMusic', JSON.stringify(result))
-  const state = { isPlaying: true, currentTime: 0.1, duration: result.duration || 0 }
-  localStorage.setItem('globalPlayerState', JSON.stringify(state))
-  window.dispatchEvent(
-    new CustomEvent('playerStateChange', {
-      detail: {
-        isPlaying: state.isPlaying,
-        currentTime: state.currentTime,
-        duration: state.duration,
-        currentMusic: result,
-      },
-    })
-  )
-  setTimeout(() => window.dispatchEvent(new Event('forcePlay')), 10)
-  setTimeout(() => window.dispatchEvent(new Event('forcePlay')), 100)
+/**
+ * 从「当前这份列表」起播。
+ * ------------------------------------------------------------
+ * 关键：把整份列表作为播放队列，并从被点的位置开始。这样：
+ *  - 点歌曲就是「播放」而不是跳转（不再自动打开播放页）；
+ *  - 上一首 / 下一首 能在搜索结果里正常前后切换。
+ * 之前只把单曲塞进队列并跳播放页，导致页面看着在播、实际没起播，自然「无法下一首」。
+ */
+function playFromResult(result, list) {
+  const tracks = Array.isArray(list) ? list : []
+  if (!tracks.length) {
+    playTrack(toTrack(result))
+    return
+  }
+  const index = tracks.findIndex((item) => String(item?.id) === String(result?.id))
+  playTracks(tracks.map(toTrack), index >= 0 ? index : 0)
 }
 
 function mapContentTypeToExtension(contentType) {
@@ -412,7 +412,12 @@ onMounted(async () => {
             decoding="async"
             @error="handleImageError"
           />
-          <button type="button" class="row__info" @click="goMusicDetail(result)">
+          <button
+            type="button"
+            class="row__info"
+            :aria-label="`播放 ${result.title}`"
+            @click="playFromResult(result, musicResults)"
+          >
             <span class="row__title">
               <span class="row__title-text">{{ result.title }}</span>
               <NIcon v-if="result.lrc" name="file-text" :size="13" class="row__lyric" />
@@ -421,7 +426,13 @@ onMounted(async () => {
             <span class="row__sub">{{ result.album || '未知专辑' }}</span>
           </button>
           <div class="row__actions">
-            <NButton size="sm" variant="secondary" icon="play" title="播放" @click="playMusic(result)" />
+            <NButton
+              size="sm"
+              variant="secondary"
+              icon="play"
+              title="播放"
+              @click="playFromResult(result, musicResults)"
+            />
             <NButton
               size="sm"
               :variant="isFavorite(result.id) ? 'primary' : 'secondary'"
@@ -481,7 +492,12 @@ onMounted(async () => {
                 decoding="async"
                 @error="handleImageError"
               />
-              <button type="button" class="row__info" @click="goMusicDetail(result)">
+              <button
+                type="button"
+                class="row__info"
+                :aria-label="`播放 ${result.title}`"
+                @click="playFromResult(result, artistTracks)"
+              >
                 <span class="row__title">
                   <span class="row__title-text">{{ result.title }}</span>
                 </span>
@@ -489,7 +505,13 @@ onMounted(async () => {
                 <span class="row__sub">{{ result.album || '未知专辑' }}</span>
               </button>
               <div class="row__actions">
-                <NButton size="sm" variant="secondary" icon="play" title="播放" @click="playMusic(normalizeTrack(result))" />
+                <NButton
+                  size="sm"
+                  variant="secondary"
+                  icon="play"
+                  title="播放"
+                  @click="playFromResult(result, artistTracks)"
+                />
                 <NButton
                   size="sm"
                   :variant="isFavorite(result.id) ? 'primary' : 'secondary'"

@@ -17,8 +17,8 @@ import SiteFooter from './layouts/SiteFooter.vue'
 import GlobalPlayer from './components/GlobalPlayer.vue'
 import MobileAppBanner from './components/MobileAppBanner.vue'
 import AuthDialog from './components/AuthDialog.vue'
+import PwaUpdateBanner from './components/PwaUpdateBanner.vue'
 import { isMobileDevice } from './utils/mobile.js'
-import PwaInstallPrompt from './components/PwaInstallPrompt.vue'
 
 const route = useRoute()
 
@@ -117,6 +117,9 @@ onUnmounted(() => {
   >
     <AuthDialog />
 
+    <!-- 新版本 Service Worker 就绪时的刷新提示 -->
+    <PwaUpdateBanner />
+
     <SiteHeader
       ref="headerRef"
       class="app-chrome-header"
@@ -126,7 +129,6 @@ onUnmounted(() => {
     />
 
     <MobileAppBanner v-if="showAppBanner" />
-    <PwaInstallPrompt />
 
     <main :class="{ 'main--flush': isFlushMain }">
       <RouterView />

@@ -7,7 +7,7 @@
  * 行为契约（保持与旧实现一致，勿随意改动）：
  *  - localStorage：userToken（用户资料只在内存中，不落盘）
  *  - window 事件：storage、USER_VIP_SYNC_EVENT
- *  - 选中搜索结果：写 currentPlayingMusic 并跳 /detail/:id
+ *  - 选中搜索结果：直接播放（经 usePlaybackBridge），不再自动跳播放页
  *  - 回车：跳 /search?q=...（查询词走查询串，避免 / 被编码成 %2F 被 Jetty 400）
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
@@ -16,6 +16,8 @@ import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
 import { NInput, NButton } from '@/ui'
+import PwaInstallButton from '@/components/PwaInstallButton.vue'
+import { playTrack, playTracks } from '@/composables/usePlaybackBridge'
 import { syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
 import { avatarUrl, useAvatarVersion } from '@/utils/userAvatar.js'
 import { getUser, clearUser, loadUserInfo } from '@/utils/userStore.js'
@@ -126,8 +128,14 @@ async function performSearch() {
 }
 
 function selectResult(result) {
-  localStorage.setItem('currentPlayingMusic', JSON.stringify(result))
-  router.push(`/detail/${result.id}`)
+  // 只播放，不自动打开播放页：选中搜索结果的预期是「听这首」，
+  // 而不是被强制切走当前页面。需要看详情时点播放条封面即可。
+  // 把下拉里的整份结果作为播放队列，从被点的位置开始，
+  // 这样「下一首 / 上一首」能在这批搜索结果里正常切换。
+  const list = Array.isArray(searchResults.value) ? searchResults.value : []
+  const index = list.findIndex((item) => String(item?.id) === String(result?.id))
+  if (list.length) playTracks(list, index >= 0 ? index : 0)
+  else playTrack(result)
   searchSeq++
   searchResults.value = null
   showResults.value = false
@@ -226,6 +234,8 @@ onUnmounted(() => {
 
       <!-- 用户区 -->
       <div class="site-header__auth">
+        <!-- 可安装时出现；已安装/不支持时组件自身不渲染 -->
+        <PwaInstallButton />
         <template v-if="isLoggedIn">
           <RouterLink to="/account" class="site-header__user" title="个人中心">
             <img :src="userAvatar" alt="用户头像" class="site-header__avatar" @error="handleAvatarError" />
