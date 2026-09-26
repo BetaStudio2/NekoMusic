@@ -8,9 +8,12 @@ import VueToastification from 'vue-toastification'
 import 'vue-toastification/dist/index.css'
 import { installBenignPlayAbortGuard } from './utils/benignPlayAbort'
 import { getToken, loadUserInfo } from './utils/userStore.js'
-import { registerPwa } from './utils/pwa.js'
+import { initPwa } from './composables/usePwa.js'
 
 const app = createApp(App)
+
+// PWA：尽早注册安装提示监听与 Service Worker（仅生产注册 SW）
+initPwa()
 
 /**
  * 过滤 vue-toastification@2.0.0-rc.5 的上游告警
@@ -64,7 +67,6 @@ if (import.meta.env.DEV) {
 installBenignPlayAbortGuard()
 
 app.use(router)
-registerPwa()
 app.use(VueToastification, {
   position: 'top-right',
   timeout: 3000,

@@ -1,4 +1,7 @@
 import { fileURLToPath, URL } from 'node:url'
+import fs from 'node:fs'
+import path from 'node:path'
+import crypto from 'node:crypto'
 
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
@@ -6,6 +9,68 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 
 /** 本地后端默认地址（backend/src/main/resources/config.yml 的 port 默认 65535） */
 const DEFAULT_DEV_PROXY_TARGET = 'http://localhost:65535'
+
+/**
+ * 把本次构建产物的哈希文件名注入 public/sw.js。
+ * ------------------------------------------------------------
+ * Service Worker 是 public 下的静态文件，Vite 不会处理它，因此它拿不到
+ * `assets/index-<hash>.js` 这类带哈希的资源名。若不注入，离线首屏会因缺少
+ * 具体 JS/CSS 而失败（必须在线访问过一次才会进入运行时缓存）。
+ *
+ * 这里在构建收尾（closeBundle，此时 public 已拷贝、产物已写入）：
+ *   - 用扫描到的 /assets/* 替换 `/* __PRECACHE_MANIFEST__ *\/ []`；
+ *   - 用资源清单的短哈希替换 `/* __CACHE_VERSION__ *\/ 'v1'`，
+ *     使每次产物变化都得到新的缓存名，activate 时自动清掉上一版。
+ * 找不到占位符时只告警、不阻断构建。
+ */
+function pwaPrecachePlugin() {
+  let outDir = ''
+  return {
+    name: 'neko-pwa-precache',
+    apply: 'build',
+    configResolved(config) {
+      outDir = path.resolve(config.root, config.build.outDir)
+    },
+    closeBundle() {
+      try {
+        const swPath = path.join(outDir, 'sw.js')
+        if (!fs.existsSync(swPath)) return
+
+        const assetsDir = path.join(outDir, 'assets')
+        const files = []
+        const walk = (dir, base = '') => {
+          for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const rel = path.posix.join(base, entry.name)
+            if (entry.isDirectory()) walk(path.join(dir, entry.name), rel)
+            else files.push(`/assets/${rel}`)
+          }
+        }
+        if (fs.existsSync(assetsDir)) walk(assetsDir)
+        files.sort()
+
+        const version = files.length
+          ? crypto.createHash('sha1').update(files.join('\n')).digest('hex').slice(0, 8)
+          : `t${Date.now()}`
+
+        let sw = fs.readFileSync(swPath, 'utf8')
+        const manifestMarker = '/* __PRECACHE_MANIFEST__ */ []'
+        const versionMarker = "/* __CACHE_VERSION__ */ 'v1'"
+        if (!sw.includes(manifestMarker)) {
+          console.warn('[pwa] sw.js 未找到预缓存占位符，跳过注入')
+        } else {
+          sw = sw.replace(manifestMarker, JSON.stringify(files))
+        }
+        sw = sw.includes(versionMarker)
+          ? sw.replace(versionMarker, `'${version}'`)
+          : sw
+        fs.writeFileSync(swPath, sw)
+        console.log(`[pwa] 预缓存 ${files.length} 个资源，缓存版本 ${version}`)
+      } catch (error) {
+        console.warn('[pwa] 注入预缓存清单失败（不影响构建）', error)
+      }
+    },
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
@@ -19,6 +84,8 @@ export default defineConfig(({ command, mode }) => {
     plugins: [
       vue(),
       command === 'serve' && vueDevTools(),
+      // 构建收尾时把哈希资源清单注入 Service Worker（仅 build 生效）
+      command === 'build' && pwaPrecachePlugin(),
     ].filter(Boolean),
     resolve: {
       alias: {
