@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Optional;
@@ -111,21 +112,21 @@ public final class ClientReleaseStorage {
     }
 
     public static Optional<Path> resolveReadableFile(String fileName) {
-        if (!isSafeFileName(fileName)) {
+        try {
+            if (!isSafeFileName(fileName) || !hasAllowedExtension(fileName)) {
+                return Optional.empty();
+            }
+            Path base = storageDir().toAbsolutePath().normalize();
+            Path resolved = base.resolve(fileName).normalize();
+            if (!resolved.startsWith(base) || !Files.isRegularFile(resolved)) {
+                return Optional.empty();
+            }
+            return Optional.of(resolved);
+        } catch (InvalidPathException | SecurityException e) {
+            // A filename that cannot be represented by the host filesystem encoding
+            // is equivalent to a missing release for read-only metadata endpoints.
             return Optional.empty();
         }
-        if (!hasAllowedExtension(fileName)) {
-            return Optional.empty();
-        }
-        Path base = storageDir().toAbsolutePath().normalize();
-        Path resolved = base.resolve(fileName).normalize();
-        if (!resolved.startsWith(base)) {
-            return Optional.empty();
-        }
-        if (!Files.isRegularFile(resolved)) {
-            return Optional.empty();
-        }
-        return Optional.of(resolved);
     }
 
     public static void validateFileName(String fileName) {
