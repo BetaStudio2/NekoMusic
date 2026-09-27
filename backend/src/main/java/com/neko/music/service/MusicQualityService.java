@@ -59,7 +59,7 @@ public final class MusicQualityService {
         }
         String actual = requestedQuality;
 
-        if (qualityRank(actual) >= qualityRank(SQ)) {
+        if (SQ.equals(actual) && qualityRank(maxQuality) <= qualityRank(SQ)) {
             return source.toString();
         }
 
@@ -77,7 +77,7 @@ public final class MusicQualityService {
             Files.createDirectories(derived.getParent());
             Path temporary = Files.createTempFile(derived.getParent(), musicId + "-" + actual + "-", ".tmp");
             try {
-                int bitrate = STANDARD.equals(actual) ? STANDARD_KBPS : HQ_KBPS;
+                int bitrate = SQ.equals(actual) ? 0 : (STANDARD.equals(actual) ? STANDARD_KBPS : HQ_KBPS);
                 int code = NativeAudioQuality.transcode(resolveFfmpeg(), source.toString(), temporary.toString(), bitrate);
                 if (code != 0 || !Files.isRegularFile(temporary) || Files.size(temporary) == 0) {
                     throw new IOException("音频压缩失败，退出码: " + code);
@@ -130,7 +130,8 @@ public final class MusicQualityService {
     }
 
     private static Path derivedPath(int musicId, String quality) {
-        return MusicAssetLocator.derivedDir(musicId).resolve(quality + ".mp3");
+        return MusicAssetLocator.derivedDir(musicId)
+                .resolve(quality + (SQ.equals(quality) ? ".flac" : ".mp3"));
     }
 
     private static String resolveFfmpeg() throws IOException {
