@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.util.MusicLookup;
+import com.neko.music.service.MusicQualityService;
 
 import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.MusicAssetLocator;
@@ -51,31 +52,18 @@ public class MusicFileHandler extends HttpServlet {
             return;
         }
 
-        Optional<Path> audioOpt = MusicAssetLocator.findAudioFile(musicId);
-        if (audioOpt.isEmpty()) {
+        try {
+            String requestedQuality = request.getParameter("quality");
+            String target = MusicQualityService.resolveAudio(musicId, requestedQuality);
+            response.setStatus(HttpStatus.FOUND_302);
+            response.setHeader("Location", MusicQualityService.publicUrl(musicId, target));
+            response.setHeader("Cache-Control", "public, max-age=60");
+        } catch (Exception e) {
+            logger.error("解析音乐音质失败 id={}", musicId, e);
             response.setStatus(HttpStatus.NOT_FOUND_404);
             response.setContentType("text/plain;charset=utf-8");
-            response.getWriter().println("音乐文件不存在");
-            return;
+            response.getWriter().println("音乐文件不存在或音质处理失败");
         }
-
-        Path musicFile = audioOpt.get();
-        if (!MusicAssetLocator.isUnderDirectory(musicFile, MusicAssetLocator.audioDir())) {
-            logger.warn("拒绝提供音乐文件（路径不在允许目录内）: {}", musicFile);
-            response.setStatus(HttpStatus.NOT_FOUND_404);
-            response.setContentType("text/plain;charset=utf-8");
-            response.getWriter().println("音乐文件不存在");
-            return;
-        }
-
-        if (Files.exists(musicFile)) {
-            sendMusicFile(musicFile, request, response);
-            return;
-        }
-
-        response.setStatus(HttpStatus.NOT_FOUND_404);
-        response.setContentType("text/plain;charset=utf-8");
-        response.getWriter().println("音乐文件不存在");
     }
 
     

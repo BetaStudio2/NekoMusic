@@ -36,6 +36,10 @@ public final class MusicAssetLocator {
         return baseDir().resolve(AUDIO_REL_DIR);
     }
 
+    public static Path derivedDir(int musicId) {
+        return audioDir().resolve("derived").resolve(Integer.toString(musicId));
+    }
+
     public static Path coverDir() {
         return baseDir().resolve(COVER_REL_DIR);
     }
@@ -108,6 +112,7 @@ public final class MusicAssetLocator {
     /** 尽力删除 {@code Music/music/{musicId}.*}；单文件失败只打 WARN，不抛异常。 */
     public static void deleteAudioVariants(int musicId) {
         deleteIdNamedFiles(audioDir(), musicId, "audio");
+        deleteDerivedVariants(musicId);
     }
 
     /** 尽力删除 {@code Music/covers/{musicId}.*}；单文件失败只打 WARN，不抛异常。 */
@@ -122,6 +127,23 @@ public final class MusicAssetLocator {
      */
     public static void deleteAudioVariantsExcept(int musicId, Path keep) {
         deleteIdNamedFilesExcept(audioDir(), musicId, keep, "audio");
+        deleteDerivedVariants(musicId);
+    }
+
+    public static void deleteDerivedVariants(int musicId) {
+        Path dir = derivedDir(musicId);
+        if (!Files.isDirectory(dir)) return;
+        try (Stream<Path> stream = Files.list(dir)) {
+            stream.filter(Files::isRegularFile).forEach(path -> {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException e) {
+                    log.warn("删除派生音频失败: {}", path, e);
+                }
+            });
+        } catch (IOException e) {
+            log.warn("列出派生音频失败: {}", dir, e);
+        }
     }
 
     /** 尽力删除 {@code Music/covers/{musicId}.*} 中除 {@code keep} 之外的变体。 */

@@ -129,6 +129,7 @@ public class AdminMusicIngestService {
             musicRelPath = MusicAssetLocator.AUDIO_REL_DIR + File.separator + musicId + "." + fileFormat;
             Path musicDest = Paths.get(musicRelPath);
             TempAudioSpool.commitReplace(musicTemp, musicDest);
+            MusicIngestSupport.refreshQualityAfterIngest(musicId, musicDest, logger);
 
             if (coverTempOrNull != null && Files.isRegularFile(coverTempOrNull)) {
                 String coverExt = extensionFromPath(coverTempOrNull);
