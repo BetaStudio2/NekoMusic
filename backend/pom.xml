@@ -199,6 +199,19 @@
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <excludes>
+                    <exclude>**/*.dll</exclude>
+                    <exclude>**/*.DLL</exclude>
+                    <exclude>**/*.exe</exclude>
+                    <exclude>**/windows/**</exclude>
+                    <exclude>**/win32/**</exclude>
+                    <exclude>**/win64/**</exclude>
+                </excludes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
