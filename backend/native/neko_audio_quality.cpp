@@ -104,10 +104,17 @@ int runFfmpeg(const std::string &ffmpeg, const std::string &source, const std::s
     pid_t pid = fork();
     if (pid < 0) return -1;
     if (pid == 0) {
-        execlp(ffmpeg.c_str(), ffmpeg.c_str(), "-hide_banner", "-loglevel", "error", "-y", "-threads", "0",
-               "-i", source.c_str(), "-vn", "-map_metadata", "-1", "-codec:a", "libmp3lame",
-               "-b:a", (std::to_string(kbps) + "k").c_str(), "-ar", "44100", "-ac", "2",
-               "-f", "mp3", target.c_str(), nullptr);
+        if (kbps == 0) {
+            execlp(ffmpeg.c_str(), ffmpeg.c_str(), "-hide_banner", "-loglevel", "error", "-y", "-threads", "0",
+                   "-i", source.c_str(), "-vn", "-map_metadata", "-1", "-codec:a", "flac",
+                   "-ar", "44100", "-sample_fmt", "s16", "-ac", "2", "-f", "flac",
+                   target.c_str(), nullptr);
+        } else {
+            execlp(ffmpeg.c_str(), ffmpeg.c_str(), "-hide_banner", "-loglevel", "error", "-y", "-threads", "0",
+                   "-i", source.c_str(), "-vn", "-map_metadata", "-1", "-codec:a", "libmp3lame",
+                   "-b:a", (std::to_string(kbps) + "k").c_str(), "-ar", "44100", "-ac", "2",
+                   "-f", "mp3", target.c_str(), nullptr);
+        }
         _exit(127);
     }
     int status = 0;
