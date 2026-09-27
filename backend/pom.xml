@@ -12,6 +12,7 @@
         <maven.compiler.source>26</maven.compiler.source>
         <maven.compiler.target>26</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <neko.audio.native.skip>false</neko.audio.native.skip>
     </properties>
 
     <dependencies>
@@ -213,6 +214,23 @@
                 <version>3.6.4</version>
 
                 <executions>
+                    <!-- 构建 JNI 音频质量库，并由 Maven 资源阶段自动打入 JAR -->
+                    <execution>
+                        <id>build-native-audio-quality</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${neko.audio.native.skip}</skip>
+                            <executable>bash</executable>
+                            <workingDirectory>${project.basedir}</workingDirectory>
+                            <arguments>
+                                <argument>${project.basedir}/native/build.sh</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+
                     <!-- 获取 FFmpeg -->
                     <execution>
                         <id>fetch-bundled-ffmpeg-gpu</id>
