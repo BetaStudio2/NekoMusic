@@ -2,6 +2,7 @@ package com.neko.music.service;
 
 import com.neko.music.Main;
 import com.neko.music.nativeaudio.NativeAudioQuality;
+import com.neko.music.util.BundledFfmpegSupport;
 import com.neko.music.util.MusicAssetLocator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -137,7 +138,9 @@ public final class MusicQualityService {
         if (configured != null && !configured.isBlank()) {
             return configured;
         }
-        return "ffmpeg";
+        return BundledFfmpegSupport.resolve(
+                Main.getConfigManager().getVideoRenderFfmpegPath(),
+                Main.getConfigManager().isVideoRenderPreferBundledFfmpeg());
     }
 
     public static String normalize(String value) {
