@@ -85,11 +85,17 @@ def main() -> int:
         query = f"SELECT id FROM music WHERE id = {args.music_id}"
     rows = run_mysql(config, query).splitlines()
 
-    native = root / "backend" / "native" / "libneko_audio_quality.so"
+    jar_override = os.environ.get("NEKO_BACKEND_JAR")
+    if jar_override:
+        classpath = Path(jar_override).expanduser().resolve()
+    else:
+        jar_candidates = sorted(root.glob("*.jar")) + sorted((root / "target").glob("*.jar"))
+        classpath = next((path for path in jar_candidates if path.is_file() and "original" not in path.name), None)
     classes = root / "backend" / "target" / "classes"
-    if not native.exists() or not classes.exists():
-        print("请先执行 backend/native/build.sh 和 mvn -f backend/pom.xml package -DskipTests", file=sys.stderr)
+    if classpath is None and not classes.exists():
+        print("找不到后端 JAR。请先构建后端，或设置 NEKO_BACKEND_JAR=/path/to/backend.jar", file=sys.stderr)
         return 2
+    classpath = classpath if classpath is not None else classes
 
     for row in rows:
         music_id = int(row)
@@ -98,7 +104,7 @@ def main() -> int:
             print(f"SKIP {music_id}: 音频文件不存在")
             continue
         result = subprocess.run(
-            ["java", f"-Dneko.audio.native={native}", "-cp", str(classes),
+            ["java", "-cp", str(classpath),
              "com.neko.music.scripts.NativeQualityProbe", str(candidates[0])],
             capture_output=True, text=True,
         )
