@@ -132,6 +132,9 @@ public final class ServletRegistrar {
         // 注册音乐文件API处理器（无需管理员权限）
         ServletHolder musicFileHolder = new ServletHolder(new MusicFileHandler());
         context.addServlet(musicFileHolder, "/api/music/file/*");
+
+        ServletHolder mediaMusicHolder = new ServletHolder(new MediaMusicHandler());
+        context.addServlet(mediaMusicHolder, "/media/music/*");
         
         // 注册歌词API处理器（无需管理员权限）
         ServletHolder musicLyricsHolder = new ServletHolder(new MusicLyricsHandler());

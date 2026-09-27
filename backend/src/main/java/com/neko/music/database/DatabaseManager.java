@@ -138,12 +138,27 @@ public class DatabaseManager {
                     ADD COLUMN IF NOT EXISTS file_format VARCHAR(10) DEFAULT 'mp3'
                     AFTER duration
                     """;
-                try (PreparedStatement stmt = conn.prepareStatement(alterTable)) {
-                    stmt.execute();
-                }
+            try (PreparedStatement stmt = conn.prepareStatement(alterTable)) {
+                stmt.execute();
+            }
                 logger.info("已为 music 表添加 file_format 字段");
             } catch (SQLException e) {
                 logger.debug("file_format 字段可能已存在，跳过添加");
+            }
+
+            String[] qualityColumns = {
+                    "ADD COLUMN IF NOT EXISTS max_quality VARCHAR(16) DEFAULT NULL AFTER file_format",
+                    "ADD COLUMN IF NOT EXISTS bitrate_bps INT DEFAULT 0 AFTER max_quality",
+                    "ADD COLUMN IF NOT EXISTS sample_rate_hz INT DEFAULT 0 AFTER bitrate_bps",
+                    "ADD COLUMN IF NOT EXISTS bits_per_sample INT DEFAULT 0 AFTER sample_rate_hz",
+                    "ADD COLUMN IF NOT EXISTS channels INT DEFAULT 0 AFTER bits_per_sample"
+            };
+            for (String column : qualityColumns) {
+                try (PreparedStatement stmt = conn.prepareStatement("ALTER TABLE music " + column)) {
+                    stmt.execute();
+                } catch (SQLException e) {
+                    logger.debug("音质字段可能已存在，跳过: {}", column);
+                }
             }
 
             // 为已存在的 music 表添加拼音索引列（如果不存在）

@@ -8,6 +8,8 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.nio.file.Path;
+import java.nio.file.Files;
 
 /**
  * 音乐入库（管理员上传/更新、JSON 添加/编辑、审核通过、补全入库）共用的低层操作。
@@ -76,6 +78,17 @@ public final class MusicIngestSupport {
                 }
                 throw new SQLException(missingKeyMessage);
             }
+        }
+    }
+
+    /** 文件正式落盘后写入统一的原始音质信息。失败时保留入库结果，交由重算脚本补齐。 */
+    public static void refreshQualityAfterIngest(int musicId, Path audioPath, Logger logger) {
+        try {
+            if (Files.isRegularFile(audioPath)) {
+                MusicQualityService.refreshDatabase(musicId, audioPath);
+            }
+        } catch (Exception e) {
+            logger.warn("计算音乐原始音质失败 id={}，可用历史重算脚本补齐", musicId, e);
         }
     }
 

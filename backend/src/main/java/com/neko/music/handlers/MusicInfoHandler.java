@@ -69,7 +69,7 @@ public class MusicInfoHandler extends HttpServlet {
         Music music = null;
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, title, artist, album, duration, language, tags, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
+            String sql = "SELECT id, title, artist, album, duration, language, tags, upload_user_id, created_at, updated_at, max_quality FROM music WHERE id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setInt(1, musicId);
                 
@@ -90,7 +90,8 @@ public class MusicInfoHandler extends HttpServlet {
                             rs.getInt("upload_user_id"),
                             rs.getTimestamp("created_at").toString(),
                             rs.getTimestamp("updated_at").toString(),
-                            id <= 0 ? "/api/defaultIcon" : MusicAssetLocator.coverApiUrl(id));
+                            id <= 0 ? "/api/defaultIcon" : MusicAssetLocator.coverApiUrl(id),
+                            rs.getString("max_quality"));
                 }
             }
         } catch (Exception e) {
@@ -114,7 +115,8 @@ public class MusicInfoHandler extends HttpServlet {
             int uploadUserId,
             String createdAt,
             String updatedAt,
-            String coverUrl) {
+            String coverUrl,
+            String maxQuality) {
     }
     
     // 内部类用于表示单个音乐响应

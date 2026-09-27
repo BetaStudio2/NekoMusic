@@ -150,6 +150,7 @@ public class FileUploadHandler extends HttpServlet {
                 TempAudioSpool.commitReplace(musicTemp, Paths.get(musicFilePath));
                 deleteMusicTempIfPresent = false;
                 logger.info("音乐文件已保存到: {}", musicFilePath);
+                MusicIngestSupport.refreshQualityAfterIngest(musicId, Paths.get(musicFilePath), logger);
 
                 if (coverFilePart != null) {
                     AtomicFiles.writeAndReplace(coverFilePart.getInputStream(), Paths.get(coverFilePath));
@@ -282,6 +283,7 @@ public class FileUploadHandler extends HttpServlet {
                     deleteMusicTempIfPresent = false;
                     MusicAssetLocator.deleteAudioVariantsExcept(id, Paths.get(musicFilePath));
                     logger.info("音乐文件已保存到: {}", musicFilePath);
+                    MusicIngestSupport.refreshQualityAfterIngest(id, Paths.get(musicFilePath), logger);
 
                     updateFileFormatInDatabase(id, fileFormat);
                 } catch (Exception e) {
