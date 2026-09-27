@@ -13,9 +13,9 @@ services:
     gpus: all
 
     environment:
-      LANG: zh_CN.UTF-8
-      LANGUAGE: zh_CN:zh
-      LC_ALL: zh_CN.UTF-8
+      LANG: C.UTF-8
+      LANGUAGE: C.UTF-8
+      LC_ALL: C.UTF-8
 
     volumes:
       # config.yml must be created from src/main/resources/config.yml before startup.

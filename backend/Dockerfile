@@ -18,7 +18,7 @@ RUN mvn -B clean package -DskipTests
 # =========================
 # 运行阶段
 # =========================
-FROM azul/zulu-openjdk:26.0.2.1-jdk
+FROM azul-zulu:27-jdk
 
 WORKDIR /app
 
@@ -26,9 +26,9 @@ COPY --from=builder /build/target/backend-1.0-SNAPSHOT.jar /app/backend.jar
 
 EXPOSE 65535
 
-ENV LANG=zh_CN.UTF-8 \
-    LANGUAGE=zh_CN:zh \
-    LC_ALL=zh_CN.UTF-8
+ENV LANG=C.UTF-8 \
+    LANGUAGE=C.UTF-8 \
+    LC_ALL=C.UTF-8
 
 ENTRYPOINT ["java", "-server", \
     "-XX:+UseG1GC", \
@@ -37,5 +37,7 @@ ENTRYPOINT ["java", "-server", \
     "-XX:InitialRAMPercentage=25.0", \
     "-XX:MaxRAMPercentage=75.0", \
     "-XX:+DisableExplicitGC", \
+    "-Dfile.encoding=UTF-8", \
+    "-Dsun.jnu.encoding=UTF-8", \
     "-Djava.awt.headless=true", \
     "-jar", "/app/backend.jar"]
