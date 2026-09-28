@@ -126,7 +126,7 @@
         <dependency>
             <groupId>io.lettuce</groupId>
             <artifactId>lettuce-core</artifactId>
-            <version>7.6.0.RELEASE</version>
+            <version>7.8.0.RELEASE</version>
         </dependency>
         
         <!-- Apache Commons Pool2 (Lettuce依赖) -->
