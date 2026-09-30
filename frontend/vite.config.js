@@ -145,6 +145,8 @@ export default defineConfig(({ command, mode }) => {
         command === 'serve'
           ? {
               '/api': { target: proxyTarget, changeOrigin: true, secure: false },
+              // /api/music/file/{id} 会 302 到 /media/music/...，不代理这里开发环境会没声音
+              '/media': { target: proxyTarget, changeOrigin: true, secure: false },
               '/version': { target: proxyTarget, changeOrigin: true, secure: false },
             }
           : undefined,

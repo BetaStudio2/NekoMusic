@@ -1218,6 +1218,13 @@ const dragY = ref(0)
 const dragging = ref(false)
 let touchStartY = 0
 let touchStartX = 0
+/**
+ * 本次触摸是否属于「下拉收起」手势。
+ * 起手落在进度条 / 按钮等交互控件上时保持 false，后续 move / end 一律不接管。
+ * 否则会拿上一次手势的起点（或初始 0）算位移，把「拖进度条 / 点按钮」误判成
+ * 下拉而收起播放页。
+ */
+let swipeTracking = false
 
 /** 从这些区域起手不参与下拉收起（进度条、控制键、链接等） */
 const SWIPE_IGNORE_SELECTOR = '.np__bottom, input, button, a, [role="slider"]'
@@ -1227,17 +1234,20 @@ function syncSwipeEnabled() {
 }
 
 function onTouchStart(e) {
+  // 起手先复位：上一次手势若被多指/取消打断，别把位移残留到这一次
+  swipeTracking = false
+  dragY.value = 0
+  dragging.value = false
   if (!swipeEnabled || closing.value || e.touches.length !== 1) return
   // 底栏与可交互控件自己要用触摸事件，别抢
   if (e.target?.closest?.(SWIPE_IGNORE_SELECTOR)) return
+  swipeTracking = true
   touchStartY = e.touches[0].clientY
   touchStartX = e.touches[0].clientX
-  dragY.value = 0
-  dragging.value = false
 }
 
 function onTouchMove(e) {
-  if (!swipeEnabled || closing.value || e.touches.length !== 1) return
+  if (!swipeTracking || !swipeEnabled || closing.value || e.touches.length !== 1) return
   const dy = e.touches[0].clientY - touchStartY
   const dx = Math.abs(e.touches[0].clientX - touchStartX)
   // 向上滑，或横向位移更大 → 交还给内部滚动 / 不接管
@@ -1252,8 +1262,9 @@ function onTouchMove(e) {
 }
 
 function onTouchEnd() {
-  if (!swipeEnabled) return
-  const shouldClose = dragY.value > SWIPE_CLOSE_THRESHOLD
+  if (!swipeTracking) return
+  swipeTracking = false
+  const shouldClose = swipeEnabled && dragY.value > SWIPE_CLOSE_THRESHOLD
   dragging.value = false
   dragY.value = 0
   if (shouldClose) close()
@@ -1458,6 +1469,26 @@ watch(
   display: flex;
   align-items: center;
   gap: var(--n-space-1);
+}
+
+/* 宽屏：标题相对【整条顶栏】居中。
+   两侧内容天然不等宽（左：返回键 1 个；右：评论/收藏/下载/视频等多个），
+   原来的 auto/1fr/auto 会把中列挤向较窄的一侧，标题看起来偏左。
+   给两侧等宽的 1fr，中列按内容宽度居中即可。 */
+@media (min-width: 561px) {
+  .np__top {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+
+  .np__top-title {
+    justify-self: center;
+    /* 避免长标题把两侧操作区挤掉 */
+    max-width: min(46vw, 560px);
+  }
+
+  .np__top-actions {
+    justify-self: end;
+  }
 }
 
 /* ===== 图标按钮（圆角矩形，非圆形） ===== */
@@ -1972,8 +2003,12 @@ watch(
     margin: 0;
   }
 
+  /* 保留右侧占位，并与循环模式键等宽（同为 --n-tap-min）。
+     否则左侧「模式+上一首」、右侧只有「下一首」，播放键会整体偏右，
+     不再落在屏幕中线。 */
   .np__controls-spacer {
-    display: none;
+    display: block;
+    width: var(--n-tap-min);
   }
 }
 
