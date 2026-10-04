@@ -71,7 +71,7 @@ const quickLinks = computed(() => {
   const links = [
     { to: '/ranking', icon: 'trophy', title: '热门排行', desc: '按播放量排序' },
     { to: '/latest', icon: 'sparkles', title: '最新上架', desc: '刚刚入库的新歌' },
-    { to: '/download', icon: 'list-music', title: '歌单迁入', desc: '网易 / QQ / 酷狗' },
+    { to: '/download', icon: 'download', title: '下载客户端', desc: 'Android · PC' },
   ]
   links.push(
     isLoggedIn.value
@@ -259,8 +259,8 @@ onUnmounted(() => {
           >
             播放热门
           </NButton>
-          <NButton variant="secondary" icon="list-music" to="/download">
-            歌单迁入
+          <NButton variant="secondary" icon="download" to="/download">
+            下载客户端
           </NButton>
         </div>
       </div>
