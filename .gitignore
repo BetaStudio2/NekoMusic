@@ -142,3 +142,5 @@ backend/qishui_cookies.json
 
 # MaxMind GeoLite2 数据库
 backend/src/main/resources/GeoLite2-City.mmdb
+
+backend/src/main/resources/site/*
