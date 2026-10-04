@@ -55,7 +55,6 @@ public class ClientReleaseDownloadHandler extends HttpServlet {
         response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''"
                 + java.net.URLEncoder.encode(fileName, StandardCharsets.UTF_8).replace("+", "%20"));
         HttpResourceCache.applyFileCachingHeaders(file, response);
-        response.setHeader("Cache-Control", "public, max-age=3600, must-revalidate");
         response.setContentLengthLong(Files.size(file));
 
         try (InputStream in = Files.newInputStream(file);

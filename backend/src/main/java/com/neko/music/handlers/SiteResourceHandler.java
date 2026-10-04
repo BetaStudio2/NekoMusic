@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.SiteResourceStorage;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
@@ -56,6 +57,36 @@ public final class SiteResourceHandler extends HttpServlet {
         }
 
         long size = Files.size(resource);
+        String fileName = resource.getFileName().toString().toLowerCase(Locale.ROOT);
+
+        // index.html / Service Worker 必须可及时更新：缓存住入口或 sw.js，
+        // 新版本会迟迟无法被发现。这类文件用 no-cache + ETag/Last-Modified
+        // 允许 304 再校验，避免整文件重下。
+        boolean mustRevalidate = fallback || fileName.endsWith(".html")
+                || fileName.equals("sw.js");
+        if (mustRevalidate) {
+            String etag = HttpResourceCache.strongEtagForFile(resource);
+            response.setHeader("Cache-Control", "no-cache");
+            response.setHeader("ETag", etag);
+            response.setDateHeader("Last-Modified", Files.getLastModifiedTime(resource).toMillis());
+            if (HttpResourceCache.ifNoneMatchEquals(request, etag)) {
+                response.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
+                return;
+            }
+        } else if (fileName.endsWith(".txt")) {
+            // robots.txt / llms*.txt 等：一天
+            response.setHeader("Cache-Control",
+                    "public, max-age=" + HttpResourceCache.MAX_AGE_ONE_DAY);
+        } else if (requestPath.startsWith("/assets/")) {
+            // Vite 构建产物带内容哈希，可安全 immutable
+            response.setHeader("Cache-Control",
+                    "public, max-age=" + HttpResourceCache.MAX_AGE_SIX_MONTHS + ", immutable");
+        } else {
+            // 其它固定资源（png/ico/svg/webmanifest/js/css/字体/安装包 .exe/.pak/.deb 等）：六个月
+            response.setHeader("Cache-Control",
+                    "public, max-age=" + HttpResourceCache.MAX_AGE_SIX_MONTHS);
+        }
+
         // 已知扩展名优先用显式映射（如 .webmanifest 在部分系统上会被 probeContentType
         // 误判为 text/plain），未知扩展名再回退到系统 MIME 探测。
         String contentType = contentTypeFor(resource);
@@ -66,15 +97,6 @@ public final class SiteResourceHandler extends HttpServlet {
             response.setContentType(contentType);
         }
         response.setContentLengthLong(size);
-        String fileName = resource.getFileName().toString().toLowerCase(Locale.ROOT);
-        // index.html / Service Worker / Web App Manifest 必须可及时更新：
-        // 缓存住 sw.js 会让新版本迟迟无法被发现；缓存住 manifest 会让图标与名称改动滞后。
-        if (fallback || fileName.equals("index.html")
-                || fileName.equals("sw.js") || fileName.endsWith(".webmanifest")) {
-            response.setHeader("Cache-Control", "no-cache");
-        } else if (requestPath.startsWith("/assets/")) {
-            response.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-        }
         if (headOnly) {
             return;
         }

@@ -18,6 +18,7 @@ import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
+import com.neko.music.filter.CacheControlFilter;
 import com.neko.music.filter.IPRateLimitFilter;
 import com.neko.music.filter.StaticPageSeoFilter;
 import com.neko.music.util.ClientReleaseStorage;
@@ -257,6 +258,9 @@ public class Main {
 
         // 静态路由（首页 / 下载 / 关于等）对爬虫返回服务端 SEO HTML，浏览器仍走 SPA
         context.addFilter(StaticPageSeoFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
+
+        // 动态接口默认禁止缓存；需要公开缓存的接口自行覆盖 Cache-Control
+        context.addFilter(CacheControlFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
 
         // 前端静态资源 + 全部 API/页面路由（详见 ServletRegistrar）
         ServletRegistrar.register(context, configManager);

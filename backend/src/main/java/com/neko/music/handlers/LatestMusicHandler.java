@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
+import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.MusicAssetLocator;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -40,6 +41,8 @@ public class LatestMusicHandler extends HttpServlet {
 
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
+        response.setHeader("Cache-Control",
+                "public, max-age=" + HttpResourceCache.MAX_AGE_HALF_HOUR);
         LatestMusicResponse latestMusicResponse = new LatestMusicResponse(true, "获取最新音乐成功", latestMusic);
         response.getWriter().println(Main.getObjectMapper().writeValueAsString(latestMusicResponse));
     }
