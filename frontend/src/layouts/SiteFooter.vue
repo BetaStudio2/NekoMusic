@@ -9,6 +9,7 @@ import NIcon from '@/icons/NIcon.vue'
 const year = new Date().getFullYear()
 
 const links = [
+  { label: '下载客户端', to: '/download', icon: 'download' },
   { label: '关于我们', to: '/about', icon: 'info' },
   { label: '隐私政策', to: '/privacy', icon: 'shield-check' },
   { label: 'QQ群', href: 'https://qm.qq.com/q/Q9HkDi6Ewk', icon: 'users' },

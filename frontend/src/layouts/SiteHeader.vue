@@ -234,6 +234,16 @@ onUnmounted(() => {
 
       <!-- 用户区 -->
       <div class="site-header__auth">
+        <NButton
+          class="site-header__download"
+          variant="secondary"
+          size="sm"
+          icon="download"
+          to="/download"
+          title="下载客户端"
+        >
+          下载客户端
+        </NButton>
         <!-- 可安装时出现；已安装/不支持时组件自身不渲染 -->
         <PwaInstallButton />
         <template v-if="isLoggedIn">
@@ -483,6 +493,11 @@ onUnmounted(() => {
 @media (max-width: 560px) {
   .site-header__logo {
     font-size: 1rem;
+  }
+
+  /* 下载入口在窄屏只留图标，给用户区腾地方 */
+  .site-header__download :deep(.n-btn__label) {
+    display: none;
   }
 
   /* 用户名与 VIP 入口收进个人中心：一行放不下 5 个元素，
