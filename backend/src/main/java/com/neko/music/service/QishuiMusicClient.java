@@ -126,6 +126,25 @@ public class QishuiMusicClient {
         return false;
     }
 
+    private static URI parseAllowedRedirectUri(String rawUrl) {
+        if (rawUrl == null || rawUrl.isBlank()) return null;
+        try {
+            URI uri = URI.create(rawUrl.trim());
+            String scheme = uri.getScheme();
+            if (scheme == null) return null;
+            String normalizedScheme = scheme.toLowerCase(Locale.ROOT);
+            if (!"http".equals(normalizedScheme) && !"https".equals(normalizedScheme)) return null;
+            if (uri.getUserInfo() != null) return null;
+            int port = uri.getPort();
+            if (port != -1 && port != 80 && port != 443) return null;
+            String host = uri.getHost();
+            if (!isAllowedHost(host)) return null;
+            return uri;
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     private static boolean isAllowedRedirectUrl(String rawUrl) {
         try {
             URI uri = URI.create(rawUrl);
@@ -141,9 +160,10 @@ public class QishuiMusicClient {
 
     private String resolveRedirectId(String url, int depth) {
         if (depth > 3) return null;
-        if (!isAllowedRedirectUrl(url)) return null;
+        URI requestUri = parseAllowedRedirectUri(url);
+        if (requestUri == null) return null;
         try {
-            HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+            HttpRequest request = HttpRequest.newBuilder(requestUri)
                     .timeout(Duration.ofSeconds(10))
                     .header("accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
                     .header("user-agent", WEB_SHARE_UA)
@@ -152,10 +172,17 @@ public class QishuiMusicClient {
                     "请求汽水分享链接被中断");
             String location = response.headers().firstValue("location").orElse("");
             if (location.isEmpty()) return null;
-            String id = extractIdFromUrl(location);
+            URI nextUri;
+            try {
+                nextUri = requestUri.resolve(location);
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+            String nextUrl = nextUri.toString();
+            String id = extractIdFromUrl(nextUrl);
             if (id != null) return id;
-            return SHORT_LINK_PATTERN.matcher(location).find() && isAllowedRedirectUrl(location)
-                    ? resolveRedirectId(location, depth + 1) : null;
+            return SHORT_LINK_PATTERN.matcher(nextUrl).find() && isAllowedRedirectUrl(nextUrl)
+                    ? resolveRedirectId(nextUrl, depth + 1) : null;
         } catch (IllegalArgumentException | IOException e) {
             logger.debug("解析汽水短链失败 url={}: {}", url, e.getMessage());
             return null;
