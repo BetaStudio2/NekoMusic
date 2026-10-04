@@ -454,8 +454,8 @@ onUnmounted(() => {
         如果您对本隐私政策、个人信息处理规则或账号数据处理有疑问、意见、投诉或权利请求，可以通过以下方式联系我们：
       </p>
       <ul class="list">
-        <li>电子邮件：<a href="mailto:support@cnmsb.xin">support@cnmsb.xin</a></li>
-        <li>官网：<a href="https://www.cnmsb.xin/" target="_blank" rel="noopener noreferrer">https://www.cnmsb.xin/</a></li>
+        <li>电子邮件：<a href="mailto:support@nekocore.cn">support@nekocore.cn</a></li>
+        <li>官网：<a href="https://www.nekocore.cn/" target="_blank" rel="noopener noreferrer">https://www.nekocore.cn/</a></li>
         <li>QQ群：<a href="https://qm.qq.com/q/Q9HkDi6Ewk" target="_blank" rel="noopener noreferrer">Fantasy Network交流群</a></li>
       </ul>
       <p class="para">

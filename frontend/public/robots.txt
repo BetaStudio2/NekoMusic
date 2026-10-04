@@ -59,4 +59,4 @@ Allow: /
 Disallow: /admin/
 Disallow: /api/
 
-Sitemap: https://music.cnmsb.xin/sitemap.xml
+Sitemap: https://music.nekocore.cn/sitemap.xml

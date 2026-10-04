@@ -339,7 +339,7 @@ const router = createRouter({
 // 收藏等会被直接踢走，整站手机端不可用。App 导流改由 MobileAppBanner
 // 软引导横幅承担（见 src/components/MobileAppBanner.vue），
 // 真正的「拉起 App」由 src/utils/nativeAppOpen.js 负责。
-const SITE_ORIGIN = 'https://music.cnmsb.xin'
+const SITE_ORIGIN = 'https://music.nekocore.cn'
 const DEFAULT_DESCRIPTION =
   'Neko歌姬计划 - 完全免费的在线音乐播放平台，提供海量免费音乐资源、高品质音频播放、个性化收藏等功能。无需付费，永久免费。'
 const DEFAULT_KEYWORDS =

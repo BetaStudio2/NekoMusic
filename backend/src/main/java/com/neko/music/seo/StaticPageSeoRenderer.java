@@ -22,9 +22,10 @@ import java.util.Set;
 /**
  * 静态路由（首页 / 下载 / 关于 / 隐私 / 排行榜 / 最新）的服务端 SEO HTML。
  *
- * <p>与 {@link MusicDetailPageRenderer} 一样，只在请求来自爬虫 / 链接预览 / AI 抓取器
- * 时由 {@code StaticPageSeoFilter} 调用；普通浏览器依旧拿到 SPA 外壳。这样搜索引擎与
- * 生成式引擎在无 JS 环境下也能读到完整、可引用的正文与结构化数据。
+ * <p>
+ * 与 {@link MusicDetailPageRenderer} 一样，只在请求来自爬虫 / 链接预览 / AI 抓取器 时由
+ * {@code StaticPageSeoFilter} 调用；普通浏览器依旧拿到 SPA 外壳。这样搜索引擎与 生成式引擎在无 JS
+ * 环境下也能读到完整、可引用的正文与结构化数据。
  */
 public final class StaticPageSeoRenderer {
 
@@ -47,7 +48,9 @@ public final class StaticPageSeoRenderer {
         return STATIC_PAGES.contains(normalizePath(path));
     }
 
-    /** 未知路径返回 null，由过滤器放行到静态站点处理器。 */
+    /**
+     * 未知路径返回 null，由过滤器放行到静态站点处理器。
+     */
     public String render(String rawPath, String siteBaseUrl) {
         String path = normalizePath(rawPath);
         if (!STATIC_PAGES.contains(path)) {
@@ -62,24 +65,43 @@ public final class StaticPageSeoRenderer {
         return html(page, base, pageUrl, buildJsonLd(page, base, pageUrl));
     }
 
-    private record Section(String heading, List<String> paragraphs, List<String> bullets) {}
-    private record Faq(String question, String answer) {}
-    private record MusicRow(int id, String title, String artist, long playCount) {}
+    private record Section(String heading, List<String> paragraphs, List<String> bullets) {
+
+    }
+
+    private record Faq(String question, String answer) {
+
+    }
+
+    private record MusicRow(int id, String title, String artist, long playCount) {
+
+    }
+
     private record Page(String path, String title, String description, String keywords,
-                        String h1, String lede, String breadcrumb,
-                        List<Section> sections, List<Faq> faqs,
-                        boolean softwareApp, boolean howTo, String appVersion) {}
+            String h1, String lede, String breadcrumb,
+            List<Section> sections, List<Faq> faqs,
+            boolean softwareApp, boolean howTo, String appVersion) {
+
+    }
 
     private Page buildPage(String path, String base) {
         return switch (path) {
-            case "/" -> homePage();
-            case "/download" -> downloadPage(base);
-            case "/about" -> aboutPage();
-            case "/privacy" -> privacyPage();
-            case "/ranking" -> rankingPage(base);
-            case "/latest" -> latestPage(base);
-            case "/search" -> searchPage(base);
-            default -> null;
+            case "/" ->
+                homePage();
+            case "/download" ->
+                downloadPage(base);
+            case "/about" ->
+                aboutPage();
+            case "/privacy" ->
+                privacyPage();
+            case "/ranking" ->
+                rankingPage(base);
+            case "/latest" ->
+                latestPage(base);
+            case "/search" ->
+                searchPage(base);
+            default ->
+                null;
         };
     }
 
@@ -95,7 +117,9 @@ public final class StaticPageSeoRenderer {
         return label + "：<a href=\"" + esc(url) + "\">下载 Download</a>";
     }
 
-    /** 安装包体积后缀，如 " · 12.3 MB"；文件缺失时返回空串 */
+    /**
+     * 安装包体积后缀，如 " · 12.3 MB"；文件缺失时返回空串
+     */
     private static String sizeSuffix(String fileName) {
         long bytes = ClientReleaseStorage.fileSizeOrZero(fileName);
         if (bytes <= 0) {
@@ -128,8 +152,7 @@ public final class StaticPageSeoRenderer {
 
     private static List<MusicRow> queryMusic(String sql, int limit, boolean withCount) {
         List<MusicRow> rows = new ArrayList<>();
-        try (Connection conn = Main.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (Connection conn = Main.getDatabaseManager().getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, limit);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -190,7 +213,7 @@ public final class StaticPageSeoRenderer {
                         "平台不收费、无强制订阅、无广告弹窗；客户端行为可自行查阅源码。"),
                 paragraph("从其它音乐平台迁入歌单",
                         "在 Android 或桌面客户端内使用「导入外部歌单」：粘贴网易云音乐 / QQ 音乐 / 酷狗音乐的歌单分享链接或歌单 ID，"
-                                + "客户端会拉取曲目列表并在 Neko 曲库中按歌名与歌手匹配后导入。详细步骤见下载页。"));
+                        + "客户端会拉取曲目列表并在 Neko 曲库中按歌名与歌手匹配后导入。详细步骤见下载页。"));
         List<Faq> faqs = List.of(
                 new Faq("Neko歌姬计划是免费的吗？",
                         "是的。Neko歌姬计划完全免费，没有强制订阅费用，也不含广告弹窗；项目为开源软件。"),
@@ -206,12 +229,12 @@ public final class StaticPageSeoRenderer {
         return new Page("/",
                 "Neko歌姬计划（原Neko云音乐）- 完全免费的在线音乐播放平台 | Neko Music",
                 "Neko歌姬计划是免费、开源、无广告的在线音乐播放平台，支持搜索、播放、收藏与歌单；"
-                        + "Android / PC 客户端可从网易云、QQ 音乐、酷狗迁入歌单，多端同步。",
+                + "Android / PC 客户端可从网易云、QQ 音乐、酷狗迁入歌单，多端同步。",
                 "Neko歌姬计划,Neko云音乐,Neko Music,免费音乐,在线音乐,免费听歌,开源音乐,无广告音乐,"
-                        + "网易云歌单迁移,QQ音乐歌单迁移,酷狗歌单迁移",
+                + "网易云歌单迁移,QQ音乐歌单迁移,酷狗歌单迁移",
                 "Neko歌姬计划 - 免费开源的在线音乐播放平台",
                 "完全免费、开源、无广告：搜索、播放、收藏、歌单与多端同步，"
-                        + "Android / PC 客户端支持从网易云音乐、QQ 音乐、酷狗音乐迁入歌单。",
+                + "Android / PC 客户端支持从网易云音乐、QQ 音乐、酷狗音乐迁入歌单。",
                 "首页 Home", sections, faqs, true, false, androidVer);
     }
 
@@ -296,9 +319,9 @@ public final class StaticPageSeoRenderer {
         return new Page("/download",
                 "下载客户端 - Neko歌姬计划 | Android / Windows / Linux / macOS 免费音乐应用",
                 "下载 Neko 云音乐 Android / Windows / Linux / macOS 客户端：完全免费、开源透明，"
-                        + "支持从网易云音乐、QQ 音乐、酷狗音乐迁入歌单。",
+                + "支持从网易云音乐、QQ 音乐、酷狗音乐迁入歌单。",
                 "Neko歌姬计划下载,APP下载,免费音乐APP,Android音乐,PC下载,桌面音乐,"
-                        + "网易云导入歌单,QQ音乐导入歌单,酷狗导入歌单,Linux音乐播放器,macOS音乐",
+                + "网易云导入歌单,QQ音乐导入歌单,酷狗导入歌单,Linux音乐播放器,macOS音乐",
                 "下载 Neko 云音乐客户端",
                 "选择你的平台，一键获取安装包：完全免费、开源透明，Android / PC 客户端支持从网易云音乐、QQ 音乐、酷狗音乐迁入歌单。",
                 "下载 Download", sections, faqs, true, true, pcVer);
@@ -319,14 +342,14 @@ public final class StaticPageSeoRenderer {
                 paragraph("开源协议",
                         "本项目遵循 AGPL-3.0 开源协议，代码托管在 GitHub，欢迎贡献代码、提出建议和反馈问题。"),
                 bullets("联系我们", List.of(
-                        "邮箱：<a href=\"mailto:support@cnmsb.xin\">support@cnmsb.xin</a>",
+                        "邮箱：<a href=\"mailto:support@nekocore.cn\">support@nekocore.cn</a>",
                         "QQ 群：932258919")),
                 paragraph("致谢",
                         "感谢所有使用 Neko歌姬计划的用户，以及所有为项目做出贡献的开发者。")
         );
         List<Faq> faqs = List.of(
                 new Faq("Neko歌姬计划是谁开发的？", "由 FantasyNetworkCN 及社区贡献者共同开发维护，是独立开源项目。"),
-                new Faq("如何反馈问题或参与贡献？", "可通过 GitHub 仓库提交 Issue 或 PR，也可通过邮箱 support@cnmsb.xin 联系。"));
+                new Faq("如何反馈问题或参与贡献？", "可通过 GitHub 仓库提交 Issue 或 PR，也可通过邮箱 support@nekocore.cn 联系。"));
         return new Page("/about",
                 "关于我们 - Neko歌姬计划 | 免费开源音乐平台",
                 "了解 Neko歌姬计划：一个完全免费、开源的在线音乐播放平台，支持搜索、播放、收藏、歌单与多端同步。",
@@ -352,7 +375,7 @@ public final class StaticPageSeoRenderer {
                 bullets("你的权利", List.of(
                         "可查看与修改账号资料。",
                         "可申请删除账号及相关数据。",
-                        "可通过 support@cnmsb.xin 联系我们行使权利。"))
+                        "可通过 support@nekocore.cn 联系我们行使权利。"))
         );
         return new Page("/privacy",
                 "隐私政策 - Neko歌姬计划",
@@ -512,10 +535,10 @@ public final class StaticPageSeoRenderer {
         howTo.put("name", "从网易云音乐 / QQ 音乐 / 酷狗音乐迁入歌单");
         howTo.put("description", "在 Neko 客户端内导入外部歌单的步骤。");
         String[][] steps = {
-                {"复制歌单链接或 ID", "在网易云音乐 / QQ 音乐 / 酷狗音乐复制歌单分享链接，或记下歌单 ID。"},
-                {"安装并打开客户端", "安装 Neko歌姬计划提供的 Android / Windows / Linux / macOS 客户端。"},
-                {"使用「导入外部歌单」", "在客户端内选择「导入外部歌单」，粘贴链接或 ID 并选择目标歌单。"},
-                {"等待匹配完成", "客户端会按歌名与歌手匹配站内曲库并导入曲目。"}
+            {"复制歌单链接或 ID", "在网易云音乐 / QQ 音乐 / 酷狗音乐复制歌单分享链接，或记下歌单 ID。"},
+            {"安装并打开客户端", "安装 Neko歌姬计划提供的 Android / Windows / Linux / macOS 客户端。"},
+            {"使用「导入外部歌单」", "在客户端内选择「导入外部歌单」，粘贴链接或 ID 并选择目标歌单。"},
+            {"等待匹配完成", "客户端会按歌名与歌手匹配站内曲库并导入曲目。"}
         };
         ArrayNode stepArray = howTo.putArray("step");
         for (int i = 0; i < steps.length; i++) {

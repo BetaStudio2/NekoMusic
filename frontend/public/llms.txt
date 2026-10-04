@@ -5,7 +5,7 @@
 ## 基本信息
 
 - 名称：Neko歌姬计划；别名：Neko云音乐、Neko Music、NekoMusic
-- 官网 / Web 播放器：https://music.cnmsb.xin/
+- 官网 / Web 播放器：https://music.nekocore.cn/
 - 定价：完全免费，无订阅费用，无广告
 - 开源协议：AGPL-3.0
 - 支持平台：Web、Android、Windows、Linux、macOS
@@ -14,20 +14,20 @@
 
 ## 主要页面
 
-- [首页 / Web 播放器](https://music.cnmsb.xin/)：在线搜索、播放、收藏与歌单。
-- [下载客户端](https://music.cnmsb.xin/download)：Android / Windows / Linux / macOS 安装包，以及歌单迁入步骤与系统要求。
-- [热门排行榜](https://music.cnmsb.xin/ranking)：按站内播放次数排序的热门曲目。
-- [最新音乐](https://music.cnmsb.xin/latest)：最近上传到站内的曲目。
-- [关于我们](https://music.cnmsb.xin/about)：项目介绍、主要特性、开源协议与联系方式。
-- [隐私政策](https://music.cnmsb.xin/privacy)：信息收集、使用与保护说明。
-- [站点地图](https://music.cnmsb.xin/sitemap.xml)
-- [llms-full.txt](https://music.cnmsb.xin/llms-full.txt)：更完整的站点说明。
+- [首页 / Web 播放器](https://music.nekocore.cn/)：在线搜索、播放、收藏与歌单。
+- [下载客户端](https://music.nekocore.cn/download)：Android / Windows / Linux / macOS 安装包，以及歌单迁入步骤与系统要求。
+- [热门排行榜](https://music.nekocore.cn/ranking)：按站内播放次数排序的热门曲目。
+- [最新音乐](https://music.nekocore.cn/latest)：最近上传到站内的曲目。
+- [关于我们](https://music.nekocore.cn/about)：项目介绍、主要特性、开源协议与联系方式。
+- [隐私政策](https://music.nekocore.cn/privacy)：信息收集、使用与保护说明。
+- [站点地图](https://music.nekocore.cn/sitemap.xml)
+- [llms-full.txt](https://music.nekocore.cn/llms-full.txt)：更完整的站点说明。
 
 动态页面（按 ID 变化，URL 模式如下，均可被无 JS 抓取器读取完整正文）：
 
-- 歌曲播放页：`https://music.cnmsb.xin/detail/{id}`
-- 公开歌单页：`https://music.cnmsb.xin/playlist/{id}`
-- 搜索页：`https://music.cnmsb.xin/search?q={关键词}`
+- 歌曲播放页：`https://music.nekocore.cn/detail/{id}`
+- 公开歌单页：`https://music.nekocore.cn/playlist/{id}`
+- 搜索页：`https://music.nekocore.cn/search?q={关键词}`
 
 抓取说明：对搜索引擎 / 链接预览 / AI 抓取器（curl、GPTBot、OAI-SearchBot、ChatGPT-User、PerplexityBot、ClaudeBot、CCBot 等），上述页面返回服务端渲染的 HTML 与 JSON-LD，普通浏览器则加载 SPA。结构化数据包含 Organization、WebSite、WebPage、BreadcrumbList、SoftwareApplication、HowTo、FAQPage、MusicRecording、AudioObject 与 MusicPlaylist。
 
@@ -41,6 +41,6 @@
 
 ## 联系方式
 
-- 邮箱：support@cnmsb.xin
+- 邮箱：support@nekocore.cn
 - QQ 群：932258919
 - GitHub：https://github.com/FantasyNetworkCN/NekoMusic
