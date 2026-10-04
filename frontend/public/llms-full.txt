@@ -77,7 +77,8 @@
 
 - 站点地图：https://music.cnmsb.xin/sitemap.xml
 - 允许搜索引擎与 AI 抓取器抓取公开页面。
-- 结构化数据：Organization、WebSite、WebPage、BreadcrumbList、FAQPage、SoftwareApplication、HowTo、MusicRecording。
+- 结构化数据：Organization、WebSite、WebPage、BreadcrumbList、FAQPage、SoftwareApplication、HowTo、MusicRecording、AudioObject、MusicPlaylist。
 - 主要公开页面：`/`、`/download`、`/ranking`、`/latest`、`/about`、`/privacy`、`/detail/{id}`、`/playlist/{id}`。
+- 无 JS 抓取：对搜索引擎、链接预览与 AI 抓取器，`/`、`/download`、`/detail/{id}`、`/playlist/{id}` 等服务端直接返回含正文与 JSON-LD 的 HTML；普通浏览器加载 SPA。
 
 最后更新：2026 年。

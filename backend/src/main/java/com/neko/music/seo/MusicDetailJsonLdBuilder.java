@@ -106,7 +106,7 @@ public final class MusicDetailJsonLdBuilder {
             ObjectNode root = JSON.createObjectNode();
             root.put("@context", "https://schema.org");
             root.set("@graph", graph);
-            return JSON.writeValueAsString(root);
+            return JsonLd.scriptSafe(JSON.writeValueAsString(root));
         } catch (Exception e) {
             return "{}";
         }
