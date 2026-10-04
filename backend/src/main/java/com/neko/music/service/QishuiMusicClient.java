@@ -119,11 +119,7 @@ public class QishuiMusicClient {
     private static boolean isAllowedHost(String host) {
         if (host == null || host.isBlank()) return false;
         String normalized = host.toLowerCase(Locale.ROOT);
-        if (ALLOWED_SHORT_LINK_HOSTS.contains(normalized)) return true;
-        for (String allowed : ALLOWED_SHORT_LINK_HOSTS) {
-            if (normalized.endsWith("." + allowed)) return true;
-        }
-        return false;
+        return ALLOWED_SHORT_LINK_HOSTS.contains(normalized);
     }
 
     private static URI parseAllowedRedirectUri(String rawUrl) {
@@ -145,17 +141,16 @@ public class QishuiMusicClient {
         }
     }
 
-    private static boolean isAllowedRedirectUrl(String rawUrl) {
-        try {
-            URI uri = URI.create(rawUrl);
-            String scheme = uri.getScheme();
-            if (scheme == null) return false;
-            String normalizedScheme = scheme.toLowerCase(Locale.ROOT);
-            if (!"http".equals(normalizedScheme) && !"https".equals(normalizedScheme)) return false;
-            return isAllowedHost(uri.getHost());
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
+    private static boolean isAllowedRedirectUri(URI uri) {
+        if (uri == null) return false;
+        String scheme = uri.getScheme();
+        if (scheme == null) return false;
+        String normalizedScheme = scheme.toLowerCase(Locale.ROOT);
+        if (!"http".equals(normalizedScheme) && !"https".equals(normalizedScheme)) return false;
+        if (uri.getUserInfo() != null) return false;
+        int port = uri.getPort();
+        if (port != -1 && port != 80 && port != 443) return false;
+        return isAllowedHost(uri.getHost());
     }
 
     private String resolveRedirectId(String url, int depth) {
@@ -178,10 +173,11 @@ public class QishuiMusicClient {
             } catch (IllegalArgumentException e) {
                 return null;
             }
+            if (!isAllowedRedirectUri(nextUri)) return null;
             String nextUrl = nextUri.toString();
             String id = extractIdFromUrl(nextUrl);
             if (id != null) return id;
-            return SHORT_LINK_PATTERN.matcher(nextUrl).find() && isAllowedRedirectUrl(nextUrl)
+            return SHORT_LINK_PATTERN.matcher(nextUrl).find()
                     ? resolveRedirectId(nextUrl, depth + 1) : null;
         } catch (IllegalArgumentException | IOException e) {
             logger.debug("解析汽水短链失败 url={}: {}", url, e.getMessage());
