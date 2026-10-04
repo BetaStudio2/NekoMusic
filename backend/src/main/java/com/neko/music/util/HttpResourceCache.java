@@ -15,14 +15,26 @@ import java.nio.file.attribute.BasicFileAttributes;
  */
 public final class HttpResourceCache {
 
+    /** 六个月（180 天）。静态/固定文件统一使用该时长。 */
+    public static final long MAX_AGE_SIX_MONTHS = 15552000L;
+    /** 一天。sitemap、txt 等低频更新的固定文件使用。 */
+    public static final long MAX_AGE_ONE_DAY = 86400L;
+    /** 半小时。{@code /api/music/latest}、{@code /api/music/ranking} 使用。 */
+    public static final long MAX_AGE_HALF_HOUR = 1800L;
+
+    /** 动态 API / 登录 / 头像等敏感响应：禁止任何缓存落盘。 */
+    public static final String CACHE_CONTROL_NO_STORE = "private, no-store";
+
     /**
      * 允许浏览器与共享缓存（CDN）缓存；上传替换同一 id 后 ETag 变化，再校验可拿到新对象。
      */
-    public static final String CACHE_CONTROL_FILE = "public, max-age=7200, must-revalidate";
+    public static final String CACHE_CONTROL_FILE =
+            "public, max-age=" + MAX_AGE_SIX_MONTHS + ", must-revalidate";
 
     /** 内嵌默认图标，内容不变 */
     public static final String DEFAULT_ICON_ETAG = "\"DefaultIcon-v1\"";
-    public static final String CACHE_CONTROL_DEFAULT_ICON = "public, max-age=86400, immutable";
+    public static final String CACHE_CONTROL_DEFAULT_ICON =
+            "public, max-age=" + MAX_AGE_SIX_MONTHS + ", immutable";
 
     private HttpResourceCache() {
     }

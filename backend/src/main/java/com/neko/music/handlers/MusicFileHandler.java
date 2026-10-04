@@ -57,7 +57,8 @@ public class MusicFileHandler extends HttpServlet {
             String target = MusicQualityService.resolveAudio(musicId, requestedQuality);
             response.setStatus(HttpStatus.FOUND_302);
             response.setHeader("Location", MusicQualityService.publicUrl(musicId, target));
-            response.setHeader("Cache-Control", "public, max-age=60");
+            // 音质解析结果不缓存，每次回源重新解析
+            response.setHeader("Cache-Control", HttpResourceCache.CACHE_CONTROL_NO_STORE);
         } catch (Exception e) {
             logger.error("解析音乐音质失败 id={}", musicId, e);
             response.setStatus(HttpStatus.NOT_FOUND_404);

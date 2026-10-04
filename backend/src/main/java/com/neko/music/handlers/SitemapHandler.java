@@ -2,6 +2,7 @@ package com.neko.music.handlers;
 
 import com.neko.music.Main;
 import com.neko.music.util.HtmlEscaper;
+import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.SiteUrlResolver;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -39,7 +40,8 @@ public class SitemapHandler extends HttpServlet {
         response.setStatus(HttpStatus.OK_200);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType("application/xml;charset=utf-8");
-        response.setHeader("Cache-Control", "public, max-age=3600");
+        response.setHeader("Cache-Control",
+                "public, max-age=" + HttpResourceCache.MAX_AGE_ONE_DAY);
         response.getWriter().write(xml);
     }
 
