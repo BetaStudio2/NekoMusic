@@ -43,7 +43,7 @@ npm run dev
 dev server（默认 `http://localhost:5173`）会把 `/api`、`/version` 反向代理到本地后端，
 前端与接口/音频/封面保持同源，**不需要后端为浏览器放开 CORS**。代理目标默认取
 `frontend/.env.development` 的 `VITE_DEV_PROXY_TARGET`（`http://localhost:65535`，
-即后端默认端口）；需要指向别的地址（例如线上 `https://music.cnmsb.xin`）时，
+即后端默认端口）；需要指向别的地址（例如线上 `https://music.nekocore.cn`）时，
 新建 `frontend/.env.development.local` 覆盖即可（该文件不入库）。
 
 
@@ -63,7 +63,7 @@ curl -sS -F 'audio=@sample.m4a' https://music.example.com/api/music/recognize
 
 将违禁词校验从上传、注册等业务中拆出，供前端在提交前预检标题、用户名、歌单名等文案。词表位于 `backend/src/main/resources/违禁词/`（`主词表.txt`、`英文词表.txt`、`白名单.txt`），与线上一致。
 
-**基础 URL：** 与站点 API 相同，例如 `https://music.cnmsb.xin`
+**基础 URL：** 与站点 API 相同，例如 `https://music.nekocore.cn`
 
 **端点：** `POST /api/sensitive-word/check`
 
@@ -172,13 +172,13 @@ HTTP 状态码：`400` 参数错误。
 ### curl 示例
 
 ```bash
-curl -s -X POST 'https://music.cnmsb.xin/api/sensitive-word/check' \
+curl -s -X POST 'https://music.nekocore.cn/api/sensitive-word/check' \
   -H 'Content-Type: application/json' \
   -d '{"text":"爱上你"}'
 ```
 
 ```bash
-curl -s -X POST 'https://music.cnmsb.xin/api/sensitive-word/check' \
+curl -s -X POST 'https://music.nekocore.cn/api/sensitive-word/check' \
   -H 'Content-Type: application/json' \
   -d '{"texts":["标题","歌手"]}'
 ```

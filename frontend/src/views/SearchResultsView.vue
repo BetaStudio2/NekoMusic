@@ -377,7 +377,7 @@ onMounted(async () => {
       <p class="empty__text">没有找到与「{{ searchQuery }}」匹配的单曲、歌单或艺人。</p>
       <p class="empty__hint">
         如需补全曲库，可联系
-        <a href="mailto:support@cnmsb.xin">support@cnmsb.xin</a>
+        <a href="mailto:support@nekocore.cn">support@nekocore.cn</a>
       </p>
     </NCard>
 

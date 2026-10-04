@@ -34,27 +34,28 @@ import java.util.Set;
 /**
  * 曲库音频标签写入：平台广告元数据 + 曲库元数据（标题/艺术家/专辑/歌词/封面）。
  * <ul>
- *   <li>评论 / 发行方 / 出版者：删除旧值后写入平台文案（整段替换，不拼接）</li>
- *   <li>内嵌歌词：在已有歌词正文最上方插入 LRC 横幅；无内嵌歌词则仅写入横幅；已含同首行则跳过</li>
- *   <li>{@link #syncLibraryMetadata(Path, LibraryMetadata)}：按曲库数据重写标题/艺术家/专辑/歌词/封面，
- *       同时重新写入上述广告元数据，因此广告字段不会因重写而丢失</li>
+ * <li>评论 / 发行方 / 出版者：删除旧值后写入平台文案（整段替换，不拼接）</li>
+ * <li>内嵌歌词：在已有歌词正文最上方插入 LRC 横幅；无内嵌歌词则仅写入横幅；已含同首行则跳过</li>
+ * <li>{@link #syncLibraryMetadata(Path, LibraryMetadata)}：按曲库数据重写标题/艺术家/专辑/歌词/封面，
+ * 同时重新写入上述广告元数据，因此广告字段不会因重写而丢失</li>
  * </ul>
  */
 public final class MusicAdMetadataPatcher {
+
     private static final Logger logger = LoggerFactory.getLogger(MusicAdMetadataPatcher.class);
 
-    public static final String COMMENT =
-            "更多免费无损音乐就来Neko歌姬计划 https://music.cnmsb.xin "
-                    + "For more free lossless music, visit Neko Cloud Music: https://music.cnmsb.xin";
+    public static final String COMMENT
+            = "更多免费无损音乐就来Neko歌姬计划 https://music.nekocore.cn "
+            + "For more free lossless music, visit Neko Cloud Music: https://music.nekocore.cn";
 
     public static final String ORGANIZATION = "Neko Music";
-    public static final String PUBLISHER = "music.cnmsb.xin";
+    public static final String PUBLISHER = "music.nekocore.cn";
 
-    public static final String LYRICS_BANNER_FIRST =
-            "[00:00.00]资源来自Neko歌姬计划 Resources from Neko Cloud Music";
+    public static final String LYRICS_BANNER_FIRST
+            = "[00:00.00]资源来自Neko歌姬计划 Resources from Neko Cloud Music";
 
-    public static final String LYRICS_BANNER_SECOND =
-            "[00:00.00]获取更多无损音乐https://music.cnmsb.xin/ Get more lossless music at https://music.cnmsb.xin/";
+    public static final String LYRICS_BANNER_SECOND
+            = "[00:00.00]获取更多无损音乐https://music.nekocore.cn/ Get more lossless music at https://music.nekocore.cn/";
 
     public static final String LYRICS_BANNER = LYRICS_BANNER_FIRST + "\n" + LYRICS_BANNER_SECOND;
 
@@ -104,6 +105,7 @@ public final class MusicAdMetadataPatcher {
      * 曲库元数据快照（来自数据库 / 封面目录）。字段为空时保持文件中的原值。
      */
     public record LibraryMetadata(String title, String artist, String album, String lyrics, Path coverFile) {
+
     }
 
     /**
@@ -131,7 +133,8 @@ public final class MusicAdMetadataPatcher {
     }
 
     /**
-     * @param flacLyrics true 时按 FLAC 约定写入 {@code lyrics} 字段（deleteField(FieldKey.LYRICS) 在部分实现上不生效）
+     * @param flacLyrics true 时按 FLAC 约定写入 {@code lyrics}
+     * 字段（deleteField(FieldKey.LYRICS) 在部分实现上不生效）
      */
     private static void syncTaggedAudio(Path path, LibraryMetadata metadata, boolean flacLyrics) throws Exception {
         AudioFile audio = AudioFileIO.read(path.toFile());
@@ -147,7 +150,9 @@ public final class MusicAdMetadataPatcher {
         AudioFileIO.write(audio);
     }
 
-    /** 写入广告字段：评论、发行方、出版者。各格式自行选择字段，不触碰其他标签。 */
+    /**
+     * 写入广告字段：评论、发行方、出版者。各格式自行选择字段，不触碰其他标签。
+     */
     private static void applyAdTags(Tag tag) throws TagException {
         replaceComment(tag);
         if (tag instanceof AbstractID3v2Tag id3) {
@@ -161,7 +166,9 @@ public final class MusicAdMetadataPatcher {
         }
     }
 
-    /** 内嵌歌词整段替换为「横幅 + 曲库正文」。 */
+    /**
+     * 内嵌歌词整段替换为「横幅 + 曲库正文」。
+     */
     private static void replaceEmbeddedLyrics(Tag tag, String lyricsBody) throws TagException {
         tag.deleteField(FieldKey.LYRICS);
         tag.setField(FieldKey.LYRICS, mergeLyricsWithBanner(stripBannerLines(lyricsBody)));
@@ -191,7 +198,9 @@ public final class MusicAdMetadataPatcher {
         }
     }
 
-    /** 内嵌封面：删除旧封面后写入封面目录中的当前文件；格式不支持时只记日志。 */
+    /**
+     * 内嵌封面：删除旧封面后写入封面目录中的当前文件；格式不支持时只记日志。
+     */
     private static void setCoverArt(Tag tag, Path coverFile) {
         if (coverFile == null || !Files.isRegularFile(coverFile)) {
             return;
@@ -315,7 +324,9 @@ public final class MusicAdMetadataPatcher {
         }
     }
 
-    /** 评论：删除全部旧 COMM/comment 后写入平台文案（不追加到旧评论后）。 */
+    /**
+     * 评论：删除全部旧 COMM/comment 后写入平台文案（不追加到旧评论后）。
+     */
     private static void replaceComment(Tag tag) throws TagException {
         tag.deleteField(FieldKey.COMMENT);
         if (tag instanceof AbstractID3v2Tag id3) {
@@ -353,8 +364,8 @@ public final class MusicAdMetadataPatcher {
         boolean removed;
         do {
             removed = false;
-            List<org.jaudiotagger.tag.TagField> frames =
-                    id3.getFrame(ID3v24Frames.FRAME_ID_USER_DEFINED_INFO);
+            List<org.jaudiotagger.tag.TagField> frames
+                    = id3.getFrame(ID3v24Frames.FRAME_ID_USER_DEFINED_INFO);
             if (frames == null) {
                 break;
             }
@@ -370,7 +381,9 @@ public final class MusicAdMetadataPatcher {
         } while (removed);
     }
 
-    /** 内嵌歌词：在已有正文最前插入横幅（不删除原歌词正文）。 */
+    /**
+     * 内嵌歌词：在已有正文最前插入横幅（不删除原歌词正文）。
+     */
     private static void prependId3Lyrics(AbstractID3v2Tag id3) {
         String existing = collectId3Lyrics(id3);
         if (hasBannerFirstLine(existing)) {
@@ -384,8 +397,8 @@ public final class MusicAdMetadataPatcher {
     }
 
     private static String collectId3Lyrics(AbstractID3v2Tag id3) {
-        List<org.jaudiotagger.tag.TagField> frames =
-                id3.getFrame(ID3v24Frames.FRAME_ID_UNSYNC_LYRICS);
+        List<org.jaudiotagger.tag.TagField> frames
+                = id3.getFrame(ID3v24Frames.FRAME_ID_UNSYNC_LYRICS);
         if (frames == null || frames.isEmpty()) {
             return "";
         }
@@ -450,7 +463,9 @@ public final class MusicAdMetadataPatcher {
         mp4.setField(Mp4FieldKey.LYRICS, mergeLyricsWithBanner(existing));
     }
 
-    /** 无旧歌词 → 仅横幅；有旧歌词 → 横幅 + 原正文（原样保留）。 */
+    /**
+     * 无旧歌词 → 仅横幅；有旧歌词 → 横幅 + 原正文（原样保留）。
+     */
     static String mergeLyricsWithBanner(String existingBody) {
         if (existingBody == null || existingBody.isBlank()) {
             return LYRICS_BANNER.trim();
@@ -458,7 +473,9 @@ public final class MusicAdMetadataPatcher {
         return (LYRICS_BANNER + existingBody).trim();
     }
 
-    /** 去掉正文中已存在的横幅行（管理员可能直接粘贴带横幅的歌词），避免重写后横幅叠加。 */
+    /**
+     * 去掉正文中已存在的横幅行（管理员可能直接粘贴带横幅的歌词），避免重写后横幅叠加。
+     */
     static String stripBannerLines(String body) {
         if (body == null || body.isBlank()) {
             return "";

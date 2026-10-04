@@ -13,7 +13,7 @@ const links = [
   { label: '关于我们', to: '/about', icon: 'info' },
   { label: '隐私政策', to: '/privacy', icon: 'shield-check' },
   { label: 'QQ群', href: 'https://qm.qq.com/q/Q9HkDi6Ewk', icon: 'users' },
-  { label: '邮件支持', href: 'mailto:support@cnmsb.xin', icon: 'mail', text: 'support@cnmsb.xin' },
+  { label: '邮件支持', href: 'mailto:support@nekocore.cn', icon: 'mail', text: 'support@nekocore.cn' },
 ]
 </script>
 
@@ -25,7 +25,7 @@ const links = [
           备案号：<a href="https://beian.miit.gov.cn/#/Integrated/recordQuery">黔ICP备2026007098号</a>
         </p>
         <p>
-          组织：<a href="https://www.cnmsb.xin/" class="site-footer__org">Fantasy Network「梦幻网络」</a>
+          组织：<a href="https://www.nekocore.cn/" class="site-footer__org">Fantasy Network「梦幻网络」</a>
         </p>
       </div>
 

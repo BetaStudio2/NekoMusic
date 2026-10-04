@@ -20,7 +20,7 @@ const features = [
 ]
 
 const contacts = [
-  { icon: 'mail', label: 'Email', value: 'support@cnmsb.xin', href: 'mailto:support@cnmsb.xin' },
+  { icon: 'mail', label: 'Email', value: 'support@nekocore.cn', href: 'mailto:support@nekocore.cn' },
   { icon: 'users', label: 'QQ群', value: '932258919', href: 'https://qm.qq.com/q/Q9HkDi6Ewk' },
 ]
 

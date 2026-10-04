@@ -11,7 +11,7 @@ import { isMobileDevice } from './mobile'
  *
  * 微信 / QQ 内置浏览器常拦截，需在系统浏览器中打开。
  */
-const APP_LINK_HOST = 'music.cnmsb.xin'
+const APP_LINK_HOST = 'music.nekocore.cn'
 const ANDROID_PKG = 'com.neko.music'
 const SKIP_QUERY = 'nekoweb'
 

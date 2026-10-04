@@ -7,7 +7,7 @@
 - 正式名称：Neko歌姬计划
 - 常用别名：Neko云音乐、Neko Music、NekoMusic
 - 类型：在线音乐播放平台 / 开源软件
-- 官网与 Web 播放器：https://music.cnmsb.xin/
+- 官网与 Web 播放器：https://music.nekocore.cn/
 - 定价：完全免费（无订阅、无付费墙、无广告弹窗）
 - 开源协议：AGPL-3.0
 - 代码仓库：
@@ -15,7 +15,7 @@
   - Android 客户端：https://github.com/FantasyNetworkCN/NekoMusicForAndroid
   - PC 客户端：https://github.com/FantasyNetworkCN/NekoMusicForPc
   - 文档：https://github.com/FantasyNetworkCN/NekoMusicDocs
-- 联系方式：support@cnmsb.xin；QQ 群 932258919
+- 联系方式：support@nekocore.cn；QQ 群 932258919
 
 ## 2. 主要功能
 
@@ -31,12 +31,12 @@
 
 | 平台 | 安装包格式 | 获取方式 |
 | --- | --- | --- |
-| Web | 无需安装 | https://music.cnmsb.xin/ |
-| Android | .apk | https://music.cnmsb.xin/download |
-| Windows | .exe | https://music.cnmsb.xin/download |
-| Linux（Debian 系） | .deb | https://music.cnmsb.xin/download |
-| Linux（Arch 系） | AUR：`yay -S neko-cloud-music` | https://music.cnmsb.xin/download |
-| macOS | .pkg | https://music.cnmsb.xin/download |
+| Web | 无需安装 | https://music.nekocore.cn/ |
+| Android | .apk | https://music.nekocore.cn/download |
+| Windows | .exe | https://music.nekocore.cn/download |
+| Linux（Debian 系） | .deb | https://music.nekocore.cn/download |
+| Linux（Arch 系） | AUR：`yay -S neko-cloud-music` | https://music.nekocore.cn/download |
+| macOS | .pkg | https://music.nekocore.cn/download |
 
 系统要求：
 - Android 7.0 及以上
@@ -75,7 +75,7 @@
 
 ## 6. 抓取与索引
 
-- 站点地图：https://music.cnmsb.xin/sitemap.xml
+- 站点地图：https://music.nekocore.cn/sitemap.xml
 - 允许搜索引擎与 AI 抓取器抓取公开页面。
 - 结构化数据：Organization、WebSite、WebPage、BreadcrumbList、FAQPage、SoftwareApplication、HowTo、MusicRecording、AudioObject、MusicPlaylist。
 - 主要公开页面：`/`、`/download`、`/ranking`、`/latest`、`/about`、`/privacy`、`/detail/{id}`、`/playlist/{id}`。
