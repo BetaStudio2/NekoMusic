@@ -23,6 +23,14 @@
 - [站点地图](https://music.cnmsb.xin/sitemap.xml)
 - [llms-full.txt](https://music.cnmsb.xin/llms-full.txt)：更完整的站点说明。
 
+动态页面（按 ID 变化，URL 模式如下，均可被无 JS 抓取器读取完整正文）：
+
+- 歌曲播放页：`https://music.cnmsb.xin/detail/{id}`
+- 公开歌单页：`https://music.cnmsb.xin/playlist/{id}`
+- 搜索页：`https://music.cnmsb.xin/search?q={关键词}`
+
+抓取说明：对搜索引擎 / 链接预览 / AI 抓取器（curl、GPTBot、OAI-SearchBot、ChatGPT-User、PerplexityBot、ClaudeBot、CCBot 等），上述页面返回服务端渲染的 HTML 与 JSON-LD，普通浏览器则加载 SPA。结构化数据包含 Organization、WebSite、WebPage、BreadcrumbList、SoftwareApplication、HowTo、FAQPage、MusicRecording、AudioObject 与 MusicPlaylist。
+
 ## 常见问题
 
 - Neko歌姬计划是免费的吗？是，完全免费且无广告，项目开源。

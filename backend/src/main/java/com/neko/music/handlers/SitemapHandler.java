@@ -23,10 +23,11 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 站点完整 sitemap（固定页 + 全部 /detail/{id}） */
+/** 站点完整 sitemap（固定页 + 全部 /detail/{id} + 公开 /playlist/{id}） */
 public class SitemapHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(SitemapHandler.class);
     private static final int MAX_MUSIC_URLS = 50_000;
+    private static final int MAX_PLAYLIST_URLS = 20_000;
     private static final DateTimeFormatter LASTMOD = DateTimeFormatter.ofPattern("yyyy-MM-dd")
             .withZone(ZoneOffset.UTC);
 
@@ -35,7 +36,8 @@ public class SitemapHandler extends HttpServlet {
         String siteBase = SiteUrlResolver.resolvePublicSiteBase(request);
         String today = LASTMOD.format(Instant.now());
         List<MusicEntry> music = loadMusicEntries();
-        String xml = buildXml(siteBase, today, music);
+        List<MusicEntry> playlists = loadPlaylistEntries();
+        String xml = buildXml(siteBase, today, music, playlists);
 
         response.setStatus(HttpStatus.OK_200);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
@@ -66,9 +68,31 @@ public class SitemapHandler extends HttpServlet {
         return list;
     }
 
-    private static String buildXml(String siteBase, String today, List<MusicEntry> musicEntries) {
+    private List<MusicEntry> loadPlaylistEntries() {
+        List<MusicEntry> list = new ArrayList<>();
+        try (Connection conn = Main.getDatabaseManager().getConnection()) {
+            String sql = "SELECT id, updated_at FROM playlists ORDER BY updated_at DESC LIMIT ?";
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setInt(1, MAX_PLAYLIST_URLS);
+                ResultSet rs = stmt.executeQuery();
+                while (rs.next()) {
+                    MusicEntry e = new MusicEntry();
+                    e.id = rs.getInt("id");
+                    Timestamp ts = rs.getTimestamp("updated_at");
+                    e.lastmod = ts != null ? LASTMOD.format(ts.toInstant()) : LASTMOD.format(Instant.now());
+                    list.add(e);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("生成 sitemap 时查询歌单失败", e);
+        }
+        return list;
+    }
+
+    private static String buildXml(String siteBase, String today, List<MusicEntry> musicEntries,
+                                    List<MusicEntry> playlistEntries) {
         String base = siteBase.endsWith("/") ? siteBase.substring(0, siteBase.length() - 1) : siteBase;
-        StringBuilder sb = new StringBuilder(musicEntries.size() * 120 + 1024);
+        StringBuilder sb = new StringBuilder((musicEntries.size() + playlistEntries.size()) * 120 + 1024);
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         sb.append("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
 
@@ -82,6 +106,10 @@ public class SitemapHandler extends HttpServlet {
 
         for (MusicEntry e : musicEntries) {
             appendUrl(sb, base + "/detail/" + e.id, e.lastmod, "weekly", "0.8");
+        }
+
+        for (MusicEntry p : playlistEntries) {
+            appendUrl(sb, base + "/playlist/" + p.id, p.lastmod, "weekly", "0.6");
         }
 
         sb.append("</urlset>\n");

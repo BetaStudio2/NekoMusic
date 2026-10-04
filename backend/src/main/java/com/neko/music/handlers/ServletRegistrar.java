@@ -105,6 +105,10 @@ public final class ServletRegistrar {
         ServletHolder musicDetailPageHolder = new ServletHolder(new MusicDetailPageHandler());
         context.addServlet(musicDetailPageHolder, "/detail/*");
 
+        // /playlist/{id} 服务端 HTML（SEO：歌单标题、简介、曲目列表与 JSON-LD）
+        ServletHolder playlistDetailPageHolder = new ServletHolder(new PlaylistDetailPageHandler());
+        context.addServlet(playlistDetailPageHolder, "/playlist/*");
+
         ServletHolder sitemapHolder = new ServletHolder(new SitemapHandler());
         context.addServlet(sitemapHolder, "/sitemap.xml");
 

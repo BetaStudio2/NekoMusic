@@ -470,7 +470,7 @@ public final class StaticPageSeoRenderer {
             ObjectNode root = JSON.createObjectNode();
             root.put("@context", "https://schema.org");
             root.set("@graph", graph);
-            return JSON.writeValueAsString(root);
+            return JsonLd.scriptSafe(JSON.writeValueAsString(root));
         } catch (Exception e) {
             logger.warn("生成静态页 JSON-LD 失败", e);
             return "{}";
