@@ -28,7 +28,7 @@ import java.util.concurrent.Executors;
  * 扫码登录（PC 显示二维码，手机端 NekoMusic App 扫码确认）。
  *
  * <ul>
- *   <li>{@code POST /api/user/qrlogin/create} — 新建会话，返回 sessionId 与二维码内容（无需登录）</li>
+ *   <li>{@code POST /api/user/qrlogin/create} — 新建会话，返回 sessionId 与二维码图片（无需登录）</li>
  *   <li>{@code GET  /api/user/qrlogin/status?sessionId=} — PC 的 SSE 长连接，状态变化即时推；confirmed 时一次性推走 token（无需登录）</li>
  *   <li>{@code POST /api/user/qrlogin/scan} — 手机扫码后标记已扫描（需登录）</li>
  *   <li>{@code POST /api/user/qrlogin/confirm} — 手机确认/拒绝登录（需登录）</li>
@@ -101,7 +101,6 @@ public class UserQrLoginHandler extends ApiServlet {
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("sessionId", sessionId);
-        data.put("qrContent", qrContent);
         data.put("qrImage", qrImage);
         data.put("expiresIn", QrLoginService.sessionTtlSeconds());
         sendJson(response, HttpServletResponse.SC_OK, true, "ok", data);
