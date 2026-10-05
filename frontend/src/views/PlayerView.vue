@@ -620,7 +620,9 @@ const handlePlayerStateChange = (e) => {
   const state = e.detail
   const currentPlayingMusic = JSON.parse(localStorage.getItem('currentPlayingMusic') || 'null')
   if (!currentMusic.value) return
-  if (currentPlayingMusic && currentPlayingMusic.id === currentMusic.value.id) {
+  // 统一用字符串比较，避免后端返回 number、列表/localStorage 存 string 时类型不一致
+  // 导致同步被跳过（表现为播放条不随播放推进）。
+  if (currentPlayingMusic && String(currentPlayingMusic.id) === String(currentMusic.value.id)) {
     isPlaying.value = state.isPlaying
     currentTime.value = state.currentTime
     duration.value = state.duration
@@ -1111,7 +1113,7 @@ const startTimer = () => {
       
       // 检查当前播放的音乐是否是本页面的音乐
       const currentPlayingMusic = JSON.parse(localStorage.getItem('currentPlayingMusic') || 'null');
-      if (currentPlayingMusic && currentMusic.value && currentPlayingMusic.id === currentMusic.value.id) {
+      if (currentPlayingMusic && currentMusic.value && String(currentPlayingMusic.id) === String(currentMusic.value.id)) {
         // 与全局播放器对齐时间/时长/播放态（歌词墙自行按时间插值）
         currentTime.value = state.currentTime;
         duration.value = state.duration;

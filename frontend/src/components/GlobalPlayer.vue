@@ -1331,7 +1331,7 @@ onMounted(() => {
   window.addEventListener('playerCommand', handlePlayerCommand)
   // 初始检查hash
   handleHashChange()
-  
+
   // 初始化当前播放音乐
   const storedMusic = localStorage.getItem('currentPlayingMusic')
   if (storedMusic) {
