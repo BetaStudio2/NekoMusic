@@ -170,6 +170,26 @@ rate_limit:
   silent_timeout: false
 
 # =============================================
+# 网络与安全（客户端 IP 来源 / 防爬）
+# =============================================
+# trusted_client_ip_header：后端从哪个头还原真实客户端 IP。
+#   X-Real-IP            —— 默认值。Nginx 反代 + CDN 部署：该头由 Nginx 的
+#                          proxy_set_header X-Real-IP $remote_addr 覆盖写入，客户端无法伪造，推荐。
+#   direct / (留空)      —— 纯直连公网、无反向代理：一律用 socket 对端地址，忽略所有转发头，
+#                          彻底杜绝评论归属地(geo)被伪造与限流被拆桶绕过，最安全。
+#   X-Forwarded-For      —— 有反向代理但只给 X-Forwarded-For 时使用（取最右一格）。
+#   CF-Connecting-IP     —— Cloudflare 直连时使用。
+# 重要：评论归属地、IP 限流、歌词、支付、听歌识曲全部共用该来源，改完重启生效。
+network:
+  trusted_client_ip_header: X-Real-IP
+
+  # 是否启用 /api 接口的保守防爬拦截：
+  # 拦截 UA 明确为爬虫/无头浏览器/命令行工具的请求访问 JSON 接口并返回 403；
+  # 不影响浏览器与安卓/PC 原生客户端；ZPay 异步通知自动豁免。
+  # 示例：true (启用), false (关闭)
+  crawler_protection_enabled: true
+
+# =============================================
 # 验证码发信限流
 # =============================================
 verification_code:

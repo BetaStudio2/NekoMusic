@@ -193,13 +193,7 @@ public final class MusicRecognitionHandler extends HttpServlet {
     }
 
     private static String clientAddress(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            int comma = forwarded.indexOf(',');
-            return (comma < 0 ? forwarded : forwarded.substring(0, comma)).trim();
-        }
-        String realIp = request.getHeader("X-Real-IP");
-        return realIp == null || realIp.isBlank() ? request.getRemoteAddr() : realIp.trim();
+        return com.neko.music.util.ClientIpResolver.clientIp(request);
     }
 
     private static String maxUploadMessage(long maxBytes) {
