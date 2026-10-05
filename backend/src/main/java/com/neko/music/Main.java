@@ -19,6 +19,7 @@ import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import com.neko.music.filter.CacheControlFilter;
+import com.neko.music.filter.CrawlerProtectionFilter;
 import com.neko.music.filter.IPRateLimitFilter;
 import com.neko.music.filter.StaticPageSeoFilter;
 import com.neko.music.util.ClientReleaseStorage;
@@ -255,6 +256,9 @@ public class Main {
 
         // IP 限流需在嵌入式 Jetty 中显式注册（@WebFilter 不会生效）
         context.addFilter(IPRateLimitFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
+
+        // 保守防爬：拦截明确为爬虫/无头/命令行工具对 /api/* 的访问（不影响浏览器与原生客户端）
+        context.addFilter(CrawlerProtectionFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
 
         // 静态路由（首页 / 下载 / 关于等）对爬虫返回服务端 SEO HTML，浏览器仍走 SPA
         context.addFilter(StaticPageSeoFilter.class, "/*", EnumSet.allOf(DispatcherType.class));

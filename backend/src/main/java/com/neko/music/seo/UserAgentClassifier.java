@@ -96,6 +96,43 @@ public final class UserAgentClassifier {
         return !normalized.contains("Mozilla/");
     }
 
+    /**
+     * 判断该 UA 是否属于「不应访问 JSON API」的爬虫 / 无头浏览器 / 命令行工具。
+     *
+     * <p>用于防爬过滤器：浏览器以真实 UA 通过 fetch 访问 /api，永远命中 false；原生客户端
+     * （Android / PC / 播放器）虽然不含 Mozilla，但走 {@link #isNativeClient} 一并放行，
+     * 避免拦截掉正常 App 与音视频直链请求。空 UA 也放行（交 IP 限流兜底），尽量保守、不误伤。</p>
+     */
+    public static boolean isBotForApi(String userAgent) {
+        if (userAgent == null || userAgent.isBlank()) {
+            return false;
+        }
+        String normalized = userAgent.trim();
+        if (isNativeClient(normalized)) {
+            return false;
+        }
+        return matchesAny(normalized,
+                GENERIC_FETCHERS,
+                SEARCH_ENGINE_BOTS,
+                LINK_PREVIEW_BOTS,
+                AI_CRAWLERS,
+                SEO_ANALYTICS_BOTS,
+                HTTP_CLIENTS,
+                HEADLESS_BROWSERS,
+                MONITORS_ARCHIVERS);
+    }
+
+    /** 原生客户端 / 播放器 / 桌面端 UA 一律放行（它们确实需要访问 API 或媒体直链，且不含 Mozilla）。 */
+    private static boolean isNativeClient(String ua) {
+        String lower = ua.toLowerCase(java.util.Locale.ROOT);
+        return lower.contains("okhttp") || lower.contains("dalvik")
+                || lower.contains("libmpv") || lower.contains("mpv/")
+                || lower.startsWith("vlc") || lower.contains("ffmpeg")
+                || lower.contains("ffprobe") || lower.contains("android")
+                || lower.contains("electron") || lower.startsWith("qt")
+                || lower.contains("qts") || lower.contains("qtwebengine");
+    }
+
     private static boolean matchesAny(String userAgent, Pattern... patterns) {
         for (Pattern pattern : patterns) {
             if (pattern.matcher(userAgent).find()) {

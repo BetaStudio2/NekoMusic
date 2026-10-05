@@ -89,4 +89,44 @@ class UserAgentClassifierTest {
         assertFalse(UserAgentClassifier.shouldRenderSeo(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Slack/4.36.140 Chrome/120.0.6099.291 Electron/28.2.4 Safari/537.36"));
     }
+
+    // ---- isBotForApi（/api 防爬）----
+
+    @Test
+    void flagsScriptTrafficOnApi() {
+        assertTrue(UserAgentClassifier.isBotForApi("curl/8.5.0"));
+        assertTrue(UserAgentClassifier.isBotForApi("Wget/1.21.3"));
+        assertTrue(UserAgentClassifier.isBotForApi("python-requests/2.31.0"));
+        assertTrue(UserAgentClassifier.isBotForApi("Go-http-client/1.1"));
+        assertTrue(UserAgentClassifier.isBotForApi(
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/120.0.0.0 Safari/537.36"));
+        assertTrue(UserAgentClassifier.isBotForApi(
+                "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2"));
+        assertTrue(UserAgentClassifier.isBotForApi(
+                "Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)"));
+        assertTrue(UserAgentClassifier.isBotForApi("Mozilla/5.0 (compatible; UptimeRobot/2.0)"));
+    }
+
+    @Test
+    void letsBrowsersAndNativeClientsThroughApi() {
+        // 浏览器
+        assertFalse(UserAgentClassifier.isBotForApi(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"));
+        assertFalse(UserAgentClassifier.isBotForApi(
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1"));
+        assertFalse(UserAgentClassifier.isBotForApi(
+                "Mozilla/5.0 (Linux; Android 13; 22081212C) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36 MicroMessenger/8.0.49"));
+        // 原生客户端 / 播放器（虽然不含 Mozilla）
+        assertFalse(UserAgentClassifier.isBotForApi("okhttp/4.12.0"));
+        assertFalse(UserAgentClassifier.isBotForApi("Dalvik/2.1.0 (Linux; U; Android 13; Pixel 7)"));
+        assertFalse(UserAgentClassifier.isBotForApi("libmpv/0.36"));
+        assertFalse(UserAgentClassifier.isBotForApi("VLC/3.0.20 LibVLC/3.0.20"));
+        assertFalse(UserAgentClassifier.isBotForApi("FFmpeg/6.1 libavformat/60.16.100"));
+        assertFalse(UserAgentClassifier.isBotForApi(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) NekoMusicPC/1.0 QtWebEngine/6.6.0"));
+        // 空 UA：保守放行，交由限流兜底
+        assertFalse(UserAgentClassifier.isBotForApi(null));
+        assertFalse(UserAgentClassifier.isBotForApi(""));
+        assertFalse(UserAgentClassifier.isBotForApi("   "));
+    }
 }
