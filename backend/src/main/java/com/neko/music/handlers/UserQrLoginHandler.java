@@ -5,6 +5,7 @@ import com.neko.music.Main;
 import com.neko.music.model.User;
 import com.neko.music.service.QrLoginService;
 import com.neko.music.service.UserAuthService;
+import com.neko.music.util.QrCodeRenderer;
 import com.neko.music.util.RequestAuthUtil;
 import com.neko.music.util.VipUtil;
 import jakarta.servlet.AsyncContext;
@@ -87,9 +88,21 @@ public class UserQrLoginHandler extends ApiServlet {
             return;
         }
 
+        String qrContent = QrLoginService.qrContentFor(sessionId);
+        String qrImage;
+        try {
+            // 纯服务端渲染：直接产出带软件图标的成品二维码
+            qrImage = QrCodeRenderer.toPngDataUrl(qrContent, 320);
+        } catch (Exception e) {
+            logger.error("登录二维码图片渲染失败", e);
+            sendJson(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false, "二维码生成失败，请稍后重试", null);
+            return;
+        }
+
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("sessionId", sessionId);
-        data.put("qrContent", QrLoginService.qrContentFor(sessionId));
+        data.put("qrContent", qrContent);
+        data.put("qrImage", qrImage);
         data.put("expiresIn", QrLoginService.sessionTtlSeconds());
         sendJson(response, HttpServletResponse.SC_OK, true, "ok", data);
     }

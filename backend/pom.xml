@@ -196,6 +196,13 @@
             <artifactId>geoip2</artifactId>
             <version>5.2.0</version>
         </dependency>
+
+        <!-- ZXing：服务端渲染二维码（登录码中心合成软件图标） -->
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>core</artifactId>
+            <version>3.5.4</version>
+        </dependency>
     </dependencies>
 
     <build>
