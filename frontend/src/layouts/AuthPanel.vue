@@ -272,7 +272,6 @@
  */
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import axios from 'axios'
-import QRCode from 'qrcode'
 import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NInput } from '@/ui'
@@ -440,16 +439,12 @@ async function startQrLogin() {
     if (generation !== qrGeneration) return
 
     const payload = response.data?.data
-    if (!response.data?.success || !payload?.sessionId || !payload?.qrContent) {
+    if (!response.data?.success || !payload?.sessionId || !payload?.qrImage) {
       throw new Error(response.data?.message || '二维码生成失败')
     }
 
-    qrImageUrl.value = await QRCode.toDataURL(payload.qrContent, {
-      width: 320,
-      margin: 1,
-      errorCorrectionLevel: 'M',
-      color: { dark: '#0f1524', light: '#ffffff' },
-    })
+    // 纯服务端渲染：直接展示后端返回的成品二维码图片
+    qrImageUrl.value = payload.qrImage
     if (generation !== qrGeneration) return
 
     qrStatus.value = 'pending'
