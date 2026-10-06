@@ -18,12 +18,14 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * /api 防爬与「浏览器完整性区分拦截」的行为测试。
+ * /api 防爬与「爬虫转 SEO」的行为测试。
  *
- * <p>用动态代理桩替代 Servlet 容器，不依赖 MySQL/Redis，聚焦过滤器判定。</p>
+ * <p>用动态代理桩替代 Servlet 容器，不依赖 MySQL/Redis，聚焦过滤器判定：
+ * 爬虫 GET / HEAD 请求 302 到对应 SEO 页，其余方法 403，真实浏览器 / 原生客户端放行。</p>
  */
 class CrawlerProtectionFilterTest {
 
@@ -31,10 +33,14 @@ class CrawlerProtectionFilterTest {
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
                     + "Chrome/124.0.0.0 Safari/537.36";
 
-    private record Outcome(int status, boolean chained) {
+    private record Outcome(int status, boolean chained, String location) {
     }
 
     private Outcome inspect(String ua, Map<String, String> headers) throws Exception {
+        return inspect("GET", "/api/music/ranking", ua, headers);
+    }
+
+    private Outcome inspect(String method, String uri, String ua, Map<String, String> headers) throws Exception {
         ConfigManager config = new ConfigManager();
         CrawlerProtectionFilter filter = new CrawlerProtectionFilter();
 
@@ -53,18 +59,21 @@ class CrawlerProtectionFilterTest {
         }
 
         HttpServletRequest req = proxy(HttpServletRequest.class, (p, m, a) -> switch (m.getName()) {
-            case "getRequestURI" -> "/api/music/ranking";
+            case "getRequestURI" -> uri;
             case "getContextPath" -> "";
+            case "getMethod" -> method;
             case "getRemoteAddr" -> "127.0.0.1";
             case "getHeader" -> hs.get(((String) a[0]).toLowerCase());
             default -> defaultValue(m);
         });
 
         int[] status = {200};
+        Map<String, String> responseHeaders = new HashMap<>();
         PrintWriter writer = new PrintWriter(new StringWriter());
         HttpServletResponse resp = proxy(HttpServletResponse.class, (p, m, a) -> {
             switch (m.getName()) {
                 case "setStatus" -> status[0] = (int) a[0];
+                case "setHeader" -> responseHeaders.put(((String) a[0]).toLowerCase(), (String) a[1]);
                 case "getWriter" -> {
                     return writer;
                 }
@@ -83,35 +92,36 @@ class CrawlerProtectionFilterTest {
         });
 
         filter.doFilter(req, resp, chain);
-        return new Outcome(status[0], chained[0]);
+        return new Outcome(status[0], chained[0], responseHeaders.get("location"));
     }
 
     @Test
-    void blocksKnownBotsAndScanners() throws Exception {
-        assertEquals(403, inspect("curl/8.5.0", null).status());
-        assertEquals(403, inspect("python-requests/2.31.0", null).status());
-        assertEquals(403, inspect("sqlmap/1.7.2#stable", null).status());
-        assertEquals(403, inspect("Mozilla/5.00 (Nikto/2.5.0)", null).status());
-        assertEquals(403, inspect("Mozilla/5.0 zgrab/0.x", null).status());
-        assertFalse(inspect("curl/8.5.0", null).chained());
+    void divertsKnownBotsAndScannersToSeo() throws Exception {
+        Outcome curl = inspect("curl/8.5.0", null);
+        assertEquals(302, curl.status());
+        assertEquals("/ranking", curl.location());
+        assertFalse(curl.chained());
+
+        assertEquals(302, inspect("python-requests/2.31.0", null).status());
+        assertEquals(302, inspect("sqlmap/1.7.2#stable", null).status());
+        assertEquals(302, inspect("Mozilla/5.00 (Nikto/2.5.0)", null).status());
+        assertEquals(302, inspect("Mozilla/5.0 zgrab/0.x", null).status());
     }
 
     @Test
-    void blocksUnknownCrawlersWithCustomOrSpoofedUserAgent() throws Exception {
-        assertEquals(403, inspect("MyCollector/1.0", null).status());
-        assertEquals(403, inspect("Mozilla/5.0 (compatible; AcmeIndex/1.0)", null).status());
-        assertEquals(403, inspect("Mozilla/5.0", null).status());
-        assertEquals(403, inspect("Mozilla/5.0 (X11; Linux x86_64)", null).status());
-        assertEquals(403, inspect("Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)", null).status());
-        // 空 UA 不再默认放行
-        assertEquals(403, inspect(null, null).status());
+    void divertsUnknownCrawlersWithCustomOrSpoofedUserAgentToSeo() throws Exception {
+        assertEquals(302, inspect("MyCollector/1.0", null).status());
+        assertEquals(302, inspect("Mozilla/5.0 (compatible; AcmeIndex/1.0)", null).status());
+        assertEquals(302, inspect("Mozilla/5.0", null).status());
+        assertEquals(302, inspect("Mozilla/5.0 (X11; Linux x86_64)", null).status());
+        assertEquals(302, inspect("Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)", null).status());
+        assertEquals(302, inspect(null, null).status());
     }
 
     @Test
-    void blocksBrowserUserAgentSpoofWithoutBrowserHeaders() throws Exception {
-        // 只伪造浏览器 UA、不起算浏览器头 → 拒绝
-        assertEquals(403, inspect(BROWSER_UA, null).status());
-        assertEquals(403, inspect(BROWSER_UA, Map.of("Accept", "application/json")).status());
+    void divertsBrowserUserAgentSpoofWithoutBrowserHeaders() throws Exception {
+        assertEquals(302, inspect(BROWSER_UA, null).status());
+        assertEquals(302, inspect(BROWSER_UA, Map.of("Accept", "application/json")).status());
     }
 
     @Test
@@ -138,6 +148,26 @@ class CrawlerProtectionFilterTest {
         assertEquals(200, inspect("libmpv/0.36", null).status());
         assertEquals(200, inspect(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) NekoMusicPC/1.0 QtWebEngine/6.6.0", null).status());
+    }
+
+    @Test
+    void nonGetCrawlerRequestIsForbidden() throws Exception {
+        Outcome post = inspect("POST", "/api/user/login", "curl/8.5.0", null);
+        assertEquals(403, post.status());
+        assertNull(post.location());
+    }
+
+    @Test
+    void mapsApiPathsToSeoPages() {
+        assertEquals("/ranking", CrawlerProtectionFilter.seoPageForApiPath("/api/music/ranking"));
+        assertEquals("/latest", CrawlerProtectionFilter.seoPageForApiPath("/api/music/latest"));
+        assertEquals("/search", CrawlerProtectionFilter.seoPageForApiPath("/api/music/search"));
+        assertEquals("/detail/42", CrawlerProtectionFilter.seoPageForApiPath("/api/music/info/42"));
+        assertEquals("/detail/42", CrawlerProtectionFilter.seoPageForApiPath("/api/music/cover/42"));
+        assertEquals("/detail/42", CrawlerProtectionFilter.seoPageForApiPath("/api/music/file/42"));
+        assertEquals("/detail/7", CrawlerProtectionFilter.seoPageForApiPath("/api/music/lyrics/7"));
+        assertEquals("/", CrawlerProtectionFilter.seoPageForApiPath("/api/user/login"));
+        assertEquals("/", CrawlerProtectionFilter.seoPageForApiPath("/api/music/search/abc"));
     }
 
     @SuppressWarnings("unchecked")

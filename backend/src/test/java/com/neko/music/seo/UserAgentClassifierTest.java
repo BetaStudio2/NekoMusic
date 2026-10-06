@@ -165,4 +165,20 @@ class UserAgentClassifierTest {
         assertFalse(UserAgentClassifier.isBotForApi(""));
         assertFalse(UserAgentClassifier.isBotForApi("   "));
     }
+
+    @Test
+    void rendersSeoWhenBrowserUserAgentLacksBrowserHeaders() {
+        String chrome = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                + "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+        // 真浏览器（UA 结构 + 特征头）→ SPA
+        assertFalse(UserAgentClassifier.shouldRenderSeo(chrome, true));
+        // 伪造浏览器 UA 但无特征头 → SEO
+        assertTrue(UserAgentClassifier.shouldRenderSeo(chrome, false));
+        // 已知爬虫无论有无特征头都走 SEO
+        assertTrue(UserAgentClassifier.shouldRenderSeo("curl/8.5.0", true));
+        assertTrue(UserAgentClassifier.shouldRenderSeo("curl/8.5.0", false));
+        // 空 UA 走 SEO
+        assertTrue(UserAgentClassifier.shouldRenderSeo(null, false));
+        assertTrue(UserAgentClassifier.shouldRenderSeo("", true));
+    }
 }

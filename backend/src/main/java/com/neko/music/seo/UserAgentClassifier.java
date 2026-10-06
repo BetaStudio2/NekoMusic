@@ -110,6 +110,20 @@ public final class UserAgentClassifier {
     }
 
     /**
+     * 结合浏览器特征头判断是否应渲染 SEO HTML。
+     *
+     * <p>UA 判定为爬虫（{@link #shouldRenderSeo(String)}）时返回 {@code true}；
+     * UA 虽含 {@code Mozilla/} 但缺少浏览器特征头（疑似伪造的未知爬虫）时同样返回 {@code true}；
+     * 只有「UA 结构像真浏览器 + 特征头齐全」才返回 {@code false}（走前端 SPA）。</p>
+     */
+    public static boolean shouldRenderSeo(String userAgent, boolean hasBrowserFetchEvidence) {
+        if (shouldRenderSeo(userAgent)) {
+            return true;
+        }
+        return !hasBrowserFetchEvidence;
+    }
+
+    /**
      * 判断该 UA 是否属于「不应访问 JSON API」的爬虫 / 无头浏览器 / 命令行工具。
      *
      * <p>用于防爬过滤器：浏览器以真实 UA 通过 fetch 访问 /api，永远命中 false；原生客户端

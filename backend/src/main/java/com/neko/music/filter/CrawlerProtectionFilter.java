@@ -2,6 +2,7 @@ package com.neko.music.filter;
 
 import com.neko.music.Main;
 import com.neko.music.config.ConfigManager;
+import com.neko.music.seo.BrowserEvidence;
 import com.neko.music.seo.UserAgentClassifier;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
@@ -80,14 +81,14 @@ public class CrawlerProtectionFilter implements Filter {
 
         String ua = httpRequest.getHeader("User-Agent");
 
-        // 1) 明确为爬虫 / 无头 / 命令行工具 / 安全扫描器 → 直接 403
+        // 1) 明确为爬虫 / 无头 / 命令行工具 / 安全扫描器 → 转 SEO
         //    （isBotForApi 已内置放行原生客户端）
         if (UserAgentClassifier.isBotForApi(ua)) {
-            reject(httpRequest, httpResponse, path, ua);
+            divertToSeo(httpRequest, httpResponse, path, ua);
             return;
         }
 
-        // 2) 浏览器完整性区分拦截：拦截未知 / 小众爬虫（自定义 UA、残缺或仅伪造 Mozilla 前缀）
+        // 2) 浏览器完整性区分拦截：识别未知 / 小众爬虫（自定义 UA、残缺或仅伪造 Mozilla 前缀）
         if (configManager.isBrowserIntegrityEnabled()) {
             // 2a) 配置的额外放行名单（第三方客户端登记）
             if (isAllowlistedClient(ua)) {
@@ -100,22 +101,64 @@ public class CrawlerProtectionFilter implements Filter {
                 return;
             }
             // 2c) 其余必须是「UA 结构像真浏览器」且「带浏览器特征头」
-            if (UserAgentClassifier.looksLikeRealBrowser(ua) && hasBrowserFetchEvidence(httpRequest)) {
+            if (UserAgentClassifier.looksLikeRealBrowser(ua) && BrowserEvidence.hasFetchEvidence(httpRequest)) {
                 chain.doFilter(request, response);
                 return;
             }
-            reject(httpRequest, httpResponse, path, ua);
+            divertToSeo(httpRequest, httpResponse, path, ua);
             return;
         }
 
         chain.doFilter(request, response);
     }
 
-    /** 记录并返回 403。 */
-    private static void reject(HttpServletRequest request, HttpServletResponse response, String path, String ua)
+    /**
+     * 爬虫访问 {@code /api}：GET / HEAD 返回 302 转到对应 SEO 页面（让抓取器拿到可索引的
+     * 服务端 HTML，而不是 SPA 或 JSON；也不再直接 403）；其它方法没有对应 SEO 页，仍 403。
+     */
+    private static void divertToSeo(HttpServletRequest request, HttpServletResponse response, String path, String ua)
             throws IOException {
-        logger.warn("防爬拦截: path={} UA={} remote={}", path, ua, request.getRemoteAddr());
+        String method = request.getMethod();
+        if ("GET".equalsIgnoreCase(method) || "HEAD".equalsIgnoreCase(method)) {
+            String target = seoPageForApiPath(path);
+            logger.info("爬虫访问 API 转 SEO: path={} -> {} UA={} remote={}",
+                    path, target, ua, request.getRemoteAddr());
+            response.setStatus(HttpServletResponse.SC_FOUND); // 302
+            response.setHeader("Location", target);
+            response.setHeader("Cache-Control", "private, no-store");
+            return;
+        }
+        logger.warn("防爬拦截(非 GET): path={} method={} UA={} remote={}",
+                path, method, ua, request.getRemoteAddr());
         writeForbidden(response);
+    }
+
+    /** {@code /api} 路径 → 对应 SEO 页面；无法对应时回首页。 */
+    static String seoPageForApiPath(String path) {
+        switch (path) {
+            case "/api/music/ranking":
+                return "/ranking";
+            case "/api/music/latest":
+                return "/latest";
+            case "/api/music/search":
+                return "/search";
+            default:
+                break;
+        }
+        for (String prefix : new String[]{
+                "/api/music/info/", "/api/music/cover/", "/api/music/file/", "/api/music/lyrics/"}) {
+            if (path.startsWith(prefix)) {
+                String id = path.substring(prefix.length());
+                int slash = id.indexOf('/');
+                if (slash >= 0) {
+                    id = id.substring(0, slash);
+                }
+                if (id.matches("\\d+")) {
+                    return "/detail/" + id;
+                }
+            }
+        }
+        return "/";
     }
 
     /** 配置的额外放行 UA 子串匹配（大小写不敏感）。 */
@@ -135,21 +178,6 @@ public class CrawlerProtectionFilter implements Filter {
             }
         }
         return false;
-    }
-
-    /** 浏览器特征头证据：至少带 Accept，且带 Accept-Language 或 Sec-Fetch-*。 */
-    private static boolean hasBrowserFetchEvidence(HttpServletRequest req) {
-        String accept = req.getHeader("Accept");
-        if (accept == null || accept.isBlank()) {
-            return false;
-        }
-        String acceptLanguage = req.getHeader("Accept-Language");
-        if (acceptLanguage != null && !acceptLanguage.isBlank()) {
-            return true;
-        }
-        return req.getHeader("Sec-Fetch-Mode") != null
-                || req.getHeader("Sec-Fetch-Site") != null
-                || req.getHeader("Sec-Fetch-Dest") != null;
     }
 
     private static String normalizedPath(String uri, String ctx) {

@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.seo.BrowserEvidence;
 import com.neko.music.seo.MusicDetailPageRenderer;
 import com.neko.music.seo.UserAgentClassifier;
 import com.neko.music.util.PublicMusicLookup;
@@ -33,7 +34,7 @@ public class MusicDetailPageHandler extends HttpServlet {
         // either branch so a proxy cannot reuse the crawler response for a
         // normal browser (or vice versa).
         response.setHeader("Vary", "User-Agent");
-        if (!shouldRenderSeo(request.getHeader("User-Agent"))) {
+        if (!shouldRenderSeo(request)) {
             // Forward internally so the address bar remains /detail/{id}; the
             // SPA then reads that URL and loads the music through its API.
             request.getRequestDispatcher("/index.html").forward(request, response);
@@ -75,7 +76,13 @@ public class MusicDetailPageHandler extends HttpServlet {
         sendHtml(response, HttpStatus.OK_200, html);
     }
 
-    static boolean shouldRenderSeo(String userAgent) {
+    /** 结合浏览器特征头判定：UA 像浏览器但缺少特征头的（伪造）也走 SEO。 */
+    static boolean shouldRenderSeo(HttpServletRequest request) {
+        return UserAgentClassifier.shouldRenderSeo(
+                request.getHeader("User-Agent"), BrowserEvidence.hasFetchEvidence(request));
+    }
+
+    static boolean shouldRenderSeoByUserAgent(String userAgent) {
         return UserAgentClassifier.shouldRenderSeo(userAgent);
     }
 
