@@ -3,6 +3,7 @@ package com.neko.music.filter;
 import com.neko.music.config.ConfigManager;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.FilterConfig;
+import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -22,10 +23,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * /api 防爬与「爬虫转 SEO」的行为测试。
+ * /api 防爬与「爬虫直出 SEO」的行为测试。
  *
  * <p>用动态代理桩替代 Servlet 容器，不依赖 MySQL/Redis，聚焦过滤器判定：
- * 爬虫 GET / HEAD 请求 302 到对应 SEO 页，其余方法 403，真实浏览器 / 原生客户端放行。</p>
+ * 爬虫 GET / HEAD 直接 forward 到对应 SEO 页并返回 200（不再 302），
+ * 其余方法 403，真实浏览器 / 原生客户端放行。</p>
  */
 class CrawlerProtectionFilterTest {
 
@@ -33,7 +35,8 @@ class CrawlerProtectionFilterTest {
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
                     + "Chrome/124.0.0.0 Safari/537.36";
 
-    private record Outcome(int status, boolean chained, String location) {
+    private record Outcome(int status, boolean chained, String forwarded, String body, String vary,
+            String cacheControl) {
     }
 
     private Outcome inspect(String ua, Map<String, String> headers) throws Exception {
@@ -58,18 +61,10 @@ class CrawlerProtectionFilterTest {
             hs.put("user-agent", ua);
         }
 
-        HttpServletRequest req = proxy(HttpServletRequest.class, (p, m, a) -> switch (m.getName()) {
-            case "getRequestURI" -> uri;
-            case "getContextPath" -> "";
-            case "getMethod" -> method;
-            case "getRemoteAddr" -> "127.0.0.1";
-            case "getHeader" -> hs.get(((String) a[0]).toLowerCase());
-            default -> defaultValue(m);
-        });
-
         int[] status = {200};
         Map<String, String> responseHeaders = new HashMap<>();
-        PrintWriter writer = new PrintWriter(new StringWriter());
+        StringWriter responseBody = new StringWriter();
+        PrintWriter writer = new PrintWriter(responseBody);
         HttpServletResponse resp = proxy(HttpServletResponse.class, (p, m, a) -> {
             switch (m.getName()) {
                 case "setStatus" -> status[0] = (int) a[0];
@@ -83,6 +78,28 @@ class CrawlerProtectionFilterTest {
             return defaultValue(m);
         });
 
+        // 桩 dispatcher：记录 forward 目标并写入可见正文，用来断言「直出 SEO 页」而不是 302。
+        String[] forwarded = {null};
+        RequestDispatcher dispatcher = proxy(RequestDispatcher.class, (p, m, a) -> {
+            if ("forward".equals(m.getName())) {
+                ((HttpServletResponse) a[1]).getWriter().write("<html>SEO</html>");
+            }
+            return defaultValue(m);
+        });
+
+        HttpServletRequest req = proxy(HttpServletRequest.class, (p, m, a) -> switch (m.getName()) {
+            case "getRequestURI" -> uri;
+            case "getContextPath" -> "";
+            case "getMethod" -> method;
+            case "getRemoteAddr" -> "127.0.0.1";
+            case "getHeader" -> hs.get(((String) a[0]).toLowerCase());
+            case "getRequestDispatcher" -> {
+                forwarded[0] = (String) a[0];
+                yield dispatcher;
+            }
+            default -> defaultValue(m);
+        });
+
         boolean[] chained = {false};
         FilterChain chain = proxy(FilterChain.class, (p, m, a) -> {
             if ("doFilter".equals(m.getName())) {
@@ -92,29 +109,39 @@ class CrawlerProtectionFilterTest {
         });
 
         filter.doFilter(req, resp, chain);
-        return new Outcome(status[0], chained[0], responseHeaders.get("location"));
+        return new Outcome(status[0], chained[0], forwarded[0], responseBody.toString(),
+                responseHeaders.get("vary"), responseHeaders.get("cache-control"));
     }
 
     @Test
     void divertsKnownBotsAndScannersToSeo() throws Exception {
         Outcome curl = inspect("curl/8.5.0", null);
-        assertEquals(302, curl.status());
-        assertEquals("/ranking", curl.location());
+        assertEquals(200, curl.status());
+        assertEquals("/ranking", curl.forwarded());
+        assertEquals("<html>SEO</html>", curl.body());
+        assertEquals("User-Agent", curl.vary());
+        assertEquals("private, no-store", curl.cacheControl());
         assertFalse(curl.chained());
 
-        assertEquals(302, inspect("python-requests/2.31.0", null).status());
-        assertEquals(302, inspect("sqlmap/1.7.2#stable", null).status());
-        assertEquals(302, inspect("Mozilla/5.00 (Nikto/2.5.0)", null).status());
-        assertEquals(302, inspect("Mozilla/5.0 zgrab/0.x", null).status());
+        for (String botUa : new String[]{"python-requests/2.31.0", "sqlmap/1.7.2#stable",
+                "Mozilla/5.00 (Nikto/2.5.0)", "Mozilla/5.0 zgrab/0.x"}) {
+            Outcome outcome = inspect(botUa, null);
+            assertEquals(200, outcome.status(), botUa);
+            assertEquals("/ranking", outcome.forwarded(), botUa);
+            assertFalse(outcome.chained(), botUa);
+        }
     }
 
     @Test
     void divertsUnknownCrawlersWithCustomOrSpoofedUserAgentToSeo() throws Exception {
-        assertEquals(302, inspect("MyCollector/1.0", null).status());
-        assertEquals(302, inspect("Mozilla/5.0 (compatible; AcmeIndex/1.0)", null).status());
-        assertEquals(302, inspect("Mozilla/5.0", null).status());
-        assertEquals(302, inspect("Mozilla/5.0 (X11; Linux x86_64)", null).status());
-        assertEquals(302, inspect("Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)", null).status());
+        for (String crawlerUa : new String[]{"MyCollector/1.0", "Mozilla/5.0 (compatible; AcmeIndex/1.0)",
+                "Mozilla/5.0", "Mozilla/5.0 (X11; Linux x86_64)",
+                "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)"}) {
+            Outcome outcome = inspect(crawlerUa, null);
+            assertEquals(200, outcome.status(), crawlerUa);
+            assertEquals("/ranking", outcome.forwarded(), crawlerUa);
+            assertFalse(outcome.chained(), crawlerUa);
+        }
     }
 
     @Test
@@ -132,8 +159,15 @@ class CrawlerProtectionFilterTest {
 
     @Test
     void divertsBrowserUserAgentSpoofWithoutBrowserHeaders() throws Exception {
-        assertEquals(302, inspect(BROWSER_UA, null).status());
-        assertEquals(302, inspect(BROWSER_UA, Map.of("Accept", "application/json")).status());
+        Outcome noHeaders = inspect(BROWSER_UA, null);
+        assertEquals(200, noHeaders.status());
+        assertEquals("/ranking", noHeaders.forwarded());
+        assertFalse(noHeaders.chained());
+
+        Outcome acceptOnly = inspect(BROWSER_UA, Map.of("Accept", "application/json"));
+        assertEquals(200, acceptOnly.status());
+        assertEquals("/ranking", acceptOnly.forwarded());
+        assertFalse(acceptOnly.chained());
     }
 
     @Test
@@ -166,7 +200,7 @@ class CrawlerProtectionFilterTest {
     void nonGetCrawlerRequestIsForbidden() throws Exception {
         Outcome post = inspect("POST", "/api/user/login", "curl/8.5.0", null);
         assertEquals(403, post.status());
-        assertNull(post.location());
+        assertNull(post.forwarded());
     }
 
     @Test
