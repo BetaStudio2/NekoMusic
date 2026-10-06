@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.seo.BrowserEvidence;
 import com.neko.music.seo.PlaylistPageRenderer;
 import com.neko.music.seo.UserAgentClassifier;
 import com.neko.music.util.PublicPlaylistLookup;
@@ -39,7 +40,7 @@ public class PlaylistDetailPageHandler extends HttpServlet {
         String pathInfo = request.getPathInfo();
         // /playlist/create 等非数字路径不是歌单详情页，交回 SPA 处理。
         Matcher matcher = pathInfo == null ? null : ID_PATTERN.matcher(pathInfo);
-        if (matcher == null || !matcher.matches() || !shouldRenderSeo(request.getHeader("User-Agent"))) {
+        if (matcher == null || !matcher.matches() || !shouldRenderSeo(request)) {
             request.getRequestDispatcher("/index.html").forward(request, response);
             return;
         }
@@ -67,7 +68,13 @@ public class PlaylistDetailPageHandler extends HttpServlet {
         sendHtml(response, HttpStatus.OK_200, renderer.render(playlistOpt.get(), siteBase));
     }
 
-    static boolean shouldRenderSeo(String userAgent) {
+    /** 结合浏览器特征头判定：UA 像浏览器但缺少特征头的（伪造）也走 SEO。 */
+    static boolean shouldRenderSeo(HttpServletRequest request) {
+        return UserAgentClassifier.shouldRenderSeo(
+                request.getHeader("User-Agent"), BrowserEvidence.hasFetchEvidence(request));
+    }
+
+    static boolean shouldRenderSeoByUserAgent(String userAgent) {
         return UserAgentClassifier.shouldRenderSeo(userAgent);
     }
 

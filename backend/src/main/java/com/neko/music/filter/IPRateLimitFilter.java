@@ -3,6 +3,7 @@ package com.neko.music.filter;
 import com.neko.music.Main;
 import com.neko.music.config.ConfigManager;
 import com.neko.music.service.IPRateLimitService;
+import com.neko.music.util.ClientIpResolver;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -108,29 +109,11 @@ public class IPRateLimitFilter implements Filter {
     }
 
     /**
-     * 获取客户端真实 IP
+     * 获取客户端真实 IP（统一走 {@link ClientIpResolver}：默认直连只取 socket 地址，
+     * 杜绝客户端伪造转发头拆限流桶）。
      */
     private String getClientIP(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("X-Real-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("Proxy-Client-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("WL-Proxy-Client-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-
-        // 如果有多个 IP（通过代理），取第一个
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-
-        return ip;
+        return ClientIpResolver.clientIp(request);
     }
 
     /**

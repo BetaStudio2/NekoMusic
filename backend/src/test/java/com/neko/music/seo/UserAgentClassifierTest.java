@@ -89,4 +89,99 @@ class UserAgentClassifierTest {
         assertFalse(UserAgentClassifier.shouldRenderSeo(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Slack/4.36.140 Chrome/120.0.6099.291 Electron/28.2.4 Safari/537.36"));
     }
+
+    // ---- isBotForApi（/api 防爬）----
+
+    @Test
+    void flagsScriptTrafficOnApi() {
+        assertTrue(UserAgentClassifier.isBotForApi("curl/8.5.0"));
+        assertTrue(UserAgentClassifier.isBotForApi("Wget/1.21.3"));
+        assertTrue(UserAgentClassifier.isBotForApi("python-requests/2.31.0"));
+        assertTrue(UserAgentClassifier.isBotForApi("Go-http-client/1.1"));
+        assertTrue(UserAgentClassifier.isBotForApi(
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/120.0.0.0 Safari/537.36"));
+        assertTrue(UserAgentClassifier.isBotForApi(
+                "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2"));
+        assertTrue(UserAgentClassifier.isBotForApi(
+                "Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)"));
+        assertTrue(UserAgentClassifier.isBotForApi("Mozilla/5.0 (compatible; UptimeRobot/2.0)"));
+    }
+
+    @Test
+    void flagsSecurityScannersOnApi() {
+        assertTrue(UserAgentClassifier.isBotForApi("sqlmap/1.7.2#stable (https://sqlmap.org)"));
+        assertTrue(UserAgentClassifier.isBotForApi("Mozilla/5.00 (Nikto/2.5.0) (Evasions:None)"));
+        assertTrue(UserAgentClassifier.isBotForApi(
+                "Mozilla/5.0 (compatible; Nmap Scripting Engine; https://nmap.org/book/nse.html)"));
+        assertTrue(UserAgentClassifier.isBotForApi("Mozilla/5.0 zgrab/0.x"));
+        assertTrue(UserAgentClassifier.isBotForApi("masscan/1.3"));
+        assertTrue(UserAgentClassifier.isBotForApi("WPScan v3.8.25 (https://wpscan.com/wordpress-security-scanner)"));
+        assertTrue(UserAgentClassifier.isBotForApi("gobuster/3.6"));
+        assertTrue(UserAgentClassifier.isBotForApi("Mozilla/5.0 (Nuclei - Open-source project)"));
+    }
+
+    @Test
+    void browserStructureCheckSeparatesRealBrowsersFromSpoofs() {
+        // 真浏览器
+        assertTrue(UserAgentClassifier.looksLikeRealBrowser(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"));
+        assertTrue(UserAgentClassifier.looksLikeRealBrowser(
+                "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0"));
+        assertTrue(UserAgentClassifier.looksLikeRealBrowser(
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1"));
+        // iOS WKWebView（微信等）常省略 Safari/Version，仍应识别为浏览器
+        assertTrue(UserAgentClassifier.looksLikeRealBrowser(
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.40"));
+        // 未知/小众爬虫、残缺或仅伪造 Mozilla 前缀
+        assertFalse(UserAgentClassifier.looksLikeRealBrowser("MyCollector/1.0"));
+        assertFalse(UserAgentClassifier.looksLikeRealBrowser("AcmeIndex/1.0"));
+        assertFalse(UserAgentClassifier.looksLikeRealBrowser("Mozilla/5.0"));
+        assertFalse(UserAgentClassifier.looksLikeRealBrowser("Mozilla/5.0 (X11; Linux x86_64)"));
+        assertFalse(UserAgentClassifier.looksLikeRealBrowser("Mozilla/5.0 (compatible; AcmeIndex/1.0)"));
+        assertFalse(UserAgentClassifier.looksLikeRealBrowser("Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)"));
+        assertFalse(UserAgentClassifier.looksLikeRealBrowser(null));
+        assertFalse(UserAgentClassifier.looksLikeRealBrowser(""));
+    }
+
+    @Test
+    void letsBrowsersAndNativeClientsThroughApi() {
+        // 浏览器
+        assertFalse(UserAgentClassifier.isBotForApi(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"));
+        assertFalse(UserAgentClassifier.isBotForApi(
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1"));
+        assertFalse(UserAgentClassifier.isBotForApi(
+                "Mozilla/5.0 (Linux; Android 13; 22081212C) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36 MicroMessenger/8.0.49"));
+        // 原生客户端 / 播放器（虽然不含 Mozilla）
+        assertFalse(UserAgentClassifier.isBotForApi("okhttp/4.12.0"));
+        assertFalse(UserAgentClassifier.isBotForApi("Dalvik/2.1.0 (Linux; U; Android 13; Pixel 7)"));
+        assertFalse(UserAgentClassifier.isBotForApi("libmpv/0.36"));
+        assertFalse(UserAgentClassifier.isBotForApi("VLC/3.0.20 LibVLC/3.0.20"));
+        assertFalse(UserAgentClassifier.isBotForApi("FFmpeg/6.1 libavformat/60.16.100"));
+        assertFalse(UserAgentClassifier.isBotForApi(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) NekoMusicPC/1.0 QtWebEngine/6.6.0"));
+        // NekoMusic PC：Qt 桌面端（封面请求 UA；API 请求默认不发 UA，由过滤器放行）
+        assertFalse(UserAgentClassifier.isBotForApi("NekoMusic Qt"));
+        assertTrue(UserAgentClassifier.isNativeClient("NekoMusic Qt"));
+        // 空 UA：保守放行，交由限流兜底
+        assertFalse(UserAgentClassifier.isBotForApi(null));
+        assertFalse(UserAgentClassifier.isBotForApi(""));
+        assertFalse(UserAgentClassifier.isBotForApi("   "));
+    }
+
+    @Test
+    void rendersSeoWhenBrowserUserAgentLacksBrowserHeaders() {
+        String chrome = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                + "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+        // 真浏览器（UA 结构 + 特征头）→ SPA
+        assertFalse(UserAgentClassifier.shouldRenderSeo(chrome, true));
+        // 伪造浏览器 UA 但无特征头 → SEO
+        assertTrue(UserAgentClassifier.shouldRenderSeo(chrome, false));
+        // 已知爬虫无论有无特征头都走 SEO
+        assertTrue(UserAgentClassifier.shouldRenderSeo("curl/8.5.0", true));
+        assertTrue(UserAgentClassifier.shouldRenderSeo("curl/8.5.0", false));
+        // 空 UA 走 SEO
+        assertTrue(UserAgentClassifier.shouldRenderSeo(null, false));
+        assertTrue(UserAgentClassifier.shouldRenderSeo("", true));
+    }
 }

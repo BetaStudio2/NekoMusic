@@ -5,6 +5,7 @@ import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
 import com.maxmind.geoip2.record.Subdivision;
 import com.neko.music.util.AtomicFiles;
+import com.neko.music.util.ClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -346,59 +347,9 @@ public class IpRegionService {
         return name.trim();
     }
 
-    /** 去掉端口、IPv6 方括号与 IPv4-mapped 前缀。 */
+    /** 去掉端口、IPv6 方括号与 IPv4-mapped 前缀（统一复用 {@link ClientIpResolver} 的实现）。 */
     static String normalize(String raw) {
-        if (raw == null) {
-            return "";
-        }
-        String ip = raw.trim();
-        if (ip.isEmpty()) {
-            return "";
-        }
-        int comma = ip.indexOf(',');
-        if (comma >= 0) {
-            ip = ip.substring(0, comma).trim();
-        }
-        if (ip.startsWith("[")) {
-            int end = ip.indexOf(']');
-            if (end > 0) {
-                ip = ip.substring(1, end);
-            }
-        }
-        if (ip.startsWith("::ffff:")) {
-            ip = ip.substring("::ffff:".length());
-        }
-        if (ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            return "";
-        }
-        // IPv4 带端口 1.2.3.4:5678
-        int firstColon = ip.indexOf(':');
-        if (firstColon > 0 && ip.indexOf('.') > 0 && firstColon == ip.lastIndexOf(':')
-                && ip.substring(firstColon + 1).chars().allMatch(Character::isDigit)) {
-            ip = ip.substring(0, firstColon);
-        }
-        return isPlausible(ip) ? ip : "";
-    }
-
-    private static boolean isPlausible(String ip) {
-        if (ip.contains(":")) {
-            return true;
-        }
-        String[] parts = ip.split("\\.");
-        if (parts.length != 4) {
-            return false;
-        }
-        for (String part : parts) {
-            try {
-                int value = Integer.parseInt(part);
-                if (value < 0 || value > 255) {
-                    return false;
-                }
-            } catch (NumberFormatException e) {
-                return false;
-            }
-        }
-        return true;
+        return ClientIpResolver.normalize(raw);
     }
 
     static boolean isLocalAddress(String ip) {
@@ -434,23 +385,9 @@ public class IpRegionService {
         }
     }
 
-    /** 从请求头还原真实客户端 IP（兼容反向代理）。 */
+    /** 从请求还原真实客户端 IP（统一走 {@link ClientIpResolver}，避免信任可伪造的转发头）。 */
     public static String clientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (isBlankOrUnknown(ip)) {
-            ip = request.getHeader("X-Real-IP");
-        }
-        if (isBlankOrUnknown(ip)) {
-            ip = request.getHeader("Proxy-Client-IP");
-        }
-        if (isBlankOrUnknown(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        return normalize(ip);
-    }
-
-    private static boolean isBlankOrUnknown(String value) {
-        return value == null || value.isBlank() || "unknown".equalsIgnoreCase(value.trim());
+        return ClientIpResolver.clientIp(request);
     }
 
     /** 依次尝试外部文件与类路径资源；JAR 内置库会在启动时释放到磁盘。全部失败返回 null。 */
