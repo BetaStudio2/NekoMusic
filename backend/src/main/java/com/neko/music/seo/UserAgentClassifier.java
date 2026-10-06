@@ -150,7 +150,9 @@ public final class UserAgentClassifier {
                 SECURITY_SCANNERS);
     }
 
-    /** 原生客户端 / 播放器 / 桌面端 UA 一律放行（它们确实需要访问 API 或媒体直链，且不含 Mozilla）。 */
+    /**
+     * 原生客户端 / 播放器 / 桌面端 UA 一律放行（它们确实需要访问 API 或媒体直链）。
+     */
     public static boolean isNativeClient(String ua) {
         if (ua == null || ua.isBlank()) {
             return false;
@@ -162,7 +164,8 @@ public final class UserAgentClassifier {
                 || lower.contains("ffprobe") || lower.contains("android")
                 || lower.contains("electron") || lower.startsWith("qt")
                 || lower.contains("qts") || lower.contains("qtwebengine")
-                // 本站 PC 桌面端：ApiClient 用 QNetworkRequest 默认不发送 UA，封面请求为 "NekoMusic Qt"
+                // 本站 PC 桌面端：ApiClient 用 QNetworkRequest 发送 UA "NekoMusic-PC/<版本>"，
+                // 封面请求为 "NekoMusic Qt"。
                 || lower.contains("nekomusic");
     }
 

@@ -137,6 +137,22 @@ class CrawlerProtectionFilterTest {
     }
 
     @Test
+    void allowsDeclaredClientHeaderEvenWhenUaLooksLikePlainChrome() throws Exception {
+        // 桌面端为兼容 CDN 把全局 UA 伪装成普通 Chrome，无法靠 UA 区分；
+        // 显式标识 X-Neko-Client: <端>+<版本> 作为正向证据放行。
+        Outcome declared = inspect(BROWSER_UA, Map.of("X-Neko-Client", "archoera+0.9.20"));
+        assertEquals(200, declared.status());
+        assertTrue(declared.chained());
+
+        assertEquals(200, inspect(BROWSER_UA, Map.of("X-Neko-Client", "pc+2026.105.48")).status());
+        assertEquals(200, inspect(BROWSER_UA, Map.of("X-Neko-Client", "web+1.2.3")).status());
+
+        // 残缺 / 空白标识不作为放行依据
+        assertEquals(302, inspect(BROWSER_UA, Map.of("X-Neko-Client", "archoera")).status());
+        assertEquals(302, inspect(BROWSER_UA, Map.of("X-Neko-Client", "   ")).status());
+    }
+
+    @Test
     void allowsRealBrowserWithFetchEvidence() throws Exception {
         Outcome withLang = inspect(BROWSER_UA, Map.of(
                 "Accept", "application/json, text/plain, */*",
