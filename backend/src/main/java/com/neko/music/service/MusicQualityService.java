@@ -8,6 +8,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -18,7 +20,10 @@ import java.sql.SQLException;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class MusicQualityService {
     public static final String STANDARD = "standard";
@@ -50,7 +55,14 @@ public final class MusicQualityService {
 
     public static String resolveAudio(int musicId, String requested) throws IOException, SQLException {
         Path source = MusicAssetLocator.findAudioFile(musicId).orElseThrow(() -> new IOException("音乐文件不存在"));
-        String maxQuality = loadMaxQuality(musicId, source);
+        String maxQuality;
+        try {
+            maxQuality = loadMaxQuality(musicId, source);
+        } catch (Exception e) {
+            // 宁可把原始文件直接给用户，也不要因为解析/写库失败导致无法播放
+            logger.warn("音乐音质解析失败 id={}，降级为直接返回源文件", musicId, e);
+            return source.toString();
+        }
         String requestedQuality = normalize(requested);
         int requestedRank = qualityRank(requestedQuality);
         int maxRank = qualityRank(maxQuality);
@@ -103,15 +115,136 @@ public final class MusicQualityService {
         return "/media/music/" + musicId + "/" + path.getFileName();
     }
 
+    /**
+     * 解析音频参数：先走原生容器头解析（微秒级），失败时用内置 FFmpeg 兜底。
+     *
+     * <p>兜底让「扩展名写错、容器不在白名单、JNI 库没加载、文件头被改坏」等情况也能拿到参数，
+     * 只有连 FFmpeg 都读不出来时才抛异常。
+     */
     public static Probe probe(Path source) throws IOException {
-        if (!NativeAudioQuality.isAvailable()) {
-            throw new IOException("未加载音质 JNI 库，请先构建 backend/native/libneko_audio_quality.so");
+        Path absolute = source.toAbsolutePath();
+        if (NativeAudioQuality.isAvailable()) {
+            long[] values = NativeAudioQuality.probe(absolute.toString());
+            if (values != null && values.length >= 5 && values[0] >= 0) {
+                return new Probe(qualityFromNative(values[0]), (int) values[1], (int) values[2], (int) values[3], (int) values[4]);
+            }
         }
-        long[] values = NativeAudioQuality.probe(source.toAbsolutePath().toString());
-        if (values == null || values.length < 5 || values[0] < 0) {
-            throw new IOException("无法解析音频参数: " + source);
+        Probe fallback = probeWithFfmpeg(absolute);
+        if (fallback != null) {
+            return fallback;
         }
-        return new Probe(qualityFromNative(values[0]), (int) values[1], (int) values[2], (int) values[3], (int) values[4]);
+        throw new IOException("无法解析音频参数: " + source);
+    }
+
+    private static final Pattern FFMPEG_DURATION =
+            Pattern.compile("Duration:\\s*(\\d+):(\\d{2}):(\\d{2}(?:\\.\\d+)?)");
+    private static final Pattern FFMPEG_STREAM =
+            Pattern.compile("Stream #\\d+:\\d+[^\\n]*?: Audio: (\\w+)[^\\n]*?, (\\d+) Hz, ([^,\\n]+), ([^,\\n]+)(?:, (\\d+) kb/s)?(?:,|\\s|$)");
+    private static final Pattern FFMPEG_CONTAINER_BITRATE =
+            Pattern.compile("Duration:[^\\n]*bitrate: (\\d+) kb/s");
+    private static final Pattern FFMPEG_BIT_DEPTH = Pattern.compile("(\\d+) bit");
+    private static final Pattern FFMPEG_CHANNELS = Pattern.compile("(\\d+) channels");
+
+    /** 用 FFmpeg 读取任意容器/编码的音轨参数；只在原生解析失败时调用，避免常态化起进程。 */
+    private static Probe probeWithFfmpeg(Path source) {
+        try {
+            String ffmpeg = resolveFfmpeg();
+            Process process = new ProcessBuilder(ffmpeg, "-hide_banner", "-nostdin", "-i", source.toString())
+                    .redirectErrorStream(true)
+                    .start();
+            String output;
+            try (InputStream in = process.getInputStream()) {
+                output = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            }
+            if (!process.waitFor(30, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                logger.warn("FFmpeg 兜底解析超时: {}", source);
+                return null;
+            }
+            return parseFfmpegProbe(output, source);
+        } catch (Exception e) {
+            logger.warn("FFmpeg 兜底解析音质失败: {}", source, e);
+            return null;
+        }
+    }
+
+    private static Probe parseFfmpegProbe(String output, Path source) throws IOException {
+        Matcher stream = FFMPEG_STREAM.matcher(output);
+        if (!stream.find()) {
+            return null;
+        }
+        String codec = stream.group(1).toLowerCase(Locale.ROOT);
+        int sampleRate = Integer.parseInt(stream.group(2));
+        int channels = channelCount(stream.group(3));
+        int bits = sampleBits(stream.group(4));
+        long bitrate = stream.group(5) != null ? Long.parseLong(stream.group(5)) * 1000L : 0L;
+
+        double durationSeconds = 0;
+        Matcher duration = FFMPEG_DURATION.matcher(output);
+        if (duration.find()) {
+            durationSeconds = Integer.parseInt(duration.group(1)) * 3600
+                    + Integer.parseInt(duration.group(2)) * 60
+                    + Double.parseDouble(duration.group(3));
+        }
+        if (bitrate <= 0) {
+            Matcher container = FFMPEG_CONTAINER_BITRATE.matcher(output);
+            if (container.find()) {
+                bitrate = Long.parseLong(container.group(1)) * 1000L;
+            }
+        }
+        if (bitrate <= 0 && durationSeconds > 0 && Files.isRegularFile(source)) {
+            bitrate = (long) (Files.size(source) * 8 / durationSeconds);
+        }
+        if (sampleRate <= 0 || bitrate <= 0) {
+            return null;
+        }
+
+        String quality = isLosslessCodec(codec)
+                ? ((sampleRate >= 96000 || bits >= 24) ? HIRES : SQ)
+                : qualityFromBitrate((int) bitrate);
+        return new Probe(quality, (int) Math.min(bitrate, Integer.MAX_VALUE), sampleRate, bits, channels);
+    }
+
+    private static int channelCount(String layout) {
+        String value = layout.trim().toLowerCase(Locale.ROOT);
+        if (value.startsWith("mono")) return 1;
+        if (value.startsWith("stereo")) return 2;
+        Matcher many = FFMPEG_CHANNELS.matcher(value);
+        if (many.find()) return Integer.parseInt(many.group(1));
+        return switch (value) {
+            case "2.1" -> 3;
+            case "4.0", "quad" -> 4;
+            case "5.1", "5.1(side)" -> 6;
+            case "7.1" -> 8;
+            default -> 2;
+        };
+    }
+
+    private static int sampleBits(String sampleFormat) {
+        Matcher explicit = FFMPEG_BIT_DEPTH.matcher(sampleFormat);
+        if (explicit.find()) {
+            return Integer.parseInt(explicit.group(1));
+        }
+        String value = sampleFormat.trim().toLowerCase(Locale.ROOT);
+        if (value.startsWith("u8") || value.startsWith("s8")) return 8;
+        if (value.startsWith("s32") || value.startsWith("u32")) return 32;
+        if (value.startsWith("s64")) return 64;
+        return 16;
+    }
+
+    private static boolean isLosslessCodec(String codec) {
+        return codec.startsWith("pcm_")
+                || switch (codec) {
+                    case "flac", "alac", "wavpack", "ape", "tta", "tak", "shorten", "mlp", "truehd", "dst" -> true;
+                    default -> codec.startsWith("dsd_");
+                };
+    }
+
+    private static String qualityFromBitrate(int bps) {
+        if (bps >= 441000) return SQ;
+        if (bps >= 320000) return HQ;
+        if (bps > 0) return STANDARD;
+        return HQ;
     }
 
     private static String loadMaxQuality(int musicId, Path source) throws IOException, SQLException {
@@ -138,6 +271,9 @@ public final class MusicQualityService {
         String configured = System.getProperty("neko.ffmpeg");
         if (configured != null && !configured.isBlank()) {
             return configured;
+        }
+        if (Main.getConfigManager() == null) {
+            return BundledFfmpegSupport.resolve("", false);
         }
         return BundledFfmpegSupport.resolve(
                 Main.getConfigManager().getVideoRenderFfmpegPath(),

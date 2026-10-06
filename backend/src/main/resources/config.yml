@@ -108,8 +108,8 @@ smtp:
 
   # SMTP 用户名
   # 通常是完整的邮箱地址
-  # 示例：support@cnmsb.xin, admin@example.com
-  username: support@cnmsb.xin
+  # 示例：support@nekocore.cn, admin@example.com
+  username: support@nekocore.cn
 
   # SMTP 密码
   # 注意：某些邮箱需要使用授权码而非登录密码
@@ -245,9 +245,9 @@ video_render:
   # 成片与 ASS 在 /tmp/.neko 中的保留时间（小时），到期自动删除；Redis 任务元数据 TTL 与此一致
   artifact_retention_hours: 3
 
-  # 渲染完成邮件中的下载页站点根（不含尾斜杠），如 https://music.cnmsb.xin
+  # 渲染完成邮件中的下载页站点根（不含尾斜杠），如 https://music.nekocore.cn
   # 未填则从 zpay.frontend_return_url 推断（去掉 /vip）
-  notify_frontend_base_url: "https://music.cnmsb.xin"
+  notify_frontend_base_url: "https://music.nekocore.cn"
 
 # =============================================
 # ZPay 支付（易支付兼容 API，文档 https://z-pay.cn/doc.html）
@@ -259,7 +259,7 @@ zpay:
   key: ""
   mapi_url: "https://zpayz.cn/mapi.php"
   public_base_url: ""
-  frontend_return_url: "https://music.cnmsb.xin/vip"
+  frontend_return_url: "https://music.nekocore.cn/vip"
 
 # =============================================
 # 运行目录磁盘保护
@@ -298,7 +298,7 @@ recommendation_ai:
   enabled: true
   # OpenAI 兼容 API Base URL（不要带尾斜杠）
   # 官方示例: https://api.openai.com/v1
-  base_url: "http://ai.cnmsb.xin/v1"
+  base_url: "http://ai.nekocore.cn/v1"
   # API Key
   api_key: ""
   # 模型名称（可填 gpt-4o-mini / gpt-4.1-mini 等 OpenAI 兼容模型）
