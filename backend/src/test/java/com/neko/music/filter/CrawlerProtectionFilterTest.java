@@ -115,7 +115,19 @@ class CrawlerProtectionFilterTest {
         assertEquals(302, inspect("Mozilla/5.0", null).status());
         assertEquals(302, inspect("Mozilla/5.0 (X11; Linux x86_64)", null).status());
         assertEquals(302, inspect("Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)", null).status());
-        assertEquals(302, inspect(null, null).status());
+    }
+
+    @Test
+    void allowsDesktopQtClientThatSendsNoUserAgentOrNekoMusicUa() throws Exception {
+        // NekoMusic PC 的 ApiClient 用 QNetworkRequest，默认不发送 UA
+        Outcome noUa = inspect(null, null);
+        assertEquals(200, noUa.status());
+        assertTrue(noUa.chained());
+        // 封面请求 UA = "NekoMusic Qt"
+        Outcome coverUa = inspect("NekoMusic Qt", Map.of(
+                "Accept", "image/png,image/jpeg,image/*;q=0.8,*/*;q=0.5"));
+        assertEquals(200, coverUa.status());
+        assertTrue(coverUa.chained());
     }
 
     @Test
