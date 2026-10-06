@@ -161,7 +161,9 @@ public final class UserAgentClassifier {
                 || lower.startsWith("vlc") || lower.contains("ffmpeg")
                 || lower.contains("ffprobe") || lower.contains("android")
                 || lower.contains("electron") || lower.startsWith("qt")
-                || lower.contains("qts") || lower.contains("qtwebengine");
+                || lower.contains("qts") || lower.contains("qtwebengine")
+                // 本站 PC 桌面端：ApiClient 用 QNetworkRequest 默认不发送 UA，封面请求为 "NekoMusic Qt"
+                || lower.contains("nekomusic");
     }
 
     /**

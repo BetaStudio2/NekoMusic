@@ -81,6 +81,13 @@ public class CrawlerProtectionFilter implements Filter {
 
         String ua = httpRequest.getHeader("User-Agent");
 
+        // 0) 空 UA：Qt 桌面端（NekoMusic PC）默认不发送 User-Agent，保守放行（交 IP 限流兜底），
+        //    避免误伤；有 UA 的未知爬虫仍走下面的区分拦截。
+        if (ua == null || ua.isBlank()) {
+            chain.doFilter(request, response);
+            return;
+        }
+
         // 1) 明确为爬虫 / 无头 / 命令行工具 / 安全扫描器 → 转 SEO
         //    （isBotForApi 已内置放行原生客户端）
         if (UserAgentClassifier.isBotForApi(ua)) {
