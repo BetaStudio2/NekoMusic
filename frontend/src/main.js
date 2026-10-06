@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
+import { installNekoClientHeader } from './config/clientIdentity.js'
 import './assets/main.css'
 import './design/tokens.css'
 import './design/reset.css'
@@ -11,6 +12,9 @@ import { getToken, loadUserInfo } from './utils/userStore.js'
 import { initPwa } from './composables/usePwa.js'
 
 const app = createApp(App)
+
+// 客户端标识：所有 fetch / XHR / axios 请求统一带 X-Neko-Client: web+<版本>
+installNekoClientHeader()
 
 // PWA：尽早注册安装提示监听与 Service Worker（仅生产注册 SW）
 initPwa()
