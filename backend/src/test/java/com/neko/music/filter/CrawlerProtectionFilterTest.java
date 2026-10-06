@@ -1,0 +1,180 @@
+package com.neko.music.filter;
+
+import com.neko.music.config.ConfigManager;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.FilterConfig;
+import jakarta.servlet.ServletContext;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.junit.jupiter.api.Test;
+
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * /api 防爬与「浏览器完整性区分拦截」的行为测试。
+ *
+ * <p>用动态代理桩替代 Servlet 容器，不依赖 MySQL/Redis，聚焦过滤器判定。</p>
+ */
+class CrawlerProtectionFilterTest {
+
+    private static final String BROWSER_UA =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                    + "Chrome/124.0.0.0 Safari/537.36";
+
+    private record Outcome(int status, boolean chained) {
+    }
+
+    private Outcome inspect(String ua, Map<String, String> headers) throws Exception {
+        ConfigManager config = new ConfigManager();
+        CrawlerProtectionFilter filter = new CrawlerProtectionFilter();
+
+        ServletContext ctx = proxy(ServletContext.class, (p, m, a) ->
+                "getAttribute".equals(m.getName()) ? config : defaultValue(m));
+        FilterConfig fc = proxy(FilterConfig.class, (p, m, a) ->
+                "getServletContext".equals(m.getName()) ? ctx : defaultValue(m));
+        filter.init(fc);
+
+        Map<String, String> hs = new HashMap<>();
+        if (headers != null) {
+            headers.forEach((k, v) -> hs.put(k.toLowerCase(), v));
+        }
+        if (ua != null) {
+            hs.put("user-agent", ua);
+        }
+
+        HttpServletRequest req = proxy(HttpServletRequest.class, (p, m, a) -> switch (m.getName()) {
+            case "getRequestURI" -> "/api/music/ranking";
+            case "getContextPath" -> "";
+            case "getRemoteAddr" -> "127.0.0.1";
+            case "getHeader" -> hs.get(((String) a[0]).toLowerCase());
+            default -> defaultValue(m);
+        });
+
+        int[] status = {200};
+        PrintWriter writer = new PrintWriter(new StringWriter());
+        HttpServletResponse resp = proxy(HttpServletResponse.class, (p, m, a) -> {
+            switch (m.getName()) {
+                case "setStatus" -> status[0] = (int) a[0];
+                case "getWriter" -> {
+                    return writer;
+                }
+                default -> {
+                }
+            }
+            return defaultValue(m);
+        });
+
+        boolean[] chained = {false};
+        FilterChain chain = proxy(FilterChain.class, (p, m, a) -> {
+            if ("doFilter".equals(m.getName())) {
+                chained[0] = true;
+            }
+            return defaultValue(m);
+        });
+
+        filter.doFilter(req, resp, chain);
+        return new Outcome(status[0], chained[0]);
+    }
+
+    @Test
+    void blocksKnownBotsAndScanners() throws Exception {
+        assertEquals(403, inspect("curl/8.5.0", null).status());
+        assertEquals(403, inspect("python-requests/2.31.0", null).status());
+        assertEquals(403, inspect("sqlmap/1.7.2#stable", null).status());
+        assertEquals(403, inspect("Mozilla/5.00 (Nikto/2.5.0)", null).status());
+        assertEquals(403, inspect("Mozilla/5.0 zgrab/0.x", null).status());
+        assertFalse(inspect("curl/8.5.0", null).chained());
+    }
+
+    @Test
+    void blocksUnknownCrawlersWithCustomOrSpoofedUserAgent() throws Exception {
+        assertEquals(403, inspect("MyCollector/1.0", null).status());
+        assertEquals(403, inspect("Mozilla/5.0 (compatible; AcmeIndex/1.0)", null).status());
+        assertEquals(403, inspect("Mozilla/5.0", null).status());
+        assertEquals(403, inspect("Mozilla/5.0 (X11; Linux x86_64)", null).status());
+        assertEquals(403, inspect("Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)", null).status());
+        // 空 UA 不再默认放行
+        assertEquals(403, inspect(null, null).status());
+    }
+
+    @Test
+    void blocksBrowserUserAgentSpoofWithoutBrowserHeaders() throws Exception {
+        // 只伪造浏览器 UA、不起算浏览器头 → 拒绝
+        assertEquals(403, inspect(BROWSER_UA, null).status());
+        assertEquals(403, inspect(BROWSER_UA, Map.of("Accept", "application/json")).status());
+    }
+
+    @Test
+    void allowsRealBrowserWithFetchEvidence() throws Exception {
+        Outcome withLang = inspect(BROWSER_UA, Map.of(
+                "Accept", "application/json, text/plain, */*",
+                "Accept-Language", "zh-CN,zh;q=0.9"));
+        assertEquals(200, withLang.status());
+        assertTrue(withLang.chained());
+
+        // 老浏览器可能没有 Sec-Fetch-*，只要 Accept-Language 即可
+        Outcome secFetchOnly = inspect(BROWSER_UA, Map.of(
+                "Accept", "*/*",
+                "Sec-Fetch-Mode", "cors",
+                "Sec-Fetch-Site", "same-origin"));
+        assertEquals(200, secFetchOnly.status());
+        assertTrue(secFetchOnly.chained());
+    }
+
+    @Test
+    void allowsNativeClients() throws Exception {
+        assertEquals(200, inspect("okhttp/4.12.0", null).status());
+        assertEquals(200, inspect("Dalvik/2.1.0 (Linux; U; Android 13)", null).status());
+        assertEquals(200, inspect("libmpv/0.36", null).status());
+        assertEquals(200, inspect(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) NekoMusicPC/1.0 QtWebEngine/6.6.0", null).status());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T proxy(Class<T> type, InvocationHandler handler) {
+        return (T) Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[]{type}, handler);
+    }
+
+    /** 代理的默认返回值：基本类型给零值，其余给 null（避免 equals/hashCode 返回 null 触发 NPE）。 */
+    private static Object defaultValue(Method method) {
+        Class<?> rt = method.getReturnType();
+        if (!rt.isPrimitive()) {
+            return null;
+        }
+        if (rt == boolean.class) {
+            return false;
+        }
+        if (rt == int.class) {
+            return 0;
+        }
+        if (rt == long.class) {
+            return 0L;
+        }
+        if (rt == short.class) {
+            return (short) 0;
+        }
+        if (rt == byte.class) {
+            return (byte) 0;
+        }
+        if (rt == char.class) {
+            return (char) 0;
+        }
+        if (rt == float.class) {
+            return 0f;
+        }
+        if (rt == double.class) {
+            return 0d;
+        }
+        return null;
+    }
+}

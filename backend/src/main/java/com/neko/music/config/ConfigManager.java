@@ -7,6 +7,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 public class ConfigManager {
@@ -137,6 +139,19 @@ public class ConfigManager {
      * true（默认）时会拦截 UA 明确为爬虫/无头浏览器/命令行工具的请求访问 JSON 接口，同时放行浏览器与原生客户端。
      */
     private boolean crawlerProtectionEnabled = true;
+
+    /**
+     * 浏览器完整性区分拦截：在防爬基础上，对「非原生客户端、非已知爬虫」的 /api 请求，
+     * 要求其 UA 结构自洽（含 Mozilla/ 与渲染引擎）且具备浏览器特征头，否则拒绝。
+     * 用于拦截未知/小众爬虫（自定义 UA、残缺或仅伪造 Mozilla 前缀）与安全扫描器。
+     */
+    private boolean browserIntegrityEnabled = true;
+
+    /**
+     * 额外放行的客户端 UA 子串（大小写不敏感）。用于登记不在内置原生客户端白名单里的
+     * 第三方客户端，避免浏览器完整性校验误伤。
+     */
+    private List<String> apiClientAllowlist = new ArrayList<>();
 
     /** 本地听歌识曲：服务端声纹索引与短录音保护 */
     private boolean musicRecognitionEnabled = true;
@@ -299,6 +314,21 @@ public class ConfigManager {
                     }
                     if (networkNode.has("crawler_protection_enabled")) {
                         crawlerProtectionEnabled = networkNode.get("crawler_protection_enabled").asBoolean();
+                    }
+                    if (networkNode.has("browser_integrity_enabled")) {
+                        browserIntegrityEnabled = networkNode.get("browser_integrity_enabled").asBoolean();
+                    }
+                    JsonNode allowlistNode = networkNode.get("allow_client_user_agents");
+                    if (allowlistNode != null && allowlistNode.isArray()) {
+                        apiClientAllowlist = new ArrayList<>();
+                        allowlistNode.forEach(item -> {
+                            if (item != null && !item.isNull()) {
+                                String ua = item.asText("").trim();
+                                if (!ua.isEmpty()) {
+                                    apiClientAllowlist.add(ua);
+                                }
+                            }
+                        });
                     }
                 }
 
@@ -743,6 +773,16 @@ public class ConfigManager {
     /** 是否启用 /api 接口的保守防爬拦截。 */
     public boolean isCrawlerProtectionEnabled() {
         return crawlerProtectionEnabled;
+    }
+
+    /** 是否启用浏览器完整性区分拦截（拦截未知爬虫 / 扫描器）。 */
+    public boolean isBrowserIntegrityEnabled() {
+        return browserIntegrityEnabled;
+    }
+
+    /** 额外放行的客户端 UA 子串列表（大小写不敏感）。 */
+    public List<String> getApiClientAllowlist() {
+        return apiClientAllowlist;
     }
 
     public int getVerificationCodeEmailCooldownSeconds() {
