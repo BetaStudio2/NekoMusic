@@ -196,6 +196,11 @@ network:
   # 示例：true (启用，推荐), false (仅保留关键词黑名单)
   browser_integrity_enabled: true
 
+  # 客户端自报标识（请求头 X-Neko-Client: <端>+<版本>，如 web+1.2.3 / pc+2026.105.48 /
+  # archoera+0.9.20）。官方 Web/PC/Android 与第三方客户端据此直接放行，无需服务端登记。
+  # 桌面端常把全局 User-Agent 伪装成普通 Chrome 以兼容各平台 CDN，仅凭 UA 无法与爬虫区分，
+  # 故一律建议客户端携带该头（见前端 frontend/src/config/clientIdentity.js）。
+
   # 额外放行的客户端 UA 子串（大小写不敏感）。登记不在内置原生白名单里的第三方客户端，
   # 避免被浏览器完整性校验误伤。示例：
   #   allow_client_user_agents:

@@ -3,6 +3,7 @@ package com.neko.music.filter;
 import com.neko.music.Main;
 import com.neko.music.config.ConfigManager;
 import com.neko.music.seo.BrowserEvidence;
+import com.neko.music.seo.ClientIdentity;
 import com.neko.music.seo.UserAgentClassifier;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
@@ -26,15 +27,18 @@ import java.util.Locale;
  *
  * <p>两段式判定：</p>
  * <ol>
- *   <li><b>已知黑名单</b>：UA 命中爬虫 / 无头浏览器 / 命令行工具 / 安全扫描器关键词 → 403。</li>
+ *   <li><b>已知黑名单</b>：UA 命中爬虫 / 无头浏览器 / 命令行工具 / 安全扫描器关键词 → 转 SEO。</li>
  *   <li><b>浏览器完整性区分</b>（{@code network.browser_integrity_enabled}，默认开）：
  *       非配置放行名单、非原生客户端的请求，必须「UA 结构像真浏览器」且带浏览器特征头，
- *       否则 403。用于拦截未知 / 小众网站爬虫——它们常用自定义 UA 或只伪造 {@code Mozilla/} 前缀，
+ *       否则转 SEO。用于拦截未知 / 小众网站爬虫——它们常用自定义 UA 或只伪造 {@code Mozilla/} 前缀，
  *       不含渲染引擎标记，也无法凑齐浏览器特征头。</li>
  * </ol>
  *
  * <p>设计要点：</p>
  * <ul>
+ *   <li>客户端以显式标识 {@link ClientIdentity#HEADER}（{@code X-Neko-Client: <端>+<版本>}）声明身份
+ *       并优先放行。桌面 / 移动端常把全局 User-Agent 伪装成普通 Chrome UA 以兼容各平台 CDN，
+ *       此时仅凭 UA 无法与爬虫区分，必须依赖该标识。</li>
  *   <li>浏览器以真实 UA（含 {@code Mozilla/} 与内核标记）通过 fetch 访问 /api，并携带
  *       {@code Accept} / {@code Accept-Language} 等头，恒不误伤；原生客户端（Android / PC / 播放器）
  *       在 {@link UserAgentClassifier#isNativeClient} 中一并放行，不影响 App。</li>
@@ -91,28 +95,36 @@ public class CrawlerProtectionFilter implements Filter {
         // 1) 明确为爬虫 / 无头 / 命令行工具 / 安全扫描器 → 转 SEO
         //    （isBotForApi 已内置放行原生客户端）
         if (UserAgentClassifier.isBotForApi(ua)) {
-            divertToSeo(httpRequest, httpResponse, path, ua);
+            divertToSeo(httpRequest, httpResponse, path, ua, "已知爬虫/扫描器关键词");
             return;
         }
 
-        // 2) 浏览器完整性区分拦截：识别未知 / 小众爬虫（自定义 UA、残缺或仅伪造 Mozilla 前缀）
+        // 2) 客户端自报标识：官方 Web / PC / Android 与登记第三方客户端统一带
+        //    X-Neko-Client: <端>+<版本>。桌面端常把全局 User-Agent 伪装成 Chrome UA，
+        //    仅凭 UA 与爬虫无法区分，故以显式标识优先放行。
+        if (ClientIdentity.isDeclaredClient(httpRequest.getHeader(ClientIdentity.HEADER))) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        // 3) 浏览器完整性区分拦截：识别未知 / 小众爬虫（自定义 UA、残缺或仅伪造 Mozilla 前缀）
         if (configManager.isBrowserIntegrityEnabled()) {
-            // 2a) 配置的额外放行名单（第三方客户端登记）
+            // 3a) 配置的额外放行名单（第三方客户端登记）
             if (isAllowlistedClient(ua)) {
                 chain.doFilter(request, response);
                 return;
             }
-            // 2b) 内置原生客户端始终放行
+            // 3b) 内置原生客户端始终放行
             if (UserAgentClassifier.isNativeClient(ua)) {
                 chain.doFilter(request, response);
                 return;
             }
-            // 2c) 其余必须是「UA 结构像真浏览器」且「带浏览器特征头」
+            // 3c) 其余必须是「UA 结构像真浏览器」且「带浏览器特征头」
             if (UserAgentClassifier.looksLikeRealBrowser(ua) && BrowserEvidence.hasFetchEvidence(httpRequest)) {
                 chain.doFilter(request, response);
                 return;
             }
-            divertToSeo(httpRequest, httpResponse, path, ua);
+            divertToSeo(httpRequest, httpResponse, path, ua, "浏览器完整性校验未通过");
             return;
         }
 
@@ -123,20 +135,21 @@ public class CrawlerProtectionFilter implements Filter {
      * 爬虫访问 {@code /api}：GET / HEAD 返回 302 转到对应 SEO 页面（让抓取器拿到可索引的
      * 服务端 HTML，而不是 SPA 或 JSON；也不再直接 403）；其它方法没有对应 SEO 页，仍 403。
      */
-    private static void divertToSeo(HttpServletRequest request, HttpServletResponse response, String path, String ua)
+    private static void divertToSeo(HttpServletRequest request, HttpServletResponse response, String path, String ua,
+                                    String reason)
             throws IOException {
         String method = request.getMethod();
         if ("GET".equalsIgnoreCase(method) || "HEAD".equalsIgnoreCase(method)) {
             String target = seoPageForApiPath(path);
-            logger.info("爬虫访问 API 转 SEO: path={} -> {} UA={} remote={}",
-                    path, target, ua, request.getRemoteAddr());
+            logger.info("爬虫访问 API 转 SEO: path={} -> {} reason={} UA={} remote={}",
+                    path, target, reason, ua, request.getRemoteAddr());
             response.setStatus(HttpServletResponse.SC_FOUND); // 302
             response.setHeader("Location", target);
             response.setHeader("Cache-Control", "private, no-store");
             return;
         }
-        logger.warn("防爬拦截(非 GET): path={} method={} UA={} remote={}",
-                path, method, ua, request.getRemoteAddr());
+        logger.warn("防爬拦截(非 GET): path={} method={} reason={} UA={} remote={}",
+                path, method, reason, ua, request.getRemoteAddr());
         writeForbidden(response);
     }
 
