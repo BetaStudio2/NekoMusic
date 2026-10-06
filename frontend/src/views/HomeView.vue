@@ -960,5 +960,24 @@ onUnmounted(() => {
   .quick__card {
     gap: var(--n-space-3);
   }
+
+  /* Hero 动作区：900px 断点给按钮加的 flex:1 1 auto 会在窄屏把
+     「播放热门 / 下载客户端」挤在同一行、各占一半宽，主次不分且点按偏小。
+     手机上改为纵向堆叠、各自撑满整行：主操作更醒目，热区也更大。 */
+  .hero__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero__actions :deep(.n-btn) {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+
+  /* 动作区已撑满整行，220px 的封面再左对齐会在右侧留出明显空档，
+     手机端让视觉图居中，容器更平衡。 */
+  .hero__feature {
+    justify-self: center;
+  }
 }
 </style>
