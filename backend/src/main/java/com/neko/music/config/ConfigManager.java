@@ -126,13 +126,16 @@ public class ConfigManager {
     private boolean recommendationAiFallbackToRule = true;
 
     /**
-     * 可信客户端 IP 头名。默认 {@code X-Real-IP}（Nginx 反代 + CDN 的典型部署：该头由 Nginx
-     * {@code proxy_set_header X-Real-IP $remote_addr} 覆盖写入，客户端无法伪造）。
-     * <p>置空（或 {@code direct}）：认为直连公网、无反向代理，客户端 IP 一律取 socket 对端地址，
-     * 忽略所有转发头 —— 参考部署首选，杜绝评论归属地(geo)被伪造与限流被拆桶绕过。</p>
-     * <p>可选：{@code X-Real-IP}、{@code X-Forwarded-For}（取最右一格）、{@code CF-Connecting-IP}。</p>
+     * 可信客户端 IP 头：{@code auto}（自适应多 CDN 头，默认）/ 具体头名 /
+     * {@code direct}（忽略转发头，只用 socket 对端）。
      */
-    private String trustedClientIpHeader = "X-Real-IP";
+    private String trustedClientIpHeader = "auto";
+
+    /**
+     * {@code auto} 模式下额外优先尝试的自定义客户端 IP 头名列表（例如换了新 CDN、
+     * 其专用头不在内置清单里时，在 config.yml 里登记即可，不用改代码）。
+     */
+    private List<String> extraClientIpHeaders = new ArrayList<>();
 
     /**
      * 是否启用 /api 接口的保守防爬拦截。
@@ -311,6 +314,18 @@ public class ConfigManager {
                     if (networkNode.has("trusted_client_ip_header")) {
                         trustedClientIpHeader = networkNode.get("trusted_client_ip_header")
                                 .asText("").trim();
+                    }
+                    JsonNode extraIpHdrNode = networkNode.get("extra_client_ip_headers");
+                    if (extraIpHdrNode != null && extraIpHdrNode.isArray()) {
+                        extraClientIpHeaders = new ArrayList<>();
+                        extraIpHdrNode.forEach(item -> {
+                            if (item != null && !item.isNull()) {
+                                String name = item.asText("").trim();
+                                if (!name.isEmpty()) {
+                                    extraClientIpHeaders.add(name);
+                                }
+                            }
+                        });
                     }
                     if (networkNode.has("crawler_protection_enabled")) {
                         crawlerProtectionEnabled = networkNode.get("crawler_protection_enabled").asBoolean();
@@ -768,6 +783,11 @@ public class ConfigManager {
     /** 可信客户端 IP 头名（可能为 {@code direct}/空白）。 */
     public String getTrustedClientIpHeader() {
         return trustedClientIpHeader == null ? "" : trustedClientIpHeader.trim();
+    }
+
+    /** {@code auto} 模式下额外优先尝试的自定义客户端 IP 头名列表（可为空）。 */
+    public List<String> getExtraClientIpHeaders() {
+        return extraClientIpHeaders == null ? List.of() : extraClientIpHeaders;
     }
 
     /** 是否启用 /api 接口的保守防爬拦截。 */
