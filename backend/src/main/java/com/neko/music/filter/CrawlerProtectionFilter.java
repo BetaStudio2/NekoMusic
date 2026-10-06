@@ -17,18 +17,31 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Locale;
 
 /**
- * 保守防爬过滤器：拦截 UA 明确为爬虫 / 无头浏览器 / 命令行工具的请求访问 JSON 接口（{@code /api/*}）。
+ * 防爬 / 客户端区分拦截过滤器：保护 JSON 接口（{@code /api/*}）不被爬虫、扫描器与脚本刷取。
  *
- * <p>设计要点：
+ * <p>两段式判定：</p>
+ * <ol>
+ *   <li><b>已知黑名单</b>：UA 命中爬虫 / 无头浏览器 / 命令行工具 / 安全扫描器关键词 → 403。</li>
+ *   <li><b>浏览器完整性区分</b>（{@code network.browser_integrity_enabled}，默认开）：
+ *       非配置放行名单、非原生客户端的请求，必须「UA 结构像真浏览器」且带浏览器特征头，
+ *       否则 403。用于拦截未知 / 小众网站爬虫——它们常用自定义 UA 或只伪造 {@code Mozilla/} 前缀，
+ *       不含渲染引擎标记，也无法凑齐浏览器特征头。</li>
+ * </ol>
+ *
+ * <p>设计要点：</p>
  * <ul>
- *   <li>浏览器以真实 UA（含 {@code Mozilla/}）通过 fetch 访问 /api，恒不命中；原生客户端
- *       （Android / PC / 播放器）在 {@link UserAgentClassifier#isBotForApi} 中一并放行，不影响 App。</li>
- *   <li>爬虫 / AI 抓取器不应访问 JSON 接口——它们应走 SEO 页（{@code StaticPageSeoFilter}）。
- *       命中一律返回 403，从而明显压减无效的 API 抓取请求。</li>
+ *   <li>浏览器以真实 UA（含 {@code Mozilla/} 与内核标记）通过 fetch 访问 /api，并携带
+ *       {@code Accept} / {@code Accept-Language} 等头，恒不误伤；原生客户端（Android / PC / 播放器）
+ *       在 {@link UserAgentClassifier#isNativeClient} 中一并放行，不影响 App。</li>
+ *   <li>爬虫 / AI 抓取器不应访问 JSON 接口——它们应走 SEO 页（{@code StaticPageSeoFilter}）。</li>
  *   <li>ZPay 异步通知由支付平台服务器回调（常用 curl 等 UA），与 IP 限流一致地豁免，避免支付通知断裂。</li>
- *   <li>可通过 {@code network.crawler_protection_enabled=false} 一键关闭。</li>
+ *   <li>可通过 {@code network.crawler_protection_enabled=false} 关闭全部拦截；
+ *       或 {@code network.browser_integrity_enabled=false} 只保留已知黑名单。</li>
+ *   <li>第三方客户端可通过 {@code network.allow_client_user_agents} 登记 UA 子串放行。</li>
  * </ul>
  *
  * 需在 {@link com.neko.music.Main} 中显式注册（嵌入式 Jetty 不处理 {@code @WebFilter}）。
@@ -66,15 +79,77 @@ public class CrawlerProtectionFilter implements Filter {
         }
 
         String ua = httpRequest.getHeader("User-Agent");
-        if (!UserAgentClassifier.isBotForApi(ua)) {
-            chain.doFilter(request, response);
+
+        // 1) 明确为爬虫 / 无头 / 命令行工具 / 安全扫描器 → 直接 403
+        //    （isBotForApi 已内置放行原生客户端）
+        if (UserAgentClassifier.isBotForApi(ua)) {
+            reject(httpRequest, httpResponse, path, ua);
             return;
         }
 
-        // 命中：明确为爬虫/无头/命令行工具的请求来访问 JSON 接口，直接 403。
-        logger.warn("防爬拦截: path={} UA={} remote={}",
-                path, ua, httpRequest.getRemoteAddr());
-        writeForbidden(httpResponse);
+        // 2) 浏览器完整性区分拦截：拦截未知 / 小众爬虫（自定义 UA、残缺或仅伪造 Mozilla 前缀）
+        if (configManager.isBrowserIntegrityEnabled()) {
+            // 2a) 配置的额外放行名单（第三方客户端登记）
+            if (isAllowlistedClient(ua)) {
+                chain.doFilter(request, response);
+                return;
+            }
+            // 2b) 内置原生客户端始终放行
+            if (UserAgentClassifier.isNativeClient(ua)) {
+                chain.doFilter(request, response);
+                return;
+            }
+            // 2c) 其余必须是「UA 结构像真浏览器」且「带浏览器特征头」
+            if (UserAgentClassifier.looksLikeRealBrowser(ua) && hasBrowserFetchEvidence(httpRequest)) {
+                chain.doFilter(request, response);
+                return;
+            }
+            reject(httpRequest, httpResponse, path, ua);
+            return;
+        }
+
+        chain.doFilter(request, response);
+    }
+
+    /** 记录并返回 403。 */
+    private static void reject(HttpServletRequest request, HttpServletResponse response, String path, String ua)
+            throws IOException {
+        logger.warn("防爬拦截: path={} UA={} remote={}", path, ua, request.getRemoteAddr());
+        writeForbidden(response);
+    }
+
+    /** 配置的额外放行 UA 子串匹配（大小写不敏感）。 */
+    private boolean isAllowlistedClient(String ua) {
+        if (ua == null || ua.isBlank()) {
+            return false;
+        }
+        List<String> allowlist = configManager.getApiClientAllowlist();
+        if (allowlist == null || allowlist.isEmpty()) {
+            return false;
+        }
+        String lower = ua.toLowerCase(Locale.ROOT);
+        for (String candidate : allowlist) {
+            if (candidate != null && !candidate.isBlank()
+                    && lower.contains(candidate.toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 浏览器特征头证据：至少带 Accept，且带 Accept-Language 或 Sec-Fetch-*。 */
+    private static boolean hasBrowserFetchEvidence(HttpServletRequest req) {
+        String accept = req.getHeader("Accept");
+        if (accept == null || accept.isBlank()) {
+            return false;
+        }
+        String acceptLanguage = req.getHeader("Accept-Language");
+        if (acceptLanguage != null && !acceptLanguage.isBlank()) {
+            return true;
+        }
+        return req.getHeader("Sec-Fetch-Mode") != null
+                || req.getHeader("Sec-Fetch-Site") != null
+                || req.getHeader("Sec-Fetch-Dest") != null;
     }
 
     private static String normalizedPath(String uri, String ctx) {

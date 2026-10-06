@@ -108,6 +108,42 @@ class UserAgentClassifierTest {
     }
 
     @Test
+    void flagsSecurityScannersOnApi() {
+        assertTrue(UserAgentClassifier.isBotForApi("sqlmap/1.7.2#stable (https://sqlmap.org)"));
+        assertTrue(UserAgentClassifier.isBotForApi("Mozilla/5.00 (Nikto/2.5.0) (Evasions:None)"));
+        assertTrue(UserAgentClassifier.isBotForApi(
+                "Mozilla/5.0 (compatible; Nmap Scripting Engine; https://nmap.org/book/nse.html)"));
+        assertTrue(UserAgentClassifier.isBotForApi("Mozilla/5.0 zgrab/0.x"));
+        assertTrue(UserAgentClassifier.isBotForApi("masscan/1.3"));
+        assertTrue(UserAgentClassifier.isBotForApi("WPScan v3.8.25 (https://wpscan.com/wordpress-security-scanner)"));
+        assertTrue(UserAgentClassifier.isBotForApi("gobuster/3.6"));
+        assertTrue(UserAgentClassifier.isBotForApi("Mozilla/5.0 (Nuclei - Open-source project)"));
+    }
+
+    @Test
+    void browserStructureCheckSeparatesRealBrowsersFromSpoofs() {
+        // 真浏览器
+        assertTrue(UserAgentClassifier.looksLikeRealBrowser(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"));
+        assertTrue(UserAgentClassifier.looksLikeRealBrowser(
+                "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0"));
+        assertTrue(UserAgentClassifier.looksLikeRealBrowser(
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1"));
+        // iOS WKWebView（微信等）常省略 Safari/Version，仍应识别为浏览器
+        assertTrue(UserAgentClassifier.looksLikeRealBrowser(
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.40"));
+        // 未知/小众爬虫、残缺或仅伪造 Mozilla 前缀
+        assertFalse(UserAgentClassifier.looksLikeRealBrowser("MyCollector/1.0"));
+        assertFalse(UserAgentClassifier.looksLikeRealBrowser("AcmeIndex/1.0"));
+        assertFalse(UserAgentClassifier.looksLikeRealBrowser("Mozilla/5.0"));
+        assertFalse(UserAgentClassifier.looksLikeRealBrowser("Mozilla/5.0 (X11; Linux x86_64)"));
+        assertFalse(UserAgentClassifier.looksLikeRealBrowser("Mozilla/5.0 (compatible; AcmeIndex/1.0)"));
+        assertFalse(UserAgentClassifier.looksLikeRealBrowser("Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)"));
+        assertFalse(UserAgentClassifier.looksLikeRealBrowser(null));
+        assertFalse(UserAgentClassifier.looksLikeRealBrowser(""));
+    }
+
+    @Test
     void letsBrowsersAndNativeClientsThroughApi() {
         // 浏览器
         assertFalse(UserAgentClassifier.isBotForApi(

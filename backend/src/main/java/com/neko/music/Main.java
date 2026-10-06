@@ -15,12 +15,15 @@ import com.neko.music.handlers.*;
 
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.server.HttpConfiguration;
+import org.eclipse.jetty.server.HttpConnectionFactory;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import com.neko.music.filter.CacheControlFilter;
 import com.neko.music.filter.CrawlerProtectionFilter;
 import com.neko.music.filter.IPRateLimitFilter;
+import com.neko.music.filter.SecurityHeadersFilter;
 import com.neko.music.filter.StaticPageSeoFilter;
 import com.neko.music.util.ClientReleaseStorage;
 import com.neko.music.util.SiteResourceStorage;
@@ -221,6 +224,13 @@ public class Main {
         server = new Server(threadPool);
         ServerConnector connector = new ServerConnector(server);
         connector.setPort(configManager.getPort());
+        // 关闭带版本号的 Server / X-Powered-By 响应头，避免泄露实现版本（版本名由 SecurityHeadersFilter 覆盖）
+        HttpConnectionFactory httpConnectionFactory = connector.getConnectionFactory(HttpConnectionFactory.class);
+        if (httpConnectionFactory != null) {
+            HttpConfiguration httpConfiguration = httpConnectionFactory.getHttpConfiguration();
+            httpConfiguration.setSendServerVersion(false);
+            httpConfiguration.setSendXPoweredBy(false);
+        }
         server.addConnector(connector);
         logger.info("Jetty 线程池: minThreads={}, maxThreads={}, idleTimeoutMs={}, listenPort={}",
                 configManager.getJettyMinThreads(), configManager.getJettyMaxThreads(),
@@ -253,6 +263,9 @@ public class Main {
         // 注册服务到 ServletContext，供 Filter 使用
         context.setAttribute("configManager", configManager);
         context.setAttribute("ipRateLimitService", ipRateLimitService);
+
+        // 通用安全加固：禁用 TRACE/TRACK、补安全响应头、隐藏版本（最先注册，作用于全部响应）
+        context.addFilter(SecurityHeadersFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
 
         // IP 限流需在嵌入式 Jetty 中显式注册（@WebFilter 不会生效）
         context.addFilter(IPRateLimitFilter.class, "/*", EnumSet.allOf(DispatcherType.class));

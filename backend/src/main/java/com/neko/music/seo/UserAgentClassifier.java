@@ -72,6 +72,18 @@ public final class UserAgentClassifier {
                     + "nodeping|uptime-kuma|nagios|zabbix|librenms|"
                     + "ia_archiver|archive\\.org_bot|commoncrawl|heritrix|wayback|cc-main)");
 
+    /**
+     * 安全扫描 / 漏洞探测工具（sqlmap、Nikto、Nmap、目录爆破等）。
+     * 这类工具常自定义或伪装 UA，内置关键词表若不覆盖就会被当作普通客户端放行。
+     */
+    private static final Pattern SECURITY_SCANNERS = Pattern.compile(
+            "(?i)(?:sqlmap|nikto|nmap|masscan|zgrab|nuclei|acunetix|nessus|openvas|"
+                    + "wpscan|gobuster|ffuf|feroxbuster|dirbuster|"
+                    + "xray|burpsuite|burp|zaproxy|owasp[ _-]?zap|whatweb|w3af|arachni|skipfish|"
+                    + "jaeles|commix|dalfox|wapiti|netsparker|qualys|appscan|"
+                    + "hydra|medusa|sslyze|sslscan|testssl|joomscan|droopescan)");
+
+
     private UserAgentClassifier() {
     }
 
@@ -88,7 +100,8 @@ public final class UserAgentClassifier {
                 SEO_ANALYTICS_BOTS,
                 HTTP_CLIENTS,
                 HEADLESS_BROWSERS,
-                MONITORS_ARCHIVERS)) {
+                MONITORS_ARCHIVERS,
+                SECURITY_SCANNERS)) {
             return true;
         }
         // Real browsers conventionally identify themselves with Mozilla. A
@@ -119,11 +132,15 @@ public final class UserAgentClassifier {
                 SEO_ANALYTICS_BOTS,
                 HTTP_CLIENTS,
                 HEADLESS_BROWSERS,
-                MONITORS_ARCHIVERS);
+                MONITORS_ARCHIVERS,
+                SECURITY_SCANNERS);
     }
 
     /** 原生客户端 / 播放器 / 桌面端 UA 一律放行（它们确实需要访问 API 或媒体直链，且不含 Mozilla）。 */
-    private static boolean isNativeClient(String ua) {
+    public static boolean isNativeClient(String ua) {
+        if (ua == null || ua.isBlank()) {
+            return false;
+        }
         String lower = ua.toLowerCase(java.util.Locale.ROOT);
         return lower.contains("okhttp") || lower.contains("dalvik")
                 || lower.contains("libmpv") || lower.contains("mpv/")
@@ -131,6 +148,25 @@ public final class UserAgentClassifier {
                 || lower.contains("ffprobe") || lower.contains("android")
                 || lower.contains("electron") || lower.startsWith("qt")
                 || lower.contains("qts") || lower.contains("qtwebengine");
+    }
+
+    /**
+     * 判断 UA 是否「结构上像一个真实浏览器」。
+     *
+     * <p>未知/小众爬虫常自定义 UA 或只伪造 {@code Mozilla/} 前缀，缺少浏览器内核标记；
+     * 真浏览器与应用内 WebView 则一定带内核标记。注意 iOS WKWebView（微信 / QQ / 支付宝等）
+     * 的 UA <b>常省略 {@code Safari/}、{@code Version/}</b>，因此这里只要求存在内核标记，
+     * 不强制 Safari 版本串，避免误伤应用内浏览器。</p>
+     */
+    public static boolean looksLikeRealBrowser(String userAgent) {
+        if (userAgent == null || userAgent.isBlank() || !userAgent.contains("Mozilla/")) {
+            return false;
+        }
+        // AppleWebKit/（Chrome/Chromium/Safari/Edge/Opera/iOS WebView）
+        // Gecko/（Firefox）、Trident/（旧 Edge/IE11）
+        return userAgent.contains("AppleWebKit/")
+                || userAgent.contains("Gecko/")
+                || userAgent.contains("Trident/");
     }
 
     private static boolean matchesAny(String userAgent, Pattern... patterns) {

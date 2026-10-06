@@ -189,6 +189,19 @@ network:
   # 示例：true (启用), false (关闭)
   crawler_protection_enabled: true
 
+  # 浏览器完整性区分拦截（在关键词黑名单之上，专门拦截未知 / 小众爬虫与安全扫描器）：
+  # 对「非放行名单、非原生客户端」的 /api 请求，要求 UA 结构自洽（含 Mozilla/ 与渲染引擎标记，
+  # 如 AppleWebKit/+Chrome/、Gecko/+Firefox/）且带浏览器特征头（Accept 且 Accept-Language 或 Sec-Fetch-*），
+  # 否则返回 403。用于挡住自定义 UA、残缺/仅伪造 Mozilla 前缀的抓取脚本。
+  # 示例：true (启用，推荐), false (仅保留关键词黑名单)
+  browser_integrity_enabled: true
+
+  # 额外放行的客户端 UA 子串（大小写不敏感）。登记不在内置原生白名单里的第三方客户端，
+  # 避免被浏览器完整性校验误伤。示例：
+  #   allow_client_user_agents:
+  #     - "MyThirdPartyClient/"
+  allow_client_user_agents: []
+
 # =============================================
 # 验证码发信限流
 # =============================================
