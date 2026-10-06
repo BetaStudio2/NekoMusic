@@ -1,4 +1,5 @@
 import { fileURLToPath, URL } from 'node:url'
+import { execSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
@@ -9,6 +10,26 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 
 /** 本地后端默认地址（backend/src/main/resources/config.yml 的 port 默认 65535） */
 const DEFAULT_DEV_PROXY_TARGET = 'http://localhost:65535'
+
+/**
+ * Web 端版本号：X-Neko-Client 标头里的版本部分。
+ * 优先取构建环境变量（CI 发版可注入 NEKO_WEB_VERSION），否则用 git describe
+ * 结果（无 tag 时退化为短 commit），最后兜底 dev。
+ */
+function resolveWebVersion(env) {
+  const fromEnv = (env.NEKO_WEB_VERSION || env.VITE_APP_VERSION || '').trim()
+  if (fromEnv) return fromEnv
+  try {
+    return execSync('git describe --tags --always', {
+      cwd: process.cwd(),
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .toString()
+      .trim()
+  } catch {
+    return 'dev'
+  }
+}
 
 /**
  * 把本次构建产物的哈希文件名注入 public/sw.js。
@@ -153,6 +174,8 @@ export default defineConfig(({ command, mode }) => {
     },
     // 确保开发和生产环境行为一致
     define: {
+      // X-Neko-Client 标头里的 Web 版本号（web+<版本>）
+      __NEKO_WEB_VERSION__: JSON.stringify(resolveWebVersion(env)),
       __VUE_OPTIONS_API__: false,
       __VUE_PROD_DEVTOOLS__: false,
       __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: false,
