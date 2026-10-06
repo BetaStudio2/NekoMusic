@@ -165,7 +165,7 @@ public class MusicManagementHandler extends HttpServlet {
         List<Music> musicList = new ArrayList<>();
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, title, artist, album, duration, language, tags, upload_user_id, created_at, updated_at FROM music ORDER BY created_at DESC";
+            String sql = "SELECT id, title, artist, album, duration, language, tags, upload_user_id, created_at, updated_at, max_quality FROM music ORDER BY created_at DESC";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 ResultSet rs = stmt.executeQuery();
                 
@@ -196,7 +196,7 @@ public class MusicManagementHandler extends HttpServlet {
         Music music = null;
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, title, artist, album, duration, language, tags, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
+            String sql = "SELECT id, title, artist, album, duration, language, tags, upload_user_id, created_at, updated_at, max_quality FROM music WHERE id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setInt(1, id);
                 
@@ -270,7 +270,7 @@ public class MusicManagementHandler extends HttpServlet {
             // 获取新添加的音乐信息
             Music newMusic = null;
             try (Connection conn = Main.getDatabaseManager().getConnection()) {
-                String sql = "SELECT id, title, artist, album, duration, language, tags, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
+                String sql = "SELECT id, title, artist, album, duration, language, tags, upload_user_id, created_at, updated_at, max_quality FROM music WHERE id = ?";
                 try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                     stmt.setInt(1, id);
                     
@@ -357,7 +357,7 @@ public class MusicManagementHandler extends HttpServlet {
             // 获取更新后的音乐信息
             Music updatedMusic = null;
             try (Connection conn = Main.getDatabaseManager().getConnection()) {
-                String sql = "SELECT id, title, artist, album, duration, language, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
+                String sql = "SELECT id, title, artist, album, duration, language, upload_user_id, created_at, updated_at, max_quality FROM music WHERE id = ?";
                 try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                     stmt.setInt(1, editRequest.id());
                     
@@ -377,7 +377,8 @@ public class MusicManagementHandler extends HttpServlet {
                                 rs.getInt("upload_user_id"),
                                 rs.getTimestamp("created_at").toString(),
                                 rs.getTimestamp("updated_at").toString(),
-                                MusicAssetLocator.coverApiUrl(rs.getInt("id")));
+                                MusicAssetLocator.coverApiUrl(rs.getInt("id")),
+                                rs.getString("max_quality"));
                     }
                 }
             }
@@ -408,7 +409,8 @@ public class MusicManagementHandler extends HttpServlet {
                 rs.getInt("upload_user_id"),
                 rs.getTimestamp("created_at").toString(),
                 rs.getTimestamp("updated_at").toString(),
-                MusicAssetLocator.coverApiUrl(id));
+                MusicAssetLocator.coverApiUrl(id),
+                rs.getString("max_quality"));
     }
 
     // 内部类用于表示音乐对象
@@ -416,7 +418,8 @@ public class MusicManagementHandler extends HttpServlet {
     public record Music(
             int id, String title, String artist, String album, int duration,
             String filePath, String coverFilePath, String language, String tags,
-            int uploadUserId, String createdAt, String updatedAt, String coverUrl) {
+            int uploadUserId, String createdAt, String updatedAt, String coverUrl,
+            String maxQuality) {
     }
     
     // 内部类用于表示添加音乐请求

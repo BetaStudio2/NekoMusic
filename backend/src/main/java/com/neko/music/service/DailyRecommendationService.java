@@ -116,11 +116,51 @@ public class DailyRecommendationService {
     public List<Map<String, Object>> getOrBuildTodayRecommendations(int userId) {
         LocalDate today = LocalDate.now(CN_ZONE);
         List<Map<String, Object>> existing = loadRecommendationsFromRedis(userId, today);
-        if (!existing.isEmpty()) {
-            return existing;
+        if (existing.isEmpty()) {
+            regenerateForUser(userId, today, true);
+            existing = loadRecommendationsFromRedis(userId, today);
         }
-        regenerateForUser(userId, today, true);
-        return loadRecommendationsFromRedis(userId, today);
+        attachMaxQuality(existing);
+        return existing;
+    }
+
+    /**
+     * 给推荐结果补上 max_quality。
+     *
+     * 不在 Redis 缓存里存音质：缓存可能是旧版本写入的，且音质会随重新探测变化，
+     * 统一在读出时按 musicId 批量补一次，历史缓存也能拿到最新值。
+     */
+    private void attachMaxQuality(List<Map<String, Object>> rows) {
+        List<Integer> ids = rows.stream()
+                .map(row -> row.get("musicId"))
+                .filter(Integer.class::isInstance)
+                .map(Integer.class::cast)
+                .distinct()
+                .toList();
+        if (ids.isEmpty()) {
+            return;
+        }
+        Map<Integer, String> qualityById = new HashMap<>();
+        String sql = "SELECT id, max_quality FROM music WHERE id IN (" + placeholders(ids.size()) + ")";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 0; i < ids.size(); i++) {
+                ps.setInt(i + 1, ids.get(i));
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    qualityById.put(rs.getInt("id"), rs.getString("max_quality"));
+                }
+            }
+        } catch (Exception e) {
+            logger.error("补全每日推荐音质失败 userId 相关行数={}", rows.size(), e);
+        }
+        for (Map<String, Object> row : rows) {
+            Object musicId = row.get("musicId");
+            if (musicId instanceof Integer id) {
+                row.put("maxQuality", qualityById.get(id));
+            }
+        }
     }
 
     public void regenerateForUser(int userId, LocalDate recDate, boolean force) {

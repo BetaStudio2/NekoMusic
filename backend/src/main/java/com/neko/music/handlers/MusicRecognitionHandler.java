@@ -5,6 +5,7 @@ import com.neko.music.Main;
 import com.neko.music.service.MusicRecognitionService;
 import com.neko.music.service.RecognitionRateLimiter;
 import com.neko.music.util.MusicAssetLocator;
+import com.neko.music.util.MusicLookup;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -126,6 +127,7 @@ public final class MusicRecognitionHandler extends HttpServlet {
         data.put("filePath", MusicAssetLocator.fileApiUrl(track.id()));
         data.put("coverFilePath", MusicAssetLocator.coverApiUrl(track.id()));
         data.put("coverUrl", MusicAssetLocator.coverApiUrl(track.id()));
+        data.put("maxQuality", MusicLookup.findMaxQuality(track.id()));
         data.put("confidence", round(result.confidence(), 4));
         data.put("matchedLandmarks", result.matchedLandmarks());
         data.put("offsetSeconds", round(result.offsetSeconds(), 2));

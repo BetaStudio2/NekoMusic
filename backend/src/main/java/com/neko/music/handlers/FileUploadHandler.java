@@ -648,7 +648,7 @@ public class FileUploadHandler extends HttpServlet {
         Music music = null;
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, title, artist, album, language, tags, duration, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
+            String sql = "SELECT id, title, artist, album, language, tags, duration, max_quality, upload_user_id, created_at, updated_at FROM music WHERE id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setInt(1, id);
                 
@@ -663,6 +663,7 @@ public class FileUploadHandler extends HttpServlet {
                     music.setLanguage(rs.getString("language"));
                     music.setTags(rs.getString("tags"));
                     music.setDuration(rs.getInt("duration"));
+                    music.setMaxQuality(rs.getString("max_quality"));
                     music.setFilePath(MusicAssetLocator.fileApiUrl(music.getId()));
                     music.setCoverFilePath(MusicAssetLocator.coverApiUrl(music.getId()));
                     music.setUploadUserId(rs.getInt("upload_user_id"));
@@ -684,6 +685,7 @@ public class FileUploadHandler extends HttpServlet {
         private String language; // 语言
         private String tags; // 标签
         private int duration; // 时长，单位秒
+        private String maxQuality; // 最高音质
         private String filePath;
         private String coverFilePath; // 封面路径
         private int uploadUserId;
@@ -705,6 +707,8 @@ public class FileUploadHandler extends HttpServlet {
         public void setTags(String tags) { this.tags = tags; }
         public int getDuration() { return duration; }
         public void setDuration(int duration) { this.duration = duration; }
+        public String getMaxQuality() { return maxQuality; }
+        public void setMaxQuality(String maxQuality) { this.maxQuality = maxQuality; }
         public String getFilePath() { return filePath; }
         public void setFilePath(String filePath) { this.filePath = filePath; }
         public String getCoverFilePath() { return coverFilePath; }

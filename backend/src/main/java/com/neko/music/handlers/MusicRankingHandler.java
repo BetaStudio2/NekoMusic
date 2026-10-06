@@ -55,7 +55,7 @@ public class MusicRankingHandler extends HttpServlet {
 
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             String sql = """
-                SELECT id, title, artist, album, duration, language, tags, play_count
+                SELECT id, title, artist, album, duration, language, tags, play_count, max_quality
                 FROM music
                 WHERE play_count > 0
                 ORDER BY play_count DESC
@@ -78,7 +78,8 @@ public class MusicRankingHandler extends HttpServlet {
                             MusicAssetLocator.coverApiUrl(id),
                             rs.getString("language"),
                             rs.getString("tags"),
-                            rs.getInt("play_count")));
+                            rs.getInt("play_count"),
+                            rs.getString("max_quality")));
                 }
             }
             logger.info("成功获取播放次数排行榜，共 {} 条记录", ranking.size());
@@ -100,7 +101,8 @@ public class MusicRankingHandler extends HttpServlet {
             String coverUrl,
             String language,
             String tags,
-            int playCount) {
+            int playCount,
+            String maxQuality) {
     }
 
     // 排行榜响应

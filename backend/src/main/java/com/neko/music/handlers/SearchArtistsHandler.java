@@ -84,7 +84,7 @@ public class SearchArtistsHandler extends ApiServlet {
         List<JsonObject> musicList = new ArrayList<>();
 
         String musicSql = """
-            SELECT id, title, artist, album, duration, file_format, language
+            SELECT id, title, artist, album, duration, file_format, language, max_quality
             FROM music
             WHERE artist = ?
             ORDER BY id
@@ -158,6 +158,7 @@ public class SearchArtistsHandler extends ApiServlet {
                         music.addProperty("duration", rs.getInt("duration"));
                         music.addProperty("fileFormat", rs.getString("file_format"));
                         music.addProperty("language", rs.getString("language"));
+                        music.addProperty("maxQuality", rs.getString("max_quality"));
                         musicList.add(music);
                     }
                 }
