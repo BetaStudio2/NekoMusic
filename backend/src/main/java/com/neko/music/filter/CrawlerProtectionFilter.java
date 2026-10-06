@@ -4,6 +4,7 @@ import com.neko.music.Main;
 import com.neko.music.config.ConfigManager;
 import com.neko.music.seo.BrowserEvidence;
 import com.neko.music.seo.UserAgentClassifier;
+import com.neko.music.util.HttpResourceCache;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.FilterConfig;
@@ -26,10 +27,10 @@ import java.util.Locale;
  *
  * <p>两段式判定：</p>
  * <ol>
- *   <li><b>已知黑名单</b>：UA 命中爬虫 / 无头浏览器 / 命令行工具 / 安全扫描器关键词 → 403。</li>
+ *   <li><b>已知黑名单</b>：UA 命中爬虫 / 无头浏览器 / 命令行工具 / 安全扫描器关键词 → 直出 SEO 页。</li>
  *   <li><b>浏览器完整性区分</b>（{@code network.browser_integrity_enabled}，默认开）：
  *       非配置放行名单、非原生客户端的请求，必须「UA 结构像真浏览器」且带浏览器特征头，
- *       否则 403。用于拦截未知 / 小众网站爬虫——它们常用自定义 UA 或只伪造 {@code Mozilla/} 前缀，
+ *       否则直出 SEO 页。用于拦截未知 / 小众网站爬虫——它们常用自定义 UA 或只伪造 {@code Mozilla/} 前缀，
  *       不含渲染引擎标记，也无法凑齐浏览器特征头。</li>
  * </ol>
  *
@@ -38,7 +39,9 @@ import java.util.Locale;
  *   <li>浏览器以真实 UA（含 {@code Mozilla/} 与内核标记）通过 fetch 访问 /api，并携带
  *       {@code Accept} / {@code Accept-Language} 等头，恒不误伤；原生客户端（Android / PC / 播放器）
  *       在 {@link UserAgentClassifier#isNativeClient} 中一并放行，不影响 App。</li>
- *   <li>爬虫 / AI 抓取器不应访问 JSON 接口——它们应走 SEO 页（{@code StaticPageSeoFilter}）。</li>
+ *   <li>爬虫 / AI 抓取器不应拿到 JSON：GET / HEAD 命中后不再 302 跳转，而是内部 forward 到对应
+ *       SEO 页并直接把服务端 HTML 以 200 返回（复用 {@code StaticPageSeoFilter} 与详情页处理器，
+ *       页面自带 canonical，不会与正式页产生重复内容）；重定向会浪费抓取配额、影响收录。</li>
  *   <li>ZPay 异步通知由支付平台服务器回调（常用 curl 等 UA），与 IP 限流一致地豁免，避免支付通知断裂。</li>
  *   <li>可通过 {@code network.crawler_protection_enabled=false} 关闭全部拦截；
  *       或 {@code network.browser_integrity_enabled=false} 只保留已知黑名单。</li>
@@ -88,10 +91,10 @@ public class CrawlerProtectionFilter implements Filter {
             return;
         }
 
-        // 1) 明确为爬虫 / 无头 / 命令行工具 / 安全扫描器 → 转 SEO
+        // 1) 明确为爬虫 / 无头 / 命令行工具 / 安全扫描器 → 直出 SEO 页
         //    （isBotForApi 已内置放行原生客户端）
         if (UserAgentClassifier.isBotForApi(ua)) {
-            divertToSeo(httpRequest, httpResponse, path, ua);
+            serveSeoPage(httpRequest, httpResponse, path, ua);
             return;
         }
 
@@ -112,7 +115,7 @@ public class CrawlerProtectionFilter implements Filter {
                 chain.doFilter(request, response);
                 return;
             }
-            divertToSeo(httpRequest, httpResponse, path, ua);
+            serveSeoPage(httpRequest, httpResponse, path, ua);
             return;
         }
 
@@ -120,23 +123,30 @@ public class CrawlerProtectionFilter implements Filter {
     }
 
     /**
-     * 爬虫访问 {@code /api}：GET / HEAD 返回 302 转到对应 SEO 页面（让抓取器拿到可索引的
-     * 服务端 HTML，而不是 SPA 或 JSON；也不再直接 403）；其它方法没有对应 SEO 页，仍 403。
+     * 爬虫访问 {@code /api}：GET / HEAD 内部 forward 到对应 SEO 页并直接返回服务端 HTML（200），
+     * 不再 302 跳转——重定向会把权重与抓取配额消耗在跳转上，影响这些 URL 的收录。
+     *
+     * <p>目标页由既有处理器渲染，自带 {@code <link rel="canonical">}，因此与
+     * {@code /detail/{id}} 等正式页不构成重复内容；同一 URL 对爬虫与浏览器表现不同，
+     * 必须显式声明 {@code Vary: User-Agent}。</p>
+     *
+     * <p>其它方法没有对应 SEO 页，仍 403。</p>
      */
-    private static void divertToSeo(HttpServletRequest request, HttpServletResponse response, String path, String ua)
-            throws IOException {
+    private static void serveSeoPage(HttpServletRequest request, HttpServletResponse response, String path, String ua)
+            throws IOException, ServletException {
         String method = request.getMethod();
         if ("GET".equalsIgnoreCase(method) || "HEAD".equalsIgnoreCase(method)) {
             String target = seoPageForApiPath(path);
-            logger.info("爬虫访问 API 转 SEO: path={} -> {} UA={} remote={}",
-                    path, target, ua, request.getRemoteAddr());
-            response.setStatus(HttpServletResponse.SC_FOUND); // 302
-            response.setHeader("Location", target);
-            response.setHeader("Cache-Control", "private, no-store");
+            // 同一 URL 对爬虫与浏览器有两种表现，先声明 Vary 再 forward，避免共享缓存串味。
+            response.setHeader("Vary", "User-Agent");
+            response.setHeader("Cache-Control", HttpResourceCache.CACHE_CONTROL_NO_STORE);
+//            logger.info("爬虫访问 API 直出 SEO 页: path={} -> {} UA={} remote={}",
+//                    path, target, ua, request.getRemoteAddr());
+            request.getRequestDispatcher(target).forward(request, response);
             return;
         }
-        logger.warn("防爬拦截(非 GET): path={} method={} UA={} remote={}",
-                path, method, ua, request.getRemoteAddr());
+//        logger.warn("防爬拦截(非 GET): path={} method={} UA={} remote={}",
+//                path, method, ua, request.getRemoteAddr());
         writeForbidden(response);
     }
 
