@@ -54,7 +54,9 @@ public class AdminMusicIngestService {
             String album,
             int duration,
             int uploadUserId,
-            String createdAt
+            String createdAt,
+            /** 该曲最高音质（standard/hq/sq/hires）；未探测过为 null。 */
+            String maxQuality
     ) {}
 
     /**
@@ -268,7 +270,7 @@ public class AdminMusicIngestService {
             return List.of();
         }
         StringBuilder sql = new StringBuilder(
-                "SELECT id, title, artist, album, duration, upload_user_id, created_at FROM music WHERE ");
+                "SELECT id, title, artist, album, duration, upload_user_id, created_at, max_quality FROM music WHERE ");
         List<String> conditions = new ArrayList<>();
         for (int i = 0; i < variants.size(); i++) {
             conditions.add("title = ?");
@@ -329,7 +331,7 @@ public class AdminMusicIngestService {
             }
         }
 
-        String sql = "SELECT id, title, artist, album, duration, upload_user_id, created_at FROM music WHERE ("
+        String sql = "SELECT id, title, artist, album, duration, upload_user_id, created_at, max_quality FROM music WHERE ("
                 + String.join(" OR ", conditions)
                 + ") ORDER BY id DESC LIMIT ?";
 
@@ -378,7 +380,8 @@ public class AdminMusicIngestService {
                 rs.getString("album"),
                 rs.getInt("duration"),
                 uploadUserId,
-                createdAt != null ? createdAt.toString() : ""
+                createdAt != null ? createdAt.toString() : "",
+                rs.getString("max_quality")
         );
     }
 
@@ -390,7 +393,7 @@ public class AdminMusicIngestService {
         String like = "%" + q + "%";
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             String sql = """
-                    SELECT id, title, artist, album, duration, upload_user_id, created_at
+                    SELECT id, title, artist, album, duration, upload_user_id, created_at, max_quality
                     FROM music
                     WHERE title LIKE ? OR artist LIKE ? OR album LIKE ?
                     ORDER BY id DESC
@@ -493,7 +496,7 @@ public class AdminMusicIngestService {
 
     private static IngestedMusic loadIngestedMusic(int musicId) throws SQLException {
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, title, artist, album, duration, upload_user_id, created_at FROM music WHERE id = ?";
+            String sql = "SELECT id, title, artist, album, duration, upload_user_id, created_at, max_quality FROM music WHERE id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setInt(1, musicId);
                 try (ResultSet rs = stmt.executeQuery()) {

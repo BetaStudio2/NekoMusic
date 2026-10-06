@@ -1,7 +1,16 @@
 package com.neko.music.handlers;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.sql.ResultSet;
+import java.sql.Timestamp;
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -46,6 +55,44 @@ class MusicSearchHandlerTest {
     @Test
     void skipsNumericOnlyQueries() {
         assertFalse(MusicSearchHandler.shouldSearchLyricsForQuery("2024", 0, false));
+    }
+
+    @Test
+    void searchResultCarriesMaxQuality() throws Exception {
+        // 搜索结果必须带 max_quality：客户端直接用它决定可选音质档位，不再逐条查详情。
+        Map<String, Object> columns = new HashMap<>();
+        columns.put("id", 1);
+        columns.put("title", "晴天");
+        columns.put("artist", "周杰伦");
+        columns.put("album", "叶惠美");
+        columns.put("duration", 269);
+        columns.put("upload_user_id", 0);
+        columns.put("created_at", Timestamp.valueOf("2024-01-01 12:00:00"));
+        columns.put("max_quality", "sq");
+
+        Method mapMusicRow = MusicSearchHandler.class.getDeclaredMethod("mapMusicRow", ResultSet.class);
+        mapMusicRow.setAccessible(true);
+        Object music = mapMusicRow.invoke(null, stubResultSet(columns));
+
+        String json = new ObjectMapper().writeValueAsString(music);
+        assertEquals("sq", new ObjectMapper().readTree(json).path("maxQuality").asText(), json);
+    }
+
+    /** 用动态代理伪造单行 ResultSet：只实现 mapMusicRow 用到的取值方法。 */
+    private static ResultSet stubResultSet(Map<String, Object> columns) {
+        return (ResultSet) Proxy.newProxyInstance(
+                ResultSet.class.getClassLoader(),
+                new Class<?>[]{ResultSet.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getString" -> columns.get((String) args[0]);
+                    case "getInt" -> {
+                        Object value = columns.get((String) args[0]);
+                        yield value == null ? 0 : ((Number) value).intValue();
+                    }
+                    case "getTimestamp" -> columns.get((String) args[0]);
+                    case "wasNull" -> false;
+                    default -> null;
+                });
     }
 
 }
