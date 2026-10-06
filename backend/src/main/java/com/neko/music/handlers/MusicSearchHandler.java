@@ -40,7 +40,7 @@ public class MusicSearchHandler extends ApiServlet {
     );
 
     private static final String MUSIC_BASE_COLUMNS =
-            "id, title, artist, album, duration, upload_user_id, created_at";
+            "id, title, artist, album, duration, upload_user_id, created_at, max_quality";
     private static final String MUSIC_SEARCH_COLUMNS = MUSIC_BASE_COLUMNS + ", " +
             "title_pinyin, title_pinyin_initials, title_word_initials, " +
             "artist_pinyin, artist_pinyin_initials, artist_word_initials, album_pinyin ";
@@ -655,6 +655,7 @@ public class MusicSearchHandler extends ApiServlet {
         music.setDuration(row.duration());
         music.setUploadUserId(row.uploadUserId());
         music.setCreatedAt(row.createdAt());
+        music.setMaxQuality(row.maxQuality());
         return music;
     }
 
@@ -668,6 +669,7 @@ public class MusicSearchHandler extends ApiServlet {
         music.setDuration(rs.getInt("duration"));
         music.setUploadUserId(rs.getInt("upload_user_id"));
         music.setCreatedAt(rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toString() : "");
+        music.setMaxQuality(rs.getString("max_quality"));
         return music;
     }
 
@@ -717,6 +719,8 @@ public class MusicSearchHandler extends ApiServlet {
         private int duration;
         private int uploadUserId;
         private String createdAt;
+        /** 该曲最高音质（standard/hq/sq/hires），与 /api/music/info 的 maxQuality 同义；未探测过为 null。 */
+        private String maxQuality;
         // 预计算拼音列
         private String titlePinyin;
         private String titlePinyinInitials;
@@ -742,6 +746,8 @@ public class MusicSearchHandler extends ApiServlet {
         public void setUploadUserId(int uploadUserId) { this.uploadUserId = uploadUserId; }
         public String getCreatedAt() { return createdAt; }
         public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+        public String getMaxQuality() { return maxQuality; }
+        public void setMaxQuality(String maxQuality) { this.maxQuality = maxQuality; }
         public boolean getLrc() { return lrc; }
         public void setLrc(boolean lrc) { this.lrc = lrc; }
         @JsonIgnore
