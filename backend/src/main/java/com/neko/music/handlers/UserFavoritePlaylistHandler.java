@@ -208,7 +208,7 @@ public class UserFavoritePlaylistHandler extends ApiServlet {
         
         // 获取歌单内的音乐
         List<JsonObject> musicList = new ArrayList<>();
-        String sql = "SELECT m.id, m.title, m.artist, m.album, m.duration, pm.position " +
+        String sql = "SELECT m.id, m.title, m.artist, m.album, m.duration, m.max_quality, pm.position " +
                      "FROM playlist_music pm " +
                      "JOIN music m ON pm.music_id = m.id " +
                      "WHERE pm.playlist_id = ? " +
@@ -227,6 +227,7 @@ public class UserFavoritePlaylistHandler extends ApiServlet {
                 music.addProperty("artist", rs.getString("artist"));
                 music.addProperty("album", rs.getString("album"));
                 music.addProperty("duration", rs.getInt("duration"));
+                music.addProperty("maxQuality", rs.getString("max_quality"));
                 music.addProperty("filename", MusicAssetLocator.fileApiUrl(rs.getInt("id")));
                 music.addProperty("position", rs.getInt("position"));
                 musicList.add(music);

@@ -55,7 +55,7 @@ public class LatestMusicHandler extends HttpServlet {
 
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             String sql = """
-                SELECT id, title, artist, album, duration, language, tags, file_format, created_at
+                SELECT id, title, artist, album, duration, language, tags, file_format, created_at, max_quality
                 FROM music
                 ORDER BY created_at DESC
                 LIMIT ?
@@ -78,7 +78,8 @@ public class LatestMusicHandler extends HttpServlet {
                             rs.getString("language"),
                             rs.getString("tags"),
                             rs.getString("file_format"),
-                            rs.getTimestamp("created_at").getTime()));
+                            rs.getTimestamp("created_at").getTime(),
+                            rs.getString("max_quality")));
                 }
             }
             logger.info("成功获取最新音乐，共 {} 条记录", latestMusic.size());
@@ -101,7 +102,8 @@ public class LatestMusicHandler extends HttpServlet {
             String language,
             String tags,
             String fileFormat,
-            long createdAt) {
+            long createdAt,
+            String maxQuality) {
     }
 
     // 最新音乐响应

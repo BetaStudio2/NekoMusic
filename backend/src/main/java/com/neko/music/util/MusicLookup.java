@@ -34,4 +34,18 @@ public final class MusicLookup {
             return false;
         }
     }
+
+    /** 查询曲目最高音质（standard/hq/sq/hires）；不存在或未探测过返回 null。 */
+    public static String findMaxQuality(int musicId) {
+        try (Connection conn = Main.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement("SELECT max_quality FROM music WHERE id = ?")) {
+            stmt.setInt(1, musicId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next() ? rs.getString("max_quality") : null;
+            }
+        } catch (Exception e) {
+            logger.error("查询音乐音质时出错，音乐ID: {}", musicId, e);
+            return null;
+        }
+    }
 }

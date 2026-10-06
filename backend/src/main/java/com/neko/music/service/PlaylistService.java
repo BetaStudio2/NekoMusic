@@ -424,7 +424,7 @@ public class PlaylistService {
         logger.info("获取歌单音乐列表: playlistId={}", playlistId);
 
         List<com.google.gson.JsonObject> musicList = new ArrayList<>();
-        String sql = "SELECT m.id, m.title, m.artist, m.album, m.duration, m.file_format, m.language, pm.position, pm.added_at " +
+        String sql = "SELECT m.id, m.title, m.artist, m.album, m.duration, m.file_format, m.language, m.max_quality, pm.position, pm.added_at " +
                      "FROM playlist_music pm " +
                      "JOIN music m ON pm.music_id = m.id " +
                      "WHERE pm.playlist_id = ? " +
@@ -448,6 +448,7 @@ public class PlaylistService {
                 music.addProperty("filePath", MusicAssetLocator.fileApiUrl(mid));
                 music.addProperty("fileFormat", rs.getString("file_format"));
                 music.addProperty("language", rs.getString("language"));
+                music.addProperty("maxQuality", rs.getString("max_quality"));
                 music.addProperty("position", rs.getInt("position"));
                 music.addProperty("addedAt", rs.getString("added_at"));
                 musicList.add(music);

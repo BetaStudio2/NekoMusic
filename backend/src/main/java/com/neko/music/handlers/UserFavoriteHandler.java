@@ -194,7 +194,7 @@ public class UserFavoriteHandler extends ApiServlet {
     
     private List<JsonObject> getUserFavorites(int userId) throws SQLException {
         List<JsonObject> favorites = new ArrayList<>();
-        String sql = "SELECT m.id, m.title, m.artist, m.album, m.duration " +
+        String sql = "SELECT m.id, m.title, m.artist, m.album, m.duration, m.max_quality " +
                      "FROM user_favorites uf " +
                      "JOIN music m ON uf.music_id = m.id " +
                      "WHERE uf.user_id = ? " +
@@ -213,6 +213,7 @@ public class UserFavoriteHandler extends ApiServlet {
                 music.addProperty("artist", rs.getString("artist"));
                 music.addProperty("album", rs.getString("album"));
                 music.addProperty("duration", rs.getInt("duration"));
+                music.addProperty("maxQuality", rs.getString("max_quality"));
                 music.addProperty("filename", MusicAssetLocator.fileApiUrl(rs.getInt("id")));
                 favorites.add(music);
             }

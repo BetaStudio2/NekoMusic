@@ -85,7 +85,7 @@ public class GetUserUploadedMusicHandler extends ApiServlet {
     private List<JsonObject> getUserApprovedMusic(int userId) {
         List<JsonObject> musicList = new ArrayList<>();
         String sql = """
-            SELECT m.id, m.title, m.artist, m.album, m.duration, m.language, m.tags, m.file_format, m.created_at
+            SELECT m.id, m.title, m.artist, m.album, m.duration, m.language, m.tags, m.file_format, m.created_at, m.max_quality
             FROM music m
             WHERE m.upload_user_id = ?
             ORDER BY m.created_at DESC
@@ -107,6 +107,7 @@ public class GetUserUploadedMusicHandler extends ApiServlet {
                 music.addProperty("language", rs.getString("language"));
                 music.addProperty("tags", rs.getString("tags"));
                 music.addProperty("fileFormat", rs.getString("file_format"));
+                music.addProperty("maxQuality", rs.getString("max_quality"));
                 int mid = rs.getInt("id");
                 music.addProperty("filePath", MusicAssetLocator.fileApiUrl(mid));
                 music.addProperty("coverPath", MusicAssetLocator.coverApiUrl(mid));
