@@ -7,6 +7,7 @@
 import { ref, onMounted } from 'vue'
 import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
+import QualityBadge from '@/components/QualityBadge.vue'
 import { NButton, NCard, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
@@ -149,7 +150,10 @@ onMounted(fetchLatest)
           @error="handleImageError"
         />
         <button type="button" class="row__info" @click="playMusic(item)">
-          <span class="row__title">{{ item.title }}</span>
+          <span class="row__title">
+            <span class="row__title-text">{{ item.title }}</span>
+            <QualityBadge :quality="item.maxQuality" />
+          </span>
           <span class="row__artist">{{ item.artist }}</span>
           <span class="row__sub">{{ formatTime(item.createdAt) }}</span>
         </button>
@@ -269,9 +273,17 @@ onMounted(fetchLatest)
 }
 
 .row__title {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-1);
+  min-width: 0;
   color: var(--n-text);
   font-size: var(--n-text-base);
   font-weight: var(--n-weight-semibold);
+}
+
+.row__title-text {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

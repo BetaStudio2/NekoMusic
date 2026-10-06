@@ -16,6 +16,7 @@ import { ref, watch, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
+import QualityBadge from '@/components/QualityBadge.vue'
 import { NButton, NCard, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
@@ -420,6 +421,7 @@ onMounted(async () => {
           >
             <span class="row__title">
               <span class="row__title-text">{{ result.title }}</span>
+              <QualityBadge :quality="result.maxQuality" />
               <NIcon v-if="result.lrc" name="file-text" :size="13" class="row__lyric" />
             </span>
             <span class="row__meta">{{ result.artist }}</span>
@@ -500,6 +502,7 @@ onMounted(async () => {
               >
                 <span class="row__title">
                   <span class="row__title-text">{{ result.title }}</span>
+                  <QualityBadge :quality="result.maxQuality" />
                 </span>
                 <span class="row__meta">{{ result.artist }}</span>
                 <span class="row__sub">{{ result.album || '未知专辑' }}</span>

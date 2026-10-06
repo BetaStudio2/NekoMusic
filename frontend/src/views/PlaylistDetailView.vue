@@ -75,7 +75,10 @@
             <span class="row__cover-play"><NIcon name="play" :size="14" /></span>
           </button>
           <button type="button" class="row__info" @click="playMusic(music)">
-            <span class="row__title">{{ music.title }}</span>
+            <span class="row__title">
+              <span class="row__title-text">{{ music.title }}</span>
+              <QualityBadge :quality="music.maxQuality" />
+            </span>
             <span class="row__artist">{{ music.artist }}</span>
           </button>
           <span class="row__dur">{{ formatDuration(music.duration) }}</span>
@@ -135,7 +138,10 @@
             @error="handleCoverError"
           />
           <span class="results__text">
-            <span class="results__title">{{ music.title }}</span>
+            <span class="results__title">
+              <span class="results__title-text">{{ music.title }}</span>
+              <QualityBadge :quality="music.maxQuality" />
+            </span>
             <span class="results__artist">{{ music.artist }}</span>
           </span>
           <span class="results__add"><NIcon name="plus" :size="14" />加入</span>
@@ -153,6 +159,7 @@ import { useRouter, useRoute } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import { useToast } from '@/composables/useToast'
 import NIcon from '@/icons/NIcon.vue'
+import QualityBadge from '@/components/QualityBadge.vue'
 import { NButton, NCard, NInput, NModal, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { playTracks, playTrackInList } from '@/composables/usePlaybackBridge'
@@ -585,9 +592,17 @@ onMounted(() => {
 }
 
 .row__title {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-1);
+  min-width: 0;
   color: var(--n-text);
   font-size: var(--n-text-base);
   font-weight: var(--n-weight-medium);
+}
+
+.row__title-text {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -684,9 +699,17 @@ onMounted(() => {
 }
 
 .results__title {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-1);
+  min-width: 0;
   color: var(--n-text);
   font-size: var(--n-text-base);
   font-weight: var(--n-weight-medium);
+}
+
+.results__title-text {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

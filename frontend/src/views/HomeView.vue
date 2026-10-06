@@ -15,6 +15,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
+import QualityBadge from '@/components/QualityBadge.vue'
 import { NButton, NCard, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
@@ -371,7 +372,10 @@ onUnmounted(() => {
               <span class="cover-card__rank">{{ i + 1 }}</span>
               <span class="cover-card__play"><NIcon name="play" :size="16" /></span>
             </div>
-            <h3 class="cover-card__title">{{ m.title }}</h3>
+            <h3 class="cover-card__title">
+              <span class="cover-card__title-text">{{ m.title }}</span>
+              <QualityBadge :quality="m.maxQuality" />
+            </h3>
             <p class="cover-card__artist">{{ m.artist }}</p>
             <button
               type="button"
@@ -413,7 +417,10 @@ onUnmounted(() => {
               />
               <span class="cover-card__play"><NIcon name="play" :size="16" /></span>
             </div>
-            <h3 class="cover-card__title">{{ m.title }}</h3>
+            <h3 class="cover-card__title">
+              <span class="cover-card__title-text">{{ m.title }}</span>
+              <QualityBadge :quality="m.maxQuality" />
+            </h3>
             <p class="cover-card__artist">{{ m.artist }}</p>
             <button
               type="button"
@@ -885,9 +892,17 @@ onUnmounted(() => {
 }
 
 .cover-card__title {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-1);
+  min-width: 0;
   margin-top: var(--n-space-3);
   font-size: var(--n-text-sm);
   font-weight: var(--n-weight-medium);
+}
+
+.cover-card__title-text {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

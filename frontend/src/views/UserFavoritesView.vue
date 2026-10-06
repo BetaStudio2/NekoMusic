@@ -10,6 +10,7 @@
 import { ref, onMounted, watch } from 'vue'
 import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
+import QualityBadge from '@/components/QualityBadge.vue'
 import { NButton, NCard, NModal, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
@@ -165,7 +166,10 @@ watch(authToken, (token) => {
           @error="handleImageError"
         />
         <button type="button" class="row__info" @click="playMusic(music)">
-          <span class="row__title">{{ music.title }}</span>
+          <span class="row__title">
+            <span class="row__title-text">{{ music.title }}</span>
+            <QualityBadge :quality="music.maxQuality" />
+          </span>
           <span class="row__artist">作曲：{{ music.artist }}</span>
           <span class="row__album">专辑：{{ music.album || '未知专辑' }}</span>
         </button>
@@ -297,9 +301,17 @@ watch(authToken, (token) => {
 }
 
 .row__title {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-1);
+  min-width: 0;
   font-weight: var(--n-weight-semibold);
   color: var(--n-text);
   font-size: var(--n-text-base);
+}
+
+.row__title-text {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
