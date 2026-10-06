@@ -1,5 +1,6 @@
 package com.neko.music.filter;
 
+import com.neko.music.seo.BrowserEvidence;
 import com.neko.music.seo.StaticPageSeoRenderer;
 import com.neko.music.seo.UserAgentClassifier;
 import com.neko.music.util.SiteUrlResolver;
@@ -41,7 +42,8 @@ public class StaticPageSeoFilter implements Filter {
 
         // 同一 URL 对爬虫与浏览器有两种表现，必须声明 Vary，避免代理串味。
         httpResponse.setHeader("Vary", "User-Agent");
-        if (!UserAgentClassifier.shouldRenderSeo(httpRequest.getHeader("User-Agent"))) {
+        if (!UserAgentClassifier.shouldRenderSeo(
+                httpRequest.getHeader("User-Agent"), BrowserEvidence.hasFetchEvidence(httpRequest))) {
             chain.doFilter(request, response);
             return;
         }

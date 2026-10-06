@@ -7,6 +7,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 public class ConfigManager {
@@ -122,6 +124,34 @@ public class ConfigManager {
     private int recommendationAiTimeoutSeconds = 20;
     private int recommendationAiDailyLimit = 30;
     private boolean recommendationAiFallbackToRule = true;
+
+    /**
+     * 可信客户端 IP 头名。默认 {@code X-Real-IP}（Nginx 反代 + CDN 的典型部署：该头由 Nginx
+     * {@code proxy_set_header X-Real-IP $remote_addr} 覆盖写入，客户端无法伪造）。
+     * <p>置空（或 {@code direct}）：认为直连公网、无反向代理，客户端 IP 一律取 socket 对端地址，
+     * 忽略所有转发头 —— 参考部署首选，杜绝评论归属地(geo)被伪造与限流被拆桶绕过。</p>
+     * <p>可选：{@code X-Real-IP}、{@code X-Forwarded-For}（取最右一格）、{@code CF-Connecting-IP}。</p>
+     */
+    private String trustedClientIpHeader = "X-Real-IP";
+
+    /**
+     * 是否启用 /api 接口的保守防爬拦截。
+     * true（默认）时会拦截 UA 明确为爬虫/无头浏览器/命令行工具的请求访问 JSON 接口，同时放行浏览器与原生客户端。
+     */
+    private boolean crawlerProtectionEnabled = true;
+
+    /**
+     * 浏览器完整性区分拦截：在防爬基础上，对「非原生客户端、非已知爬虫」的 /api 请求，
+     * 要求其 UA 结构自洽（含 Mozilla/ 与渲染引擎）且具备浏览器特征头，否则拒绝。
+     * 用于拦截未知/小众爬虫（自定义 UA、残缺或仅伪造 Mozilla 前缀）与安全扫描器。
+     */
+    private boolean browserIntegrityEnabled = true;
+
+    /**
+     * 额外放行的客户端 UA 子串（大小写不敏感）。用于登记不在内置原生客户端白名单里的
+     * 第三方客户端，避免浏览器完整性校验误伤。
+     */
+    private List<String> apiClientAllowlist = new ArrayList<>();
 
     /** 本地听歌识曲：服务端声纹索引与短录音保护 */
     private boolean musicRecognitionEnabled = true;
@@ -273,6 +303,33 @@ public class ConfigManager {
                     if (rateLimitNode.has("max_requests")) rateLimitMaxRequests = rateLimitNode.get("max_requests").asInt();
                     if (rateLimitNode.has("block_duration")) rateLimitBlockDuration = rateLimitNode.get("block_duration").asInt();
                     if (rateLimitNode.has("silent_timeout")) rateLimitSilentTimeout = rateLimitNode.get("silent_timeout").asBoolean();
+                }
+
+                // 安全/网络：可信客户端 IP 头 + 保守防爬拦截开关
+                JsonNode networkNode = configNode.get("network");
+                if (networkNode != null) {
+                    if (networkNode.has("trusted_client_ip_header")) {
+                        trustedClientIpHeader = networkNode.get("trusted_client_ip_header")
+                                .asText("").trim();
+                    }
+                    if (networkNode.has("crawler_protection_enabled")) {
+                        crawlerProtectionEnabled = networkNode.get("crawler_protection_enabled").asBoolean();
+                    }
+                    if (networkNode.has("browser_integrity_enabled")) {
+                        browserIntegrityEnabled = networkNode.get("browser_integrity_enabled").asBoolean();
+                    }
+                    JsonNode allowlistNode = networkNode.get("allow_client_user_agents");
+                    if (allowlistNode != null && allowlistNode.isArray()) {
+                        apiClientAllowlist = new ArrayList<>();
+                        allowlistNode.forEach(item -> {
+                            if (item != null && !item.isNull()) {
+                                String ua = item.asText("").trim();
+                                if (!ua.isEmpty()) {
+                                    apiClientAllowlist.add(ua);
+                                }
+                            }
+                        });
+                    }
                 }
 
                 JsonNode verificationCodeNode = configNode.get("verification_code");
@@ -700,6 +757,32 @@ public class ConfigManager {
 
     public boolean isRateLimitSilentTimeout() {
         return rateLimitSilentTimeout;
+    }
+
+    /** 是否运行在可信反向代理之后（决定客户端 IP 取转发头还是 socket 地址）；头名为空或 {@code direct} 时不信任转发头。 */
+    public boolean isTrustedProxyEnabled() {
+        String header = trustedClientIpHeader;
+        return header != null && !header.isBlank() && !"direct".equalsIgnoreCase(header.trim());
+    }
+
+    /** 可信客户端 IP 头名（可能为 {@code direct}/空白）。 */
+    public String getTrustedClientIpHeader() {
+        return trustedClientIpHeader == null ? "" : trustedClientIpHeader.trim();
+    }
+
+    /** 是否启用 /api 接口的保守防爬拦截。 */
+    public boolean isCrawlerProtectionEnabled() {
+        return crawlerProtectionEnabled;
+    }
+
+    /** 是否启用浏览器完整性区分拦截（拦截未知爬虫 / 扫描器）。 */
+    public boolean isBrowserIntegrityEnabled() {
+        return browserIntegrityEnabled;
+    }
+
+    /** 额外放行的客户端 UA 子串列表（大小写不敏感）。 */
+    public List<String> getApiClientAllowlist() {
+        return apiClientAllowlist;
     }
 
     public int getVerificationCodeEmailCooldownSeconds() {
