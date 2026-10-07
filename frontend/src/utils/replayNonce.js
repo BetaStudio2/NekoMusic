@@ -1,7 +1,8 @@
 // 通用防重放客户端（web 端）
 // ------------------------------------------------------------
 // 后端 ReplayProtectionFilter 要求所有动态接口（/api/*、/loser/*）携带一次性 nonce
-// （请求头 X-Neko-Nonce）。本模块负责：
+// （请求头 X-Neko-Nonce）；客户端版本检查 /version 也按同一约定带上（便于与服务端同步收紧）。
+// 本模块负责：
 //   1. 向 GET /api/replay/nonce 批量预取 nonce（读 / 写两类），放进内存池；
 //   2. 拦截 fetch 与 XMLHttpRequest(axios)，自动为受保护请求取一个池内 nonce；
 //   3. 409 + X-Neko-Replay-Status: missing|invalid 时换一个新 nonce 重试一次
@@ -38,6 +39,11 @@ const EXEMPT_PATHS = new Set([
 ])
 /** 与后端 EXEMPT_PREFIXES 对应 */
 const EXEMPT_PREFIXES = ['/api/music/cover/', '/api/user/avatar/']
+/**
+ * 非 /api 前缀、但按同一约定提前携带 nonce 的接口（客户端版本检查）。
+ * 服务端当前尚未对该路径强制校验，提前携带是为后续纳管做好兼容。
+ */
+const PROTECTED_PATHS = new Set(['/version'])
 
 const pools = { [SCOPE_READ]: [], [SCOPE_WRITE]: [] }
 let refillInFlight = null
@@ -92,11 +98,12 @@ export function shouldAttachNonce(url, method) {
   const target = resolveUrl(url)
   if (!target || !isSameBackend(target)) return false
   const path = target.pathname
-  if (!path.startsWith('/api/') && !path.startsWith('/loser/')) return false
   if (EXEMPT_PATHS.has(path)) return false
   if (EXEMPT_PREFIXES.some((prefix) => path.startsWith(prefix))) return false
   // /loser/*/pull 为 SSE 进度流
   if (path.endsWith('/pull')) return false
+  const dynamic = path.startsWith('/api/') || path.startsWith('/loser/')
+  if (!dynamic && !PROTECTED_PATHS.has(path)) return false
   return true
 }
 
