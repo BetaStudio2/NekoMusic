@@ -24,6 +24,10 @@ public final class ServletRegistrar {
         ServletHolder siteResourceHolder = new ServletHolder(new SiteResourceHandler());
         context.addServlet(siteResourceHolder, "/");
         
+        // 注册防重放 nonce 签发接口（通用机制，自身豁免 nonce 校验）
+        ServletHolder replayNonceHolder = new ServletHolder(new ReplayNonceHandler());
+        context.addServlet(replayNonceHolder, "/api/replay/nonce");
+
         // 注册搜索音乐API处理器
         ServletHolder searchHolder = new ServletHolder(new MusicSearchHandler());
         context.addServlet(searchHolder, "/api/music/search");

@@ -15,6 +15,7 @@
 import { ref, watch, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
+import { resolveMediaUrl } from '@/utils/mediaUrl.js'
 import NIcon from '@/icons/NIcon.vue'
 import QualityBadge from '@/components/QualityBadge.vue'
 import { NButton, NCard, NSpinner } from '@/ui'
@@ -228,7 +229,8 @@ function mapContentTypeToExtension(contentType) {
 
 async function downloadMusic(result) {
   try {
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/file/${result.id}`)
+    const mediaUrl = await resolveMediaUrl(result.id)
+    const response = await fetch(mediaUrl)
     const blob = await response.blob()
     const contentType = response.headers.get('Content-Type') || 'audio/mpeg'
     const extension = mapContentTypeToExtension(contentType)
@@ -243,13 +245,7 @@ async function downloadMusic(result) {
     window.URL.revokeObjectURL(url)
   } catch (error) {
     console.error('下载音乐失败:', error)
-    const link = document.createElement('a')
-    link.href = `${API_CONFIG.BASE_URL}/api/music/file/${result.id}`
-    link.download = result.filename || `${result.title}.${result.fileFormat || 'mp3'}`
-    link.target = '_blank'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    toast.error('下载失败，请重试')
   }
 }
 

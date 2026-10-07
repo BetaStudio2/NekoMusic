@@ -23,6 +23,7 @@ import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import com.neko.music.filter.CacheControlFilter;
 import com.neko.music.filter.CrawlerProtectionFilter;
 import com.neko.music.filter.IPRateLimitFilter;
+import com.neko.music.filter.ReplayProtectionFilter;
 import com.neko.music.filter.SecurityHeadersFilter;
 import com.neko.music.filter.StaticPageSeoFilter;
 import com.neko.music.util.ClientReleaseStorage;
@@ -272,6 +273,10 @@ public class Main {
 
         // 保守防爬：拦截明确为爬虫/无头/命令行工具对 /api/* 的访问（不影响浏览器与原生客户端）
         context.addFilter(CrawlerProtectionFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
+
+        // 通用防重放：动态接口（/api/*、/loser/*）必须带一次性 nonce，重放 409；
+        // 静态资源与 /media/* 公共缓存路径不受影响
+        context.addFilter(ReplayProtectionFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
 
         // 静态路由（首页 / 下载 / 关于等）对爬虫返回服务端 SEO HTML，浏览器仍走 SPA
         context.addFilter(StaticPageSeoFilter.class, "/*", EnumSet.allOf(DispatcherType.class));

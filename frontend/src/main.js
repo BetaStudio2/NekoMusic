@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
 import { installNekoClientHeader } from './config/clientIdentity.js'
+import { installReplayProtection } from './utils/replayNonce.js'
 import './assets/main.css'
 import './design/tokens.css'
 import './design/reset.css'
@@ -15,6 +16,9 @@ const app = createApp(App)
 
 // 客户端标识：所有 fetch / XHR / axios 请求统一带 X-Neko-Client: web+<版本>
 installNekoClientHeader()
+
+// 通用防重放：动态接口自动补一次性 X-Neko-Nonce（依赖上面的 fetch/XHR 补丁，须在其后安装）
+installReplayProtection()
 
 // PWA：尽早注册安装提示监听与 Service Worker（仅生产注册 SW）
 initPwa()

@@ -152,11 +152,12 @@
     <audio
       v-if="currentMusic"
       ref="audioPlayer"
-      :src="`${API_CONFIG.BASE_URL}/api/music/file/${currentMusic.id}`"
+      :src="audioSrc"
       crossorigin="anonymous"
       @ended="onAudioEnded"
       @timeupdate="onTimeUpdate"
       @loadedmetadata="onLoadedMetadata"
+      @error="onAudioError"
     />
 
     <!-- 播放列表弹层 -->
@@ -231,6 +232,7 @@
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
+import { resolveMediaUrl } from '@/utils/mediaUrl.js'
 import { useToast } from 'vue-toastification'
 import { attachAudioElement, unlockAudioAnalyser } from '@/composables/useAudioAnalyser'
 import { clearUrlHash } from '@/utils/routerHistory'
@@ -253,6 +255,8 @@ const router = useRouter()
 // 从localStorage获取当前播放的音乐信息
 const currentMusic = ref(JSON.parse(localStorage.getItem('currentPlayingMusic')) || null)
 const audioPlayer = ref(null)
+// 播放地址由签发接口一次性 challenge 换取，不再直接拼 /api/music/file/{id}
+const audioSrc = ref('')
 const isPlaying = ref(false)
 const currentTime = ref(0)
 const duration = ref(0)
@@ -808,6 +812,7 @@ const confirmClearPlaylist = () => {
 
   // 清空当前曲目与所有派生状态
   currentMusic.value = null
+  audioSrc.value = ''
   isPlaying.value = false
   currentTime.value = 0
   progress.value = 0
@@ -992,6 +997,7 @@ const handleStorageChange = (e) => {
     } else if (!e.newValue) {
       // 没有音乐了，暂停播放器
       currentMusic.value = null;
+      audioSrc.value = '';
       if (audioPlayer.value) {
         audioPlayer.value.pause();
         // 重置播放时间
@@ -1087,6 +1093,58 @@ const handleStorageChange = (e) => {
   }
 }
 
+// 播放地址解析与失效自愈
+// ------------------------------------------------------------
+// 签发接口可能因 nonce 过期或 IP 变化返回失败，此时重新取一次并恢复到原播放位置。
+let audioSrcSeq = 0
+let audioSrcRetry = 0
+
+const refreshAudioSrc = async (track) => {
+  if (!track || track.id == null) {
+    audioSrc.value = ''
+    return
+  }
+  const seq = ++audioSrcSeq
+  try {
+    const url = await resolveMediaUrl(track.id)
+    if (seq !== audioSrcSeq) return
+    audioSrc.value = url
+    audioSrcRetry = 0
+  } catch (error) {
+    if (seq !== audioSrcSeq) return
+    console.error('[player] 获取播放地址失败', error)
+    audioSrc.value = ''
+    toast.error('获取播放地址失败，请重试')
+  }
+}
+
+const onAudioError = async () => {
+  const track = currentMusic.value
+  if (!track || audioSrcRetry >= 2) return
+  audioSrcRetry += 1
+
+  const el = audioPlayer.value
+  const resumeAt = el && Number.isFinite(el.currentTime) && el.currentTime > 0 ? el.currentTime : currentTime.value
+  const wasPlaying = isPlaying.value
+
+  await refreshAudioSrc(track)
+  await nextTick()
+
+  if (!audioPlayer.value || !audioSrc.value) return
+  const applyResume = () => {
+    try {
+      audioPlayer.value.currentTime = resumeAt
+    } catch {
+      /* ignore */
+    }
+  }
+  applyResume()
+  if (audioPlayer.value.readyState < 1) {
+    audioPlayer.value.addEventListener('loadedmetadata', applyResume, { once: true })
+  }
+  if (wasPlaying) safePlay(audioPlayer.value)
+}
+
 // 强制播放处理函数
 /**
  * 强制播放当前曲目（分享链接的 #play= / forcePlay 事件会走到这里）。
@@ -1165,6 +1223,11 @@ const switchToTrack = async (track) => {
   if (!duration.value) duration.value = Number(track.duration) || 0
   isPlaying.value = true
   updateGlobalPlayerState()
+
+  // 先取到播放地址，再交给模板 :src 绑定（handleForcePlay 依赖 DOM 补丁后的 src）
+  if (!isSame || !audioSrc.value) {
+    await refreshAudioSrc(currentMusic.value)
+  }
 
   // handleForcePlay 内部会 await nextTick、设置起始时间、淡入播放并广播
   await handleForcePlay()
@@ -1336,6 +1399,7 @@ onMounted(() => {
   const storedMusic = localStorage.getItem('currentPlayingMusic')
   if (storedMusic) {
     currentMusic.value = JSON.parse(storedMusic)
+    refreshAudioSrc(currentMusic.value)
     
     // 如果当前音乐不在播放列表中，则添加进去
     if (currentMusic.value && playlist.value) {
