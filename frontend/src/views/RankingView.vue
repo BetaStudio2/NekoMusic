@@ -6,6 +6,7 @@
  */
 import { ref, onMounted } from 'vue'
 import API_CONFIG from '@/config/apiConfig.js'
+import { resolveMediaUrl } from '@/utils/mediaUrl.js'
 import NIcon from '@/icons/NIcon.vue'
 import QualityBadge from '@/components/QualityBadge.vue'
 import { NButton, NCard, NSpinner } from '@/ui'
@@ -62,7 +63,8 @@ function playAll() {
 
 async function downloadMusic(music) {
   try {
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/file/${music.id}`)
+    const mediaUrl = await resolveMediaUrl(music.id)
+    const response = await fetch(mediaUrl)
     if (!response.ok) throw new Error('下载失败')
     const blob = await response.blob()
     const blobUrl = URL.createObjectURL(blob)

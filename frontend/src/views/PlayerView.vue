@@ -330,6 +330,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
+import { resolveMediaUrl } from '@/utils/mediaUrl.js'
 import { createVideoRenderJob, fetchVideoRenderStatus, downloadVideoRenderFile } from '@/api/videoRender.js'
 import { syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
 import { tryOpenMusicDetailInApp } from '@/utils/nativeAppOpen.js'
@@ -732,7 +733,7 @@ const waitAudioEvent = (audio, eventName, timeoutMs = 15000) => new Promise((res
 const ensurePreviewBlobUrl = async (musicId) => {
   const cached = clipPreviewBlobUrlByMusicId.get(musicId)
   if (cached) return cached
-  const res = await fetch(`${API_CONFIG.BASE_URL}/api/music/file/${musicId}`)
+  const res = await fetch(await resolveMediaUrl(musicId))
   if (!res.ok) {
     throw new Error(`fetch ${res.status}`)
   }
@@ -1027,7 +1028,7 @@ const downloadMusic = async () => {
   if (currentMusic.value) {
     try {
       // 使用fetch API获取音乐文件
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/file/${currentMusic.value.id}`);
+      const response = await fetch(await resolveMediaUrl(currentMusic.value.id));
       const blob = await response.blob();
 
       // 从 Content-Type 响应头中提取正确的文件扩展名
@@ -1050,16 +1051,7 @@ const downloadMusic = async () => {
     } catch (error) {
       console.error('下载音乐失败:', error);
 
-      // 如果fetch方法失败，回退到直接链接方法
-      const link = document.createElement('a');
-      link.href = `${API_CONFIG.BASE_URL}/api/music/file/${currentMusic.value.id}`;
-      // 回退时尝试使用 fileFormat，如果没有则默认 mp3
-      const extension = currentMusic.value.fileFormat || 'mp3';
-      link.download = currentMusic.value.filename || `${currentMusic.value.title}.${extension}`;
-      link.target = '_blank'; // 在新标签页中打开，而不是当前页面
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      toast.error('下载失败，请重试');
     }
   }
 }
