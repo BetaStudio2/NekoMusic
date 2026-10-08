@@ -30,7 +30,8 @@ public class ReplayChallengeHandler extends ApiServlet {
         int readCount = ReplayNonceService.clampBatch(request.getParameter("read"), ReplayNonceService.DEFAULT_BATCH);
         int writeCount = ReplayNonceService.clampBatch(request.getParameter("write"), ReplayNonceService.DEFAULT_BATCH);
         if (readCount + writeCount <= 0) {
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "请至少领取一个 nonce");
+            // 不解释参数该怎么写：请求本身有误时统一回一句，别把领取规则指给探测者
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "请求无效");
             return;
         }
 

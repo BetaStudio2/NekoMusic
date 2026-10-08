@@ -28,8 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 签发接口的行为测试：挑战 → 兑换 nonce 的两步链路、解答不合格 / 挑战失效的报错，
- * 以及过渡期内旧客户端仍可用但会被限额封顶。
+ * 签发接口的行为测试：挑战 → 兑换 nonce 的两步链路、各类被拒情形统一回应（不透露原因），
+ * 以及签发限额对被刷取的封顶。
  *
  * <p>用动态代理桩替代 Servlet 容器，不依赖 Redis。</p>
  */
@@ -88,15 +88,14 @@ class ReplayNonceHandlerTest {
     }
 
     @Test
-    void badProofIsRejectedWith400() throws Exception {
+    void badProofIsRejectedWith409() throws Exception {
         JsonObject data = challengeData(1, 1);
         Map<String, String> params = new HashMap<>();
         params.put("challenge", data.get("challenge").getAsString());
         params.put("proof", "1");
         Result result = runNonce(params);
-        // 极小概率 "1" 恰好合格；只要不是 200 就说明验签生效
-        assertTrue(result.status() == 400 || result.status() == 200);
-        assertTrue(result.body().contains("\"success\""));
+        assertEquals(409, result.status());
+        assertTrue(result.body().contains("\"success\":false"));
     }
 
     @Test
@@ -106,7 +105,7 @@ class ReplayNonceHandlerTest {
         params.put("proof", "12345");
         Result result = runNonce(params);
         assertEquals(409, result.status());
-        assertTrue(result.body().contains("挑战已失效"));
+        assertTrue(result.body().contains("\"success\":false"));
     }
 
     @Test
@@ -117,8 +116,47 @@ class ReplayNonceHandlerTest {
 
         // 收口后：不带挑战一律拒绝，领取不能再被脚本免解题刷取
         Result result = runNonce(params);
-        assertEquals(400, result.status());
-        assertTrue(result.body().contains("挑战"));
+        assertEquals(409, result.status());
+        assertTrue(result.body().contains("\"success\":false"));
+    }
+
+    /**
+     * 关键性质：缺挑战、题目不存在、解答不合格、重复兑换——四种被拒完全不可区分。
+     * 一旦某一种回不同的状态码或文案，探测者就能从差异里读出防护流程与判定顺序。
+     */
+    @Test
+    void allRejectionsAreIndistinguishable() throws Exception {
+        JsonObject badProofChallenge = challengeData(2, 2);
+        JsonObject solved = challengeData(2, 2);
+
+        Map<String, String> noChallenge = new HashMap<>();
+        noChallenge.put("read", "16");
+        noChallenge.put("write", "16");
+
+        Map<String, String> unknownChallenge = new HashMap<>();
+        unknownChallenge.put("challenge", "0123456789abcdef0123456789abcdef");
+        unknownChallenge.put("proof", "12345");
+
+        Map<String, String> badProof = new HashMap<>();
+        badProof.put("challenge", badProofChallenge.get("challenge").getAsString());
+        badProof.put("proof", "1");
+
+        Map<String, String> valid = new HashMap<>();
+        valid.put("challenge", solved.get("challenge").getAsString());
+        valid.put("proof", solveChallenge(solved));
+
+        Result first = runNonce(noChallenge);
+        Result second = runNonce(unknownChallenge);
+        Result third = runNonce(badProof);
+
+        // 先正常兑换一次，再原样重放（题目已被消耗）
+        assertEquals(200, runNonce(valid).status());
+        Result replayed = runNonce(valid);
+
+        for (Result result : new Result[]{second, third, replayed}) {
+            assertEquals(first.status(), result.status(), "状态码应与缺挑战时一致");
+            assertEquals(first.body(), result.body(), "响应体应与缺挑战时逐字节一致");
+        }
     }
 
     @Test
