@@ -41,7 +41,7 @@ class CrawlerProtectionFilterTest {
     }
 
     private Outcome inspect(String ua, Map<String, String> headers) throws Exception {
-        return inspect("GET", "/api/music/ranking", ua, headers);
+        return inspect("GET", "/api/music/info/1", ua, headers);
     }
 
     private Outcome inspect(String method, String uri, String ua, Map<String, String> headers) throws Exception {
@@ -122,7 +122,7 @@ class CrawlerProtectionFilterTest {
     void divertsKnownBotsAndScannersToSeo() throws Exception {
         Outcome curl = inspect("curl/8.5.0", null);
         assertEquals(200, curl.status());
-        assertEquals("/ranking", curl.forwarded());
+        assertEquals("/detail/1", curl.forwarded());
         assertEquals("<html>SEO</html>", curl.body());
         assertEquals("User-Agent", curl.vary());
         assertEquals("private, no-store", curl.cacheControl());
@@ -132,7 +132,7 @@ class CrawlerProtectionFilterTest {
                 "Mozilla/5.00 (Nikto/2.5.0)", "Mozilla/5.0 zgrab/0.x"}) {
             Outcome outcome = inspect(botUa, null);
             assertEquals(200, outcome.status(), botUa);
-            assertEquals("/ranking", outcome.forwarded(), botUa);
+            assertEquals("/detail/1", outcome.forwarded(), botUa);
             assertFalse(outcome.chained(), botUa);
         }
     }
@@ -144,7 +144,7 @@ class CrawlerProtectionFilterTest {
                 "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)"}) {
             Outcome outcome = inspect(crawlerUa, null);
             assertEquals(200, outcome.status(), crawlerUa);
-            assertEquals("/ranking", outcome.forwarded(), crawlerUa);
+            assertEquals("/detail/1", outcome.forwarded(), crawlerUa);
             assertFalse(outcome.chained(), crawlerUa);
         }
     }
@@ -155,7 +155,7 @@ class CrawlerProtectionFilterTest {
         for (String noUa : new String[]{null, "", "   "}) {
             Outcome outcome = inspect(noUa, null);
             assertEquals(200, outcome.status());
-            assertEquals("/ranking", outcome.forwarded());
+            assertEquals("/detail/1", outcome.forwarded());
             assertFalse(outcome.chained());
         }
         // 空 UA 的写请求直接 403
@@ -173,12 +173,12 @@ class CrawlerProtectionFilterTest {
     void divertsBrowserUserAgentSpoofWithoutBrowserHeaders() throws Exception {
         Outcome noHeaders = inspect(BROWSER_UA, null);
         assertEquals(200, noHeaders.status());
-        assertEquals("/ranking", noHeaders.forwarded());
+        assertEquals("/detail/1", noHeaders.forwarded());
         assertFalse(noHeaders.chained());
 
         Outcome acceptOnly = inspect(BROWSER_UA, Map.of("Accept", "application/json"));
         assertEquals(200, acceptOnly.status());
-        assertEquals("/ranking", acceptOnly.forwarded());
+        assertEquals("/detail/1", acceptOnly.forwarded());
         assertFalse(acceptOnly.chained());
     }
 
@@ -213,7 +213,7 @@ class CrawlerProtectionFilterTest {
         for (String playerUa : new String[]{"okhttp/4.12.0", "Dalvik/2.1.0 (Linux; U; Android 13)", "libmpv/0.36"}) {
             Outcome outcome = inspect(playerUa, null);
             assertEquals(200, outcome.status(), playerUa);
-            assertEquals("/ranking", outcome.forwarded(), playerUa);
+            assertEquals("/detail/1", outcome.forwarded(), playerUa);
             assertFalse(outcome.chained(), playerUa);
         }
     }
@@ -223,7 +223,7 @@ class CrawlerProtectionFilterTest {
         for (String spoofed : new String[]{"sqlmap android", "python-requests/2.31.0 Android", "curl/8.5.0 dalvik"}) {
             Outcome outcome = inspect(spoofed, null);
             assertEquals(200, outcome.status(), spoofed);
-            assertEquals("/ranking", outcome.forwarded(), spoofed);
+            assertEquals("/detail/1", outcome.forwarded(), spoofed);
             assertFalse(outcome.chained(), spoofed);
         }
     }
@@ -235,14 +235,14 @@ class CrawlerProtectionFilterTest {
         field.setAccessible(true);
         field.set(config, List.of("thirdparty-client/2.0"));
 
-        Outcome allowlisted = inspect(config, "GET", "/api/music/ranking",
+        Outcome allowlisted = inspect(config, "GET", "/api/music/info/1",
                 "okhttp/4.12.0 thirdparty-client/2.0", null);
         assertTrue(allowlisted.chained());
 
         // 过短的登记项等于万能放行，必须被忽略
         ConfigManager shortEntry = new ConfigManager();
         field.set(shortEntry, List.of("app"));
-        assertFalse(inspect(shortEntry, "GET", "/api/music/ranking", "okhttp/4.12.0", null).chained());
+        assertFalse(inspect(shortEntry, "GET", "/api/music/info/1", "okhttp/4.12.0", null).chained());
     }
 
     @Test
@@ -253,9 +253,20 @@ class CrawlerProtectionFilterTest {
     }
 
     @Test
+    void publicCacheableEndpointsSkipCrawlerDivertion() throws Exception {
+        // 排行榜 / 最新音乐是公开缓存接口（CDN 缓存半小时），对所有人返回同一份 JSON：
+        // 不参与防爬分流，否则缓存命中与否会让同一个 UA 时而被拦、时而拿到 JSON。
+        for (String path : new String[]{"/api/music/ranking", "/api/music/latest"}) {
+            for (String ua : new String[]{"curl/8.5.0", "sqlmap android", "okhttp/4.12.0", null}) {
+                Outcome outcome = inspect("GET", path, ua, null);
+                assertTrue(outcome.chained(), path + " / " + ua);
+                assertNull(outcome.forwarded(), path + " / " + ua);
+            }
+        }
+    }
+
+    @Test
     void mapsApiPathsToSeoPages() {
-        assertEquals("/ranking", CrawlerProtectionFilter.seoPageForApiPath("/api/music/ranking"));
-        assertEquals("/latest", CrawlerProtectionFilter.seoPageForApiPath("/api/music/latest"));
         assertEquals("/search", CrawlerProtectionFilter.seoPageForApiPath("/api/music/search"));
         assertEquals("/detail/42", CrawlerProtectionFilter.seoPageForApiPath("/api/music/info/42"));
         assertEquals("/detail/42", CrawlerProtectionFilter.seoPageForApiPath("/api/music/cover/42"));
@@ -263,6 +274,9 @@ class CrawlerProtectionFilterTest {
         assertEquals("/detail/7", CrawlerProtectionFilter.seoPageForApiPath("/api/music/lyrics/7"));
         assertEquals("/", CrawlerProtectionFilter.seoPageForApiPath("/api/user/login"));
         assertEquals("/", CrawlerProtectionFilter.seoPageForApiPath("/api/music/search/abc"));
+        // 公开缓存接口不再映射 SEO 页（对所有人返回 JSON，由 CDN 缓存）
+        assertEquals("/", CrawlerProtectionFilter.seoPageForApiPath("/api/music/ranking"));
+        assertEquals("/", CrawlerProtectionFilter.seoPageForApiPath("/api/music/latest"));
     }
 
     @SuppressWarnings("unchecked")
