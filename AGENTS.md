@@ -101,6 +101,8 @@ cd frontend && npm run build    # 产物输出到 ../backend/src/main/resources/
   「原生客户端放行」放在爬虫黑名单之前（否则 `sqlmap android` 这类组合能整层绕过）。
 - 第三方客户端只能通过 `network.allow_client_user_agents` 登记放行（子串至少 6 个字符）；
   登记优先于黑名单判定。
+- 公开且允许 CDN 缓存的接口（`/api/music/ranking`、`/api/music/latest`）对所有请求者一致返回
+  JSON，不参与防爬分流；否则边缘缓存命中与否会让同一个 UA 时而被拦、时而拿到 JSON。
 
 ### API 文档脱敏
 
