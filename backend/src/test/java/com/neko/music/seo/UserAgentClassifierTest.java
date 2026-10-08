@@ -160,13 +160,13 @@ class UserAgentClassifierTest {
         assertFalse(UserAgentClassifier.isBotForApi("FFmpeg/6.1 libavformat/60.16.100"));
         assertFalse(UserAgentClassifier.isBotForApi(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) NekoMusicPC/1.0 QtWebEngine/6.6.0"));
-        // NekoMusic PC：Qt 桌面端（封面请求 UA；API 请求默认不发 UA，由过滤器放行）
+        // NekoMusic PC：Qt 桌面端（封面请求 UA；API 请求统一携带 NekoMusic-PC/<版本>）
         assertFalse(UserAgentClassifier.isBotForApi("NekoMusic Qt"));
         assertTrue(UserAgentClassifier.isNativeClient("NekoMusic Qt"));
-        // 空 UA：保守放行，交由限流兜底
-        assertFalse(UserAgentClassifier.isBotForApi(null));
-        assertFalse(UserAgentClassifier.isBotForApi(""));
-        assertFalse(UserAgentClassifier.isBotForApi("   "));
+        // 空 UA：一律当爬虫，不能靠「不带 UA」绕过校验
+        assertTrue(UserAgentClassifier.isBotForApi(null));
+        assertTrue(UserAgentClassifier.isBotForApi(""));
+        assertTrue(UserAgentClassifier.isBotForApi("   "));
     }
 
     @Test

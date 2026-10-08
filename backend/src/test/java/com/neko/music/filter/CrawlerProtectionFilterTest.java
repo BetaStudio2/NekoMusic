@@ -145,12 +145,19 @@ class CrawlerProtectionFilterTest {
     }
 
     @Test
-    void allowsDesktopQtClientThatSendsNoUserAgentOrNekoMusicUa() throws Exception {
-        // NekoMusic PC 的 ApiClient 用 QNetworkRequest，默认不发送 UA
-        Outcome noUa = inspect(null, null);
-        assertEquals(200, noUa.status());
-        assertTrue(noUa.chained());
-        // 封面请求 UA = "NekoMusic Qt"
+    void treatsMissingUserAgentAsCrawlerButAllowsNekoMusicQt() throws Exception {
+        // 空 UA 一律按爬虫处理：GET 直出 SEO 页，不再放行
+        for (String noUa : new String[]{null, "", "   "}) {
+            Outcome outcome = inspect(noUa, null);
+            assertEquals(200, outcome.status());
+            assertEquals("/ranking", outcome.forwarded());
+            assertFalse(outcome.chained());
+        }
+        // 空 UA 的写请求直接 403
+        Outcome post = inspect("POST", "/api/user/login", null, null);
+        assertEquals(403, post.status());
+        assertNull(post.forwarded());
+        // 封面请求 UA = "NekoMusic Qt"（含 qt 内核标记）仍在原生白名单内
         Outcome coverUa = inspect("NekoMusic Qt", Map.of(
                 "Accept", "image/png,image/jpeg,image/*;q=0.8,*/*;q=0.5"));
         assertEquals(200, coverUa.status());
