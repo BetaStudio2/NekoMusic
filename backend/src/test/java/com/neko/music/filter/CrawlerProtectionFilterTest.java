@@ -15,6 +15,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -44,7 +45,11 @@ class CrawlerProtectionFilterTest {
     }
 
     private Outcome inspect(String method, String uri, String ua, Map<String, String> headers) throws Exception {
-        ConfigManager config = new ConfigManager();
+        return inspect(new ConfigManager(), method, uri, ua, headers);
+    }
+
+    private Outcome inspect(ConfigManager config, String method, String uri, String ua,
+                            Map<String, String> headers) throws Exception {
         CrawlerProtectionFilter filter = new CrawlerProtectionFilter();
 
         ServletContext ctx = proxy(ServletContext.class, (p, m, a) ->
@@ -195,12 +200,49 @@ class CrawlerProtectionFilterTest {
     }
 
     @Test
-    void allowsNativeClients() throws Exception {
-        assertEquals(200, inspect("okhttp/4.12.0", null).status());
-        assertEquals(200, inspect("Dalvik/2.1.0 (Linux; U; Android 13)", null).status());
-        assertEquals(200, inspect("libmpv/0.36", null).status());
-        assertEquals(200, inspect(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) NekoMusicPC/1.0 QtWebEngine/6.6.0", null).status());
+    void allowsOnlyOfficialNativeClientUserAgents() throws Exception {
+        Outcome android = inspect("NekoMusic-android/202601008", null);
+        assertEquals(200, android.status());
+        assertTrue(android.chained());
+        assertNull(android.forwarded());
+
+        Outcome pc = inspect("NekoMusic-PC/1.0", null);
+        assertTrue(pc.chained());
+
+        // 播放器 / 通用 HTTP 栈 UA 不再豁免 /api（它们只取 /media/* 直链）：GET 直出 SEO 页
+        for (String playerUa : new String[]{"okhttp/4.12.0", "Dalvik/2.1.0 (Linux; U; Android 13)", "libmpv/0.36"}) {
+            Outcome outcome = inspect(playerUa, null);
+            assertEquals(200, outcome.status(), playerUa);
+            assertEquals("/ranking", outcome.forwarded(), playerUa);
+            assertFalse(outcome.chained(), playerUa);
+        }
+    }
+
+    @Test
+    void nativeKeywordInSpoofedUserAgentDoesNotBypass() throws Exception {
+        for (String spoofed : new String[]{"sqlmap android", "python-requests/2.31.0 Android", "curl/8.5.0 dalvik"}) {
+            Outcome outcome = inspect(spoofed, null);
+            assertEquals(200, outcome.status(), spoofed);
+            assertEquals("/ranking", outcome.forwarded(), spoofed);
+            assertFalse(outcome.chained(), spoofed);
+        }
+    }
+
+    @Test
+    void configAllowlistTakesPrecedenceOverBlacklist() throws Exception {
+        ConfigManager config = new ConfigManager();
+        var field = ConfigManager.class.getDeclaredField("apiClientAllowlist");
+        field.setAccessible(true);
+        field.set(config, List.of("thirdparty-client/2.0"));
+
+        Outcome allowlisted = inspect(config, "GET", "/api/music/ranking",
+                "okhttp/4.12.0 thirdparty-client/2.0", null);
+        assertTrue(allowlisted.chained());
+
+        // 过短的登记项等于万能放行，必须被忽略
+        ConfigManager shortEntry = new ConfigManager();
+        field.set(shortEntry, List.of("app"));
+        assertFalse(inspect(shortEntry, "GET", "/api/music/ranking", "okhttp/4.12.0", null).chained());
     }
 
     @Test

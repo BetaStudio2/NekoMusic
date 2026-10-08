@@ -214,8 +214,8 @@ network:
   # 示例：true (启用，推荐), false (仅保留关键词黑名单)
   browser_integrity_enabled: true
 
-  # 额外放行的客户端 UA 子串（大小写不敏感）。登记不在内置原生白名单里的第三方客户端，
-  # 避免被浏览器完整性校验误伤。示例：
+  # 额外放行的客户端 UA 子串（大小写不敏感，至少 6 个字符）。用于登记官方客户端之外的
+  # 第三方客户端；登记项优先于爬虫 / 扫描器黑名单判定，因此请写足够具体、不易被蹭的串。示例：
   #   allow_client_user_agents:
   #     - "MyThirdPartyClient/"
   allow_client_user_agents: []

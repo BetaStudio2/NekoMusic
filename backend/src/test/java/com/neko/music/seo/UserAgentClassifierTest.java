@@ -152,21 +152,41 @@ class UserAgentClassifierTest {
                 "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1"));
         assertFalse(UserAgentClassifier.isBotForApi(
                 "Mozilla/5.0 (Linux; Android 13; 22081212C) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36 MicroMessenger/8.0.49"));
-        // 原生客户端 / 播放器（虽然不含 Mozilla）
-        assertFalse(UserAgentClassifier.isBotForApi("okhttp/4.12.0"));
-        assertFalse(UserAgentClassifier.isBotForApi("Dalvik/2.1.0 (Linux; U; Android 13; Pixel 7)"));
-        assertFalse(UserAgentClassifier.isBotForApi("libmpv/0.36"));
-        assertFalse(UserAgentClassifier.isBotForApi("VLC/3.0.20 LibVLC/3.0.20"));
-        assertFalse(UserAgentClassifier.isBotForApi("FFmpeg/6.1 libavformat/60.16.100"));
-        assertFalse(UserAgentClassifier.isBotForApi(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) NekoMusicPC/1.0 QtWebEngine/6.6.0"));
-        // NekoMusic PC：Qt 桌面端（封面请求 UA；API 请求统一携带 NekoMusic-PC/<版本>）
+        // 官方客户端：UA 必须严格是 NekoMusic-<平台>/<版本>（PC 旧版封面 UA 为 NekoMusic Qt）
+        assertFalse(UserAgentClassifier.isBotForApi("NekoMusic-android/202601008"));
+        assertFalse(UserAgentClassifier.isBotForApi("NekoMusic-PC/1.0"));
         assertFalse(UserAgentClassifier.isBotForApi("NekoMusic Qt"));
         assertTrue(UserAgentClassifier.isNativeClient("NekoMusic Qt"));
+        // 播放器 / 命令行工具只取 /media/* 直链，不再豁免 /api：这些 UA 一律按黑名单拦截
+        assertTrue(UserAgentClassifier.isBotForApi("okhttp/4.12.0"));
+        assertTrue(UserAgentClassifier.isBotForApi("Dalvik/2.1.0 (Linux; U; Android 13; Pixel 7)"));
+        assertTrue(UserAgentClassifier.isBotForApi("libmpv/0.36"));
+        assertTrue(UserAgentClassifier.isBotForApi("VLC/3.0.20 LibVLC/3.0.20"));
         // 空 UA：一律当爬虫，不能靠「不带 UA」绕过校验
         assertTrue(UserAgentClassifier.isBotForApi(null));
         assertTrue(UserAgentClassifier.isBotForApi(""));
         assertTrue(UserAgentClassifier.isBotForApi("   "));
+    }
+
+    @Test
+    void doesNotExemptNativeKeywordsEmbeddedInSpoofedUserAgents() {
+        // 回归：UA 里出现 android / okhttp / dalvik / qt 等关键词不再构成放行理由，
+        // 否则 `sqlmap android` 这类组合能同时绕过黑名单与浏览器完整性两层判定。
+        assertTrue(UserAgentClassifier.isBotForApi("sqlmap android"));
+        assertTrue(UserAgentClassifier.isBotForApi("python-requests/2.31.0 Android"));
+        assertTrue(UserAgentClassifier.isBotForApi("curl/8.5.0 dalvik"));
+        assertTrue(UserAgentClassifier.isBotForApi("nikto okhttp"));
+
+        assertFalse(UserAgentClassifier.isNativeClient("android"));
+        assertFalse(UserAgentClassifier.isNativeClient("okhttp/4.12.0"));
+        assertFalse(UserAgentClassifier.isNativeClient("nekomusic"));
+        assertFalse(UserAgentClassifier.isNativeClient("NekoMusic-android/202601008 sqlmap"));
+        assertFalse(UserAgentClassifier.isNativeClient(
+                "Mozilla/5.0 (Linux; Android 13; 22081212C) AppleWebKit/537.36 (KHTML, like Gecko) "
+                        + "Chrome/116.0.0.0 Mobile Safari/537.36"));
+
+        assertTrue(UserAgentClassifier.isNativeClient("NekoMusic-android/202601008"));
+        assertTrue(UserAgentClassifier.isNativeClient("NekoMusic-PC/1.0"));
     }
 
     @Test

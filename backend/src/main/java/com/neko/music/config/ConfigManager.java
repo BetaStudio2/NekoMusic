@@ -151,10 +151,13 @@ public class ConfigManager {
     private boolean browserIntegrityEnabled = true;
 
     /**
-     * 额外放行的客户端 UA 子串（大小写不敏感）。用于登记不在内置原生客户端白名单里的
-     * 第三方客户端，避免浏览器完整性校验误伤。
+     * 额外放行的客户端 UA 子串（大小写不敏感，至少 {@link #MIN_ALLOWLIST_LENGTH} 个字符）。
+     * 用于登记官方客户端之外的第三方客户端；登记项优先于爬虫 / 扫描器黑名单判定。
      */
     private List<String> apiClientAllowlist = new ArrayList<>();
+
+    /** 客户端放行登记的最短长度：登记优先于黑名单，过短的子串等于万能放行。 */
+    private static final int MIN_ALLOWLIST_LENGTH = 6;
 
     /** 本地听歌识曲：服务端声纹索引与短录音保护 */
     private boolean musicRecognitionEnabled = true;
@@ -337,12 +340,19 @@ public class ConfigManager {
                     if (allowlistNode != null && allowlistNode.isArray()) {
                         apiClientAllowlist = new ArrayList<>();
                         allowlistNode.forEach(item -> {
-                            if (item != null && !item.isNull()) {
-                                String ua = item.asText("").trim();
-                                if (!ua.isEmpty()) {
-                                    apiClientAllowlist.add(ua);
-                                }
+                            if (item == null || item.isNull()) {
+                                return;
                             }
+                            String ua = item.asText("").trim();
+                            if (ua.isEmpty()) {
+                                return;
+                            }
+                            // 登记项优先于爬虫黑名单判定，过短的子串（如 "app"）等于万能放行，直接忽略
+                            if (ua.length() < MIN_ALLOWLIST_LENGTH) {
+                                logger.warn("忽略过短的客户端放行登记（至少 {} 字符）: {}", MIN_ALLOWLIST_LENGTH, ua);
+                                return;
+                            }
+                            apiClientAllowlist.add(ua);
                         });
                     }
                 }
