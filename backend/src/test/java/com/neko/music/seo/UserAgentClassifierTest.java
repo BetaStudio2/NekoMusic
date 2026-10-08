@@ -156,7 +156,7 @@ class UserAgentClassifierTest {
         assertFalse(UserAgentClassifier.isBotForApi("NekoMusic-android/202601008"));
         assertFalse(UserAgentClassifier.isBotForApi("NekoMusic-PC/1.0"));
         assertFalse(UserAgentClassifier.isBotForApi("NekoMusic Qt"));
-        assertTrue(UserAgentClassifier.isNativeClient("NekoMusic Qt"));
+        assertFalse(UserAgentClassifier.isNativeClient("NekoMusic Qt"));
         // 播放器 / 命令行工具只取 /media/* 直链，不再豁免 /api：这些 UA 一律按黑名单拦截
         assertTrue(UserAgentClassifier.isBotForApi("okhttp/4.12.0"));
         assertTrue(UserAgentClassifier.isBotForApi("Dalvik/2.1.0 (Linux; U; Android 13; Pixel 7)"));
@@ -187,6 +187,13 @@ class UserAgentClassifierTest {
 
         assertTrue(UserAgentClassifier.isNativeClient("NekoMusic-android/202601008"));
         assertTrue(UserAgentClassifier.isNativeClient("NekoMusic-PC/1.0"));
+        assertTrue(UserAgentClassifier.isNativeClient("nekomusic-android/1.0.0"));
+        // 官方 UA 必须带平台与版本：裸前缀 / 空格写法 / 非数字版本都不算
+        assertFalse(UserAgentClassifier.isNativeClient("NekoMusic-android"));
+        assertFalse(UserAgentClassifier.isNativeClient("NekoMusic Android"));
+        assertFalse(UserAgentClassifier.isNativeClient("NekoMusic-PC"));
+        assertFalse(UserAgentClassifier.isNativeClient("NekoMusic-android/abc"));
+        assertFalse(UserAgentClassifier.isNativeClient("NekoMusic-android/202601008/extra"));
     }
 
     @Test

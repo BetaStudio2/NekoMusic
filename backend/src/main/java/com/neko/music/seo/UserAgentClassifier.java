@@ -88,11 +88,15 @@ public final class UserAgentClassifier {
     }
 
     /**
-     * 官方客户端 UA 的严格格式：{@code NekoMusic-<平台>/<版本>}，兼容 PC 旧版封面请求
-     * {@code NekoMusic Qt}。必须整体匹配。
+     * 官方客户端 UA 的严格格式：{@code NekoMusic-<平台>/<版本>}。
+     *
+     * <p>必须整体匹配，且版本必须存在并以数字开头——客户端只会发
+     * {@code NekoMusic-android/202601008}、{@code NekoMusic-PC/2026.108.52} 这种形式，
+     * 因此 {@code NekoMusic-android}、{@code NekoMusic Android}、{@code NekoMusic Qt}
+     * 这类缺版本或空格写法一律不放行。</p>
      */
     private static final Pattern OFFICIAL_CLIENT_UA = Pattern.compile(
-            "(?i)^nekomusic[- ](?:android|pc|ios|macos|windows|linux|qt)(?:[/ ][\\w.+-]+)?$");
+            "(?i)^nekomusic-(?:android|pc|ios|macos|windows|linux|qt)/\\d[\\w.+-]*$");
 
     public static boolean shouldRenderSeo(String userAgent) {
         if (userAgent == null || userAgent.isBlank()) {
@@ -158,12 +162,12 @@ public final class UserAgentClassifier {
     }
 
     /**
-     * 官方客户端 UA 判定（严格锚定）：{@code NekoMusic-<平台>/<版本>}，兼容 PC 旧版
-     * {@code NekoMusic Qt}。
+     * 官方客户端 UA 判定（严格锚定）：{@code NekoMusic-<平台>/<版本>}，版本必须存在。
      *
      * <p><b>必须整体匹配</b>，不能退化成「UA 里出现 android / okhttp / qt / nekomusic 就放行」——那种
      * 子串判定会让任何脚本只在 UA 里塞一个关键词，就同时绕过黑名单与浏览器完整性两层判定
-     * （实测 {@code sqlmap android} 因此可以拿到 JSON）。</p>
+     * （实测 {@code sqlmap android} 因此可以拿到 JSON）。同样不能放宽成「平台后缀可省、版本可省」，
+     * 否则 {@code NekoMusic-android} 这类裸前缀就能拿到 JSON。</p>
      *
      * <p>媒体播放器（mpv / VLC / FFmpeg / 裸 OkHttp）只取 {@code /media/*} 直链，不经过防爬过滤器，
      * 因此不再在这里豁免；其它三方客户端请在 {@code network.allow_client_user_agents} 登记。</p>
