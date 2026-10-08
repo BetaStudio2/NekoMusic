@@ -1,0 +1,236 @@
+package com.neko.music.handlers;
+
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.neko.music.service.ReplayChallengeService;
+import com.neko.music.service.ReplayChallengeSolver;
+import com.neko.music.service.ReplayIssueLimiter;
+import com.neko.music.service.ReplayNonceService;
+import com.neko.music.service.TestNonceStore;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * 签发接口的行为测试：挑战 → 兑换 nonce 的两步链路、解答不合格 / 挑战失效的报错，
+ * 以及过渡期内旧客户端仍可用但会被限额封顶。
+ *
+ * <p>用动态代理桩替代 Servlet 容器，不依赖 Redis。</p>
+ */
+class ReplayNonceHandlerTest {
+
+    private static final String IP = "127.0.0.1";
+    private static final String UA = "NekoMusic-android/202601008";
+    /** 冻住限额器时钟，让「打到突发上限」这件事可复现（不依赖真实流逝的毫秒）。 */
+    private static final long FROZEN_MILLIS = 1_700_000_000_000L;
+
+    private static TestNonceStore store;
+
+    @BeforeAll
+    static void installStore() {
+        store = new TestNonceStore();
+        ReplayNonceService.useStore(store);
+        ReplayIssueLimiter.useClock(() -> FROZEN_MILLIS);
+    }
+
+    @AfterAll
+    static void restoreStore() {
+        ReplayNonceService.useStore(null);
+        ReplayIssueLimiter.useClock(null);
+        ReplayIssueLimiter.reset();
+    }
+
+    @BeforeEach
+    void reset() {
+        store.clear();
+        store.setDown(false);
+        ReplayChallengeService.reset();
+        ReplayIssueLimiter.reset();
+    }
+
+    private record Result(int status, String body) {
+    }
+
+    @Test
+    void challengeFlowIssuesNoncesOnceAndRejectsReplay() throws Exception {
+        JsonObject challenge = JsonParser.parseString(runChallenge(4, 4).body()).getAsJsonObject()
+                .getAsJsonObject("data");
+        String id = challenge.get("challenge").getAsString();
+        assertEquals(ReplayChallengeService.ALGORITHM, challenge.get("algorithm").getAsString());
+
+        String proof = ReplayChallengeSolver.solve(new ReplayChallengeService.Challenge(
+                id,
+                challenge.get("seed").getAsString(),
+                challenge.get("difficulty").getAsInt(),
+                challenge.get("read").getAsInt(),
+                challenge.get("write").getAsInt(),
+                null,
+                null,
+                0L));
+
+        Map<String, String> params = new HashMap<>();
+        params.put("challenge", id);
+        params.put("proof", proof);
+        Result granted = runNonce(params);
+        assertEquals(200, granted.status());
+        JsonObject nonces = JsonParser.parseString(granted.body()).getAsJsonObject()
+                .getAsJsonObject("data").getAsJsonObject("nonces");
+        assertEquals(4, nonces.getAsJsonArray("read").size());
+        assertEquals(4, nonces.getAsJsonArray("write").size());
+
+        // 同一道题再兑换（重放）→ 409
+        assertEquals(409, runNonce(params).status());
+    }
+
+    @Test
+    void badProofIsRejectedWith400() throws Exception {
+        JsonObject data = JsonParser.parseString(runChallenge(1, 1).body()).getAsJsonObject()
+                .getAsJsonObject("data");
+        Map<String, String> params = new HashMap<>();
+        params.put("challenge", data.get("challenge").getAsString());
+        params.put("proof", "1");
+        Result result = runNonce(params);
+        // 极小概率 "1" 恰好合格；只要不是 200 就说明验签生效
+        assertTrue(result.status() == 400 || result.status() == 200);
+        assertTrue(result.body().contains("\"success\""));
+    }
+
+    @Test
+    void unknownChallengeIsRejectedWith409() throws Exception {
+        Map<String, String> params = new HashMap<>();
+        params.put("challenge", "0123456789abcdef0123456789abcdef");
+        params.put("proof", "12345");
+        Result result = runNonce(params);
+        assertEquals(409, result.status());
+        assertTrue(result.body().contains("挑战已失效"));
+    }
+
+    @Test
+    void legacyClientStillWorksButIsCappedByLimiter() throws Exception {
+        Map<String, String> params = new HashMap<>();
+        params.put("read", "1");
+        params.put("write", "1");
+
+        // 过渡期：不带挑战仍可领取
+        assertEquals(200, runNonce(params).status());
+
+        // 打到突发上限后必须 429（单来源闸门）
+        int allowed = 1;
+        for (int i = 0; i < ReplayIssueLimiter.PER_IP_REQUEST_BURST - 1; i++) {
+            if (runNonce(params).status() == 200) {
+                allowed++;
+            }
+        }
+        assertTrue(allowed <= ReplayIssueLimiter.PER_IP_REQUEST_BURST);
+        assertEquals(429, runNonce(params).status());
+    }
+
+    @Test
+    void issuingFailsWith503WhenStorageIsDown() throws Exception {
+        store.setDown(true);
+        Map<String, String> params = new HashMap<>();
+        params.put("read", "2");
+        params.put("write", "0");
+        Result result = runNonce(params);
+        assertEquals(503, result.status());
+        assertTrue(result.body().contains("success"));
+    }
+
+    private Result runChallenge(int read, int write) throws Exception {
+        Map<String, String> params = new HashMap<>();
+        params.put("read", Integer.toString(read));
+        params.put("write", Integer.toString(write));
+        return run(new ReplayChallengeHandler(),
+                (h, req, res) -> ((ReplayChallengeHandler) h).doGet(req, res), params);
+    }
+
+    private Result runNonce(Map<String, String> params) throws Exception {
+        return run(new ReplayNonceHandler(),
+                (h, req, res) -> ((ReplayNonceHandler) h).doGet(req, res), params);
+    }
+
+    /** 用动态代理桩执行一次 handler，返回状态码与响应体。 */
+    private Result run(Object handler, HandlerCall call, Map<String, String> params) throws Exception {
+        int[] status = {200};
+        StringWriter body = new StringWriter();
+        PrintWriter writer = new PrintWriter(body);
+        HttpServletResponse response = proxy(HttpServletResponse.class, (p, m, a) -> {
+            switch (m.getName()) {
+                case "setStatus" -> status[0] = (int) a[0];
+                case "getWriter" -> {
+                    return writer;
+                }
+                default -> {
+                }
+            }
+            return defaultValue(m);
+        });
+        HttpServletRequest request = proxy(HttpServletRequest.class, (p, m, a) -> switch (m.getName()) {
+            case "getParameter" -> params.get((String) a[0]);
+            case "getHeader" -> "User-Agent".equals(a[0]) ? UA : null;
+            case "getRemoteAddr" -> IP;
+            case "getRequestURI" -> "/api/replay/nonce";
+            case "getContextPath" -> "";
+            default -> defaultValue(m);
+        });
+        call.invoke(handler, request, response);
+        writer.flush();
+        return new Result(status[0], body.toString());
+    }
+
+    /** handler 的 GET 入口（同包内可直接调用）。 */
+    private interface HandlerCall {
+        void invoke(Object handler, HttpServletRequest request, HttpServletResponse response) throws Exception;
+    }
+
+    private static <T> T proxy(Class<T> type, InvocationHandler handler) {
+        return (T) Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[]{type}, handler);
+    }
+
+    private static Object defaultValue(Method method) {
+        Class<?> type = method.getReturnType();
+        if (!type.isPrimitive()) {
+            return null;
+        }
+        if (type == boolean.class) {
+            return false;
+        }
+        if (type == int.class) {
+            return 0;
+        }
+        if (type == long.class) {
+            return 0L;
+        }
+        if (type == short.class) {
+            return (short) 0;
+        }
+        if (type == byte.class) {
+            return (byte) 0;
+        }
+        if (type == char.class) {
+            return (char) 0;
+        }
+        if (type == float.class) {
+            return 0f;
+        }
+        if (type == double.class) {
+            return 0d;
+        }
+        return null;
+    }
+}

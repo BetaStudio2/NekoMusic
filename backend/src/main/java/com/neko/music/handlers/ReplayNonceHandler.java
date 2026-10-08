@@ -2,6 +2,8 @@ package com.neko.music.handlers;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.neko.music.service.ReplayChallengeService;
+import com.neko.music.service.ReplayIssueLimiter;
 import com.neko.music.service.ReplayNonceService;
 import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.HttpResourceCache;
@@ -18,10 +20,15 @@ import java.util.List;
  * {@code X-Neko-Nonce}。nonce 绑定调用方 IP 哈希，一次性消费，默认 120 秒过期。</p>
  *
  * <p>查询参数：{@code read} / {@code write} 分别指定两类的数量（缺省 {@code 16}，上限
- * {@code 64}）；显式传 {@code 0} 表示该类不领。响应：</p>
+ * {@code 64}）；显式传 {@code 0} 表示该类不领；{@code challenge} / {@code proof} 为
+ * {@code GET /api/replay/challenge} 下发题目的编号与解答。响应：</p>
  * <pre>{"success":true,"message":"","data":{"nonces":{"read":["…"],"write":["…"]},"expiresIn":120}}</pre>
  *
- * <p>本接口自身豁免 nonce 校验（否则无法自举），由 IP 限流与防爬过滤器兜底。</p>
+ * <p>两条路径：携带 {@code challenge} + {@code proof} 时先验题（题目一次性、绑定来源，批量越大越难），
+ * 通过后按题目绑定的数量签发；未携带时走**过渡期降级**路径，仍可直接领取，但受签发限额封顶。
+ * 两条路径都要过「单来源请求 + 全站 nonce 额度」两道闸门，超出返回 {@code 429}。</p>
+ *
+ * <p>本接口自身豁免 nonce 校验（否则无法自举），由签发限额与防爬过滤器兜底。</p>
  */
 public class ReplayNonceHandler extends ApiServlet {
 
@@ -29,10 +36,41 @@ public class ReplayNonceHandler extends ApiServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setHeader("Cache-Control", HttpResourceCache.CACHE_CONTROL_NO_STORE);
 
-        int readCount = parseCount(request.getParameter("read"), ReplayNonceService.DEFAULT_BATCH);
-        int writeCount = parseCount(request.getParameter("write"), ReplayNonceService.DEFAULT_BATCH);
-
         String clientIp = ClientIpResolver.clientIp(request);
+        int readCount = 0;
+        int writeCount = 0;
+
+        String challengeId = request.getParameter("challenge");
+        if (challengeId == null || challengeId.isBlank()) {
+            // 过渡期：旧客户端不带挑战，直接领取（受下面的签发限额封顶）
+            readCount = ReplayNonceService.clampBatch(request.getParameter("read"), ReplayNonceService.DEFAULT_BATCH);
+            writeCount = ReplayNonceService.clampBatch(request.getParameter("write"), ReplayNonceService.DEFAULT_BATCH);
+        } else {
+            ReplayChallengeService.Outcome outcome = ReplayChallengeService.verify(
+                    challengeId, request.getParameter("proof"), clientIp, request.getHeader("User-Agent"));
+            switch (outcome.status()) {
+                case OK -> {
+                    // 以题目绑定的数量为准，避免「小批量领题、大批量兑换」
+                    readCount = outcome.read();
+                    writeCount = outcome.write();
+                }
+                case BAD_PROOF -> {
+                    sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "挑战校验失败，请重新获取");
+                    return;
+                }
+                default -> {
+                    sendErrorResponse(response, HttpServletResponse.SC_CONFLICT, "挑战已失效，请重新获取");
+                    return;
+                }
+            }
+        }
+
+        if (!ReplayIssueLimiter.tryAcquireRequest(clientIp)
+                || !ReplayIssueLimiter.tryAcquireNonces(readCount + writeCount)) {
+            sendTooManyRequests(response, "请求过于频繁，请稍后再试");
+            return;
+        }
+
         List<String> readNonces = ReplayNonceService.issue(ReplayNonceService.SCOPE_READ, readCount, clientIp);
         List<String> writeNonces = ReplayNonceService.issue(ReplayNonceService.SCOPE_WRITE, writeCount, clientIp);
 
@@ -55,19 +93,6 @@ public class ReplayNonceHandler extends ApiServlet {
         body.addProperty("message", "");
         body.add("data", data);
         sendSuccessResponse(response, body);
-    }
-
-    /** 解析数量参数：缺省用 {@code defaultValue}，非法值兜底默认，越界夹取到 [0, MAX_BATCH]。 */
-    private static int parseCount(String raw, int defaultValue) {
-        if (raw == null || raw.isBlank()) {
-            return defaultValue;
-        }
-        try {
-            int value = Integer.parseInt(raw.trim());
-            return Math.max(0, Math.min(value, ReplayNonceService.MAX_BATCH));
-        } catch (NumberFormatException e) {
-            return defaultValue;
-        }
     }
 
     private static JsonArray toJsonArray(List<String> values) {

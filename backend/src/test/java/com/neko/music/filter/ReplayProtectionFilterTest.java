@@ -150,6 +150,8 @@ class ReplayProtectionFilterTest {
         // nonce 签发接口自身
         assertTrue(run("GET", "/api/replay/nonce", null, false).chained());
         assertTrue(run("GET", "/api/replay/nonce/", null, false).chained());
+        // 换取挑战（领取 nonce 的第一步）同样豁免
+        assertTrue(run("GET", "/api/replay/challenge", null, false).chained());
         // 公开缓存接口（handler 内覆盖为 public, max-age=1800，重放无副作用）
         assertTrue(run("GET", "/api/music/latest", null, false).chained());
         assertTrue(run("GET", "/api/music/ranking", null, false).chained());

@@ -28,6 +28,10 @@ public final class ServletRegistrar {
         ServletHolder replayNonceHolder = new ServletHolder(new ReplayNonceHandler());
         context.addServlet(replayNonceHolder, "/api/replay/nonce");
 
+        // 注册防重放挑战签发接口（领取 nonce 的第一步，同样豁免 nonce 校验）
+        ServletHolder replayChallengeHolder = new ServletHolder(new ReplayChallengeHandler());
+        context.addServlet(replayChallengeHolder, "/api/replay/challenge");
+
         // 注册搜索音乐API处理器
         ServletHolder searchHolder = new ServletHolder(new MusicSearchHandler());
         context.addServlet(searchHolder, "/api/music/search");

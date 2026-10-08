@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
+import com.neko.music.util.HttpResourceCache;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -51,6 +52,13 @@ public abstract class ApiServlet extends HttpServlet {
         body.addProperty("success", false);
         body.addProperty("message", message);
         writeJson(resp, statusCode, GSON.toJson(body));
+    }
+
+    /** 统一的限流响应：{@code 429} + {@code Retry-After}，body 契约与错误响应一致。 */
+    protected void sendTooManyRequests(HttpServletResponse resp, String message) throws IOException {
+        resp.setHeader("Cache-Control", HttpResourceCache.CACHE_CONTROL_NO_STORE);
+        resp.setHeader("Retry-After", "1");
+        sendErrorResponse(resp, 429, message);
     }
 
     /**

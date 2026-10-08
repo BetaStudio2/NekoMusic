@@ -72,6 +72,7 @@ public class ReplayProtectionFilter implements Filter {
     /** 精确豁免路径。 */
     static final Set<String> EXEMPT_PATHS = Set.of(
             "/api/replay/nonce",
+            "/api/replay/challenge", // 领 nonce 的第一步，同样必须自举
             "/api/music/latest",
             "/api/music/ranking",
             "/api/payment/zpay/notify",
