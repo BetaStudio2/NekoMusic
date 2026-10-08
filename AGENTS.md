@@ -96,6 +96,11 @@ cd frontend && npm run build    # 产物输出到 ../backend/src/main/resources/
   HTML，其它方法 `403`），不得为此开豁免。
 - 浏览器/官方客户端无需特殊处理；第三方客户端必须带版本号 `User-Agent` 与
   `X-Neko-Client: <平台>+<版本>`。
+- 官方客户端的 UA 就是 `NekoMusic-<平台>/<版本>`（`seo/UserAgentClassifier`）：**判定必须整体锚定**，
+  禁止再写成「UA 里包含 `android` / `okhttp` / `qt` / `nekomusic` 就放行」这类子串匹配，也禁止把
+  「原生客户端放行」放在爬虫黑名单之前（否则 `sqlmap android` 这类组合能整层绕过）。
+- 第三方客户端只能通过 `network.allow_client_user_agents` 登记放行（子串至少 6 个字符）；
+  登记优先于黑名单判定。
 
 ### API 文档脱敏
 
