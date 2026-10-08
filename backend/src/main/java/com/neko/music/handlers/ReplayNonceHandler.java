@@ -26,7 +26,8 @@ import java.util.List;
  *
  * <p>两条路径：携带 {@code challenge} + {@code proof} 时先验题（题目一次性、绑定来源，批量越大越难），
  * 通过后按题目绑定的数量签发；未携带时走**过渡期降级**路径，仍可直接领取，但受签发限额封顶。
- * 两条路径都要过「单来源请求 + 全站 nonce 额度」两道闸门，超出返回 {@code 429}。</p>
+ * 两条路径都要过「单来源请求 + 全站 nonce 额度」两道闸门，超出返回 {@code 429}；单来源闸门在验题
+ * 之前，避免限额被拒时把客户端已经解好的题目消耗掉。</p>
  *
  * <p>本接口自身豁免 nonce 校验（否则无法自举），由签发限额与防爬过滤器兜底。</p>
  */
@@ -39,6 +40,12 @@ public class ReplayNonceHandler extends ApiServlet {
         String clientIp = ClientIpResolver.clientIp(request);
         int readCount = 0;
         int writeCount = 0;
+
+        // 先过单来源闸门：限额被拒时不该消耗客户端已经解好的题目
+        if (!ReplayIssueLimiter.tryAcquireRequest(clientIp)) {
+            sendTooManyRequests(response, "请求过于频繁，请稍后再试");
+            return;
+        }
 
         String challengeId = request.getParameter("challenge");
         if (challengeId == null || challengeId.isBlank()) {
@@ -65,8 +72,7 @@ public class ReplayNonceHandler extends ApiServlet {
             }
         }
 
-        if (!ReplayIssueLimiter.tryAcquireRequest(clientIp)
-                || !ReplayIssueLimiter.tryAcquireNonces(readCount + writeCount)) {
+        if (!ReplayIssueLimiter.tryAcquireNonces(readCount + writeCount)) {
             sendTooManyRequests(response, "请求过于频繁，请稍后再试");
             return;
         }
