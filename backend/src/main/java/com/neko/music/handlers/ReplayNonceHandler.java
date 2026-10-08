@@ -25,13 +25,23 @@ import java.util.List;
  * <pre>{"success":true,"message":"","data":{"nonces":{"read":["…"],"write":["…"]},"expiresIn":120}}</pre>
  *
  * <p>两条路径：携带 {@code challenge} + {@code proof} 时先验题（题目一次性、绑定来源，批量越大越难），
- * 通过后按题目绑定的数量签发；未携带时走**过渡期降级**路径，仍可直接领取，但受签发限额封顶。
- * 两条路径都要过「单来源请求 + 全站 nonce 额度」两道闸门，超出返回 {@code 429}；单来源闸门在验题
- * 之前，避免限额被拒时把客户端已经解好的题目消耗掉。</p>
+ * 通过后按题目绑定的数量签发。领取**必须**带挑战：{@link #REQUIRE_CHALLENGE} 打开时，没有
+ * {@code challenge} 的请求直接 {@code 400}，否则「领取」又会退化成可被脚本批量刷取的免费接口。
+ * 请求要过「单来源请求 + 全站 nonce 额度」两道闸门，超出返回 {@code 429}；单来源闸门在验题之前，
+ * 避免限额被拒时把客户端已经解好的题目消耗掉。</p>
  *
  * <p>本接口自身豁免 nonce 校验（否则无法自举），由签发限额与防爬过滤器兜底。</p>
  */
 public class ReplayNonceHandler extends ApiServlet {
+
+    /**
+     * 是否强制走「换题 → 解题 → 兑换」。
+     *
+     * <p>仅在需要紧急回退时改成 {@code false}：那会恢复过渡期的直接领取，任何客户端脚本都能
+     * 免解题批量领取 nonce（仍受签发限额封顶），属于破窗行为，修好后应立刻改回。
+     * 与豁免清单一样，开关写成类常量，不新增配置项。</p>
+     */
+    private static final boolean REQUIRE_CHALLENGE = true;
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -49,7 +59,13 @@ public class ReplayNonceHandler extends ApiServlet {
 
         String challengeId = request.getParameter("challenge");
         if (challengeId == null || challengeId.isBlank()) {
-            // 过渡期：旧客户端不带挑战，直接领取（受下面的签发限额封顶）
+            if (REQUIRE_CHALLENGE) {
+                // 领取必须先换题：没有 challenge 一律拒绝
+                sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
+                        "缺少挑战，请先调用 GET /api/replay/challenge 换题");
+                return;
+            }
+            // 紧急回退路径：直接领取（受下面的签发限额封顶）
             readCount = ReplayNonceService.clampBatch(request.getParameter("read"), ReplayNonceService.DEFAULT_BATCH);
             writeCount = ReplayNonceService.clampBatch(request.getParameter("write"), ReplayNonceService.DEFAULT_BATCH);
         } else {

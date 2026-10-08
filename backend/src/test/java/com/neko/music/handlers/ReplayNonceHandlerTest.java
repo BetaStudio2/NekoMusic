@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -68,24 +69,13 @@ class ReplayNonceHandlerTest {
 
     @Test
     void challengeFlowIssuesNoncesOnceAndRejectsReplay() throws Exception {
-        JsonObject challenge = JsonParser.parseString(runChallenge(4, 4).body()).getAsJsonObject()
-                .getAsJsonObject("data");
+        JsonObject challenge = challengeData(4, 4);
         String id = challenge.get("challenge").getAsString();
         assertEquals(ReplayChallengeService.ALGORITHM, challenge.get("algorithm").getAsString());
 
-        String proof = ReplayChallengeSolver.solve(new ReplayChallengeService.Challenge(
-                id,
-                challenge.get("seed").getAsString(),
-                challenge.get("difficulty").getAsInt(),
-                challenge.get("read").getAsInt(),
-                challenge.get("write").getAsInt(),
-                null,
-                null,
-                0L));
-
         Map<String, String> params = new HashMap<>();
         params.put("challenge", id);
-        params.put("proof", proof);
+        params.put("proof", solveChallenge(challenge));
         Result granted = runNonce(params);
         assertEquals(200, granted.status());
         JsonObject nonces = JsonParser.parseString(granted.body()).getAsJsonObject()
@@ -99,8 +89,7 @@ class ReplayNonceHandlerTest {
 
     @Test
     void badProofIsRejectedWith400() throws Exception {
-        JsonObject data = JsonParser.parseString(runChallenge(1, 1).body()).getAsJsonObject()
-                .getAsJsonObject("data");
+        JsonObject data = challengeData(1, 1);
         Map<String, String> params = new HashMap<>();
         params.put("challenge", data.get("challenge").getAsString());
         params.put("proof", "1");
@@ -121,34 +110,61 @@ class ReplayNonceHandlerTest {
     }
 
     @Test
-    void legacyClientStillWorksButIsCappedByLimiter() throws Exception {
+    void directClaimWithoutChallengeIsRejected() throws Exception {
         Map<String, String> params = new HashMap<>();
-        params.put("read", "1");
-        params.put("write", "1");
+        params.put("read", "64");
+        params.put("write", "64");
 
-        // 过渡期：不带挑战仍可领取
-        assertEquals(200, runNonce(params).status());
+        // 收口后：不带挑战一律拒绝，领取不能再被脚本免解题刷取
+        Result result = runNonce(params);
+        assertEquals(400, result.status());
+        assertTrue(result.body().contains("挑战"));
+    }
 
-        // 打到突发上限后必须 429（单来源闸门）
-        int allowed = 1;
-        for (int i = 0; i < ReplayIssueLimiter.PER_IP_REQUEST_BURST - 1; i++) {
-            if (runNonce(params).status() == 200) {
-                allowed++;
-            }
+    @Test
+    void exchangeIsRejectedWith429OnceTheIssueGateIsExhausted() throws Exception {
+        JsonObject data = challengeData(1, 1);
+        // 换题本身已经花掉一个令牌，这里把单来源闸门彻底打空
+        for (int i = 0; i < ReplayIssueLimiter.PER_IP_REQUEST_BURST; i++) {
+            ReplayIssueLimiter.tryAcquireRequest(IP);
         }
-        assertTrue(allowed <= ReplayIssueLimiter.PER_IP_REQUEST_BURST);
+        assertFalse(ReplayIssueLimiter.tryAcquireRequest(IP), "闸门应已被打空");
+
+        Map<String, String> params = new HashMap<>();
+        params.put("challenge", data.get("challenge").getAsString());
+        params.put("proof", solveChallenge(data));
         assertEquals(429, runNonce(params).status());
     }
 
     @Test
     void issuingFailsWith503WhenStorageIsDown() throws Exception {
         store.setDown(true);
+        JsonObject data = challengeData(2, 0);
         Map<String, String> params = new HashMap<>();
-        params.put("read", "2");
-        params.put("write", "0");
+        params.put("challenge", data.get("challenge").getAsString());
+        params.put("proof", solveChallenge(data));
         Result result = runNonce(params);
         assertEquals(503, result.status());
         assertTrue(result.body().contains("success"));
+    }
+
+    /** 换一道题，返回响应里的 data 段。 */
+    private JsonObject challengeData(int read, int write) throws Exception {
+        return JsonParser.parseString(runChallenge(read, write).body()).getAsJsonObject()
+                .getAsJsonObject("data");
+    }
+
+    /** 按公开契约独立解出该题的答案。 */
+    private String solveChallenge(JsonObject data) {
+        return ReplayChallengeSolver.solve(new ReplayChallengeService.Challenge(
+                data.get("challenge").getAsString(),
+                data.get("seed").getAsString(),
+                data.get("difficulty").getAsInt(),
+                data.get("read").getAsInt(),
+                data.get("write").getAsInt(),
+                null,
+                null,
+                0L));
     }
 
     private Result runChallenge(int read, int write) throws Exception {
