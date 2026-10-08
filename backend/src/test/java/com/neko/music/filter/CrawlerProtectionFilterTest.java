@@ -150,7 +150,7 @@ class CrawlerProtectionFilterTest {
     }
 
     @Test
-    void treatsMissingUserAgentAsCrawlerButAllowsNekoMusicQt() throws Exception {
+    void treatsMissingUserAgentAsCrawlerAndRejectsCompleteUaVariants() throws Exception {
         // 空 UA 一律按爬虫处理：GET 直出 SEO 页，不再放行
         for (String noUa : new String[]{null, "", "   "}) {
             Outcome outcome = inspect(noUa, null);
@@ -162,11 +162,27 @@ class CrawlerProtectionFilterTest {
         Outcome post = inspect("POST", "/api/user/login", null, null);
         assertEquals(403, post.status());
         assertNull(post.forwarded());
-        // 封面请求 UA = "NekoMusic Qt"（含 qt 内核标记）仍在原生白名单内
+        // 官方 UA 必须带平台与版本：裸前缀 / 空格写法一律降级
         Outcome coverUa = inspect("NekoMusic Qt", Map.of(
                 "Accept", "image/png,image/jpeg,image/*;q=0.8,*/*;q=0.5"));
         assertEquals(200, coverUa.status());
-        assertTrue(coverUa.chained());
+        assertEquals("/detail/1", coverUa.forwarded());
+        assertFalse(coverUa.chained());
+    }
+
+    @Test
+    void rejectsOfficialPrefixWithoutPlatformOrVersion() throws Exception {
+        for (String ua : new String[]{"NekoMusic-android", "NekoMusic-android/", "NekoMusic Android",
+                "NekoMusic-android/abc", "NekoMusic-PC", "NekoMusic-android/202601008/extra"}) {
+            Outcome outcome = inspect(ua, Map.of("Accept", "*/*"));
+            assertEquals(200, outcome.status(), ua);
+            assertEquals("/detail/1", outcome.forwarded(), ua);
+            assertFalse(outcome.chained(), ua);
+        }
+        // 合法形式照常放行
+        assertTrue(inspect("NekoMusic-android/202601008", null).chained());
+        assertTrue(inspect("NekoMusic-PC/2026.108.52", null).chained());
+        assertTrue(inspect("nekomusic-android/1.0.0", null).chained());
     }
 
     @Test
