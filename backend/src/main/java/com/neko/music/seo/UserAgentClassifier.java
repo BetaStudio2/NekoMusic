@@ -128,11 +128,14 @@ public final class UserAgentClassifier {
      *
      * <p>用于防爬过滤器：浏览器以真实 UA 通过 fetch 访问 /api，永远命中 false；原生客户端
      * （Android / PC / 播放器）虽然不含 Mozilla，但走 {@link #isNativeClient} 一并放行，
-     * 避免拦截掉正常 App 与音视频直链请求。空 UA 也放行（交 IP 限流兜底），尽量保守、不误伤。</p>
+     * 避免拦截掉正常 App 与音视频直链请求。</p>
+     *
+     * <p><b>空 UA 一律视为爬虫</b>（返回 true）：三端客户端都会显式携带 UA，缺失 UA 的请求只能是
+     * 脚本或探测工具，不能靠「不带 UA」绕过防爬与浏览器完整性校验。</p>
      */
     public static boolean isBotForApi(String userAgent) {
         if (userAgent == null || userAgent.isBlank()) {
-            return false;
+            return true;
         }
         String normalized = userAgent.trim();
         if (isNativeClient(normalized)) {

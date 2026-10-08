@@ -84,10 +84,12 @@ public class CrawlerProtectionFilter implements Filter {
 
         String ua = httpRequest.getHeader("User-Agent");
 
-        // 0) 空 UA：Qt 桌面端（NekoMusic PC）默认不发送 User-Agent，保守放行（交 IP 限流兜底），
-        //    避免误伤；有 UA 的未知爬虫仍走下面的区分拦截。
+        // 0) 空 UA：一律按爬虫 / 脚本处理，GET/HEAD 直出 SEO 页，其它方法 403。
+        //    三端客户端都会显式携带 User-Agent（浏览器 / Android NekoMusic-android / PC NekoMusic-PC），
+        //    媒体直链走 /media/* 不经本过滤器，因此不再为「不发 UA 的客户端」保留豁免：
+        //    否则任何脚本只要不带 UA 就能绕过防爬与浏览器完整性两层校验。
         if (ua == null || ua.isBlank()) {
-            chain.doFilter(request, response);
+            serveSeoPage(httpRequest, httpResponse, path, ua);
             return;
         }
 
