@@ -80,9 +80,12 @@ cd frontend && npm run build    # 产物输出到 ../backend/src/main/resources/
   `X-Neko-Nonce`（读 / 写两类，`GET` 用读、写方法用写，用后即废，重放返回 `409`）。
   统一校验在 `filter/ReplayProtectionFilter.java`，签发在 `handlers/ReplayNonceHandler.java`
   （`GET /api/replay/nonce`），消费在 `service/ReplayNonceService.java`。
-- **领取 nonce 要先换题**：`GET /api/replay/challenge`（`handlers/ReplayChallengeHandler.java`）
-  下发一次性挑战，校验在 `service/ReplayChallengeService.java`；签发限额在
-  `service/ReplayIssueLimiter.java`。两个领取接口同样是自举接口，都豁免 nonce 校验。
+- **领取 nonce 必须先换题**（不能直接领）：`GET /api/replay/challenge`
+  （`handlers/ReplayChallengeHandler.java`）下发一次性挑战，校验在
+  `service/ReplayChallengeService.java`；签发限额在 `service/ReplayIssueLimiter.java`。
+  `handlers/ReplayNonceHandler.java` 的 `REQUIRE_CHALLENGE` 常量为 `true` 时，没有
+  `challenge` 的领取请求一律 `400`；该常量只在紧急回退时改 `false`（会重新暴露免解题领取）。
+  两个领取接口同样是自举接口，都豁免 nonce 校验。
 - 新增接口**不要**自行实现 nonce 逻辑；确需豁免的（浏览器原生 `<img>` 请求、SSE、第三方回调、
   `multipart` 上传、`OPTIONS`/`HEAD`）只能显式加进 `ReplayProtectionFilter` 的类常量清单，
   并在专项文档里说明豁免原因。
