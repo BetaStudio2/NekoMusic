@@ -37,21 +37,25 @@ import java.util.Locale;
  * <p>设计要点：</p>
  * <ul>
  *   <li>浏览器以真实 UA（含 {@code Mozilla/} 与内核标记）通过 fetch 访问 /api，并携带
- *       {@code Accept} / {@code Accept-Language} 等头，恒不误伤；原生客户端（Android / PC / 播放器）
- *       在 {@link UserAgentClassifier#isNativeClient} 中一并放行，不影响 App。</li>
+ *       {@code Accept} / {@code Accept-Language} 等头，恒不误伤；官方原生客户端靠
+ *       {@link UserAgentClassifier#isNativeClient} 的严格 UA 判定放行，不影响 App。</li>
  *   <li>爬虫 / AI 抓取器不应拿到 JSON：GET / HEAD 命中后不再 302 跳转，而是内部 forward 到对应
  *       SEO 页并直接把服务端 HTML 以 200 返回（复用 {@code StaticPageSeoFilter} 与详情页处理器，
  *       页面自带 canonical，不会与正式页产生重复内容）；重定向会浪费抓取配额、影响收录。</li>
  *   <li>ZPay 异步通知由支付平台服务器回调（常用 curl 等 UA），与 IP 限流一致地豁免，避免支付通知断裂。</li>
  *   <li>可通过 {@code network.crawler_protection_enabled=false} 关闭全部拦截；
  *       或 {@code network.browser_integrity_enabled=false} 只保留已知黑名单。</li>
- *   <li>第三方客户端可通过 {@code network.allow_client_user_agents} 登记 UA 子串放行。</li>
+ *   <li>第三方客户端可通过 {@code network.allow_client_user_agents} 登记 UA 子串放行；登记优先于
+ *       黑名单判定，因此登记一个自带 {@code okhttp} 之类关键词的 UA 也能生效。</li>
  * </ul>
  *
  * 需在 {@link com.neko.music.Main} 中显式注册（嵌入式 Jetty 不处理 {@code @WebFilter}）。
  */
 public class CrawlerProtectionFilter implements Filter {
     private static final Logger logger = LoggerFactory.getLogger(CrawlerProtectionFilter.class);
+
+    /** 第三方客户端放行登记的最短长度：与 ConfigManager 的登记过滤保持一致。 */
+    static final int MIN_ALLOWLIST_LENGTH = 6;
 
     private ConfigManager configManager;
 
@@ -93,26 +97,27 @@ public class CrawlerProtectionFilter implements Filter {
             return;
         }
 
-        // 1) 明确为爬虫 / 无头 / 命令行工具 / 安全扫描器 → 直出 SEO 页
-        //    （isBotForApi 已内置放行原生客户端）
+        // 1) 配置里登记的第三方客户端：优先级最高。
+        //    放在黑名单之前，否则登记一个自带 okhttp / 自定义关键词的 UA 也救不回来，登记形同虚设。
+        if (isAllowlistedClient(ua)) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        // 2) 明确为爬虫 / 无头 / 命令行工具 / 安全扫描器 → 直出 SEO 页
         if (UserAgentClassifier.isBotForApi(ua)) {
             serveSeoPage(httpRequest, httpResponse, path, ua);
             return;
         }
 
-        // 2) 浏览器完整性区分拦截：识别未知 / 小众爬虫（自定义 UA、残缺或仅伪造 Mozilla 前缀）
+        // 3) 浏览器完整性区分拦截：识别未知 / 小众爬虫（自定义 UA、残缺或仅伪造 Mozilla 前缀）
         if (configManager.isBrowserIntegrityEnabled()) {
-            // 2a) 配置的额外放行名单（第三方客户端登记）
-            if (isAllowlistedClient(ua)) {
-                chain.doFilter(request, response);
-                return;
-            }
-            // 2b) 内置原生客户端始终放行
+            // 3a) 官方原生客户端：UA 必须严格是 NekoMusic-<平台>/<版本>
             if (UserAgentClassifier.isNativeClient(ua)) {
                 chain.doFilter(request, response);
                 return;
             }
-            // 2c) 其余必须是「UA 结构像真浏览器」且「带浏览器特征头」
+            // 3b) 其余必须是「UA 结构像真浏览器」且「带浏览器特征头」
             if (UserAgentClassifier.looksLikeRealBrowser(ua) && BrowserEvidence.hasFetchEvidence(httpRequest)) {
                 chain.doFilter(request, response);
                 return;
@@ -191,8 +196,12 @@ public class CrawlerProtectionFilter implements Filter {
         }
         String lower = ua.toLowerCase(Locale.ROOT);
         for (String candidate : allowlist) {
-            if (candidate != null && !candidate.isBlank()
-                    && lower.contains(candidate.toLowerCase(Locale.ROOT))) {
+            if (candidate == null) {
+                continue;
+            }
+            String entry = candidate.trim();
+            // 过短的子串（如 "app"）等于万能放行，登记端已过滤，这里再兜一层
+            if (entry.length() >= MIN_ALLOWLIST_LENGTH && lower.contains(entry.toLowerCase(Locale.ROOT))) {
                 return true;
             }
         }

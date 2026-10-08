@@ -87,6 +87,13 @@ public final class UserAgentClassifier {
     private UserAgentClassifier() {
     }
 
+    /**
+     * 官方客户端 UA 的严格格式：{@code NekoMusic-<平台>/<版本>}，兼容 PC 旧版封面请求
+     * {@code NekoMusic Qt}。必须整体匹配。
+     */
+    private static final Pattern OFFICIAL_CLIENT_UA = Pattern.compile(
+            "(?i)^nekomusic[- ](?:android|pc|ios|macos|windows|linux|qt)(?:[/ ][\\w.+-]+)?$");
+
     public static boolean shouldRenderSeo(String userAgent) {
         if (userAgent == null || userAgent.isBlank()) {
             return true;
@@ -124,11 +131,12 @@ public final class UserAgentClassifier {
     }
 
     /**
-     * 判断该 UA 是否属于「不应访问 JSON API」的爬虫 / 无头浏览器 / 命令行工具。
+     * 判断该 UA 是否命中「爬虫 / 无头浏览器 / 命令行工具 / 安全扫描器」黑名单。
      *
-     * <p>用于防爬过滤器：浏览器以真实 UA 通过 fetch 访问 /api，永远命中 false；原生客户端
-     * （Android / PC / 播放器）虽然不含 Mozilla，但走 {@link #isNativeClient} 一并放行，
-     * 避免拦截掉正常 App 与音视频直链请求。</p>
+     * <p>这里<b>只做黑名单匹配</b>，不能先放行「原生客户端」：否则凡是「黑名单关键词 + 一个放行子串」
+     * 的组合（例如 {@code sqlmap android}、{@code python-requests Android}）都能整层绕过。
+     * 官方客户端的 UA（{@code NekoMusic-<平台>/<版本>}）本身不含黑名单关键词，由过滤器里的
+     * {@link #isNativeClient} 严格判定后放行。</p>
      *
      * <p><b>空 UA 一律视为爬虫</b>（返回 true）：三端客户端都会显式携带 UA，缺失 UA 的请求只能是
      * 脚本或探测工具，不能靠「不带 UA」绕过防爬与浏览器完整性校验。</p>
@@ -137,11 +145,7 @@ public final class UserAgentClassifier {
         if (userAgent == null || userAgent.isBlank()) {
             return true;
         }
-        String normalized = userAgent.trim();
-        if (isNativeClient(normalized)) {
-            return false;
-        }
-        return matchesAny(normalized,
+        return matchesAny(userAgent.trim(),
                 GENERIC_FETCHERS,
                 SEARCH_ENGINE_BOTS,
                 LINK_PREVIEW_BOTS,
@@ -153,20 +157,22 @@ public final class UserAgentClassifier {
                 SECURITY_SCANNERS);
     }
 
-    /** 原生客户端 / 播放器 / 桌面端 UA 一律放行（它们确实需要访问 API 或媒体直链，且不含 Mozilla）。 */
+    /**
+     * 官方客户端 UA 判定（严格锚定）：{@code NekoMusic-<平台>/<版本>}，兼容 PC 旧版
+     * {@code NekoMusic Qt}。
+     *
+     * <p><b>必须整体匹配</b>，不能退化成「UA 里出现 android / okhttp / qt / nekomusic 就放行」——那种
+     * 子串判定会让任何脚本只在 UA 里塞一个关键词，就同时绕过黑名单与浏览器完整性两层判定
+     * （实测 {@code sqlmap android} 因此可以拿到 JSON）。</p>
+     *
+     * <p>媒体播放器（mpv / VLC / FFmpeg / 裸 OkHttp）只取 {@code /media/*} 直链，不经过防爬过滤器，
+     * 因此不再在这里豁免；其它三方客户端请在 {@code network.allow_client_user_agents} 登记。</p>
+     */
     public static boolean isNativeClient(String ua) {
         if (ua == null || ua.isBlank()) {
             return false;
         }
-        String lower = ua.toLowerCase(java.util.Locale.ROOT);
-        return lower.contains("okhttp") || lower.contains("dalvik")
-                || lower.contains("libmpv") || lower.contains("mpv/")
-                || lower.startsWith("vlc") || lower.contains("ffmpeg")
-                || lower.contains("ffprobe") || lower.contains("android")
-                || lower.contains("electron") || lower.startsWith("qt")
-                || lower.contains("qts") || lower.contains("qtwebengine")
-                // 本站 PC 桌面端：ApiClient 用 QNetworkRequest 默认不发送 UA，封面请求为 "NekoMusic Qt"
-                || lower.contains("nekomusic");
+        return OFFICIAL_CLIENT_UA.matcher(ua.trim()).matches();
     }
 
     /**
