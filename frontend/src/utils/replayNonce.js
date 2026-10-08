@@ -3,7 +3,9 @@
 // 后端 ReplayProtectionFilter 要求所有动态接口（/api/*、/loser/*）携带一次性 nonce
 // （请求头 X-Neko-Nonce）；客户端版本检查 /version 也按同一约定带上（便于与服务端同步收紧）。
 // 本模块负责：
-//   1. 向 GET /api/replay/nonce 批量预取 nonce（读 / 写两类），放进内存池；
+//   1. 向 GET /api/replay/challenge 换一道挑战题、本地解出 proof，再带 challenge + proof
+//      调 GET /api/replay/nonce 批量领取 nonce（读 / 写两类），放进内存池；
+//      （挑战接口不存在时——HTTP 404——回退为直接领取，方便前后端分批发版）
 //   2. 拦截 fetch 与 XMLHttpRequest(axios)，自动为受保护请求取一个池内 nonce；
 //   3. 409 + X-Neko-Replay-Status: missing|invalid 时换一个新 nonce 重试一次
 //      （nonce 过期或已被消费——重试是安全的，因为请求在进入业务逻辑前就被拒了）。
@@ -11,6 +13,7 @@
 // 只按「路径」判定，且仅处理同源请求；跨域请求附带自定义头会触发 CORS 预检，不在本模块内处理。
 // 豁免清单必须与后端 ReplayProtectionFilter 保持一致（不一致只会浪费 nonce，不会误拦）。
 import API_CONFIG from '@/config/apiConfig.js'
+import { solveProof } from '@/utils/pow.js'
 
 export const NONCE_HEADER = 'X-Neko-Nonce'
 export const REPLAY_STATUS_HEADER = 'X-Neko-Replay-Status'
@@ -29,8 +32,14 @@ const MAX_AGE_MS = 90_000
 // XHR 延迟发送的最长等待：领不到 nonce 也照发（服务端 Redis 故障时会 fail-open 放行）
 const XHR_NONCE_TIMEOUT_MS = 4000
 
+// 与服务端约定的解题算法标识：换题响应里的 algorithm 必须与它一致，否则不盲解
+const POW_ALGORITHM = 'sha256-leading-zero-bits'
+// 领取被限额（429）时的最长等待；服务端会带 Retry-After
+const RETRY_AFTER_MAX_MS = 2000
+
 /** 与后端 EXEMPT_PATHS 对应 */
 const EXEMPT_PATHS = new Set([
+  '/api/replay/challenge',
   '/api/replay/nonce',
   '/api/music/latest',
   '/api/music/ranking',
@@ -117,13 +126,74 @@ function popFresh(scope) {
   return null
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function retryAfterMs(response) {
+  const seconds = Number(response.headers.get('Retry-After'))
+  if (!Number.isFinite(seconds) || seconds <= 0) return 200
+  return Math.min(seconds * 1000, RETRY_AFTER_MAX_MS)
+}
+
+/**
+ * 换一道挑战题；被限额（429）时按 Retry-After 等一小会儿再试一次。
+ * 返回 null 表示服务端还没有挑战接口（旧版本），调用方回退为直接领取。
+ */
+async function fetchChallenge(read, write) {
+  const url = `${API_CONFIG.BASE_URL}/api/replay/challenge?read=${read}&write=${write}`
+  for (let attempt = 0; ; attempt += 1) {
+    const response = await outboundFetch(url, { cache: 'no-store' })
+    if (response.ok) {
+      const data = (await response.json())?.data
+      if (!data || typeof data.challenge !== 'string' || typeof data.seed !== 'string') {
+        throw new Error('换题响应缺少 challenge / seed')
+      }
+      if (data.algorithm !== POW_ALGORITHM) {
+        throw new Error(`未知的挑战算法：${data.algorithm}`)
+      }
+      return data
+    }
+    if (response.status === 404) return null
+    if (response.status === 429 && attempt === 0) {
+      await sleep(retryAfterMs(response))
+      continue
+    }
+    throw new Error(`换题失败：HTTP ${response.status}`)
+  }
+}
+
+/**
+ * 领取一批 nonce：先换题、本地解题，再拿 challenge + proof 兑换。
+ * 题目一次性（换题 / 兑换都可能 429，题也可能失效），失败就重新换一道重试一次。
+ */
 async function fetchNonces(read, write) {
   if (typeof outboundFetch !== 'function') return {}
-  const url = `${API_CONFIG.BASE_URL}/api/replay/nonce?read=${read}&write=${write}`
-  const response = await outboundFetch(url, { cache: 'no-store' })
-  if (!response.ok) throw new Error(`nonce 签发失败：HTTP ${response.status}`)
-  const json = await response.json()
-  return json?.data?.nonces || {}
+  let lastError = null
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const challenge = await fetchChallenge(read, write)
+    const query = challenge
+      ? new URLSearchParams({
+          challenge: challenge.challenge,
+          proof: solveProof(challenge.seed, challenge.difficulty)
+        })
+      : new URLSearchParams({ read: String(read), write: String(write) })
+    const response = await outboundFetch(`${API_CONFIG.BASE_URL}/api/replay/nonce?${query}`, {
+      cache: 'no-store'
+    })
+    if (response.ok) {
+      const data = (await response.json())?.data
+      return data?.nonces || {}
+    }
+    lastError = new Error(`nonce 签发失败：HTTP ${response.status}`)
+    // 400 错解 / 409 题目失效：重解一次；429 限额：等一小会儿再来；其余直接放弃
+    if (response.status === 429) {
+      await sleep(retryAfterMs(response))
+    } else if (response.status !== 400 && response.status !== 409) {
+      break
+    }
+  }
+  throw lastError
 }
 
 function storeNonces(nonces) {
