@@ -26,9 +26,12 @@ import java.util.List;
  *
  * <p>两条路径：携带 {@code challenge} + {@code proof} 时先验题（题目一次性、绑定来源，批量越大越难），
  * 通过后按题目绑定的数量签发。领取**必须**带挑战：{@link #REQUIRE_CHALLENGE} 打开时，没有
- * {@code challenge} 的请求直接 {@code 400}，否则「领取」又会退化成可被脚本批量刷取的免费接口。
- * 请求要过「单来源请求 + 全站 nonce 额度」两道闸门，超出返回 {@code 429}；单来源闸门在验题之前，
- * 避免限额被拒时把客户端已经解好的题目消耗掉。</p>
+ * {@code challenge} 的请求直接拒绝，否则「领取」又会退化成可被脚本批量刷取的免费接口。请求要过
+ * 「单来源请求 + 全站 nonce 额度」两道闸门，超出返回 {@code 429}；单来源闸门在验题之前，避免限额
+ * 被拒时把客户端已经解好的题目消耗掉。</p>
+ *
+ * <p>所有被拒的领取都回同一个响应，**不说明**是缺参数、题目失效还是解答不合格：提示会把防护
+ * 流程与判定顺序指给探测者，属于没必要的暴露。</p>
  *
  * <p>本接口自身豁免 nonce 校验（否则无法自举），由签发限额与防爬过滤器兜底。</p>
  */
@@ -60,9 +63,8 @@ public class ReplayNonceHandler extends ApiServlet {
         String challengeId = request.getParameter("challenge");
         if (challengeId == null || challengeId.isBlank()) {
             if (REQUIRE_CHALLENGE) {
-                // 领取必须先换题：没有 challenge 一律拒绝
-                sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
-                        "缺少挑战，请先调用 GET /api/replay/challenge 换题");
+                // 领取必须先换题：没有 challenge 一律拒绝（不说明原因）
+                sendGrantRejected(response);
                 return;
             }
             // 紧急回退路径：直接领取（受下面的签发限额封顶）
@@ -71,21 +73,14 @@ public class ReplayNonceHandler extends ApiServlet {
         } else {
             ReplayChallengeService.Outcome outcome = ReplayChallengeService.verify(
                     challengeId, request.getParameter("proof"), clientIp, request.getHeader("User-Agent"));
-            switch (outcome.status()) {
-                case OK -> {
-                    // 以题目绑定的数量为准，避免「小批量领题、大批量兑换」
-                    readCount = outcome.read();
-                    writeCount = outcome.write();
-                }
-                case BAD_PROOF -> {
-                    sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "挑战校验失败，请重新获取");
-                    return;
-                }
-                default -> {
-                    sendErrorResponse(response, HttpServletResponse.SC_CONFLICT, "挑战已失效，请重新获取");
-                    return;
-                }
+            if (outcome.status() != ReplayChallengeService.Status.OK) {
+                // 题目不存在 / 已过期 / 已被兑换 / 来源不匹配 / 解答不合格，一律同一个回应
+                sendGrantRejected(response);
+                return;
             }
+            // 以题目绑定的数量为准，避免「小批量领题、大批量兑换」
+            readCount = outcome.read();
+            writeCount = outcome.write();
         }
 
         if (!ReplayIssueLimiter.tryAcquireNonces(readCount + writeCount)) {
@@ -123,5 +118,13 @@ public class ReplayNonceHandler extends ApiServlet {
             array.add(value);
         }
         return array;
+    }
+
+    /**
+     * 领取被拒的统一回应：缺参数、题目失效、来源不匹配、解答不合格都走这里，**不区分原因**。
+     * 细分提示（“缺少挑战”“需要先换题”之类）等于把防护流程和判定顺序告诉探测者。
+     */
+    private void sendGrantRejected(HttpServletResponse response) throws IOException {
+        sendErrorResponse(response, HttpServletResponse.SC_CONFLICT, "请求已失效，请刷新后重试");
     }
 }

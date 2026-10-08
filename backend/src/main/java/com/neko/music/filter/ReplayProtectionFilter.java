@@ -60,7 +60,10 @@ public class ReplayProtectionFilter implements Filter {
     /** Redis 故障时是否放行：true=可用性优先，false=安全优先（503）。 */
     static final boolean FAIL_OPEN_ON_REDIS_ERROR = true;
 
-    /** 响应头：告知前端失败原因，便于自动换取新 nonce 重试。 */
+    /**
+     * 响应头：告知客户端失败类别，便于自动换取新 nonce 重试。取值只区分客户端该做什么
+     * （缺 nonce / nonce 无效 / 服务端异常），不解释服务端的判定规则。
+     */
     public static final String REPLAY_STATUS_HEADER = "X-Neko-Replay-Status";
     public static final String STATUS_MISSING = "missing";
     public static final String STATUS_INVALID = "invalid";
@@ -108,7 +111,8 @@ public class ReplayProtectionFilter implements Filter {
         String nonce = httpRequest.getHeader(ReplayNonceService.NONCE_HEADER);
         if (nonce == null || nonce.isBlank()) {
             logger.debug("缺少防重放 nonce: {} {}", httpRequest.getMethod(), path);
-            reject(httpResponse, STATUS_MISSING, "请求缺少防重放校验，请刷新后重试");
+            // 响应体与「nonce 无效」保持同一句话：细分失败原因等于把防护流程讲给探测者
+            reject(httpResponse, STATUS_MISSING, "请求已失效，请刷新后重试");
             return;
         }
 
