@@ -72,6 +72,18 @@ public final class ReplayNonceService {
         /** {@code SET NX EX}：true = 占用成功；false = 已存在或存储故障。 */
         boolean putIfAbsent(String key, String value, int ttlSeconds);
 
+        /**
+         * 批量 {@code SET NX EX}：一次往返写入多个键，返回与 {@code keys} 等长的成功标记；
+         * {@code null} = 存储故障。默认实现退化为逐个写入，Redis 实现走单条 Lua。
+         */
+        default List<Boolean> putManyIfAbsent(List<String> keys, String value, int ttlSeconds) {
+            List<Boolean> granted = new ArrayList<>(keys.size());
+            for (String key : keys) {
+                granted.add(putIfAbsent(key, value, ttlSeconds));
+            }
+            return granted;
+        }
+
         /** 原子「GET + 比对 + DEL」：1 = 消费成功，0 = 不存在 / 不匹配，{@code null} = 存储故障。 */
         Long consumeIfMatches(String key, String expectedValue);
     }
@@ -92,9 +104,35 @@ public final class ReplayNonceService {
                         + "redis.call('DEL', KEYS[1]) "
                         + "return 1";
 
+        /** 批量签发：一次往返完成 N 个 {@code SET NX EX}，避免「每个 nonce 一次借还连接」。 */
+        private static final String ISSUE_LUA =
+                "local granted = {} "
+                        + "for i = 1, #KEYS do "
+                        + "  local ok = redis.call('SET', KEYS[i], ARGV[1], 'NX', 'EX', ARGV[2]) "
+                        + "  if ok then granted[i] = 1 else granted[i] = 0 end "
+                        + "end "
+                        + "return granted";
+
         @Override
         public boolean putIfAbsent(String key, String value, int ttlSeconds) {
             return Main.getRedisService().setIfAbsentWithExpiry(key, value, ttlSeconds);
+        }
+
+        @Override
+        public List<Boolean> putManyIfAbsent(List<String> keys, String value, int ttlSeconds) {
+            if (keys == null || keys.isEmpty()) {
+                return List.of();
+            }
+            List<Object> raw = Main.getRedisService().evalMulti(
+                    ISSUE_LUA, keys.toArray(new String[0]), new String[]{value, Integer.toString(ttlSeconds)});
+            if (raw == null || raw.size() != keys.size()) {
+                return null;
+            }
+            List<Boolean> granted = new ArrayList<>(keys.size());
+            for (Object item : raw) {
+                granted.add(item instanceof Number number && number.longValue() == 1L);
+            }
+            return granted;
         }
 
         @Override
@@ -111,7 +149,8 @@ public final class ReplayNonceService {
     }
 
     /**
-     * 批量签发 nonce。Redis 不可用时返回空列表（由调用方明确报 503，不静默降级）。
+     * 批量签发 nonce。一次 Lua 往返完成整批 {@code SET NX EX}，把每请求的 Redis 往返数从 N 降到 1；
+     * 存储不可用时返回空列表（由调用方明确报 503，不静默降级）。
      */
     public static List<String> issue(String scope, int count, String clientIp) {
         int wanted = Math.max(0, Math.min(count, MAX_BATCH));
@@ -120,20 +159,26 @@ public final class ReplayNonceService {
             return nonces;
         }
         String ipHash = ipHash(clientIp);
-        for (int i = 0; i < wanted; i++) {
-            String nonce = null;
-            // 128 位随机撞库概率可忽略；这里重试只用于兜住 Redis 瞬时抖动。
-            for (int attempt = 0; attempt < 3 && nonce == null; attempt++) {
+        // 128 位随机撞库概率可忽略；重试只用于兜住存储瞬时抖动。
+        for (int round = 0; round < 3 && nonces.size() < wanted; round++) {
+            int missing = wanted - nonces.size();
+            List<String> candidates = new ArrayList<>(missing);
+            List<String> keys = new ArrayList<>(missing);
+            for (int i = 0; i < missing; i++) {
                 String candidate = randomHex(16);
-                if (store.putIfAbsent(key(scope, candidate), ipHash, NONCE_TTL_SECONDS)) {
-                    nonce = candidate;
-                }
+                candidates.add(candidate);
+                keys.add(key(scope, candidate));
             }
-            if (nonce == null) {
+            List<Boolean> granted = store.putManyIfAbsent(keys, ipHash, NONCE_TTL_SECONDS);
+            if (granted == null) {
                 logger.error("签发防重放 nonce 失败（存储不可用） scope={}", scope);
                 break;
             }
-            nonces.add(nonce);
+            for (int i = 0; i < candidates.size(); i++) {
+                if (Boolean.TRUE.equals(granted.get(i))) {
+                    nonces.add(candidates.get(i));
+                }
+            }
         }
         return nonces;
     }
@@ -189,14 +234,35 @@ public final class ReplayNonceService {
         };
     }
 
-    /** 只以短哈希形式落库，避免在 Redis 里明文堆积客户端地址。 */
+    /** 只以短哈希形式参与绑定 / 落库，避免在 Redis 里明文堆积客户端地址。 */
     public static String ipHash(String clientIp) {
-        String ip = clientIp == null ? "" : clientIp.trim();
+        return fingerprint(clientIp);
+    }
+
+    /** 来源指纹：SHA-256 前 16 位十六进制，用于把来源信息不可逆地绑进 nonce 与挑战。 */
+    public static String fingerprint(String value) {
+        String text = value == null ? "" : value.trim();
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(ip.getBytes(StandardCharsets.UTF_8));
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest).substring(0, 16);
         } catch (NoSuchAlgorithmException e) {
-            return Integer.toHexString(ip.hashCode());
+            return Integer.toHexString(text.hashCode());
+        }
+    }
+
+    /**
+     * 解析并夹取客户端要领取的批量：缺省用 {@code defaultValue}，非法值兜底默认，
+     * 越界夹到 {@code [0, MAX_BATCH]}。挑战与 nonce 两个接口共用，避免两处判定漂移。
+     */
+    public static int clampBatch(String raw, int defaultValue) {
+        if (raw == null || raw.isBlank()) {
+            return Math.max(0, Math.min(defaultValue, MAX_BATCH));
+        }
+        try {
+            int value = Integer.parseInt(raw.trim());
+            return Math.max(0, Math.min(value, MAX_BATCH));
+        } catch (NumberFormatException e) {
+            return Math.max(0, Math.min(defaultValue, MAX_BATCH));
         }
     }
 

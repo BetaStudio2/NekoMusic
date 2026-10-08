@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 public class RedisService {
@@ -164,6 +165,23 @@ public class RedisService {
                     keys, args);
         } catch (Exception e) {
             logger.error("执行Redis Lua脚本失败: {}", e.getMessage(), e);
+            return null;
+        } finally {
+            returnConnection(conn);
+        }
+    }
+
+    /**
+     * 执行返回数组的 Lua 脚本（批量签发 nonce 用）：一次往返完成整批写入。
+     * 失败返回 {@code null}，由调用方明确报错，不静默降级。
+     */
+    public List<Object> evalMulti(String script, String[] keys, String[] args) {
+        StatefulRedisConnection<String, String> conn = null;
+        try {
+            conn = connectionPool.borrowObject();
+            return conn.sync().eval(script, io.lettuce.core.ScriptOutputType.MULTI, keys, args);
+        } catch (Exception e) {
+            logger.error("执行Redis Lua脚本(数组结果)失败: {}", e.getMessage(), e);
             return null;
         } finally {
             returnConnection(conn);
