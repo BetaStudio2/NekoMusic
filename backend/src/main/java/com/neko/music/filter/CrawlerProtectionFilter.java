@@ -42,6 +42,9 @@ import java.util.Locale;
  *   <li>爬虫 / AI 抓取器不应拿到 JSON：GET / HEAD 命中后不再 302 跳转，而是内部 forward 到对应
  *       SEO 页并直接把服务端 HTML 以 200 返回（复用 {@code StaticPageSeoFilter} 与详情页处理器，
  *       页面自带 canonical，不会与正式页产生重复内容）；重定向会浪费抓取配额、影响收录。</li>
+ *   <li>{@code /api/music/ranking}、{@code /api/music/latest} 是公开且允许 CDN 缓存的接口
+ *       （半小时）：对所有人返回同一份 JSON，不参与防爬判定。否则边缘缓存命中与否会让同一个
+ *       UA 时而被拦、时而拿到 JSON，且缓存里落的是哪一版就发给所有人。</li>
  *   <li>ZPay 异步通知由支付平台服务器回调（常用 curl 等 UA），与 IP 限流一致地豁免，避免支付通知断裂。</li>
  *   <li>可通过 {@code network.crawler_protection_enabled=false} 关闭全部拦截；
  *       或 {@code network.browser_integrity_enabled=false} 只保留已知黑名单。</li>
@@ -81,7 +84,7 @@ public class CrawlerProtectionFilter implements Filter {
         }
 
         String path = normalizedPath(httpRequest.getRequestURI(), httpRequest.getContextPath());
-        if (!isApiPath(path) || isZpayNotifyPath(path)) {
+        if (!isApiPath(path) || isZpayNotifyPath(path) || isPublicCacheableApiPath(path)) {
             chain.doFilter(request, response);
             return;
         }
@@ -160,10 +163,6 @@ public class CrawlerProtectionFilter implements Filter {
     /** {@code /api} 路径 → 对应 SEO 页面；无法对应时回首页。 */
     static String seoPageForApiPath(String path) {
         switch (path) {
-            case "/api/music/ranking":
-                return "/ranking";
-            case "/api/music/latest":
-                return "/latest";
             case "/api/music/search":
                 return "/search";
             default:
@@ -226,6 +225,14 @@ public class CrawlerProtectionFilter implements Filter {
     /** ZPay 异步通知由平台服务器回调，不参与防爬，避免通知失败（与 IP 限流豁免一致）。 */
     private static boolean isZpayNotifyPath(String path) {
         return path.equals("/api/payment/zpay/notify");
+    }
+
+    /**
+     * 公开且允许 CDN 缓存的接口：内容对所有人一致，靠 CDN 缓存降低回源压力，
+     * 因此不做防爬分流（爬虫拿到 JSON 也是预期行为）。
+     */
+    private static boolean isPublicCacheableApiPath(String path) {
+        return "/api/music/ranking".equals(path) || "/api/music/latest".equals(path);
     }
 
     private static void writeForbidden(HttpServletResponse httpResponse) throws IOException {
