@@ -176,7 +176,11 @@ export default defineConfig(({ command, mode }) => {
     define: {
       // X-Neko-Client 标头里的 Web 版本号（web+<版本>）
       __NEKO_WEB_VERSION__: JSON.stringify(resolveWebVersion(env)),
-      __VUE_OPTIONS_API__: false,
+      // 必须保留 Options API：vue-toastification@2.0.0-rc.5 的吐司容器内部仍用
+      // Options API（data/beforeMount/mounted）实现；置为 false 会把这套运行时
+      // 摇掉，容器组件渲染时报 "positions ... not defined" 且永远不挂载，表现为
+      // 所有 toast 都不显示。等替换掉该库后再考虑关掉它。
+      __VUE_OPTIONS_API__: true,
       __VUE_PROD_DEVTOOLS__: false,
       __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: false,
     },
