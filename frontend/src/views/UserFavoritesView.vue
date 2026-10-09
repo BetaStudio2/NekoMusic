@@ -16,7 +16,8 @@ import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
 import { openAuthDialog } from '@/composables/useAuthDialog'
 import { useAuth } from '@/composables/useAuth'
-import { playTracks, playTrackInList } from '@/composables/usePlaybackBridge'
+import { playTracks, playTrackInList, isCurrentMusic } from '@/composables/usePlaybackBridge'
+import NowPlayingTag from '@/components/NowPlayingTag.vue'
 
 const toast = useToast()
 const { token: authToken } = useAuth()
@@ -168,13 +169,20 @@ watch(authToken, (token) => {
         <button type="button" class="row__info" @click="playMusic(music)">
           <span class="row__title">
             <span class="row__title-text">{{ music.title }}</span>
+            <NowPlayingTag v-if="isCurrentMusic(music.id)" />
             <QualityBadge :quality="music.maxQuality" />
           </span>
           <span class="row__artist">作曲：{{ music.artist }}</span>
           <span class="row__album">专辑：{{ music.album || '未知专辑' }}</span>
         </button>
         <div class="row__actions">
-          <NButton size="sm" variant="secondary" icon="play" @click="playMusic(music)">播放</NButton>
+          <NButton
+            size="sm"
+            :variant="isCurrentMusic(music.id) ? 'primary' : 'secondary'"
+            :icon="isCurrentMusic(music.id) ? 'volume-2' : 'play'"
+            :title="isCurrentMusic(music.id) ? '正在播放' : '播放'"
+            @click="playMusic(music)"
+          >{{ isCurrentMusic(music.id) ? '播放中' : '播放' }}</NButton>
           <NButton size="sm" variant="danger" icon="heart-off" @click="askRemove(music)">移除</NButton>
         </div>
       </article>

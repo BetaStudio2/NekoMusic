@@ -19,7 +19,8 @@ import QualityBadge from '@/components/QualityBadge.vue'
 import { NButton, NCard, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
-import { playTracks, playTrackInList } from '@/composables/usePlaybackBridge'
+import { playTracks, playTrackInList, isCurrentMusic } from '@/composables/usePlaybackBridge'
+import NowPlayingTag from '@/components/NowPlayingTag.vue'
 import { coverSrcset } from '@/utils/coverImage'
 import { getUser } from '@/utils/userStore.js'
 
@@ -370,10 +371,11 @@ onUnmounted(() => {
                 @error="handleImageError"
               />
               <span class="cover-card__rank">{{ i + 1 }}</span>
-              <span class="cover-card__play"><NIcon name="play" :size="16" /></span>
+              <span class="cover-card__play"><NIcon :name="isCurrentMusic(m.id) ? 'volume-2' : 'play'" :size="16" /></span>
             </div>
             <h3 class="cover-card__title">
               <span class="cover-card__title-text">{{ m.title }}</span>
+              <NowPlayingTag v-if="isCurrentMusic(m.id)" />
               <QualityBadge :quality="m.maxQuality" />
             </h3>
             <p class="cover-card__artist">{{ m.artist }}</p>
@@ -415,10 +417,11 @@ onUnmounted(() => {
                 decoding="async"
                 @error="handleImageError"
               />
-              <span class="cover-card__play"><NIcon name="play" :size="16" /></span>
+              <span class="cover-card__play"><NIcon :name="isCurrentMusic(m.id) ? 'volume-2' : 'play'" :size="16" /></span>
             </div>
             <h3 class="cover-card__title">
               <span class="cover-card__title-text">{{ m.title }}</span>
+              <NowPlayingTag v-if="isCurrentMusic(m.id)" />
               <QualityBadge :quality="m.maxQuality" />
             </h3>
             <p class="cover-card__artist">{{ m.artist }}</p>

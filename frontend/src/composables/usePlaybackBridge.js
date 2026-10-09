@@ -260,6 +260,21 @@ export function playTracks(tracks, startIndex = 0) {
 }
 
 /**
+ * 指定 id 是否为「当前正在播放的曲目」。
+ * 供列表页（搜索 / 排行 / 最新 / 歌单 / 收藏…）标注正在播放项，
+ * 与底部播放条共用同一份桥接快照，保证「播放与列表」始终同步。
+ * 在模板 / computed 中调用即可（内部读取响应式 state，会随之重算）。
+ *
+ * @param {number|string} id
+ * @returns {boolean}
+ */
+export function isCurrentMusic(id) {
+  if (id == null) return false
+  if (!state.hasTrack || !state.currentMusic) return false
+  return String(state.currentMusic.id) === String(id)
+}
+
+/**
  * 订阅播放状态并发送指令。
  * 必须在组件 setup 中调用（内部使用 onMounted / onUnmounted 管理引用计数）。
  */
