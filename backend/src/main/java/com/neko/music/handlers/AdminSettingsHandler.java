@@ -199,9 +199,12 @@ public class AdminSettingsHandler extends ApiServlet {
 
     /** 当前生效值：优先数据库，其次 config.yml，最后出厂默认值。 */
     private static String effectiveValue(SystemSettingDefinition definition, Map<String, String> stored) {
-        String value = stored.get(definition.key());
-        if (value != null) {
-            return value;
+        // 只读项不落库（历史残留也可能存在），显示值一律以配置文件 / 出厂默认值为准
+        if (!definition.readOnly()) {
+            String value = stored.get(definition.key());
+            if (value != null) {
+                return value;
+            }
         }
         return Main.getConfigManager().effectiveValue(definition.key())
                 .orElseGet(definition::defaultValue);

@@ -11,7 +11,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -119,6 +121,36 @@ public class SystemSettingsDatabaseManager {
             }
         }
         return written;
+    }
+
+    /**
+     * 清掉只读项的历史残留：只读项不落库，但早期版本曾把它们灌进表里。
+     * 留着不会生效（读取端会忽略），只是会误导运维，所以启动时顺手删除。
+     *
+     * @return 实际删除的行数
+     */
+    public int pruneReadOnly() {
+        List<String> keys = new ArrayList<>();
+        for (SystemSettingDefinition definition : SystemSettingRegistry.all()) {
+            if (definition.readOnly()) {
+                keys.add(definition.key());
+            }
+        }
+        if (keys.isEmpty()) {
+            return 0;
+        }
+        String placeholders = String.join(", ", keys.stream().map(k -> "?").toList());
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "DELETE FROM system_settings WHERE setting_key IN (" + placeholders + ")")) {
+            for (int i = 0; i < keys.size(); i++) {
+                ps.setString(i + 1, keys.get(i));
+            }
+            return ps.executeUpdate();
+        } catch (SQLException e) {
+            logger.warn("清理只读设置的历史残留失败（不影响启动）: {}", e.getMessage());
+            return 0;
+        }
     }
 
     /** 删除某条设置，使其回落到出厂默认值。 */
