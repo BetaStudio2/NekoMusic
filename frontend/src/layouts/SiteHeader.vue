@@ -17,7 +17,8 @@ import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
 import { NInput, NButton } from '@/ui'
 import PwaInstallButton from '@/components/PwaInstallButton.vue'
-import { playTrack, playTracks } from '@/composables/usePlaybackBridge'
+import { playTrack, playTracks, isCurrentMusic } from '@/composables/usePlaybackBridge'
+import NowPlayingTag from '@/components/NowPlayingTag.vue'
 import { syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
 import { avatarUrl, useAvatarVersion } from '@/utils/userAvatar.js'
 import { getUser, clearUser, loadUserInfo } from '@/utils/userStore.js'
@@ -269,6 +270,7 @@ onUnmounted(() => {
             <span class="search-panel__info">
               <span class="search-panel__title">
                 <span class="search-panel__title-text">{{ result.title }}</span>
+                <NowPlayingTag v-if="isCurrentMusic(result.id)" />
                 <NIcon v-if="result.lrc" name="file-text" :size="13" class="search-panel__lyric" />
               </span>
               <span class="search-panel__artist">作曲：{{ result.artist }}</span>
