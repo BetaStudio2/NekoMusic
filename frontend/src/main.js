@@ -78,6 +78,9 @@ app.use(router)
 app.use(VueToastification, {
   position: 'top-right',
   timeout: 3000,
+  // 与 useToast 的限量保持一致：即使有页面直接走 raw 接口，也不会把吐司堆爆
+  maxToasts: 4,
+  newestOnTop: true,
   closeOnClick: true,
   pauseOnFocusLoss: true,
   pauseOnHover: true,
