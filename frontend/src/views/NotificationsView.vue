@@ -4,6 +4,7 @@
  * ------------------------------------------------------------
  * 契约：
  *  - GET  /api/user/notifications?since=&before=&limit=  列表（Authorization: 裸 userToken）
+ *  - GET  /api/user/notifications/stream                实时推送（SSE），新消息直接插到最前
  *  - POST /api/user/notifications/read                   标记已读（ids 为空 = 全部已读）
  *  - 点击消息：先标记已读，再按 link 跳到对应站内页面（如 /detail/{musicId}）
  *
@@ -20,6 +21,8 @@ import {
   fetchNotifications,
   markNotificationsRead,
   NOTIFICATION_SYNC_EVENT,
+  subscribeNotifications,
+  syncNotificationStream,
 } from '@/api/notifications.js'
 
 const PAGE_SIZE = 20
@@ -32,15 +35,18 @@ const unread = ref(0)
 const hasMore = ref(false)
 const loading = ref(true)
 const loadingMore = ref(false)
+let notificationSubscription = null
 
 const isEmpty = computed(() => !loading.value && items.value.length === 0)
+/** 本地最新游标：items 新的在前，第一条就是当前最大 id */
+const newestId = computed(() => (items.value.length ? items.value[0].id : 0))
 
 function token() {
   return localStorage.getItem('userToken')
 }
 
-function syncBadge() {
-  window.dispatchEvent(new CustomEvent(NOTIFICATION_SYNC_EVENT))
+function syncBadge(count) {
+  window.dispatchEvent(new CustomEvent(NOTIFICATION_SYNC_EVENT, { detail: { unread: count } }))
 }
 
 /** 首屏：拉最新一页，顺带把未读数刷新掉 */
@@ -56,7 +62,7 @@ async function loadFirstPage() {
     items.value = data.items || []
     unread.value = data.unread || 0
     hasMore.value = Boolean(data.hasMore)
-    syncBadge()
+    syncBadge(unread.value)
   } catch (error) {
     console.error('获取站内消息失败:', error)
     toast.error('消息加载失败，请稍后再试')
@@ -91,7 +97,7 @@ async function markAllRead() {
     const data = await markNotificationsRead([])
     unread.value = data.unread ?? 0
     items.value = items.value.map((item) => ({ ...item, read: true }))
-    syncBadge()
+    syncBadge(unread.value)
   } catch (error) {
     console.error('标记已读失败:', error)
     toast.error('操作失败，请稍后再试')
@@ -104,13 +110,44 @@ async function openItem(item) {
       const data = await markNotificationsRead([item.id])
       unread.value = data.unread ?? unread.value
       item.read = true
-      syncBadge()
+      syncBadge(unread.value)
     } catch (error) {
       // 标记失败不拦跳转：消息仍然是已送达的，下次进页面还会补拉
       console.error('标记单条已读失败:', error)
     }
   }
   if (item.link) router.push(item.link)
+}
+
+// ── 实时推送：连上校准未读，之后新消息直接插到最前 ──────────────
+
+/** 连上（含自动重连）时校准未读数；若服务端游标更新则补拉断线期间漏掉的消息。 */
+async function handleStreamReady(data) {
+  if (typeof data.unread === 'number') unread.value = data.unread
+  if (items.value.length && data.latestId > newestId.value) await pullNewer()
+}
+
+/** 新消息：插入列表并更新红点，不再请求列表接口。 */
+function handleStreamMessage(item) {
+  if (items.value.some((existing) => existing.id === item.id)) return
+  items.value = [item, ...items.value]
+  if (!item.read) unread.value += 1
+  syncBadge(unread.value)
+}
+
+/** 以本地最新 id 为游标补拉断线期间漏掉的消息。 */
+async function pullNewer() {
+  if (!token() || !items.value.length) return
+  try {
+    const data = await fetchNotifications({ since: newestId.value, limit: PAGE_SIZE })
+    const incoming = data.items || []
+    const known = new Set(items.value.map((item) => item.id))
+    const fresh = incoming.filter((item) => !known.has(item.id))
+    if (fresh.length) items.value = fresh.concat(items.value)
+    unread.value = data.unread ?? unread.value
+  } catch (error) {
+    console.error('补拉站内消息失败:', error)
+  }
 }
 
 function formatTime(raw) {
@@ -121,15 +158,27 @@ function formatTime(raw) {
 
 onMounted(() => {
   loadFirstPage()
+  notificationSubscription = subscribeNotifications({
+    onReady: handleStreamReady,
+    onMessage: handleStreamMessage,
+  })
   window.addEventListener('storage', handleStorageChange)
 })
 
 onUnmounted(() => {
   window.removeEventListener('storage', handleStorageChange)
+  if (notificationSubscription) notificationSubscription.close()
 })
 
 function handleStorageChange(event) {
-  if (event.key === 'userToken') loadFirstPage()
+  if (event.key !== 'userToken') return
+  syncNotificationStream()
+  if (token()) loadFirstPage()
+  else {
+    items.value = []
+    unread.value = 0
+    syncBadge(0)
+  }
 }
 </script>
 

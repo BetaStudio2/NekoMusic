@@ -21,7 +21,12 @@ import { playTrack, playTracks } from '@/composables/usePlaybackBridge'
 import { syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
 import { avatarUrl, useAvatarVersion } from '@/utils/userAvatar.js'
 import { getUser, clearUser, loadUserInfo } from '@/utils/userStore.js'
-import { fetchUnreadCount, NOTIFICATION_SYNC_EVENT } from '@/api/notifications.js'
+import {
+  NOTIFICATION_SYNC_EVENT,
+  reconnectNotificationStream,
+  subscribeNotifications,
+  syncNotificationStream,
+} from '@/api/notifications.js'
 
 const router = useRouter()
 
@@ -55,32 +60,40 @@ function handleStorageChange(event) {
     // 登录 / 登出 / 换账号：资料只在内存里，Token 变了就重新拉一次
     initializeUserState()
     loadUserInfo({ force: true })
-    refreshUnread()
+    // 连接跟着身份走：登出即断开，换账号重连（未登录时下面的回调不会触发）
+    syncNotificationStream()
+    if (!isLoggedIn.value) unreadCount.value = 0
     return
   }
   if (event.key === 'user') initializeUserState()
 }
 
 // ── 站内消息红点 ──────────────────────────────────────────────
-// 只轮询未读数（单请求很轻），消息内容在消息中心按游标补拉；页面可见时才轮询，
-// 标签页切回前台也会立刻刷新一次，避免把红点压在新消息上。
+// 未读数全部来自 SSE：连上的 `ready` 帧给一次准确值，之后每来一条新消息自增；
+// 消息中心标记已读时广播事件，这里直接采用。没有任何轮询请求。
 const unreadCount = ref(0)
-let unreadTimer = null
+let notificationSubscription = null
 
-async function refreshUnread() {
-  if (!isLoggedIn.value) {
-    unreadCount.value = 0
-    return
-  }
-  try {
-    unreadCount.value = await fetchUnreadCount()
-  } catch {
-    // 红点失败不影响顶栏其它功能，静默即可
-  }
+function applyUnread(count) {
+  const value = Number(count)
+  if (Number.isFinite(value) && value >= 0) unreadCount.value = value
+}
+
+function handleNotificationReady(data) {
+  applyUnread(data.unread)
+}
+
+function handleNotificationMessage(item) {
+  if (!item.read) unreadCount.value += 1
+}
+
+function handleNotificationSync(event) {
+  applyUnread(event?.detail?.unread)
 }
 
 function handleVisibilityChange() {
-  if (!document.hidden) refreshUnread()
+  // 切回前台时重建连接，顺便用新的 `ready` 帧校准红点，避免长时间挂后台后计数漂移
+  if (!document.hidden) reconnectNotificationStream()
 }
 
 const avatarVersion = useAvatarVersion()
@@ -202,22 +215,22 @@ onMounted(async () => {
   document.addEventListener('click', handleClickOutside)
   await syncUserVipFromPlaylistsApi()
   initializeUserState()
-  refreshUnread()
-  window.addEventListener(NOTIFICATION_SYNC_EVENT, refreshUnread)
+  notificationSubscription = subscribeNotifications({
+    onReady: handleNotificationReady,
+    onMessage: handleNotificationMessage,
+  })
+  window.addEventListener(NOTIFICATION_SYNC_EVENT, handleNotificationSync)
   document.addEventListener('visibilitychange', handleVisibilityChange)
-  unreadTimer = setInterval(() => {
-    if (!document.hidden) refreshUnread()
-  }, 60000)
 })
 
 onUnmounted(() => {
   if (debounceTimer) clearTimeout(debounceTimer)
   window.removeEventListener('storage', handleStorageChange)
   window.removeEventListener(USER_VIP_SYNC_EVENT, initializeUserState)
-  window.removeEventListener(NOTIFICATION_SYNC_EVENT, refreshUnread)
+  window.removeEventListener(NOTIFICATION_SYNC_EVENT, handleNotificationSync)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
   document.removeEventListener('click', handleClickOutside)
-  if (unreadTimer) clearInterval(unreadTimer)
+  if (notificationSubscription) notificationSubscription.close()
 })
 </script>
 

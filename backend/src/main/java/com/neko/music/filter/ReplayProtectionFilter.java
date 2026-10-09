@@ -79,7 +79,8 @@ public class ReplayProtectionFilter implements Filter {
             "/api/music/latest",
             "/api/music/ranking",
             "/api/payment/zpay/notify",
-            "/api/user/qrlogin/status"); // EventSource(SSE) 且浏览器会自动重连
+            "/api/user/qrlogin/status", // EventSource(SSE) 且浏览器会自动重连
+            "/api/user/notifications/stream"); // 站内消息实时推送：EventSource 无法带 nonce
 
     /** 前缀豁免路径（浏览器原生请求 / SSE）。 */
     static final List<String> EXEMPT_PREFIXES = List.of(
