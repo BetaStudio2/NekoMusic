@@ -17,8 +17,14 @@ import static com.neko.music.config.SystemSettingDefinition.decimal;
 /**
  * 系统设置清单：**只有登记在这里的键**才能被数据库覆盖、才能在后台页面里改。
  *
- * <p>{@code mysql.*} 不在清单里，也不再由本机制管理：那是启动引导信息——连数据库之前
- * 无从读取数据库，只能留在 config.yml。</p>
+ * <p>不在清单里的键分两类：</p>
+ * <ul>
+ *   <li>{@code mysql.*} 等启动引导信息 —— 连数据库之前无从读取数据库，只能留在 config.yml。</li>
+ *   <li>写死的策略项（如 {@code video_render.non_vip_max_duration_sec}、
+ *       {@code netease_search_fill.language|upload_user_id}）—— 不给后台账号改的机会，
+ *       值由 config.yml（运维级）或 {@code ConfigManager} 里的字段默认值决定，
+ *       既不落库也不会出现在后台设置页里。</li>
+ * </ul>
  */
 public final class SystemSettingRegistry {
 
@@ -106,8 +112,6 @@ public final class SystemSettingRegistry {
                     "cuda_native 全 GPU 时须关闭，改用带 NVENC 的系统 FFmpeg"),
             text("video_render.video_codec", Group.VIDEO_RENDER, "编码器", "h264_nvenc",
                     "libx264（CPU）或 h264_nvenc（GPU），仅 cpu_legacy 生效"),
-            number("video_render.non_vip_max_duration_sec", Group.VIDEO_RENDER, "非会员单次最长（秒）", "30", 1, 3600,
-                    "非 VIP 单次成片最长时长，VIP 不受限；只读，不能在后台改").asReadOnly(),
             number("video_render.non_vip_daily_limit", Group.VIDEO_RENDER, "非会员每日次数", "10", 0, 10000,
                     "非 VIP 每自然日最多生成次数，依赖 Redis"),
             number("video_render.worker_threads", Group.VIDEO_RENDER, "渲染线程数", "20", 1, 256,
@@ -124,10 +128,6 @@ public final class SystemSettingRegistry {
                     "高音质需要有效登录态，留空则按游客态请求"),
             text("netease_search_fill.quality", Group.NETEASE, "优先音质", "hires",
                     "与网易云 level 取值一致；无该档时自动降级"),
-            text("netease_search_fill.language", Group.NETEASE, "入库语言", "",
-                    "留空或 auto 表示按歌曲信息自动推断；只读，不能在后台改").asReadOnly(),
-            number("netease_search_fill.upload_user_id", Group.NETEASE, "入库用户 ID", "", 0, 2147483647,
-                    "补全入库时归属的用户 ID，留空表示不指定；只读，不能在后台改").asReadOnly(),
             number("netease_search_fill.http_timeout_seconds", Group.NETEASE, "HTTP 超时（秒）", "45", 1, 600,
                     "请求网易云接口的超时时间"),
             number("netease_search_fill.max_parallel_fills", Group.NETEASE, "最大并发补全数", "10", 1, 10,
