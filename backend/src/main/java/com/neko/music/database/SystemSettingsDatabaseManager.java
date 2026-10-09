@@ -65,9 +65,6 @@ public class SystemSettingsDatabaseManager {
             }
             Map<String, String> seeds = new LinkedHashMap<>();
             for (SystemSettingDefinition definition : SystemSettingRegistry.all()) {
-                if (definition.readOnly()) {
-                    continue; // 只读项的值只来自 config.yml / 出厂默认值，不落库
-                }
                 String value = definition.defaultValue();
                 if (configManager != null) {
                     value = configManager.effectiveValue(definition.key()).orElse(value);
@@ -101,10 +98,8 @@ public class SystemSettingsDatabaseManager {
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             for (Map.Entry<String, String> entry : values.entrySet()) {
-                SystemSettingDefinition definition =
-                        SystemSettingRegistry.find(entry.getKey()).orElse(null);
-                if (definition == null || definition.readOnly()) {
-                    continue; // 未登记或只读的键都不落库
+                if (SystemSettingRegistry.find(entry.getKey()).isEmpty()) {
+                    continue;
                 }
                 ps.setString(1, entry.getKey());
                 ps.setString(2, entry.getValue() == null ? "" : entry.getValue());
@@ -124,33 +119,47 @@ public class SystemSettingsDatabaseManager {
     }
 
     /**
-     * 清掉只读项的历史残留：只读项不落库，但早期版本曾把它们灌进表里。
-     * 留着不会生效（读取端会忽略），只是会误导运维，所以启动时顺手删除。
+     * 清掉已经不在清单里的历史残留键（例如某次改动后被移出清单的配置项）。
+     * 这类键永远不会生效（读取端同样会忽略），留着只会误导运维，所以启动时顺手删除。
      *
      * @return 实际删除的行数
      */
-    public int pruneReadOnly() {
-        List<String> keys = new ArrayList<>();
-        for (SystemSettingDefinition definition : SystemSettingRegistry.all()) {
-            if (definition.readOnly()) {
-                keys.add(definition.key());
+    public int pruneUnregistered() {
+        List<String> stale = new ArrayList<>();
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement("SELECT setting_key FROM system_settings");
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                String key = rs.getString("setting_key");
+                if (key == null || key.isBlank()) {
+                    continue;
+                }
+                if (SystemSettingRegistry.find(key).isEmpty()) {
+                    stale.add(key);
+                }
             }
-        }
-        if (keys.isEmpty()) {
+        } catch (SQLException e) {
+            logger.warn("检查系统设置历史残留失败（不影响启动）: {}", e.getMessage());
             return 0;
         }
-        String placeholders = String.join(", ", keys.stream().map(k -> "?").toList());
+        if (stale.isEmpty()) {
+            return 0;
+        }
+        int deleted = 0;
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(
-                     "DELETE FROM system_settings WHERE setting_key IN (" + placeholders + ")")) {
-            for (int i = 0; i < keys.size(); i++) {
-                ps.setString(i + 1, keys.get(i));
+                     "DELETE FROM system_settings WHERE setting_key = ?")) {
+            for (String key : stale) {
+                ps.setString(1, key);
+                deleted += ps.executeUpdate();
             }
-            return ps.executeUpdate();
         } catch (SQLException e) {
-            logger.warn("清理只读设置的历史残留失败（不影响启动）: {}", e.getMessage());
-            return 0;
+            logger.warn("清理系统设置历史残留失败（不影响启动）: {}", e.getMessage());
         }
+        if (deleted > 0) {
+            logger.info("已清理 {} 条已下线的系统设置残留: {}", deleted, stale);
+        }
+        return deleted;
     }
 
     /** 删除某条设置，使其回落到出厂默认值。 */

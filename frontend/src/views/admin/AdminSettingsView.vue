@@ -54,16 +54,10 @@
       </div>
 
       <section v-if="currentGroup" class="panel" role="tabpanel">
-        <div
-          v-for="item in currentGroup.settings"
-          :key="item.key"
-          class="field"
-          :class="{ 'field--locked': item.readOnly }"
-        >
+        <div v-for="item in currentGroup.settings" :key="item.key" class="field">
           <div class="field__main">
             <label class="field__label" :for="`set-${item.key}`">
               {{ item.label }}
-              <NTag v-if="item.readOnly" variant="outline" size="sm">只读</NTag>
               <NTag v-if="item.restartRequired" variant="warning" size="sm">需重启</NTag>
             </label>
             <p class="field__desc">{{ item.description }}</p>
@@ -79,7 +73,7 @@
                 :id="`set-${item.key}`"
                 type="checkbox"
                 :checked="form[item.key] === 'true'"
-                :disabled="saving || item.readOnly"
+                :disabled="saving"
                 @change="onBoolChange(item.key, $event.target.checked)"
               />
               <span class="switch__track"><span class="switch__thumb" /></span>
@@ -92,11 +86,11 @@
                 type="password"
                 :model-value="form[item.key]"
                 :placeholder="item.configured ? '已配置（不填则保持不变）' : '未配置'"
-                :disabled="saving || item.readOnly"
+                :disabled="saving"
                 @update:model-value="onSecretInput(item.key, $event)"
               />
               <NButton
-                v-if="item.configured && !item.readOnly"
+                v-if="item.configured"
                 size="sm"
                 variant="ghost"
                 icon="trash-2"
@@ -112,7 +106,7 @@
               v-model="form[item.key]"
               textarea
               :rows="5"
-              :disabled="saving || item.readOnly"
+              :disabled="saving"
               placeholder="每行一条，留空表示不限制"
             />
 
@@ -124,7 +118,7 @@
               :min="item.min ?? undefined"
               :max="item.max ?? undefined"
               :step="item.type === 'double' ? '0.01' : '1'"
-              :disabled="saving || item.readOnly"
+              :disabled="saving"
               class="control--num"
             />
 
@@ -132,7 +126,7 @@
               v-else
               :id="`set-${item.key}`"
               v-model="form[item.key]"
-              :disabled="saving || item.readOnly"
+              :disabled="saving"
             />
           </div>
         </div>
@@ -173,7 +167,6 @@ const allSettings = computed(() => groups.value.flatMap((g) => g.settings || [])
 const changedKeys = computed(() =>
   allSettings.value
     .filter((item) => {
-      if (item.readOnly) return false
       if (item.secret) return secretTouched[item.key] === true
       return (form[item.key] ?? '') !== (original[item.key] ?? '')
     })
@@ -400,15 +393,6 @@ onMounted(async () => {
 
 .field:last-child {
   border-bottom: none;
-}
-
-/* 只读项：控件禁用，整行降透明度，避免误以为是可编辑项 */
-.field--locked {
-  opacity: 0.72;
-}
-
-.field--locked .field__control {
-  pointer-events: none;
 }
 
 .field__main {

@@ -34,9 +34,9 @@ import java.util.Set;
  *   <li>{@code PUT  /api/admin/settings} —— 批量保存：{@code {"values": {"键": "值"}}}</li>
  * </ul>
  *
- * <p>可读写的键由 {@link SystemSettingRegistry} 决定；未登记的键、以及登记为只读的键一律拒绝。
- * 敏感项只写不读：读取时只返回「是否已配置」，保存时未提交的键保持原值、提交空串表示清空。
- * 只读项只在读取时回显当前值并带 {@code readOnly: true}，供前端禁用控件。</p>
+ * <p>可读写的键由 {@link SystemSettingRegistry} 决定；未登记的键一律拒绝（策略项与启动引导信息
+ * 都不在清单里，因此既看不到也改不了）。敏感项只写不读：读取时只返回「是否已配置」，
+ * 保存时未提交的键保持原值、提交空串表示清空。</p>
  */
 public class AdminSettingsHandler extends ApiServlet {
 
@@ -107,11 +107,6 @@ public class AdminSettingsHandler extends ApiServlet {
                 return;
             }
             SystemSettingDefinition definition = found.get();
-            if (definition.readOnly()) {
-                sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
-                        definition.label() + " 不允许修改");
-                return;
-            }
             JsonNode rawNode = field.getValue();
             String raw = rawNode == null || rawNode.isNull() ? null : rawNode.asText();
 
@@ -178,7 +173,6 @@ public class AdminSettingsHandler extends ApiServlet {
         item.put("label", definition.label());
         item.put("type", definition.type().name().toLowerCase(Locale.ROOT));
         item.put("secret", definition.secret());
-        item.put("readOnly", definition.readOnly());
         item.put("restartRequired", definition.restartRequired());
         item.put("description", definition.description());
         if (definition.min() != null) {
@@ -199,12 +193,9 @@ public class AdminSettingsHandler extends ApiServlet {
 
     /** 当前生效值：优先数据库，其次 config.yml，最后出厂默认值。 */
     private static String effectiveValue(SystemSettingDefinition definition, Map<String, String> stored) {
-        // 只读项不落库（历史残留也可能存在），显示值一律以配置文件 / 出厂默认值为准
-        if (!definition.readOnly()) {
-            String value = stored.get(definition.key());
-            if (value != null) {
-                return value;
-            }
+        String value = stored.get(definition.key());
+        if (value != null) {
+            return value;
         }
         return Main.getConfigManager().effectiveValue(definition.key())
                 .orElseGet(definition::defaultValue);

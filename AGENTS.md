@@ -87,10 +87,11 @@ cd frontend && npm run build    # 产物输出到 ../backend/src/main/resources/
 - 新增配置项时必须同时：登记到 `SystemSettingRegistry`（含出厂默认值、类型、范围与是否需重启）、
   在读取端复用 `ConfigManager` 的解析分支（按点分路径合并进配置树，不要另写 setter）。
 - 敏感项（`secret`）只写不读：接口只回「是否已配置」，不回明文；数据库与日志中同样不得出现明文。
-- 只读项（`.asReadOnly()`）：只在后台**回显**当前值，提交会被拒绝，且**不写进 `system_settings`**
-  （值只来自 `config.yml` 或代码里的出厂默认值）。用于不该由后台账号调整的策略项，
-  例如 `video_render.non_vip_max_duration_sec`、`netease_search_fill.language|upload_user_id`；
-  改动只读清单时要同步更新 `SystemSettingRegistryTest` 里的名单用例。
+- **不在清单里的键 = 后台既看不到也改不了**：`SystemSettingRegistry` 是「后台可见可改键」的唯一
+  清单，不在其中的键（如 `video_render.non_vip_max_duration_sec`、`netease_search_fill.language|
+  upload_user_id` 这类写死的策略项）由 `ConfigManager` 的字段默认值 / `config.yml` 决定，
+  既不进 `system_settings` 表、也不出现在后台；`SystemSettingsDatabaseManager.pruneUnregistered()`
+  会在启动时清掉表里遗留的非清单键。改动清单时要同步更新 `SystemSettingRegistryTest` 的名单用例。
 - 启动期绑定的项（端口、线程池、连接池、Redis 地址等）用 `.restart()` 标注，后台保存后回提示
   「需重启」，服务端不做热重载。
 

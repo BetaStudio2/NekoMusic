@@ -143,10 +143,7 @@ public class Main {
         // 之后用表里的值覆盖配置树。必须在依赖配置的服务（Redis 等）之前完成。
         systemSettingsDatabaseManager = new SystemSettingsDatabaseManager(databaseManager);
         systemSettingsDatabaseManager.seedIfEmpty(configManager);
-        int prunedSettings = systemSettingsDatabaseManager.pruneReadOnly();
-        if (prunedSettings > 0) {
-            logger.info("已清理 {} 条只读设置的历史残留", prunedSettings);
-        }
+        systemSettingsDatabaseManager.pruneUnregistered();
         java.util.Map<String, String> storedSettings = systemSettingsDatabaseManager.loadAll();
         configManager.applyOverrides(storedSettings);
         logger.info("已从数据库加载 {} 条系统设置", storedSettings.size());

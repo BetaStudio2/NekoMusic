@@ -39,8 +39,8 @@ class ConfigManagerOverrideTest {
     }
 
     @Test
-    @DisplayName("只读项：不走数据库覆盖，直接改表也不会生效")
-    void readOnlyKeysAreNotOverridable() {
+    @DisplayName("策略项：不在清单里，数据库给什么都不会生效")
+    void policyKeysAreNotOverridable() {
         ConfigManager config = new ConfigManager();
         config.applyOverrides(Map.of(
                 "video_render.non_vip_max_duration_sec", "99",
@@ -48,7 +48,7 @@ class ConfigManagerOverrideTest {
                 "netease_search_fill.upload_user_id", "7",
                 "video_render.non_vip_daily_limit", "5"));
 
-        assertEquals(15, config.getVideoRenderNonVipMaxDurationSec(), "只读项不应被数据库值改写");
+        assertEquals(30, config.getVideoRenderNonVipMaxDurationSec(), "策略项不应被数据库值改写");
         assertEquals("", config.getNeteaseFillLanguage());
         assertEquals(null, config.getNeteaseFillUploadUserId());
         assertEquals(5, config.getVideoRenderNonVipDailyLimit(), "同批次的普通项仍应生效");
@@ -62,8 +62,10 @@ class ConfigManagerOverrideTest {
 
         assertEquals(65535, filled.get("port").asInt(), "端口应落到出厂默认端口");
         assertEquals("", filled.get("smtp").get("host").asText(), "出厂默认值允许是空串");
-        assertEquals("30", filled.get("video_render").get("non_vip_max_duration_sec").asText(),
-                "只读项也靠出厂默认值兜底");
+        assertEquals("10", filled.get("video_render").get("non_vip_daily_limit").asText(),
+                "清单里的默认值要落进配置树");
+        assertTrue(filled.get("video_render").get("non_vip_max_duration_sec") == null,
+                "策略项不在清单里，不该被补成默认值");
 
         JsonNode kept = config.withRegistryDefaults(
                 JsonNodeFactory.instance.objectNode().put("port", 9999));

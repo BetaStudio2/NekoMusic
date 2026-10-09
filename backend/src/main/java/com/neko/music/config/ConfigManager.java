@@ -83,7 +83,8 @@ public class ConfigManager {
      */
     private String videoRenderPipeline = "cuda_native";
     /** 非 VIP 单次最长秒数 */
-    private int videoRenderNonVipMaxDurationSec = 15;
+    /** 非会员单次成片最长秒数；策略值，不在后台设置清单里，只认 config.yml 与这里的默认值 */
+    private int videoRenderNonVipMaxDurationSec = 30;
     /** 非 VIP 每日次数上限（Redis，东八区自然日） */
     private int videoRenderNonVipDailyLimit = 10;
     /** 异步渲染线程池大小 */
@@ -620,8 +621,7 @@ public class ConfigManager {
      * 变成「往配置树里注入任意路径」的入口。单条值非法时只跳过该条并记日志，不影响其它配置。</p>
      *
      * <p>取值语义：文本按原文写入；数值留空表示回落到出厂默认值；布尔按字面量写成真正的布尔；
-     * 列表按行拆成数组。只读项（见 {@link SystemSettingDefinition#readOnly()}）在这里直接忽略，
-     * 不会成为生效值。</p>
+     * 列表按行拆成数组。</p>
      *
      * @param overrides 键为点分路径（如 {@code video_render.worker_threads}），值为字符串形式
      */
@@ -641,11 +641,6 @@ public class ConfigManager {
                 continue;
             }
             SystemSettingDefinition def = definition.get();
-            if (def.readOnly()) {
-                // 只读项不进数据库；这里再挡一次，避免有人直接改表把只读项变成生效值
-                logger.warn("只读设置项已忽略: {}", key);
-                continue;
-            }
             JsonNode value = toJsonNode(def.type(), entry.getValue());
             if (value != null && value.isNull()) {
                 // 数值留空表示「恢复出厂默认值」：直接写默认值，绝不让 null 落到读取端被当成 0。
