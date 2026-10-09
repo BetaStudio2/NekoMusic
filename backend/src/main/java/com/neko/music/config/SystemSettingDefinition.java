@@ -58,7 +58,7 @@ public record SystemSettingDefinition(
         STORAGE("存储"),
         VIDEO_RENDER("视频渲染"),
         NETEASE("网易云补全"),
-        RECOMMENDATION("每日推荐 AI"),
+        RECOMMENDATION("每日推荐"),
         RECOGNITION("听歌识曲"),
         PAY("支付");
 

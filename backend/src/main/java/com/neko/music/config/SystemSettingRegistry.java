@@ -133,26 +133,9 @@ public final class SystemSettingRegistry {
             number("netease_search_fill.max_parallel_fills", Group.NETEASE, "最大并发补全数", "10", 1, 10,
                     "批量搜索时的全局并发上限"),
 
-            // ---------- 每日推荐 AI ----------
-            flag("recommendation_ai.enabled", Group.RECOMMENDATION, "启用 AI 推荐", true,
-                    "关闭后回退为规则排序"),
-            text("recommendation_ai.base_url", Group.RECOMMENDATION, "接口地址", "http://ai.nekocore.cn/v1",
-                    "OpenAI 兼容接口的 Base URL，不要带尾斜杠"),
-            secret("recommendation_ai.api_key", Group.RECOMMENDATION, "API Key", "调用推荐模型所用的密钥"),
-            text("recommendation_ai.model", Group.RECOMMENDATION, "模型", "gemini-3.6-Flash",
-                    "OpenAI 兼容的模型名"),
-            decimal("recommendation_ai.temperature", Group.RECOMMENDATION, "温度", "0.3", 0, 2,
-                    "采样温度，越大越发散"),
-            decimal("recommendation_ai.top_p", Group.RECOMMENDATION, "Top P", "0.9", 0, 1,
-                    "核采样阈值"),
-            number("recommendation_ai.max_tokens", Group.RECOMMENDATION, "最大 Token 数", "8000", 1, 1000000,
-                    "单次生成的最大 token 数"),
-            number("recommendation_ai.timeout_seconds", Group.RECOMMENDATION, "HTTP 超时（秒）", "60", 1, 600,
-                    "调用模型的超时时间"),
-            number("recommendation_ai.daily_limit", Group.RECOMMENDATION, "每人每日条数", "300", 1, 10000,
+            // ---------- 每日推荐 ----------
+            number("recommendation.daily_limit", Group.RECOMMENDATION, "每人每日条数", "300", 1, 10000,
                     "每个用户每天产出的推荐条数"),
-            flag("recommendation_ai.fallback_to_rule", Group.RECOMMENDATION, "失败时回退规则推荐", true,
-                    "AI 请求失败时是否自动回退"),
 
             // ---------- 听歌识曲 ----------
             flag("music_recognition.enabled", Group.RECOGNITION, "启用听歌识曲", true,
