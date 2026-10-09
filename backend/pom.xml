@@ -334,6 +334,19 @@
                                         <exclude>README.md</exclude>
                                         <exclude>module-info.class</exclude>
                                         <exclude>META-INF/versions/*/module-info.class</exclude>
+                                        <!-- 运行环境只有 Linux（容器/服务器），依赖里的 Windows 原生库与
+                                             Win32 绑定一律不打包，包体里不留任何 .dll / win32 内容。
+                                             来源：jna（jnidispatch.dll、com/sun/jna/win32 类）、
+                                             argon2-jvm（win32-x86* 下的 argon2.dll）。 -->
+                                        <exclude>**/*.dll</exclude>
+                                        <exclude>**/*.DLL</exclude>
+                                        <exclude>**/*.exe</exclude>
+                                        <exclude>**/*.EXE</exclude>
+                                        <exclude>**/*.lib</exclude>
+                                        <exclude>**/*.pdb</exclude>
+                                        <exclude>win32-*/**</exclude>
+                                        <exclude>com/sun/jna/win32/**</exclude>
+                                        <exclude>com/sun/jna/win32-*/**</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
