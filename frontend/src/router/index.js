@@ -22,6 +22,7 @@ const adminGuard = (to) => {
         if (to.path.startsWith('/admin/music') || to.path.startsWith('/admin/lyrics')) return '/admin'
         if (to.path.startsWith('/admin/vip-pricing')) return '/admin'
         if (to.path.startsWith('/admin/releases')) return '/admin'
+        if (to.path.startsWith('/admin/settings')) return '/admin'
       }
     } catch {
       /* adminInfo 损坏时按已登录处理，交由页面自行兜底 */
@@ -302,6 +303,17 @@ const router = createRouter({
             title: '客户端更新 - Neko歌姬计划',
             description: '管理客户端版本号与安装包上传。',
             keywords: '客户端,更新,安装包,管理'
+          }
+        },
+        {
+          path: 'settings',
+          name: 'admin-settings',
+          component: () => import('@/views/admin/AdminSettingsView.vue'),
+          beforeEnter: adminGuard,
+          meta: {
+            title: '系统设置 - Neko歌姬计划',
+            description: '维护平台运行时配置。',
+            keywords: '系统设置,配置,管理'
           }
         },
       ]
