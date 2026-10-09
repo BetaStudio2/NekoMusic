@@ -1,5 +1,7 @@
 package com.neko.music.config;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -34,6 +36,38 @@ class ConfigManagerOverrideTest {
         assertEquals(7, config.getVideoRenderWorkerThreads());
         assertFalse(config.isCrawlerProtectionEnabled());
         assertEquals("smtp.example.com", config.getSmtpHost());
+    }
+
+    @Test
+    @DisplayName("只读项：不走数据库覆盖，直接改表也不会生效")
+    void readOnlyKeysAreNotOverridable() {
+        ConfigManager config = new ConfigManager();
+        config.applyOverrides(Map.of(
+                "video_render.non_vip_max_duration_sec", "99",
+                "netease_search_fill.language", "日语",
+                "netease_search_fill.upload_user_id", "7",
+                "video_render.non_vip_daily_limit", "5"));
+
+        assertEquals(15, config.getVideoRenderNonVipMaxDurationSec(), "只读项不应被数据库值改写");
+        assertEquals("", config.getNeteaseFillLanguage());
+        assertEquals(null, config.getNeteaseFillUploadUserId());
+        assertEquals(5, config.getVideoRenderNonVipDailyLimit(), "同批次的普通项仍应生效");
+    }
+
+    @Test
+    @DisplayName("出厂默认值补全：文件里缺省的登记键落回出厂默认值")
+    void registryDefaultsFillMissingKeys() {
+        ConfigManager config = new ConfigManager();
+        JsonNode filled = config.withRegistryDefaults(null); // 相当于 config.yml 什么都没有
+
+        assertEquals(65535, filled.get("port").asInt(), "端口应落到出厂默认端口");
+        assertEquals("", filled.get("smtp").get("host").asText(), "出厂默认值允许是空串");
+        assertEquals("30", filled.get("video_render").get("non_vip_max_duration_sec").asText(),
+                "只读项也靠出厂默认值兜底");
+
+        JsonNode kept = config.withRegistryDefaults(
+                JsonNodeFactory.instance.objectNode().put("port", 9999));
+        assertEquals(9999, kept.get("port").asInt(), "文件里已有的值不能被默认值覆盖");
     }
 
     @Test
@@ -87,17 +121,6 @@ class ConfigManagerOverrideTest {
 
         config.applyOverrides(Map.of("port", ""));
         assertEquals(65535, config.getPort(), "端口留空应回到默认端口，而不是随机端口");
-    }
-
-    @Test
-    @DisplayName("数值留空且无出厂默认值：摘掉该键，读取端走自己的缺省分支")
-    void blankNumericWithoutDefaultIsRemoved() {
-        ConfigManager config = new ConfigManager();
-        config.applyOverrides(Map.of("netease_search_fill.upload_user_id", "42"));
-        assertEquals(42, config.getNeteaseFillUploadUserId());
-
-        config.applyOverrides(Map.of("netease_search_fill.upload_user_id", ""));
-        assertTrue(config.effectiveValue("netease_search_fill.upload_user_id").isEmpty());
     }
 
     @Test

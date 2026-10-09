@@ -63,6 +63,9 @@ public class SystemSettingsDatabaseManager {
             }
             Map<String, String> seeds = new LinkedHashMap<>();
             for (SystemSettingDefinition definition : SystemSettingRegistry.all()) {
+                if (definition.readOnly()) {
+                    continue; // 只读项的值只来自 config.yml / 出厂默认值，不落库
+                }
                 String value = definition.defaultValue();
                 if (configManager != null) {
                     value = configManager.effectiveValue(definition.key()).orElse(value);
@@ -96,8 +99,10 @@ public class SystemSettingsDatabaseManager {
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             for (Map.Entry<String, String> entry : values.entrySet()) {
-                if (SystemSettingRegistry.find(entry.getKey()).isEmpty()) {
-                    continue;
+                SystemSettingDefinition definition =
+                        SystemSettingRegistry.find(entry.getKey()).orElse(null);
+                if (definition == null || definition.readOnly()) {
+                    continue; // 未登记或只读的键都不落库
                 }
                 ps.setString(1, entry.getKey());
                 ps.setString(2, entry.getValue() == null ? "" : entry.getValue());
