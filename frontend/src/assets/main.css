@@ -131,9 +131,14 @@ select:focus-visible,
   border-radius: 999px;
 }
 
+/* vue-toastification 会为【全部 6 个方位】各渲染一个固定的容器 div（见
+   VtToastContainer 的 render：对 positions 逐项渲染 VtTransition），即使某个方位
+   没有吐司也存在。库自身给容器设了 pointer-events: none，吐司本体才是 auto。
+   这里原先误把容器也改成 auto，导致 6 个空容器（600px 宽 / min-height:100%）
+   整片拦截页面点击。容器必须保持 none，只让吐司本体可点。 */
 .Vue-Toastification__container {
   z-index: 2147483647 !important;
-  pointer-events: auto !important;
+  pointer-events: none !important;
 }
 
 .Vue-Toastification__toast {
