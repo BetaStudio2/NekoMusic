@@ -334,12 +334,14 @@
                                         <exclude>README.md</exclude>
                                         <exclude>module-info.class</exclude>
                                         <exclude>META-INF/versions/*/module-info.class</exclude>
-                                        <!-- 运行环境只有 Linux（容器/服务器），依赖里的 Windows 原生库与
-                                             Win32 绑定一律不打包，包体里不留任何 .dll / win32 内容。
-                                             来源：jna（jnidispatch.dll、com/sun/jna/win32 类）、
-                                             argon2-jvm（win32-x86* 下的 argon2.dll）。 -->
+                                        <!-- 运行环境只有 Linux（容器/服务器）：依赖里非 Linux 的原生库与平台
+                                             绑定一律不打包，只保留 Linux 的部分。
+                                             来源：jna（各平台 jnidispatch + win32 类）、
+                                             argon2-jvm（各平台 libargon2）。 -->
                                         <exclude>**/*.dll</exclude>
                                         <exclude>**/*.DLL</exclude>
+                                        <exclude>**/*.dylib</exclude>
+                                        <exclude>**/*.jnilib</exclude>
                                         <exclude>**/*.exe</exclude>
                                         <exclude>**/*.EXE</exclude>
                                         <exclude>**/*.lib</exclude>
@@ -347,6 +349,12 @@
                                         <exclude>win32-*/**</exclude>
                                         <exclude>com/sun/jna/win32/**</exclude>
                                         <exclude>com/sun/jna/win32-*/**</exclude>
+                                        <exclude>**/darwin-*/**</exclude>
+                                        <exclude>**/aix-*/**</exclude>
+                                        <exclude>**/dragonflybsd-*/**</exclude>
+                                        <exclude>**/freebsd-*/**</exclude>
+                                        <exclude>**/openbsd-*/**</exclude>
+                                        <exclude>**/sunos-*/**</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
