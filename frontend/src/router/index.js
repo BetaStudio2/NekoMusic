@@ -154,6 +154,16 @@ const router = createRouter({
       }
     },
     {
+      path: '/notifications',
+      name: 'notifications',
+      component: () => import('@/views/NotificationsView.vue'),
+      meta: {
+        title: '消息中心 - Neko歌姬计划',
+        description: '查看评论回复等站内消息，离线期间的消息上线后自动补齐。',
+        keywords: '消息中心,站内消息,评论回复,通知'
+      }
+    },
+    {
       path: '/account',
       name: 'account',
       component: () => import('@/views/UserProfileView.vue'),

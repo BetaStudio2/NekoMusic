@@ -21,6 +21,7 @@ import { playTrack, playTracks } from '@/composables/usePlaybackBridge'
 import { syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
 import { avatarUrl, useAvatarVersion } from '@/utils/userAvatar.js'
 import { getUser, clearUser, loadUserInfo } from '@/utils/userStore.js'
+import { fetchUnreadCount, NOTIFICATION_SYNC_EVENT } from '@/api/notifications.js'
 
 const router = useRouter()
 
@@ -54,9 +55,32 @@ function handleStorageChange(event) {
     // 登录 / 登出 / 换账号：资料只在内存里，Token 变了就重新拉一次
     initializeUserState()
     loadUserInfo({ force: true })
+    refreshUnread()
     return
   }
   if (event.key === 'user') initializeUserState()
+}
+
+// ── 站内消息红点 ──────────────────────────────────────────────
+// 只轮询未读数（单请求很轻），消息内容在消息中心按游标补拉；页面可见时才轮询，
+// 标签页切回前台也会立刻刷新一次，避免把红点压在新消息上。
+const unreadCount = ref(0)
+let unreadTimer = null
+
+async function refreshUnread() {
+  if (!isLoggedIn.value) {
+    unreadCount.value = 0
+    return
+  }
+  try {
+    unreadCount.value = await fetchUnreadCount()
+  } catch {
+    // 红点失败不影响顶栏其它功能，静默即可
+  }
+}
+
+function handleVisibilityChange() {
+  if (!document.hidden) refreshUnread()
 }
 
 const avatarVersion = useAvatarVersion()
@@ -178,13 +202,22 @@ onMounted(async () => {
   document.addEventListener('click', handleClickOutside)
   await syncUserVipFromPlaylistsApi()
   initializeUserState()
+  refreshUnread()
+  window.addEventListener(NOTIFICATION_SYNC_EVENT, refreshUnread)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  unreadTimer = setInterval(() => {
+    if (!document.hidden) refreshUnread()
+  }, 60000)
 })
 
 onUnmounted(() => {
   if (debounceTimer) clearTimeout(debounceTimer)
   window.removeEventListener('storage', handleStorageChange)
   window.removeEventListener(USER_VIP_SYNC_EVENT, initializeUserState)
+  window.removeEventListener(NOTIFICATION_SYNC_EVENT, refreshUnread)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
   document.removeEventListener('click', handleClickOutside)
+  if (unreadTimer) clearInterval(unreadTimer)
 })
 </script>
 
@@ -261,6 +294,17 @@ onUnmounted(() => {
             VIP
           </RouterLink>
 
+          <RouterLink
+            to="/notifications"
+            class="site-header__notice"
+            :title="unreadCount > 0 ? `消息中心（${unreadCount} 条未读）` : '消息中心'"
+          >
+            <NIcon name="bell" :size="18" />
+            <span v-if="unreadCount > 0" class="site-header__notice-badge">
+              {{ unreadCount > 99 ? '99+' : unreadCount }}
+            </span>
+          </RouterLink>
+
           <NButton size="sm" variant="ghost" icon="list-music" to="/playlists" title="我的歌单" />
           <NButton size="sm" variant="ghost" icon="heart" to="/favorites" title="我的收藏" />
           <NButton size="sm" variant="danger" icon="logout" @click="logout">退出</NButton>
@@ -308,6 +352,39 @@ onUnmounted(() => {
   .site-header__logo:hover {
     color: var(--n-accent-strong);
   }
+}
+
+/* ===== 站内消息红点 ===== */
+.site-header__notice {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--n-radius-sm);
+  color: var(--n-text-muted);
+}
+@media (hover: hover) {
+  .site-header__notice:hover {
+    color: var(--n-text);
+    background: var(--n-surface-hover);
+  }
+}
+.site-header__notice-badge {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--n-radius-pill);
+  background: var(--n-danger);
+  color: var(--n-text-inverse);
+  font-size: 0.6875rem;
+  font-weight: var(--n-weight-bold);
+  line-height: 16px;
+  text-align: center;
 }
 
 /* ===== 搜索 ===== */
