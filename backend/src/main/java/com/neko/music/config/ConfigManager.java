@@ -119,17 +119,8 @@ public class ConfigManager {
     private String zpayPublicBaseUrl = "";
     private String zpayFrontendReturnUrl = "";
 
-    /** 每日推荐 AI（OpenAI 兼容） */
-    private boolean recommendationAiEnabled = false;
-    private String recommendationAiBaseUrl = "https://api.openai.com/v1";
-    private String recommendationAiApiKey = "";
-    private String recommendationAiModel = "gpt-4o-mini";
-    private double recommendationAiTemperature = 0.3d;
-    private double recommendationAiTopP = 0.9d;
-    private int recommendationAiMaxTokens = 800;
-    private int recommendationAiTimeoutSeconds = 20;
-    private int recommendationAiDailyLimit = 30;
-    private boolean recommendationAiFallbackToRule = true;
+    /** 每日推荐：每个用户每天产出的推荐条数 */
+    private int recommendationDailyLimit = 300;
 
     /**
      * 可信客户端 IP 头：{@code auto}（自适应多 CDN 头，默认）/ 具体头名 /
@@ -491,39 +482,10 @@ public class ConfigManager {
                     if (zpayNode.has("frontend_return_url")) zpayFrontendReturnUrl = zpayNode.get("frontend_return_url").asText("").trim();
                 }
 
-                JsonNode recommendationAiNode = configNode.get("recommendation_ai");
-                if (recommendationAiNode != null) {
-                    if (recommendationAiNode.has("enabled")) {
-                        recommendationAiEnabled = recommendationAiNode.get("enabled").asBoolean();
-                    }
-                    if (recommendationAiNode.has("base_url")) {
-                        recommendationAiBaseUrl = recommendationAiNode.get("base_url")
-                                .asText(recommendationAiBaseUrl).trim();
-                    }
-                    if (recommendationAiNode.has("api_key")) {
-                        recommendationAiApiKey = recommendationAiNode.get("api_key").asText("").trim();
-                    }
-                    if (recommendationAiNode.has("model")) {
-                        recommendationAiModel = recommendationAiNode.get("model")
-                                .asText(recommendationAiModel).trim();
-                    }
-                    if (recommendationAiNode.has("temperature")) {
-                        recommendationAiTemperature = recommendationAiNode.get("temperature").asDouble();
-                    }
-                    if (recommendationAiNode.has("top_p")) {
-                        recommendationAiTopP = recommendationAiNode.get("top_p").asDouble();
-                    }
-                    if (recommendationAiNode.has("max_tokens")) {
-                        recommendationAiMaxTokens = recommendationAiNode.get("max_tokens").asInt();
-                    }
-                    if (recommendationAiNode.has("timeout_seconds")) {
-                        recommendationAiTimeoutSeconds = recommendationAiNode.get("timeout_seconds").asInt();
-                    }
-                    if (recommendationAiNode.has("daily_limit")) {
-                        recommendationAiDailyLimit = recommendationAiNode.get("daily_limit").asInt();
-                    }
-                    if (recommendationAiNode.has("fallback_to_rule")) {
-                        recommendationAiFallbackToRule = recommendationAiNode.get("fallback_to_rule").asBoolean();
+                JsonNode recommendationNode = configNode.get("recommendation");
+                if (recommendationNode != null) {
+                    if (recommendationNode.has("daily_limit")) {
+                        recommendationDailyLimit = recommendationNode.get("daily_limit").asInt();
                     }
                 }
 
@@ -600,9 +562,7 @@ public class ConfigManager {
                     neteaseMaxParallelFills, !neteaseCookie.isEmpty());
             logger.info("  ZPay 支付: enabled={}, pidConfigured={}, publicBaseUrlConfigured={}",
                     zpayEnabled, !zpayPid.isEmpty(), !zpayPublicBaseUrl.isEmpty());
-            logger.info("  推荐 AI(OpenAI): enabled={}, baseUrl={}, model={}, apiKeyConfigured={}, dailyLimit={}, fallbackToRule={}",
-                    recommendationAiEnabled, recommendationAiBaseUrl, recommendationAiModel,
-                    !recommendationAiApiKey.isEmpty(), recommendationAiDailyLimit, recommendationAiFallbackToRule);
+            logger.info("  每日推荐: dailyLimit={}", recommendationDailyLimit);
             logger.info("  听歌识曲: enabled={}, maxUploadBytes={}, sampleDuration={}..{}s, rateLimit={}/min, maxConcurrent={}, indexBuildThreads={}",
                     musicRecognitionEnabled, musicRecognitionMaxUploadBytes,
                     musicRecognitionMinSampleDurationSeconds, musicRecognitionMaxSampleDurationSeconds,
@@ -772,17 +732,7 @@ public class ConfigManager {
         if (neteaseFillLanguage == null) {
             neteaseFillLanguage = "";
         }
-        if (recommendationAiBaseUrl == null || recommendationAiBaseUrl.isBlank()) {
-            recommendationAiBaseUrl = "https://api.openai.com/v1";
-        }
-        if (recommendationAiModel == null || recommendationAiModel.isBlank()) {
-            recommendationAiModel = "gpt-4o-mini";
-        }
-        recommendationAiTemperature = Math.max(0.0d, Math.min(2.0d, recommendationAiTemperature));
-        recommendationAiTopP = Math.max(0.0d, Math.min(1.0d, recommendationAiTopP));
-        recommendationAiMaxTokens = Math.max(64, Math.min(16_384, recommendationAiMaxTokens));
-        recommendationAiTimeoutSeconds = Math.max(3, Math.min(300, recommendationAiTimeoutSeconds));
-        recommendationAiDailyLimit = Math.max(1, Math.min(500, recommendationAiDailyLimit));
+        recommendationDailyLimit = Math.max(1, Math.min(10_000, recommendationDailyLimit));
         musicRecognitionMaxUploadBytes = Math.max(256L * 1024L,
                 Math.min(64L * 1024L * 1024L, musicRecognitionMaxUploadBytes));
         musicRecognitionMinSampleDurationSeconds = Math.max(1,
@@ -1175,44 +1125,8 @@ public class ConfigManager {
         return site + "/vip";
     }
 
-    public boolean isRecommendationAiEnabled() {
-        return recommendationAiEnabled;
-    }
-
-    public String getRecommendationAiBaseUrl() {
-        return trimTrailingSlash(recommendationAiBaseUrl);
-    }
-
-    public String getRecommendationAiApiKey() {
-        return recommendationAiApiKey == null ? "" : recommendationAiApiKey;
-    }
-
-    public String getRecommendationAiModel() {
-        return recommendationAiModel;
-    }
-
-    public double getRecommendationAiTemperature() {
-        return recommendationAiTemperature;
-    }
-
-    public double getRecommendationAiTopP() {
-        return recommendationAiTopP;
-    }
-
-    public int getRecommendationAiMaxTokens() {
-        return recommendationAiMaxTokens;
-    }
-
-    public int getRecommendationAiTimeoutSeconds() {
-        return recommendationAiTimeoutSeconds;
-    }
-
-    public int getRecommendationAiDailyLimit() {
-        return recommendationAiDailyLimit;
-    }
-
-    public boolean isRecommendationAiFallbackToRule() {
-        return recommendationAiFallbackToRule;
+    public int getRecommendationDailyLimit() {
+        return recommendationDailyLimit;
     }
 
     public boolean isMusicRecognitionEnabled() { return musicRecognitionEnabled; }

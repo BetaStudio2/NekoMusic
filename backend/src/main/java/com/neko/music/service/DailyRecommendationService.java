@@ -7,11 +7,6 @@ import com.neko.music.config.ConfigManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -173,7 +168,7 @@ public class DailyRecommendationService {
         Set<Integer> favoritePlaylistMusicIds = loadFavoritePlaylistMusicIds(userId);
         // 画像先于候选加载：多路召回需要用到用户偏好
         UserProfile profile = loadUserProfile(userId);
-        int candidateLimit = configManager.getRecommendationAiDailyLimit() * 8;
+        int candidateLimit = configManager.getRecommendationDailyLimit() * 8;
         CandidatePool pool = loadCandidates(userId, favoriteIds, profile, recDate, candidateLimit);
         List<SongCandidate> candidates = pool.candidates();
         if (candidates.isEmpty()) {
@@ -189,11 +184,10 @@ public class DailyRecommendationService {
                 pool.playlistScores());
         ranked = applyCrossDayPenalty(ranked, daysSinceRecommended);
         ranked = applyDayScoreJitter(ranked, userId, recDate);
-        ranked = applyAiRerankIfEnabled(userId, profile, ranked, candidates, recDate);
         ranked = deprioritizePlaylistMusic(ranked, ownPlaylistMusicIds, favoritePlaylistMusicIds);
         ranked = strictFilterFavorites(ranked, favoriteIds);
 
-        int limit = configManager.getRecommendationAiDailyLimit();
+        int limit = configManager.getRecommendationDailyLimit();
         ranked = selectDiverseList(ranked, candidateById, limit);
         cacheRecommendations(userId, recDate, ranked, candidates);
         logger.info("每日推荐已写入Redis userId={} date={} count={}", userId, recDate, ranked.size());
@@ -905,7 +899,7 @@ public class DailyRecommendationService {
         return selected;
     }
 
-    /** AI 重排后仍将歌单内曲目靠后排列，避免被顶到前列。 */
+    /** 规则排序后仍将歌单内曲目靠后排列，避免被顶到前列。 */
     private List<RecommendationItem> deprioritizePlaylistMusic(List<RecommendationItem> ranked,
                                                                Set<Integer> ownPlaylistMusicIds,
                                                                Set<Integer> favoritePlaylistMusicIds) {
@@ -924,140 +918,6 @@ public class DailyRecommendationService {
         primary.addAll(fromFavoritePlaylist);
         primary.addAll(fromOwnPlaylist);
         return primary;
-    }
-
-    private List<RecommendationItem> applyAiRerankIfEnabled(int userId,
-                                                            UserProfile profile,
-                                                            List<RecommendationItem> ranked,
-                                                            List<SongCandidate> candidates,
-                                                            LocalDate recDate) {
-        if (!configManager.isRecommendationAiEnabled()) {
-            return ranked;
-        }
-        String apiKey = configManager.getRecommendationAiApiKey();
-        if (apiKey.isBlank()) {
-            logger.warn("recommendation_ai.enabled=true 但 api_key 为空，回退规则排序");
-            return ranked;
-        }
-
-        try {
-            List<Integer> topIds = ranked.stream().limit(80).map(RecommendationItem::musicId).toList();
-            Map<Integer, RecommendationItem> byId = indexBy(ranked, RecommendationItem::musicId);
-            Map<Integer, SongCandidate> candidateMap = indexBy(candidates, SongCandidate::id);
-            String response = callOpenAiForRerank(userId, profile, topIds, candidateMap, recDate);
-            List<RecommendationItem> aiRanked = parseAiRerankResponse(response, byId);
-            if (aiRanked.isEmpty()) {
-                return ranked;
-            }
-            Set<Integer> added = aiRanked.stream().map(RecommendationItem::musicId).collect(Collectors.toSet());
-            for (RecommendationItem item : ranked) {
-                if (!added.contains(item.musicId)) {
-                    aiRanked.add(item);
-                }
-            }
-            return aiRanked;
-        } catch (Exception e) {
-            logger.error("AI 重排失败 userId={}", userId, e);
-            return ranked;
-        }
-    }
-
-    private String callOpenAiForRerank(int userId,
-                                       UserProfile profile,
-                                       List<Integer> candidateIds,
-                                       Map<Integer, SongCandidate> candidateMap,
-                                       LocalDate recDate) throws Exception {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("model", configManager.getRecommendationAiModel());
-        payload.put("temperature", configManager.getRecommendationAiTemperature());
-        payload.put("top_p", configManager.getRecommendationAiTopP());
-        payload.put("max_tokens", configManager.getRecommendationAiMaxTokens());
-
-        List<Map<String, Object>> candidateMeta = new ArrayList<>();
-        for (Integer id : candidateIds) {
-            SongCandidate c = candidateMap.get(id);
-            if (c == null) {
-                continue;
-            }
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("id", c.id);
-            row.put("title", nullToEmpty(c.title));
-            row.put("artist", nullToEmpty(c.artist));
-            row.put("language", nullToEmpty(c.language));
-            row.put("tags", nullToEmpty(c.tags));
-            candidateMeta.add(row);
-        }
-
-        List<Map<String, String>> messages = new ArrayList<>();
-        messages.add(Map.of(
-                "role", "system",
-                "content", "你是音乐推荐重排器。只返回严格JSON，不要markdown，不要代码块。"
-                        + "输出字段: recommended_song_ids(int数组), reasons(对象: key是song_id字符串,value是中文一句理由)。"
-                        + "理由必须只基于提供的候选歌曲信息(title/artist/language/tags)与用户画像，不得编造未提供的歌手或歌曲信息。"
-                        + "重排时优先保证列表多样性：同一艺人尽量不超过2首，语种与风格标签尽量分散，避免高度同质。"
-        ));
-        messages.add(Map.of(
-                "role", "user",
-                "content", "user_id=" + userId +
-                        "\nrec_date=" + recDate +
-                        "\nprofile_top_artists=" + topKeys(profile.artistWeights(), 5) +
-                        "\nprofile_top_languages=" + topKeys(profile.languageWeights(), 3) +
-                        "\nprofile_top_tags=" + topKeys(profile.tagWeights(), 10) +
-                        "\ncandidates=" + objectMapper.writeValueAsString(candidateMeta) +
-                        "\n要求：只从 candidates 的 id 中选择，且最多返回" + configManager.getRecommendationAiDailyLimit() + "首。"
-                        + "兼顾用户口味与当日新鲜感：可保留部分偏好匹配，但不要集中同一艺人/同一语种。"
-                        + "\n每条理由长度 8-28 个中文字符，禁止出现乱码或控制字符。"
-        ));
-        payload.put("messages", messages);
-
-        String body = objectMapper.writeValueAsString(payload);
-        String url = configManager.getRecommendationAiBaseUrl() + "/chat/completions";
-        HttpClient client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(configManager.getRecommendationAiTimeoutSeconds()))
-                .build();
-        HttpRequest req = HttpRequest.newBuilder(URI.create(url))
-                .timeout(Duration.ofSeconds(configManager.getRecommendationAiTimeoutSeconds()))
-                .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + configManager.getRecommendationAiApiKey())
-                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
-                .build();
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
-            throw new IllegalStateException("OpenAI HTTP " + resp.statusCode() + ": " + resp.body());
-        }
-        JsonNode root = objectMapper.readTree(resp.body());
-        JsonNode content = root.path("choices").path(0).path("message").path("content");
-        if (content.isMissingNode() || content.asText().isBlank()) {
-            throw new IllegalStateException("OpenAI 返回为空");
-        }
-        return content.asText();
-    }
-
-    private List<RecommendationItem> parseAiRerankResponse(String rawContent, Map<Integer, RecommendationItem> byId) {
-        List<RecommendationItem> out = new ArrayList<>();
-        try {
-            JsonNode json = objectMapper.readTree(extractJson(rawContent));
-            JsonNode arr = json.path("recommended_song_ids");
-            JsonNode reasonsNode = json.path("reasons");
-            if (!arr.isArray()) {
-                return out;
-            }
-            for (JsonNode idNode : arr) {
-                int id = idNode.asInt(-1);
-                if (id <= 0 || !byId.containsKey(id)) {
-                    continue;
-                }
-                String reason = "AI重排推荐";
-                if (reasonsNode != null && reasonsNode.has(String.valueOf(id))) {
-                    reason = sanitizeReason(reasonsNode.get(String.valueOf(id)).asText(reason));
-                }
-                RecommendationItem base = byId.get(id);
-                out.add(new RecommendationItem(id, base.score, "ai", reason));
-            }
-        } catch (Exception ignore) {
-            return List.of();
-        }
-        return out;
     }
 
     private List<RecommendationItem> strictFilterFavorites(List<RecommendationItem> ranked, Set<Integer> favoriteIds) {
@@ -1273,24 +1133,9 @@ public class DailyRecommendationService {
         return out;
     }
 
-    private static String extractJson(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return "{}";
-        }
-        String s = raw.trim();
-        if (s.startsWith("```")) {
-            int first = s.indexOf('{');
-            int last = s.lastIndexOf('}');
-            if (first >= 0 && last > first) {
-                return s.substring(first, last + 1);
-            }
-        }
-        return s;
-    }
-
     private static String sanitizeReason(String reason) {
         if (reason == null || reason.isBlank()) {
-            return "AI重排推荐";
+            return "为你推荐";
         }
         String cleaned = reason
                 .replaceAll("[\\p{Cntrl}&&[^\r\n\t]]", "")
@@ -1300,7 +1145,7 @@ public class DailyRecommendationService {
             cleaned = cleaned.substring(0, 40);
         }
         if (cleaned.isBlank()) {
-            return "AI重排推荐";
+            return "为你推荐";
         }
         return cleaned;
     }
