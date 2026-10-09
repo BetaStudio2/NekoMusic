@@ -77,6 +77,7 @@
           <button type="button" class="row__info" @click="playMusic(music)">
             <span class="row__title">
               <span class="row__title-text">{{ music.title }}</span>
+              <NowPlayingTag v-if="isCurrentMusic(music.id)" />
               <QualityBadge :quality="music.maxQuality" />
             </span>
             <span class="row__artist">{{ music.artist }}</span>
@@ -162,7 +163,8 @@ import NIcon from '@/icons/NIcon.vue'
 import QualityBadge from '@/components/QualityBadge.vue'
 import { NButton, NCard, NInput, NModal, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
-import { playTracks, playTrackInList } from '@/composables/usePlaybackBridge'
+import { playTracks, playTrackInList, isCurrentMusic } from '@/composables/usePlaybackBridge'
+import NowPlayingTag from '@/components/NowPlayingTag.vue'
 import { tryOpenPlaylistInApp } from '@/utils/nativeAppOpen.js'
 import { getUser } from '@/utils/userStore.js'
 import { coverSrcset } from '@/utils/coverImage'
