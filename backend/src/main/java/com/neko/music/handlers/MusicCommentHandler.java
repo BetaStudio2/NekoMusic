@@ -51,6 +51,8 @@ public class MusicCommentHandler extends ApiServlet {
     private static final int POST_INTERVAL_SECONDS = 5;
     /** 站内消息类型：有人回复了你的评论 */
     private static final String NOTIFY_TYPE_COMMENT_REPLY = "comment_reply";
+    /** 站内消息标题里展示的歌名长度上限（超出截断，避免整句被文案长度截掉） */
+    private static final int NOTIFY_TITLE_MUSIC_MAX_LENGTH = 40;
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -158,7 +160,8 @@ public class MusicCommentHandler extends ApiServlet {
             return;
         }
 
-        if (PublicMusicLookup.findById(musicId).isEmpty()) {
+        PublicMusicLookup.PublicMusic music = PublicMusicLookup.findById(musicId).orElse(null);
+        if (music == null) {
             sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "音乐不存在");
             return;
         }
@@ -195,7 +198,7 @@ public class MusicCommentHandler extends ApiServlet {
             return;
         }
 
-        notifyCommentReply(userId, replyToUserId, musicId, content);
+        notifyCommentReply(userId, replyToUserId, musicId, music.title, content);
 
         JsonObject data = new JsonObject();
         data.addProperty("id", newId);
@@ -218,7 +221,8 @@ public class MusicCommentHandler extends ApiServlet {
      *
      * <p>离线用户不需要任何长连接：下次打开收件箱带上游标补拉就能看到这条记录。</p>
      */
-    private void notifyCommentReply(int actorUserId, Integer receiverUserId, int musicId, String content) {
+    private void notifyCommentReply(int actorUserId, Integer receiverUserId, int musicId, String musicTitle,
+            String content) {
         if (receiverUserId == null || receiverUserId == actorUserId) {
             return;
         }
@@ -227,10 +231,13 @@ public class MusicCommentHandler extends ApiServlet {
                     .map(User::nickname)
                     .filter(name -> name != null && !name.isBlank())
                     .orElse("有人");
+            String songName = displayMusicTitle(musicTitle);
             int created = Main.getUserNotificationService().notify(
                     receiverUserId,
                     NOTIFY_TYPE_COMMENT_REPLY,
-                    actorNickname + " 回复了你的评论",
+                    songName == null
+                            ? actorNickname + " 回复了你的评论"
+                            : actorNickname + " 回复了你在《" + songName + "》下的评论",
                     content,
                     "/detail/" + musicId,
                     actorUserId);
@@ -241,6 +248,17 @@ public class MusicCommentHandler extends ApiServlet {
             // 通知只是评论的附带效果，失败不能影响已经成功的评论
             logger.error("评论回复站内消息异常: musicId={}, actor={}", musicId, actorUserId, e);
         }
+    }
+
+    /** 标题里的歌名：过长只截断展示，保证「《…》下的评论」这句提示不会被尾部截掉。 */
+    private static String displayMusicTitle(String title) {
+        if (title == null || title.isBlank()) {
+            return null;
+        }
+        String trimmed = title.trim();
+        return trimmed.length() <= NOTIFY_TITLE_MUSIC_MAX_LENGTH
+                ? trimmed
+                : trimmed.substring(0, NOTIFY_TITLE_MUSIC_MAX_LENGTH) + "…";
     }
 
     @Override
