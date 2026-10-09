@@ -21,7 +21,8 @@ import QualityBadge from '@/components/QualityBadge.vue'
 import { NButton, NCard, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
-import { playTrack, playTracks } from '@/composables/usePlaybackBridge'
+import { playTrack, playTracks, isCurrentMusic } from '@/composables/usePlaybackBridge'
+import NowPlayingTag from '@/components/NowPlayingTag.vue'
 
 const toast = useToast()
 const route = useRoute()
@@ -417,6 +418,7 @@ onMounted(async () => {
           >
             <span class="row__title">
               <span class="row__title-text">{{ result.title }}</span>
+              <NowPlayingTag v-if="isCurrentMusic(result.id)" />
               <QualityBadge :quality="result.maxQuality" />
               <NIcon v-if="result.lrc" name="file-text" :size="13" class="row__lyric" />
             </span>
@@ -426,9 +428,9 @@ onMounted(async () => {
           <div class="row__actions">
             <NButton
               size="sm"
-              variant="secondary"
-              icon="play"
-              title="播放"
+              :variant="isCurrentMusic(result.id) ? 'primary' : 'secondary'"
+              :icon="isCurrentMusic(result.id) ? 'volume-2' : 'play'"
+              :title="isCurrentMusic(result.id) ? '正在播放' : '播放'"
               @click="playFromResult(result, musicResults)"
             />
             <NButton

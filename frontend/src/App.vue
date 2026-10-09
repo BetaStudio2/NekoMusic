@@ -19,8 +19,15 @@ import MobileAppBanner from './components/MobileAppBanner.vue'
 import AuthDialog from './components/AuthDialog.vue'
 import PwaUpdateBanner from './components/PwaUpdateBanner.vue'
 import { isMobileDevice } from './utils/mobile.js'
+import { usePlaybackBridge } from './composables/usePlaybackBridge'
 
 const route = useRoute()
+
+/**
+ * 全局挂载播放状态桥：让任意页面都能读到统一的「正在播放」快照
+ * （列表高亮、播放条等共用同一数据源），而不再只在播放页才接线。
+ */
+usePlaybackBridge()
 
 /** 下载页独立布局：不显示顶栏、底栏与全局播放器 */
 const isDownloadPage = computed(() => route.name === 'download')

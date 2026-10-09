@@ -12,7 +12,8 @@ import QualityBadge from '@/components/QualityBadge.vue'
 import { NButton, NCard, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
-import { playTracks, playTrackInList } from '@/composables/usePlaybackBridge'
+import { playTracks, playTrackInList, isCurrentMusic } from '@/composables/usePlaybackBridge'
+import NowPlayingTag from '@/components/NowPlayingTag.vue'
 import { coverSrcset } from '@/utils/coverImage'
 
 const toast = useToast()
@@ -153,13 +154,20 @@ onMounted(fetchLatest)
         <button type="button" class="row__info" @click="playMusic(item)">
           <span class="row__title">
             <span class="row__title-text">{{ item.title }}</span>
+            <NowPlayingTag v-if="isCurrentMusic(item.id)" />
             <QualityBadge :quality="item.maxQuality" />
           </span>
           <span class="row__artist">{{ item.artist }}</span>
           <span class="row__sub">{{ formatTime(item.createdAt) }}</span>
         </button>
         <div class="row__actions">
-          <NButton size="sm" variant="secondary" icon="play" title="播放" @click="playMusic(item)" />
+          <NButton
+            size="sm"
+            :variant="isCurrentMusic(item.id) ? 'primary' : 'secondary'"
+            :icon="isCurrentMusic(item.id) ? 'volume-2' : 'play'"
+            :title="isCurrentMusic(item.id) ? '正在播放' : '播放'"
+            @click="playMusic(item)"
+          />
           <NButton size="sm" variant="secondary" icon="download" title="下载" @click="downloadMusic(item)" />
         </div>
       </article>
