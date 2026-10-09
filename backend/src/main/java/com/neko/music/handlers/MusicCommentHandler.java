@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.neko.music.Main;
 import com.neko.music.database.CommentDatabaseManager;
 import com.neko.music.database.CommentDatabaseManager.CommentRow;
+import com.neko.music.model.User;
 import com.neko.music.service.IpRegionService;
 import com.neko.music.util.PermissionHelper;
 import com.neko.music.util.PublicMusicLookup;
@@ -34,6 +35,9 @@ import java.util.Map;
  *
  * <p>评论只做两层：顶层楼层 + 楼层内回复，回复再回复仍归到同一楼层并用 {@code replyToUser} 标记 @ 对象，
  * 避免无限嵌套带来的分页与展示复杂度。每条评论都会快照写入发表时的 IP 归属地。
+ *
+ * <p>回复成功后会同时给对方写一条站内消息（{@code /api/user/notifications}），
+ * 回复自己不再提醒；写消息失败只记日志，评论本身仍然算成功。
  */
 public class MusicCommentHandler extends ApiServlet {
 
@@ -45,6 +49,8 @@ public class MusicCommentHandler extends ApiServlet {
     private static final int MAX_PAGE_SIZE = 50;
     /** 同一用户两次发评论的最小间隔（秒） */
     private static final int POST_INTERVAL_SECONDS = 5;
+    /** 站内消息类型：有人回复了你的评论 */
+    private static final String NOTIFY_TYPE_COMMENT_REPLY = "comment_reply";
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -189,6 +195,8 @@ public class MusicCommentHandler extends ApiServlet {
             return;
         }
 
+        notifyCommentReply(userId, replyToUserId, musicId, content);
+
         JsonObject data = new JsonObject();
         data.addProperty("id", newId);
         data.addProperty("musicId", musicId);
@@ -203,6 +211,36 @@ public class MusicCommentHandler extends ApiServlet {
         body.addProperty("message", parentId == null ? "评论成功" : "回复成功");
         body.add("data", data);
         sendSuccessResponse(resp, body);
+    }
+
+    /**
+     * 回复落地后给被回复的人写一条站内消息。
+     *
+     * <p>离线用户不需要任何长连接：下次打开收件箱带上游标补拉就能看到这条记录。</p>
+     */
+    private void notifyCommentReply(int actorUserId, Integer receiverUserId, int musicId, String content) {
+        if (receiverUserId == null || receiverUserId == actorUserId) {
+            return;
+        }
+        try {
+            String actorNickname = Main.getUserAuthService().findUserById(actorUserId)
+                    .map(User::nickname)
+                    .filter(name -> name != null && !name.isBlank())
+                    .orElse("有人");
+            int created = Main.getUserNotificationDatabaseManager().insert(
+                    receiverUserId,
+                    NOTIFY_TYPE_COMMENT_REPLY,
+                    actorNickname + " 回复了你的评论",
+                    content,
+                    "/detail/" + musicId,
+                    actorUserId);
+            if (created <= 0) {
+                logger.warn("评论回复站内消息写入失败: musicId={}, receiver={}", musicId, receiverUserId);
+            }
+        } catch (Exception e) {
+            // 通知只是评论的附带效果，失败不能影响已经成功的评论
+            logger.error("评论回复站内消息异常: musicId={}, actor={}", musicId, actorUserId, e);
+        }
     }
 
     @Override

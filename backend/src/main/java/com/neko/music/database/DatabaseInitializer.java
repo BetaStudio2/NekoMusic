@@ -197,6 +197,26 @@ public class DatabaseInitializer {
             executeTableDdl(stmt, createSystemSettings,
                     "system_settings 表已就绪", "创建 system_settings 表失败（可能已存在）");
 
+            // 站内消息（收件箱）：评论回复等消息落库即视为送达，离线用户靠游标补拉
+            String createUserNotifications = """
+                CREATE TABLE IF NOT EXISTS user_notifications (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    type VARCHAR(32) NOT NULL,
+                    title VARCHAR(128) NOT NULL,
+                    body VARCHAR(500) NOT NULL DEFAULT '',
+                    link VARCHAR(255) NOT NULL DEFAULT '',
+                    actor_user_id INT NULL,
+                    is_read TINYINT(1) NOT NULL DEFAULT 0,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    INDEX idx_user_notifications_user (user_id, id),
+                    INDEX idx_user_notifications_unread (user_id, is_read)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """;
+            executeTableDdl(stmt, createUserNotifications,
+                    "user_notifications 表已就绪", "创建 user_notifications 表失败（可能已存在）");
+
             String createVipPayOrders = """
                 CREATE TABLE IF NOT EXISTS vip_pay_orders (
                     id INT AUTO_INCREMENT PRIMARY KEY,

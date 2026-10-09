@@ -319,6 +319,10 @@ public final class ServletRegistrar {
         // 注册搜索歌手API处理器
         ServletHolder searchArtistsHolder = new ServletHolder(new SearchArtistsHandler());
         context.addServlet(searchArtistsHolder, "/api/artists/search");
+
+        // 注册站内消息API处理器（列表 / 未读数 / 标记已读）
+        ServletHolder userNotificationHolder = new ServletHolder(new UserNotificationHandler());
+        context.addServlet(userNotificationHolder, "/api/user/notifications/*");
         
     }
 }
