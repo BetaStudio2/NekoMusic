@@ -3,146 +3,140 @@ package com.neko.music.util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.JarURLConnection;
-import java.net.URL;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.Objects;
+import java.util.Enumeration;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.stream.Stream;
+import java.util.zip.CRC32;
 
 /**
- * 前端站点资源目录（固定为 {@code ${user.dir}/site}）。
+ * 前端站点资源：直接从 classpath 读取（生产环境即后端 JAR 内的 {@code site/}）。
  *
- * <p>生产构建会把 frontend/dist 输出到后端 classpath 的 {@code site/}，
- * 启动时再解压到运行目录，便于由外部 Web 服务器直接托管这些文件。</p>
+ * <p>这里**不再**把站点解压到运行目录：前端不落地，就不会在磁盘上留下一份可能与 JAR 内不一致
+ * 的副本，也不给「绕过本服务、用别的 Web 服务器直接托管这些文件」留出旁路——前端只有后端这
+ * 一个来源。</p>
+ *
+ * <p>资源在首次使用时整包读进内存（当前构建产物只有几 MB），请求路径上只做一次 Map 查表。
+ * 若将来站点涨到几十 MB 以上，应改为「只建索引、按需流式读取」。</p>
  */
 public final class SiteResourceStorage {
+
     private static final Logger logger = LoggerFactory.getLogger(SiteResourceStorage.class);
+
+    /** classpath 内的站点根目录名。 */
     private static final String RESOURCE_ROOT = "site";
-    private static final String SITE_DIR_NAME = "site";
+
+    private static volatile Map<String, Entry> index;
 
     private SiteResourceStorage() {
     }
 
-    public static Path storageDir() {
-        return Path.of(System.getProperty("user.dir"))
-                .resolve(SITE_DIR_NAME)
-                .toAbsolutePath()
-                .normalize();
+    /** 单个前端资源；{@code path} 形如 {@code /assets/app-xxxx.js}。 */
+    public record Entry(String path, byte[] content, String etag, long lastModified) {
     }
 
-    /** 仅在运行目录尚不存在时创建目录并释放 JAR 内嵌的前端资源。 */
-    public static void ensureStorageDir() throws IOException {
-        Path targetRoot = storageDir();
-        if (Files.exists(targetRoot)) {
-            if (!Files.isDirectory(targetRoot)) {
-                throw new IOException("前端站点路径不是目录: " + targetRoot);
-            }
-            // 空目录可能是旧版本启动时创建的，只有包含入口文件才视为已初始化。
-            if (Files.isRegularFile(targetRoot.resolve("index.html"))) {
-                logger.debug("前端站点目录已初始化，跳过资源释放: {}", targetRoot);
-                return;
-            }
+    /** 站点资源索引（懒加载一次）。键是站点根下的绝对路径，值不可变。 */
+    public static Map<String, Entry> index() throws IOException {
+        Map<String, Entry> cached = index;
+        if (cached != null) {
+            return cached;
         }
-        Files.createDirectories(targetRoot);
+        synchronized (SiteResourceStorage.class) {
+            if (index == null) {
+                index = load();
+            }
+            return index;
+        }
+    }
 
+    private static Map<String, Entry> load() throws IOException {
         ClassLoader classLoader = SiteResourceStorage.class.getClassLoader();
-        URL resourceRoot = classLoader.getResource(RESOURCE_ROOT + "/");
-        if (resourceRoot == null) {
-            // 某些 classloader 只为目录返回不带末尾斜杠的 URL。
-            resourceRoot = classLoader.getResource(RESOURCE_ROOT);
+        // 某些 classloader 只为目录返回带末尾斜杠的 URL，两种写法都试一次。
+        URL root = classLoader.getResource(RESOURCE_ROOT + "/");
+        if (root == null) {
+            root = classLoader.getResource(RESOURCE_ROOT);
         }
-        if (resourceRoot == null) {
-            logger.debug("JAR 内未包含前端站点资源，已创建空目录: {}", targetRoot);
+        if (root == null) {
+            logger.error("classpath 内未找到前端站点资源（site/），页面请求将一律 404");
+            return Map.of();
+        }
+
+        Map<String, Entry> result = new LinkedHashMap<>();
+        switch (root.getProtocol()) {
+            case "file" -> collectFromDirectory(root, result);
+            case "jar" -> collectFromJar(root, result);
+            default -> throw new IOException("不支持的站点资源协议: " + root.getProtocol());
+        }
+        logger.info("前端站点资源已载入内存: {} 个文件", result.size());
+        return Map.copyOf(result);
+    }
+
+    /** 开发/未打包时（target/classes/site）直接遍历目录。 */
+    private static void collectFromDirectory(URL root, Map<String, Entry> target) throws IOException {
+        Path directory;
+        try {
+            directory = Path.of(root.toURI());
+        } catch (URISyntaxException e) {
+            throw new IOException("站点资源路径无效: " + root, e);
+        }
+        if (!Files.isDirectory(directory)) {
             return;
         }
-
-        int copied;
-        if ("file".equals(resourceRoot.getProtocol())) {
-            try {
-                copied = copyDirectory(Path.of(resourceRoot.toURI()), targetRoot);
-            } catch (URISyntaxException e) {
-                throw new IOException("站点资源路径无效: " + resourceRoot, e);
+        try (Stream<Path> walk = Files.walk(directory)) {
+            for (Path file : walk.filter(Files::isRegularFile).toList()) {
+                String path = toResourcePath(directory.relativize(file).toString());
+                byte[] content = Files.readAllBytes(file);
+                long lastModified = Files.getLastModifiedTime(file).toMillis();
+                target.put(path, new Entry(path, content, etagFor(content), lastModified));
             }
-        } else if ("jar".equals(resourceRoot.getProtocol())) {
-            JarURLConnection connection = (JarURLConnection) resourceRoot.openConnection();
-            connection.setUseCaches(false);
-            copied = copyJar(connection.getJarFile(), targetRoot);
-        } else {
-            throw new IOException("不支持的站点资源协议: " + resourceRoot.getProtocol());
-        }
-        logger.info("前端站点资源已释放: {}（{} 个文件）", targetRoot, copied);
-    }
-
-    private static int copyDirectory(Path sourceRoot, Path targetRoot) throws IOException {
-        if (!Files.isDirectory(sourceRoot)) {
-            throw new IOException("站点资源目录不存在: " + sourceRoot);
-        }
-        try (var paths = Files.walk(sourceRoot)) {
-            return paths.filter(Files::isRegularFile)
-                    .mapToInt(source -> {
-                        try {
-                            Path relative = sourceRoot.relativize(source);
-                            copyFile(source, targetRoot, relative);
-                            return 1;
-                        } catch (IOException e) {
-                            throw new SiteCopyException(e);
-                        }
-                    })
-                    .sum();
-        } catch (SiteCopyException e) {
-            throw e.cause;
         }
     }
 
-    private static int copyJar(JarFile jar, Path targetRoot) throws IOException {
-        Objects.requireNonNull(jar, "jar");
-        int copied = 0;
+    /** 打包后从 JAR 条目读取；不缓存 JarFile 句柄，读完即关。 */
+    private static void collectFromJar(URL root, Map<String, Entry> target) throws IOException {
+        JarURLConnection connection = (JarURLConnection) root.openConnection();
+        connection.setUseCaches(false);
         String prefix = RESOURCE_ROOT + "/";
-        try (jar) {
-            var entries = jar.entries();
+        try (JarFile jar = connection.getJarFile()) {
+            Enumeration<JarEntry> entries = jar.entries();
             while (entries.hasMoreElements()) {
                 JarEntry entry = entries.nextElement();
                 if (entry.isDirectory() || !entry.getName().startsWith(prefix)) {
                     continue;
                 }
-                Path relative = Path.of(entry.getName().substring(prefix.length()));
+                String path = toResourcePath(entry.getName().substring(prefix.length()));
+                byte[] content;
                 try (InputStream input = jar.getInputStream(entry)) {
-                    Path target = targetPath(targetRoot, relative);
-                    Files.createDirectories(target.getParent());
-                    Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING);
+                    content = input.readAllBytes();
                 }
-                copied++;
+                target.put(path, new Entry(path, content, etagFor(content), entry.getTime()));
             }
         }
-        return copied;
     }
 
-    private static void copyFile(Path source, Path targetRoot, Path relative) throws IOException {
-        Path target = targetPath(targetRoot, relative);
-        Files.createDirectories(target.getParent());
-        Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
-    }
-
-    private static Path targetPath(Path targetRoot, Path relative) throws IOException {
-        Path target = targetRoot.resolve(relative).normalize();
-        if (!target.startsWith(targetRoot)) {
-            throw new IOException("非法站点资源路径: " + relative);
+    /** 把相对路径归一成 {@code /a/b} 形式的资源键。 */
+    private static String toResourcePath(String relative) {
+        String normalized = relative.replace(File.separatorChar, '/');
+        while (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
         }
-        return target;
+        return "/" + normalized;
     }
 
-    private static final class SiteCopyException extends RuntimeException {
-        private final IOException cause;
-
-        private SiteCopyException(IOException cause) {
-            super(cause);
-            this.cause = cause;
-        }
+    /** 内容摘要式强 ETag：内容不变则跨重启一致，改动后必然变化。 */
+    private static String etagFor(byte[] content) {
+        CRC32 crc = new CRC32();
+        crc.update(content);
+        return "\"" + Long.toHexString(crc.getValue()) + "-" + Integer.toHexString(content.length) + "\"";
     }
 }

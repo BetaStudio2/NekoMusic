@@ -118,10 +118,10 @@ public class Main {
         }
 
         try {
-            SiteResourceStorage.ensureStorageDir();
-            logger.info("前端站点目录: {}", SiteResourceStorage.storageDir());
+            // 前端资源不解压到运行目录，直接从 JAR 内部读；这里只预热并确认打包时带上了前端产物。
+            logger.info("前端站点资源: 内嵌于 JAR（{} 个文件）", SiteResourceStorage.index().size());
         } catch (Exception e) {
-            logger.warn("创建前端站点目录失败: {}", e.getMessage());
+            logger.warn("加载前端站点资源失败: {}", e.getMessage());
         }
         
         // 初始化数据库管理器
