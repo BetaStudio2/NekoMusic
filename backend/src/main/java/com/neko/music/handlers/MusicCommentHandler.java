@@ -227,7 +227,7 @@ public class MusicCommentHandler extends ApiServlet {
                     .map(User::nickname)
                     .filter(name -> name != null && !name.isBlank())
                     .orElse("有人");
-            int created = Main.getUserNotificationDatabaseManager().insert(
+            int created = Main.getUserNotificationService().notify(
                     receiverUserId,
                     NOTIFY_TYPE_COMMENT_REPLY,
                     actorNickname + " 回复了你的评论",

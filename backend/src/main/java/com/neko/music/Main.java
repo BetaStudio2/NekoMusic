@@ -13,6 +13,7 @@ import com.neko.music.database.VipPayOrderDatabaseManager;
 import com.neko.music.database.VipPricingDatabaseManager;
 import com.neko.music.database.SystemSettingsDatabaseManager;
 import com.neko.music.database.UserNotificationDatabaseManager;
+import com.neko.music.service.UserNotificationService;
 import com.neko.music.handlers.*;
 
 import org.eclipse.jetty.server.Server;
@@ -79,6 +80,7 @@ public class Main {
     private static IPRateLimitService ipRateLimitService;
     private static CommentDatabaseManager commentDatabaseManager;
     private static UserNotificationDatabaseManager userNotificationDatabaseManager;
+    private static UserNotificationService userNotificationService;
     private static IpRegionService ipRegionService;
     private static VipPricingDatabaseManager vipPricingDatabaseManager;
     private static VipPayOrderDatabaseManager vipPayOrderDatabaseManager;
@@ -157,6 +159,7 @@ public class Main {
         // 歌曲评论：表读写 + 本地 MaxMind 归属地解析
         commentDatabaseManager = new CommentDatabaseManager(databaseManager);
         userNotificationDatabaseManager = new UserNotificationDatabaseManager(databaseManager);
+        userNotificationService = new UserNotificationService(userNotificationDatabaseManager, redisService);
         ipRegionService = new IpRegionService();
         RedisTokenStore tokenStore = new RedisTokenStore(redisService);
 
@@ -440,6 +443,10 @@ public class Main {
 
     public static UserNotificationDatabaseManager getUserNotificationDatabaseManager() {
         return userNotificationDatabaseManager;
+    }
+
+    public static UserNotificationService getUserNotificationService() {
+        return userNotificationService;
     }
 
     public static IpRegionService getIpRegionService() {

@@ -44,7 +44,8 @@ const EXEMPT_PATHS = new Set([
   '/api/music/latest',
   '/api/music/ranking',
   '/api/payment/zpay/notify',
-  '/api/user/qrlogin/status'
+  '/api/user/qrlogin/status',
+  '/api/user/notifications/stream'
 ])
 /** 与后端 EXEMPT_PREFIXES 对应 */
 const EXEMPT_PREFIXES = ['/api/music/cover/', '/api/user/avatar/']
