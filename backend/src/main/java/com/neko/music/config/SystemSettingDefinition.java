@@ -17,6 +17,7 @@ package com.neko.music.config;
  * @param type            值类型，决定校验与前端控件
  * @param defaultValue    出厂默认值（统一用字符串表示）
  * @param secret          是否敏感：接口回显时掩码，不返回明文
+ * @param readOnly        是否只读：后台不可改，值只来自 config.yml / 出厂默认值，**不落数据库**
  * @param restartRequired 是否必须重启后端才生效（端口、线程池、连接池等启动期绑定项）
  * @param min             数值下限，null 表示不限制
  * @param max             数值上限，null 表示不限制
@@ -29,6 +30,7 @@ public record SystemSettingDefinition(
         Type type,
         String defaultValue,
         boolean secret,
+        boolean readOnly,
         boolean restartRequired,
         Long min,
         Long max,
@@ -77,21 +79,21 @@ public record SystemSettingDefinition(
     public static SystemSettingDefinition text(String key, Group group, String label,
                                                String defaultValue, String description) {
         return new SystemSettingDefinition(key, group, label, Type.STRING,
-                defaultValue, false, false, null, null, description);
+                defaultValue, false, false, false, null, null, description);
     }
 
     /** 敏感文本：只写不读，接口回显为掩码。 */
     public static SystemSettingDefinition secret(String key, Group group, String label,
                                                  String description) {
         return new SystemSettingDefinition(key, group, label, Type.STRING,
-                "", true, false, null, null, description);
+                "", true, false, false, null, null, description);
     }
 
     /** 开关。 */
     public static SystemSettingDefinition flag(String key, Group group, String label,
                                                boolean defaultValue, String description) {
         return new SystemSettingDefinition(key, group, label, Type.BOOL,
-                Boolean.toString(defaultValue), false, false, null, null, description);
+                Boolean.toString(defaultValue), false, false, false, null, null, description);
     }
 
     /** 整数。 */
@@ -99,7 +101,7 @@ public record SystemSettingDefinition(
                                                  String defaultValue, long min, long max,
                                                  String description) {
         return new SystemSettingDefinition(key, group, label, Type.INT,
-                defaultValue, false, false, min, max, description);
+                defaultValue, false, false, false, min, max, description);
     }
 
     /** 小数。 */
@@ -107,19 +109,28 @@ public record SystemSettingDefinition(
                                                   String defaultValue, long min, long max,
                                                   String description) {
         return new SystemSettingDefinition(key, group, label, Type.DOUBLE,
-                defaultValue, false, false, min, max, description);
+                defaultValue, false, false, false, min, max, description);
     }
 
     /** 列表，数据库里按行分隔。 */
     public static SystemSettingDefinition list(String key, Group group, String label,
                                                String defaultValue, String description) {
         return new SystemSettingDefinition(key, group, label, Type.LIST,
-                defaultValue, false, false, null, null, description);
+                defaultValue, false, false, false, null, null, description);
     }
 
     /** 标记为「必须重启后端才生效」。 */
     public SystemSettingDefinition restart() {
         return new SystemSettingDefinition(key, group, label, type, defaultValue,
-                secret, true, min, max, description);
+                secret, readOnly, true, min, max, description);
+    }
+
+    /**
+     * 标记为「后台只读」：管理接口只在读取时回显当前值与出厂值，提交时会被拒绝；
+     * 值也不会写进数据库，改它只能改 config.yml 或改代码里的出厂默认值。
+     */
+    public SystemSettingDefinition asReadOnly() {
+        return new SystemSettingDefinition(key, group, label, type, defaultValue,
+                secret, true, restartRequired, min, max, description);
     }
 }

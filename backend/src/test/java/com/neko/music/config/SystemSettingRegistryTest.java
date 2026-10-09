@@ -114,6 +114,32 @@ class SystemSettingRegistryTest {
     }
 
     @Test
+    @DisplayName("只读项：清单是有意为之，新增/取消只读必须同步改这里")
+    void readOnlyKeysAreExplicit() {
+        Set<String> readOnly = new HashSet<>();
+        for (SystemSettingDefinition definition : SystemSettingRegistry.all()) {
+            if (definition.readOnly()) {
+                readOnly.add(definition.key());
+            }
+        }
+        assertEquals(Set.of(
+                "video_render.non_vip_max_duration_sec",
+                "netease_search_fill.language",
+                "netease_search_fill.upload_user_id"), readOnly);
+    }
+
+    @Test
+    @DisplayName("只读项必须有出厂默认值或由 config.yml 提供，且不能同时是敏感项")
+    void readOnlyMetadataIsSane() {
+        for (SystemSettingDefinition definition : SystemSettingRegistry.all()) {
+            if (!definition.readOnly()) {
+                continue;
+            }
+            assertFalse(definition.secret(), "只读项不做敏感掩码: " + definition.key());
+        }
+    }
+
+    @Test
     @DisplayName("敏感项：出厂值必须为空，避免把密钥写进代码")
     void secretDefaultsAreBlank() {
         for (SystemSettingDefinition definition : SystemSettingRegistry.all()) {

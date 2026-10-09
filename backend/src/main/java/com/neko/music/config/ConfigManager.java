@@ -191,7 +191,7 @@ public class ConfigManager {
 
     public void loadConfig() {
         try {
-            configFileNode = readConfigFile();
+            configFileNode = withRegistryDefaults(readConfigFile());
             applyConfigNode(configFileNode);
         } catch (Exception e) {
             logger.error("加载配置时出错", e);
@@ -218,6 +218,31 @@ public class ConfigManager {
                 }
             }
         return null;
+    }
+
+    /**
+     * 把 {@link SystemSettingRegistry} 里登记的键补齐到配置树：文件里缺省（或为 null）的键，
+     * 用出厂默认值填上。
+     *
+     * <p>这样「出厂默认值」就是真的生效值，而不只是文档：只读项（值只来自配置文件）能正确落到
+     * 默认值，配置文件被裁剪后也不会退化成各字段在 Java 里另写的私有默认值。</p>
+     */
+    JsonNode withRegistryDefaults(JsonNode base) {
+        ObjectNode root = base instanceof ObjectNode object
+                ? object.deepCopy()
+                : objectMapper.getNodeFactory().objectNode();
+        for (SystemSettingDefinition definition : SystemSettingRegistry.all()) {
+            JsonNode existing = nodeByPath(root, definition.key());
+            if (existing != null && !existing.isNull()) {
+                continue;
+            }
+            JsonNode value = toJsonNode(definition.type(), definition.defaultValue());
+            if (value == null || value.isNull()) {
+                continue;
+            }
+            putByPath(root, definition.key(), value);
+        }
+        return root;
     }
 
     /**
@@ -594,8 +619,9 @@ public class ConfigManager {
      * <p>只接受登记在 {@link SystemSettingRegistry} 里的键：未登记的键一律忽略，避免管理接口
      * 变成「往配置树里注入任意路径」的入口。单条值非法时只跳过该条并记日志，不影响其它配置。</p>
      *
-     * <p>取值语义：文本按原文写入；数值留空表示回落到出厂默认值（出厂值也为空则摘掉该键，
-     * 由读取端的缺省分支兜底）；布尔按字面量写成真正的布尔；列表按行拆成数组。</p>
+     * <p>取值语义：文本按原文写入；数值留空表示回落到出厂默认值；布尔按字面量写成真正的布尔；
+     * 列表按行拆成数组。只读项（见 {@link SystemSettingDefinition#readOnly()}）在这里直接忽略，
+     * 不会成为生效值。</p>
      *
      * @param overrides 键为点分路径（如 {@code video_render.worker_threads}），值为字符串形式
      */
@@ -615,17 +641,20 @@ public class ConfigManager {
                 continue;
             }
             SystemSettingDefinition def = definition.get();
+            if (def.readOnly()) {
+                // 只读项不进数据库；这里再挡一次，避免有人直接改表把只读项变成生效值
+                logger.warn("只读设置项已忽略: {}", key);
+                continue;
+            }
             JsonNode value = toJsonNode(def.type(), entry.getValue());
             if (value != null && value.isNull()) {
-                // 数值留空表示「未设置」：能落到出厂默认值就落，没有出厂值就从树里摘掉该键，
-                // 让读取端走它自己的缺省分支（而不是把 null 当成 0 写进去）。
+                // 数值留空表示「恢复出厂默认值」：直接写默认值，绝不让 null 落到读取端被当成 0。
                 String fallback = def.defaultValue();
-                value = fallback == null || fallback.isBlank() ? null : toJsonNode(def.type(), fallback);
-                if (value == null) {
-                    removeByPath(merged, key);
-                    changed = true;
+                if (fallback == null || fallback.isBlank()) {
+                    logger.warn("系统设置项留空且无出厂默认值，已跳过: {}", key);
                     continue;
                 }
+                value = toJsonNode(def.type(), fallback);
             }
             if (value == null) {
                 logger.warn("系统设置值非法，已跳过: {}={}", key, entry.getValue());
@@ -711,20 +740,6 @@ public class ConfigManager {
             }
         }
         current.set(parts[parts.length - 1], value);
-    }
-
-    /** 按点分路径移除节点；中间层缺失时什么都不做。 */
-    private static void removeByPath(ObjectNode root, String dottedPath) {
-        String[] parts = dottedPath.split("\\.");
-        ObjectNode current = root;
-        for (int i = 0; i < parts.length - 1; i++) {
-            JsonNode child = current.get(parts[i]);
-            if (!(child instanceof ObjectNode objectChild)) {
-                return;
-            }
-            current = objectChild;
-        }
-        current.remove(parts[parts.length - 1]);
     }
 
     /** 按点分路径取值；任一层缺失返回 null。 */
