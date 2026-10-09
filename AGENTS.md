@@ -8,6 +8,8 @@
 > 1. 新增 API 必须显式设置 `Cache-Control`（见「HTTP 缓存策略」）。
 > 2. 新增/修改/删除后端 API 必须同步更新 API 文档（见「API 文档同步」）。
 > 3. 新增/修改的**动态接口必须纳入请求防重放**，且不得新增 `config.yml` 配置项（见「安全防护约定」）。
+> 3.1 **新增运行时配置一律加到 `system_settings`**（后端 `config/SystemSettingRegistry.java` 登记 +
+>      后台「系统设置」页维护），`config.yml` 只保留 `mysql.*` 启动引导信息（见「运行时配置」）。
 > 4. API 文档**只写客户端契约，不写安全实现细节**（见「安全防护约定」）。
 > 5. 不提交密钥/本地配置、构建产物，以及与任务无关的子模块指针变动。
 
@@ -30,7 +32,7 @@ pc/ 与 Android/        是子模块：除非任务明确要求，不要改动�
 
 ### 后端
 ```bash
-# 推荐：Docker（首次需 cp src/main/resources/config.yml config.yml 并填好 MySQL/Redis/jwt 等）
+# 推荐：Docker（首次需 cp src/main/resources/config.yml config.yml 并填好 MySQL）
 cd backend && docker compose build && docker compose up -d && docker compose logs -f neko-music
 
 # 本地 Maven（Java 27）
@@ -38,7 +40,9 @@ cd backend && mvn -B package -DskipTests     # 打包
 cd backend && mvn test                       # 跑单元测试（JUnit 5）
 ```
 - 入口 `com.neko.music.Main`；路由集中在 `handlers/ServletRegistrar.java`。
-- 生产配置来自运行目录的 `backend/config.yml`（由 `src/main/resources/config.yml` 复制并填写）。
+- 生产配置来自运行目录的 `backend/config.yml`（由 `src/main/resources/config.yml` 复制并填写），
+  其中**只需要** `mysql.*`；其余运行时配置在管理后台「系统设置」里维护（存 `system_settings` 表）。
+  模板缺失时后端会自动复制，因此 `config.yml` 里被删掉的节不会导致启动失败。
 
 ### 前端
 ```bash
@@ -71,6 +75,20 @@ cd frontend && npm run build    # 产物输出到 ../backend/src/main/resources/
   不要新造一套按钮/颜色；图标走图标注册表（`NIcon` 的 `name`）。
 - 涉及 MySQL/Redis 等外部依赖的改动，保持失败可降级或明确报错，不要静默吞异常。
 - **改后端 API 必须同步改 API 文档**（见下节）；文档内容还要遵守「安全防护约定」的脱敏要求。
+
+## 运行时配置（system_settings）
+
+- **`config.yml` 只放启动引导信息**：当前仅 `mysql.*`（连上主库之前无从读取数据库）。
+  其余配置项一律登记到后端 `config/SystemSettingRegistry.java`，值存在主库 `system_settings` 表，
+  由 `GET/PUT /api/admin/settings`（管理员及以上）在后台「系统设置」页维护，**禁止**再往
+  `config.yml` 加节或加键。该接口属于后台管理接口，**不写入 API 文档**（见「API 文档脱敏」）。
+- 首次启动若 `system_settings` 表为空，会把 `config.yml` 的现值（缺省则取出厂默认值）灌一次，
+  保证老部署升级后行为不变；此后以表里的值为准，`config.yml` 里的同项不再生效。
+- 新增配置项时必须同时：登记到 `SystemSettingRegistry`（含出厂默认值、类型、范围与是否需重启）、
+  在读取端复用 `ConfigManager` 的解析分支（按点分路径合并进配置树，不要另写 setter）。
+- 敏感项（`secret`）只写不读：接口只回「是否已配置」，不回明文；数据库与日志中同样不得出现明文。
+- 启动期绑定的项（端口、线程池、连接池、Redis 地址等）用 `.restart()` 标注，后台保存后回提示
+  「需重启」，服务端不做热重载。
 
 ## 安全防护约定（强约束）
 
@@ -112,6 +130,8 @@ cd frontend && npm run build    # 产物输出到 ../backend/src/main/resources/
 
 ### API 文档脱敏
 
+- **铁律：后台管理类接口不写入 API 文档。** 管理端（`/api/admin/*` 等）只面向官方管理后台与
+  运维，其存在与取值都属于内部信息；新增这类接口时不要往文档里加端点、字段或示例。
 - API 文档只描述**客户端可见契约**：端点、请求头 / 参数、请求体、响应结构、状态码，以及客户端
   必须遵守的行为约定（如豁免接口清单、读 / 写类别、`409` 重试）。
 - **不得**写入安全实现细节，包括但不限于：防护判定规则与判定顺序、爬虫关键词与放行/白名单、

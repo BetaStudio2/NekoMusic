@@ -11,6 +11,7 @@ import com.neko.music.database.LyricsDatabaseManager;
 import com.neko.music.service.*;
 import com.neko.music.database.VipPayOrderDatabaseManager;
 import com.neko.music.database.VipPricingDatabaseManager;
+import com.neko.music.database.SystemSettingsDatabaseManager;
 import com.neko.music.handlers.*;
 
 import org.eclipse.jetty.server.Server;
@@ -79,6 +80,7 @@ public class Main {
     private static IpRegionService ipRegionService;
     private static VipPricingDatabaseManager vipPricingDatabaseManager;
     private static VipPayOrderDatabaseManager vipPayOrderDatabaseManager;
+    private static SystemSettingsDatabaseManager systemSettingsDatabaseManager;
     private static VideoRenderJobStore videoRenderJobStore;
     private static VideoRenderQuotaService videoRenderQuotaService;
     private static VideoRenderService videoRenderService;
@@ -136,6 +138,14 @@ public class Main {
 
         vipPricingDatabaseManager = new VipPricingDatabaseManager(databaseManager);
         vipPayOrderDatabaseManager = new VipPayOrderDatabaseManager(databaseManager);
+
+        // 运行时配置改由主库 system_settings 表承载：首次启动把 config.yml 的现值灌进表里，
+        // 之后用表里的值覆盖配置树。必须在依赖配置的服务（Redis 等）之前完成。
+        systemSettingsDatabaseManager = new SystemSettingsDatabaseManager(databaseManager);
+        systemSettingsDatabaseManager.seedIfEmpty(configManager);
+        java.util.Map<String, String> storedSettings = systemSettingsDatabaseManager.loadAll();
+        configManager.applyOverrides(storedSettings);
+        logger.info("已从数据库加载 {} 条系统设置", storedSettings.size());
 
         // 初始化Redis服务（视频配额依赖 Redis，须在 video 服务之前）
         redisService = new RedisService(configManager);
@@ -438,6 +448,10 @@ public class Main {
 
     public static VipPayOrderDatabaseManager getVipPayOrderDatabaseManager() {
         return vipPayOrderDatabaseManager;
+    }
+
+    public static SystemSettingsDatabaseManager getSystemSettingsDatabaseManager() {
+        return systemSettingsDatabaseManager;
     }
 
     public static VideoRenderJobStore getVideoRenderJobStore() {

@@ -2,6 +2,9 @@ package com.neko.music.config;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,6 +13,8 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 
 public class ConfigManager {
     private static final Logger logger = LoggerFactory.getLogger(ConfigManager.class);
@@ -19,7 +24,7 @@ public class ConfigManager {
     private String mysqlDatabase = "nek_music";
     private String mysqlUsername = "root";
     private String mysqlPassword = "";
-    private int port = 8080; // 默认端口
+    private int port = 65535; // 默认端口
     
     // SMTP邮件服务器配置
     private String smtpHost = "smtp.gmail.com";
@@ -178,27 +183,49 @@ public class ConfigManager {
 
     private ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
 
+    /**
+     * 最近一次生效的配置树：config.yml 的内容，叠加数据库里的系统设置之后的结果。
+     * {@link #effectiveValue} 按点分路径从这里取值。
+     */
+    private JsonNode configFileNode;
+
     public void loadConfig() {
         try {
+            configFileNode = readConfigFile();
+            applyConfigNode(configFileNode);
+        } catch (Exception e) {
+            logger.error("加载配置时出错", e);
+            clampPerformanceConfig();
+        }
+    }
+
+    /** 读取运行目录下的 config.yml；不存在时先从 classpath 复制一份，读不到返回 null。 */
+    private JsonNode readConfigFile() throws IOException {
             // 首先检查外部配置文件是否存在，如果不存在则从classpath复制一份
             String configPath = System.getProperty("user.dir") + File.separator + "config.yml";
             File externalConfigFile = new File(configPath);
-            
+
             if (!externalConfigFile.exists()) {
                 // 外部配置文件不存在，从classpath复制默认配置
                 copyDefaultConfig(externalConfigFile);
             }
-            
-            JsonNode configNode = null;
-            
+
             // 从外部文件读取配置（优先级更高）
             if (externalConfigFile.exists()) {
                 try (InputStream inputStream = new FileInputStream(externalConfigFile)) {
-                    configNode = objectMapper.readTree(inputStream);
                     logger.info("从外部文件加载配置: {}", externalConfigFile.getAbsolutePath());
+                    return objectMapper.readTree(inputStream);
                 }
             }
-            
+        return null;
+    }
+
+    /**
+     * 把配置树里的值读进各字段；同一棵树重复应用结果一致，因此数据库里的覆盖值可以在原配置树
+     * 上叠加后重新调用本方法，不必为每个配置项单独写一遍 setter。
+     */
+    private void applyConfigNode(JsonNode configNode) {
+        try {
             // 如果找到了配置节点，读取配置值
             if (configNode != null) {
                 // 读取MySQL配置
@@ -559,6 +586,160 @@ public class ConfigManager {
             logger.error("加载配置时出错", e);
             clampPerformanceConfig();
         }
+    }
+
+    /**
+     * 用数据库里的系统设置覆盖配置文件里的值。
+     *
+     * <p>只接受登记在 {@link SystemSettingRegistry} 里的键：未登记的键一律忽略，避免管理接口
+     * 变成「往配置树里注入任意路径」的入口。单条值非法时只跳过该条并记日志，不影响其它配置。</p>
+     *
+     * <p>取值语义：文本按原文写入；数值留空表示回落到出厂默认值（出厂值也为空则摘掉该键，
+     * 由读取端的缺省分支兜底）；布尔按字面量写成真正的布尔；列表按行拆成数组。</p>
+     *
+     * @param overrides 键为点分路径（如 {@code video_render.worker_threads}），值为字符串形式
+     */
+    public void applyOverrides(Map<String, String> overrides) {
+        if (overrides == null || overrides.isEmpty()) {
+            return;
+        }
+        ObjectNode merged = configFileNode instanceof ObjectNode existing
+                ? existing.deepCopy()
+                : objectMapper.getNodeFactory().objectNode();
+        boolean changed = false;
+        for (Map.Entry<String, String> entry : overrides.entrySet()) {
+            String key = entry.getKey();
+            Optional<SystemSettingDefinition> definition = SystemSettingRegistry.find(key);
+            if (definition.isEmpty()) {
+                logger.warn("忽略未登记的系统设置键: {}", key);
+                continue;
+            }
+            SystemSettingDefinition def = definition.get();
+            JsonNode value = toJsonNode(def.type(), entry.getValue());
+            if (value != null && value.isNull()) {
+                // 数值留空表示「未设置」：能落到出厂默认值就落，没有出厂值就从树里摘掉该键，
+                // 让读取端走它自己的缺省分支（而不是把 null 当成 0 写进去）。
+                String fallback = def.defaultValue();
+                value = fallback == null || fallback.isBlank() ? null : toJsonNode(def.type(), fallback);
+                if (value == null) {
+                    removeByPath(merged, key);
+                    changed = true;
+                    continue;
+                }
+            }
+            if (value == null) {
+                logger.warn("系统设置值非法，已跳过: {}={}", key, entry.getValue());
+                continue;
+            }
+            putByPath(merged, key, value);
+            changed = true;
+        }
+        if (!changed) {
+            return;
+        }
+        configFileNode = merged;
+        applyConfigNode(merged);
+        logger.info("已应用 {} 条数据库系统设置", overrides.size());
+    }
+
+    /**
+     * 当前生效值（字符串形式，与数据库里的存储形式一致，列表按行分隔）。
+     * 键在配置树里缺省或为空时返回 empty，供首次启动把 config.yml 的现值灌进数据库。
+     */
+    public Optional<String> effectiveValue(String key) {
+        JsonNode node = nodeByPath(configFileNode, key);
+        if (node == null || node.isNull() || node.isMissingNode()) {
+            return Optional.empty();
+        }
+        if (node.isArray()) {
+            List<String> items = new ArrayList<>();
+            node.forEach(item -> {
+                if (item == null || item.isNull()) {
+                    return;
+                }
+                String text = item.asText("").trim();
+                if (!text.isEmpty()) {
+                    items.add(text);
+                }
+            });
+            return Optional.of(String.join("\n", items));
+        }
+        return Optional.of(node.asText("").trim());
+    }
+
+    /** 把字符串形式的值按声明类型转成 JSON 节点；非法时返回 null。 */
+    private JsonNode toJsonNode(SystemSettingDefinition.Type type, String raw) {
+        String value = raw == null ? "" : raw;
+        String trimmed = value.trim();
+        JsonNodeFactory factory = objectMapper.getNodeFactory();
+        try {
+            return switch (type) {
+                case STRING -> factory.textNode(value);
+                case BOOL -> factory.booleanNode(Boolean.parseBoolean(trimmed));
+                // 数值型留空表示「未设置」，写成 NullNode，读取端才会跳过
+                case INT -> trimmed.isEmpty() ? factory.nullNode() : factory.numberNode(Integer.parseInt(trimmed));
+                case LONG -> trimmed.isEmpty() ? factory.nullNode() : factory.numberNode(Long.parseLong(trimmed));
+                case DOUBLE -> trimmed.isEmpty() ? factory.nullNode() : factory.numberNode(Double.parseDouble(trimmed));
+                case LIST -> {
+                    ArrayNode array = factory.arrayNode();
+                    for (String item : trimmed.split("\\r?\\n")) {
+                        String text = item.trim();
+                        if (!text.isEmpty()) {
+                            array.add(text);
+                        }
+                    }
+                    yield array;
+                }
+            };
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** 按点分路径写入对象树，中间层不存在或不是对象时补建空对象。 */
+    private static void putByPath(ObjectNode root, String dottedPath, JsonNode value) {
+        String[] parts = dottedPath.split("\\.");
+        ObjectNode current = root;
+        for (int i = 0; i < parts.length - 1; i++) {
+            JsonNode child = current.get(parts[i]);
+            if (child instanceof ObjectNode objectChild) {
+                current = objectChild;
+            } else {
+                ObjectNode created = current.objectNode();
+                current.set(parts[i], created);
+                current = created;
+            }
+        }
+        current.set(parts[parts.length - 1], value);
+    }
+
+    /** 按点分路径移除节点；中间层缺失时什么都不做。 */
+    private static void removeByPath(ObjectNode root, String dottedPath) {
+        String[] parts = dottedPath.split("\\.");
+        ObjectNode current = root;
+        for (int i = 0; i < parts.length - 1; i++) {
+            JsonNode child = current.get(parts[i]);
+            if (!(child instanceof ObjectNode objectChild)) {
+                return;
+            }
+            current = objectChild;
+        }
+        current.remove(parts[parts.length - 1]);
+    }
+
+    /** 按点分路径取值；任一层缺失返回 null。 */
+    private static JsonNode nodeByPath(JsonNode root, String dottedPath) {
+        if (root == null) {
+            return null;
+        }
+        JsonNode current = root;
+        for (String part : dottedPath.split("\\.")) {
+            if (current == null || !current.isObject()) {
+                return null;
+            }
+            current = current.get(part);
+        }
+        return current;
     }
 
     private void clampPerformanceConfig() {

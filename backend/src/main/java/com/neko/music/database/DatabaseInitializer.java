@@ -184,6 +184,19 @@ public class DatabaseInitializer {
             executeTableDdl(stmt, createVipPricing,
                     "vip_pricing 表已就绪", "创建 vip_pricing 表失败（可能已存在）");
 
+            // 系统设置：原 config.yml 的运行时配置迁移到这里，后台可改
+            String createSystemSettings = """
+                CREATE TABLE IF NOT EXISTS system_settings (
+                    setting_key VARCHAR(128) NOT NULL,
+                    setting_value TEXT NULL,
+                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    updated_by INT NULL,
+                    PRIMARY KEY (setting_key)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """;
+            executeTableDdl(stmt, createSystemSettings,
+                    "system_settings 表已就绪", "创建 system_settings 表失败（可能已存在）");
+
             String createVipPayOrders = """
                 CREATE TABLE IF NOT EXISTS vip_pay_orders (
                     id INT AUTO_INCREMENT PRIMARY KEY,

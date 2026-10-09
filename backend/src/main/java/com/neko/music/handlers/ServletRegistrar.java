@@ -241,6 +241,10 @@ public final class ServletRegistrar {
         ServletHolder vipPricingAdminHolder = new ServletHolder(new VipPricingAdminHandler());
         context.addServlet(vipPricingAdminHolder, "/api/admin/vip/pricing");
 
+        // 系统设置（管理员及以上）：/api/admin/settings
+        ServletHolder adminSettingsHolder = new ServletHolder(new AdminSettingsHandler());
+        context.addServlet(adminSettingsHolder, "/api/admin/settings");
+
         ServletHolder vipPayCreateHolder = new ServletHolder(new VipPayCreateHandler());
         context.addServlet(vipPayCreateHolder, "/api/vip/pay/create");
 

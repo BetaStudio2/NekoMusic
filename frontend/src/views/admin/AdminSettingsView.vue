@@ -1,398 +1,500 @@
 <template>
-  <div class="admin-subpage">
-    <h2>系统设置</h2>
-    <p>配置系统参数，管理平台设置和全局配置。</p>
-    
-    <div class="settings-tabs">
-      <button 
-        v-for="tab in settingsTabs" 
-        :key="tab.key" 
-        :class="['tab-btn', { active: activeTab === tab.key }]"
-        @click="activeTab = tab.key"
-      >
-        {{ tab.title }}
-      </button>
+  <div class="subpage">
+    <header class="subpage__head">
+      <div>
+        <h1 class="subpage__title">系统设置</h1>
+        <p class="subpage__desc">
+          运行时配置统一在这里维护，保存后立即生效；标注「需重启」的项等后端重启后生效。
+        </p>
+      </div>
+      <div class="subpage__actions">
+        <NButton variant="secondary" icon="rotate-ccw" :disabled="loading || saving" @click="loadSettings">
+          重新加载
+        </NButton>
+        <NButton
+          variant="primary"
+          icon="check"
+          :disabled="loading || saving || !hasChanges"
+          @click="saveChanges"
+        >
+          保存修改<span v-if="changedCount">（{{ changedCount }}）</span>
+        </NButton>
+      </div>
+    </header>
+
+    <p v-if="loadError" class="err">
+      <NIcon name="triangle-alert" :size="16" />
+      {{ loadError }}
+    </p>
+
+    <p v-if="restartHint" class="notice">
+      <NIcon name="triangle-alert" :size="16" />
+      以下设置需重启后端才会生效：{{ restartHint }}
+    </p>
+
+    <div v-if="loading" class="placeholder">
+      <NSpinner />
+      <span>正在加载设置…</span>
     </div>
-    
-    <div class="tab-content">
-      <!-- 基本设置 -->
-      <div v-if="activeTab === 'basic'" class="tab-panel">
-        <h3>基本设置</h3>
-        <div class="form-group">
-          <label>网站标题</label>
-          <input 
-            type="text" 
-            v-model="settings.basic.siteTitle" 
-            placeholder="输入网站标题"
-          />
-        </div>
-        
-        <div class="form-group">
-          <label>网站描述</label>
-          <textarea 
-            v-model="settings.basic.description" 
-            placeholder="输入网站描述"
-            rows="3"
-          ></textarea>
-        </div>
-        
-        <div class="form-group">
-          <label>是否开启注册</label>
-          <div class="switch-group">
-            <label class="switch">
-              <input 
-                type="checkbox" 
-                v-model="settings.basic.registrationEnabled"
-              >
-              <span class="slider"></span>
+
+    <template v-else>
+      <div class="tabs" role="tablist" aria-label="设置分组">
+        <button
+          v-for="group in groups"
+          :key="group.key"
+          type="button"
+          role="tab"
+          :aria-selected="group.key === activeGroup"
+          class="tab"
+          :class="{ 'tab--active': group.key === activeGroup }"
+          @click="activeGroup = group.key"
+        >
+          {{ group.title }}
+        </button>
+      </div>
+
+      <section v-if="currentGroup" class="panel" role="tabpanel">
+        <div v-for="item in currentGroup.settings" :key="item.key" class="field">
+          <div class="field__main">
+            <label class="field__label" :for="`set-${item.key}`">
+              {{ item.label }}
+              <NTag v-if="item.restartRequired" variant="warning" size="sm">需重启</NTag>
             </label>
-            <span class="switch-label">
-              {{ settings.basic.registrationEnabled ? '开启' : '关闭' }}
-            </span>
+            <p class="field__desc">{{ item.description }}</p>
+          </div>
+
+          <div class="field__control">
+            <label
+              v-if="item.type === 'bool'"
+              class="switch"
+              :class="{ 'switch--on': form[item.key] === 'true' }"
+            >
+              <input
+                :id="`set-${item.key}`"
+                type="checkbox"
+                :checked="form[item.key] === 'true'"
+                :disabled="saving"
+                @change="onBoolChange(item.key, $event.target.checked)"
+              />
+              <span class="switch__track"><span class="switch__thumb" /></span>
+              <span class="switch__label">{{ form[item.key] === 'true' ? '开启' : '关闭' }}</span>
+            </label>
+
+            <div v-else-if="item.secret" class="secret">
+              <NInput
+                :id="`set-${item.key}`"
+                type="password"
+                :model-value="form[item.key]"
+                :placeholder="item.configured ? '已配置（不填则保持不变）' : '未配置'"
+                :disabled="saving"
+                @update:model-value="onSecretInput(item.key, $event)"
+              />
+              <NButton
+                v-if="item.configured"
+                size="sm"
+                variant="ghost"
+                icon="trash-2"
+                title="清除该项"
+                :disabled="saving"
+                @click="clearSecret(item.key)"
+              />
+            </div>
+
+            <NInput
+              v-else-if="item.type === 'list'"
+              :id="`set-${item.key}`"
+              v-model="form[item.key]"
+              textarea
+              :rows="5"
+              :disabled="saving"
+              placeholder="每行一条，留空表示不限制"
+            />
+
+            <NInput
+              v-else-if="item.type === 'int' || item.type === 'long' || item.type === 'double'"
+              :id="`set-${item.key}`"
+              v-model="form[item.key]"
+              type="number"
+              :min="item.min ?? undefined"
+              :max="item.max ?? undefined"
+              :step="item.type === 'double' ? '0.01' : '1'"
+              :disabled="saving"
+              class="control--num"
+            />
+
+            <NInput
+              v-else
+              :id="`set-${item.key}`"
+              v-model="form[item.key]"
+              :disabled="saving"
+            />
           </div>
         </div>
-        
-        <div class="form-actions">
-          <button class="save-btn" @click="saveSettings('basic')">保存设置</button>
-        </div>
-      </div>
-      
-      <!-- 音乐设置 -->
-      <div v-if="activeTab === 'music'" class="tab-panel">
-        <h3>音乐设置</h3>
-        <div class="form-group">
-          <label>最大上传大小 (MB)</label>
-          <input 
-            type="number" 
-            v-model="settings.music.maxUploadSize" 
-            placeholder="输入最大上传大小"
-          />
-        </div>
-        
-        <div class="form-group">
-          <label>支持的音频格式</label>
-          <input 
-            type="text" 
-            v-model="settings.music.supportedFormats" 
-            placeholder="例如: mp3,wav,flac"
-          />
-        </div>
-        
-        <div class="form-group">
-          <label>是否启用音乐审核</label>
-          <div class="switch-group">
-            <label class="switch">
-              <input 
-                type="checkbox" 
-                v-model="settings.music.moderationEnabled"
-              >
-              <span class="slider"></span>
-            </label>
-            <span class="switch-label">
-              {{ settings.music.moderationEnabled ? '启用' : '禁用' }}
-            </span>
-          </div>
-        </div>
-        
-        <div class="form-actions">
-          <button class="save-btn" @click="saveSettings('music')">保存设置</button>
-        </div>
-      </div>
-      
-      <!-- 安全设置 -->
-      <div v-if="activeTab === 'security'" class="tab-panel">
-        <h3>安全设置</h3>
-        <div class="form-group">
-          <label>登录尝试次数限制</label>
-          <input 
-            type="number" 
-            v-model="settings.security.loginAttempts" 
-            placeholder="输入登录尝试次数限制"
-          />
-        </div>
-        
-        <div class="form-group">
-          <label>登录锁定时间 (分钟)</label>
-          <input 
-            type="number" 
-            v-model="settings.security.lockoutTime" 
-            placeholder="输入登录锁定时间"
-          />
-        </div>
-        
-        <div class="form-group">
-          <label>会话超时时间 (分钟)</label>
-          <input 
-            type="number" 
-            v-model="settings.security.sessionTimeout" 
-            placeholder="输入会话超时时间"
-          />
-        </div>
-        
-        <div class="form-group">
-          <label>是否启用双因素认证</label>
-          <div class="switch-group">
-            <label class="switch">
-              <input 
-                type="checkbox" 
-                v-model="settings.security.twoFactorAuth"
-              >
-              <span class="slider"></span>
-            </label>
-            <span class="switch-label">
-              {{ settings.security.twoFactorAuth ? '启用' : '禁用' }}
-            </span>
-          </div>
-        </div>
-        
-        <div class="form-actions">
-          <button class="save-btn" @click="saveSettings('security')">保存设置</button>
-        </div>
-      </div>
-    </div>
+      </section>
+    </template>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useToast } from 'vue-toastification'
-
-const toast = useToast()
+import { useToast } from '@/composables/useToast'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NInput, NSpinner, NTag } from '@/ui'
+import { fetchAdminSettings, saveAdminSettings } from '@/api/adminSettings.js'
 
 const router = useRouter()
+const toast = useToast()
 
-// 检查管理员登录状态
-onMounted(() => {
+const groups = ref([])
+const activeGroup = ref('')
+const loading = ref(false)
+const saving = ref(false)
+const loadError = ref('')
+const restartHint = ref('')
+
+/** 草稿值：key -> 字符串；数值/布尔/列表统一按字符串编辑，提交前由后端按类型校验 */
+const form = reactive({})
+/** 加载时的原始值，用于只提交改动过的键 */
+const original = reactive({})
+/** 敏感项：未编辑过就不提交，避免「看了一眼就清空」 */
+const secretTouched = reactive({})
+
+const currentGroup = computed(() => groups.value.find((g) => g.key === activeGroup.value) || null)
+
+const allSettings = computed(() => groups.value.flatMap((g) => g.settings || []))
+
+const changedKeys = computed(() =>
+  allSettings.value
+    .filter((item) => {
+      if (item.secret) return secretTouched[item.key] === true
+      return (form[item.key] ?? '') !== (original[item.key] ?? '')
+    })
+    .map((item) => item.key)
+)
+
+const changedCount = computed(() => changedKeys.value.length)
+const hasChanges = computed(() => changedCount.value > 0)
+
+/** 敏感项：只有真正编辑过的键才会提交，避免「打开页面就被清空」 */
+const onSecretInput = (key, value) => {
+  form[key] = value ?? ''
+  secretTouched[key] = true
+}
+
+const clearSecret = (key) => {
+  form[key] = ''
+  secretTouched[key] = true
+}
+
+const onBoolChange = (key, checked) => {
+  form[key] = checked ? 'true' : 'false'
+}
+
+const loadSettings = async () => {
+  loadError.value = ''
+  loading.value = true
+  try {
+    const list = await fetchAdminSettings()
+    groups.value = list
+    Object.keys(form).forEach((k) => delete form[k])
+    Object.keys(original).forEach((k) => delete original[k])
+    Object.keys(secretTouched).forEach((k) => delete secretTouched[k])
+    for (const group of list) {
+      for (const item of group.settings || []) {
+        if (item.secret) {
+          form[item.key] = ''
+          original[item.key] = ''
+        } else {
+          form[item.key] = item.value ?? ''
+          original[item.key] = item.value ?? ''
+        }
+      }
+    }
+    if (!list.some((g) => g.key === activeGroup.value)) {
+      activeGroup.value = list.length ? list[0].key : ''
+    }
+  } catch (e) {
+    loadError.value = e.message || '加载失败'
+    toast.error(loadError.value)
+    if (!localStorage.getItem('adminToken')) router.push('/admin/login')
+  } finally {
+    loading.value = false
+  }
+}
+
+const saveChanges = async () => {
+  if (!hasChanges.value) return
+  const values = {}
+  for (const key of changedKeys.value) {
+    values[key] = form[key] ?? ''
+  }
+  saving.value = true
+  try {
+    const result = await saveAdminSettings(values)
+    toast.success(`已保存 ${result.updated} 项设置`)
+    restartHint.value = result.restartRequired.length
+      ? result.restartRequired
+          .map((key) => allSettings.value.find((s) => s.key === key)?.label || key)
+          .join('、')
+      : ''
+    await loadSettings()
+  } catch (e) {
+    toast.error(e.message || '保存失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+onMounted(async () => {
   const storedToken = localStorage.getItem('adminToken')
   const storedAdminInfo = localStorage.getItem('adminInfo')
-  
   if (!storedToken || !storedAdminInfo) {
     router.push('/admin/login')
+    return
   }
-})
-
-// 设置标签页
-const activeTab = ref('basic')
-const settingsTabs = ref([
-  { key: 'basic', title: '基本设置' },
-  { key: 'music', title: '音乐设置' },
-  { key: 'security', title: '安全设置' }
-])
-
-// 设置数据
-const settings = ref({
-  basic: {
-    siteTitle: 'NekoMusic 音乐平台',
-    description: '一个现代化的音乐播放平台',
-    registrationEnabled: true
-  },
-  music: {
-    maxUploadSize: 50,
-    supportedFormats: 'mp3,wav,flac',
-    moderationEnabled: true
-  },
-  security: {
-    loginAttempts: 5,
-    lockoutTime: 30,
-    sessionTimeout: 120,
-    twoFactorAuth: false
+  let adminInfo
+  try {
+    adminInfo = JSON.parse(storedAdminInfo)
+  } catch {
+    router.push('/admin/login')
+    return
   }
+  const role = adminInfo.role || 'admin'
+  if (role === 'auditor') {
+    toast.info('无权限访问系统设置')
+    router.replace('/admin')
+    return
+  }
+  await loadSettings()
 })
-
-// 保存设置
-const saveSettings = (tab) => {
-  toast.success(`${settingsTabs.value.find(t => t.key === tab).title} 已保存！`)
-  // 这里可以实现实际的保存逻辑
-}
 </script>
 
 <style scoped>
-.admin-subpage {
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 15px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-}
-
-.admin-subpage h2 {
-  color: #69c8df;
-  margin: 0 0 20px 0;
-  font-size: 1.5rem;
-}
-
-.settings-tabs {
-  display: flex;
-  overflow-x: auto; /* 手机上 3 个 Tab 会挤爆容器 */
-  overscroll-behavior-x: contain;
-  margin-bottom: 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.tab-btn {
-  flex: 0 0 auto; /* 横向滚动时不被压缩 */
-  white-space: nowrap;
-  padding: 10px 20px;
-  background: transparent;
-  border: none;
-  color: #887bb0;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: all 0.3s ease;
-}
-
-.tab-btn.active {
-  color: #69c8df;
-  border-bottom: 2px solid #69c8df;
-  font-weight: bold;
-}
-
-.tab-btn:hover:not(.active) {
-  color: #69c8df;
-  background: rgba(105, 200, 223, 0.1);
-  border-radius: 5px 5px 0 0;
-}
-
-.tab-content {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-  padding: 20px;
-}
-
-.tab-panel h3 {
-  color: #69c8df;
-  margin: 0 0 20px 0;
-  font-size: 1.2rem;
-}
-
-.form-group {
-  margin-bottom: 20px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 8px;
-  color: #5c4b7b;
-  font-weight: 500;
-}
-
-.form-group input,
-.form-group textarea {
+.subpage {
   width: 100%;
-  max-width: 400px;
-  padding: 10px 15px;
-  border: none;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: #333;
-  font-size: 1rem;
-  transition: all 0.3s ease;
 }
 
-.form-group textarea {
-  resize: vertical;
-  min-height: 100px;
+.subpage__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--n-space-4);
+  margin-bottom: var(--n-space-6);
 }
 
-.form-group input:focus,
-.form-group textarea:focus {
-  outline: none;
-  border: 1px solid rgba(105, 200, 223, 0.5);
-  box-shadow: 0 0 0 2px rgba(105, 200, 223, 0.2);
-  background: rgba(255, 255, 255, 0.35);
+.subpage__title {
+  margin: 0 0 var(--n-space-1);
+  font-size: clamp(1.25rem, 2.6vw, 1.6rem);
+  font-weight: var(--n-weight-bold);
+  letter-spacing: -0.02em;
+  color: var(--n-text);
 }
 
-.switch-group {
+.subpage__desc {
+  margin: 0;
+  max-width: 68ch;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  line-height: var(--n-leading-normal);
+}
+
+.subpage__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--n-space-3);
+}
+
+.err,
+.notice {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--n-space-2);
+  margin: 0 0 var(--n-space-5);
+  padding: var(--n-space-3) var(--n-space-4);
+  border-radius: var(--n-radius-control);
+  font-size: var(--n-text-sm);
 }
 
-/* Switch 开关样式 */
+.err {
+  border: 1px solid rgba(255, 107, 107, 0.28);
+  background: var(--n-danger-soft);
+  color: #ffb3b3;
+}
+
+.notice {
+  border: 1px solid var(--n-accent-line);
+  background: var(--n-accent-soft);
+  color: var(--n-text);
+}
+
+.placeholder {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-3);
+  padding: var(--n-space-6);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+}
+
+/* ==================== 分组标签 ==================== */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--n-space-2);
+  margin-bottom: var(--n-space-4);
+}
+
+.tab {
+  padding: 6px var(--n-space-4);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-pill);
+  background: var(--n-surface-soft);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  transition:
+    background var(--n-duration-fast) var(--n-ease),
+    color var(--n-duration-fast) var(--n-ease),
+    border-color var(--n-duration-fast) var(--n-ease);
+}
+
+@media (hover: hover) {
+  .tab:not(.tab--active):hover {
+    background: var(--n-surface-hover);
+    color: var(--n-text);
+  }
+}
+
+.tab--active {
+  border-color: var(--n-accent-line);
+  background: var(--n-accent-soft);
+  color: var(--n-accent-strong);
+  font-weight: var(--n-weight-semibold);
+}
+
+/* ==================== 设置项 ==================== */
+.panel {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-lg);
+  background: var(--n-surface);
+}
+
+.field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--n-space-4);
+  padding: var(--n-space-4) var(--n-space-5);
+  border-bottom: 1px solid var(--n-line-subtle);
+}
+
+.field:last-child {
+  border-bottom: none;
+}
+
+.field__main {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.field__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--n-space-2);
+  color: var(--n-text);
+  font-size: var(--n-text-base);
+  font-weight: var(--n-weight-medium);
+}
+
+.field__desc {
+  margin: var(--n-space-1) 0 0;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+  line-height: var(--n-leading-normal);
+}
+
+.field__control {
+  flex: 0 1 360px;
+  min-width: 0;
+}
+
+.control--num {
+  max-width: 200px;
+}
+
+.secret {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-2);
+}
+
+.secret :deep(.n-input) {
+  flex: 1;
+}
+
+/* ==================== 开关 ==================== */
 .switch {
-  position: relative;
-  display: inline-block;
-  width: 50px;
-  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--n-space-3);
+  cursor: pointer;
+  user-select: none;
 }
 
 .switch input {
+  position: absolute;
   opacity: 0;
   width: 0;
   height: 0;
 }
 
-.slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #ccc;
-  transition: .4s;
-  border-radius: 24px;
+.switch__track {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  border: 1px solid var(--n-line);
+  border-radius: 999px;
+  background: var(--n-surface-soft);
+  transition: background var(--n-duration-fast) var(--n-ease), border-color var(--n-duration-fast) var(--n-ease);
 }
 
-.slider:before {
+.switch__thumb {
   position: absolute;
-  content: "";
-  height: 18px;
+  top: 2px;
+  left: 2px;
   width: 18px;
-  left: 3px;
-  bottom: 3px;
-  background-color: white;
-  transition: .4s;
+  height: 18px;
   border-radius: 50%;
+  background: var(--n-text-faint);
+  transition: transform var(--n-duration-fast) var(--n-ease), background var(--n-duration-fast) var(--n-ease);
 }
 
-input:checked + .slider {
-  background-color: #69c8df;
+.switch--on .switch__track {
+  border-color: var(--n-accent-line);
+  background: var(--n-accent-soft);
 }
 
-input:checked + .slider:before {
-  transform: translateX(26px);
+.switch--on .switch__thumb {
+  transform: translateX(20px);
+  background: var(--n-accent);
 }
 
-.switch-label {
-  color: #887bb0;
-  font-size: 0.9rem;
+.switch__label {
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
 }
 
-.form-actions {
-  margin-top: 30px;
-  display: flex;
-  justify-content: flex-start;
-}
-
-.save-btn {
-  background: linear-gradient(135deg, rgba(105, 200, 223, 0.8), rgba(105, 200, 223, 0.8));
-  color: white;
-  border: none;
-  border-radius: 20px;
-  padding: 10px 25px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 10px rgba(105, 200, 223, 0.3);
-}
-
-.save-btn:hover {
-  background: linear-gradient(135deg, rgba(86, 70, 185, 0.9), rgba(118, 23, 206, 0.9));
-  transform: translateY(-2px);
-  box-shadow: 0 6px 15px rgba(105, 200, 223, 0.5);
-}
-
-/* 响应式设计 */
 @media (max-width: 900px) {
-  .admin-subpage {
-    padding: 20px 20px 40px;
+  .field {
+    padding: var(--n-space-4);
+  }
+
+  .field__control {
+    flex-basis: 100%;
   }
 }
 </style>

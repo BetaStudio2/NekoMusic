@@ -14,7 +14,7 @@
 ```bash
 cd backend
 cp src/main/resources/config.yml config.yml
-# 编辑 config.yml，至少填写 mysql、redis、jwt.secret 等生产配置，并修改默认 Redis 密码
+# 编辑 config.yml：只需填写 MySQL 连接信息（连库前无法从库里读配置）
 mkdir -p Music/music Music/covers releases
 docker compose build
 docker compose up -d
@@ -27,9 +27,15 @@ docker compose logs -f neko-music
 curl -fsS http://127.0.0.1:65535/version
 ```
 
-音乐文件、封面、声纹索引和客户端发布包分别持久化在 `backend/Music/` 与 `backend/releases/`；配置文件为 `backend/config.yml`，不要把包含密码和密钥的配置提交到 Git。升级代码后执行 `docker compose build --pull && docker compose up -d`。
+音乐文件、封面、声纹索引和客户端发布包分别持久化在 `backend/Music/` 与 `backend/releases/`；配置文件为 `backend/config.yml`（只含 MySQL 引导信息，密码等敏感项请勿提交到 Git）；运行时配置存
+主库 `system_settings` 表，同样不要外泄。升级代码后执行 `docker compose build --pull && docker compose up -d`。
 
-默认配置使用 `video_render.pipeline: cuda_native`，需要 NVIDIA GPU、驱动和容器工具包，并要求 FFmpeg 具备 NVENC/CUDA。没有 GPU 时，将 `video_render.pipeline` 改为 `cpu_legacy`，将 `video_render.video_codec` 改为 `libx264`，并从 `backend/docker-compose.yaml` 删除 `gpus: all`；在 Docker Desktop 上还需将 `network_mode: host` 改为 `ports: ["65535:65535"]`，并按实际地址修改 MySQL/Redis 的 host。
+首次启动会自动建表 `system_settings`，并把出厂默认值（或旧 `config.yml` 里的现值）灌一次；之后
+所有运行时配置（端口、Redis、JWT、邮件、频率限制、网络与安全、视频渲染、支付等）都在管理后台
+「系统设置」页维护，改完即时生效，`config.yml` 里对应项不再生效。
+
+默认配置使用 `video_render.pipeline: cuda_native`，需要 NVIDIA GPU、驱动和容器工具包，并要求 FFmpeg 具备 NVENC/CUDA。没有 GPU 时，在管理后台「系统设置 → 视频渲染」把 `pipeline` 改为 `cpu_legacy`、把 `video_codec` 改为
+`libx264`（需重启后端），并从 `backend/docker-compose.yaml` 删除 `gpus: all`；在 Docker Desktop 上还需将 `network_mode: host` 改为 `ports: ["65535:65535"]`，并按实际地址修改 MySQL/Redis 的 host。
 
 
 ## 本地前端开发
@@ -57,7 +63,7 @@ dev server（默认 `http://localhost:5173`）会把 `/api`、`/version` 反向�
 curl -sS -F 'audio=@sample.m4a' https://music.example.com/api/music/recognize
 ```
 
-识别结果在 `data` 中返回歌曲 ID、标题、歌手、专辑、置信度和匹配偏移；未匹配本站曲库时返回 `matched: false`。相关大小、时长、并发和限流参数可在 `backend/src/main/resources/config.yml` 的 `music_recognition` 节配置。
+识别结果在 `data` 中返回歌曲 ID、标题、歌手、专辑、置信度和匹配偏移；未匹配本站曲库时返回 `matched: false`。相关大小、时长、并发和限流参数可在管理后台「系统设置 → 听歌识曲」里调整（改动需重启后端）。
 
 ## 违禁词检测 API
 
@@ -222,7 +228,7 @@ curl -s -X POST 'https://music.nekocore.cn/api/sensitive-word/check' \
 - **歌单内歌曲降权**：用户自建歌单、已收藏歌单中的曲目仍可能入选，但规则打分降低并在排序中靠后。
 - 若当天缓存不存在，接口会按需即时生成并写回 Redis。
 
-### 配置项（`backend/src/main/resources/config.yml`）
+### 配置项（管理后台「系统设置 → 每日推荐 AI」）
 
 `recommendation_ai` 主要字段：
 

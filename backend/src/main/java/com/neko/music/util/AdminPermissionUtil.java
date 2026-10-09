@@ -64,7 +64,11 @@ public class AdminPermissionUtil {
         ADMIN_CHANGE_PASSWORD,
         
         // 统计数据相关
-        STATS_VIEW
+        STATS_VIEW,
+
+        // 系统设置相关（管理员及以上；审核员不可见）
+        SETTINGS_VIEW,
+        SETTINGS_EDIT
     }
     
     /**
