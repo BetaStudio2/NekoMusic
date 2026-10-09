@@ -415,35 +415,43 @@ const checkMobile = () => isMobileDevice()
 /** 详情请求序号：连续快速切歌时，只允许最后一次请求写回，避免慢的旧响应覆盖新曲目 */
 let detailRequestSeq = 0
 
-/** 防止直接进入其它详情页时复用旧播放器曲目；URL 目标必须先成为当前曲目。 */
-let initialRouteMusicId = null
-
 /**
- * 取一首曲目的轻量信息。切歌瞬间 GlobalPlayer 已经把新曲目广播给了桥接层，
- * 先拿它把界面切过去，就不必等 /api/music/info 返回 —— 否则请求期间界面
- * 会一直停在上一次的曲目上（封面 / 曲名 / 背景都是上一首）。
+ * 路由「权威」目标曲目 id：显式进入 /detail/:id 后，播放引擎需要切到该曲目。
+ * ------------------------------------------------------------
+ * 为什么要有它：直接输入下一首的网址（或整页刷新到新地址）时，播放引擎在挂载
+ * 瞬间仍持有 localStorage 里的上一首，并会把它广播给桥接层。若此时曲目跟随
+ * 逻辑照单全收，就会把地址栏 replace 回上一首 —— 也就是「输入新歌网址却跳回
+ * 上一首」。因此在 setup 阶段（早于桥接层在 onMounted 里的首次同步）就记下
+ * 路由目标：目标未对齐前，忽略桥接层里上一首的残留状态。
  */
-const getCachedTrack = (musicId) => {
-  const id = String(musicId)
-  if (initialRouteMusicId !== null && id === initialRouteMusicId) {
-    return null
-  }
-  if (playback.currentMusic && String(playback.currentMusic.id) === id) {
-    return playback.currentMusic
-  }
+let routeTargetMusicId = null
+/** 进入本页瞬间，播放引擎里残留的上一首 id；只忽略它这一次，不忽略之后真正的切歌 */
+let stalePlaybackMusicId = null
+if (route.params.id) {
+  routeTargetMusicId = String(route.params.id)
   try {
     const stored = JSON.parse(localStorage.getItem('currentPlayingMusic') || 'null')
-    if (stored && String(stored.id) === id) return stored
+    if (stored?.id != null) stalePlaybackMusicId = String(stored.id)
   } catch {
     /* ignore */
   }
-  return null
 }
 
+/**
+ * 让播放引擎对齐当前路由曲目，并同步「路由目标」。
+ * 引擎已在放该曲目 → 视为已对齐，清掉目标；否则发指令，等状态回流后再清。
+ */
 const playRouteMusic = () => {
   const id = String(route.params.id || '')
-  if (!id) return
-  if (String(playback.currentMusic?.id || '') === id) return
+  if (!id) {
+    routeTargetMusicId = null
+    return
+  }
+  if (String(playback.currentMusic?.id || '') === id) {
+    routeTargetMusicId = null
+    return
+  }
+  routeTargetMusicId = id
   sendPlayerCommand('playMusic', { musicId: id })
 }
 
@@ -602,7 +610,9 @@ const syncPlayStateFromStorage = () => {
   try {
     const playing = JSON.parse(localStorage.getItem('currentPlayingMusic') || 'null')
     const state = JSON.parse(localStorage.getItem('globalPlayerState') || 'null')
-    if (playing && currentMusic.value && playing.id === currentMusic.value.id && state) {
+    // 统一用字符串比较，避免后端返回 number、列表/localStorage 存 string 时类型不一致
+    // 导致同步被跳过（表现为播放条不随播放推进）。
+    if (playing && currentMusic.value && String(playing.id) === String(currentMusic.value.id) && state) {
       isPlaying.value = !!state.isPlaying
       currentTime.value = state.currentTime ?? 0
       duration.value = state.duration ?? currentMusic.value.duration ?? 0
@@ -692,7 +702,7 @@ const getDefaultClipStartSec = () => {
   try {
     const playing = JSON.parse(localStorage.getItem('currentPlayingMusic') || 'null')
     const state = JSON.parse(localStorage.getItem('globalPlayerState') || 'null')
-    if (playing && currentMusic.value && playing.id === currentMusic.value.id && state?.currentTime > 0) {
+    if (playing && currentMusic.value && String(playing.id) === String(currentMusic.value.id) && state?.currentTime > 0) {
       return Math.floor(state.currentTime)
     }
   } catch {
@@ -1289,7 +1299,6 @@ onMounted(async () => {
   }
 
   const musicId = route.params.id
-  initialRouteMusicId = musicId ? String(musicId) : null
   if (checkMobile() && musicId) {
     tryOpenMusicDetailInApp(musicId)
   }
@@ -1340,13 +1349,39 @@ onUnmounted(() => {
 /**
  * 全局当前曲目变化（上一首 / 下一首 / 自动切歌）→ 播放页地址跟随。
  *
- * 守卫：只跟随「确实已经持久化的当前曲目」。避免桥接层因旧事件短暂持有
- * 上一首时，把播放页 replace 回上一首（即「跳回原状态」）。replace 不污染历史。
+ * 两道守卫：
+ *  1. 「路由目标未对齐」时忽略：显式进入 /detail/:id 后，引擎切过去之前桥接层
+ *     可能还持有上一首，此时绝不能把地址栏 replace 回上一首。只忽略这一次残留，
+ *     之后引擎真正的切歌（含用户点下一首）照常跟随。
+ *  2. 只跟随「确实已经持久化的当前曲目」，避免旧事件短暂持有上一首时来回横跳。
+ * replace 不污染历史。
  */
 watch(
   () => playback.currentMusic?.id,
   (id) => {
     if (!id) return
+
+    if (routeTargetMusicId) {
+      const matchesTarget = String(routeTargetMusicId) === String(id)
+      // 进入本页时残留的上一首：只忽略它一次
+      const isEntryStale =
+        stalePlaybackMusicId != null && String(stalePlaybackMusicId) === String(id)
+      stalePlaybackMusicId = null
+
+      if (matchesTarget) {
+        // 引擎已切到路由目标 → 对齐完成
+        routeTargetMusicId = null
+      } else if (isEntryStale) {
+        // 仍是上一首的残留状态 → 忽略，等引擎切到路由目标
+        return
+      } else {
+        // 目标是别的、引擎却真的换了歌（如用户点了下一首）→ 放弃旧目标，下面照常跟随
+        routeTargetMusicId = null
+      }
+    } else {
+      stalePlaybackMusicId = null
+    }
+
     const persisted = getPersistedCurrentMusicId()
     if (!persisted || String(persisted) !== String(id)) return
     if (String(route.params.id) === String(id)) return
