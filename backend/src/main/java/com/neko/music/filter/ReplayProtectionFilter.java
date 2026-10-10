@@ -41,6 +41,8 @@ import java.util.Set;
  *       {@link #EXEMPT_PATHS} 中单独豁免（EventSource 无法带头且会自动重连）。</li>
  *   <li>上传类 multipart 请求：转发前无法在不缓冲整个请求体的情况下做校验，统一豁免（已由鉴权与
  *       IP 限流覆盖）。</li>
+ *   <li>后台审核的媒体预览（{@code /api/user/upload/preview}）：CDN / 播放器会按 Range 把一次
+ *       客户端请求拆成多次回源请求，后续分片不带自定义头，无法逐请求校验 nonce。</li>
  *   <li>{@code OPTIONS} 预检与 {@code HEAD} 请求。</li>
  * </ul>
  *
@@ -80,7 +82,11 @@ public class ReplayProtectionFilter implements Filter {
             "/api/music/ranking",
             "/api/payment/zpay/notify",
             "/api/user/qrlogin/status", // EventSource(SSE) 且浏览器会自动重连
-            "/api/user/notifications/stream"); // 站内消息实时推送：EventSource 无法带 nonce
+            "/api/user/notifications/stream", // 站内消息实时推送：EventSource 无法带 nonce
+            // 审核页试听 / 封面预览：媒体流会被 CDN 与播放器按 Range 分片取，一次客户端请求对应
+            // 多次回源请求（后续分片由 CDN 内部发起、不带自定义头），一次性 nonce 会把后续分片
+            // 打成 409 并导致大文件被截断。接口本身要求管理员 token、只读、无副作用。
+            "/api/user/upload/preview");
 
     /** 前缀豁免路径（浏览器原生请求 / SSE）。 */
     static final List<String> EXEMPT_PREFIXES = List.of(

@@ -45,7 +45,9 @@ const EXEMPT_PATHS = new Set([
   '/api/music/ranking',
   '/api/payment/zpay/notify',
   '/api/user/qrlogin/status',
-  '/api/user/notifications/stream'
+  '/api/user/notifications/stream',
+  // 审核页试听 / 封面预览：CDN 会按 Range 把一次请求拆成多次回源，nonce 无法覆盖后续分片
+  '/api/user/upload/preview'
 ])
 /** 与后端 EXEMPT_PREFIXES 对应 */
 const EXEMPT_PREFIXES = ['/api/music/cover/', '/api/user/avatar/']

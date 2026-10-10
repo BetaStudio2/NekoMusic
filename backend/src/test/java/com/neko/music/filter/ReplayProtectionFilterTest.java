@@ -166,6 +166,9 @@ class ReplayProtectionFilterTest {
         assertTrue(run("GET", "/loser/netease/pull", null, false).chained());
         // 第三方支付回调
         assertTrue(run("POST", "/api/payment/zpay/notify", null, false).chained());
+        // 审核页媒体预览：CDN 按 Range 分片回源时后续请求不带自定义头
+        assertTrue(run("GET", "/api/user/upload/preview", null, false).chained());
+        assertTrue(run("GET", "/api/user/upload/preview/", null, false).chained());
     }
 
     @Test

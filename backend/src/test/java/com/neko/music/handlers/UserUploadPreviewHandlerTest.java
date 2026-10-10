@@ -1,10 +1,14 @@
 package com.neko.music.handlers;
 
+import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.WriteListener;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.ByteArrayOutputStream;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -13,54 +17,74 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * 审核试听接口的响应头契约：整包回源，不得声明 {@code Accept-Ranges}。
+ * 审核试听接口的响应契约：声明支持 Range，并按单段 {@code 206} 返回内容。
  *
- * <p>该接口由一次性防重放 nonce 保护。一旦声明支持 Range，CDN 的 Range 分片回源会把一次
- * 客户端请求拆成多次回源请求并复用同一个 nonce，第二个分片必然被 409 拒绝，客户端侧表现为
- * {@code ERR_HTTP2_PROTOCOL_ERROR}（HTTP/2 断流）。用动态代理桩替代 Servlet 容器。</p>
+ * <p>该接口的媒体文件会被浏览器 / 客户端与 CDN 按 {@code Range} 分片取，源站忽略 {@code Range}
+ * 直接回整包时，CDN 的分片回源拼不出完整文件，大文件会被截断（客户端表现为
+ * {@code ERR_HTTP2_PROTOCOL_ERROR}）。用动态代理桩替代 Servlet 容器。</p>
  */
 class UserUploadPreviewHandlerTest {
 
     @Test
-    @DisplayName("预览响应不声明 Accept-Ranges，且 Content-Type / Content-Length 正确")
-    void previewResponseDoesNotAdvertiseRanges(@TempDir Path dir) throws Exception {
+    @DisplayName("无 Range：整包 200，声明 Accept-Ranges 与 Content-Length")
+    void fullResponseAdvertisesRanges(@TempDir Path dir) throws Exception {
+        byte[] payload = payload(4096);
         Path file = dir.resolve("music_1.flac");
-        byte[] payload = new byte[4096];
-        Files.write(file, payload);
 
-        Map<String, String> headers = new HashMap<>();
-        String[] contentType = {null};
-        long[] contentLength = {-1};
+        Recorder recorder = send(dir, "music_1.flac", payload, null);
 
-        HttpServletResponse response = proxy(HttpServletResponse.class, (p, m, a) -> switch (m.getName()) {
-            case "setHeader" -> {
-                headers.put(((String) a[0]).toLowerCase(), (String) a[1]);
-                yield null;
-            }
-            case "setContentType" -> {
-                contentType[0] = (String) a[0];
-                yield null;
-            }
-            case "setContentLengthLong" -> {
-                contentLength[0] = (long) a[0];
-                yield null;
-            }
-            default -> defaultValue(m);
-        });
-
-        UserUploadPreviewHandler.applyFileResponseHeaders(file, response);
-
-        assertNull(headers.get("accept-ranges"),
-                "预览接口不得声明 Accept-Ranges：会触发 CDN 分片回源，而分片会复用同一个一次性 nonce");
-        assertNull(headers.get("cache-control"),
+        assertEquals(HttpServletResponse.SC_OK, recorder.status);
+        assertEquals("bytes", recorder.headers.get("accept-ranges"));
+        assertNull(recorder.headers.get("content-range"));
+        assertEquals("audio/flac", recorder.contentType);
+        assertEquals("inline; filename=\"music_1.flac\"", recorder.headers.get("content-disposition"));
+        assertEquals(payload.length, recorder.contentLength);
+        assertNull(recorder.headers.get("cache-control"),
                 "缓存策略交由 CacheControlFilter 兜底为 private, no-store，避免待审核文件被 CDN 公共缓存");
-        assertEquals("audio/flac", contentType[0]);
-        assertEquals(payload.length, contentLength[0]);
-        assertEquals("inline; filename=\"music_1.flac\"", headers.get("content-disposition"));
+        assertArrayEquals(payload, recorder.body);
+    }
+
+    @Test
+    @DisplayName("带 Range：单段 206，Content-Range 与内容长度都按区间给出")
+    void rangeRequestReturnsPartialContent(@TempDir Path dir) throws Exception {
+        byte[] payload = payload(4096);
+
+        Recorder recorder = send(dir, "music_1.flac", payload, "bytes=10-19");
+
+        assertEquals(HttpServletResponse.SC_PARTIAL_CONTENT, recorder.status);
+        assertEquals("bytes 10-19/4096", recorder.headers.get("content-range"));
+        assertEquals(10, recorder.contentLength);
+        assertEquals("bytes", recorder.headers.get("accept-ranges"));
+        assertArrayEquals(java.util.Arrays.copyOfRange(payload, 10, 20), recorder.body);
+    }
+
+    @Test
+    @DisplayName("开区间与后缀 Range 都按区间取，越界回 416")
+    void openEndedSuffixAndUnsatisfiableRanges(@TempDir Path dir) throws Exception {
+        byte[] payload = payload(1000);
+
+        Recorder tail = send(dir, "a.flac", payload, "bytes=990-");
+        assertEquals(HttpServletResponse.SC_PARTIAL_CONTENT, tail.status);
+        assertEquals("bytes 990-999/1000", tail.headers.get("content-range"));
+        assertArrayEquals(java.util.Arrays.copyOfRange(payload, 990, 1000), tail.body);
+
+        Recorder suffix = send(dir, "a.flac", payload, "bytes=-5");
+        assertEquals(HttpServletResponse.SC_PARTIAL_CONTENT, suffix.status);
+        assertEquals("bytes 995-999/1000", suffix.headers.get("content-range"));
+        assertArrayEquals(java.util.Arrays.copyOfRange(payload, 995, 1000), suffix.body);
+
+        Recorder beyond = send(dir, "a.flac", payload, "bytes=5000-6000");
+        assertEquals(HttpServletResponse.SC_REQUESTED_RANGE_NOT_SATISFIABLE, beyond.status);
+        assertEquals("bytes */1000", beyond.headers.get("content-range"));
+
+        // 语法非法 / 多段：按整包处理，不给客户端 500
+        assertEquals(1000, send(dir, "a.flac", payload, "bytes=abc-def").contentLength);
+        assertEquals(HttpServletResponse.SC_OK, send(dir, "a.flac", payload, "items=0-10").status);
     }
 
     @Test
@@ -72,6 +96,78 @@ class UserUploadPreviewHandlerTest {
         assertEquals("image/jpeg", UserUploadPreviewHandler.getContentType("cover.jpg"));
         assertEquals("text/plain; charset=utf-8", UserUploadPreviewHandler.getContentType("song.lrc"));
         assertEquals("application/octet-stream", UserUploadPreviewHandler.getContentType("noext"));
+    }
+
+    private static byte[] payload(int size) {
+        byte[] payload = new byte[size];
+        for (int i = 0; i < size; i++) {
+            payload[i] = (byte) (i % 251);
+        }
+        return payload;
+    }
+
+    /** 写一个文件、以给定 Range 调 {@link UserUploadPreviewHandler#sendFile}，回收响应侧结果。 */
+    private static Recorder send(Path dir, String name, byte[] payload, String range) throws Exception {
+        Path file = dir.resolve(name);
+        Files.write(file, payload);
+
+        Recorder recorder = new Recorder();
+        HttpServletResponse response = proxy(HttpServletResponse.class, (p, m, a) -> switch (m.getName()) {
+            case "setStatus" -> {
+                recorder.status = (int) a[0];
+                yield null;
+            }
+            case "setHeader" -> {
+                recorder.headers.put(((String) a[0]).toLowerCase(), (String) a[1]);
+                yield null;
+            }
+            case "setContentType" -> {
+                recorder.contentType = (String) a[0];
+                yield null;
+            }
+            case "setContentLengthLong" -> {
+                recorder.contentLength = (long) a[0];
+                yield null;
+            }
+            case "getOutputStream" -> recorder;
+            default -> defaultValue(m);
+        });
+        HttpServletRequest request = proxy(HttpServletRequest.class, (p, m, a) -> switch (m.getName()) {
+            case "getHeader" -> "Range".equalsIgnoreCase((String) a[0]) ? range : null;
+            default -> defaultValue(m);
+        });
+
+        UserUploadPreviewHandler.sendFile(file, request, response);
+        recorder.finish();
+        return recorder;
+    }
+
+    /** 既是响应桩，也是输出流：记录状态码 / 响应头，并捕获写出的字节。 */
+    private static final class Recorder extends ServletOutputStream {
+        private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        final Map<String, String> headers = new HashMap<>();
+        int status = 200;
+        String contentType;
+        long contentLength = -1;
+        byte[] body = new byte[0];
+
+        @Override
+        public void write(int b) {
+            buffer.write(b);
+        }
+
+        @Override
+        public boolean isReady() {
+            return true;
+        }
+
+        @Override
+        public void setWriteListener(WriteListener listener) {
+        }
+
+        void finish() {
+            body = buffer.toByteArray();
+        }
     }
 
     @SuppressWarnings("unchecked")

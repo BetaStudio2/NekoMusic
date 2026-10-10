@@ -2,6 +2,7 @@ package com.neko.music.handlers;
 
 import com.neko.music.Main;
 import com.neko.music.util.ClientAborts;
+import com.neko.music.util.HttpResourceCache;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -10,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,6 +20,9 @@ import java.nio.file.Paths;
 public class UserUploadPreviewHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserUploadPreviewHandler.class);
     private static final String UPLOAD_DIR = "user_upload";
+
+    /** 分片输出缓冲：与媒体接口保持一致，避免整文件读进内存。 */
+    private static final int BUFFER_SIZE = 65536;
     
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -96,41 +101,126 @@ public class UserUploadPreviewHandler extends HttpServlet {
             return;
         }
         
-        applyFileResponseHeaders(requestedPath, response);
-
-        // 输出文件内容
-        try (OutputStream out = response.getOutputStream()) {
-            Files.copy(requestedPath, out);
-            out.flush();
-        } catch (IOException e) {
-            if (ClientAborts.isClientAbort(e)) {
-                logger.debug("管理员在预览文件发送完成前断开连接: {}", filePath);
-                return;
-            }
-            throw e;
-        }
+        sendFile(requestedPath, request, response);
 
         logger.debug("管理员预览文件成功: {}", filePath);
     }
 
     /**
-     * 写入预览文件的响应头。
+     * 发送预览文件内容：带 {@code Range} 时回 {@code 206} 单段内容，否则整包 {@code 200}。
      *
-     * <p>刻意<strong>不</strong>声明 {@code Accept-Ranges}：本接口由一次性防重放 nonce 保护，
-     * 而 CDN 的「Range 分片回源」会把一次客户端请求拆成多次回源请求、并复用同一个 nonce，
-     * 第二个分片必然被 409 拒绝，客户端最终表现为 {@code ERR_HTTP2_PROTOCOL_ERROR}（HTTP/2 断流）。
-     * 因此与安装包、渲染视频下载保持一致：整包回源，不参与分片。</p>
+     * <p>必须支持 Range：客户端（浏览器 / 客户端 App）与 CDN 都会按需分片取音频，CDN 的
+     * 分片回源只有在源站回 {@code 206} 时才会拼出完整文件；源站忽略 {@code Range} 直接回整包时，
+     * 大文件会被 CDN 截断（客户端表现为 {@code ERR_HTTP2_PROTOCOL_ERROR}）。</p>
      *
      * <p>缓存策略不在这里设置，统一交给 {@code CacheControlFilter} 兜底为 {@code private, no-store}，
      * 避免待审核文件被 CDN 公共缓存。</p>
+     */
+    static void sendFile(Path file, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        long size = Files.size(file);
+        applyFileResponseHeaders(file, response);
+        HttpResourceCache.setAcceptRangesBytes(response);
+
+        RangeSpec range = parseRange(request.getHeader("Range"), size);
+        if (range == RangeSpec.UNSATISFIABLE) {
+            response.setStatus(HttpServletResponse.SC_REQUESTED_RANGE_NOT_SATISFIABLE);
+            response.setHeader("Content-Range", "bytes */" + size);
+            return;
+        }
+        long start = range == null ? 0 : range.start();
+        long end = range == null || size == 0 ? size - 1 : range.end();
+        long length = size == 0 ? 0 : end - start + 1;
+        if (range == null) {
+            response.setStatus(HttpServletResponse.SC_OK);
+        } else {
+            response.setStatus(HttpServletResponse.SC_PARTIAL_CONTENT);
+            response.setHeader("Content-Range", "bytes " + start + "-" + end + "/" + size);
+        }
+        response.setContentLengthLong(length);
+
+        try (InputStream in = Files.newInputStream(file); OutputStream out = response.getOutputStream()) {
+            if (start > 0) {
+                in.skipNBytes(start);
+            }
+            byte[] buffer = new byte[BUFFER_SIZE];
+            long remaining = length;
+            while (remaining > 0) {
+                int count = in.read(buffer, 0, (int) Math.min(buffer.length, remaining));
+                if (count < 0) {
+                    break;
+                }
+                out.write(buffer, 0, count);
+                remaining -= count;
+            }
+            out.flush();
+        } catch (IOException e) {
+            if (ClientAborts.isClientAbort(e)) {
+                logger.debug("管理员在预览文件发送完成前断开连接: {}", file);
+                return;
+            }
+            throw e;
+        }
+    }
+
+    /** 单段字节区间；{@link #UNSATISFIABLE} 表示无法满足（回 {@code 416}）。 */
+    record RangeSpec(long start, long end) {
+        static final RangeSpec UNSATISFIABLE = new RangeSpec(-1, -1);
+    }
+
+    /**
+     * 解析 {@code Range} 请求头，只服务单段（多段、语法非法一律按整包处理，避免给客户端 500）。
+     * 返回 {@code null} = 按整包发送，{@link RangeSpec#UNSATISFIABLE} = 回 {@code 416}。
+     */
+    static RangeSpec parseRange(String header, long size) {
+        if (header == null || !header.startsWith("bytes=")) {
+            return null;
+        }
+        String spec = header.substring(6).trim();
+        int comma = spec.indexOf(',');
+        if (comma >= 0) {
+            spec = spec.substring(0, comma).trim();
+        }
+        int dash = spec.indexOf('-');
+        if (dash < 0) {
+            return null;
+        }
+        String startText = spec.substring(0, dash).trim();
+        String endText = spec.substring(dash + 1).trim();
+        try {
+            if (startText.isEmpty()) {
+                if (endText.isEmpty() || size == 0) {
+                    return endText.isEmpty() ? null : RangeSpec.UNSATISFIABLE;
+                }
+                long suffix = Long.parseLong(endText);
+                if (suffix <= 0) {
+                    return RangeSpec.UNSATISFIABLE;
+                }
+                return new RangeSpec(Math.max(0, size - suffix), size - 1);
+            }
+            long start = Long.parseLong(startText);
+            long end = endText.isEmpty() ? size - 1 : Long.parseLong(endText);
+            if (start < 0 || start >= size || end < start) {
+                return RangeSpec.UNSATISFIABLE;
+            }
+            return new RangeSpec(start, Math.min(end, size - 1));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 写入预览文件的基础响应头（{@code Content-Type} / {@code Content-Disposition}）。
+     *
+     * <p>{@code Content-Length}、{@code Accept-Ranges}、{@code 206} 相关头部由 {@link #sendFile} 按
+     * 整包 / 分片分别设置；缓存策略不在这里设置，统一交给 {@code CacheControlFilter} 兜底为
+     * {@code private, no-store}，避免待审核文件被 CDN 公共缓存。</p>
      */
     static void applyFileResponseHeaders(Path file, HttpServletResponse response) throws IOException {
         String fileName = file.getFileName().toString();
         response.setContentType(getContentType(fileName));
         response.setHeader("Content-Disposition", "inline; filename=\"" + fileName + "\"");
-        response.setContentLengthLong(Files.size(file));
     }
-    
+
     @Override
     protected void doOptions(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         // 设置CORS响应头
