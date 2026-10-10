@@ -119,6 +119,17 @@ cd frontend && npm run build    # 产物输出到 ../backend/src/main/resources/
   客户端接口（如 `/version`）的改动同样要跟进，不要只改服务端一端。
 - 防护开关、豁免清单一律写成代码里的类常量，**不要新增 `config.yml` 配置项**。
 
+### 响应安全头（CSP）
+
+- 全部响应（页面、静态资源、API、SSE、媒体、报错页）都由 `filter/SecurityHeadersFilter.java`
+  统一带上 `Content-Security-Policy` 与其余加固头；策略是代码里的类常量，**不要**新增 `config.yml`
+  键或 `system_settings` 项。
+- 策略取值受现有前端实现约束，改前端前先确认：构建产物的 `index.html` 带内联首屏样式
+  （`style-src 'unsafe-inline'`）、播放页可视化用 PixiJS 在运行期 `new Function` 生成 uniform
+  同步代码（`script-src 'unsafe-eval'`）、封面可能是第三方（网易云 / QQ / 酷狗）http(s) 直链
+  （`img-src https: http:`）。新增内联脚本、外部 CDN、iframe 或 Worker 时必须同步调整策略。
+- 策略有单测锁定（`SecurityHeadersFilterTest`）：收紧或放宽都要在同一处改用例，否则视为未完成。
+
 ### 客户端身份
 
 - 所有出站请求必须显式携带 `User-Agent`；**空 / 缺失 UA 一律按爬虫处理**（`GET`/`HEAD` 返回 SEO
