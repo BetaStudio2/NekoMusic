@@ -19,6 +19,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
@@ -26,7 +27,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  *
  * <p>该接口的媒体文件会被浏览器 / 客户端与 CDN 按 {@code Range} 分片取，源站忽略 {@code Range}
  * 直接回整包时，CDN 的分片回源拼不出完整文件，大文件会被截断（客户端表现为
- * {@code ERR_HTTP2_PROTOCOL_ERROR}）。用动态代理桩替代 Servlet 容器。</p>
+ * {@code ERR_HTTP2_PROTOCOL_ERROR}）。同时预览文件按磁盘文件缓存六个月（ETag / Last-Modified /
+ * 条件请求）；因为预览的是待审核文件、接口又要求管理员 token，只允许浏览器私有缓存，避免被
+ * CDN 缓存成免鉴权的公共地址。用动态代理桩替代 Servlet 容器。</p>
  */
 class UserUploadPreviewHandlerTest {
 
@@ -44,9 +47,26 @@ class UserUploadPreviewHandlerTest {
         assertEquals("audio/flac", recorder.contentType);
         assertEquals("inline; filename=\"music_1.flac\"", recorder.headers.get("content-disposition"));
         assertEquals(payload.length, recorder.contentLength);
-        assertNull(recorder.headers.get("cache-control"),
-                "缓存策略交由 CacheControlFilter 兜底为 private, no-store，避免待审核文件被 CDN 公共缓存");
+        assertEquals("private, max-age=15552000, must-revalidate", recorder.headers.get("cache-control"),
+                "预览文件缓存六个月，但只允许浏览器私有缓存，避免待审核文件被 CDN 免鉴权分发");
+        assertNotNull(recorder.headers.get("etag"));
+        assertNotNull(recorder.headers.get("last-modified"));
         assertArrayEquals(payload, recorder.body);
+    }
+
+    @Test
+    @DisplayName("条件请求命中 ETag：回 304 且不带响应体")
+    void conditionalRequestReturnsNotModified(@TempDir Path dir) throws Exception {
+        byte[] payload = payload(4096);
+        Path file = write(dir, "music_1.flac", payload);
+        String etag = com.neko.music.util.HttpResourceCache.strongEtagForFile(file);
+
+        Recorder recorder = sendFile(file, payload, null, etag);
+
+        assertEquals(HttpServletResponse.SC_NOT_MODIFIED, recorder.status);
+        assertEquals(etag, recorder.headers.get("etag"));
+        assertEquals("private, max-age=15552000, must-revalidate", recorder.headers.get("cache-control"));
+        assertEquals(0, recorder.body.length, "304 不应携带响应体");
     }
 
     @Test
@@ -60,6 +80,7 @@ class UserUploadPreviewHandlerTest {
         assertEquals("bytes 10-19/4096", recorder.headers.get("content-range"));
         assertEquals(10, recorder.contentLength);
         assertEquals("bytes", recorder.headers.get("accept-ranges"));
+        assertEquals("private, max-age=15552000, must-revalidate", recorder.headers.get("cache-control"));
         assertArrayEquals(java.util.Arrays.copyOfRange(payload, 10, 20), recorder.body);
     }
 
@@ -108,8 +129,16 @@ class UserUploadPreviewHandlerTest {
 
     /** 写一个文件、以给定 Range 调 {@link UserUploadPreviewHandler#sendFile}，回收响应侧结果。 */
     private static Recorder send(Path dir, String name, byte[] payload, String range) throws Exception {
+        return sendFile(write(dir, name, payload), payload, range, null);
+    }
+
+    private static Path write(Path dir, String name, byte[] payload) throws Exception {
         Path file = dir.resolve(name);
         Files.write(file, payload);
+        return file;
+    }
+
+    private static Recorder sendFile(Path file, byte[] payload, String range, String ifNoneMatch) throws Exception {
 
         Recorder recorder = new Recorder();
         HttpServletResponse response = proxy(HttpServletResponse.class, (p, m, a) -> switch (m.getName()) {
@@ -129,11 +158,19 @@ class UserUploadPreviewHandlerTest {
                 recorder.contentLength = (long) a[0];
                 yield null;
             }
+            case "setDateHeader" -> {
+                recorder.headers.put(((String) a[0]).toLowerCase(), String.valueOf((long) a[1]));
+                yield null;
+            }
             case "getOutputStream" -> recorder;
             default -> defaultValue(m);
         });
         HttpServletRequest request = proxy(HttpServletRequest.class, (p, m, a) -> switch (m.getName()) {
-            case "getHeader" -> "Range".equalsIgnoreCase((String) a[0]) ? range : null;
+            case "getHeader" -> switch (((String) a[0]).toLowerCase()) {
+                case "range" -> range;
+                case "if-none-match" -> ifNoneMatch;
+                default -> null;
+            };
             default -> defaultValue(m);
         });
 

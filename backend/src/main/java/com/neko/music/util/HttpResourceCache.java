@@ -31,6 +31,13 @@ public final class HttpResourceCache {
     public static final String CACHE_CONTROL_FILE =
             "public, max-age=" + MAX_AGE_SIX_MONTHS + ", must-revalidate";
 
+    /**
+     * 与 {@link #CACHE_CONTROL_FILE} 同时长（六个月），但只允许浏览器私有缓存：用于需要鉴权的
+     * 管理端预览等「被共享缓存 / CDN 命中后会免鉴权分发」的资源。源文件被替换后 ETag 变化。
+     */
+    public static final String CACHE_CONTROL_PRIVATE_FILE =
+            "private, max-age=" + MAX_AGE_SIX_MONTHS + ", must-revalidate";
+
     /** 内嵌默认图标，内容不变 */
     public static final String DEFAULT_ICON_ETAG = "\"DefaultIcon-v1\"";
     public static final String CACHE_CONTROL_DEFAULT_ICON =
@@ -84,20 +91,34 @@ public final class HttpResourceCache {
      * 若客户端缓存仍新鲜，发送 304 并返回 true。
      */
     public static boolean sendNotModifiedIfFresh(HttpServletRequest request, HttpServletResponse response, String etag) {
+        return sendNotModifiedIfFresh(request, response, etag, CACHE_CONTROL_FILE);
+    }
+
+    /**
+     * 若客户端缓存仍新鲜，按指定缓存策略发送 304 并返回 true。
+     */
+    public static boolean sendNotModifiedIfFresh(HttpServletRequest request, HttpServletResponse response, String etag,
+                                                 String cacheControl) {
         if (!ifNoneMatchEquals(request, etag)) {
             return false;
         }
         response.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
         response.setHeader("ETag", etag);
-        response.setHeader("Cache-Control", CACHE_CONTROL_FILE);
+        response.setHeader("Cache-Control", cacheControl);
         return true;
     }
 
     public static void applyFileCachingHeaders(Path path, HttpServletResponse response) throws IOException {
+        applyFileCachingHeaders(path, response, CACHE_CONTROL_FILE);
+    }
+
+    /** 按指定缓存策略写入 {@code ETag} / {@code Last-Modified} / {@code Cache-Control}。 */
+    public static void applyFileCachingHeaders(Path path, HttpServletResponse response, String cacheControl)
+            throws IOException {
         String etag = strongEtagForFile(path);
         response.setHeader("ETag", etag);
         response.setDateHeader("Last-Modified", Files.getLastModifiedTime(path).toMillis());
-        response.setHeader("Cache-Control", CACHE_CONTROL_FILE);
+        response.setHeader("Cache-Control", cacheControl);
     }
 
     public static boolean sendNotModifiedDefaultIcon(HttpServletRequest request, HttpServletResponse response) {

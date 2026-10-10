@@ -109,17 +109,26 @@ public class UserUploadPreviewHandler extends HttpServlet {
     /**
      * 发送预览文件内容：带 {@code Range} 时回 {@code 206} 单段内容，否则整包 {@code 200}。
      *
-     * <p>必须支持 Range：客户端（浏览器 / 客户端 App）与 CDN 都会按需分片取音频，CDN 的
-     * 分片回源只有在源站回 {@code 206} 时才会拼出完整文件；源站忽略 {@code Range} 直接回整包时，
+     * <p>必须支持 Range：客户端（浏览器 / 客户端 App）与 CDN 都会按需分片取音频，CDN 的分片
+     * 回源只有在源站回 {@code 206} 时才会拼出完整文件；源站忽略 {@code Range} 直接回整包时，
      * 大文件会被 CDN 截断（客户端表现为 {@code ERR_HTTP2_PROTOCOL_ERROR}）。</p>
      *
-     * <p>缓存策略不在这里设置，统一交给 {@code CacheControlFilter} 兜底为 {@code private, no-store}，
-     * 避免待审核文件被 CDN 公共缓存。</p>
+     * <p>预览文件按「磁盘文件」缓存六个月（{@link HttpResourceCache#CACHE_CONTROL_PRIVATE_FILE}），
+     * 重复试听由浏览器直接命中，避免几十 MB 的原始音频反复回源。这里只给浏览器私有缓存：预览内容
+     * 是待审核的原始文件，且接口要求管理员 token，若声明 {@code public} 会被 CDN 缓存成免鉴权可取的
+     * 公共地址。同一路径内容被替换时 ETag 变化，条件请求（{@code If-None-Match}）会重新取回新对象。</p>
      */
     static void sendFile(Path file, HttpServletRequest request, HttpServletResponse response) throws IOException {
         long size = Files.size(file);
         applyFileResponseHeaders(file, response);
         HttpResourceCache.setAcceptRangesBytes(response);
+        if (request.getHeader("Range") == null
+                && HttpResourceCache.sendNotModifiedIfFresh(
+                        request, response, HttpResourceCache.strongEtagForFile(file),
+                        HttpResourceCache.CACHE_CONTROL_PRIVATE_FILE)) {
+            return;
+        }
+        HttpResourceCache.applyFileCachingHeaders(file, response, HttpResourceCache.CACHE_CONTROL_PRIVATE_FILE);
 
         RangeSpec range = parseRange(request.getHeader("Range"), size);
         if (range == RangeSpec.UNSATISFIABLE) {
@@ -211,9 +220,8 @@ public class UserUploadPreviewHandler extends HttpServlet {
     /**
      * 写入预览文件的基础响应头（{@code Content-Type} / {@code Content-Disposition}）。
      *
-     * <p>{@code Content-Length}、{@code Accept-Ranges}、{@code 206} 相关头部由 {@link #sendFile} 按
-     * 整包 / 分片分别设置；缓存策略不在这里设置，统一交给 {@code CacheControlFilter} 兜底为
-     * {@code private, no-store}，避免待审核文件被 CDN 公共缓存。</p>
+     * <p>{@code Content-Length}、{@code Accept-Ranges}、缓存与 {@code 206} 相关头部都由
+     * {@link #sendFile} 按整包 / 分片分别设置。</p>
      */
     static void applyFileResponseHeaders(Path file, HttpServletResponse response) throws IOException {
         String fileName = file.getFileName().toString();

@@ -180,6 +180,7 @@ cd frontend && npm run build    # 产物输出到 ../backend/src/main/resources/
 | --- | --- | --- |
 | 动态 API、登录、注册、头像、个人数据、后台 | `private, no-store` | 不缓存，每次回源 |
 | `/api/music/file/{id}`（音质解析跳转） | `private, no-store` | 每次重新解析 |
+| 后台审核预览 `/api/user/upload/preview`（音频 / 封面 / 歌词） | `private, max-age=15552000, must-revalidate` | 六个月，且只允许浏览器私有缓存（待审核文件 + 管理员 token，不能被 CDN 免鉴权分发） |
 | `/api/music/latest`、`/api/music/ranking` | `public, max-age=1800` | 半小时 |
 | `/sitemap.xml`、`.txt`（robots/llms 等） | `public, max-age=86400` | 一天 |
 | 静态固定资源（png/ico/svg/js/css/字体/webmanifest/安装包 .exe/.pak/.deb 等） | `public, max-age=15552000` | 六个月 |
