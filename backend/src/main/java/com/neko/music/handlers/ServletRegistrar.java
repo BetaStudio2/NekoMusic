@@ -245,6 +245,10 @@ public final class ServletRegistrar {
         ServletHolder adminSettingsHolder = new ServletHolder(new AdminSettingsHandler());
         context.addServlet(adminSettingsHolder, "/api/admin/settings");
 
+        // 网易云补全扫码登录（管理员及以上）：/api/admin/netease/*
+        ServletHolder adminNeteaseLoginHolder = new ServletHolder(new AdminNeteaseLoginHandler());
+        context.addServlet(adminNeteaseLoginHolder, "/api/admin/netease/*");
+
         ServletHolder vipPayCreateHolder = new ServletHolder(new VipPayCreateHandler());
         context.addServlet(vipPayCreateHolder, "/api/vip/pay/create");
 
