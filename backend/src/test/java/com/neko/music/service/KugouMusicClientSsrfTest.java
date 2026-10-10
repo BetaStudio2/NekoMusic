@@ -42,7 +42,7 @@ class KugouMusicClientSsrfTest {
     }
 
     @Test
-    @DisplayName("分享链接只认 /songlist/<token> 与单曲分享两种形态，出站路径由 token 重新拼出")
+    @DisplayName("分享链接只认 /songlist/<token> 与单曲分享两种形态，token 之后的内容一律丢弃")
     void shareLinkOnlyAcceptsKnownSonglistAndSingleShapes() throws Exception {
         // 客户实际会粘贴的形态：www 与 m 主机都接受，结尾斜杠可选
         assertEquals("songlist/gcid_3zmi8f5nz5z0c4/",
@@ -55,12 +55,23 @@ class KugouMusicClientSsrfTest {
                 KugouMusicClient.shareRelativeFromUri(
                         URI.create("https://m.kugou.com/songlist/gcid_3zmi8f5nz5z0c4/")));
 
-        // 多带的查询串会被丢掉：内网地址既进不了出站主机，也进不了出站路径
+        // token 之后的一切（多余路径段、查询串）都丢弃：内网地址既进不了出站主机，也进不了出站路径
         String relative = KugouMusicClient.shareRelativeFromUri(URI.create(
                 "https://www.kugou.com/songlist/gcid_3zmi8f5nz5z0c4/?jump=http%3A%2F%2F127.0.0.1%3A22%2F"));
         assertEquals("songlist/gcid_3zmi8f5nz5z0c4/", relative);
         assertFalse(relative.contains("127.0.0.1"), relative);
         assertFalse(relative.contains("jump"), relative);
+
+        // gcid 之后多出的路径段照旧接受，只保留到 token 为止
+        for (String payload : new String[]{
+                "https://www.kugou.com/songlist/gcid_3zutugy7z4rz0c4/",
+                "https://www.kugou.com/songlist/gcid_3zutugy7z4rz0c4",
+                "https://www.kugou.com/songlist/gcid_3zutugy7z4rz0c4/extra/",
+                "https://www.kugou.com/songlist/gcid_3zutugy7z4rz0c4/extra?from=qq",
+                "https://m.kugou.com/songlist/gcid_3zutugy7z4rz0c4/?uid=12345#frag"}) {
+            assertEquals("songlist/gcid_3zutugy7z4rz0c4/",
+                    KugouMusicClient.shareRelativeFromUri(URI.create(payload)), payload);
+        }
 
         // 单曲分享（客户端 UI 仍在用的形态）只按白名单里的两个参数重建
         assertEquals("share/?action=single&hash=ABCDEF0123456789",
@@ -83,8 +94,8 @@ class KugouMusicClientSsrfTest {
             "https://m.kugou.com/share/?action=single&hash=../x",    // hash 非法
             "https://m.kugou.com/share/?hash=ABCDEF&action=other",   // action 不是 single
             "https://www.kugou.com/songlist/",                       // 没有 token
-            "https://www.kugou.com/songlist/gcid_x/extra/",          // 多余路径段
             "https://www.kugou.com/songlist/%2e%2e%2fetc/",          // 编码穿越
+            "https://www.kugou.com/yy/songlist/gcid_x/",             // songlist 前面还有别的段
             "https://www.kugou.com/yy/special/single/1234567.html",  // 其它路径形态
         };
         for (String payload : rejected) {

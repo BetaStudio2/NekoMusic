@@ -76,11 +76,11 @@ public class KugouMusicClient {
     private static final Pattern SINGLE_SHARE_PATTERN =
             Pattern.compile("(?:/share/|action=single)", Pattern.CASE_INSENSITIVE);
     /**
-     * 唯一接受的歌单分享链接路径：{@code /songlist/<token>}（结尾斜杠可选）。
-     * token 只允许字母数字下划线，出站路径由它重新拼出，链接里的其它路径与查询串一律丢弃。
+     * 唯一接受的歌单分享链接路径：{@code /songlist/<token>}。token 只允许字母数字下划线；
+     * token 之后的尾巴（多余路径段、结尾斜杠、追踪参数等）一律丢弃——出站路径只用 token 重新拼出。
      */
     private static final Pattern SONGLIST_PATH_PATTERN =
-            Pattern.compile("^/songlist/([A-Za-z0-9_]{3,64})/?$");
+            Pattern.compile("^/songlist/([A-Za-z0-9_]{3,64})(?:/.*)?$");
     /** 单曲分享链接路径：{@code /share} 或 {@code /share/}，具体形态由查询参数校验。 */
     private static final Pattern SINGLE_SHARE_PATH_PATTERN = Pattern.compile("^/share/?$");
     private static final String WINDOW_OUTPUT_MARKER = "window.$output";
@@ -740,8 +740,10 @@ public class KugouMusicClient {
     }
 
     /**
-     * 纯结构解析：只接受 {@code /songlist/<token>} 与 {@code /share/?action=single&hash=<hash>}，
-     * 其它路径 / 参数组合一律按非法入参拒绝（不再把链接里的路径与查询串原样转发给上游）。
+     * 纯结构解析：只接受 {@code /songlist/<token>} 与 {@code /share/?action=single&hash=<hash>}。
+     * 歌单链接里 token 之后多出来的内容（多余路径段、追踪参数）直接丢弃，出站请求只用 token
+     * 重新拼成 {@code songlist/<token>/}；其余路径 / 参数组合一律按非法入参拒绝，
+     * 链接里的任何内容都不会原样转发给上游。
      */
     static String shareRelativeFromUri(URI uri) throws InvalidInputException {
         String path = uri.getRawPath() == null ? "" : uri.getRawPath();
