@@ -91,6 +91,7 @@ public class Main {
     private static SliderCaptchaService sliderCaptchaService;
     private static AdminMusicIngestService adminMusicIngestService;
     private static NeteaseCloudMusicClient neteaseCloudMusicClient;
+    private static NeteaseLoginMonitor neteaseLoginMonitor;
     private static NeteaseSearchFillService neteaseSearchFillService;
     private static ExternalImportService externalImportService;
     private static QQMusicClient qqMusicClient;
@@ -227,6 +228,12 @@ public class Main {
         
         // 初始化通知服务
         notificationService = new NotificationService(configManager);
+
+        // 网易云登录掉线巡检：Cookie 失效时推送一次 hook，提醒管理员重新扫码登录
+        neteaseLoginMonitor = new NeteaseLoginMonitor(configManager, neteaseCloudMusicClient, notificationService);
+        neteaseLoginMonitor.start();
+        Runtime.getRuntime().addShutdownHook(
+                new Thread(neteaseLoginMonitor::shutdown, "netease-login-monitor-shutdown"));
         
         // 创建默认管理员账号（如果不存在）
         createDefaultAdminIfNotExists();

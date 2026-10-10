@@ -120,6 +120,18 @@ public class NotificationService {
         });
     }
 
+    /** 异步发送网易云登录掉线告警（Cookie 失效 / 被风控），不阻塞巡检线程。 */
+    public void scheduleNeteaseLoginOfflineNotification(String reason) {
+        asyncExecutor.execute(() -> {
+            String message = "网易云登录状态已掉线\n" + safe(reason);
+            try {
+                sendNotification(message);
+            } catch (Exception e) {
+                logger.warn("异步发送网易云掉线告警异常: {}", e.getMessage(), e);
+            }
+        });
+    }
+
     private static String safe(String value) {
         return value == null ? "" : value;
     }

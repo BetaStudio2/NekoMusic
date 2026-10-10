@@ -116,12 +116,22 @@ public class NeteaseCloudMusicClient {
     public record AccountProfile(long userId, String nickname, String avatarUrl) {}
 
     public boolean isLoggedIn() {
-        if (!parseCookie().containsKey("MUSIC_U")) return false;
+        return probeLoginState().orElse(false);
+    }
+
+    /**
+     * 三态登录态探测：{@code true} 在线 / {@code false} 明确掉线 / {@code empty} 查询失败（网络或接口异常）。
+     *
+     * <p>掉线巡检必须用这个而不是 {@link #isLoggedIn()}：后者在查询失败时也返回 {@code false}，
+     * 网络抖动会被误判为掉线并发出错误告警。</p>
+     */
+    public Optional<Boolean> probeLoginState() {
+        if (!parseCookie().containsKey("MUSIC_U")) return Optional.of(false);
         try {
-            return postWeapi("/weapi/w/nuser/account/get", Map.of()).path("code").asInt(0) == 200;
+            return Optional.of(postWeapi("/weapi/w/nuser/account/get", Map.of()).path("code").asInt(0) == 200);
         } catch (IOException e) {
             logger.warn("查询网易云登录状态失败: {}", e.getMessage());
-            return false;
+            return Optional.empty();
         }
     }
 
