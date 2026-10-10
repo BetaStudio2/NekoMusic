@@ -34,6 +34,13 @@ public class AdminUploadAuditHandler extends ApiServlet {
     private static final String MUSIC_AUDIO_DIR = "Music/music";
     private static final String MUSIC_COVERS_DIR = "Music/covers";
 
+    /** 审核结果站内消息类型，与「站内消息」文档中的 type 取值一致。 */
+    private static final String NOTIFY_TYPE_UPLOAD_APPROVED = "upload_approved";
+    private static final String NOTIFY_TYPE_UPLOAD_REJECTED = "upload_rejected";
+
+    /** 未填拒绝原因时的兜底文案（写入站内消息与邮件共用）。 */
+    private static final String DEFAULT_REJECT_REASON = "管理员拒绝审核";
+
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         // 验证管理员权限
@@ -375,7 +382,13 @@ public class AdminUploadAuditHandler extends ApiServlet {
                 logger.error("获取用户邮箱或发送邮件失败: " + e.getMessage(), e);
                 // 邮件发送失败不影响审核通过操作
             }
-            
+
+            // 站内消息：审核通过后给上传者推一条（与邮件相互独立，失败不影响审核结果）
+            notifyUploadReview(upload, NOTIFY_TYPE_UPLOAD_APPROVED,
+                    "《" + upload.getTitle() + "》审核通过",
+                    "你上传的音乐" + artistSuffix(upload.getArtist()) + "已加入曲库，现在可以播放了。",
+                    "/detail/" + musicId);
+
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);
             result.put("message", "审核通过，音乐已添加到库中");
@@ -438,7 +451,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
             }
             
             Map<String, String> requestData = Main.getObjectMapper().readValue(body.toString(), Map.class);
-            String reason = requestData.getOrDefault("reason", "管理员拒绝审核");
+            String reason = requestData.getOrDefault("reason", DEFAULT_REJECT_REASON);
             
             // 获取上传记录
             com.neko.music.database.UserUploadDatabaseManager uploadManager = 
@@ -482,7 +495,13 @@ public class AdminUploadAuditHandler extends ApiServlet {
                 logger.error("获取用户邮箱或发送邮件失败: " + e.getMessage(), e);
                 // 邮件发送失败不影响审核结果
             }
-            
+
+            // 站内消息：审核未通过后给上传者推一条（与邮件相互独立，失败不影响审核结果）
+            notifyUploadReview(upload, NOTIFY_TYPE_UPLOAD_REJECTED,
+                    "《" + upload.getTitle() + "》审核未通过",
+                    "你上传的音乐" + artistSuffix(upload.getArtist()) + "未通过审核。原因：" + reason,
+                    "/upload");
+
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);
             result.put("message", "审核拒绝，文件已删除");
@@ -627,6 +646,29 @@ public class AdminUploadAuditHandler extends ApiServlet {
         return upload;
     }
     
+    /**
+     * 审核结果站内消息：给上传者写一条消息（写入失败只记日志，不影响审核结果与邮件）。
+     *
+     * <p>消息落库即视为送达：在线用户由 {@code /api/user/notifications/stream} 实时推送，
+     * 离线用户下次打开消息中心补拉即可看到。</p>
+     */
+    private void notifyUploadReview(UserUpload upload, String type, String title, String body, String link) {
+        try {
+            int created = Main.getUserNotificationService().notify(
+                    upload.getUserId(), type, title, body, link, null);
+            if (created <= 0) {
+                logger.warn("写入审核结果站内消息失败: uploadId={}, type={}", upload.getId(), type);
+            }
+        } catch (Exception e) {
+            logger.error("写入审核结果站内消息异常: uploadId={}, type={}", upload.getId(), type, e);
+        }
+    }
+
+    /** 站内消息正文里的歌手片段：没有歌手时返回空串，避免出现空括号。 */
+    private static String artistSuffix(String artist) {
+        return artist == null || artist.isBlank() ? "" : "（" + artist.trim() + "）";
+    }
+
     /**
      * 根据token获取管理员ID
      */

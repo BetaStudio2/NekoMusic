@@ -206,7 +206,7 @@ function handleStorageChange(event) {
     <NCard v-else-if="isEmpty" pad="lg" class="notice__empty">
       <NIcon name="inbox" :size="26" />
       <p>暂无消息</p>
-      <p class="notice__empty-sub">有人回复你的评论、第三方歌单导入完成时，会在这里提醒你。</p>
+      <p class="notice__empty-sub">有人回复你的评论、第三方歌单导入完成、上传的音乐审核出结果时，会在这里提醒你。</p>
     </NCard>
 
     <template v-else>
