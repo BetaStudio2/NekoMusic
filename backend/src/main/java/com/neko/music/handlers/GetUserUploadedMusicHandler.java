@@ -31,8 +31,6 @@ public class GetUserUploadedMusicHandler extends ApiServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         resp.setContentType("application/json;charset=UTF-8");
 
-        logger.info("收到获取用户上传审核通过的音乐请求");
-
         try {
             // 验证用户身份
             String token = req.getHeader("Authorization");
@@ -55,8 +53,6 @@ public class GetUserUploadedMusicHandler extends ApiServlet {
             // 获取用户上传审核通过的音乐列表
             List<JsonObject> musicList = getUserApprovedMusic(userId);
 
-            logger.info("获取到 {} 首审核通过的音乐: userId={}", musicList.size(), userId);
-
             JsonObject response = new JsonObject();
             response.addProperty("success", true);
             response.addProperty("message", "获取用户上传审核通过的音乐列表成功");
@@ -70,8 +66,6 @@ public class GetUserUploadedMusicHandler extends ApiServlet {
             response.add("musicList", musicArray);
             response.addProperty("total", musicList.size());
 
-            String jsonResponse = Main.getGson().toJson(response);
-            logger.info("响应数据: {}", jsonResponse);
             sendSuccessResponse(resp, response);
         } catch (Exception e) {
             logger.error("处理获取用户上传审核通过的音乐请求时发生错误: {}", e.getMessage(), e);
