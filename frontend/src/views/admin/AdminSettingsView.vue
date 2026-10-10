@@ -64,8 +64,34 @@
           </div>
 
           <div class="field__control">
+            <template v-if="item.key === 'netease_search_fill.cookie'">
+              <NeteaseLoginCard />
+              <details class="fallback">
+                <summary class="fallback__summary">手动填写 Cookie（扫码不可用时）</summary>
+                <div class="secret">
+                  <NInput
+                    :id="`set-${item.key}`"
+                    type="password"
+                    :model-value="form[item.key]"
+                    :placeholder="item.configured ? '已配置（不填则保持不变）' : '未配置'"
+                    :disabled="saving"
+                    @update:model-value="onSecretInput(item.key, $event)"
+                  />
+                  <NButton
+                    v-if="item.configured"
+                    size="sm"
+                    variant="ghost"
+                    icon="trash-2"
+                    title="清除该项"
+                    :disabled="saving"
+                    @click="clearSecret(item.key)"
+                  />
+                </div>
+              </details>
+            </template>
+
             <label
-              v-if="item.type === 'bool'"
+              v-else-if="item.type === 'bool'"
               class="switch"
               :class="{ 'switch--on': form[item.key] === 'true' }"
             >
@@ -142,6 +168,7 @@ import { useToast } from '@/composables/useToast'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NInput, NSpinner, NTag } from '@/ui'
 import { fetchAdminSettings, saveAdminSettings } from '@/api/adminSettings.js'
+import NeteaseLoginCard from './components/NeteaseLoginCard.vue'
 
 const router = useRouter()
 const toast = useToast()
@@ -433,6 +460,24 @@ onMounted(async () => {
 
 .secret :deep(.n-input) {
   flex: 1;
+}
+
+/* 网易云登录：扫码为主，手动 Cookie 作为兜底 */
+.fallback {
+  margin-top: var(--n-space-3);
+  border-top: 1px solid var(--n-line-subtle);
+  padding-top: var(--n-space-2);
+}
+
+.fallback__summary {
+  cursor: pointer;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+  user-select: none;
+}
+
+.fallback[open] .fallback__summary {
+  margin-bottom: var(--n-space-2);
 }
 
 /* ==================== 开关 ==================== */

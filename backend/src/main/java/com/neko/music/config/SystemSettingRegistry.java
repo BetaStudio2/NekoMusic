@@ -124,8 +124,8 @@ public final class SystemSettingRegistry {
             // ---------- 网易云补全 ----------
             flag("netease_search_fill.enabled", Group.NETEASE, "启用补全", true,
                     "本地曲库搜索无结果时，通过网易云接口补全入库"),
-            secret("netease_search_fill.cookie", Group.NETEASE, "网易云 Cookie",
-                    "高音质需要有效登录态，留空则按游客态请求"),
+            secret("netease_search_fill.cookie", Group.NETEASE, "网易云登录",
+                    "扫码登录网易云账号以获取高音质；扫码不可用时可展开手动粘贴 Cookie。凭证由服务端保存，不在前端展示；留空则按游客态请求"),
             text("netease_search_fill.quality", Group.NETEASE, "优先音质", "hires",
                     "与网易云 level 取值一致；无该档时自动降级"),
             number("netease_search_fill.http_timeout_seconds", Group.NETEASE, "HTTP 超时（秒）", "45", 1, 600,
