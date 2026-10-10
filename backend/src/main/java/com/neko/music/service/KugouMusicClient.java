@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neko.music.util.HttpTransport;
+import com.neko.music.util.OutboundUrlGuard;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -73,8 +74,17 @@ public class KugouMusicClient {
             Pattern.compile("(?:/share/|action=single)", Pattern.CASE_INSENSITIVE);
     private static final String WINDOW_OUTPUT_MARKER = "window.$output";
 
+    /**
+     * 允许访问的上游域名：网关 gateway.kugou.com、移动端 mobilecdn.kugou.com、分享页 m.kugou.com
+     * 都属于 kugou.com 子域。其它地址一律按非法入参处理，不做任何请求。
+     */
+    private static final Set<String> ALLOWED_HOSTS = Set.of("kugou.com");
+    /** 分享页重定向（含短链）跟随上限。 */
+    private static final int MAX_SHARE_REDIRECTS = 3;
+
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient = HttpTransport.create(REQUEST_TIMEOUT);
+    private final HttpClient sharePageClient = HttpTransport.createWithoutRedirects(REQUEST_TIMEOUT);
     private final SecureRandom secureRandom = new SecureRandom();
 
     public KugouMusicClient(ObjectMapper objectMapper) {
@@ -98,6 +108,17 @@ public class KugouMusicClient {
 
         public int getStatusCode() {
             return statusCode;
+        }
+    }
+
+    /** 入参不是受支持的酷狗歌单 ID / 官方域名分享链接时抛出（对外映射 400）。 */
+    public static class InvalidInputException extends IOException {
+        public InvalidInputException(String message) {
+            super(message);
+        }
+
+        public InvalidInputException(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 
@@ -130,7 +151,7 @@ public class KugouMusicClient {
     /** 解析歌单名与曲目（仅元数据，酷狗歌单详情不含可下载直链）。 */
     public KugouPlaylist fetchPlaylist(String input) throws IOException {
         if (input == null || input.isBlank()) {
-            throw new IOException("酷狗歌单链接或 ID 无效");
+            throw new InvalidInputException("酷狗歌单链接或 ID 无效");
         }
         String trimmed = input.trim();
 
@@ -153,7 +174,7 @@ public class KugouMusicClient {
         if (specialId != null) {
             return fetchBySpecialId(specialId);
         }
-        throw new IOException("酷狗歌单链接或 ID 无效");
+        throw new InvalidInputException("酷狗歌单链接或 ID 无效");
     }
 
     /** 输入若已是 global_collection_id 直接返回；数字 / 链接先换取。失败返回 null。 */
@@ -608,25 +629,59 @@ public class KugouMusicClient {
         return send(request);
     }
 
-    /** 抓取分享页 HTML（用于解析 window.$output）。 */
+    /**
+     * 抓取分享页 HTML（用于解析 {@code window.$output}）。
+     *
+     * <p>地址来自用户输入，因此每一跳都先过 {@link OutboundUrlGuard}：只允许酷狗官方域名、
+     * 不允许解析到内网 / 本机 / 云元数据地址；重定向不自动跟随，逐跳重新校验。</p>
+     */
     private String httpGetString(String url) throws IOException {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .timeout(REQUEST_TIMEOUT)
-                .header("User-Agent",
-                        "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15")
-                .header("Referer", "https://m.kugou.com/")
-                .GET()
-                .build();
-        HttpResponse<String> response =
-                HttpTransport.sendString(httpClient, request, "请求酷狗分享页被中断");
-        if (!HttpTransport.isSuccess(response.statusCode())) {
-            throw new UpstreamException(response.statusCode());
+        String current = url;
+        for (int hop = 0; hop <= MAX_SHARE_REDIRECTS; hop++) {
+            URI uri;
+            try {
+                uri = OutboundUrlGuard.requireAllowedHttpUrl(current, ALLOWED_HOSTS);
+            } catch (OutboundUrlGuard.BlockedUrlException e) {
+                throw new InvalidInputException("酷狗分享链接无效或不受支持（仅支持酷狗官方域名链接或歌单 ID）", e);
+            }
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(uri)
+                    .timeout(REQUEST_TIMEOUT)
+                    .header("User-Agent",
+                            "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15")
+                    .header("Referer", "https://m.kugou.com/")
+                    .GET()
+                    .build();
+            HttpResponse<String> response =
+                    HttpTransport.sendString(sharePageClient, request, "请求酷狗分享页被中断");
+            if (isRedirect(response.statusCode())) {
+                String location = response.headers().firstValue("location").orElse("").trim();
+                if (location.isEmpty()) {
+                    throw new IOException("酷狗分享页重定向缺少目标地址");
+                }
+                try {
+                    current = uri.resolve(location).toString();
+                } catch (IllegalArgumentException e) {
+                    throw new IOException("酷狗分享页重定向地址无效");
+                }
+                continue;
+            }
+            if (!HttpTransport.isSuccess(response.statusCode())) {
+                throw new UpstreamException(response.statusCode());
+            }
+            return response.body();
         }
-        return response.body();
+        throw new IOException("酷狗分享页重定向次数过多");
+    }
+
+    private static boolean isRedirect(int statusCode) {
+        return statusCode == 301 || statusCode == 302 || statusCode == 303
+                || statusCode == 307 || statusCode == 308;
     }
 
     private JsonNode send(HttpRequest request) throws IOException {
+        // 网关 / mobilecdn 请求同样只允许酷狗官方域名，防止常量被改错或后续引入变量地址
+        HttpTransport.requireAllowedTarget(request, ALLOWED_HOSTS);
         HttpResponse<String> response =
                 HttpTransport.sendString(httpClient, request, "请求酷狗接口被中断");
         if (!HttpTransport.isSuccess(response.statusCode())) {

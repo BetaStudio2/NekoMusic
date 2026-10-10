@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neko.music.config.ConfigManager;
 import com.neko.music.util.HttpTransport;
+import com.neko.music.util.OutboundUrlGuard;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,6 +50,11 @@ public class NeteaseCloudMusicClient {
     private static final String EAPI_BASE = "https://interfacepc.music.163.com";
     /** xeapi（反爬）接口域名。 */
     private static final String XEAPI_BASE = "https://interface3.music.163.com";
+    /**
+     * 网易云客户端允许访问的上游域名：music.163.com / interface*.music.163.com 等接口域名，
+     * 以及媒体与封面所在的 *.music.126.net 等 CDN 域名。
+     */
+    private static final Set<String> ALLOWED_HOSTS = Set.of("163.com", "126.net", "netease.com");
     /** 移动端 api UA（xeapi / api 明文接口使用）。 */
     private static final String ANDROID_API_UA =
             "NeteaseMusic/9.1.65.240927161425(9001065);Dalvik/2.1.0 (Linux; U; Android 14; 23013RK75C Build/UKQ1.230804.001)";
@@ -507,9 +513,11 @@ public class NeteaseCloudMusicClient {
     }
 
     public void downloadToFile(String url, Path destination, DownloadProgressListener listener) throws IOException {
+        // 地址来自上游响应，只放行网易云官方接口 / CDN 域名，顺带挡掉内网与元数据地址
+        URI targetUri = OutboundUrlGuard.requireAllowedHttpUrl(url, ALLOWED_HOSTS);
         // 媒体文件可能很大（母带 FLAC 可达数百 MB）：请求总超时放宽到 15 分钟，
         // 避免用 45s 的接口超时把大文件下载中途掐断（连接超时仍由 httpClient 控制）。
-        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url))
+        HttpRequest request = HttpRequest.newBuilder().uri(targetUri)
                 .timeout(Duration.ofMinutes(15)).header("User-Agent", userAgent()).GET().build();
         try {
             HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
@@ -720,9 +728,10 @@ public class NeteaseCloudMusicClient {
         if (referer != null) {
             builder.header("Referer", referer);
         }
-        HttpResponse<String> response = HttpTransport.sendString(httpClient,
-                builder.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8)).build(),
-                "请求被中断");
+        HttpRequest httpRequest =
+                builder.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8)).build();
+        HttpTransport.requireAllowedTarget(httpRequest, ALLOWED_HOSTS);
+        HttpResponse<String> response = HttpTransport.sendString(httpClient, httpRequest, "请求被中断");
         if (!HttpTransport.isSuccess(response.statusCode())) throw new IOException("Netease API HTTP " + response.statusCode());
         return response;
     }
@@ -733,10 +742,11 @@ public class NeteaseCloudMusicClient {
                 .timeout(Duration.ofSeconds(config.getNeteaseHttpTimeoutSeconds()))
                 .header("Content-Type", "application/x-www-form-urlencoded;charset=utf-8");
         headers.forEach(builder::header);
+        HttpRequest httpRequest =
+                builder.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8)).build();
+        HttpTransport.requireAllowedTarget(httpRequest, ALLOWED_HOSTS);
         try {
-            return httpClient.send(
-                    builder.POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8)).build(),
-                    HttpResponse.BodyHandlers.ofByteArray());
+            return httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofByteArray());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("请求被中断", e);

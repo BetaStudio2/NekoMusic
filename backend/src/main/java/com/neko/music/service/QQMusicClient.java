@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * QQ 音乐歌单只读客户端：封装 musicu.fcg 的歌单详情接口，供代理接口与歌单导入共用。
@@ -25,6 +26,8 @@ import java.util.List;
  */
 public class QQMusicClient {
     private static final String UPSTREAM = "https://u.y.qq.com/cgi-bin/musicu.fcg";
+    /** QQ 音乐只允许访问 qq.com 及其子域（u.y.qq.com 等）。 */
+    private static final Set<String> ALLOWED_HOSTS = Set.of("qq.com");
     private static final String MODULE = "music.srfDissInfo.DissInfo";
     private static final String METHOD = "CgiGetDiss";
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
@@ -109,6 +112,7 @@ public class QQMusicClient {
                 .POST(HttpRequest.BodyPublishers.ofString(
                         objectMapper.writeValueAsString(body), StandardCharsets.UTF_8))
                 .build();
+        HttpTransport.requireAllowedTarget(upstreamRequest, ALLOWED_HOSTS);
         HttpResponse<String> upstreamResponse =
                 HttpTransport.sendString(httpClient, upstreamRequest, "请求 QQ 音乐接口被中断");
         if (!HttpTransport.isSuccess(upstreamResponse.statusCode())) {

@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neko.music.util.HttpTransport;
+import com.neko.music.util.OutboundUrlGuard;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -116,6 +117,12 @@ public class QishuiMusicClient {
             "www.qishui.com"
     );
 
+    /** 汽水客户端允许访问的上游域名：api.qishui.com / qishui.com / music.douyin.com 等。 */
+    private static final Set<String> ALLOWED_HOSTS = Set.of(
+            "qishui.com",
+            "douyin.com"
+    );
+
     private static boolean isAllowedHost(String host) {
         if (host == null || host.isBlank()) return false;
         String normalized = host.toLowerCase(Locale.ROOT);
@@ -135,8 +142,9 @@ public class QishuiMusicClient {
             if (port != -1 && port != 80 && port != 443) return null;
             String host = uri.getHost();
             if (!isAllowedHost(host)) return null;
+            OutboundUrlGuard.requirePublicHost(host);
             return uri;
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | IOException e) {
             return null;
         }
     }
@@ -163,6 +171,7 @@ public class QishuiMusicClient {
                     .header("accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
                     .header("user-agent", WEB_SHARE_UA)
                     .GET().build();
+            HttpTransport.requireAllowedTarget(request, ALLOWED_HOSTS);
             HttpResponse<String> response = HttpTransport.sendString(redirectClient, request,
                     "请求汽水分享链接被中断");
             String location = response.headers().firstValue("location").orElse("");
@@ -174,6 +183,7 @@ public class QishuiMusicClient {
                 return null;
             }
             if (!isAllowedRedirectUri(nextUri)) return null;
+            OutboundUrlGuard.requirePublicHost(nextUri.getHost());
             String nextUrl = nextUri.toString();
             String id = extractIdFromUrl(nextUrl);
             if (id != null) return id;
@@ -270,6 +280,7 @@ public class QishuiMusicClient {
                     .header("accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
                     .header("user-agent", WEB_SHARE_UA)
                     .GET().build();
+            HttpTransport.requireAllowedTarget(request, ALLOWED_HOSTS);
             HttpResponse<String> response = HttpTransport.sendString(httpClient, request,
                     "请求汽水歌单分享页被中断");
             if (!HttpTransport.isSuccess(response.statusCode())) return null;
@@ -393,6 +404,7 @@ public class QishuiMusicClient {
                 .header("x-luna-is-background-req", "0")
                 .header("x-luna-is-local-user", "0")
                 .GET().build();
+        HttpTransport.requireAllowedTarget(request, ALLOWED_HOSTS);
         HttpResponse<String> response = HttpTransport.sendString(httpClient, request,
                 "请求汽水音乐接口被中断: " + path);
         if (!HttpTransport.isSuccess(response.statusCode())) {

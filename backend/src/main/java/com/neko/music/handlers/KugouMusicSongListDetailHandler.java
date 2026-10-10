@@ -39,6 +39,9 @@ public class KugouMusicSongListDetailHandler extends ApiServlet {
             result.set("response", upstreamJson);
             response.setStatus(HttpServletResponse.SC_OK);
             response.getWriter().write(Main.getObjectMapper().writeValueAsString(result));
+        } catch (KugouMusicClient.InvalidInputException e) {
+            logger.warn("酷狗歌单入参非法，listid={}: {}", listId, e.getMessage());
+            sendErrorObject(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
         } catch (KugouMusicClient.UpstreamException e) {
             logger.warn("酷狗歌单接口返回 HTTP {}，listid={}", e.getStatusCode(), listId);
             sendErrorObject(response, HttpServletResponse.SC_BAD_GATEWAY,

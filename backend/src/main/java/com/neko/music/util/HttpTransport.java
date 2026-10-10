@@ -1,11 +1,13 @@
 package com.neko.music.util;
 
 import java.io.IOException;
+import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Set;
 
 /**
  * 外部音乐客户端共用的 HTTP 传输辅助：统一的客户端构造（指定连接超时 + 跟随重定向）
@@ -26,6 +28,17 @@ public final class HttpTransport {
                 .build();
     }
 
+    /**
+     * 抓取「地址可能来自用户输入」的页面时使用：不自动跟随重定向，由调用方对每个
+     * {@code Location} 重新做一次出站校验，避免合法站点用 3xx 把请求引到内网。
+     */
+    public static HttpClient createWithoutRedirects(Duration connectTimeout) {
+        return HttpClient.newBuilder()
+                .connectTimeout(connectTimeout)
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
+    }
+
     /** 以 UTF-8 读取字符串响应体；中断语义见 {@link #send}。 */
     public static HttpResponse<String> sendString(HttpClient client, HttpRequest request, String interruptMessage)
             throws IOException {
@@ -40,5 +53,15 @@ public final class HttpTransport {
     /** 2xx 视为成功。 */
     public static boolean isSuccess(int statusCode) {
         return statusCode >= 200 && statusCode < 300;
+    }
+
+    /**
+     * 发包前的最后一道闸：请求地址必须命中该客户端允许的上游域名（精确域名或子域），
+     * 且解析结果必须是公网地址。所有访问外部音乐平台的请求都应先过这里。
+     */
+    public static void requireAllowedTarget(HttpRequest request, Set<String> allowedHostSuffixes)
+            throws IOException {
+        URI uri = request == null ? null : request.uri();
+        OutboundUrlGuard.requireAllowedTarget(uri, allowedHostSuffixes);
     }
 }
