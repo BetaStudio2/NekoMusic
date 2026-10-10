@@ -1,6 +1,7 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
+import com.neko.music.util.ClientAborts;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -95,22 +96,39 @@ public class UserUploadPreviewHandler extends HttpServlet {
             return;
         }
         
-        // 获取文件名并设置Content-Type
-        String fileName = requestedPath.getFileName().toString();
-        String contentType = getContentType(fileName);
-        
-        response.setContentType(contentType);
-        response.setHeader("Content-Disposition", "inline; filename=\"" + fileName + "\"");
-        response.setHeader("Accept-Ranges", "bytes");
-        response.setContentLengthLong(Files.size(requestedPath));
-        
+        applyFileResponseHeaders(requestedPath, response);
+
         // 输出文件内容
         try (OutputStream out = response.getOutputStream()) {
             Files.copy(requestedPath, out);
             out.flush();
+        } catch (IOException e) {
+            if (ClientAborts.isClientAbort(e)) {
+                logger.debug("管理员在预览文件发送完成前断开连接: {}", filePath);
+                return;
+            }
+            throw e;
         }
-        
-        logger.info("管理员预览文件成功: {}", filePath);
+
+        logger.debug("管理员预览文件成功: {}", filePath);
+    }
+
+    /**
+     * 写入预览文件的响应头。
+     *
+     * <p>刻意<strong>不</strong>声明 {@code Accept-Ranges}：本接口由一次性防重放 nonce 保护，
+     * 而 CDN 的「Range 分片回源」会把一次客户端请求拆成多次回源请求、并复用同一个 nonce，
+     * 第二个分片必然被 409 拒绝，客户端最终表现为 {@code ERR_HTTP2_PROTOCOL_ERROR}（HTTP/2 断流）。
+     * 因此与安装包、渲染视频下载保持一致：整包回源，不参与分片。</p>
+     *
+     * <p>缓存策略不在这里设置，统一交给 {@code CacheControlFilter} 兜底为 {@code private, no-store}，
+     * 避免待审核文件被 CDN 公共缓存。</p>
+     */
+    static void applyFileResponseHeaders(Path file, HttpServletResponse response) throws IOException {
+        String fileName = file.getFileName().toString();
+        response.setContentType(getContentType(fileName));
+        response.setHeader("Content-Disposition", "inline; filename=\"" + fileName + "\"");
+        response.setContentLengthLong(Files.size(file));
     }
     
     @Override
@@ -119,7 +137,7 @@ public class UserUploadPreviewHandler extends HttpServlet {
         response.setStatus(HttpServletResponse.SC_OK);
     }
     
-    private String getContentType(String fileName) {
+    static String getContentType(String fileName) {
         if (fileName == null || fileName.isEmpty()) {
             return "application/octet-stream";
         }
