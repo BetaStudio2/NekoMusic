@@ -244,8 +244,9 @@ public class NeteaseSearchFillService {
         ReentrantLock songLock = NETEASE_SONG_LOCKS.computeIfAbsent(songId, k -> new ReentrantLock());
         songLock.lock();
         try {
+            // 导入按完整歌名判重：同名不同版本（Live / Remix / Ver.）不能被并掉，否则会少曲目
             Optional<AdminMusicIngestService.IngestedMusic> existing =
-                    ingestService.findExistingDuplicate(title, artist, album);
+                    ingestService.findSameTitleDuplicate(title, artist, album);
             if (existing.isPresent()) {
                 return new ExactIngest(songId, title, artist, album, existing, true, FillReason.NONE);
             }
@@ -256,7 +257,7 @@ public class NeteaseSearchFillService {
             NeteaseCloudMusicClient.NeteaseSongCandidate candidate =
                     new NeteaseCloudMusicClient.NeteaseSongCandidate(songId, title, artist, album);
             Optional<AdminMusicIngestService.IngestedMusic> ingested =
-                    downloadAndIngestUnderLock(candidate, workDir, songId, progressListener);
+                    downloadAndIngestUnderLock(candidate, workDir, songId, progressListener, true);
             if (ingested.isPresent()) {
                 return new ExactIngest(songId, title, artist, album, ingested, false, FillReason.NONE);
             }
@@ -459,17 +460,23 @@ public class NeteaseSearchFillService {
         ReentrantLock songLock = NETEASE_SONG_LOCKS.computeIfAbsent(songId, k -> new ReentrantLock());
         songLock.lock();
         try {
-            return downloadAndIngestUnderLock(candidate, workDir, songId, null);
+            return downloadAndIngestUnderLock(candidate, workDir, songId, null, false);
         } finally {
             songLock.unlock();
         }
     }
 
+    /**
+     * @param exactTitleOnly 是否只按「规范化后完整歌名一致」判重。歌单导入（按歌曲 ID 精确下载）传
+     *                       {@code true}：同名不同版本必须各自入库，否则导入曲目数会少于来源歌单；
+     *                       站内搜索补全传 {@code false}，保留原有的宽松合并，避免堆同曲重复记录。
+     */
     private Optional<AdminMusicIngestService.IngestedMusic> downloadAndIngestUnderLock(
             NeteaseCloudMusicClient.NeteaseSongCandidate candidate,
             Path workDir,
             long songId,
-            NeteaseCloudMusicClient.DownloadProgressListener progressListener
+            NeteaseCloudMusicClient.DownloadProgressListener progressListener,
+            boolean exactTitleOnly
     ) throws IOException, SQLException {
         NeteaseCloudMusicClient.SongDetail detail = neteaseClient.fetchSongDetail(songId)
                 .orElse(new NeteaseCloudMusicClient.SongDetail(
@@ -487,8 +494,8 @@ public class NeteaseSearchFillService {
             album = "未知专辑";
         }
 
-        Optional<AdminMusicIngestService.IngestedMusic> existing =
-                ingestService.findExistingDuplicate(title, artist, album);
+        Optional<AdminMusicIngestService.IngestedMusic> existing = findDuplicateByMode(
+                title, artist, album, exactTitleOnly);
         if (existing.isPresent()) {
             return existing;
         }
@@ -536,11 +543,12 @@ public class NeteaseSearchFillService {
                 language,
                 "",
                 durationSec,
-                config.getNeteaseFillUploadUserId()
+                config.getNeteaseFillUploadUserId(),
+                exactTitleOnly
         );
         Optional<AdminMusicIngestService.IngestedMusic> result = ingested.isPresent()
                 ? ingested
-                : ingestService.findExistingDuplicate(title, artist, album);
+                : findDuplicateByMode(title, artist, album, exactTitleOnly);
         if (result.isPresent()) {
             int ingestedMusicId = result.get().id();
             lyricsPrep.invalidLyricsAlert().ifPresent(alert ->
@@ -562,6 +570,14 @@ public class NeteaseSearchFillService {
                     });
         }
         return result;
+    }
+
+    /** 按调用方要求的判重口径查曲库重复（导入用严格完整歌名，补全用宽松合并）。 */
+    private Optional<AdminMusicIngestService.IngestedMusic> findDuplicateByMode(
+            String title, String artist, String album, boolean exactTitleOnly) throws SQLException {
+        return exactTitleOnly
+                ? ingestService.findSameTitleDuplicate(title, artist, album)
+                : ingestService.findExistingDuplicate(title, artist, album);
     }
 
     private record InvalidLyricsAlert(

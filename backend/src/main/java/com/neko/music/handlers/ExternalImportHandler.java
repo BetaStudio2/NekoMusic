@@ -33,6 +33,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * <p>均需要用户令牌。曲目入库后可用返回的 {@code musicId} 通过
  * {@code /api/music/file/{id}} 获取音频。</p>
+ *
+ * <p>导入结束（成功或失败）后会向发起人写入一条站内消息，在线时经
+ * {@code /api/user/notifications/stream} 实时推送。</p>
  */
 public class ExternalImportHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(ExternalImportHandler.class);
@@ -66,6 +69,7 @@ public class ExternalImportHandler extends HttpServlet {
         }
 
         int resolvedPlaylistId;
+        String resolvedPlaylistName = null;
         boolean playlistCreated = false;
         if (targetPlaylistId != null) {
             if (!Main.getPlaylistService().isPlaylistOwner(targetPlaylistId, userId)) {
@@ -96,6 +100,7 @@ public class ExternalImportHandler extends HttpServlet {
                 return;
             }
             resolvedPlaylistId = created.get().id();
+            resolvedPlaylistName = created.get().name();
             playlistCreated = true;
         }
 
@@ -178,15 +183,16 @@ public class ExternalImportHandler extends HttpServlet {
         }
 
         ExternalImportService.Listener listener = new SseListener(asyncContext, writer);
+        ExternalImportService.ImportTarget importTarget = new ExternalImportService.ImportTarget(
+                userId, resolvedPlaylistId, resolvedPlaylistName, playlistCreated);
         if (qq) {
-            importService.startQqImport(disstid, resolvedPlaylistId, playlistCreated, listener);
+            importService.startQqImport(disstid, importTarget, listener);
         } else if (qishui) {
-            importService.startQishuiImport(qishuiPlaylist, resolvedPlaylistId, playlistCreated, listener);
+            importService.startQishuiImport(qishuiPlaylist, importTarget, listener);
         } else if (kugou) {
-            importService.startKugouImport(kugouListId, resolvedPlaylistId, playlistCreated, listener);
+            importService.startKugouImport(kugouListId, importTarget, listener);
         } else {
-            importService.startNeteaseImport(neteasePlaylistId, songIds, resolvedPlaylistId, playlistCreated,
-                    listener);
+            importService.startNeteaseImport(neteasePlaylistId, songIds, importTarget, listener);
         }
     }
 

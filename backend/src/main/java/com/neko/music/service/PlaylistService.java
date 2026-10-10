@@ -267,6 +267,74 @@ public class PlaylistService {
     }
 
     /**
+     * 追加音乐到歌单末尾（保持调用顺序，用于外部歌单导入等需要保序的场景）。
+     *
+     * <p>与 {@link #addMusicToPlaylist(int, int)}（插入到首位）不同，本方法把新曲目放到现有曲目
+     * 之后，因此按来源顺序依次调用即可让歌单顺序与来源一致。曲目已存在时返回 {@code false}。</p>
+     */
+    public boolean appendMusicToPlaylist(int playlistId, int musicId) {
+        logger.info("追加音乐到歌单: playlistId={}, musicId={}", playlistId, musicId);
+
+        try (Connection conn = databaseManager.getConnection()) {
+            conn.setAutoCommit(false);
+
+            try {
+                if (playlistMusicExists(conn, playlistId, musicId)) {
+                    logger.warn("音乐已存在于歌单中: playlistId={}, musicId={}", playlistId, musicId);
+                    conn.rollback();
+                    return false;
+                }
+
+                String insertSql = "INSERT INTO playlist_music (playlist_id, music_id, position) VALUES (?, ?, ?)";
+                try (PreparedStatement stmt = conn.prepareStatement(insertSql)) {
+                    stmt.setInt(1, playlistId);
+                    stmt.setInt(2, musicId);
+                    stmt.setInt(3, nextPlaylistPosition(conn, playlistId));
+
+                    if (stmt.executeUpdate() == 0) {
+                        logger.warn("音乐追加到歌单失败: playlistId={}, musicId={}", playlistId, musicId);
+                        conn.rollback();
+                        return false;
+                    }
+                }
+
+                conn.commit();
+                logger.info("音乐追加到歌单成功: playlistId={}, musicId={}", playlistId, musicId);
+                updateMusicCount(playlistId);
+                return true;
+            } catch (SQLException e) {
+                conn.rollback();
+                logger.error("追加音乐到歌单失败: {}", e.getMessage(), e);
+                return false;
+            }
+        } catch (SQLException e) {
+            logger.error("获取数据库连接失败: {}", e.getMessage(), e);
+            return false;
+        }
+    }
+
+    private static boolean playlistMusicExists(Connection conn, int playlistId, int musicId) throws SQLException {
+        String checkSql = "SELECT COUNT(*) FROM playlist_music WHERE playlist_id = ? AND music_id = ?";
+        try (PreparedStatement stmt = conn.prepareStatement(checkSql)) {
+            stmt.setInt(1, playlistId);
+            stmt.setInt(2, musicId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next() && rs.getInt(1) > 0;
+            }
+        }
+    }
+
+    private static int nextPlaylistPosition(Connection conn, int playlistId) throws SQLException {
+        String sql = "SELECT COALESCE(MAX(position), 0) + 1 FROM playlist_music WHERE playlist_id = ?";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, playlistId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 1;
+            }
+        }
+    }
+
+    /**
      * 删除歌单
      */
     public boolean deletePlaylist(int playlistId) {

@@ -74,11 +74,35 @@ public class AdminMusicIngestService {
             int durationSec,
             Integer uploadUserId
     ) throws IOException, SQLException {
+        return ingestFromTempFiles(musicTemp, coverTempOrNull, lyricsTemp, title, artist, album, language,
+                tags, durationSec, uploadUserId, false);
+    }
+
+    /**
+     * @param exactTitleOnly 判重时是否只认「规范化后完整歌名一致」，见
+     *                       {@link #findSameTitleDuplicate(String, String, String)}。
+     *                       站外歌单导入必须传 {@code true}，否则同名不同版本会被并成一条而少曲目。
+     */
+    public java.util.Optional<IngestedMusic> ingestFromTempFiles(
+            Path musicTemp,
+            Path coverTempOrNull,
+            Path lyricsTemp,
+            String title,
+            String artist,
+            String album,
+            String language,
+            String tags,
+            int durationSec,
+            Integer uploadUserId,
+            boolean exactTitleOnly
+    ) throws IOException, SQLException {
         String albumVal = album == null || album.isBlank() ? "未知专辑" : album.trim();
         String lang = language == null || language.isBlank() ? "未知语言" : language.trim();
         String tagVal = tags == null ? "" : tags.trim();
 
-        Optional<IngestedMusic> duplicate = findExistingDuplicate(title, artist, albumVal);
+        Optional<IngestedMusic> duplicate = exactTitleOnly
+                ? findSameTitleDuplicate(title, artist, albumVal)
+                : findExistingDuplicate(title, artist, albumVal);
         if (duplicate.isPresent()) {
             logger.info("跳过入库，曲库已有重复 id={}: title={} artist={}",
                     duplicate.get().id(), title, artist);
@@ -423,6 +447,24 @@ public class AdminMusicIngestService {
      */
     public Optional<IngestedMusic> findExistingDuplicate(String title, String artist, String album)
             throws SQLException {
+        return findExistingDuplicate(title, artist, album, false);
+    }
+
+    /**
+     * 站外歌单导入专用的去重：**只认「规范化后歌名完全一致」的曲目**，不走下面那条
+     * 「去掉括号备注的核心标题」模糊合并。
+     *
+     * <p>模糊合并会把同名不同版本（`Live` / `Remix` / `Ver.` / `Demo`）当成同一首，导入时后出现的那首
+     * 直接复用前一首的曲库记录、既不入库也进不了歌单，导致导入曲目数少于来源歌单。导入要的是
+     * 一比一还原，所以这里只按完整歌名判重。</p>
+     */
+    public Optional<IngestedMusic> findSameTitleDuplicate(String title, String artist, String album)
+            throws SQLException {
+        return findExistingDuplicate(title, artist, album, true);
+    }
+
+    private Optional<IngestedMusic> findExistingDuplicate(String title, String artist, String album,
+                                                          boolean exactTitleOnly) throws SQLException {
         if (title == null || title.isBlank()) {
             return Optional.empty();
         }
@@ -450,6 +492,9 @@ public class AdminMusicIngestService {
             if (!titlesMatchForDuplicate(reqTitle, m.title())) {
                 continue;
             }
+            if (exactTitleOnly && !sameTitleForImport(reqTitle, m.title())) {
+                continue;
+            }
             if (!reqArtist.isEmpty()) {
                 if (BatchMusicMatchUtil.artistsRelate(reqArtist, m.artist())) {
                     return Optional.of(m);
@@ -464,6 +509,14 @@ public class AdminMusicIngestService {
             }
         }
         return Optional.empty();
+    }
+
+    /** 导入路径的判重：歌名规范化后必须完全一致（简繁、大小写、首尾空格差异不算差异）。 */
+    static boolean sameTitleForImport(String reqTitle, String dbTitle) {
+        if (dbTitle == null || dbTitle.isBlank()) {
+            return false;
+        }
+        return normalizeForExact(reqTitle).equals(normalizeForExact(dbTitle));
     }
 
     private static boolean titlesMatchForDuplicate(String reqTitle, String dbTitle) {
