@@ -63,8 +63,9 @@ public final class PlaylistSeoContent {
 
         int trackCount = playlist.tracks.size();
         int shownCount = playlist.musicCount > 0 ? playlist.musicCount : trackCount;
+        // 引用公开静态封面：SEO 页可能被爬虫 / 链接预览抓取，而 /api 对爬虫一律 403
         String coverUrl = trackCount > 0
-                ? base + MusicAssetLocator.coverApiUrl(playlist.tracks.get(0).id)
+                ? base + MusicAssetLocator.mediaCoverUrl(playlist.tracks.get(0).id)
                 : base + "/og-image.jpg";
 
         String searchUrl = base + "/search?q="

@@ -147,6 +147,11 @@ public final class ServletRegistrar {
 
         ServletHolder mediaMusicHolder = new ServletHolder(new MediaMusicHandler());
         context.addServlet(mediaMusicHolder, "/media/music/*");
+
+        // 封面同时以公开静态路径提供：SEO 页（og:image / JSON-LD image）与链接预览需要可直接抓取、
+        // 可被 CDN 缓存的图片地址，不能指向 /api（/api 对爬虫一律 403）。
+        ServletHolder mediaCoverHolder = new ServletHolder(new MusicCoverHandler());
+        context.addServlet(mediaCoverHolder, "/media/cover/*");
         
         // 注册歌词API处理器（无需管理员权限）
         ServletHolder musicLyricsHolder = new ServletHolder(new MusicLyricsHandler());

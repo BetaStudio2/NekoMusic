@@ -4,7 +4,6 @@ import com.neko.music.Main;
 import com.neko.music.config.ConfigManager;
 import com.neko.music.seo.BrowserEvidence;
 import com.neko.music.seo.UserAgentClassifier;
-import com.neko.music.util.HttpResourceCache;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.FilterConfig;
@@ -27,10 +26,10 @@ import java.util.Locale;
  *
  * <p>两段式判定：</p>
  * <ol>
- *   <li><b>已知黑名单</b>：UA 命中爬虫 / 无头浏览器 / 命令行工具 / 安全扫描器关键词 → 直出 SEO 页。</li>
+ *   <li><b>已知黑名单</b>：UA 命中爬虫 / 无头浏览器 / 命令行工具 / 安全扫描器关键词 → 直接 403。</li>
  *   <li><b>浏览器完整性区分</b>（{@code network.browser_integrity_enabled}，默认开）：
  *       非配置放行名单、非原生客户端的请求，必须「UA 结构像真浏览器」且带浏览器特征头，
- *       否则直出 SEO 页。用于拦截未知 / 小众网站爬虫——它们常用自定义 UA 或只伪造 {@code Mozilla/} 前缀，
+ *       否则直接 403。用于拦截未知 / 小众网站爬虫——它们常用自定义 UA 或只伪造 {@code Mozilla/} 前缀，
  *       不含渲染引擎标记，也无法凑齐浏览器特征头。</li>
  * </ol>
  *
@@ -39,9 +38,12 @@ import java.util.Locale;
  *   <li>浏览器以真实 UA（含 {@code Mozilla/} 与内核标记）通过 fetch 访问 /api，并携带
  *       {@code Accept} / {@code Accept-Language} 等头，恒不误伤；官方原生客户端靠
  *       {@link UserAgentClassifier#isNativeClient} 的严格 UA 判定放行，不影响 App。</li>
- *   <li>爬虫 / AI 抓取器不应拿到 JSON：GET / HEAD 命中后不再 302 跳转，而是内部 forward 到对应
- *       SEO 页并直接把服务端 HTML 以 200 返回（复用 {@code StaticPageSeoFilter} 与详情页处理器，
- *       页面自带 canonical，不会与正式页产生重复内容）；重定向会浪费抓取配额、影响收录。</li>
+ *   <li>爬虫 / AI 抓取器 / 扫描器 / 伪造客户端不得拿到 JSON，也不在 {@code /api} 下渲染 SEO 页：
+ *       命中即 {@code 403}。可抓取内容一律以正式 SEO 页面路径提供（sitemap + canonical），
+ *       {@code robots.txt} 也已声明不与接口混在一起；在接口路径上再渲染一份 HTML 只会浪费渲染开销，
+ *       并让同一 URL 对爬虫与浏览器出现两种表现。</li>
+ *   <li>SEO 页（{@code og:image} / JSON-LD）引用的是公开静态媒体（{@code /media/*}），
+ *       不指向 {@code /api}，因此链接预览与图片收录不受本过滤器影响。</li>
  *   <li>{@code /api/music/ranking}、{@code /api/music/latest} 是公开且允许 CDN 缓存的接口
  *       （半小时）：对所有人返回同一份 JSON，不参与防爬判定。否则边缘缓存命中与否会让同一个
  *       UA 时而被拦、时而拿到 JSON，且缓存里落的是哪一版就发给所有人。</li>
@@ -91,12 +93,12 @@ public class CrawlerProtectionFilter implements Filter {
 
         String ua = httpRequest.getHeader("User-Agent");
 
-        // 0) 空 UA：一律按爬虫 / 脚本处理，GET/HEAD 直出 SEO 页，其它方法 403。
+        // 0) 空 UA：一律按爬虫 / 脚本处理，直接 403。
         //    三端客户端都会显式携带 User-Agent（浏览器 / Android NekoMusic-android / PC NekoMusic-PC），
         //    媒体直链走 /media/* 不经本过滤器，因此不再为「不发 UA 的客户端」保留豁免：
         //    否则任何脚本只要不带 UA 就能绕过防爬与浏览器完整性两层校验。
         if (ua == null || ua.isBlank()) {
-            serveSeoPage(httpRequest, httpResponse, path, ua);
+            writeForbidden(httpResponse);
             return;
         }
 
@@ -107,9 +109,9 @@ public class CrawlerProtectionFilter implements Filter {
             return;
         }
 
-        // 2) 明确为爬虫 / 无头 / 命令行工具 / 安全扫描器 → 直出 SEO 页
+        // 2) 明确为爬虫 / 无头 / 命令行工具 / 安全扫描器 → 直接拒绝
         if (UserAgentClassifier.isBotForApi(ua)) {
-            serveSeoPage(httpRequest, httpResponse, path, ua);
+            writeForbidden(httpResponse);
             return;
         }
 
@@ -125,63 +127,11 @@ public class CrawlerProtectionFilter implements Filter {
                 chain.doFilter(request, response);
                 return;
             }
-            serveSeoPage(httpRequest, httpResponse, path, ua);
+            writeForbidden(httpResponse);
             return;
         }
 
         chain.doFilter(request, response);
-    }
-
-    /**
-     * 爬虫访问 {@code /api}：GET / HEAD 内部 forward 到对应 SEO 页并直接返回服务端 HTML（200），
-     * 不再 302 跳转——重定向会把权重与抓取配额消耗在跳转上，影响这些 URL 的收录。
-     *
-     * <p>目标页由既有处理器渲染，自带 {@code <link rel="canonical">}，因此与
-     * {@code /detail/{id}} 等正式页不构成重复内容；同一 URL 对爬虫与浏览器表现不同，
-     * 必须显式声明 {@code Vary: User-Agent}。</p>
-     *
-     * <p>其它方法没有对应 SEO 页，仍 403。</p>
-     */
-    private static void serveSeoPage(HttpServletRequest request, HttpServletResponse response, String path, String ua)
-            throws IOException, ServletException {
-        String method = request.getMethod();
-        if ("GET".equalsIgnoreCase(method) || "HEAD".equalsIgnoreCase(method)) {
-            String target = seoPageForApiPath(path);
-            // 同一 URL 对爬虫与浏览器有两种表现，先声明 Vary 再 forward，避免共享缓存串味。
-            response.setHeader("Vary", "User-Agent");
-            response.setHeader("Cache-Control", HttpResourceCache.CACHE_CONTROL_NO_STORE);
-//            logger.info("爬虫访问 API 直出 SEO 页: path={} -> {} UA={} remote={}",
-//                    path, target, ua, request.getRemoteAddr());
-            request.getRequestDispatcher(target).forward(request, response);
-            return;
-        }
-//        logger.warn("防爬拦截(非 GET): path={} method={} UA={} remote={}",
-//                path, method, ua, request.getRemoteAddr());
-        writeForbidden(response);
-    }
-
-    /** {@code /api} 路径 → 对应 SEO 页面；无法对应时回首页。 */
-    static String seoPageForApiPath(String path) {
-        switch (path) {
-            case "/api/music/search":
-                return "/search";
-            default:
-                break;
-        }
-        for (String prefix : new String[]{
-                "/api/music/info/", "/api/music/cover/", "/api/music/file/", "/api/music/lyrics/"}) {
-            if (path.startsWith(prefix)) {
-                String id = path.substring(prefix.length());
-                int slash = id.indexOf('/');
-                if (slash >= 0) {
-                    id = id.substring(0, slash);
-                }
-                if (id.matches("\\d+")) {
-                    return "/detail/" + id;
-                }
-            }
-        }
-        return "/";
     }
 
     /** 配置的额外放行 UA 子串匹配（大小写不敏感）。 */

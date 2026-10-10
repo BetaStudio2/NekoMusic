@@ -24,11 +24,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * /api 防爬与「爬虫直出 SEO」的行为测试。
+ * /api 防爬行为测试：爬虫 / 扫描器 / 伪造客户端命中后直接 403（不在接口路径上渲染 SEO 页），
+ * 真实浏览器 / 已登记客户端 / 官方原生客户端放行，公开缓存接口与非 /api 路径不受影响。
  *
- * <p>用动态代理桩替代 Servlet 容器，不依赖 MySQL/Redis，聚焦过滤器判定：
- * 爬虫 GET / HEAD 直接 forward 到对应 SEO 页并返回 200（不再 302），
- * 其余方法 403，真实浏览器 / 原生客户端放行。</p>
+ * <p>用动态代理桩替代 Servlet 容器，不依赖 MySQL/Redis。</p>
  */
 class CrawlerProtectionFilterTest {
 
@@ -119,54 +118,54 @@ class CrawlerProtectionFilterTest {
     }
 
     @Test
-    void divertsKnownBotsAndScannersToSeo() throws Exception {
+    void rejectsKnownBotsAndScanners() throws Exception {
         Outcome curl = inspect("curl/8.5.0", null);
-        assertEquals(200, curl.status());
-        assertEquals("/detail/1", curl.forwarded());
-        assertEquals("<html>SEO</html>", curl.body());
-        assertEquals("User-Agent", curl.vary());
+        assertEquals(403, curl.status());
+        assertNull(curl.forwarded());
+        assertFalse(curl.body().contains("SEO"));
+        assertFalse(curl.body().contains("<html"));
         assertEquals("private, no-store", curl.cacheControl());
         assertFalse(curl.chained());
 
         for (String botUa : new String[]{"python-requests/2.31.0", "sqlmap/1.7.2#stable",
                 "Mozilla/5.00 (Nikto/2.5.0)", "Mozilla/5.0 zgrab/0.x"}) {
             Outcome outcome = inspect(botUa, null);
-            assertEquals(200, outcome.status(), botUa);
-            assertEquals("/detail/1", outcome.forwarded(), botUa);
+            assertEquals(403, outcome.status(), botUa);
+            assertNull(outcome.forwarded(), botUa);
             assertFalse(outcome.chained(), botUa);
         }
     }
 
     @Test
-    void divertsUnknownCrawlersWithCustomOrSpoofedUserAgentToSeo() throws Exception {
+    void rejectsUnknownCrawlersWithCustomOrSpoofedUserAgent() throws Exception {
         for (String crawlerUa : new String[]{"MyCollector/1.0", "Mozilla/5.0 (compatible; AcmeIndex/1.0)",
                 "Mozilla/5.0", "Mozilla/5.0 (X11; Linux x86_64)",
                 "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)"}) {
             Outcome outcome = inspect(crawlerUa, null);
-            assertEquals(200, outcome.status(), crawlerUa);
-            assertEquals("/detail/1", outcome.forwarded(), crawlerUa);
+            assertEquals(403, outcome.status(), crawlerUa);
+            assertNull(outcome.forwarded(), crawlerUa);
             assertFalse(outcome.chained(), crawlerUa);
         }
     }
 
     @Test
     void treatsMissingUserAgentAsCrawlerAndRejectsCompleteUaVariants() throws Exception {
-        // 空 UA 一律按爬虫处理：GET 直出 SEO 页，不再放行
+        // 空 UA 一律按爬虫处理：直接 403
         for (String noUa : new String[]{null, "", "   "}) {
             Outcome outcome = inspect(noUa, null);
-            assertEquals(200, outcome.status());
-            assertEquals("/detail/1", outcome.forwarded());
+            assertEquals(403, outcome.status());
+            assertNull(outcome.forwarded());
             assertFalse(outcome.chained());
         }
         // 空 UA 的写请求直接 403
         Outcome post = inspect("POST", "/api/user/login", null, null);
         assertEquals(403, post.status());
         assertNull(post.forwarded());
-        // 官方 UA 必须带平台与版本：裸前缀 / 空格写法一律降级
+        // 官方 UA 必须带平台与版本：裸前缀 / 空格写法一律拒绝
         Outcome coverUa = inspect("NekoMusic Qt", Map.of(
                 "Accept", "image/png,image/jpeg,image/*;q=0.8,*/*;q=0.5"));
-        assertEquals(200, coverUa.status());
-        assertEquals("/detail/1", coverUa.forwarded());
+        assertEquals(403, coverUa.status());
+        assertNull(coverUa.forwarded());
         assertFalse(coverUa.chained());
     }
 
@@ -175,8 +174,8 @@ class CrawlerProtectionFilterTest {
         for (String ua : new String[]{"NekoMusic-android", "NekoMusic-android/", "NekoMusic Android",
                 "NekoMusic-android/abc", "NekoMusic-PC", "NekoMusic-android/202601008/extra"}) {
             Outcome outcome = inspect(ua, Map.of("Accept", "*/*"));
-            assertEquals(200, outcome.status(), ua);
-            assertEquals("/detail/1", outcome.forwarded(), ua);
+            assertEquals(403, outcome.status(), ua);
+            assertNull(outcome.forwarded(), ua);
             assertFalse(outcome.chained(), ua);
         }
         // 合法形式照常放行
@@ -186,15 +185,15 @@ class CrawlerProtectionFilterTest {
     }
 
     @Test
-    void divertsBrowserUserAgentSpoofWithoutBrowserHeaders() throws Exception {
+    void rejectsBrowserUserAgentSpoofWithoutBrowserHeaders() throws Exception {
         Outcome noHeaders = inspect(BROWSER_UA, null);
-        assertEquals(200, noHeaders.status());
-        assertEquals("/detail/1", noHeaders.forwarded());
+        assertEquals(403, noHeaders.status());
+        assertNull(noHeaders.forwarded());
         assertFalse(noHeaders.chained());
 
         Outcome acceptOnly = inspect(BROWSER_UA, Map.of("Accept", "application/json"));
-        assertEquals(200, acceptOnly.status());
-        assertEquals("/detail/1", acceptOnly.forwarded());
+        assertEquals(403, acceptOnly.status());
+        assertNull(acceptOnly.forwarded());
         assertFalse(acceptOnly.chained());
     }
 
@@ -225,11 +224,11 @@ class CrawlerProtectionFilterTest {
         Outcome pc = inspect("NekoMusic-PC/1.0", null);
         assertTrue(pc.chained());
 
-        // 播放器 / 通用 HTTP 栈 UA 不再豁免 /api（它们只取 /media/* 直链）：GET 直出 SEO 页
+        // 播放器 / 通用 HTTP 栈 UA 不再豁免 /api（它们只取 /media/* 直链）：直接 403
         for (String playerUa : new String[]{"okhttp/4.12.0", "Dalvik/2.1.0 (Linux; U; Android 13)", "libmpv/0.36"}) {
             Outcome outcome = inspect(playerUa, null);
-            assertEquals(200, outcome.status(), playerUa);
-            assertEquals("/detail/1", outcome.forwarded(), playerUa);
+            assertEquals(403, outcome.status(), playerUa);
+            assertNull(outcome.forwarded(), playerUa);
             assertFalse(outcome.chained(), playerUa);
         }
     }
@@ -238,8 +237,8 @@ class CrawlerProtectionFilterTest {
     void nativeKeywordInSpoofedUserAgentDoesNotBypass() throws Exception {
         for (String spoofed : new String[]{"sqlmap android", "python-requests/2.31.0 Android", "curl/8.5.0 dalvik"}) {
             Outcome outcome = inspect(spoofed, null);
-            assertEquals(200, outcome.status(), spoofed);
-            assertEquals("/detail/1", outcome.forwarded(), spoofed);
+            assertEquals(403, outcome.status(), spoofed);
+            assertNull(outcome.forwarded(), spoofed);
             assertFalse(outcome.chained(), spoofed);
         }
     }
@@ -282,17 +281,15 @@ class CrawlerProtectionFilterTest {
     }
 
     @Test
-    void mapsApiPathsToSeoPages() {
-        assertEquals("/search", CrawlerProtectionFilter.seoPageForApiPath("/api/music/search"));
-        assertEquals("/detail/42", CrawlerProtectionFilter.seoPageForApiPath("/api/music/info/42"));
-        assertEquals("/detail/42", CrawlerProtectionFilter.seoPageForApiPath("/api/music/cover/42"));
-        assertEquals("/detail/42", CrawlerProtectionFilter.seoPageForApiPath("/api/music/file/42"));
-        assertEquals("/detail/7", CrawlerProtectionFilter.seoPageForApiPath("/api/music/lyrics/7"));
-        assertEquals("/", CrawlerProtectionFilter.seoPageForApiPath("/api/user/login"));
-        assertEquals("/", CrawlerProtectionFilter.seoPageForApiPath("/api/music/search/abc"));
-        // 公开缓存接口不再映射 SEO 页（对所有人返回 JSON，由 CDN 缓存）
-        assertEquals("/", CrawlerProtectionFilter.seoPageForApiPath("/api/music/ranking"));
-        assertEquals("/", CrawlerProtectionFilter.seoPageForApiPath("/api/music/latest"));
+    void publicMediaPathsAreNotSubjectToApiCrawlerBlock() throws Exception {
+        // SEO 页的 og:image / og:audio 引用公开静态媒体，爬虫与链接预览必须能直接抓到
+        for (String path : new String[]{"/media/cover/1", "/media/music/1"}) {
+            for (String ua : new String[]{"curl/8.5.0", "facebookexternalhit/1.1", null}) {
+                Outcome outcome = inspect("GET", path, ua, null);
+                assertTrue(outcome.chained(), path + " / " + ua);
+                assertNull(outcome.forwarded(), path + " / " + ua);
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")

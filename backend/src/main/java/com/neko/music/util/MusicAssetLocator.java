@@ -109,6 +109,16 @@ public final class MusicAssetLocator {
         return "/api/music/cover/" + musicId;
     }
 
+    /** 公开静态封面地址：与 {@code /media/music/*} 同源同缓存语义，供 SEO 页与链接预览直接引用。 */
+    public static String mediaCoverUrl(int musicId) {
+        return "/media/cover/" + musicId;
+    }
+
+    /** 公开静态音频地址：og:audio 与 JSON-LD 使用，避免引用只返回 JSON 的解析接口。 */
+    public static String mediaMusicUrl(int musicId) {
+        return "/media/music/" + musicId;
+    }
+
     /** 尽力删除 {@code Music/music/{musicId}.*}；单文件失败只打 WARN，不抛异常。 */
     public static void deleteAudioVariants(int musicId) {
         deleteIdNamedFiles(audioDir(), musicId, "audio");

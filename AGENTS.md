@@ -132,8 +132,8 @@ cd frontend && npm run build    # 产物输出到 ../backend/src/main/resources/
 
 ### 客户端身份
 
-- 所有出站请求必须显式携带 `User-Agent`；**空 / 缺失 UA 一律按爬虫处理**（`GET`/`HEAD` 返回 SEO
-  HTML，其它方法 `403`），不得为此开豁免。
+- 所有出站请求必须显式携带 `User-Agent`；**空 / 缺失 UA 一律按爬虫处理**（`/api/*` 直接 `403`），
+  不得为此开豁免。
 - 浏览器/官方客户端无需特殊处理；第三方客户端必须带版本号 `User-Agent` 与
   `X-Neko-Client: <平台>+<版本>`。
 - 官方客户端的 UA 就是 `NekoMusic-<平台>/<版本>`（`seo/UserAgentClassifier`）：**判定必须整体锚定**，

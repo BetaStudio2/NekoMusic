@@ -72,8 +72,9 @@ public final class MusicDetailSeoContent {
         String base = trimSlash(siteBaseUrl);
         int id = music.id;
         String pageUrl = base + "/detail/" + id;
-        String coverUrl = base + MusicAssetLocator.coverApiUrl(id);
-        String audioUrl = base + MusicAssetLocator.fileApiUrl(id);
+        // 引用公开静态媒体：SEO 页可能被爬虫 / 链接预览抓取，而 /api 对爬虫一律 403
+        String coverUrl = base + MusicAssetLocator.mediaCoverUrl(id);
+        String audioUrl = base + MusicAssetLocator.mediaMusicUrl(id);
 
         String title = blank(music.title, "未知歌曲");
         String artist = blank(music.artist, "未知艺术家");
