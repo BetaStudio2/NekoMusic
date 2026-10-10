@@ -79,6 +79,11 @@ public class KugouMusicClient {
      * 都属于 kugou.com 子域。其它地址一律按非法入参处理，不做任何请求。
      */
     private static final Set<String> ALLOWED_HOSTS = Set.of("kugou.com");
+    /**
+     * 分享页固定走移动端官方域名：主机名写死在代码里，入参（含用户粘贴的分享链接）
+     * 只能提供「路径 + 查询串」，无法影响出站主机。
+     */
+    private static final String SHARE_PAGE_BASE = "https://m.kugou.com/";
     /** 分享页重定向（含短链）跟随上限。 */
     private static final int MAX_SHARE_REDIRECTS = 3;
 
@@ -217,11 +222,10 @@ public class KugouMusicClient {
      * 扫描失败时退化为分享页内嵌的前若干首。</p>
      */
     private KugouPlaylist fetchFromSharePage(String input) throws IOException {
-        String url = input;
-        if (!url.startsWith("http://") && !url.startsWith("https://")) {
-            url = "https://m.kugou.com/songlist/" + url + "/";
-        }
-        String html = httpGetString(url);
+        String relative = SHARE_URL_PATTERN.matcher(input).find()
+                ? shareRelativePath(input)
+                : "songlist/" + input + "/";
+        String html = httpGetString(relative);
         JsonNode output = extractWindowOutput(html);
         if (output == null) {
             throw new IOException("酷狗分享页解析失败");
@@ -512,11 +516,9 @@ public class KugouMusicClient {
      * 站内匹配或网易云补全的既有解析器完成，不复用酷狗直链。</p>
      */
     private KugouPlaylist fetchSingleSong(String input) throws IOException {
-        String url = input;
-        if (!url.startsWith("http://") && !url.startsWith("https://")) {
-            url = "https://m.kugou.com/share/?action=single&hash=" + url;
-        }
-        String html = httpGetString(url);
+        boolean isUrl = input.startsWith("http://") || input.startsWith("https://");
+        String relative = isUrl ? shareRelativePath(input) : "share/?action=single&hash=" + input;
+        String html = httpGetString(relative);
         JsonNode phpParam = extractAssignedObject(html, "var phpParam");
         if (phpParam == null) {
             throw new IOException("酷狗单曲分享页解析失败");
@@ -632,11 +634,12 @@ public class KugouMusicClient {
     /**
      * 抓取分享页 HTML（用于解析 {@code window.$output}）。
      *
-     * <p>地址来自用户输入，因此每一跳都先过 {@link OutboundUrlGuard}：只允许酷狗官方域名、
-     * 不允许解析到内网 / 本机 / 云元数据地址；重定向不自动跟随，逐跳重新校验。</p>
+     * <p>主机名固定为 {@link #SHARE_PAGE_BASE}，入参只提供相对路径与查询串，因此入参无法决定
+     * 出站目标主机；每一跳仍先过 {@link OutboundUrlGuard}（协议、域名白名单、解析地址必须是
+     * 公网），重定向不自动跟随、逐跳重新校验。</p>
      */
-    private String httpGetString(String url) throws IOException {
-        String current = url;
+    private String httpGetString(String relativePathAndQuery) throws IOException {
+        String current = SHARE_PAGE_BASE + relativePathAndQuery;
         for (int hop = 0; hop <= MAX_SHARE_REDIRECTS; hop++) {
             URI uri;
             try {
@@ -677,6 +680,37 @@ public class KugouMusicClient {
     private static boolean isRedirect(int statusCode) {
         return statusCode == 301 || statusCode == 302 || statusCode == 303
                 || statusCode == 307 || statusCode == 308;
+    }
+
+    /**
+     * 用户粘贴的分享链接 → 「相对路径 + 查询串」。
+     *
+     * <p>先按官方域名白名单校验整条链接（协议 / 主机名 / 解析地址），再只取其路径与查询串；
+     * 主机名由 {@link #SHARE_PAGE_BASE} 固定，因此入参无论如何构造都影响不了出站目标。</p>
+     */
+    private static String shareRelativePath(String input) throws IOException {
+        String candidate = input;
+        if (!candidate.startsWith("http://") && !candidate.startsWith("https://")) {
+            candidate = "https://" + candidate;
+        }
+        URI uri;
+        try {
+            uri = OutboundUrlGuard.requireAllowedHttpUrl(candidate, ALLOWED_HOSTS);
+        } catch (OutboundUrlGuard.BlockedUrlException e) {
+            throw new InvalidInputException(
+                    "酷狗分享链接无效或不受支持（仅支持酷狗官方域名链接或歌单 ID）", e);
+        }
+        String path = uri.getRawPath();
+        if (path == null || path.isEmpty() || "/".equals(path)) {
+            throw new InvalidInputException("酷狗分享链接无效或不受支持（仅支持酷狗官方域名链接或歌单 ID）");
+        }
+        StringBuilder relative =
+                new StringBuilder(path.startsWith("/") ? path.substring(1) : path);
+        String query = uri.getRawQuery();
+        if (query != null && !query.isEmpty()) {
+            relative.append('?').append(query);
+        }
+        return relative.toString();
     }
 
     private JsonNode send(HttpRequest request) throws IOException {
