@@ -42,20 +42,54 @@ class KugouMusicClientSsrfTest {
     }
 
     @Test
-    @DisplayName("分享链接只贡献路径与查询串：内网地址只能当查询参数，出站主机固定")
-    void shareLinkOnlyContributesPathAndQuery() throws Exception {
-        // 线上被扫描器用过的形态：官方域名 + 查询串里塞内网地址（jump/to 都是酷狗分享页的普通参数）
-        String[] payloads = {
+    @DisplayName("分享链接只认 /songlist/<token> 与单曲分享两种形态，出站路径由 token 重新拼出")
+    void shareLinkOnlyAcceptsKnownSonglistAndSingleShapes() throws Exception {
+        // 客户实际会粘贴的形态：www 与 m 主机都接受，结尾斜杠可选
+        assertEquals("songlist/gcid_3zmi8f5nz5z0c4/",
+                KugouMusicClient.shareRelativeFromUri(
+                        URI.create("https://www.kugou.com/songlist/gcid_3zmi8f5nz5z0c4/")));
+        assertEquals("songlist/gcid_3zmi8f5nz5z0c4/",
+                KugouMusicClient.shareRelativeFromUri(
+                        URI.create("https://www.kugou.com/songlist/gcid_3zmi8f5nz5z0c4")));
+        assertEquals("songlist/gcid_3zmi8f5nz5z0c4/",
+                KugouMusicClient.shareRelativeFromUri(
+                        URI.create("https://m.kugou.com/songlist/gcid_3zmi8f5nz5z0c4/")));
+
+        // 多带的查询串会被丢掉：内网地址既进不了出站主机，也进不了出站路径
+        String relative = KugouMusicClient.shareRelativeFromUri(URI.create(
+                "https://www.kugou.com/songlist/gcid_3zmi8f5nz5z0c4/?jump=http%3A%2F%2F127.0.0.1%3A22%2F"));
+        assertEquals("songlist/gcid_3zmi8f5nz5z0c4/", relative);
+        assertFalse(relative.contains("127.0.0.1"), relative);
+        assertFalse(relative.contains("jump"), relative);
+
+        // 单曲分享（客户端 UI 仍在用的形态）只按白名单里的两个参数重建
+        assertEquals("share/?action=single&hash=ABCDEF0123456789",
+                KugouMusicClient.shareRelativeFromUri(URI.create(
+                        "https://m.kugou.com/share/?action=single&hash=ABCDEF0123456789")));
+        assertEquals("share/?action=single&hash=ABCDEF0123456789",
+                KugouMusicClient.shareRelativeFromUri(URI.create(
+                        "https://m.kugou.com/share/?hash=ABCDEF0123456789&action=single"
+                                + "&jump=http%3A%2F%2F127.0.0.1%3A22%2F")));
+    }
+
+    @Test
+    @DisplayName("官方域名下的其它路径 / 参数组合一律按非法入参拒绝")
+    void rejectsOfficialDomainLinksOutsideKnownShapes() {
+        String[] rejected = {
+            // 日志里扫描器用过的形态：/share/x 带 jump（to）参数，以前会被当分享页抓取并解析失败
             "https://www.kugou.com/share/x?jump=http%3A%2F%2F127.0.0.1%3A22%2F",
             "https://www.kugou.com/share/x?to=http%3A%2F%2F127.0.0.1%3A22%2F",
+            "https://m.kugou.com/share/?action=single",              // 缺 hash
+            "https://m.kugou.com/share/?action=single&hash=../x",    // hash 非法
+            "https://m.kugou.com/share/?hash=ABCDEF&action=other",   // action 不是 single
+            "https://www.kugou.com/songlist/",                       // 没有 token
+            "https://www.kugou.com/songlist/gcid_x/extra/",          // 多余路径段
+            "https://www.kugou.com/songlist/%2e%2e%2fetc/",          // 编码穿越
+            "https://www.kugou.com/yy/special/single/1234567.html",  // 其它路径形态
         };
-        for (String payload : payloads) {
-            String relative = KugouMusicClient.relativePathAndQuery(URI.create(payload));
-            assertEquals("share/x?" + payload.substring(payload.indexOf('?') + 1), relative, payload);
-            // 相对路径里不可能再拼出第二个 authority：主机名恒等于常量里的酷狗移动端域名
-            assertFalse(relative.startsWith("//"), relative);
-            assertFalse(relative.contains("://"), relative);
-            assertFalse(relative.contains("kugou.com"), relative);
+        for (String payload : rejected) {
+            assertThrows(KugouMusicClient.InvalidInputException.class,
+                    () -> KugouMusicClient.shareRelativeFromUri(URI.create(payload)), payload);
         }
     }
 

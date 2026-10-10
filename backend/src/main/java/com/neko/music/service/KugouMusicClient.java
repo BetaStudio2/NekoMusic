@@ -20,6 +20,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -74,6 +75,14 @@ public class KugouMusicClient {
     /** 移动端单曲分享链接（{@code /share/?action=single&hash=...}）。 */
     private static final Pattern SINGLE_SHARE_PATTERN =
             Pattern.compile("(?:/share/|action=single)", Pattern.CASE_INSENSITIVE);
+    /**
+     * 唯一接受的歌单分享链接路径：{@code /songlist/<token>}（结尾斜杠可选）。
+     * token 只允许字母数字下划线，出站路径由它重新拼出，链接里的其它路径与查询串一律丢弃。
+     */
+    private static final Pattern SONGLIST_PATH_PATTERN =
+            Pattern.compile("^/songlist/([A-Za-z0-9_]{3,64})/?$");
+    /** 单曲分享链接路径：{@code /share} 或 {@code /share/}，具体形态由查询参数校验。 */
+    private static final Pattern SINGLE_SHARE_PATH_PATTERN = Pattern.compile("^/share/?$");
     private static final String WINDOW_OUTPUT_MARKER = "window.$output";
 
     /**
@@ -82,8 +91,9 @@ public class KugouMusicClient {
      */
     private static final Set<String> ALLOWED_HOSTS = Set.of("kugou.com");
     /**
-     * 分享页固定走移动端官方域名：主机名写死在代码里，入参（含用户粘贴的分享链接）
-     * 只能提供「路径 + 查询串」，无法影响出站主机。
+     * 分享页固定走移动端官方域名：主机名写死在代码里；入参（含用户粘贴的分享链接）只允许
+     * {@code /songlist/<token>} 与单曲分享两种形态，出站路径由校验过的 token 重新拼接，
+     * 因此入参既影响不了出站主机，也无法向出站请求里夹带任何自己的路径或查询串。
      */
     private static final String SHARE_PAGE_BASE = "https://m.kugou.com/";
     /** 分享页重定向（含短链）跟随上限。 */
@@ -707,10 +717,12 @@ public class KugouMusicClient {
     }
 
     /**
-     * 用户粘贴的分享链接 → 「相对路径 + 查询串」。
+     * 用户粘贴的分享链接 → 出站相对路径。
      *
-     * <p>先按官方域名白名单校验整条链接（协议 / 主机名 / 解析地址），再只取其路径与查询串；
-     * 主机名由 {@link #SHARE_PAGE_BASE} 固定，因此入参无论如何构造都影响不了出站目标。</p>
+     * <p>先按官方域名白名单校验整条链接（协议 / 主机名 / 解析地址），再只认两种形态：
+     * 歌单分享 {@code /songlist/<token>}、单曲分享 {@code /share/?action=single&hash=<hash>}。
+     * 主机名由 {@link #SHARE_PAGE_BASE} 固定，路径由校验过的 token 重新拼出，链接里其余
+     * 内容（额外路径段、任意查询串）一律丢弃：入参能构造出的出站请求只有这两种。</p>
      */
     static String shareRelativePath(String input) throws IOException {
         String candidate = input;
@@ -724,26 +736,44 @@ public class KugouMusicClient {
             throw new InvalidInputException(
                     "酷狗分享链接无效或不受支持（仅支持酷狗官方域名链接或歌单 ID）", e);
         }
-        return relativePathAndQuery(uri);
+        return shareRelativeFromUri(uri);
     }
 
     /**
-     * 只取「相对路径 + 查询串」：链接里的协议 / 主机名 / 端口 / 用户信息一律丢弃，
-     * 出站主机始终由 {@link #SHARE_PAGE_BASE} 常量决定。因此用户哪怕在查询串里塞内网地址，
-     * 也只能变成酷狗域名后面的普通参数，无法改变实际请求的目标。
+     * 纯结构解析：只接受 {@code /songlist/<token>} 与 {@code /share/?action=single&hash=<hash>}，
+     * 其它路径 / 参数组合一律按非法入参拒绝（不再把链接里的路径与查询串原样转发给上游）。
      */
-    static String relativePathAndQuery(URI uri) throws InvalidInputException {
-        String path = uri.getRawPath();
-        if (path == null || path.isEmpty() || "/".equals(path)) {
-            throw new InvalidInputException("酷狗分享链接无效或不受支持（仅支持酷狗官方域名链接或歌单 ID）");
+    static String shareRelativeFromUri(URI uri) throws InvalidInputException {
+        String path = uri.getRawPath() == null ? "" : uri.getRawPath();
+        Matcher songlist = SONGLIST_PATH_PATTERN.matcher(path);
+        if (songlist.matches()) {
+            return "songlist/" + songlist.group(1) + "/";
         }
-        StringBuilder relative =
-                new StringBuilder(path.startsWith("/") ? path.substring(1) : path);
-        String query = uri.getRawQuery();
-        if (query != null && !query.isEmpty()) {
-            relative.append('?').append(query);
+        if (SINGLE_SHARE_PATH_PATTERN.matcher(path).matches()) {
+            Map<String, String> params = parseRawQuery(uri.getRawQuery());
+            String hash = params.get("hash");
+            if ("single".equalsIgnoreCase(params.getOrDefault("action", ""))
+                    && hash != null && isBareShareToken(hash)) {
+                return "share/?action=single&hash=" + hash;
+            }
         }
-        return relative.toString();
+        throw new InvalidInputException("酷狗分享链接无效或不受支持（仅支持酷狗官方域名链接或歌单 ID）");
+    }
+
+    /** 解析原始查询串（不做过 URL 解码，取值必须原样通过白名单校验）。 */
+    private static Map<String, String> parseRawQuery(String rawQuery) {
+        if (rawQuery == null || rawQuery.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> params = new HashMap<>();
+        for (String pair : rawQuery.split("&")) {
+            int separator = pair.indexOf('=');
+            if (separator <= 0) {
+                continue;
+            }
+            params.put(pair.substring(0, separator), pair.substring(separator + 1));
+        }
+        return params;
     }
 
     private JsonNode send(HttpRequest request) throws IOException {
