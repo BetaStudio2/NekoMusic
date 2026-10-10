@@ -11,7 +11,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * 网易云登录掉线巡检：告警触发时机与去重。
+ * 网易云登录掉线告警：告警触发时机与去重（事件驱动 / 按需探测）。
  *
  * <p>只覆盖纯状态机，不发真实网络请求：假客户端提供三态登录态，假通知服务只计数。</p>
  */
@@ -115,6 +115,28 @@ class NeteaseLoginMonitorTest {
         client.probe = Optional.of(false);
         monitor.checkOnce();
         assertEquals(1, notifier.offlineAlerts, "查询失败后仍保留在线状态，真掉线应告警");
+    }
+
+    @Test
+    @DisplayName("事件驱动：reportLoginState 仅在 在线→掉线 跳变时告警一次")
+    void reportLoginStateAlertsOnlyOnTransition() {
+        ConfigManager config = configWithCookie("MUSIC_U=abc");
+        StubNeteaseClient client = new StubNeteaseClient(config, new ObjectMapper());
+        StubNotificationService notifier = new StubNotificationService(config);
+        NeteaseLoginMonitor monitor = monitor(config, client, notifier);
+
+        monitor.reportLoginState(true);
+        assertEquals(0, notifier.offlineAlerts, "在线时不应告警");
+
+        monitor.reportLoginState(false);
+        assertEquals(1, notifier.offlineAlerts, "在线→掉线应告警一次");
+
+        monitor.reportLoginState(false);
+        assertEquals(1, notifier.offlineAlerts, "持续掉线不应重复告警");
+
+        monitor.reportLoginState(true);
+        monitor.reportLoginState(false);
+        assertEquals(2, notifier.offlineAlerts, "恢复后再掉线应再告警一次");
     }
 
     @Test
