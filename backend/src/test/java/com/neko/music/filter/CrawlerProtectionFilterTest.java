@@ -24,8 +24,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * /api 防爬行为测试：爬虫 / 扫描器 / 伪造客户端命中后直接 403（不在接口路径上渲染 SEO 页），
- * 真实浏览器 / 已登记客户端 / 官方原生客户端放行，公开缓存接口与非 /api 路径不受影响。
+ * 动态接口防爬行为测试：/api 与 /loser 上的爬虫 / 扫描器 / 伪造客户端命中后直接 403
+ * （不在接口路径上渲染 SEO 页），真实浏览器 / 已登记客户端 / 官方原生客户端放行，
+ * 公开缓存接口与静态媒体路径不受影响。
  *
  * <p>用动态代理桩替代 Servlet 容器，不依赖 MySQL/Redis。</p>
  */
@@ -278,6 +279,33 @@ class CrawlerProtectionFilterTest {
                 assertNull(outcome.forwarded(), path + " / " + ua);
             }
         }
+    }
+
+    @Test
+    void externalPlatformProxyPathsAreProtectedToo() throws Exception {
+        // /loser/* 是对外平台代理（歌单详情 / 导入）：不能让爬虫与扫描器把它当成免费上游代理来刷
+        for (String path : new String[]{"/loser/kugou/getSongListDetail", "/loser/qq/getSongListDetail",
+                "/loser/qishui/getSongListDetail", "/loser/netease/search"}) {
+            Outcome googlebot = inspect("GET", path, "Googlebot/2.1 (+http://www.google.com/bot.html)", null);
+            assertEquals(403, googlebot.status(), path);
+            assertNull(googlebot.forwarded(), path);
+            assertFalse(googlebot.chained(), path);
+
+            Outcome scanner = inspect("GET", path, "sqlmap/1.7.2#stable", null);
+            assertEquals(403, scanner.status(), path);
+            assertFalse(scanner.chained(), path);
+
+            Outcome noUa = inspect("GET", path, null, null);
+            assertEquals(403, noUa.status(), path);
+            assertFalse(noUa.chained(), path);
+        }
+
+        // 官方原生客户端与真实浏览器照常放行
+        assertTrue(inspect("GET", "/loser/kugou/getSongListDetail", "NekoMusic-android/202601008", null)
+                .chained());
+        assertTrue(inspect("GET", "/loser/kugou/getSongListDetail", BROWSER_UA, Map.of(
+                "Accept", "application/json, text/plain, */*",
+                "Accept-Language", "zh-CN,zh;q=0.9")).chained());
     }
 
     @Test

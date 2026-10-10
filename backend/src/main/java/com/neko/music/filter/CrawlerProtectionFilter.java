@@ -22,7 +22,8 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 防爬 / 客户端区分拦截过滤器：保护 JSON 接口（{@code /api/*}）不被爬虫、扫描器与脚本刷取。
+ * 防爬 / 客户端区分拦截过滤器：保护动态接口（{@code /api/*}、{@code /loser/*}，后者为外部平台
+ * 代理与歌单导入）不被爬虫、扫描器与脚本刷取。
  *
  * <p>两段式判定：</p>
  * <ol>
@@ -35,15 +36,15 @@ import java.util.Locale;
  *
  * <p>设计要点：</p>
  * <ul>
- *   <li>浏览器以真实 UA（含 {@code Mozilla/} 与内核标记）通过 fetch 访问 /api，并携带
+ *   <li>浏览器以真实 UA（含 {@code Mozilla/} 与内核标记）通过 fetch 访问动态接口，并携带
  *       {@code Accept} / {@code Accept-Language} 等头，恒不误伤；官方原生客户端靠
  *       {@link UserAgentClassifier#isNativeClient} 的严格 UA 判定放行，不影响 App。</li>
- *   <li>爬虫 / AI 抓取器 / 扫描器 / 伪造客户端不得拿到 JSON，也不在 {@code /api} 下渲染 SEO 页：
+ *   <li>爬虫 / AI 抓取器 / 扫描器 / 伪造客户端不得拿到 JSON，也不在动态接口路径下渲染 SEO 页：
  *       命中即 {@code 403}。可抓取内容一律以正式 SEO 页面路径提供（sitemap + canonical），
  *       {@code robots.txt} 也已声明不与接口混在一起；在接口路径上再渲染一份 HTML 只会浪费渲染开销，
  *       并让同一 URL 对爬虫与浏览器出现两种表现。</li>
  *   <li>SEO 页（{@code og:image} / JSON-LD）引用的是公开静态媒体（{@code /media/*}），
- *       不指向 {@code /api}，因此链接预览与图片收录不受本过滤器影响。</li>
+ *       不指向动态接口，因此链接预览与图片收录不受本过滤器影响。</li>
  *   <li>{@code /api/music/ranking}、{@code /api/music/latest} 是公开且允许 CDN 缓存的接口
  *       （半小时）：对所有人返回同一份 JSON，不参与防爬判定。否则边缘缓存命中与否会让同一个
  *       UA 时而被拦、时而拿到 JSON，且缓存里落的是哪一版就发给所有人。</li>
@@ -86,7 +87,7 @@ public class CrawlerProtectionFilter implements Filter {
         }
 
         String path = normalizedPath(httpRequest.getRequestURI(), httpRequest.getContextPath());
-        if (!isApiPath(path) || isZpayNotifyPath(path) || isPublicCacheableApiPath(path)) {
+        if (!isGuardedPath(path) || isZpayNotifyPath(path) || isPublicCacheableApiPath(path)) {
             chain.doFilter(request, response);
             return;
         }
@@ -168,8 +169,12 @@ public class CrawlerProtectionFilter implements Filter {
         return path.startsWith("/") ? path : "/" + path;
     }
 
-    private static boolean isApiPath(String path) {
-        return path.startsWith("/api/");
+    /**
+     * 需要防爬 / 客户端区分的动态接口路径：{@code /api/*} 与 {@code /loser/*}。
+     * 后者是对外平台代理（歌单详情、导入），同样不能被爬虫 / 扫描器当成免费上游代理来刷。
+     */
+    private static boolean isGuardedPath(String path) {
+        return path.startsWith("/api/") || path.startsWith("/loser/");
     }
 
     /** ZPay 异步通知由平台服务器回调，不参与防爬，避免通知失败（与 IP 限流豁免一致）。 */

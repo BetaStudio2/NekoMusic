@@ -665,11 +665,7 @@ public class KugouMusicClient {
                 if (location.isEmpty()) {
                     throw new IOException("酷狗分享页重定向缺少目标地址");
                 }
-                try {
-                    current = uri.resolve(location).toString();
-                } catch (IllegalArgumentException e) {
-                    throw new IOException("酷狗分享页重定向地址无效");
-                }
+                current = nextShareHop(uri, location).toString();
                 continue;
             }
             if (!HttpTransport.isSuccess(response.statusCode())) {
@@ -678,6 +674,26 @@ public class KugouMusicClient {
             return response.body();
         }
         throw new IOException("酷狗分享页重定向次数过多");
+    }
+
+    /**
+     * 计算分享页重定向的下一跳：目标同样必须先过 {@link OutboundUrlGuard}（协议、酷狗域名白名单、
+     * 解析地址必须是公网）。合法站点不能借 3xx 把请求引到内网 / 云元数据地址，因此重定向目标
+     * 一旦离开酷狗官方域名，就按非法入参拒绝，而不是继续跟随。
+     */
+    static URI nextShareHop(URI current, String location) throws IOException {
+        URI next;
+        try {
+            next = current.resolve(location);
+        } catch (IllegalArgumentException e) {
+            throw new IOException("酷狗分享页重定向地址无效");
+        }
+        try {
+            return OutboundUrlGuard.requireAllowedHttpUrl(next.toString(), ALLOWED_HOSTS);
+        } catch (OutboundUrlGuard.BlockedUrlException e) {
+            throw new InvalidInputException(
+                    "酷狗分享链接无效或不受支持（仅支持酷狗官方域名链接或歌单 ID）", e);
+        }
     }
 
     private static boolean isRedirect(int statusCode) {
@@ -696,7 +712,7 @@ public class KugouMusicClient {
      * <p>先按官方域名白名单校验整条链接（协议 / 主机名 / 解析地址），再只取其路径与查询串；
      * 主机名由 {@link #SHARE_PAGE_BASE} 固定，因此入参无论如何构造都影响不了出站目标。</p>
      */
-    private static String shareRelativePath(String input) throws IOException {
+    static String shareRelativePath(String input) throws IOException {
         String candidate = input;
         if (!candidate.startsWith("http://") && !candidate.startsWith("https://")) {
             candidate = "https://" + candidate;
@@ -708,6 +724,15 @@ public class KugouMusicClient {
             throw new InvalidInputException(
                     "酷狗分享链接无效或不受支持（仅支持酷狗官方域名链接或歌单 ID）", e);
         }
+        return relativePathAndQuery(uri);
+    }
+
+    /**
+     * 只取「相对路径 + 查询串」：链接里的协议 / 主机名 / 端口 / 用户信息一律丢弃，
+     * 出站主机始终由 {@link #SHARE_PAGE_BASE} 常量决定。因此用户哪怕在查询串里塞内网地址，
+     * 也只能变成酷狗域名后面的普通参数，无法改变实际请求的目标。
+     */
+    static String relativePathAndQuery(URI uri) throws InvalidInputException {
         String path = uri.getRawPath();
         if (path == null || path.isEmpty() || "/".equals(path)) {
             throw new InvalidInputException("酷狗分享链接无效或不受支持（仅支持酷狗官方域名链接或歌单 ID）");
