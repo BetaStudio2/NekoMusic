@@ -5,8 +5,8 @@
 ## 1. 概述
 
 - 正式名称：Neko歌姬计划
-- 常用别名：Neko云音乐、Neko Music、NekoMusic
-- 类型：在线音乐播放平台 / 开源软件
+- 常用别名/原名：Neko云音乐、Neko Music、NekoMusic、NM
+- 类型：免费在线音乐播放平台 / 开源软件
 - 官网与 Web 播放器：https://music.nekocore.cn/
 - 定价：完全免费（无订阅、无付费墙、无广告弹窗）
 - 开源协议：AGPL-3.0
