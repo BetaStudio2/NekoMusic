@@ -66,6 +66,8 @@ public class KugouMusicClient {
     private static final Pattern DIGITS_PATTERN = Pattern.compile("^\\d+$");
     /** 移动端分享链接里的编码歌单 ID（形如 gcid_3zmi8f5nz5z0c4）。 */
     private static final Pattern GCID_PATTERN = Pattern.compile("gcid_[A-Za-z0-9]+");
+    /** 裸 token（gcid / 单曲 hash）：只允许字母数字下划线，直接当路径片段使用。 */
+    private static final Pattern BARE_TOKEN_PATTERN = Pattern.compile("[A-Za-z0-9_]+");
     /** 移动端分享页（songlist）链接。 */
     private static final Pattern SHARE_URL_PATTERN =
             Pattern.compile("kugou\\.com/songlist/", Pattern.CASE_INSENSITIVE);
@@ -222,9 +224,9 @@ public class KugouMusicClient {
      * 扫描失败时退化为分享页内嵌的前若干首。</p>
      */
     private KugouPlaylist fetchFromSharePage(String input) throws IOException {
-        String relative = SHARE_URL_PATTERN.matcher(input).find()
-                ? shareRelativePath(input)
-                : "songlist/" + input + "/";
+        String relative = isBareShareToken(input)
+                ? "songlist/" + input + "/"
+                : shareRelativePath(input);
         String html = httpGetString(relative);
         JsonNode output = extractWindowOutput(html);
         if (output == null) {
@@ -516,8 +518,9 @@ public class KugouMusicClient {
      * 站内匹配或网易云补全的既有解析器完成，不复用酷狗直链。</p>
      */
     private KugouPlaylist fetchSingleSong(String input) throws IOException {
-        boolean isUrl = input.startsWith("http://") || input.startsWith("https://");
-        String relative = isUrl ? shareRelativePath(input) : "share/?action=single&hash=" + input;
+        String relative = isBareShareToken(input)
+                ? "share/?action=single&hash=" + input
+                : shareRelativePath(input);
         String html = httpGetString(relative);
         JsonNode phpParam = extractAssignedObject(html, "var phpParam");
         if (phpParam == null) {
@@ -680,6 +683,11 @@ public class KugouMusicClient {
     private static boolean isRedirect(int statusCode) {
         return statusCode == 301 || statusCode == 302 || statusCode == 303
                 || statusCode == 307 || statusCode == 308;
+    }
+
+    /** 入参是裸 token（gcid / 单曲 hash）而不是分享链接时返回 true。 */
+    private static boolean isBareShareToken(String input) {
+        return BARE_TOKEN_PATTERN.matcher(input).matches();
     }
 
     /**
