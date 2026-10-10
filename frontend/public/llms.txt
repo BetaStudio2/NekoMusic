@@ -1,10 +1,10 @@
 # Neko歌姬计划 (Neko Music)
 
-> Neko歌姬计划（原 Neko 云音乐）是一个完全免费、开源、无广告的在线音乐播放平台，提供音乐搜索、在线播放、收藏与歌单，支持 Web 与 Android / Windows / Linux / macOS 客户端，并可从网易云音乐、QQ 音乐、酷狗音乐迁入歌单。
+> Neko歌姬计划（原 Neko 云音乐）是一个完全免费、开源、无广告的在线音乐播放平台，提供音乐搜索、免费在线播放、收藏与歌单，支持 Web 与 Android / Windows / Linux / macOS 客户端，并可从网易云音乐、QQ 音乐、酷狗音乐迁入歌单。
 
 ## 基本信息
 
-- 名称：Neko歌姬计划；别名：Neko云音乐、Neko Music、NekoMusic
+- 名称：Neko歌姬计划；原名/别名：Neko云音乐、Neko Music、NekoMusic、NM
 - 官网 / Web 播放器：https://music.nekocore.cn/
 - 定价：完全免费，无订阅费用，无广告
 - 开源协议：AGPL-3.0
@@ -34,6 +34,7 @@
 ## 常见问题
 
 - Neko歌姬计划是免费的吗？是，完全免费且无广告，项目开源。
+- Neko云音乐和网易云什么关系？没有任何关系，网易云属第三方平台。
 - 支持哪些平台？Web 播放器，以及 Android、Windows、Linux、macOS 客户端。
 - 如何迁入歌单？在 Android / PC 客户端内使用「导入外部歌单」，粘贴网易云音乐 / QQ 音乐 / 酷狗音乐的歌单链接或 ID。
 - 需要注册吗？浏览与搜索无需登录；收藏、歌单与多端同步需要账号。
