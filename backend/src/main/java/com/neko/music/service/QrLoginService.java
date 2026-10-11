@@ -6,15 +6,22 @@ import org.slf4j.LoggerFactory;
 
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.List;
 import java.util.Optional;
 
 /**
  * 扫码登录会话（仅存 Redis，短 TTL 自动过期）。
  *
  * <p>生命周期：{@code pending}（PC 刚生成二维码）→ {@code scanned}（手机已扫码，等待用户确认）
- * → {@code confirmed}（手机已确认，token 待 PC 取走）；手机拒绝或 PC 取消则进入 {@code canceled}。
- * token 只在 confirmed 时由 PC 取走一次：先原子领取投递权（{@link #claimDelivery}），成功者才删除整个
- * 会话并下发 token，其余并发读者一律收到 {@code expired}。</p>
+ * → {@code confirmed}（手机已确认，token 待 PC 取走）；手机拒绝或 PC 取消则进入 {@code canceled}。</p>
+ *
+ * <p>一次性 token 只能由<strong>创建方</strong>凭 {@link #createSession()} 返回的一次性投递密钥
+ * 领取，见 {@link #claim}：脚本里「读状态 + 校验密钥 + 删除会话」是一条 Lua 原子操作，密钥不符、
+ * 迟到或状态未到 {@code confirmed} 的调用都拿不到 token，会话也不会被误删。</p>
+ *
+ * <p>token 不写进 SSE 状态帧：CDN 会把同一 URL 的并发长连接合并成一次回源，再把这唯一一路响应
+ * 分发给全部订阅者；任何写在帧里的秘密都会被同时投递给多个客户端，等价于广播。故状态帧只播状态，
+ * token 单独由持有密钥的创建方领取。</p>
  */
 public class QrLoginService {
 
@@ -31,15 +38,25 @@ public class QrLoginService {
     private static final Logger logger = LoggerFactory.getLogger(QrLoginService.class);
 
     private static final String KEY_PREFIX = "qr_login:";
-    /** 一次性投递权的键前缀（与会话同 TTL）。 */
-    private static final String CLAIM_PREFIX = "qr_login_claimed:";
 
     /**
-     * 原子领取投递权：{@code SET NX}，同一 sessionId 的并发读者里只有第一个返回成功。
+     * 原子领取一次性 token：读会话 → 校验状态与投递密钥 → 删除会话并回传会话原文。
+     * 返回值固定为 {@code {结果码, 会话原文}}，结果码见 {@link ClaimOutcome}。
      */
     private static final String CLAIM_SCRIPT =
-            "if redis.call('SET', KEYS[1], '1', 'NX', 'EX', tonumber(ARGV[1])) then return 1 else return 0 end";
+            "local raw = redis.call('GET', KEYS[1]) "
+                    + "if not raw then return {'missing', ''} end "
+                    + "local ok, session = pcall(cjson.decode, raw) "
+                    + "if not ok then return {'missing', ''} end "
+                    + "if session['status'] ~= ARGV[1] then return {'not_confirmed', raw} end "
+                    + "if type(session['deliveryKey']) ~= 'string' or session['deliveryKey'] ~= ARGV[2] then "
+                    + "return {'rejected', ''} end "
+                    + "redis.call('DEL', KEYS[1]) "
+                    + "return {'ok', raw}";
+
     private static final int SESSION_TTL_SECONDS = 180;
+    /** 投递密钥长度（字节），URL 安全编码后 43 个字符 */
+    private static final int DELIVERY_KEY_BYTES = 32;
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final RedisService redisService;
@@ -55,7 +72,31 @@ public class QrLoginService {
         public String status = STATUS_PENDING;
         public Integer userId;
         public String token;
+        /** 一次性投递密钥，只在创建响应里交给 PC，从不写进 SSE 帧或二维码 */
+        public String deliveryKey;
         public long createdAt = System.currentTimeMillis();
+    }
+
+    /** 新建会话的结果：会话 ID + 只有创建方拿得到的一次性投递密钥。 */
+    public record NewSession(String sessionId, String deliveryKey) {
+    }
+
+    /** 一次性 token 领取结果。 */
+    public enum ClaimOutcome {
+        /** 领取成功，会话已被原子删除 */
+        OK,
+        /** 会话还在，但手机尚未确认 */
+        NOT_CONFIRMED,
+        /** 投递密钥不符，即调用方不是创建方 */
+        REJECTED,
+        /** 会话不存在或已过期 */
+        MISSING,
+        /** Redis 故障 */
+        ERROR
+    }
+
+    /** 领取结果；{@link ClaimOutcome#OK} 与 {@link ClaimOutcome#NOT_CONFIRMED} 会带回会话快照。 */
+    public record ClaimResult(ClaimOutcome outcome, Session session) {
     }
 
     public static int sessionTtlSeconds() {
@@ -71,14 +112,16 @@ public class QrLoginService {
         return QR_SCHEME_PREFIX + sessionId;
     }
 
-    /** 新建会话，返回会话 ID；Redis 不可用时返回 null。 */
-    public String createSession() {
+    /** 新建会话，返回会话 ID 与一次性投递密钥；Redis 不可用时返回 null。 */
+    public NewSession createSession() {
         String sessionId = newSessionId();
+        String deliveryKey = newDeliveryKey();
         Session session = new Session();
+        session.deliveryKey = deliveryKey;
         if (!save(sessionId, session)) {
             return null;
         }
-        return sessionId;
+        return new NewSession(sessionId, deliveryKey);
     }
 
     /** 读取会话；不存在或已过期返回 empty。 */
@@ -86,16 +129,15 @@ public class QrLoginService {
         if (!isValidSessionId(sessionId)) {
             return Optional.empty();
         }
+        String json;
         try {
-            String json = redisService.get(KEY_PREFIX + sessionId);
-            if (json == null || json.isEmpty()) {
-                return Optional.empty();
-            }
-            return Optional.of(objectMapper.readValue(json, Session.class));
+            json = redisService.get(KEY_PREFIX + sessionId);
         } catch (Exception e) {
             logger.warn("读取扫码登录会话失败: {}", e.getMessage());
             return Optional.empty();
         }
+        Session session = parseSession(json);
+        return session == null ? Optional.empty() : Optional.of(session);
     }
 
     /** 写回会话并续期；失败返回 false。 */
@@ -114,47 +156,57 @@ public class QrLoginService {
     }
 
     /**
-     * 领取一次性投递权：同一 sessionId 的并发读者里只有第一个返回 {@code true}。
+     * 领取一次性登录 token：只有持正确投递密钥、且会话已 {@code confirmed} 的调用会成功，成功即删除会话。
      *
-     * <p>为什么需要它：{@link #load} 与 {@link #remove} 是两次独立的 Redis 调用，两者之间多个并发 SSE
-     * 读者都会读到 {@code confirmed} 快照，于是各自把**同一个** token 下发给各自的连接——「token 只能被
-     * 取走一次」的承诺在并发下失效（CWE-362）。把「谁有权投递」收敛成一次原子 {@code SET NX} 之后，
-     * 无论有多少读者同时在线，token 都只会被投递一次。</p>
-     *
-     * <p>领取成功后**不要删除这个键**：领到投递权的读者在删除会话、下发 token 期间，其它读者手里可能
-     * 还握着删除前读到的 confirmed 快照，键一旦被删它们就能重新领到投递权、把同一个 token 再发一次。
-     * 让它与会话一起自然过期即可（sessionId 随机且一次性）。</p>
+     * <p>「读状态—判断—删除」必须是一条原子操作：若拆成两次 Redis 调用，并发调用方会各自读到同一份
+     * confirmed 快照，各自拿到同一个 token（CWE-362）。</p>
      */
-    public boolean claimDelivery(String sessionId) {
-        if (!isValidSessionId(sessionId)) {
-            return false;
+    public ClaimResult claim(String sessionId, String deliveryKey) {
+        if (!isValidSessionId(sessionId) || deliveryKey == null || deliveryKey.isBlank()) {
+            return new ClaimResult(ClaimOutcome.MISSING, null);
         }
+        List<Object> raw;
         try {
-            Object result = redisService.eval(CLAIM_SCRIPT,
-                    new String[]{CLAIM_PREFIX + sessionId},
-                    new String[]{String.valueOf(SESSION_TTL_SECONDS)});
-            return result instanceof Number number && number.longValue() == 1L;
+            raw = redisService.evalMulti(CLAIM_SCRIPT,
+                    new String[]{KEY_PREFIX + sessionId},
+                    new String[]{STATUS_CONFIRMED, deliveryKey});
         } catch (Exception e) {
-            // 领不到投递权就不投递：Redis 真有问题时 load() 同样会失败，会话本就走不到 confirmed
-            logger.warn("扫码登录投递权领取失败: {}", e.getMessage());
-            return false;
+            logger.error("扫码登录一次性领取失败: {}", e.getMessage(), e);
+            return new ClaimResult(ClaimOutcome.ERROR, null);
         }
+        if (raw == null || raw.size() < 2) {
+            return new ClaimResult(ClaimOutcome.ERROR, null);
+        }
+        String code = String.valueOf(raw.get(0));
+        String payload = raw.get(1) == null ? "" : String.valueOf(raw.get(1));
+        return switch (code) {
+            case "ok" -> new ClaimResult(ClaimOutcome.OK, parseSession(payload));
+            case "not_confirmed" -> new ClaimResult(ClaimOutcome.NOT_CONFIRMED, parseSession(payload));
+            case "rejected" -> new ClaimResult(ClaimOutcome.REJECTED, null);
+            default -> new ClaimResult(ClaimOutcome.MISSING, null);
+        };
     }
 
-    /** 删除会话（PC 取走 token 后调用）。 */
-    public void remove(String sessionId) {
-        if (!isValidSessionId(sessionId)) {
-            return;
+    private Session parseSession(String json) {
+        if (json == null || json.isEmpty() || objectMapper == null) {
+            return null;
         }
         try {
-            redisService.del(KEY_PREFIX + sessionId);
+            return objectMapper.readValue(json, Session.class);
         } catch (Exception e) {
-            logger.warn("删除扫码登录会话失败: {}", e.getMessage());
+            logger.warn("解析扫码登录会话失败: {}", e.getMessage());
+            return null;
         }
     }
 
     private static String newSessionId() {
         byte[] buf = new byte[24];
+        RANDOM.nextBytes(buf);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(buf);
+    }
+
+    private static String newDeliveryKey() {
+        byte[] buf = new byte[DELIVERY_KEY_BYTES];
         RANDOM.nextBytes(buf);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(buf);
     }

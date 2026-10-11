@@ -377,9 +377,10 @@ async function handleLogin() {
 /* ==================================================================
    扫码登录
    ------------------------------------------------------------------
-   登录 POST /api/user/qrlogin/create                  新建会话，取二维码内容
+   登录 POST /api/user/qrlogin/create                  新建会话，取二维码与一次性投递密钥
    订阅 GET  /api/user/qrlogin/status?sessionId=xxx     SSE，状态变化即时推
-   状态：pending（等待扫码）→ scanned（已扫码待确认）→ confirmed（带一次性 token）
+   领取 POST /api/user/qrlogin/claim                   带投递密钥领取一次性 token
+   状态：pending（等待扫码）→ scanned（已扫码待确认）→ confirmed（再由创建方领取 token）
         canceled / expired 时提示刷新
    ================================================================== */
 const qrImageUrl = ref('')
@@ -389,6 +390,8 @@ const qrRefreshable = ref(false)
 let qrEventSource = null
 let qrExpireTimer = null
 let qrGeneration = 0
+// 创建响应里的一次性投递密钥：只留在内存里，领取 token 时回传服务端
+let qrDeliveryKey = ''
 
 const qrStatusText = computed(() => {
   switch (qrStatus.value) {
@@ -409,9 +412,8 @@ const qrStatusText = computed(() => {
   }
 })
 
-/** 关闭当前会话（递增 generation 让在途回调失效） */
-function stopQrSession() {
-  qrGeneration += 1
+/** 断掉当前 SSE 连接与过期定时器（不动 generation） */
+function closeQrStream() {
   if (qrEventSource) {
     qrEventSource.close()
     qrEventSource = null
@@ -420,6 +422,13 @@ function stopQrSession() {
     window.clearTimeout(qrExpireTimer)
     qrExpireTimer = null
   }
+}
+
+/** 关闭当前会话（递增 generation 让在途回调失效） */
+function stopQrSession() {
+  qrGeneration += 1
+  closeQrStream()
+  qrDeliveryKey = ''
 }
 
 function markQrNeedsRefresh() {
@@ -439,10 +448,11 @@ async function startQrLogin() {
     if (generation !== qrGeneration) return
 
     const payload = response.data?.data
-    if (!response.data?.success || !payload?.sessionId || !payload?.qrImage) {
+    if (!response.data?.success || !payload?.sessionId || !payload?.qrImage || !payload?.deliveryKey) {
       throw new Error(response.data?.message || '二维码生成失败')
     }
 
+    qrDeliveryKey = payload.deliveryKey
     // 纯服务端渲染：直接展示后端返回的成品二维码图片
     qrImageUrl.value = payload.qrImage
     if (generation !== qrGeneration) return
@@ -472,7 +482,7 @@ function watchQrSession(sessionId, generation) {
   )
   qrEventSource = source
 
-  source.addEventListener('status', (event) => {
+  source.addEventListener('status', async (event) => {
     if (generation !== qrGeneration) {
       source.close()
       return
@@ -493,15 +503,7 @@ function watchQrSession(sessionId, generation) {
         qrStatus.value = 'scanned'
         break
       case 'confirmed':
-        // 数据不完整时按过期处理，避免卡在「已确认」
-        if (!data.token || !data.user) {
-          stopQrSession()
-          qrStatus.value = 'expired'
-          markQrNeedsRefresh()
-          return
-        }
-        stopQrSession()
-        applyLogin(data.token, data.user)
+        await claimQrLoginToken(sessionId, generation)
         break
       case 'canceled':
       case 'expired':
@@ -522,6 +524,38 @@ function watchQrSession(sessionId, generation) {
       qrStatus.value = 'failed'
       markQrNeedsRefresh()
     }
+  }
+}
+
+/** 状态帧不带 token：拿到 confirmed 后由创建方带投递密钥单独领取一次 */
+async function claimQrLoginToken(sessionId, generation) {
+  const deliveryKey = qrDeliveryKey
+  closeQrStream()
+  qrDeliveryKey = ''
+  if (generation !== qrGeneration) return
+  if (!deliveryKey) {
+    qrStatus.value = 'expired'
+    markQrNeedsRefresh()
+    return
+  }
+  try {
+    const response = await axios.post(`${API_CONFIG.BASE_URL}/api/user/qrlogin/claim`, {
+      sessionId,
+      deliveryKey
+    })
+    if (generation !== qrGeneration) return
+    const payload = response.data?.data
+    if (response.data?.success && payload?.status === 'confirmed' && payload?.token && payload?.user) {
+      applyLogin(payload.token, payload.user)
+      return
+    }
+    qrStatus.value = 'expired'
+    markQrNeedsRefresh()
+  } catch (err) {
+    if (generation !== qrGeneration) return
+    console.error('扫码登录令牌领取失败:', err)
+    qrStatus.value = 'expired'
+    markQrNeedsRefresh()
   }
 }
 

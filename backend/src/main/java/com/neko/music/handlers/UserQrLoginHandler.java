@@ -5,6 +5,7 @@ import com.neko.music.Main;
 import com.neko.music.model.User;
 import com.neko.music.service.QrLoginService;
 import com.neko.music.service.UserAuthService;
+import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.QrCodeRenderer;
 import com.neko.music.util.RequestAuthUtil;
 import com.neko.music.util.VipUtil;
@@ -29,7 +30,8 @@ import java.util.concurrent.Executors;
  *
  * <ul>
  *   <li>{@code POST /api/user/qrlogin/create} — 新建会话，返回 sessionId 与二维码图片（无需登录）</li>
- *   <li>{@code GET  /api/user/qrlogin/status?sessionId=} — PC 的 SSE 长连接，状态变化即时推；confirmed 时一次性推走 token（无需登录）</li>
+ *   <li>{@code GET  /api/user/qrlogin/status?sessionId=} — PC 的 SSE 长连接，状态变化即时推（无需登录）</li>
+ *   <li>{@code POST /api/user/qrlogin/claim} — PC 凭创建时拿到的一次性投递密钥领取登录 token（无需登录）</li>
  *   <li>{@code POST /api/user/qrlogin/scan} — 手机扫码后标记已扫描（需登录）</li>
  *   <li>{@code POST /api/user/qrlogin/confirm} — 手机确认/拒绝登录（需登录）</li>
  * </ul>
@@ -74,6 +76,7 @@ public class UserQrLoginHandler extends ApiServlet {
             case "/create" -> handleCreate(response);
             case "/scan" -> handleScan(request, response);
             case "/confirm" -> handleConfirm(request, response);
+            case "/claim" -> handleClaim(request, response);
             default -> sendJson(response, HttpServletResponse.SC_NOT_FOUND, false, "接口不存在", null);
         }
     }
@@ -82,12 +85,13 @@ public class UserQrLoginHandler extends ApiServlet {
 
     /** PC 新建扫码会话 */
     private void handleCreate(HttpServletResponse response) throws IOException {
-        String sessionId = qrLoginService.createSession();
-        if (sessionId == null) {
+        QrLoginService.NewSession session = qrLoginService.createSession();
+        if (session == null) {
             sendJson(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false, "服务暂时不可用，请稍后重试", null);
             return;
         }
 
+        String sessionId = session.sessionId();
         String qrContent = QrLoginService.qrContentFor(sessionId);
         String qrImage;
         try {
@@ -103,10 +107,12 @@ public class UserQrLoginHandler extends ApiServlet {
         data.put("sessionId", sessionId);
         data.put("qrImage", qrImage);
         data.put("expiresIn", QrLoginService.sessionTtlSeconds());
+        // 一次性投递密钥：只发给创建方，领取 token 时回传；不写进二维码、不写进 SSE 帧
+        data.put("deliveryKey", session.deliveryKey());
         sendJson(response, HttpServletResponse.SC_OK, true, "ok", data);
     }
 
-    /** PC 建立 SSE 长连接；状态一变就推，confirmed 时推走 token 并关闭连接。 */
+    /** PC 建立 SSE 长连接；状态一变就推，到终态后关闭连接。token 不在这条流里投递。 */
     private void handleStatusStream(HttpServletRequest request, HttpServletResponse response) throws IOException {
         String sessionId = request.getParameter("sessionId");
         if (!QrLoginService.isValidSessionId(sessionId)) {
@@ -168,15 +174,9 @@ public class UserQrLoginHandler extends ApiServlet {
                 QrLoginService.Session session = sessionOpt.get();
                 if (!session.status.equals(lastStatus)) {
                     if (QrLoginService.STATUS_CONFIRMED.equals(session.status)) {
-                        // token 只能被投递一次：先用一次性的原子投递权定下唯一的投递者，再删会话。
-                        // load() 与 remove() 若拆成两步，多个并发读者会各自读到同一份 confirmed 快照、
-                        // 各自把同一个 token 下发出去（实测 8 个匿名读者里有 2 个拿到同一 token）。
-                        if (!qrLoginService.claimDelivery(sessionId)) {
-                            writeStatusEvent(writer, statusData(QrLoginService.STATUS_EXPIRED));
-                            break;
-                        }
-                        qrLoginService.remove(sessionId);
-                        writeStatusEvent(writer, confirmedData(session));
+                        // 状态帧只播状态：token 由创建方带一次性投递密钥调 /claim 单独领取。
+                        // 把 token 写进这一帧，会被 CDN 的并发长连接合并机制同时投递给全部订阅者。
+                        writeStatusEvent(writer, statusData(QrLoginService.STATUS_CONFIRMED));
                         break;
                     }
                     writeStatusEvent(writer, statusData(session.status));
@@ -319,6 +319,43 @@ public class UserQrLoginHandler extends ApiServlet {
         qrLoginService.save(sessionId, session);
         logger.info("扫码登录：用户 {} 已确认登录", userId);
         sendJson(response, HttpServletResponse.SC_OK, true, "ok", statusData(session.status));
+    }
+
+    /**
+     * PC 凭创建时拿到的一次性投递密钥领取登录 token。
+     *
+     * <p>服务端在一条 Lua 里原子完成「校验密钥 + 读状态 + 删除会话」，因此并发调用里最多只有一个成功，
+     * 且必须是创建方本人；密钥不符或会话未确认都不会消耗会话。</p>
+     */
+    private void handleClaim(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        JsonNode body = readJsonBody(request);
+        String sessionId = body == null ? null : text(body, "sessionId");
+        String deliveryKey = body == null ? null : text(body, "deliveryKey");
+        if (!QrLoginService.isValidSessionId(sessionId) || deliveryKey == null || deliveryKey.isBlank()) {
+            sendJson(response, HttpServletResponse.SC_BAD_REQUEST, false, "sessionId 或 deliveryKey 无效", null);
+            return;
+        }
+
+        response.setHeader("Cache-Control", HttpResourceCache.CACHE_CONTROL_NO_STORE);
+
+        QrLoginService.ClaimResult result = qrLoginService.claim(sessionId, deliveryKey);
+        switch (result.outcome()) {
+            case OK -> {
+                Map<String, Object> data = confirmedData(result.session());
+                // 会话缺 token 或用户已不存在时按过期处理，避免 PC 卡在「已确认」
+                if (!QrLoginService.STATUS_CONFIRMED.equals(data.get("status"))) {
+                    data = statusData(QrLoginService.STATUS_EXPIRED);
+                }
+                sendJson(response, HttpServletResponse.SC_OK, true, "ok", data);
+            }
+            case NOT_CONFIRMED -> sendJson(response, HttpServletResponse.SC_OK, true, "ok",
+                    statusData(result.session() != null && result.session().status != null
+                            ? result.session().status : QrLoginService.STATUS_PENDING));
+            case REJECTED, MISSING -> sendJson(response, HttpServletResponse.SC_OK, true, "ok",
+                    statusData(QrLoginService.STATUS_EXPIRED));
+            case ERROR -> sendJson(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false,
+                    "服务暂时不可用，请稍后重试", null);
+        }
     }
 
     // ──────────────────────────── 工具方法 ────────────────────────────
