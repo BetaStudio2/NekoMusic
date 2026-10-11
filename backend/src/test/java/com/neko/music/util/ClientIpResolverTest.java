@@ -56,6 +56,8 @@ class ClientIpResolverTest {
                 headers("True-Client-IP", "2.2.2.2")));
         assertEquals("3.3.3.3", ClientIpResolver.resolve("127.0.0.1", "auto",
                 headers("Ali-CDN-Real-IP", "3.3.3.3")));
+        assertEquals("4.4.4.4", ClientIpResolver.resolve("127.0.0.1", "auto",
+                headers("Ali-Real-Client-IP", "4.4.4.4")));
         // 专用头优先于通用头
         assertEquals("1.1.1.1", ClientIpResolver.resolve("127.0.0.1", "auto",
                 headers("CF-Connecting-IP", "1.1.1.1", "X-Real-IP", "8.8.8.8")));
@@ -100,6 +102,56 @@ class ClientIpResolverTest {
                 "True-Client-IP", "8.8.8.8",
                 "Ali-CDN-Real-IP", "7.7.7.7");
         assertEquals("127.0.0.1", ClientIpResolver.resolve("127.0.0.1", "auto", noWitness));
+    }
+
+    @Test
+    @DisplayName("auto：边缘实际写 Ali-Real-Client-IP 时，伪造单个 CF-Connecting-IP 不再生效")
+    void autoRejectsLoneForgedCdnHeaderWhenEdgeUsesAnotherHeaderName() {
+        // 实测复现：目标前置阿里云 ESA 写的是 Ali-Real-Client-IP（不在旧内置清单里），攻击者另加一个
+        // 唯一的 CF-Connecting-IP 就成了「唯一候选」，每个请求独占一个新限流桶（60 并发零限流）。
+        Function<String, String> h = headers(
+                "CF-Connecting-IP", "9.9.9.9",
+                "Ali-Real-Client-IP", "203.0.113.50",
+                "X-Forwarded-For", "203.0.113.50, 100.64.0.1",
+                "X-Real-IP", "100.64.0.1");
+
+        // 必须采信被跳链佐证的 ESA 头，而不是清单里更靠前的伪造头
+        assertEquals("203.0.113.50", ClientIpResolver.resolve("127.0.0.1", "auto", h));
+
+        // 边缘连跳链都没写时，孤立的伪造候选同样必须让位给本机反代写入的取值
+        Function<String, String> noEdgeHeader = headers(
+                "CF-Connecting-IP", "9.9.9.9",
+                "X-Forwarded-For", "203.0.113.50, 100.64.0.1",
+                "X-Real-IP", "100.64.0.1");
+        assertEquals("203.0.113.50", ClientIpResolver.resolve("127.0.0.1", "auto", noEdgeHeader));
+
+        // 两个假头取同一伪造值时也是一样：候选被去重成一个，但仍不能被佐证
+        Function<String, String> duplicateForged = headers(
+                "CF-Connecting-IP", "9.9.9.9",
+                "True-Client-IP", "9.9.9.9",
+                "X-Forwarded-For", "203.0.113.50, 100.64.0.1",
+                "X-Real-IP", "100.64.0.1");
+        assertEquals("203.0.113.50", ClientIpResolver.resolve("127.0.0.1", "auto", duplicateForged));
+    }
+
+    @Test
+    @DisplayName("auto：真实 CDN 头与跳链一致时仍然采信该头")
+    void autoTrustsCdnHeaderCorroboratedByChain() {
+        Function<String, String> h = headers(
+                "CF-Connecting-IP", "203.0.113.50",
+                "X-Forwarded-For", "203.0.113.50, 100.64.0.1",
+                "X-Real-IP", "100.64.0.1");
+
+        assertEquals("203.0.113.50", ClientIpResolver.resolve("127.0.0.1", "auto", h));
+    }
+
+    @Test
+    @DisplayName("auto：本机反代没写跳链时保持既有行为，不把正常 CDN 流量压进单一桶")
+    void autoKeepsSingleCdnHeaderWhenNoUpstreamWitness() {
+        assertEquals("1.1.1.1", ClientIpResolver.resolve("127.0.0.1", "auto",
+                headers("CF-Connecting-IP", "1.1.1.1")));
+        assertEquals("1.1.1.1", ClientIpResolver.resolve("127.0.0.1", "auto",
+                headers("CF-Connecting-IP", "1.1.1.1", "X-Real-IP", "100.64.0.1")));
     }
 
     @Test
