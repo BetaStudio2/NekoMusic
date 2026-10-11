@@ -24,7 +24,7 @@ const loading = ref(true)
 async function fetchLatest() {
   loading.value = true
   try {
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/latest?limit=300`)
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/latest`)
     const data = await response.json()
     if (data.success && data.data) {
       latestList.value = data.data.map((item) => ({

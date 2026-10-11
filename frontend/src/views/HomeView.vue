@@ -106,7 +106,7 @@ const fetchRanking = async () => {
 const fetchLatest = async () => {
   latestLoading.value = true
   try {
-    const res = await fetch(`${API_CONFIG.BASE_URL}/api/music/latest?limit=300`)
+    const res = await fetch(`${API_CONFIG.BASE_URL}/api/music/latest`)
     const data = await res.json()
     if (data.success && data.data) latestList.value = data.data.map(withCover)
     else console.error('获取最新音乐失败:', data.message)

@@ -21,23 +21,15 @@ import java.util.List;
 public class LatestMusicHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(LatestMusicHandler.class);
 
+    /** 固定返回条数（客户端不可调）。 */
+    private static final int LATEST_LIMIT = 300;
+
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        // 获取查询参数 limit（限制返回数量，默认300）
-        String limitStr = request.getParameter("limit");
-        int limit = 300;
-        if (limitStr != null && !limitStr.isEmpty()) {
-            try {
-                limit = Integer.parseInt(limitStr);
-                if (limit <= 0) limit = 300;
-                if (limit > 500) limit = 500; // 最大限制500条
-            } catch (NumberFormatException e) {
-                // 使用默认值
-            }
-        }
-
-        // 获取最新上传的音乐
-        List<LatestMusicItem> latestMusic = getLatestMusic(limit);
+        // 返回条数固定，不接受任何请求参数：本接口响应声明为可被共享缓存（public），
+        // 若内容随查询串变化、而边缘缓存的缓存键又不含查询串，同一份缓存条目就会被
+        // 其它查询串的请求写坏（Web 缓存投毒）。公开缓存接口只允许存在唯一变体。
+        List<LatestMusicItem> latestMusic = getLatestMusic();
 
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
@@ -50,7 +42,7 @@ public class LatestMusicHandler extends HttpServlet {
     /**
      * 获取最新上传的音乐
      */
-    private List<LatestMusicItem> getLatestMusic(int limit) {
+    private List<LatestMusicItem> getLatestMusic() {
         List<LatestMusicItem> latestMusic = new ArrayList<>();
 
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
@@ -61,7 +53,7 @@ public class LatestMusicHandler extends HttpServlet {
                 LIMIT ?
                 """;
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setInt(1, limit);
+                stmt.setInt(1, LATEST_LIMIT);
 
                 ResultSet rs = stmt.executeQuery();
 

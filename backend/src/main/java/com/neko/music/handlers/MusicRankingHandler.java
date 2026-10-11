@@ -21,23 +21,15 @@ import java.util.List;
 public class MusicRankingHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicRankingHandler.class);
 
+    /** 固定返回条数（客户端不可调）。 */
+    private static final int RANKING_LIMIT = 200;
+
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        // 获取查询参数 limit（限制返回数量，默认200）
-        String limitStr = request.getParameter("limit");
-        int limit = 200;
-        if (limitStr != null && !limitStr.isEmpty()) {
-            try {
-                limit = Integer.parseInt(limitStr);
-                if (limit <= 0) limit = 200;
-                if (limit > 200) limit = 200; // 最大限制200条
-            } catch (NumberFormatException e) {
-                // 使用默认值
-            }
-        }
-
-        // 获取排行榜
-        List<MusicRankingItem> ranking = getMusicRanking(limit);
+        // 返回条数固定，不接受任何请求参数：本接口响应声明为可被共享缓存（public），
+        // 若内容随查询串变化、而边缘缓存的缓存键又不含查询串，同一份缓存条目就会被
+        // 其它查询串的请求写坏（Web 缓存投毒）。公开缓存接口只允许存在唯一变体。
+        List<MusicRankingItem> ranking = getMusicRanking();
 
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
@@ -50,7 +42,7 @@ public class MusicRankingHandler extends HttpServlet {
     /**
      * 获取播放次数排行榜
      */
-    private List<MusicRankingItem> getMusicRanking(int limit) {
+    private List<MusicRankingItem> getMusicRanking() {
         List<MusicRankingItem> ranking = new ArrayList<>();
 
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
@@ -62,7 +54,7 @@ public class MusicRankingHandler extends HttpServlet {
                 LIMIT ?
                 """;
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setInt(1, limit);
+                stmt.setInt(1, RANKING_LIMIT);
 
                 ResultSet rs = stmt.executeQuery();
 
