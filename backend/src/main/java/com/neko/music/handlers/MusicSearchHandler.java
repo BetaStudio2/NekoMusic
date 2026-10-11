@@ -1,6 +1,5 @@
 package com.neko.music.handlers;
 
-import com.neko.music.model.ErrorResponse;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.neko.music.Main;
 import com.neko.music.service.AdminMusicIngestService;
@@ -74,10 +73,9 @@ public class MusicSearchHandler extends ApiServlet {
             handleLegacySearch(searchRequest.query().trim(), response);
 
         } catch (Exception e) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("请求格式错误: " + e.getMessage());
-            response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
+            // Jackson 解析异常的 message 含全限定处理器/DTO 类名与字段清单，只能落日志，响应只回泛化提示
+            logger.warn("搜索请求处理失败", e);
+            sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "请求格式错误");
         }
     }
 

@@ -80,7 +80,7 @@ public class UserPasswordChangeHandler extends ApiServlet {
             
         } catch (Exception e) {
             logger.error("修改密码时出错", e);
-            sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "请求格式错误: " + e.getMessage());
+            sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "请求格式错误");
         }
     }
     

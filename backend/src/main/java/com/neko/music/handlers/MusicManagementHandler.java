@@ -287,8 +287,9 @@ public class MusicManagementHandler extends HttpServlet {
             HandlerResponses.writeJson(response, HttpStatus.OK_200, new MusicResponse(true, "添加音乐成功", newMusic));
             
         } catch (Exception e) {
-            // JSON解析错误或其他异常
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("请求格式错误: " + e.getMessage()));
+            // JSON 解析异常的消息含内部类名与字段清单，只能落日志，响应只回泛化提示
+            logger.warn("添加音乐请求处理失败", e);
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("请求格式错误"));
         }
     }
 
@@ -388,8 +389,9 @@ public class MusicManagementHandler extends HttpServlet {
             HandlerResponses.writeJson(response, HttpStatus.OK_200, new MusicResponse(true, "编辑音乐成功", updatedMusic));
             
         } catch (Exception e) {
-            // JSON解析错误或其他异常
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("请求格式错误: " + e.getMessage()));
+            // JSON 解析异常的消息含内部类名与字段清单，只能落日志，响应只回泛化提示
+            logger.warn("编辑音乐请求处理失败", e);
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("请求格式错误"));
         }
     }
 
