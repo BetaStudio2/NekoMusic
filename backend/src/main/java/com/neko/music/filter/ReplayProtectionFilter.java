@@ -40,8 +40,8 @@ import java.util.Set;
  *   <li>{@link #EXEMPT_PREFIXES}：浏览器原生请求无法附加请求头 —— 封面 / 头像走 {@code <img src>} /
  *       {@code srcset}。扫码登录的 SSE 状态流（{@code /api/user/qrlogin/status}）在
  *       {@link #EXEMPT_PATHS} 中单独豁免（EventSource 无法带头且会自动重连）。</li>
- *   <li>上传类 multipart 请求：转发前无法在不缓冲整个请求体的情况下做校验，统一豁免（已由鉴权与
- *       IP 限流覆盖）。</li>
+ *   <li>{@link #MULTIPART_UPLOAD_PATHS}：真实的文件上传端点（**精确路径**）。只有这些路径、且请求确实
+ *       以 {@code multipart/} 发出时才豁免，它们由鉴权、体积上限与 IP 限流另行覆盖。</li>
  *   <li>后台审核的媒体预览（{@code /api/user/upload/preview}）：CDN / 播放器会按 Range 把一次
  *       客户端请求拆成多次回源请求，后续分片不带自定义头，无法逐请求校验 nonce。</li>
  *   <li>{@code OPTIONS} 预检与 {@code HEAD} 请求。</li>
@@ -74,6 +74,21 @@ public class ReplayProtectionFilter implements Filter {
 
     /** 需要 nonce 的动态路径前缀。 */
     private static final List<String> PROTECTED_PREFIXES = List.of("/api/", "/loser/");
+
+    /**
+     * 真实的 multipart 上传端点（精确路径）：只有这些路径允许「multipart 免 nonce」。
+     *
+     * <p>绝不能按「{@code Content-Type} 以 {@code multipart/} 开头」整类豁免：该头由客户端任意填写，
+     * 而下游 handler 读 body 时并不看内容类型（{@link com.neko.music.handlers.ApiServlet#readBody} 直接按
+     * 字符流读，再由 Jackson 解析），于是对**任意**受保护接口加一行假头就能跳过 nonce 校验——门禁变成
+     * 「自证免检」的开关。豁免面必须收敛到确实只接受 multipart 的这些路径上。</p>
+     */
+    private static final Set<String> MULTIPART_UPLOAD_PATHS = Set.of(
+            "/api/music/recognize",
+            "/api/music/upload",
+            "/api/user/upload",
+            "/api/user/avatar/upload",
+            "/api/admin/releases/upload");
 
     /** 精确豁免路径。 */
     static final Set<String> EXEMPT_PATHS = Set.of(
@@ -158,8 +173,9 @@ public class ReplayProtectionFilter implements Filter {
         if ("OPTIONS".equals(verb) || "HEAD".equals(verb)) {
             return false;
         }
-        // multipart 上传：转发前无法整体校验请求体，统一豁免
-        if (contentType != null && contentType.toLowerCase(Locale.ROOT).startsWith("multipart/")) {
+        // 只有「真实上传端点 + 确实以 multipart 发出」才豁免；其余路径一律照常校验 nonce
+        if (MULTIPART_UPLOAD_PATHS.contains(path)
+                && contentType != null && contentType.toLowerCase(Locale.ROOT).startsWith("multipart/")) {
             return false;
         }
         if (EXEMPT_PATHS.contains(path)) {

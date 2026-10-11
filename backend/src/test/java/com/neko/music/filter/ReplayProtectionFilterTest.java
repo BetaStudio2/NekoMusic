@@ -53,6 +53,10 @@ class ReplayProtectionFilterTest {
     }
 
     private Outcome run(String method, String uri, String nonce, boolean multipart) throws Exception {
+        return run(method, uri, nonce, multipart ? "multipart/form-data; boundary=----x" : "application/json");
+    }
+
+    private Outcome run(String method, String uri, String nonce, String contentType) throws Exception {
         Map<String, String> requestHeaders = new HashMap<>();
         if (nonce != null) {
             requestHeaders.put(ReplayNonceService.NONCE_HEADER.toLowerCase(), nonce);
@@ -79,7 +83,7 @@ class ReplayProtectionFilterTest {
             case "getRequestURI" -> uri;
             case "getContextPath" -> "";
             case "getRemoteAddr" -> "127.0.0.1";
-            case "getContentType" -> multipart ? "multipart/form-data; boundary=----x" : "application/json";
+            case "getContentType" -> contentType;
             case "getHeader" -> requestHeaders.get(((String) a[0]).toLowerCase());
             default -> defaultValue(m);
         });
@@ -172,9 +176,33 @@ class ReplayProtectionFilterTest {
     }
 
     @Test
-    void multipartUploadIsExemptButJsonOnSamePathIsNot() throws Exception {
-        assertTrue(run("POST", "/api/user/upload", null, true).chained());
-        assertFalse(run("POST", "/api/user/upload", null, false).chained());
+    void multipartUploadEndpointsAreExemptButJsonOnSamePathIsNot() throws Exception {
+        for (String path : new String[]{"/api/music/upload", "/api/music/recognize",
+                "/api/user/upload", "/api/user/avatar/upload", "/api/admin/releases/upload"}) {
+            assertTrue(run("POST", path, null, true).chained(), "真实上传端点应豁免: " + path);
+        }
+        // 上传端点上的非 multipart 请求仍要 nonce（/api/user/avatar/* 整体豁免是另一条规则，不在此列）
+        for (String path : new String[]{"/api/music/upload", "/api/music/recognize",
+                "/api/user/upload", "/api/admin/releases/upload"}) {
+            assertFalse(run("POST", path, null, false).chained(),
+                    "上传端点上的非 multipart 请求仍要 nonce: " + path);
+        }
+    }
+
+    @Test
+    void multipartContentTypeCannotExemptArbitraryProtectedPaths() throws Exception {
+        // 回归：Content-Type 完全由客户端控制，不能拿它当「免检」开关——否则任意受保护接口
+        // 加一行假头就能跳过 nonce 校验（下游 handler 读 body 时并不看内容类型）
+        for (String path : new String[]{"/api/admin/login", "/api/admin/settings",
+                "/api/user/info", "/api/music/search", "/loser/kugou/share"}) {
+            assertFalse(run("POST", path, null, true).chained(),
+                    "multipart 头不能跳过 nonce 校验: " + path);
+        }
+        // GET 同样不生效：门禁只看请求头，与是否携带请求体无关
+        assertFalse(run("GET", "/api/user/info", null, true).chained());
+        assertFalse(run("GET", "/api/admin/settings", null, true).chained());
+        // 大小写变体也不能绕过
+        assertFalse(run("POST", "/api/admin/login", null, "MULTIPART/FORM-DATA; boundary=x").chained());
     }
 
     @Test
