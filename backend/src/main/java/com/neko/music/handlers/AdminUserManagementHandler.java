@@ -185,6 +185,9 @@ public class AdminUserManagementHandler extends HttpServlet {
             return;
         }
 
+        // 删除账号后其令牌必须立即失效（令牌只查 Redis，不看管理员行）
+        revokeAllAdminSessions(adminId);
+
         HandlerResponses.writeJson(response, HttpStatus.OK_200, new SuccessResponse(true, "删除管理员成功"));
     }
 
@@ -229,6 +232,18 @@ public class AdminUserManagementHandler extends HttpServlet {
         return adminUsers;
     }
 
+    /** 吊销某管理员的全部会话令牌（尽力而为：Redis 故障时记日志，不影响已完成的账号变更）。 */
+    private void revokeAllAdminSessions(int adminId) {
+        try {
+            com.neko.music.service.AdminAuthService adminAuthService = Main.getAdminAuthService();
+            if (adminAuthService != null) {
+                adminAuthService.revokeAllAdminTokens(adminId);
+            }
+        } catch (Exception e) {
+            logger.error("吊销管理员会话失败 adminId={}", adminId, e);
+        }
+    }
+
     // 删除管理员用户
     private boolean deleteAdminUser(int adminId) {
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
@@ -258,6 +273,10 @@ public class AdminUserManagementHandler extends HttpServlet {
                     stmt.setString(1, passwordHash);
                     stmt.setInt(2, adminId);
                     int rowsAffected = stmt.executeUpdate();
+                    if (rowsAffected > 0) {
+                        // 改密立即吊销该管理员全部会话：否则旧令牌在 24h TTL 内仍然有效
+                        revokeAllAdminSessions(adminId);
+                    }
                     return rowsAffected > 0;
                 }
             }

@@ -109,15 +109,27 @@ public class AdminAuthService {
         return tokenStore.getAdminIdByToken(token);
     }
     
+    /**
+     * 创建管理员会话：签发新令牌前先注销该管理员此前的全部会话（登录即轮换）。
+     *
+     * <p>否则每次登录都会新增一条彼此独立、各自存活 24h 的令牌，旧令牌在 TTL 内始终可用：
+     * 既无法通过「重新登录」挤出被窃会话，也让有效会话随登录次数无上限累积。</p>
+     */
     public String createAdminSession(Admin admin) {
         String sessionToken = generateSessionToken();
         try {
+            tokenStore.revokeAllAdminTokens(admin.id());
             tokenStore.saveAdminToken(sessionToken, admin.id(), ADMIN_SESSION_TTL_SECONDS);
             return sessionToken;
         } catch (Exception e) {
             logger.error("创建管理员会话失败", e);
             return null;
         }
+    }
+
+    /** 注销某管理员的全部会话（改密、删除管理员后调用）。 */
+    public int revokeAllAdminTokens(int adminId) {
+        return tokenStore.revokeAllAdminTokens(adminId);
     }
     
     private String generateSessionToken() {

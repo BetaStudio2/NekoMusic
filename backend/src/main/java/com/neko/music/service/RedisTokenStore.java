@@ -7,7 +7,9 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * 用户与管理员会话 Token 仅存 Redis，依赖 TTL 自动过期。
+ * 用户与管理员会话 Token 仅存 Redis，依赖 TTL 自动过期，并各带一份「按账号索引的 SET」
+ * （{@code user_token_index:<id>} / {@code admin_token_index:<id>}）用于主动吊销：
+ * 登出、改密、删号、重新登录轮换都需要能一次性删掉某账号的全部会话，而不只是等 TTL。
  */
 public class RedisTokenStore {
     private static final Logger logger = LoggerFactory.getLogger(RedisTokenStore.class);
@@ -16,6 +18,8 @@ public class RedisTokenStore {
     /** 某用户当前全部有效 token（SET），与单 token 键同 TTL 续期 */
     public static final String USER_TOKEN_INDEX_PREFIX = "user_token_index:";
     public static final String ADMIN_TOKEN_PREFIX = "admin_token:";
+    /** 某管理员当前全部有效 token（SET），与单 token 键同 TTL */
+    public static final String ADMIN_TOKEN_INDEX_PREFIX = "admin_token_index:";
 
     private final RedisService redisService;
 
@@ -139,6 +143,9 @@ public class RedisTokenStore {
             return;
         }
         redisService.setWithExpiry(ADMIN_TOKEN_PREFIX + token, String.valueOf(adminId), ttlSeconds);
+        String indexKey = adminTokenIndexKey(adminId);
+        redisService.sadd(indexKey, token);
+        redisService.expire(indexKey, ttlSeconds);
     }
 
     public Optional<Integer> getAdminIdByToken(String token) {
@@ -168,7 +175,41 @@ public class RedisTokenStore {
         if (!redisService.exists(ADMIN_TOKEN_PREFIX + token)) {
             return false;
         }
+        Optional<Integer> adminId = getAdminIdByToken(token);
         redisService.del(ADMIN_TOKEN_PREFIX + token);
+        if (adminId.isPresent()) {
+            redisService.srem(adminTokenIndexKey(adminId.get()), token);
+        }
         return true;
+    }
+
+    /**
+     * 注销某管理员的全部会话 token（重新登录轮换、改密、删除管理员后调用）。
+     *
+     * @return 删除的 token 数量
+     */
+    public int revokeAllAdminTokens(int adminId) {
+        if (adminId <= 0) {
+            return 0;
+        }
+        String indexKey = adminTokenIndexKey(adminId);
+        Set<String> tokens = redisService.smembers(indexKey);
+        int count = 0;
+        for (String t : tokens) {
+            if (t == null || t.isEmpty()) {
+                continue;
+            }
+            redisService.del(ADMIN_TOKEN_PREFIX + t);
+            count++;
+        }
+        redisService.del(indexKey);
+        if (count > 0) {
+            logger.info("已注销管理员全部会话 token adminId={} count={}", adminId, count);
+        }
+        return count;
+    }
+
+    private static String adminTokenIndexKey(int adminId) {
+        return ADMIN_TOKEN_INDEX_PREFIX + adminId;
     }
 }

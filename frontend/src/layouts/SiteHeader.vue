@@ -18,6 +18,7 @@ import NIcon from '@/icons/NIcon.vue'
 import { NInput, NButton } from '@/ui'
 import PwaInstallButton from '@/components/PwaInstallButton.vue'
 import { playTrack, playTracks, isCurrentMusic } from '@/composables/usePlaybackBridge'
+import { logoutUserSession } from '@/api/session.js'
 import NowPlayingTag from '@/components/NowPlayingTag.vue'
 import { syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVip.js'
 import { avatarUrl, useAvatarVersion } from '@/utils/userAvatar.js'
@@ -193,6 +194,8 @@ function goToLogin() {
 
 function logout() {
   const previousToken = localStorage.getItem('userToken')
+  // 先让服务端吊销令牌（只清本地无法阻止已泄露令牌继续使用），失败也不阻塞本地登出
+  logoutUserSession()
   localStorage.removeItem('userToken')
   clearUser()
   if (previousToken) {

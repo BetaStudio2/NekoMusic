@@ -168,6 +168,10 @@ public class UserManagementHandler extends HttpServlet {
             return;
         }
 
+        // 删号必须同时吊销该用户的全部会话：令牌与账号行是解耦的（校验只查 Redis），
+        // 不删会话的话，被删账号的令牌仍能按旧 userId 继续访问读类端点（幽灵令牌）。
+        revokeAllUserSessions(userId);
+
         HandlerResponses.writeJson(response, HttpStatus.OK_200, new SuccessResponse(true, "删除用户成功"));
     }
 
@@ -199,6 +203,18 @@ public class UserManagementHandler extends HttpServlet {
         }
         
         return regularUsers;
+    }
+
+    /** 吊销某用户的全部会话令牌（尽力而为：Redis 故障时记日志，不影响已完成的账号变更）。 */
+    private void revokeAllUserSessions(int userId) {
+        try {
+            com.neko.music.service.UserAuthService userAuthService = Main.getUserAuthService();
+            if (userAuthService != null) {
+                userAuthService.revokeAllTokensForUser(userId);
+            }
+        } catch (Exception e) {
+            logger.error("吊销用户会话失败 userId={}", userId, e);
+        }
     }
 
     // 删除用户
@@ -287,6 +303,10 @@ public class UserManagementHandler extends HttpServlet {
                     }
                 }
                 conn.commit();
+                if (password != null) {
+                    // 管理员重置口令后同样吊销该用户全部会话，避免旧令牌绕过口令变更继续使用
+                    revokeAllUserSessions(userId);
+                }
                 return true;
             } catch (SQLException e) {
                 conn.rollback();

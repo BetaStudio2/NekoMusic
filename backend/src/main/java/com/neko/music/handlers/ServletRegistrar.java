@@ -52,6 +52,10 @@ public final class ServletRegistrar {
         // 注册管理员登录API处理器
         ServletHolder adminLoginHolder = new ServletHolder(new AdminLoginHandler());
         context.addServlet(adminLoginHolder, "/api/admin/login");
+
+        // 注册管理员登出API处理器（服务端吊销 admin_token）
+        ServletHolder adminLogoutHolder = new ServletHolder(new AdminLogoutHandler());
+        context.addServlet(adminLogoutHolder, "/api/admin/logout");
         
         // 注册管理员当前信息API处理器
         ServletHolder adminCurrentHolder = new ServletHolder(new AdminCurrentHandler());
@@ -215,6 +219,10 @@ public final class ServletRegistrar {
         // 注册用户修改密码API处理器
         ServletHolder userPasswordChangeHolder = new ServletHolder(new UserPasswordChangeHandler());
         context.addServlet(userPasswordChangeHolder, "/api/user/password/change");
+
+        // 注册用户登出API处理器（服务端吊销当前 user token）
+        ServletHolder userLogoutHolder = new ServletHolder(new UserLogoutHandler());
+        context.addServlet(userLogoutHolder, "/api/user/logout");
 
         // 注册用户修改昵称API处理器
         ServletHolder userNicknameChangeHolder = new ServletHolder(new UserNicknameChangeHandler());
