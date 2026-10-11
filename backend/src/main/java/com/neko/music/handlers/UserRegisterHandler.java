@@ -29,6 +29,9 @@ public class UserRegisterHandler extends ApiServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         response.setContentType("application/json;charset=UTF-8");
+        if (enforceAuthAbuseLimit(request, response, AuthAbuseLimiter.Scope.REGISTER)) {
+            return;
+        }
 
         StringBuilder requestBody = new StringBuilder();
         try (BufferedReader reader = request.getReader()) {
@@ -82,10 +85,6 @@ public class UserRegisterHandler extends ApiServlet {
             }
             if (password.length() < 6 || password.length() > 30) {
                 sendResponse(response, false, "密码长度需在6-30之间喵", null);
-                return;
-            }
-
-            if (enforceAuthAbuseLimit(request, response, AuthAbuseLimiter.Scope.REGISTER)) {
                 return;
             }
 

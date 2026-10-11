@@ -36,6 +36,9 @@ public class UserLoginHandler extends ApiServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         response.setContentType("application/json;charset=UTF-8");
+        if (enforceAuthAbuseLimit(request, response, AuthAbuseLimiter.Scope.LOGIN)) {
+            return;
+        }
 
         logger.info("收到用户登录请求");
 
@@ -74,10 +77,6 @@ public class UserLoginHandler extends ApiServlet {
             // 验证密码长度
             if (password.length() < 6 || password.length() > 30) {
                 sendResponse(response, false, "密码长度不正确", null);
-                return;
-            }
-
-            if (enforceAuthAbuseLimit(request, response, AuthAbuseLimiter.Scope.LOGIN)) {
                 return;
             }
 

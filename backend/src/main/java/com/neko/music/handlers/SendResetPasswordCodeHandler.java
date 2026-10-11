@@ -48,6 +48,9 @@ public class SendResetPasswordCodeHandler extends ApiServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         response.setContentType("application/json;charset=UTF-8");
+        if (enforceAuthAbuseLimit(request, response, AuthAbuseLimiter.Scope.SEND_CODE)) {
+            return;
+        }
 
         String requestBody = readBody(request); // ApiServlet 统一实现
 
@@ -70,10 +73,6 @@ public class SendResetPasswordCodeHandler extends ApiServlet {
             // 验证邮箱格式
             if (!isValidEmail(email)) {
                 sendResponse(response, false, "邮箱格式不正确", null);
-                return;
-            }
-
-            if (enforceAuthAbuseLimit(request, response, AuthAbuseLimiter.Scope.SEND_CODE)) {
                 return;
             }
 

@@ -179,7 +179,12 @@ public abstract class ApiServlet extends HttpServlet {
      */
     protected boolean enforceAuthAbuseLimit(HttpServletRequest req, HttpServletResponse resp,
                                             AuthAbuseLimiter.Scope scope) throws IOException {
-        Optional<Long> wait = AuthAbuseLimiter.tryAcquire(scope, ClientIpResolver.clientIp(req));
+        AuthAbuseLimiter limiter = Main.getAuthAbuseLimiter();
+        if (limiter == null) {
+            // 未初始化（例如脱离 Main 的单元测试）时不做限流，避免把整条链路打死
+            return false;
+        }
+        Optional<Long> wait = limiter.tryAcquire(scope, ClientIpResolver.clientIp(req));
         if (wait.isEmpty()) {
             return false;
         }

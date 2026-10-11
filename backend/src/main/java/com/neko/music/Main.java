@@ -74,6 +74,7 @@ public class Main {
     private static AdminAuthService adminAuthService;
     private static AdminLoginThrottleService adminLoginThrottleService;
     private static UserLoginThrottleService userLoginThrottleService;
+    private static AuthAbuseLimiter authAbuseLimiter;
     private static UserAuthService userAuthService;
     private static QrLoginService qrLoginService;
     private static EmailService emailService;
@@ -182,6 +183,7 @@ public class Main {
                 new AdminLoginThrottleService(new AdminLoginThrottleService.RedisStore(redisService));
         userLoginThrottleService =
                 new UserLoginThrottleService(new UserLoginThrottleService.RedisStore(redisService));
+        authAbuseLimiter = new AuthAbuseLimiter(new AuthAbuseLimiter.RedisStore(redisService));
         
         // 初始化邮件服务
         emailService = new EmailService(configManager);
@@ -388,6 +390,10 @@ public class Main {
 
     public static UserLoginThrottleService getUserLoginThrottleService() {
         return userLoginThrottleService;
+    }
+
+    public static AuthAbuseLimiter getAuthAbuseLimiter() {
+        return authAbuseLimiter;
     }
     
     public static UserAuthService getUserAuthService() {
