@@ -4,6 +4,7 @@ import com.neko.music.Main;
 import com.neko.music.config.ConfigManager;
 import com.neko.music.service.IPRateLimitService;
 import com.neko.music.util.ClientIpResolver;
+import com.neko.music.util.RequestPath;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -90,17 +91,12 @@ public class IPRateLimitFilter implements Filter {
         return path.equals("/api/user/upload") || path.startsWith("/api/user/upload/");
     }
 
-    /** 去掉 context path 并规范化请求路径，供各豁免规则复用。 */
+    /**
+     * 请求路径：走 {@link RequestPath} 的「路由视角」规范化路径，豁免清单才不会因为
+     * {@code /./api/x}、{@code /a/../api/x}、{@code /api;/x} 这类等价写法而失效。
+     */
     private static String requestPath(HttpServletRequest req) {
-        String path = req.getRequestURI();
-        String ctx = req.getContextPath();
-        if (ctx != null && !ctx.isEmpty() && path.startsWith(ctx)) {
-            path = path.substring(ctx.length());
-        }
-        if (path.isEmpty()) {
-            return "/";
-        }
-        return path.startsWith("/") ? path : "/" + path;
+        return RequestPath.of(req);
     }
 
     /** ZPay 异步通知由平台服务器回调，不参与 IP 限流，避免通知失败。 */

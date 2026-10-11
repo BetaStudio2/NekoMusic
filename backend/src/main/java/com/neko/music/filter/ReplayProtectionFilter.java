@@ -5,6 +5,7 @@ import com.neko.music.Main;
 import com.neko.music.service.ReplayNonceService;
 import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.HttpResourceCache;
+import com.neko.music.util.RequestPath;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -195,20 +196,14 @@ public class ReplayProtectionFilter implements Filter {
         }
     }
 
-    /** 归一化请求路径：去掉 context path 与 {@code ;jessionid} 之类的路径参数。 */
+    /**
+     * 请求路径：与 servlet 路由同一套解释的规范化路径（见 {@link RequestPath}）。
+     *
+     * <p>刻意不再读 {@code getRequestURI()}：它是原始 URI，而路由按规范化路径匹配，
+     * {@code /./api/x}、{@code /a/../api/x}、{@code /api;/x} 这类等价写法会让「是否受保护」的判定
+     * 落空、被当作非受保护路径放行，一次性 nonce 防重放就形同虚设。</p>
+     */
     static String pathOf(HttpServletRequest request) {
-        String uri = request.getRequestURI();
-        if (uri == null) {
-            return "";
-        }
-        String contextPath = request.getContextPath();
-        if (contextPath != null && !contextPath.isEmpty() && uri.startsWith(contextPath)) {
-            uri = uri.substring(contextPath.length());
-        }
-        int semicolon = uri.indexOf(';');
-        if (semicolon >= 0) {
-            uri = uri.substring(0, semicolon);
-        }
-        return uri;
+        return RequestPath.of(request);
     }
 }

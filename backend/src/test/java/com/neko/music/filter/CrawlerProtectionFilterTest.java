@@ -357,4 +357,46 @@ class CrawlerProtectionFilterTest {
         }
         return null;
     }
+
+    @Test
+    void equivalentPathSpellingsAreGuardedToo() throws Exception {
+        // /./api/x、/a/../api/x、/api;/x、/%61pi/x 会被 Jetty 规范化后路由到真实 handler，
+        // 因此判定必须与路由使用同一套路径视图，否则这些写法就是门禁绕过（CWE-436）。
+        for (String path : new String[]{"/./api/music/info/1", "/a/../api/music/info/1",
+                "/api;/music/info/1", "/%61pi/music/info/1", "/api/music/info/1;jsessionid=x",
+                "/api/music/../music/info/1"}) {
+            Outcome bot = inspect("GET", path, "Googlebot/2.1 (+http://www.google.com/bot.html)", null);
+            assertEquals(403, bot.status(), path);
+            assertFalse(bot.chained(), path);
+
+            Outcome scanner = inspect("GET", path, "sqlmap/1.7.2#stable", null);
+            assertEquals(403, scanner.status(), path);
+
+            Outcome noUa = inspect("GET", path, null, null);
+            assertEquals(403, noUa.status(), path);
+        }
+    }
+
+    @Test
+    void equivalentSpellingsOfLoserPathsAreGuardedToo() throws Exception {
+        for (String path : new String[]{"/./loser/kugou/getSongListDetail",
+                "/a/../loser/qq/getSongListDetail", "/loser;/kugou/getSongListDetail"}) {
+            Outcome bot = inspect("GET", path, "sqlmap/1.7.2#stable", null);
+            assertEquals(403, bot.status(), path);
+            assertFalse(bot.chained(), path);
+        }
+    }
+
+    @Test
+    void equivalentSpellingsOfExemptPathsKeepTheirTreatment() throws Exception {
+        // 规范化后仍是公开缓存接口 / 静态媒体：不能被新判定误伤
+        for (String path : new String[]{"/./api/music/ranking", "/a/../api/music/latest"}) {
+            Outcome outcome = inspect("GET", path, "curl/8.5.0", null);
+            assertTrue(outcome.chained(), path);
+        }
+        for (String path : new String[]{"/./media/cover/1", "/a/../media/music/1"}) {
+            Outcome outcome = inspect("GET", path, "curl/8.5.0", null);
+            assertTrue(outcome.chained(), path);
+        }
+    }
 }

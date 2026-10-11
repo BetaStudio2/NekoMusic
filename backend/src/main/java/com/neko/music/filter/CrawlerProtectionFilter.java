@@ -4,6 +4,7 @@ import com.neko.music.Main;
 import com.neko.music.config.ConfigManager;
 import com.neko.music.seo.BrowserEvidence;
 import com.neko.music.seo.UserAgentClassifier;
+import com.neko.music.util.RequestPath;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.FilterConfig;
@@ -86,7 +87,9 @@ public class CrawlerProtectionFilter implements Filter {
             return;
         }
 
-        String path = normalizedPath(httpRequest.getRequestURI(), httpRequest.getContextPath());
+        // 必须用「路由视角」的规范化路径：getRequestURI() 是原始 URI，与 servlet 映射的解释不一致，
+        // /./api/x、/a/../api/x、/api;/x 这类等价写法会让前缀判定落空而整体绕过本过滤器。
+        String path = RequestPath.of(httpRequest);
         if (!isGuardedPath(path) || isZpayNotifyPath(path) || isPublicCacheableApiPath(path)) {
             chain.doFilter(request, response);
             return;
@@ -158,22 +161,11 @@ public class CrawlerProtectionFilter implements Filter {
         return false;
     }
 
-    private static String normalizedPath(String uri, String ctx) {
-        String path = uri;
-        if (ctx != null && !ctx.isEmpty() && path.startsWith(ctx)) {
-            path = path.substring(ctx.length());
-        }
-        if (path.isEmpty()) {
-            return "/";
-        }
-        return path.startsWith("/") ? path : "/" + path;
-    }
-
     /**
      * 需要防爬 / 客户端区分的动态接口路径：{@code /api/*} 与 {@code /loser/*}。
      * 后者是对外平台代理（歌单详情、导入），同样不能被爬虫 / 扫描器当成免费上游代理来刷。
      */
-    private static boolean isGuardedPath(String path) {
+    static boolean isGuardedPath(String path) {
         return path.startsWith("/api/") || path.startsWith("/loser/");
     }
 

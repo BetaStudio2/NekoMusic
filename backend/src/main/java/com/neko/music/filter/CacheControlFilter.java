@@ -1,6 +1,7 @@
 package com.neko.music.filter;
 
 import com.neko.music.util.HttpResourceCache;
+import com.neko.music.util.RequestPath;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -26,15 +27,17 @@ public class CacheControlFilter implements Filter {
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
             throws IOException, ServletException {
+        // 用「路由视角」的规范化路径：等价写法（/./api/x、/a/../api/x、/api;/x）会被路由到动态
+        // handler，若按原始 URI 判定就会漏掉 no-store，动态响应可能被中间缓存当公共资源缓存。
         if (request instanceof HttpServletRequest httpRequest
                 && response instanceof HttpServletResponse httpResponse
-                && isDynamicPath(httpRequest.getRequestURI())) {
+                && isDynamicPath(RequestPath.of(httpRequest))) {
             httpResponse.setHeader("Cache-Control", HttpResourceCache.CACHE_CONTROL_NO_STORE);
         }
         chain.doFilter(request, response);
     }
 
-    private static boolean isDynamicPath(String uri) {
+    static boolean isDynamicPath(String uri) {
         return uri.startsWith("/api/") || uri.equals("/api")
                 || uri.startsWith("/loser/")
                 || uri.startsWith("/detail/") || uri.equals("/detail");

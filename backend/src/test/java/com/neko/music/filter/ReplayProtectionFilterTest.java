@@ -232,4 +232,43 @@ class ReplayProtectionFilterTest {
         }
         return null;
     }
+
+    @Test
+    void equivalentPathSpellingsNeedNonceToo() throws Exception {
+        // 这些写法会被 Jetty 规范化后路由到真实 handler：若按原始 URI 判定就会被当成非受保护路径放行。
+        for (String path : new String[]{"/./api/music/search", "/a/../api/music/search",
+                "/api;/music/search", "/%61pi/music/search", "/api/music/search;jsessionid=x",
+                "/api/music/../music/search"}) {
+            Outcome outcome = run("GET", path, null, false);
+            assertEquals(409, outcome.status(), path);
+            assertFalse(outcome.chained(), path);
+        }
+        for (String path : new String[]{"/./loser/kugou/getSongListDetail",
+                "/a/../loser/qq/getSongListDetail", "/loser;/kugou/getSongListDetail"}) {
+            Outcome outcome = run("GET", path, null, false);
+            assertEquals(409, outcome.status(), path);
+            assertFalse(outcome.chained(), path);
+        }
+    }
+
+    @Test
+    void replayIsStillRejectedWhenThePathSpellingChanges() throws Exception {
+        String nonce = readNonce();
+        assertTrue(run("GET", "/api/music/search", nonce, false).chained());
+
+        // 同一个 nonce 换等价写法重放：nonce 已被消费，必须仍然 409
+        Outcome replay = run("GET", "/./api/music/search", nonce, false);
+        assertEquals(409, replay.status());
+        assertFalse(replay.chained());
+    }
+
+    @Test
+    void equivalentSpellingsOfExemptPathsKeepTheirTreatment() throws Exception {
+        // 规范化后仍落在豁免清单：不能被新判定误伤（否则客户端连 nonce 都领不到）
+        for (String path : new String[]{"/./api/replay/nonce", "/a/../api/replay/challenge",
+                "/api/music/latest", "/./api/music/ranking", "/./loser/kugou/pull"}) {
+            Outcome outcome = run("GET", path, null, false);
+            assertTrue(outcome.chained(), path);
+        }
+    }
 }
