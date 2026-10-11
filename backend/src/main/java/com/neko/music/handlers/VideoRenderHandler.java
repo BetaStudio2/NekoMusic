@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.neko.music.Main;
@@ -92,19 +93,46 @@ public class VideoRenderHandler extends ApiServlet {
             sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "请求体不是合法 JSON");
             return;
         }
-        if (root == null || !root.has("musicId") || !root.get("musicId").isJsonPrimitive()) {
+        // 数值字段必须先确认类型再转换：Gson 的 getAsInt()/getAsDouble() 对字符串等非数字原语会抛
+        // NumberFormatException，一旦冒到容器层就会连异常类名与用户原始输入一起回显（CWE-209）。
+        JsonElement musicIdEl = root == null ? null : root.get("musicId");
+        if (musicIdEl == null || !musicIdEl.isJsonPrimitive()) {
             sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "缺少 musicId");
             return;
         }
-        int musicId = root.get("musicId").getAsInt();
+        if (!musicIdEl.getAsJsonPrimitive().isNumber()) {
+            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "musicId 必须为数字");
+            return;
+        }
+        int musicId;
+        try {
+            musicId = musicIdEl.getAsInt();
+        } catch (NumberFormatException | UnsupportedOperationException e) {
+            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "musicId 必须为数字");
+            return;
+        }
         if (musicId <= 0) {
             sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "musicId 无效");
             return;
         }
 
         double startSec = 0;
-        if (root.has("startSec") && root.get("startSec").isJsonPrimitive()) {
-            startSec = root.get("startSec").getAsDouble();
+        if (root.has("startSec") && !root.get("startSec").isJsonNull()) {
+            JsonElement startSecEl = root.get("startSec");
+            if (!startSecEl.isJsonPrimitive() || !startSecEl.getAsJsonPrimitive().isNumber()) {
+                sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "startSec 必须为数字");
+                return;
+            }
+            try {
+                startSec = startSecEl.getAsDouble();
+            } catch (NumberFormatException | UnsupportedOperationException e) {
+                sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "startSec 必须为数字");
+                return;
+            }
+            if (!Double.isFinite(startSec)) {
+                sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "startSec 无效");
+                return;
+            }
             if (startSec < 0) {
                 sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "startSec 不能为负数");
                 return;

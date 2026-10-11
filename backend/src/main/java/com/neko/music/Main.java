@@ -3,6 +3,7 @@ package com.neko.music;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
 import com.neko.music.config.ConfigManager;
+import com.neko.music.filter.SanitizedErrorHandler;
 import com.neko.music.database.AdminDatabaseManager;
 import com.neko.music.database.DatabaseManager;
 import com.neko.music.database.DatabaseInitializer;
@@ -248,6 +249,8 @@ public class Main {
         threadPool.setIdleTimeout((int) Math.min(Integer.MAX_VALUE, configManager.getJettyIdleTimeoutMs()));
 
         server = new Server(threadPool);
+        // 统一错误页：未捕获异常的类名/消息/原始输入只进日志，不回显给调用方（CWE-209）
+        server.setErrorHandler(new SanitizedErrorHandler());
         ServerConnector connector = new ServerConnector(server);
         connector.setPort(configManager.getPort());
         // 关闭带版本号的 Server / X-Powered-By 响应头，避免泄露实现版本（版本名由 SecurityHeadersFilter 覆盖）
