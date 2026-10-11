@@ -78,6 +78,30 @@ class AdminLoginThrottleServiceTest {
     }
 
     @Test
+    void unicodeCompatVariantsShareTheSameBucket() {
+        // 账号查找用的是数据库排序规则（UCA 类 *_ci），除了大小写还会做 Unicode 兼容折叠：
+        // 全角、修饰符字母、数学字母等都会被判为同一个账号。计数键必须同样做 NFKC 归一化，
+        // 否则同一账号的每个兼容变体都是一个全新的空桶，把配额放大 N 倍（CWE-178）。
+        assertEquals(AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME, allowed("admin", IP, 11));
+
+        String[] variants = {
+                "\uff41\uff44\uff4d\uff49\uff4e",                     // ａｄｍｉｎ 全角
+                "\u1d43dmin",                                          // ᵃdmin 修饰符 a (U+1D43)
+                "\ud835\udc1a\ud835\udc1d\ud835\udc26\ud835\udc22\ud835\udc27", // 𝐚𝐝𝐦𝐢𝐧 数学粗体
+                "\uff41dmin",                                          // ａdmin 仅全角 a
+                "admi\uff4e",                                          // admiｎ 仅全角 n
+        };
+        for (String variant : variants) {
+            assertTrue(throttle.beginAttempt(variant, OTHER_IP).isPresent(),
+                    "Unicode 兼容变体必须共享同一锁定桶: " + variant);
+        }
+
+        // 真正不同的账号仍应各自独立，别把归一化做成「见谁折叠谁」
+        assertTrue(throttle.beginAttempt("\u7ba1\u7406\u5458", OTHER_IP).isEmpty(),
+                "非兼容折叠的不同账号不应被牵连");
+    }
+
+    @Test
     void unknownUsernamesAreCountedRejectedAndNotDistinguishable() {
         // 不存在的用户名同样累计并触发限流：计数只看请求次数，不暴露账号存在性
         assertEquals(AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME, allowed(

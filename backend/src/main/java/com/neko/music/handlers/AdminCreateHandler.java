@@ -19,6 +19,16 @@ import java.sql.PreparedStatement;
 public class AdminCreateHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(AdminCreateHandler.class);
 
+    /**
+     * 管理员用户名只允许 ASCII 字母、数字与 {@code _ . -}。
+     *
+     * <p>管理员用户名是登录限流的计数维度：若允许非 ASCII，UCA 排序规则会把全角、数学字母等兼容变体
+     * 与本体字符折叠成同一个账号（{@code WHERE username = ?} 命中），而它们原样是不同的字符串，天然
+     * 适合被用来拆出一个账号的多个限流桶。这里从源头限制成 ASCII，配合登录侧的统一归一化（见
+     * {@code LoginThrottleService}）消除「一个账号 + 多形态变体」。</p>
+     */
+    private static final String USERNAME_PATTERN = "[A-Za-z0-9_.-]+";
+
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         response.setContentType("application/json;charset=UTF-8");
@@ -62,6 +72,12 @@ public class AdminCreateHandler extends ApiServlet {
         if (createRequest.username() == null || createRequest.username().trim().isEmpty()) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             sendErrorResponse(response, "用户名不能为空");
+            return;
+        }
+
+        if (!createRequest.username().trim().matches(USERNAME_PATTERN)) {
+            response.setStatus(HttpStatus.BAD_REQUEST_400);
+            sendErrorResponse(response, "用户名只能包含字母、数字、下划线、点和连字符");
             return;
         }
         

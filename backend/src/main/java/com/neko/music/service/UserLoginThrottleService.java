@@ -15,7 +15,8 @@ package com.neko.music.service;
  *       过窄会误伤正常用户，定向爆破由账号维度兜底。</li>
  * </ul>
  *
- * <p>账号键与登录查询一致地做大小写归一（邮箱大小写不敏感），避免用大小写变体拆桶放大配额。</p>
+ * <p>账号键与登录查询一致地做归一化（邮箱比较大小写不敏感、且带 Unicode 兼容折叠），避免用大小写或
+ * 兼容变体拆桶放大配额。</p>
  */
 public class UserLoginThrottleService extends LoginThrottleService {
 

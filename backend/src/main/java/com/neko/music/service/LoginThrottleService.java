@@ -3,6 +3,7 @@ package com.neko.music.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.text.Normalizer;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -23,10 +24,16 @@ import java.util.Optional;
  * 每个请求拿到互不相同的计数，超过阈值的那些请求在口令校验之前就被拒掉——即便同一瞬间涌入任意多
  * 请求，实际进入口令校验的也不会超过阈值。</p>
  *
- * <p><b>为什么计数键要大小写归一</b>：账号查找用的是数据库的大小写不敏感比较（MySQL 默认
- * {@code *_ci} 排序规则），{@code Admin} 与 {@code admin} 是同一个账号；计数键若原样区分大小写，
- * 攻击者就能用 {@code 2^len} 个大小写变体各开一个空桶、成倍放大尝试配额（CWE-178）。键与认证判定
- * 口径必须一致。</p>
+ * <p><b>为什么计数键要归一化</b>：账号查找用的是数据库的排序规则比较（MySQL/MariaDB 默认
+ * {@code *_ci} / UCA 排序规则），既不区分大小写，也会做 Unicode 兼容折叠——{@code Admin}、
+ * {@code ａｄｍｉｎ}（全角）、{@code ᵃdmin}（修饰符）、{@code 𝐚𝐝𝐦𝐢𝐧}（数学字母）在多数部署下都
+ * 与 {@code admin} 判为同一个账号。计数键若原样保留这些差异，攻击者就能用同一真实账号的大量
+ * 兼容变体各开一个空桶、把「每账号 N 次」成倍放大（CWE-178：只归一了大小写而遗漏了兼容归一化）。
+ * 因此计数键先做 NFKC 兼容归一化，再去空白、转小写，尽量贴近数据库的折叠口径。</p>
+ *
+ * <p>说明：NFKC 覆盖全角、数学字母、上下标、序数词、罗马数字等字符级兼容折叠，但无法穷尽排序规则的
+ * 全部等价类（如个别字母对展开）；因此除本归一化外，管理员用户名还应限制为 ASCII（见
+ * {@code AdminCreateHandler}），从源头上避免「一个账号 + 多形态变体」。</p>
  *
  * <p>存储不可用时放行（只记 WARN）：限流不可用不应把登录整条链路打死。</p>
  */
@@ -100,14 +107,30 @@ public class LoginThrottleService {
         return keyPrefix + "ip:" + sourceKeyPart(sourceIp);
     }
 
-    /** 账号键片段：去空白 + 转小写，与数据库的大小写不敏感账号比较口径一致。 */
+    /** 账号键片段：NFKC 兼容归一化 + 去空白 + 转小写，与数据库的账号比较口径一致。 */
     private static String accountKeyPart(String account) {
-        return account == null ? "" : account.trim().toLowerCase(Locale.ROOT);
+        return normalizeKeyPart(account);
     }
 
-    /** 来源 IP 键片段：去空白 + 转小写（IPv6 十六进制大小写无关）。 */
+    /** 来源 IP 键片段：NFKC 兼容归一化 + 去空白 + 转小写（IPv6 十六进制大小写无关）。 */
     private static String sourceKeyPart(String sourceIp) {
-        return sourceIp == null ? "" : sourceIp.trim().toLowerCase(Locale.ROOT);
+        return normalizeKeyPart(sourceIp);
+    }
+
+    /**
+     * 键片段归一化：{@link Normalizer#normalize} 做 NFKC 兼容归一化（把全角、数学字母、上下标等
+     * 兼容变体折叠成本体字符），再去空白、转小写。空串用于「无账号 / 无来源」的兜底桶。
+     *
+     * <p>顺序必须是「先 NFKC 后 trim」：NFKC 会把不换行空格等兼容字符折叠成普通空格，先归一化才能
+     * 一并去掉。</p>
+     */
+    private static String normalizeKeyPart(String value) {
+        if (value == null) {
+            return "";
+        }
+        return Normalizer.normalize(value, Normalizer.Form.NFKC)
+                .trim()
+                .toLowerCase(Locale.ROOT);
     }
 
     /**

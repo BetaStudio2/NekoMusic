@@ -70,6 +70,20 @@ class UserLoginThrottleServiceTest {
     }
 
     @Test
+    void unicodeCompatVariantsShareTheSameBucket() {
+        // 邮箱比较同样受数据库排序规则影响，全角等兼容变体会折叠成同一账号；计数键必须一致归一化
+        assertEquals(UserLoginThrottleService.MAX_FAILURES_PER_EMAIL,
+                allowed("user@example.com", IP, UserLoginThrottleService.MAX_FAILURES_PER_EMAIL + 1));
+
+        for (String variant : new String[]{"\uff55ser@example.com", "user@\uff45xample.com"}) {
+            assertTrue(throttle.beginAttempt(variant, OTHER_IP).isPresent(),
+                    "邮箱兼容变体必须共享同一锁定桶: " + variant);
+        }
+        assertTrue(throttle.beginAttempt("other@example.com", OTHER_IP).isEmpty(),
+                "不同邮箱不应被牵连");
+    }
+
+    @Test
     void unknownEmailsAreCountedAndLockedToo() {
         assertEquals(UserLoginThrottleService.MAX_FAILURES_PER_EMAIL,
                 allowed(OTHER_EMAIL, OTHER_IP, UserLoginThrottleService.MAX_FAILURES_PER_EMAIL + 1));
