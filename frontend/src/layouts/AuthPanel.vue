@@ -595,8 +595,9 @@ const railRef = ref(null)
 
 let dragPointerOffset = 0
 let railDragging = false
+let dragStartedAt = 0
+let dragTrace = []
 let verifyAbort = null
-let railTrackReleaseHandler = null
 
 const maxSliderX = computed(() => Math.max(0, bgWidth.value - sliderW.value))
 const thumbMaxTravel = computed(() => Math.max(0, bgWidth.value - railThumbW))
@@ -635,6 +636,17 @@ function invalidateSlidePass() {
   captchaPassToken.value = ''
 }
 
+function recordDragSample() {
+  if (!dragStartedAt) return
+  const elapsed = Math.max(0, Math.round(performance.now() - dragStartedAt))
+  const previous = dragTrace[dragTrace.length - 1]
+  if (previous && elapsed <= previous.t) return
+  dragTrace.push({
+    t: elapsed,
+    x: sliderX.value,
+  })
+}
+
 async function scheduleSlideVerify() {
   if (!captchaToken.value || captchaLoading.value) return
   if (slideState.value === 'checking') return
@@ -645,7 +657,11 @@ async function scheduleSlideVerify() {
   try {
     const { data } = await axios.post(
       `${API_CONFIG.BASE_URL}/api/captcha/slider/verify`,
-      { captchaToken: captchaToken.value, captchaOffsetX: sliderX.value },
+      {
+        captchaToken: captchaToken.value,
+        captchaOffsetX: sliderX.value,
+        dragTrace: dragTrace.slice(),
+      },
       { signal: ac.signal }
     )
     if (ac.signal.aborted) return
@@ -688,6 +704,7 @@ function onThumbPointerMove(e) {
   if (!rail) return
   const leftPx = e.clientX - rail.left - dragPointerOffset
   setSliderXFromThumbLeft(leftPx)
+  recordDragSample()
 }
 
 function detachThumbRailListeners() {
@@ -699,6 +716,7 @@ function detachThumbRailListeners() {
 
 function onThumbPointerUp() {
   if (!railDragging) return
+  recordDragSample()
   detachThumbRailListeners()
   slideState.value = 'idle'
   scheduleSlideVerify()
@@ -711,8 +729,11 @@ function onThumbPointerDown(e) {
   const rail = railRef.value?.getBoundingClientRect()
   if (!rail) return
   railDragging = true
+  dragStartedAt = performance.now()
+  dragTrace = []
   slideState.value = 'dragging'
   dragPointerOffset = e.clientX - rail.left - thumbDisplayX.value
+  recordDragSample()
   try {
     e.currentTarget?.setPointerCapture?.(e.pointerId)
   } catch {
@@ -727,23 +748,6 @@ function onRailTrackPointerDown(e) {
   if (slideState.value === 'checking') return
   if (e.target.closest('.slider-rail-thumb')) return
   invalidateSlidePass()
-  const rail = railRef.value?.getBoundingClientRect()
-  if (!rail) return
-  const x = e.clientX - rail.left
-  setSliderXFromThumbLeft(x - railThumbW / 2)
-  if (railTrackReleaseHandler) {
-    window.removeEventListener('pointerup', railTrackReleaseHandler)
-    window.removeEventListener('pointercancel', railTrackReleaseHandler)
-    railTrackReleaseHandler = null
-  }
-  railTrackReleaseHandler = () => {
-    window.removeEventListener('pointerup', railTrackReleaseHandler)
-    window.removeEventListener('pointercancel', railTrackReleaseHandler)
-    railTrackReleaseHandler = null
-    scheduleSlideVerify()
-  }
-  window.addEventListener('pointerup', railTrackReleaseHandler)
-  window.addEventListener('pointercancel', railTrackReleaseHandler)
 }
 
 async function loadSliderCaptcha() {
@@ -756,6 +760,8 @@ async function loadSliderCaptcha() {
   shakeActive.value = false
   sliderX.value = 0
   captchaToken.value = ''
+  dragTrace = []
+  dragStartedAt = 0
   try {
     const { data } = await axios.get(`${API_CONFIG.BASE_URL}/api/captcha/slider`)
     if (!data.success || !data.data) {
@@ -785,17 +791,14 @@ async function loadSliderCaptcha() {
 
 function closeCaptchaModal() {
   detachThumbRailListeners()
-  if (railTrackReleaseHandler) {
-    window.removeEventListener('pointerup', railTrackReleaseHandler)
-    window.removeEventListener('pointercancel', railTrackReleaseHandler)
-    railTrackReleaseHandler = null
-  }
   verifyAbort?.abort()
   verifyAbort = null
   captchaModalOpen.value = false
   captchaPassToken.value = ''
   slideState.value = 'idle'
   shakeActive.value = false
+  dragTrace = []
+  dragStartedAt = 0
 }
 
 async function sendVerificationWithCaptcha() {

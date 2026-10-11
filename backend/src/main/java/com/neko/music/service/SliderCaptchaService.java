@@ -14,6 +14,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.List;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
@@ -34,25 +35,40 @@ public class SliderCaptchaService {
     private static final int PUZZLE_H = 52;
     private static final int PUZZLE_ARC = 10;
     private static final int TOLERANCE_PX = 5;
+    private static final int MIN_TRACE_SAMPLES = 8;
+    private static final int MAX_TRACE_SAMPLES = 160;
+    private static final long MIN_TRACE_DURATION_MS = 250L;
+    private static final long MAX_TRACE_DURATION_MS = 20_000L;
+    private static final int MAX_TRACE_STEP_PX = 80;
     private static final long CHALLENGE_TTL_MS = 3 * 60 * 1000L;
     public static final long PASS_TTL_MS = 2 * 60 * 1000L;
 
     private final SecureRandom random = new SecureRandom();
     private final ConcurrentHashMap<String, StoredChallenge> challenges = new ConcurrentHashMap<>();
-    /** passToken -> 过期时间 epoch ms */
-    private final ConcurrentHashMap<String, Long> passTokens = new ConcurrentHashMap<>();
+    /** passToken -> 绑定来源和过期时间 */
+    private final ConcurrentHashMap<String, StoredPass> passTokens = new ConcurrentHashMap<>();
 
     private static final class StoredChallenge {
         final int secretX;
         final long expiresAtMs;
+        final String ipHash;
+        final String uaHash;
 
-        StoredChallenge(int secretX, long expiresAtMs) {
+        StoredChallenge(int secretX, long expiresAtMs, String ipHash, String uaHash) {
             this.secretX = secretX;
             this.expiresAtMs = expiresAtMs;
+            this.ipHash = ipHash;
+            this.uaHash = uaHash;
         }
     }
 
-    public Map<String, Object> createChallengePayload() {
+    private record StoredPass(long expiresAtMs, String ipHash, String uaHash) {
+    }
+
+    public record DragSample(long elapsedMs, int offsetX) {
+    }
+
+    public Map<String, Object> createChallengePayload(String clientIp, String userAgent) {
         pruneExpired();
         int puzzleY = 12 + random.nextInt(Math.max(1, BG_HEIGHT - PUZZLE_H - 24));
         int margin = 64;
@@ -75,7 +91,11 @@ public class SliderCaptchaService {
 
         String token = UUID.randomUUID().toString().replace("-", "");
         long now = System.currentTimeMillis();
-        challenges.put(token, new StoredChallenge(secretX, now + CHALLENGE_TTL_MS));
+        challenges.put(token, new StoredChallenge(
+                secretX,
+                now + CHALLENGE_TTL_MS,
+                ReplayNonceService.ipHash(clientIp),
+                ReplayNonceService.fingerprint(userAgent)));
 
         return Map.of(
                 "captchaToken", token,
@@ -94,7 +114,9 @@ public class SliderCaptchaService {
      *
      * @return 成功时返回短时 captchaPassToken，失败返回 empty
      */
-    public Optional<String> verifySlideAndIssuePass(String token, int clientOffsetX) {
+    public Optional<String> verifySlideAndIssuePass(String token, int clientOffsetX,
+                                                     List<DragSample> trace,
+                                                     String clientIp, String userAgent) {
         if (token == null || token.isBlank()) {
             return Optional.empty();
         }
@@ -106,23 +128,74 @@ public class SliderCaptchaService {
         if (System.currentTimeMillis() > ch.expiresAtMs) {
             return Optional.empty();
         }
+        if (!ch.ipHash.equals(ReplayNonceService.ipHash(clientIp))
+                || !ch.uaHash.equals(ReplayNonceService.fingerprint(userAgent))
+                || !isHumanLikeTrace(trace, clientOffsetX)) {
+            return Optional.empty();
+        }
         if (Math.abs(clientOffsetX - ch.secretX) > TOLERANCE_PX) {
             logger.debug("slider offset mismatch clientX={} expected={}", clientOffsetX, ch.secretX);
             return Optional.empty();
         }
         String pass = UUID.randomUUID().toString().replace("-", "");
-        passTokens.put(pass, System.currentTimeMillis() + PASS_TTL_MS);
+        passTokens.put(pass, new StoredPass(
+                System.currentTimeMillis() + PASS_TTL_MS,
+                ch.ipHash,
+                ch.uaHash));
         return Optional.of(pass);
     }
 
     /** 发送验证码前消费 passToken；重复或过期返回 false */
-    public boolean consumePassToken(String passToken) {
+    public boolean consumePassToken(String passToken, String clientIp, String userAgent) {
         if (passToken == null || passToken.isBlank()) {
             return false;
         }
         pruneExpired();
-        Long exp = passTokens.remove(passToken.trim());
-        return exp != null && System.currentTimeMillis() <= exp;
+        StoredPass pass = passTokens.remove(passToken.trim());
+        return pass != null
+                && System.currentTimeMillis() <= pass.expiresAtMs()
+                && pass.ipHash().equals(ReplayNonceService.ipHash(clientIp))
+                && pass.uaHash().equals(ReplayNonceService.fingerprint(userAgent));
+    }
+
+    private static boolean isHumanLikeTrace(List<DragSample> trace, int finalOffsetX) {
+        if (trace == null || trace.size() < MIN_TRACE_SAMPLES || trace.size() > MAX_TRACE_SAMPLES) {
+            return false;
+        }
+        DragSample first = trace.get(0);
+        DragSample last = trace.get(trace.size() - 1);
+        if (first == null || last == null || first.elapsedMs() < 0 || first.elapsedMs() > 100
+                || Math.abs(first.offsetX()) > TOLERANCE_PX
+                || Math.abs(last.offsetX() - finalOffsetX) > TOLERANCE_PX) {
+            return false;
+        }
+        long previousTime = first.elapsedMs();
+        int previousX = first.offsetX();
+        int distinctPositions = 1;
+        long totalMovement = 0;
+        for (int i = 1; i < trace.size(); i++) {
+            DragSample sample = trace.get(i);
+            if (sample == null || sample.elapsedMs() <= previousTime
+                    || sample.elapsedMs() > MAX_TRACE_DURATION_MS
+                    || sample.offsetX() < 0 || sample.offsetX() > BG_WIDTH - PUZZLE_W) {
+                return false;
+            }
+            long step = Math.abs((long) sample.offsetX() - previousX);
+            if (step > MAX_TRACE_STEP_PX) {
+                return false;
+            }
+            if (sample.offsetX() != previousX) {
+                distinctPositions++;
+            }
+            totalMovement += step;
+            previousTime = sample.elapsedMs();
+            previousX = sample.offsetX();
+        }
+        long duration = last.elapsedMs() - first.elapsedMs();
+        return duration >= MIN_TRACE_DURATION_MS
+                && duration <= MAX_TRACE_DURATION_MS
+                && distinctPositions >= MIN_TRACE_SAMPLES - 2
+                && totalMovement >= Math.max(20, Math.abs(finalOffsetX) - TOLERANCE_PX);
     }
 
     private void pruneExpired() {
@@ -136,9 +209,9 @@ public class SliderCaptchaService {
                 it.remove();
             }
         }
-        Iterator<Map.Entry<String, Long>> pit = passTokens.entrySet().iterator();
+        Iterator<Map.Entry<String, StoredPass>> pit = passTokens.entrySet().iterator();
         while (pit.hasNext()) {
-            if (pit.next().getValue() < now) {
+            if (pit.next().getValue().expiresAtMs() < now) {
                 pit.remove();
             }
         }

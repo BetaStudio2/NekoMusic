@@ -3,6 +3,8 @@ package com.neko.music.handlers;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
 import com.neko.music.service.AuthAbuseLimiter;
+import com.neko.music.service.SliderCaptchaService;
+import com.neko.music.util.ClientIpResolver;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,6 +14,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -55,8 +59,14 @@ public class SliderCaptchaVerifyHandler extends ApiServlet {
                 return;
             }
             int offsetX = root.get("captchaOffsetX").asInt();
+            List<SliderCaptchaService.DragSample> trace = parseTrace(root.get("dragTrace"));
 
-            Optional<String> pass = Main.getSliderCaptchaService().verifySlideAndIssuePass(token, offsetX);
+            Optional<String> pass = Main.getSliderCaptchaService().verifySlideAndIssuePass(
+                    token,
+                    offsetX,
+                    trace,
+                    ClientIpResolver.clientIp(request),
+                    request.getHeader("User-Agent"));
             if (pass.isEmpty()) {
                 sendJson(response, false, "拼图位置不正确或已失效，请换一张重试喵", null);
                 return;
@@ -66,6 +76,27 @@ public class SliderCaptchaVerifyHandler extends ApiServlet {
             logger.error("滑块校验接口异常", e);
             sendJson(response, false, "服务器内部错误喵", null);
         }
+    }
+
+    private static List<SliderCaptchaService.DragSample> parseTrace(JsonNode traceNode) {
+        if (traceNode == null || !traceNode.isArray()) {
+            return List.of();
+        }
+        List<SliderCaptchaService.DragSample> trace = new ArrayList<>();
+        for (JsonNode sample : traceNode) {
+            if (trace.size() >= 160) {
+                return List.of();
+            }
+            if (sample == null || !sample.isObject()
+                    || !sample.has("t") || !sample.has("x")
+                    || !sample.get("t").canConvertToLong()
+                    || !sample.get("x").canConvertToInt()) {
+                return List.of();
+            }
+            trace.add(new SliderCaptchaService.DragSample(
+                    sample.get("t").asLong(), sample.get("x").asInt()));
+        }
+        return trace;
     }
 
 }

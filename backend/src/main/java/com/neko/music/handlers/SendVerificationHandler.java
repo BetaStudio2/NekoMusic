@@ -90,7 +90,10 @@ public class SendVerificationHandler extends ApiServlet {
                 sendResponse(response, false, "请先完成安全验证（滑动拼图）", null);
                 return;
             }
-            if (!Main.getSliderCaptchaService().consumePassToken(captchaPassToken)) {
+            if (!Main.getSliderCaptchaService().consumePassToken(
+                    captchaPassToken,
+                    ClientIpResolver.clientIp(request),
+                    request.getHeader("User-Agent"))) {
                 sendResponse(response, false, "安全验证已失效或已使用，请重新滑动验证", null);
                 return;
             }
