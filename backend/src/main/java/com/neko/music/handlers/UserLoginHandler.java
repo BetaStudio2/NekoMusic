@@ -3,6 +3,7 @@ package com.neko.music.handlers;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
 import com.neko.music.model.User;
+import com.neko.music.service.AuthAbuseLimiter;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.service.UserLoginThrottleService;
 import com.neko.music.util.ClientIpResolver;
@@ -73,6 +74,10 @@ public class UserLoginHandler extends ApiServlet {
             // 验证密码长度
             if (password.length() < 6 || password.length() > 30) {
                 sendResponse(response, false, "密码长度不正确", null);
+                return;
+            }
+
+            if (enforceAuthAbuseLimit(request, response, AuthAbuseLimiter.Scope.LOGIN)) {
                 return;
             }
 

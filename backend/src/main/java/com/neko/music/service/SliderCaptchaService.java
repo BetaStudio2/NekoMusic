@@ -70,11 +70,7 @@ public class SliderCaptchaService {
 
         BufferedImage slider = extractPuzzlePiece(bg, puzzleShapeWorld, secretX, puzzleY);
 
-        g.setColor(new Color(0, 0, 0, 115));
-        g.fill(puzzleShapeWorld);
-        g.setColor(new Color(255, 255, 255, 230));
-        g.setStroke(new BasicStroke(2f));
-        g.draw(puzzleShapeWorld);
+        drawCutout(g, puzzleShapeWorld);
         g.dispose();
 
         String token = UUID.randomUUID().toString().replace("-", "");
@@ -146,6 +142,54 @@ public class SliderCaptchaService {
                 pit.remove();
             }
         }
+    }
+
+    /**
+     * 渲染缺口。
+     *
+     * <p>不再使用固定的 {@code (0,0,0,115)} 纯色填充 + 固定亮白描边：那组常量让「缺口 = 图像里
+     * 最暗的等宽矩形」成为稳定、可编程的判读信号，脚本一次阈值即可定位。这里每张图随机化填充
+     * 灰度 / 透明度、在缺口内叠加噪点、并改用随机色低对比描边，使「拿列均值找深谷」这类朴素
+     * 图像分析不再稳定命中；对正常用户而言仍然是一块带亮边的深色取景框，观感不变。</p>
+     *
+     * <p>需要说明的是：缺口对用户必须可见，因此它**依然可被更强的图像分析定位**——这里的目的是
+     * 抬高自动化成本，而不是把它变成人机边界；真正的门槛在发码与滑块的来源限流。</p>
+     */
+    private void drawCutout(Graphics2D g, RoundRectangle2D shape) {
+        // 外层柔化：先在缺口外沿铺一圈更大、透明度随机的暗色，削弱「边缘是一刀切亮度跳变」的特征
+        g.setColor(new Color(0, 0, 0, 30 + random.nextInt(35)));
+        g.fill(new RoundRectangle2D.Double(
+                shape.getX() - 2, shape.getY() - 2,
+                shape.getWidth() + 4, shape.getHeight() + 4,
+                PUZZLE_ARC + 2, PUZZLE_ARC + 2));
+
+        // 主体：随机灰度的暗色 + 随机透明度，替代固定的黑色 115
+        int base = random.nextInt(70);
+        g.setColor(new Color(base, base, Math.min(255, base + random.nextInt(45)),
+                95 + random.nextInt(70)));
+        g.fill(shape);
+
+        // 缺口内噪点：让该区间的「列均值」不再是一段平坦深谷，朴素阈值判读会抖动
+        int noiseCount = 160 + random.nextInt(160);
+        for (int i = 0; i < noiseCount; i++) {
+            int nx = (int) shape.getX() + random.nextInt((int) shape.getWidth());
+            int ny = (int) shape.getY() + random.nextInt((int) shape.getHeight());
+            if (!shape.contains(nx, ny)) {
+                continue; // 圆角外不落点，避免噪点溢出到背景
+            }
+            int tone = random.nextInt(255);
+            g.setColor(new Color(tone, tone, tone, 40 + random.nextInt(70)));
+            g.fillOval(nx, ny, 1 + random.nextInt(2), 1 + random.nextInt(2));
+        }
+
+        // 描边：随机色、低对比，替代固定 (255,255,255,230)
+        g.setColor(new Color(
+                170 + random.nextInt(86),
+                170 + random.nextInt(86),
+                170 + random.nextInt(86),
+                120 + random.nextInt(90)));
+        g.setStroke(new BasicStroke(1.2f + random.nextFloat() * 1.2f));
+        g.draw(shape);
     }
 
     private static void drawNoiseBackground(Graphics2D g, int w, int h, Random rnd) {

@@ -1,10 +1,12 @@
 package com.neko.music.handlers;
 
+import com.neko.music.service.AuthAbuseLimiter;
 import com.neko.music.service.UserAuthService;
 import jakarta.servlet.ReadListener;
 import jakarta.servlet.ServletInputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.BufferedReader;
@@ -33,6 +35,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SendResetPasswordCodeHandlerTest {
 
     private static final String CLIENT_IP = "203.0.113.7";
+
+    @BeforeEach
+    void resetAbuseLimiter() {
+        // AuthAbuseLimiter 是进程内共享状态：本测试会多次调用发码接口，先清空避免用例相互影响
+        AuthAbuseLimiter.reset();
+    }
 
     /** 只覆盖与账号存在性 / 发信 / 限流相关的方法，其余不会被调用。 */
     private static final class StubAuthService extends UserAuthService {

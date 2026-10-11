@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
+import com.neko.music.service.AuthAbuseLimiter;
+import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.HttpResourceCache;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,6 +16,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * JSON API 处理器基类。
@@ -165,6 +168,23 @@ public abstract class ApiServlet extends HttpServlet {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("retryAfterSec", sec);
         sendResponse(resp, false, "发送过于频繁，请 " + sec + " 秒后再试", data);
+    }
+
+    /**
+     * 认证 / 验证码类接口的来源 IP 请求限流。
+     *
+     * <p>与账号无关：脚本用不同账号 / 邮箱平铺请求时，失败计数不会触发，只有请求速率闸门能兜住。
+     * 被限时写出 {@code 429} + {@code Retry-After}（含 {@code retryAfterSec}），并返回 {@code true}
+     * 让调用方直接返回。</p>
+     */
+    protected boolean enforceAuthAbuseLimit(HttpServletRequest req, HttpServletResponse resp,
+                                            AuthAbuseLimiter.Scope scope) throws IOException {
+        Optional<Long> wait = AuthAbuseLimiter.tryAcquire(scope, ClientIpResolver.clientIp(req));
+        if (wait.isEmpty()) {
+            return false;
+        }
+        sendCooldownResponse(resp, wait.get());
+        return true;
     }
 
     /** 兼容旧接口的 {@code {"error":"..."}} 错误体，带状态码。 */

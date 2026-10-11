@@ -672,7 +672,7 @@ async function scheduleSlideVerify() {
     captchaPassToken.value = ''
     slideState.value = 'fail'
     shakeActive.value = true
-    toast.error('校验请求失败，请重试')
+    toast.error(err.response?.data?.message || '校验请求失败，请重试')
     setTimeout(() => {
       shakeActive.value = false
     }, 480)
@@ -776,7 +776,8 @@ async function loadSliderCaptcha() {
     }
   } catch (err) {
     console.error(err)
-    captchaError.value = '网络错误，无法加载安全验证'
+    // 被来源限流时服务端会带 429 + 说明，直接透出比笼统的「网络错误」更有用
+    captchaError.value = err.response?.data?.message || '网络错误，无法加载安全验证'
   } finally {
     captchaLoading.value = false
   }

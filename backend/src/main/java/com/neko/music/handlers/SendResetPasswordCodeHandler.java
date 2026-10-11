@@ -2,6 +2,7 @@ package com.neko.music.handlers;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
+import com.neko.music.service.AuthAbuseLimiter;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.util.ClientIpResolver;
 import org.slf4j.Logger;
@@ -69,6 +70,10 @@ public class SendResetPasswordCodeHandler extends ApiServlet {
             // 验证邮箱格式
             if (!isValidEmail(email)) {
                 sendResponse(response, false, "邮箱格式不正确", null);
+                return;
+            }
+
+            if (enforceAuthAbuseLimit(request, response, AuthAbuseLimiter.Scope.SEND_CODE)) {
                 return;
             }
 

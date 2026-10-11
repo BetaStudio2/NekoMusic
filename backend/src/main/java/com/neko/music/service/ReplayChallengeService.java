@@ -35,14 +35,20 @@ public final class ReplayChallengeService {
     /** 解题算法标识：对 {@code seed + ":" + counter} 求 SHA-256，要求前导零比特数 ≥ difficulty。 */
     public static final String ALGORITHM = "sha256-leading-zero-bits";
 
-    /** 基准批量（读 + 写 = {@link #BASE_TOTAL}）对应的难度；每翻一倍批量加 1 比特（计算量翻倍）。 */
-    static final int BASE_DIFFICULTY_BITS = 16;
+    /**
+     * 基准批量（读 + 写 = {@link #BASE_TOTAL}）对应的难度；每翻一倍批量加 1 比特（计算量翻倍）。
+     *
+     * <p>取值权衡：这是**抬高自动化成本**而不是设一道墙——难度每加 1 比特只让求解耗时翻倍，
+     * 脚本终究能解出来；真正的门槛是签发限额与各入口的速率限制。因此取「脚本明显变贵、正常
+     * 浏览器仍在一秒内可解」的档位（客户端为单块 SHA-256 无分配实现，可读响应里的 difficulty 自适应）。</p>
+     */
+    static final int BASE_DIFFICULTY_BITS = 20;
 
     /** 基准批量总数。 */
     static final int BASE_TOTAL = 32;
 
     /** 难度上限：避免批量拉满时把正常客户端卡死。 */
-    static final int MAX_DIFFICULTY_BITS = 20;
+    static final int MAX_DIFFICULTY_BITS = 26;
 
     /** 进程内最多暂存的挑战数；超过则先清理过期项，仍然超限就拒绝签发。 */
     private static final int MAX_PENDING = 200_000;

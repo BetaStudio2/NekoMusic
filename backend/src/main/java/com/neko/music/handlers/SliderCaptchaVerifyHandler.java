@@ -2,6 +2,7 @@ package com.neko.music.handlers;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
+import com.neko.music.service.AuthAbuseLimiter;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -24,6 +25,10 @@ public class SliderCaptchaVerifyHandler extends ApiServlet {
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        if (enforceAuthAbuseLimit(request, response, AuthAbuseLimiter.Scope.CAPTCHA)) {
+            return;
+        }
+
         response.setContentType("application/json;charset=UTF-8");
 
         StringBuilder body = new StringBuilder();
