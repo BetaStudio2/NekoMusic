@@ -75,6 +75,34 @@ class ClientIpResolverTest {
     }
 
     @Test
+    @DisplayName("auto：多个内置 CDN 头取值不同时，按跳链取证，不采信被注入的假头")
+    void autoRefusesInjectedCdnHeaderWhenAnotherCdnHeaderDisagrees() {
+        // 实测攻击手法：边缘写 Ali-CDN-Real-IP，攻击者另加一个 CF-Connecting-IP 来拆限流桶。
+        // 跳链（CDN 追加的真实客户端）能佐证 Ali-CDN-Real-IP，因此必须采信它而不是清单里更靠前的假头。
+        Function<String, String> h = headers(
+                "CF-Connecting-IP", "9.9.9.9",
+                "Ali-CDN-Real-IP", "203.0.113.9",
+                "X-Forwarded-For", "203.0.113.9",
+                "X-Real-IP", "100.64.0.1");
+
+        assertEquals("203.0.113.9", ClientIpResolver.resolve("127.0.0.1", "auto", h));
+
+        // Nginx 启用 real_ip 模块时 X-Real-IP 本身就是真实客户端，同样能取证
+        Function<String, String> realIpWitness = headers(
+                "CF-Connecting-IP", "9.9.9.9",
+                "Ali-CDN-Real-IP", "203.0.113.9",
+                "X-Real-IP", "203.0.113.9");
+        assertEquals("203.0.113.9", ClientIpResolver.resolve("127.0.0.1", "auto", realIpWitness));
+
+        // 只有假头、或取证不成立时也绝不采信候选里任意一个客户端可控取值
+        Function<String, String> noWitness = headers(
+                "CF-Connecting-IP", "9.9.9.9",
+                "True-Client-IP", "8.8.8.8",
+                "Ali-CDN-Real-IP", "7.7.7.7");
+        assertEquals("127.0.0.1", ClientIpResolver.resolve("127.0.0.1", "auto", noWitness));
+    }
+
+    @Test
     @DisplayName("auto：CDN 在客户端伪造的链尾追加真实 IP 时取右起第一格")
     void autoTakesRightmostRemainingAfterOwnHop() {
         Function<String, String> h = headers(

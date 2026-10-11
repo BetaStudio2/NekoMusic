@@ -37,6 +37,18 @@ import java.util.function.Function;
  * <p><b>取舍：</b>{@code auto} 为了兼容各家 CDN，必须信任转发头，因此当源站可以被公网直连时，
  * 伪造头仍然能改变归属地与限流分桶。默认部署里后端只监听 127.0.0.1、由本机 Nginx 回源，
  * 这条路径不成立；若把后端端口直接暴露到公网，请改回 {@code direct} 或写成具体的头名。</p>
+ *
+ * <p><b>内置 CDN 头的「多个候选」处理：</b>一个 CDN 只会写它自己的那个头，所以同一请求里出现多个
+ * 取值不同的内置 CDN 头，就说明至少有一个是客户端塞进去的假头（例如边缘写 {@code Ali-CDN-Real-IP}，
+ * 攻击者再加一个 {@code CF-Connecting-IP} 来把限流桶拆开）。这种情形下不再「按清单顺序取第一个」，
+ * 而是用本机反代写入的 {@code X-Real-IP} / {@code X-Forwarded-For} 跳链取证：只有能被它们佐证的候选
+ * 才被采信，取证不成立时退回 {@code X-Real-IP}（或对端）——最坏也只是把请求归进一个共享桶，
+ * 不会让攻击者拿到任意数量的桶。</p>
+ *
+ * <p><b>注意：</b>{@code auto} 与 {@code network.extra_client_ip_headers} 都建立在「该头由边缘覆写、
+ * 客户端改不动」的前提上。若某个头不由 CDN / 本机反代覆写，则不论它在清单里还是被登记，
+ * 都同样是客户端可伪造的；此类部署应改为在反代层写明真实客户端 IP，并把
+ * {@code network.trusted_client_ip_header} 配成那一个具体头名（或 {@code direct}）。</p>
  */
 public final class ClientIpResolver {
 
@@ -124,11 +136,33 @@ public final class ClientIpResolver {
                 }
             }
         }
+        // 内置 CDN 头：一个 CDN 只会写自己那一个头，因此「出现多个不同取值」就说明其中至少有一个是
+        // 客户端注入的（典型：边缘写 Ali-CDN-Real-IP，攻击者再加一个 CF-Connecting-IP）。此时绝不能
+        // 「取第一个」——那正是可被伪造头拆限流桶的入口，必须用不可伪造的代理跳链来取证。
+        List<String> cdnCandidates = new ArrayList<>();
         for (String name : AUTO_CDN_HEADERS) {
             String ip = singleEntry(headers.apply(name));
-            if (!ip.isEmpty()) {
-                return ip;
+            if (!ip.isEmpty() && !cdnCandidates.contains(ip)) {
+                cdnCandidates.add(ip);
             }
+        }
+        if (cdnCandidates.size() == 1) {
+            return cdnCandidates.get(0);
+        }
+        if (cdnCandidates.size() > 1) {
+            // X-Real-IP 由本机反代写入、XFF 链尾之前那一格由边缘写入，两者都不是客户端能摆布的。
+            String real = singleEntry(headers.apply(X_REAL_IP));
+            String chain = chainEntry(headers.apply(XFF), headers.apply(X_REAL_IP));
+            for (String candidate : cdnCandidates) {
+                if (candidate.equals(real) || candidate.equals(chain)) {
+                    return candidate;
+                }
+            }
+            // 取证不成立：宁可退到不可伪造的取值（可能只是共享桶），也不采信可能是假的 CDN 头。
+            if (!real.isEmpty()) {
+                return real;
+            }
+            return chain.isEmpty() ? peer : chain;
         }
         // Nginx 的 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for 会把回源地址追加到链尾，
         // 所以先摘掉与 X-Real-IP 相同的那一格，剩下的最右一格才是 CDN 写入的真实客户端。
