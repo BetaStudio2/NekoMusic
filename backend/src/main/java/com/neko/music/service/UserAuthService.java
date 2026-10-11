@@ -236,6 +236,19 @@ public class UserAuthService {
         return verificationCodeRateLimitService.tryAcquireSendSlot(email);
     }
 
+    /**
+     * 注册发码的来源 IP 限流：只占 IP 维度一个槽位。
+     *
+     * <p>邮箱级冷却（{@link #sendVerificationCode}）只拦「同邮箱重复发码」，挡不住换收件人批量发码；
+     * 因此发码入口还必须按来源 IP 封顶。邮箱槽位仍由发信逻辑内部占用，此处不重复占用，否则会把
+     * 同一次发信的邮箱冷却误判成超限。</p>
+     *
+     * @return empty 表示放行；非 empty 为需等待的秒数
+     */
+    public Optional<Long> acquireVerificationIpSlot(String clientIp) {
+        return verificationCodeRateLimitService.tryAcquireIpSlot(clientIp);
+    }
+
     /** 生成验证码 → 发信 → 落 Redis；冷却槽位由调用方（同步 / 异步两条路径）负责。 */
     private SendVerificationCodeResult deliverVerificationCode(String email, String nickname, String purpose) {
         logger.info("发送验证码至: {}", email);
@@ -280,10 +293,14 @@ public class UserAuthService {
     }
 
     /**
-     * 验证注册验证码。
+     * 验证注册验证码，并对同一邮箱短时间内的错误尝试次数封顶。
+     *
+     * <p>注册验证码是 6 位纯数字、有效期 5 分钟，若不做尝试次数限制，配合「无限速发码」可被穷举
+     * （10^6 量级）。这里复用与密码重置一致的 {@link #VERIFICATION_CODE_MAX_ATTEMPTS} 策略：
+     * 同一邮箱累计错误到上限即删除验证码，须重新发码才能继续。</p>
      */
     public boolean verifyCode(String email, String code) {
-        return verifyCode(email, code, VERIFICATION_PURPOSE_REGISTER, false);
+        return verifyCode(email, code, VERIFICATION_PURPOSE_REGISTER, true);
     }
 
     /**

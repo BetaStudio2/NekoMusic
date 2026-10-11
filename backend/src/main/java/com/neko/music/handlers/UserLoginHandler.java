@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
 import com.neko.music.model.User;
 import com.neko.music.service.UserAuthService;
+import com.neko.music.service.UserLoginThrottleService;
+import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.VipUtil;
 import jakarta.servlet.annotation.WebServlet;
 import org.slf4j.Logger;
@@ -22,10 +24,12 @@ import java.util.Optional;
 public class UserLoginHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserLoginHandler.class);
     private UserAuthService userAuthService;
+    private UserLoginThrottleService throttleService;
 
     @Override
     public void init() throws ServletException {
         userAuthService = Main.getUserAuthService();
+        throttleService = Main.getUserLoginThrottleService();
     }
 
     @Override
@@ -72,12 +76,35 @@ public class UserLoginHandler extends ApiServlet {
                 return;
             }
 
+            String emailKey = email.trim();
+            String clientIp = ClientIpResolver.clientIp(request);
+
+            // 失败限流必须早于口令校验：同一账号与来源 IP 的尝试各自原子计数，超阈值直接拒绝，
+            // 避免「先校验、失败后再计数」在并发突发下被穿越的竞态（CWE-362）；被锁定后对
+            // 「存在的邮箱」与「不存在的邮箱」返回完全一致，因此 429 不构成账号枚举信号。
+            if (throttleService != null) {
+                Optional<Long> locked = throttleService.beginAttempt(emailKey, clientIp);
+                if (locked.isPresent()) {
+                    long retryAfterSec = locked.get();
+                    logger.warn("用户登录已被限流: email={} ip={}", emailKey, clientIp);
+                    response.setHeader("Retry-After", String.valueOf(retryAfterSec));
+                    response.setStatus(429);
+                    sendResponse(response, false,
+                            "登录失败次数过多，请 " + retryAfterSec + " 秒后再试", null);
+                    return;
+                }
+            }
+
             // 用户认证
-            Optional<User> userOpt = userAuthService.authenticate(email.trim(), password);
+            Optional<User> userOpt = userAuthService.authenticate(emailKey, password);
 
             if (userOpt.isPresent()) {
                 User user = userOpt.get();
                 logger.info("用户登录成功: {}", user.email());
+
+                if (throttleService != null) {
+                    throttleService.recordSuccess(emailKey, clientIp);
+                }
 
                 // 生成 token 并写入 Redis
                 String token = userAuthService.createTokenForUser(user.id());

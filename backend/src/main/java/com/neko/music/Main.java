@@ -73,6 +73,7 @@ public class Main {
     private static AdminDatabaseManager adminDatabaseManager;
     private static AdminAuthService adminAuthService;
     private static AdminLoginThrottleService adminLoginThrottleService;
+    private static UserLoginThrottleService userLoginThrottleService;
     private static UserAuthService userAuthService;
     private static QrLoginService qrLoginService;
     private static EmailService emailService;
@@ -179,6 +180,8 @@ public class Main {
         adminAuthService = new AdminAuthService(adminDatabaseManager, tokenStore);
         adminLoginThrottleService =
                 new AdminLoginThrottleService(new AdminLoginThrottleService.RedisStore(redisService));
+        userLoginThrottleService =
+                new UserLoginThrottleService(new UserLoginThrottleService.RedisStore(redisService));
         
         // 初始化邮件服务
         emailService = new EmailService(configManager);
@@ -381,6 +384,10 @@ public class Main {
 
     public static AdminLoginThrottleService getAdminLoginThrottleService() {
         return adminLoginThrottleService;
+    }
+
+    public static UserLoginThrottleService getUserLoginThrottleService() {
+        return userLoginThrottleService;
     }
     
     public static UserAuthService getUserAuthService() {

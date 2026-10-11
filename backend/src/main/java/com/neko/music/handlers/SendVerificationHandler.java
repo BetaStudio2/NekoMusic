@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
 import com.neko.music.service.SendVerificationCodeResult;
 import com.neko.music.service.UserAuthService;
+import com.neko.music.util.ClientIpResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,6 +14,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.util.Optional;
 
 @WebServlet("/api/user/send-verification")
 public class SendVerificationHandler extends ApiServlet {
@@ -66,6 +68,16 @@ public class SendVerificationHandler extends ApiServlet {
             // 验证邮箱格式
             if (!isValidEmail(email)) {
                 sendResponse(response, false, "邮箱格式不正确", null);
+                return;
+            }
+
+            // 来源 IP 发码限流先于一次性通行令牌的消费：被限流时不应白白烧掉用户已经解好的
+            // captchaPassToken。单靠滑块 + 同邮箱冷却挡不住「换收件人批量发码」，必须叠加 IP 维度封顶。
+            Optional<Long> ipLimited = userAuthService.acquireVerificationIpSlot(
+                    ClientIpResolver.clientIp(request));
+            if (ipLimited.isPresent()) {
+                logger.warn("注册发码超过来源 IP 上限: {}", email);
+                sendCooldownResponse(response, ipLimited.get());
                 return;
             }
 
