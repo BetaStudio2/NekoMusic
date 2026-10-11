@@ -12,6 +12,8 @@ import org.slf4j.LoggerFactory;
 import java.security.SecureRandom;
 import java.sql.*;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class UserAuthService {
     private static final Logger logger = LoggerFactory.getLogger(UserAuthService.class);
@@ -23,6 +25,16 @@ public class UserAuthService {
     private final VerificationCodeRateLimitService verificationCodeRateLimitService;
     private final Argon2 argon2 = Argon2Factory.create();
     private static final SecureRandom secureRandom = new SecureRandom();
+
+    /**
+     * 验证码异步发信线程：密码重置必须让「已注册 / 未注册」的响应耗时不可区分，
+     * 因此发信放到后台线程，调用方立即返回统一响应。单线程足够——真正的串行瓶颈在 SMTP。
+     */
+    private static final ExecutorService ASYNC_CODE_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "verification-code-async");
+        thread.setDaemon(true);
+        return thread;
+    });
     
     private static final String VERIFICATION_CODE_PREFIX = "verification_code:";
     private static final String VERIFICATION_CODE_ATTEMPT_PREFIX = "verification_code_attempts:";
@@ -185,12 +197,48 @@ public class UserAuthService {
     }
 
     private SendVerificationCodeResult sendVerificationCode(String email, String nickname, String purpose) {
-        logger.info("发送验证码至: {}", email);
-
         var cooldown = verificationCodeRateLimitService.tryAcquireSendSlot(email);
         if (cooldown.isPresent()) {
             return SendVerificationCodeResult.cooldown(cooldown.get());
         }
+        return deliverVerificationCode(email, nickname, purpose);
+    }
+
+    /**
+     * 重置密码验证码：统一限流通过后**异步**发信，调用方立即返回。
+     *
+     * <p>为什么异步：密码重置接口必须对「邮箱是否注册」给出完全一致的响应。同步发信时，已注册
+     * 邮箱要多走一次 SMTP（可达数百毫秒到数秒），未注册邮箱只查一次库，响应时间差本身就是
+     * 账号存在性信号。放到后台线程后两条分支的耗时都只剩「一次查询」，失败只记日志
+     * （对外文案本就统一）。</p>
+     */
+    public void sendResetPasswordCodeAsync(String email, String nickname) {
+        ASYNC_CODE_EXECUTOR.execute(() -> {
+            try {
+                deliverVerificationCode(email, nickname, VERIFICATION_PURPOSE_PASSWORD_RESET);
+            } catch (RuntimeException e) {
+                logger.error("异步发送重置密码验证码失败: {}", email, e);
+            }
+        });
+    }
+
+    /**
+     * 重置密码发码的统一限流：来源 IP 与邮箱各占一个槽位，两者都必须在「邮箱是否注册」之前完成，
+     * 否则 {@code 429} 会变成账号存在性信号。
+     *
+     * @return empty 表示放行；非 empty 为需等待的秒数
+     */
+    public Optional<Long> acquireResetCodeSlot(String email, String clientIp) {
+        Optional<Long> byIp = verificationCodeRateLimitService.tryAcquireIpSlot(clientIp);
+        if (byIp.isPresent()) {
+            return byIp;
+        }
+        return verificationCodeRateLimitService.tryAcquireSendSlot(email);
+    }
+
+    /** 生成验证码 → 发信 → 落 Redis；冷却槽位由调用方（同步 / 异步两条路径）负责。 */
+    private SendVerificationCodeResult deliverVerificationCode(String email, String nickname, String purpose) {
+        logger.info("发送验证码至: {}", email);
 
         String verificationCode = emailService.generateVerificationCode();
 
