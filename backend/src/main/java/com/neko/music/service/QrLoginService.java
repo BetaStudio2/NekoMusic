@@ -13,7 +13,8 @@ import java.util.Optional;
  *
  * <p>生命周期：{@code pending}（PC 刚生成二维码）→ {@code scanned}（手机已扫码，等待用户确认）
  * → {@code confirmed}（手机已确认，token 待 PC 取走）；手机拒绝或 PC 取消则进入 {@code canceled}。
- * token 只在 confirmed 时由 PC 取走一次，取走即删除整个会话。</p>
+ * token 只在 confirmed 时由 PC 取走一次：先原子领取投递权（{@link #claimDelivery}），成功者才删除整个
+ * 会话并下发 token，其余并发读者一律收到 {@code expired}。</p>
  */
 public class QrLoginService {
 
@@ -30,6 +31,14 @@ public class QrLoginService {
     private static final Logger logger = LoggerFactory.getLogger(QrLoginService.class);
 
     private static final String KEY_PREFIX = "qr_login:";
+    /** 一次性投递权的键前缀（与会话同 TTL）。 */
+    private static final String CLAIM_PREFIX = "qr_login_claimed:";
+
+    /**
+     * 原子领取投递权：{@code SET NX}，同一 sessionId 的并发读者里只有第一个返回成功。
+     */
+    private static final String CLAIM_SCRIPT =
+            "if redis.call('SET', KEYS[1], '1', 'NX', 'EX', tonumber(ARGV[1])) then return 1 else return 0 end";
     private static final int SESSION_TTL_SECONDS = 180;
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -100,6 +109,34 @@ public class QrLoginService {
             return true;
         } catch (Exception e) {
             logger.error("写入扫码登录会话失败: {}", e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * 领取一次性投递权：同一 sessionId 的并发读者里只有第一个返回 {@code true}。
+     *
+     * <p>为什么需要它：{@link #load} 与 {@link #remove} 是两次独立的 Redis 调用，两者之间多个并发 SSE
+     * 读者都会读到 {@code confirmed} 快照，于是各自把**同一个** token 下发给各自的连接——「token 只能被
+     * 取走一次」的承诺在并发下失效（CWE-362）。把「谁有权投递」收敛成一次原子 {@code SET NX} 之后，
+     * 无论有多少读者同时在线，token 都只会被投递一次。</p>
+     *
+     * <p>领取成功后**不要删除这个键**：领到投递权的读者在删除会话、下发 token 期间，其它读者手里可能
+     * 还握着删除前读到的 confirmed 快照，键一旦被删它们就能重新领到投递权、把同一个 token 再发一次。
+     * 让它与会话一起自然过期即可（sessionId 随机且一次性）。</p>
+     */
+    public boolean claimDelivery(String sessionId) {
+        if (!isValidSessionId(sessionId)) {
+            return false;
+        }
+        try {
+            Object result = redisService.eval(CLAIM_SCRIPT,
+                    new String[]{CLAIM_PREFIX + sessionId},
+                    new String[]{String.valueOf(SESSION_TTL_SECONDS)});
+            return result instanceof Number number && number.longValue() == 1L;
+        } catch (Exception e) {
+            // 领不到投递权就不投递：Redis 真有问题时 load() 同样会失败，会话本就走不到 confirmed
+            logger.warn("扫码登录投递权领取失败: {}", e.getMessage());
             return false;
         }
     }

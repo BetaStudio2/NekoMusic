@@ -168,7 +168,13 @@ public class UserQrLoginHandler extends ApiServlet {
                 QrLoginService.Session session = sessionOpt.get();
                 if (!session.status.equals(lastStatus)) {
                     if (QrLoginService.STATUS_CONFIRMED.equals(session.status)) {
-                        // token 只能被取走一次，取走后会话整体失效
+                        // token 只能被投递一次：先用一次性的原子投递权定下唯一的投递者，再删会话。
+                        // load() 与 remove() 若拆成两步，多个并发读者会各自读到同一份 confirmed 快照、
+                        // 各自把同一个 token 下发出去（实测 8 个匿名读者里有 2 个拿到同一 token）。
+                        if (!qrLoginService.claimDelivery(sessionId)) {
+                            writeStatusEvent(writer, statusData(QrLoginService.STATUS_EXPIRED));
+                            break;
+                        }
                         qrLoginService.remove(sessionId);
                         writeStatusEvent(writer, confirmedData(session));
                         break;
