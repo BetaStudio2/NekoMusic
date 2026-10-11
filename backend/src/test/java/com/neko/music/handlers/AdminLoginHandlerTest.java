@@ -184,7 +184,7 @@ class AdminLoginHandlerTest {
         assertEquals(unknownLocked.retryAfter(), knownLocked.retryAfter());
 
         // 只锁了这两个用户名，来源维度（10 次 < 阈值）与其它用户名都没被牵连
-        assertTrue(throttle.lockRemaining("admin_backup", CLIENT_IP).isEmpty());
+        assertTrue(throttle.beginAttempt("admin_backup", CLIENT_IP).isEmpty());
     }
 
     /** 用指定用户名连续失败到阈值，再返回「已锁定」那一次的结果。 */
@@ -193,6 +193,30 @@ class AdminLoginHandlerTest {
             login(credentials(username), "POST");
         }
         return login(credentials(username), "POST");
+    }
+
+    @Test
+    void caseVariantsShareTheSameLockoutBucket() throws Exception {
+        // 账号查找大小写不敏感（admin / Admin / ADMIN 是同一个账号），锁定桶必须一致：
+        // 否则攻击者用大小写变体各开一个空桶，就能把 10 次的阈值放大成 10 × 变体数
+        Outcome locked = lockOutWith("admin");
+        assertEquals(429, locked.status());
+
+        for (String variant : new String[]{"Admin", "ADMIN", "aDmIn"}) {
+            Outcome outcome = login(credentials(variant), "POST");
+            assertEquals(429, outcome.status(), "大小写变体必须共享同一锁定桶: " + variant);
+            assertEquals(locked.body(), outcome.body(), "锁定响应应完全一致: " + variant);
+            assertEquals(locked.retryAfter(), outcome.retryAfter());
+        }
+    }
+
+    @Test
+    void successfulAttemptDoesNotConsumeFailureBudget() throws Exception {
+        // 成功登录会退回本次尝试占用的配额：正常管理员反复登录不会把自己锁死
+        for (int i = 0; i < AdminLoginThrottleService.MAX_FAILURES_PER_SOURCE + 1; i++) {
+            assertEquals(200, login(credentials(KNOWN_USER, CORRECT_PASSWORD), "POST").status());
+        }
+        assertEquals(200, login(credentials(KNOWN_USER, CORRECT_PASSWORD), "POST").status());
     }
 
     @Test

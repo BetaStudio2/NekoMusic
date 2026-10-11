@@ -69,9 +69,11 @@ public class AdminLoginHandler extends ApiServlet {
             String name = username.trim();
             String clientIp = ClientIpResolver.clientIp(request);
 
-            // 限流检查必须早于口令校验：被锁定时对「存在的用户名」与「不存在的用户名」返回完全一致
+            // 原子计数必须早于口令校验：并发突发时每个请求拿到互不相同的计数，超过阈值的请求
+            // 直接在这里被拒，不会出现「都读到未超限 → 全部放行」的竞态；被锁定后对「存在的用户名」
+            // 与「不存在的用户名」返回完全一致。
             if (throttleService != null) {
-                Optional<Long> locked = throttleService.lockRemaining(name, clientIp);
+                Optional<Long> locked = throttleService.beginAttempt(name, clientIp);
                 if (locked.isPresent()) {
                     logger.warn("管理端登录已被限流: username={} ip={}", name, clientIp);
                     long retryAfterSec = locked.get();
@@ -92,7 +94,7 @@ public class AdminLoginHandler extends ApiServlet {
                 Admin admin = adminOpt.get();
 
                 if (throttleService != null) {
-                    throttleService.clearFailures(name);
+                    throttleService.recordSuccess(name, clientIp);
                 }
 
                 // 创建会话令牌
@@ -121,10 +123,7 @@ public class AdminLoginHandler extends ApiServlet {
                 out.print(Main.getObjectMapper().writeValueAsString(successResponse));
                 out.flush();
             } else {
-                // 失败计数与账号是否存在无关：不存在的用户名同样累计，因此 429 不是枚举信号
-                if (throttleService != null) {
-                    throttleService.recordFailure(name, clientIp);
-                }
+                // 本次失败已在 beginAttempt 里计过数（与账号是否存在无关，因此 429 不是枚举信号）
                 sendErrorResponse(response, 401, "用户名或密码错误");
             }
         } catch (Exception e) {

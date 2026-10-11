@@ -3,13 +3,19 @@ package com.neko.music.service;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 管理端登录失败限流测试：两个维度（用户名 / 来源 IP）都要能锁定，且锁定只取决于请求次数、
  * 与账号是否存在无关——否则 429 会反过来变成账号枚举信号。
+ *
+ * <p>另外锁住两个容易被写坏的细节：并发突发不能突破阈值（检查与自增必须是同一次原子操作），
+ * 以及大小写变体必须共享同一个桶（认证本身是大小写不敏感的）。</p>
  */
 class AdminLoginThrottleServiceTest {
 
@@ -27,83 +33,130 @@ class AdminLoginThrottleServiceTest {
         throttle = new AdminLoginThrottleService(store);
     }
 
-    private void fail(String username, String ip, int times) {
+    /** 连续尝试 {@code times} 次，返回其中被放行（未超阈值）的次数。 */
+    private long allowed(String username, String ip, int times) {
+        long allowed = 0;
         for (int i = 0; i < times; i++) {
-            throttle.recordFailure(username, ip);
+            if (throttle.beginAttempt(username, ip).isEmpty()) {
+                allowed++;
+            }
         }
+        return allowed;
     }
 
     @Test
-    void failuresBelowThresholdDoNotLock() {
-        fail(USER, IP, AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME - 1);
-        assertTrue(throttle.lockRemaining(USER, IP).isEmpty());
+    void attemptsBelowThresholdAreAllowed() {
+        assertEquals(AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME - 1L,
+                allowed(USER, IP, AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME - 1));
     }
 
     @Test
-    void usernameThresholdLocksThatUsernameOnly() {
-        fail(USER, IP, AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME);
+    void exceedingUsernameThresholdRejectsThatUsernameOnly() {
+        assertEquals(AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME, allowed(
+                USER, IP, AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME + 1),
+                "第 11 次起应被拒");
 
-        long remaining = throttle.lockRemaining(USER, OTHER_IP).orElse(0L);
-        assertTrue(remaining > 0, "达到阈值的用户名应被锁定");
+        long remaining = throttle.beginAttempt(USER, OTHER_IP).orElse(0L);
+        assertTrue(remaining > 0, "达到阈值的用户名应被锁定，换 IP 无效");
         assertTrue(remaining <= AdminLoginThrottleService.LOCK_SECONDS);
 
-        assertTrue(throttle.lockRemaining(OTHER_USER, IP).isEmpty(),
+        assertTrue(throttle.beginAttempt(OTHER_USER, IP).isEmpty(),
                 "用户名维度被锁不应牵连其它用户名");
     }
 
     @Test
-    void unknownUsernamesAreCountedAndLockedIdentically() {
-        // 不存在的用户名同样累计并触发锁定：锁定只看请求次数，不暴露账号存在性
-        fail(OTHER_USER, OTHER_IP, AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME);
-        assertTrue(throttle.lockRemaining(OTHER_USER, OTHER_IP).isPresent());
+    void caseVariantsShareTheSameBucket() {
+        // 账号查找是大小写不敏感的（MySQL 默认 *_ci 排序规则），因此 admin/Admin/ADMIN 是同一个账号；
+        // 计数键若区分大小写，攻击者就能用 2^len 个变体各开一个空桶，把阈值成倍放大
+        assertEquals(AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME, allowed("admin", IP, 11));
+
+        for (String variant : new String[]{"Admin", "ADMIN", "aDmIn", "admiN"}) {
+            assertTrue(throttle.beginAttempt(variant, OTHER_IP).isPresent(),
+                    "大小写变体必须共享同一锁定桶: " + variant);
+        }
+        assertTrue(throttle.beginAttempt("admin2", OTHER_IP).isEmpty(), "不同账号不应被牵连");
+    }
+
+    @Test
+    void unknownUsernamesAreCountedRejectedAndNotDistinguishable() {
+        // 不存在的用户名同样累计并触发限流：计数只看请求次数，不暴露账号存在性
+        assertEquals(AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME, allowed(
+                OTHER_USER, OTHER_IP, AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME + 1));
+        assertTrue(throttle.beginAttempt(OTHER_USER, OTHER_IP).isPresent());
     }
 
     @Test
     void sourceThresholdLocksThatSourceEvenWhenEveryUsernameDiffers() {
         for (int i = 0; i < AdminLoginThrottleService.MAX_FAILURES_PER_SOURCE; i++) {
-            throttle.recordFailure("random_user_" + i, IP);
+            assertTrue(throttle.beginAttempt("random_user_" + i, IP).isEmpty());
         }
 
-        assertTrue(throttle.lockRemaining("anything", IP).isPresent(), "同一来源的失败累计应锁定该来源");
-        assertTrue(throttle.lockRemaining("anything", OTHER_IP).isEmpty(), "其它来源不受影响");
+        assertTrue(throttle.beginAttempt("anything", IP).isPresent(), "同一来源的失败累计应锁定该来源");
+        assertTrue(throttle.beginAttempt("anything", OTHER_IP).isEmpty(), "其它来源不受影响");
     }
 
     @Test
-    void successfulLoginClearsUsernameCounterButNotSourceCounter() {
-        fail(USER, IP, AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME - 1);
-        throttle.clearFailures(USER);
-        // 计数已清零：再失败一次也不会到达阈值
-        fail(USER, IP, 1);
-        assertTrue(throttle.lockRemaining(USER, IP).isEmpty());
+    void concurrentBurstCannotExceedUsernameThreshold() throws Exception {
+        int threads = 64;
+        CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch finished = new CountDownLatch(threads);
+        AtomicInteger allowed = new AtomicInteger();
 
-        // 成功登录不能洗白爆破来源：把来源推到阈值后，clearFailures 之后依然锁定
-        for (int i = 0; i < AdminLoginThrottleService.MAX_FAILURES_PER_SOURCE; i++) {
-            throttle.recordFailure("random_user_" + i, IP);
+        for (int i = 0; i < threads; i++) {
+            // 每个线程换一个来源 IP，隔离来源维度，只考察「同一个用户名桶」上的并发
+            String ip = "198.51.100." + (i + 1);
+            Thread thread = new Thread(() -> {
+                try {
+                    start.await();
+                    if (throttle.beginAttempt(USER, ip).isEmpty()) {
+                        allowed.incrementAndGet();
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    finished.countDown();
+                }
+            });
+            thread.start();
         }
-        throttle.clearFailures("random_user_0");
-        assertTrue(throttle.lockRemaining("random_user_0", IP).isPresent(),
-                "来源维度锁定不应被成功登录清除");
+
+        start.countDown();
+        assertTrue(finished.await(10, TimeUnit.SECONDS), "并发用例超时");
+        assertEquals(AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME, allowed.get(),
+                "并发突发不能突破阈值：判定与自增必须是同一次原子操作");
     }
 
     @Test
-    void lockExpiresWithTime() {
-        fail(USER, IP, AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME);
-        assertTrue(throttle.lockRemaining(USER, IP).isPresent());
+    void successfulLoginClearsUsernameCounterAndReleasesItsOwnSlot() {
+        allowed(USER, IP, 3);
+        throttle.recordSuccess(USER, IP);
 
-        store.advanceSeconds(AdminLoginThrottleService.LOCK_SECONDS + 1L);
-        assertFalse(throttle.lockRemaining(USER, IP).isPresent(), "锁定到期后应自动放行");
+        // 用户名计数已清空，来源那一格也已退回：再失败满阈值-1 次仍应被放行
+        assertEquals(AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME - 1L,
+                allowed(USER, IP, AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME - 1));
+    }
+
+    @Test
+    void cooldownExpiresWithTime() {
+        assertEquals(AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME,
+                allowed(USER, IP, AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME + 1));
+        assertTrue(throttle.beginAttempt(USER, IP).isPresent());
+
+        store.advanceSeconds(AdminLoginThrottleService.FAILURE_WINDOW_SECONDS + 1L);
+        assertTrue(throttle.beginAttempt(USER, IP).isEmpty(), "冷却期过后应自动放行");
     }
 
     @Test
     void storageFailureFailsOpen() {
         store.setDown(true);
-        fail(USER, IP, AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME * 2);
-        assertTrue(throttle.lockRemaining(USER, IP).isEmpty(), "存储不可用时应放行，不能把登录整条链路打死");
+        assertEquals(AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME * 2L,
+                allowed(USER, IP, AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME * 2),
+                "存储不可用时应放行，不能把登录整条链路打死");
     }
 
     @Test
     void countedKeysAreScopedByDimension() {
-        fail(USER, IP, 1);
+        throttle.beginAttempt(USER, IP);
         // 用户名与来源各占一个键，互不覆盖
         assertEquals(2, store.size());
     }
