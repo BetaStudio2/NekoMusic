@@ -15,27 +15,40 @@ public class AdminAuthService {
     /** 管理员会话有效期（秒） */
     private static final int ADMIN_SESSION_TTL_SECONDS = 24 * 60 * 60;
 
+    /** 口令哈希参数：创建、改密与「等时陪跑」三处必须完全一致，否则陪跑就白跑了。 */
+    private static final int HASH_ITERATIONS = 10;
+    private static final int HASH_MEMORY_KIB = 65536;
+    private static final int HASH_PARALLELISM = 1;
+
     private final AdminDatabaseManager adminDatabaseManager;
     private final RedisTokenStore tokenStore;
     private final Argon2 argon2;
+    private final ConstantTimePasswordVerifier passwordVerifier;
 
     public AdminAuthService(AdminDatabaseManager adminDatabaseManager, RedisTokenStore tokenStore) {
         this.adminDatabaseManager = adminDatabaseManager;
         this.tokenStore = tokenStore;
         this.argon2 = Argon2Factory.create();
+        this.passwordVerifier = new ConstantTimePasswordVerifier(
+                argon2, HASH_ITERATIONS, HASH_MEMORY_KIB, HASH_PARALLELISM);
     }
 
+    /**
+     * 管理员口令认证。
+     *
+     * <p>关键点：用户名不存在时也走一次与真实校验同参数的 Argon2（{@link ConstantTimePasswordVerifier}），
+     * 使「账号存在但口令错」与「账号不存在」两条路径耗时一致——否则该接口是一个可远程稳定观测的
+     * 用户名枚举时间侧信道（CWE-204）。陪跑会让不存在的账号也消耗资源，因此限流
+     * （{@link AdminLoginThrottleService}）必须同时生效。</p>
+     */
     public Optional<Admin> authenticate(String username, String password) {
         Optional<Admin> adminOpt = adminDatabaseManager.findAdminByUsername(username);
-        
-        if (adminOpt.isPresent()) {
-            Admin admin = adminOpt.get();
-            if (argon2.verify(admin.passwordHash(), password.toCharArray())) {
-                adminDatabaseManager.updateLastLogin(username);
-                return Optional.of(admin);
-            }
+
+        if (passwordVerifier.verify(adminOpt.map(Admin::passwordHash).orElse(null), password.toCharArray())) {
+            adminDatabaseManager.updateLastLogin(username);
+            return adminOpt;
         }
-        
+
         return Optional.empty();
     }
 
@@ -44,7 +57,8 @@ public class AdminAuthService {
             return false;
         }
         
-        String hash = argon2.hash(10, 65536, 1, password.toCharArray());
+        String hash = argon2.hash(HASH_ITERATIONS, HASH_MEMORY_KIB, HASH_PARALLELISM,
+                password.toCharArray());
         Admin admin = new Admin(0, username, hash, email, true, null, System.currentTimeMillis(), 0L);
         
         return adminDatabaseManager.createAdmin(admin);
@@ -60,7 +74,8 @@ public class AdminAuthService {
         if (adminOpt.isPresent()) {
             Admin admin = adminOpt.get();
             if (argon2.verify(admin.passwordHash(), oldPassword.toCharArray())) {
-                String newHash = argon2.hash(10, 65536, 1, newPassword.toCharArray());
+                String newHash = argon2.hash(HASH_ITERATIONS, HASH_MEMORY_KIB, HASH_PARALLELISM,
+                        newPassword.toCharArray());
                 return adminDatabaseManager.updateAdminPassword(username, newHash);
             }
         }

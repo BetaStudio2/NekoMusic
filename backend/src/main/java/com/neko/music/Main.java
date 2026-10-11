@@ -71,6 +71,7 @@ public class Main {
     private static ConfigManager configManager;
     private static AdminDatabaseManager adminDatabaseManager;
     private static AdminAuthService adminAuthService;
+    private static AdminLoginThrottleService adminLoginThrottleService;
     private static UserAuthService userAuthService;
     private static QrLoginService qrLoginService;
     private static EmailService emailService;
@@ -175,6 +176,8 @@ public class Main {
         // 初始化管理员数据库管理器和认证服务
         adminDatabaseManager = new AdminDatabaseManager(databaseManager);
         adminAuthService = new AdminAuthService(adminDatabaseManager, tokenStore);
+        adminLoginThrottleService =
+                new AdminLoginThrottleService(new AdminLoginThrottleService.RedisStore(redisService));
         
         // 初始化邮件服务
         emailService = new EmailService(configManager);
@@ -371,6 +374,10 @@ public class Main {
     
     public static AdminAuthService getAdminAuthService() {
         return adminAuthService;
+    }
+
+    public static AdminLoginThrottleService getAdminLoginThrottleService() {
+        return adminLoginThrottleService;
     }
     
     public static UserAuthService getUserAuthService() {

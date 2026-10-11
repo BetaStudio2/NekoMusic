@@ -2,6 +2,9 @@ package com.neko.music.handlers;
 
 import com.neko.music.Main;
 import com.neko.music.model.Admin;
+import com.neko.music.service.AdminAuthService;
+import com.neko.music.service.AdminLoginThrottleService;
+import com.neko.music.util.ClientIpResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,8 +17,29 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * 管理端登录。
+ *
+ * <p>两条防线缺一不可：</p>
+ * <ul>
+ *   <li>口令校验等时（{@link AdminAuthService#authenticate}）——用户名不存在时同样跑一次同成本
+ *       Argon2，杜绝「秒回 401」这个用户名枚举时间侧信道；</li>
+ *   <li>失败限流与锁定（{@link AdminLoginThrottleService}）——等时校验会让不存在的用户名也消耗
+ *       Argon2，必须配合限流，同时阻断慢速口令爆破。限流计数只与请求本身有关、与账号是否存在无关，
+ *       因此不会重新引出枚举面。</li>
+ * </ul>
+ */
 public class AdminLoginHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(AdminLoginHandler.class);
+
+    private AdminAuthService adminAuthService;
+    private AdminLoginThrottleService throttleService;
+
+    @Override
+    public void init() throws ServletException {
+        adminAuthService = Main.getAdminAuthService();
+        throttleService = Main.getAdminLoginThrottleService();
+    }
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -42,14 +66,37 @@ public class AdminLoginHandler extends ApiServlet {
                 return;
             }
 
+            String name = username.trim();
+            String clientIp = ClientIpResolver.clientIp(request);
+
+            // 限流检查必须早于口令校验：被锁定时对「存在的用户名」与「不存在的用户名」返回完全一致
+            if (throttleService != null) {
+                Optional<Long> locked = throttleService.lockRemaining(name, clientIp);
+                if (locked.isPresent()) {
+                    logger.warn("管理端登录已被限流: username={} ip={}", name, clientIp);
+                    long retryAfterSec = locked.get();
+                    response.setHeader("Retry-After", String.valueOf(retryAfterSec));
+                    sendErrorResponse(response, 429,
+                            "登录失败次数过多，请 " + retryAfterSec + " 秒后再试");
+                    return;
+                }
+            }
+
+            // init() 未执行时（理论上不会）退回全局单例，保证行为不变
+            AdminAuthService authService = adminAuthService != null ? adminAuthService : Main.getAdminAuthService();
+
             // 验证管理员凭据
-            Optional<Admin> adminOpt = Main.getAdminAuthService().authenticate(username.trim(), password);
-            
+            Optional<Admin> adminOpt = authService.authenticate(name, password);
+
             if (adminOpt.isPresent()) {
                 Admin admin = adminOpt.get();
-                
+
+                if (throttleService != null) {
+                    throttleService.clearFailures(name);
+                }
+
                 // 创建会话令牌
-                String sessionToken = Main.getAdminAuthService().createAdminSession(admin);
+                String sessionToken = authService.createAdminSession(admin);
                 if (sessionToken == null) {
                     sendErrorResponse(response, 500, "创建会话失败");
                     return;
@@ -74,6 +121,10 @@ public class AdminLoginHandler extends ApiServlet {
                 out.print(Main.getObjectMapper().writeValueAsString(successResponse));
                 out.flush();
             } else {
+                // 失败计数与账号是否存在无关：不存在的用户名同样累计，因此 429 不是枚举信号
+                if (throttleService != null) {
+                    throttleService.recordFailure(name, clientIp);
+                }
                 sendErrorResponse(response, 401, "用户名或密码错误");
             }
         } catch (Exception e) {
