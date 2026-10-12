@@ -24,16 +24,24 @@ import java.util.Optional;
  * 每个请求拿到互不相同的计数，超过阈值的那些请求在口令校验之前就被拒掉——即便同一瞬间涌入任意多
  * 请求，实际进入口令校验的也不会超过阈值。</p>
  *
- * <p><b>为什么计数键要归一化</b>：账号查找用的是数据库的排序规则比较（MySQL/MariaDB 默认
- * {@code *_ci} / UCA 排序规则），既不区分大小写，也会做 Unicode 兼容折叠——{@code Admin}、
- * {@code ａｄｍｉｎ}（全角）、{@code ᵃdmin}（修饰符）、{@code 𝐚𝐝𝐦𝐢𝐧}（数学字母）在多数部署下都
- * 与 {@code admin} 判为同一个账号。计数键若原样保留这些差异，攻击者就能用同一真实账号的大量
- * 兼容变体各开一个空桶、把「每账号 N 次」成倍放大（CWE-178：只归一了大小写而遗漏了兼容归一化）。
- * 因此计数键先做 NFKC 兼容归一化，再去空白、转小写，尽量贴近数据库的折叠口径。</p>
+ * <p><b>账号维度为什么按「解析后的账号身份」分桶</b>：账号查找走数据库排序规则比较
+ * （MySQL/MariaDB 默认 {@code *_ci} / UCA 排序规则），它既不区分大小写，也做 Unicode 兼容折叠，
+ * 还会（在 {@code *_ai_} 排序规则下）忽略重音——{@code Admin}、{@code ａｄｍｉｎ}（全角）、
+ * {@code ᵃdmin}（修饰符）、{@code 𝐚𝐝𝐦𝐢𝐧}（数学字母）、{@code admín}（预组合重音）在多数部署下都
+ * 与 {@code admin} 判为同一个账号。应用层若自己拼一个「归一化字符串」当计数键，就必须逐字复刻
+ * 数据库的整个等价类；任何一处没对齐（大小写 → NFKC → 重音），攻击者就能用同一真实账号的大量
+ * 变体各开一个空桶，把「每账号 N 次」成倍放大（CWE-178）。这条「字符串归一化」路线在本项目已
+ * 先后被绕过两次，因此不再作为账号维度的安全边界。</p>
  *
- * <p>说明：NFKC 覆盖全角、数学字母、上下标、序数词、罗马数字等字符级兼容折叠，但无法穷尽排序规则的
- * 全部等价类（如个别字母对展开）；因此除本归一化外，管理员用户名还应限制为 ASCII（见
- * {@code AdminCreateHandler}），从源头上避免「一个账号 + 多形态变体」。</p>
+ * <p>本类的账号维度改为<b>服务端可判定的账号身份</b>：调用方先按与认证完全相同的路径解析账号
+ * （{@code findAdminByUsername} / {@code findUserIdByEmail}），命中则用账号 ID 分桶，该 ID 在库内
+ * 唯一、与排序规则无关，提交值怎么变形都落到同一桶；未命中的提交退回归一化后的字符串桶，仍与
+ * 已解析账号的桶完全隔离，且「是否被限流」不暴露账号存在性。构造桶标识见 {@link #accountBucket}。
+ * 字符串归一化（{@link #normalizeKeyPart}）仅保留为未命中路径的兜底与来源 IP 的稳定化，属纵深
+ * 防御，不再是「每账号」口径的唯一实现。</p>
+ *
+ * <p>管理员用户名仍应在创建接口收敛为 ASCII（见 {@code AdminCreateHandler}），从源头减少多形态
+ * 变体；但登录侧不再依赖「归一化能够穷尽等价类」这一前提。</p>
  *
  * <p>存储不可用时放行（只记 WARN）：限流不可用不应把登录整条链路打死。</p>
  */
@@ -59,9 +67,36 @@ public class LoginThrottleService {
         this.fallbackLockSeconds = fallbackLockSeconds;
     }
 
+    /** 已解析账号的桶前缀（账号 ID 全局唯一、与排序规则无关）。 */
+    private static final String RESOLVED_PREFIX = "id:";
+
+    /** 未命中账号的桶前缀（退回提交值归一化），与已解析桶前缀互不冒充。 */
+    private static final String UNRESOLVED_PREFIX = "in:";
+
+    /**
+     * 账号维度桶标识：优先用服务端解析出的账号 ID，未命中时退回提交值的归一化字符串。
+     *
+     * <p>调用方应先按与认证完全相同的路径解析账号（管理端 {@code findAdminByUsername}、用户端
+     * {@code findUserIdByEmail}），命中传账号 ID、未命中传 {@code empty}。这样不要求应用层复刻
+     * 数据库排序规则的等价类：同一个真实账号在库内只有一个 ID，任何变形（大小写 / 全角 / 兼容 /
+     * 重音）都会解析到同一 ID，因而共享同一计数桶。</p>
+     *
+     * <p>已解析与未命中使用不同前缀（{@code id:} / {@code in:}），因此提交一个恰好叫
+     * {@code "id:1"} 的未命中标识只会落到 {@code "in:id:1"}，不会冒充真实账号 1 的桶。</p>
+     *
+     * @param resolvedAccountId  解析命中的账号 ID；未命中为 {@link Optional#empty()}
+     * @param submittedAccount   客户端提交的原始账号（仅未命中时用作兜底桶）
+     */
+    public static String accountBucket(Optional<Integer> resolvedAccountId, String submittedAccount) {
+        return resolvedAccountId
+                .map(id -> RESOLVED_PREFIX + id)
+                .orElseGet(() -> UNRESOLVED_PREFIX + normalizeKeyPart(submittedAccount));
+    }
+
     /**
      * 记为一次登录尝试（**必须在口令校验之前调用**），原子自增两个维度的计数。
      *
+     * @param account 账号维度桶标识，应由 {@link #accountBucket} 生成（也可直接传账号 ID 字符串）
      * @return 非空表示本次尝试应立即拒绝，值为建议等待秒数；空表示放行，可继续校验口令。
      */
     public Optional<Long> beginAttempt(String account, String sourceIp) {
@@ -85,6 +120,8 @@ public class LoginThrottleService {
      *
      * <p>来源维度只退回一格而不是清零：成功登录本来就不该被算作失败，但也别让正常用户反复登录
      * 之外的任何东西被洗白——清零会让「有可用账号的人」把爆破来源的计数整段抹掉。</p>
+     *
+     * @param account 必须与 {@link #beginAttempt} 传入的账号桶标识一致（{@link #accountBucket}）
      */
     public void recordSuccess(String account, String sourceIp) {
         store.delete(accountKey(account));
@@ -107,30 +144,61 @@ public class LoginThrottleService {
         return keyPrefix + "ip:" + sourceKeyPart(sourceIp);
     }
 
-    /** 账号键片段：NFKC 兼容归一化 + 去空白 + 转小写，与数据库的账号比较口径一致。 */
+    /**
+     * 账号键片段：{@link #accountBucket} 生成的桶标识再走一次归一化（幂等）。
+     *
+     * <p>已解析账号的桶标识是 {@code id:<数字>}，归一化不会改动它；未命中桶已经是归一化后的
+     * 字符串。这里刻意只做稳定化处理，<b>不</b>承担「把同一账号的变体折叠到一起」的职责——那由
+     * 账号 ID 保证。</p>
+     */
     private static String accountKeyPart(String account) {
         return normalizeKeyPart(account);
     }
 
-    /** 来源 IP 键片段：NFKC 兼容归一化 + 去空白 + 转小写（IPv6 十六进制大小写无关）。 */
+    /** 来源 IP 键片段：NFKD + 去重音 + 去空白 + 转小写（IPv6 十六进制大小写无关）。 */
     private static String sourceKeyPart(String sourceIp) {
         return normalizeKeyPart(sourceIp);
     }
 
     /**
-     * 键片段归一化：{@link Normalizer#normalize} 做 NFKC 兼容归一化（把全角、数学字母、上下标等
-     * 兼容变体折叠成本体字符），再去空白、转小写。空串用于「无账号 / 无来源」的兜底桶。
+     * 键片段归一化（未命中账号的兜底 / 来源 IP 的稳定化）：NFKD 兼容分解 → 去掉组合记号 → 重组 →
+     * 去空白 → 转小写。
      *
-     * <p>顺序必须是「先 NFKC 后 trim」：NFKC 会把不换行空格等兼容字符折叠成普通空格，先归一化才能
+     * <p>{@link Normalizer.Form#NFKD} 覆盖全角、数学字母、上下标等兼容折叠，并把预组合字符分解为
+     * 「本体 + 组合记号」；随后删除 Unicode 类别 {@code Mn}/{@code Mc}/{@code Me} 的记号即剥离重音
+     * （{@code admín} → {@code admin}），贴近数据库 {@code *_ai_} 排序规则。空串用于「无账号 /
+     * 无来源」的兜底桶。</p>
+     *
+     * <p>顺序必须是「先分解去记号、再 trim」：NFKD 会把不换行空格等折叠成普通空格，先归一化才能
      * 一并去掉。</p>
+     *
+     * <p><b>这不是账号维度的安全边界</b>：NFKD 去重音仍无法穷尽排序规则的全部等价类（如字母对
+     * 展开 {@code ß}/{@code ss}、连字等），因此账号维度一律以 {@link #accountBucket} 的账号 ID 为准，
+     * 本函数只用于未命中路径与来源 IP。</p>
      */
     private static String normalizeKeyPart(String value) {
         if (value == null) {
             return "";
         }
-        return Normalizer.normalize(value, Normalizer.Form.NFKC)
+        String decomposed = Normalizer.normalize(value, Normalizer.Form.NFKD);
+        String stripped = stripCombiningMarks(decomposed);
+        return Normalizer.normalize(stripped, Normalizer.Form.NFKC)
                 .trim()
                 .toLowerCase(Locale.ROOT);
+    }
+
+    /** 删除组合记号（Unicode 类别 {@code Mn} / {@code Mc} / {@code Me}），用于剥离重音等附加符号。 */
+    private static String stripCombiningMarks(String value) {
+        StringBuilder out = new StringBuilder(value.length());
+        value.codePoints().forEach(codePoint -> {
+            int type = Character.getType(codePoint);
+            if (type != Character.NON_SPACING_MARK
+                    && type != Character.COMBINING_SPACING_MARK
+                    && type != Character.ENCLOSING_MARK) {
+                out.appendCodePoint(codePoint);
+            }
+        });
+        return out.toString();
     }
 
     /**

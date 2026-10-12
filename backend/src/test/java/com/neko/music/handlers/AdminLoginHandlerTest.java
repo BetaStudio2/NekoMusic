@@ -48,6 +48,10 @@ class AdminLoginHandlerTest {
      *
      * <p>刻意不做「按用户名存在性」的可变开关——「账号存在但口令错」与「账号不存在」在真实实现里
      * 都是 401，桩也必须一样；无状态也让测试可以与其它用例并行跑。</p>
+     *
+     * <p>按真实实现的两段式接口覆写：{@link #findByUsername} 走「数据库排序规则」口径（此处用
+     * 大小写不敏感近似），{@link #authenticateResolved} 对已解析账号做口令校验。这样大小写 /
+     * 重音等变体会解析到同一账号 ID，从而共享同一限流桶。</p>
      */
     private static final class StubAdminAuthService extends AdminAuthService {
         final AtomicInteger authenticateCalls = new AtomicInteger();
@@ -57,13 +61,21 @@ class AdminLoginHandlerTest {
         }
 
         @Override
-        public Optional<Admin> authenticate(String username, String password) {
-            authenticateCalls.incrementAndGet();
-            if (!KNOWN_USER.equals(username) || !CORRECT_PASSWORD.equals(password)) {
+        public Optional<Admin> findByUsername(String username) {
+            if (username == null || !KNOWN_USER.equalsIgnoreCase(username.trim())) {
                 return Optional.empty();
             }
             return Optional.of(new Admin(1, username, "hash", "admin@nekomusic.com",
                     true, "super_admin", 0L, 0L));
+        }
+
+        @Override
+        public Optional<Admin> authenticateResolved(Optional<Admin> resolved, String password) {
+            authenticateCalls.incrementAndGet();
+            if (resolved.isEmpty() || !CORRECT_PASSWORD.equals(password)) {
+                return Optional.empty();
+            }
+            return resolved;
         }
 
         @Override

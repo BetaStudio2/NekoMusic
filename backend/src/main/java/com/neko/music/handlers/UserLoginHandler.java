@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
 import com.neko.music.model.User;
 import com.neko.music.service.AuthAbuseLimiter;
+import com.neko.music.service.LoginThrottleService;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.service.UserLoginThrottleService;
 import com.neko.music.util.ClientIpResolver;
@@ -83,11 +84,17 @@ public class UserLoginHandler extends ApiServlet {
             String emailKey = email.trim();
             String clientIp = ClientIpResolver.clientIp(request);
 
+            // 账号维度按与认证完全相同的路径解析出的用户 ID 分桶：邮箱比较走数据库排序规则
+            // （大小写不敏感、Unicode 兼容折叠、且忽略重音），改用库内唯一的用户 ID 后，同一邮箱的
+            // 任何变形都落到同一桶，不会被重音 / 兼容变体拆出多个空桶放大配额（CWE-178）。
+            String accountBucket = LoginThrottleService.accountBucket(
+                    userAuthService.findUserIdByEmail(emailKey), emailKey);
+
             // 失败限流必须早于口令校验：同一账号与来源 IP 的尝试各自原子计数，超阈值直接拒绝，
             // 避免「先校验、失败后再计数」在并发突发下被穿越的竞态（CWE-362）；被锁定后对
             // 「存在的邮箱」与「不存在的邮箱」返回完全一致，因此 429 不构成账号枚举信号。
             if (throttleService != null) {
-                Optional<Long> locked = throttleService.beginAttempt(emailKey, clientIp);
+                Optional<Long> locked = throttleService.beginAttempt(accountBucket, clientIp);
                 if (locked.isPresent()) {
                     long retryAfterSec = locked.get();
                     logger.warn("用户登录已被限流: email={} ip={}", emailKey, clientIp);
@@ -107,7 +114,7 @@ public class UserLoginHandler extends ApiServlet {
                 logger.info("用户登录成功: {}", user.email());
 
                 if (throttleService != null) {
-                    throttleService.recordSuccess(emailKey, clientIp);
+                    throttleService.recordSuccess(accountBucket, clientIp);
                 }
 
                 // 生成 token 并写入 Redis

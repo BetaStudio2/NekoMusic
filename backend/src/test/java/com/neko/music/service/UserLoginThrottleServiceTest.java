@@ -3,11 +3,13 @@ package com.neko.music.service;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -81,6 +83,32 @@ class UserLoginThrottleServiceTest {
         }
         assertTrue(throttle.beginAttempt("other@example.com", OTHER_IP).isEmpty(),
                 "不同邮箱不应被牵连");
+    }
+
+    @Test
+    void accentVariantsShareTheSameBucket() {
+        // 邮箱比较同样忽略重音（_ai_ 排序规则）：josé@example.com 与 jose@example.com 是同一个账号
+        assertEquals(UserLoginThrottleService.MAX_FAILURES_PER_EMAIL,
+                allowed("jose@example.com", IP, UserLoginThrottleService.MAX_FAILURES_PER_EMAIL + 1));
+
+        for (String variant : new String[]{"josé@example.com", "jóse@example.com", "jose@exámple.com"}) {
+            assertTrue(throttle.beginAttempt(variant, OTHER_IP).isPresent(),
+                    "邮箱重音变体必须共享同一锁定桶: " + variant);
+        }
+        assertTrue(throttle.beginAttempt("other@example.com", OTHER_IP).isEmpty(),
+                "不同邮箱不应被牵连");
+    }
+
+    @Test
+    void resolvedUserIdCollapsesEveryStringVariant() {
+        // 账号维度以解析出的用户 ID 为口径：同一 ID 下任意提交字符串都是同一个桶
+        String canonical = LoginThrottleService.accountBucket(Optional.of(42), "user@example.com");
+        assertEquals(canonical,
+                LoginThrottleService.accountBucket(Optional.of(42), "Ｕser@example.com"));
+        assertEquals(canonical,
+                LoginThrottleService.accountBucket(Optional.of(42), "usér@example.com"));
+        assertNotEquals(canonical,
+                LoginThrottleService.accountBucket(Optional.empty(), "user@example.com"));
     }
 
     @Test
