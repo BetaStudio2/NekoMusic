@@ -5,6 +5,7 @@ import com.neko.music.Main;
 import com.neko.music.model.User;
 import com.neko.music.service.AuthAbuseLimiter;
 import com.neko.music.service.LoginThrottleService;
+import com.neko.music.service.SourceBanService;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.service.UserLoginThrottleService;
 import com.neko.music.util.ClientIpResolver;
@@ -27,11 +28,13 @@ public class UserLoginHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserLoginHandler.class);
     private UserAuthService userAuthService;
     private UserLoginThrottleService throttleService;
+    private SourceBanService sourceBanService;
 
     @Override
     public void init() throws ServletException {
         userAuthService = Main.getUserAuthService();
         throttleService = Main.getUserLoginThrottleService();
+        sourceBanService = Main.getSourceBanService();
     }
 
     @Override
@@ -116,6 +119,9 @@ public class UserLoginHandler extends ApiServlet {
                 if (throttleService != null) {
                     throttleService.recordSuccess(accountBucket, clientIp);
                 }
+                if (sourceBanService != null) {
+                    sourceBanService.recordAuthSuccess(clientIp);
+                }
 
                 // 生成 token 并写入 Redis
                 String token = userAuthService.createTokenForUser(user.id());
@@ -143,6 +149,10 @@ public class UserLoginHandler extends ApiServlet {
                 sendResponse(response, true, "登录成功", responseData);
             } else {
                 logger.warn("用户登录失败: {}", email);
+                // 来源维度失败计数：反复失败的来源会被递增退避临时封禁（只看请求，不看账号存在性）
+                if (sourceBanService != null) {
+                    sourceBanService.recordAuthFailure(clientIp);
+                }
                 sendResponse(response, false, "邮箱或密码错误", null);
             }
 

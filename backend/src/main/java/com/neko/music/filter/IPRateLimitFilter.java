@@ -136,8 +136,8 @@ public class IPRateLimitFilter implements Filter {
         }
     }
 
-    /** 将剩余秒数写进一句中文提示，便于直接展示给用户。 */
-    private static String formatRateLimitMessage(long sec) {
+    /** 将剩余秒数写进一句中文提示，便于直接展示给用户（{@link SourceBanFilter} 复用同一文案）。 */
+    static String formatRateLimitMessage(long sec) {
         if (sec < 1) {
             sec = 1;
         }

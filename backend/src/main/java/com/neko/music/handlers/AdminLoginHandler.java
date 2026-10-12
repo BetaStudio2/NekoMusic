@@ -6,6 +6,7 @@ import com.neko.music.service.AdminAuthService;
 import com.neko.music.service.AdminLoginThrottleService;
 import com.neko.music.service.AuthAbuseLimiter;
 import com.neko.music.service.LoginThrottleService;
+import com.neko.music.service.SourceBanService;
 import com.neko.music.util.ClientIpResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +34,8 @@ import java.util.Optional;
  *   <li>来源请求限流（{@link AuthAbuseLimiter}）——与账号无关的请求速率闸门：脚本用不同用户名平铺
  *       请求时失败计数不会触发，只有它兜得住。防线<b>不依赖</b>前置的反自动化 / 防爬门禁，门禁被
  *       绕过时仍独立生效。</li>
+ *   <li>来源递增退避封禁（{@link SourceBanService}）——反复失败的来源被临时封禁，且复发代价逐级
+ *       加长；同为「只看请求、不看账号存在性」，因此也不构成枚举信号。</li>
  * </ul>
  */
 public class AdminLoginHandler extends ApiServlet {
@@ -40,11 +43,13 @@ public class AdminLoginHandler extends ApiServlet {
 
     private AdminAuthService adminAuthService;
     private AdminLoginThrottleService throttleService;
+    private SourceBanService sourceBanService;
 
     @Override
     public void init() throws ServletException {
         adminAuthService = Main.getAdminAuthService();
         throttleService = Main.getAdminLoginThrottleService();
+        sourceBanService = Main.getSourceBanService();
     }
 
     @Override
@@ -114,6 +119,9 @@ public class AdminLoginHandler extends ApiServlet {
                 if (throttleService != null) {
                     throttleService.recordSuccess(accountBucket, clientIp);
                 }
+                if (sourceBanService != null) {
+                    sourceBanService.recordAuthSuccess(clientIp);
+                }
 
                 // 创建会话令牌
                 String sessionToken = authService.createAdminSession(admin);
@@ -141,7 +149,11 @@ public class AdminLoginHandler extends ApiServlet {
                 out.print(Main.getObjectMapper().writeValueAsString(successResponse));
                 out.flush();
             } else {
-                // 本次失败已在 beginAttempt 里计过数（与账号是否存在无关，因此 429 不是枚举信号）
+                // 本次失败已在 beginAttempt 里计过数（与账号是否存在无关，因此 429 不是枚举信号）；
+                // 再记一次来源维度的失败，供递增退避封禁使用（同样是「只看请求、不看账号存在性」）
+                if (sourceBanService != null) {
+                    sourceBanService.recordAuthFailure(clientIp);
+                }
                 sendErrorResponse(response, 401, "用户名或密码错误");
             }
         } catch (Exception e) {
