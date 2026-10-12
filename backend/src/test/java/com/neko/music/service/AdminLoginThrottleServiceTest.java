@@ -3,6 +3,7 @@ package com.neko.music.service;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.text.Normalizer;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -114,6 +115,49 @@ class AdminLoginThrottleServiceTest {
                     "重音变体必须共享同一锁定桶: " + variant);
         }
         assertTrue(throttle.beginAttempt("admin2", OTHER_IP).isEmpty(), "不同账号不应被牵连");
+    }
+
+    @Test
+    void everyPrecomposedAccentVariantOfAdminFoldsToTheSameBucket() {
+        // 属性级回归（不止手写样例）：对 admin 的每一位字母，枚举全部「NFKD 分解为『主体字母 +
+        // 组合记号』」的预组合字符（á ā ǎ ạ ắ …），断言兜底归一化把它们全部折叠回 admin。这类变体在
+        // 生产库 utf8mb4_uca1400_ai_ci 下都命中同一行 admin，一旦各自成桶就是限流绕过（CWE-178）。
+        String canonical = LoginThrottleService.accountBucket(Optional.empty(), "admin");
+        String base = "admin";
+        int checked = 0;
+
+        for (int position = 0; position < base.length(); position++) {
+            char plainLetter = base.charAt(position);
+            for (int codePoint = 0x80; codePoint <= 0x2BFF; codePoint++) {
+                String accented = new String(Character.toChars(codePoint));
+                if (!isPrecomposedAccentOf(accented, plainLetter)) {
+                    continue;
+                }
+                String variant = base.substring(0, position) + accented + base.substring(position + 1);
+                assertEquals(canonical, LoginThrottleService.accountBucket(Optional.empty(), variant),
+                        "预组合重音变体应折叠回 admin 桶: " + variant);
+                checked++;
+            }
+        }
+
+        // 多位置同时带重音的变体（报告实测样例）
+        for (String variant : new String[]{"ádmín", "ắdmĩn", "admĩn", "ấdmịn"}) {
+            assertEquals(canonical, LoginThrottleService.accountBucket(Optional.empty(), variant),
+                    "多重重音变体应折叠回 admin 桶: " + variant);
+            checked++;
+        }
+
+        assertTrue(checked >= 60, "应覆盖到成规模的预组合重音变体，实际覆盖 " + checked + " 个");
+    }
+
+    /** {@code value} 是否「NFKD 分解为主体字母 + 若干非间距组合记号」，即 precomposed 重音字符。 */
+    private static boolean isPrecomposedAccentOf(String value, char plainLetter) {
+        String decomposed = Normalizer.normalize(value, Normalizer.Form.NFKD);
+        if (decomposed.length() < 2 || decomposed.charAt(0) != plainLetter) {
+            return false;
+        }
+        return decomposed.substring(1).codePoints()
+                .allMatch(cp -> Character.getType(cp) == Character.NON_SPACING_MARK);
     }
 
     @Test

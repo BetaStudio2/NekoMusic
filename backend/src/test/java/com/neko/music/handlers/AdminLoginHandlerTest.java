@@ -20,9 +20,12 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -49,9 +52,10 @@ class AdminLoginHandlerTest {
      * <p>刻意不做「按用户名存在性」的可变开关——「账号存在但口令错」与「账号不存在」在真实实现里
      * 都是 401，桩也必须一样；无状态也让测试可以与其它用例并行跑。</p>
      *
-     * <p>按真实实现的两段式接口覆写：{@link #findByUsername} 走「数据库排序规则」口径（此处用
-     * 大小写不敏感近似），{@link #authenticateResolved} 对已解析账号做口令校验。这样大小写 /
-     * 重音等变体会解析到同一账号 ID，从而共享同一限流桶。</p>
+     * <p>按真实实现的两段式接口覆写：{@link #findByUsername} 走「数据库排序规则」口径
+     * （{@link #foldLikeDatabase} 近似 {@code utf8mb4_uca1400_ai_ci}：忽略大小写、Unicode 兼容折叠
+     * 与重音），{@link #authenticateResolved} 对已解析账号做口令校验。这样大小写 / 全角 / 重音等
+     * 变体会解析到同一账号 ID，从而共享同一限流桶。</p>
      */
     private static final class StubAdminAuthService extends AdminAuthService {
         final AtomicInteger authenticateCalls = new AtomicInteger();
@@ -62,11 +66,30 @@ class AdminLoginHandlerTest {
 
         @Override
         public Optional<Admin> findByUsername(String username) {
-            if (username == null || !KNOWN_USER.equalsIgnoreCase(username.trim())) {
+            if (username == null
+                    || !foldLikeDatabase(KNOWN_USER).equals(foldLikeDatabase(username.trim()))) {
                 return Optional.empty();
             }
             return Optional.of(new Admin(1, username, "hash", "admin@nekomusic.com",
                     true, "super_admin", 0L, 0L));
+        }
+
+        /**
+         * 近似生产库 {@code utf8mb4_uca1400_ai_ci} 的用户名比较口径：NFKD 兼容分解、去掉组合记号
+         * （忽略重音）、再转小写。仅用于让桩与真实数据库的折叠行为一致，独立于被测实现。
+         */
+        private static String foldLikeDatabase(String value) {
+            String decomposed = Normalizer.normalize(value, Normalizer.Form.NFKD);
+            StringBuilder out = new StringBuilder(decomposed.length());
+            decomposed.codePoints().forEach(codePoint -> {
+                int type = Character.getType(codePoint);
+                if (type != Character.NON_SPACING_MARK
+                        && type != Character.COMBINING_SPACING_MARK
+                        && type != Character.ENCLOSING_MARK) {
+                    out.appendCodePoint(codePoint);
+                }
+            });
+            return out.toString().toLowerCase(Locale.ROOT);
         }
 
         @Override
@@ -220,6 +243,38 @@ class AdminLoginHandlerTest {
             assertEquals(locked.body(), outcome.body(), "锁定响应应完全一致: " + variant);
             assertEquals(locked.retryAfter(), outcome.retryAfter());
         }
+    }
+
+    @Test
+    void accentVariantsShareTheSameLockoutBucket() throws Exception {
+        // 生产库按 utf8mb4_uca1400_ai_ci 比较用户名（忽略重音）：admín / ádmin 等都命中同一行 admin。
+        // 账号维度按解析出的管理员 ID 分桶后，这些变体与 admin 共享同一锁定桶；若退回「提交字符串」
+        // 分桶，每个重音变体都会是一个全新的 10 次空桶，把每账号配额放大 10 × 变体数（CWE-178）。
+        Outcome locked = lockOutWith("admin");
+        assertEquals(429, locked.status(), locked.body());
+
+        for (String variant : new String[]{"admín", "ádmin", "admìn", "admîn", "admïn", "admĩn"}) {
+            Outcome outcome = login(credentials(variant), "POST");
+            assertEquals(429, outcome.status(), "重音变体必须共享同一锁定桶: " + variant);
+            assertEquals(locked.body(), outcome.body(), "锁定响应应完全一致: " + variant);
+            assertEquals(locked.retryAfter(), outcome.retryAfter());
+        }
+
+        // 反向对照：真正不存在的账号仍各自计数（不被 admin 的锁定状态牵连）
+        assertEquals(401, login(credentials(UNKNOWN_USER), "POST").status());
+    }
+
+    @Test
+    void variantIsCountedUnderTheResolvedAccountIdBucketNotTheSubmittedString() throws Exception {
+        // 结构性不变量（本 finding 的根因）：计数键必须来自解析出的账号身份，而不是提交字符串。
+        // 按字符串分桶时，'admín' 会另开一个 in:admín 空桶，每账号 10 次/900s 被放大成 10 × 变体数。
+        login(credentials("admín"), "POST");
+
+        Set<String> keys = store.keys();
+        assertTrue(keys.stream().anyMatch(key -> key.contains("user:id:1")),
+                "重音变体应按解析出的管理员 ID 计数，实际键: " + keys);
+        assertFalse(keys.stream().anyMatch(key -> key.contains("in:adm")),
+                "不得按提交字符串另开一个桶，实际键: " + keys);
     }
 
     @Test

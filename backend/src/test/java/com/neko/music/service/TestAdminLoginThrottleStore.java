@@ -1,7 +1,9 @@
 package com.neko.music.service;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -35,6 +37,11 @@ public class TestAdminLoginThrottleStore implements AdminLoginThrottleService.St
 
     public int size() {
         return entries.size();
+    }
+
+    /** 当前计数键快照（只读），用于断言实际写入的桶键。 */
+    public synchronized Set<String> keys() {
+        return new HashSet<>(entries.keySet());
     }
 
     @Override
