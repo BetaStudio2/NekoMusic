@@ -3,11 +3,13 @@ package com.neko.music.service;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -99,6 +101,47 @@ class AdminLoginThrottleServiceTest {
         // 真正不同的账号仍应各自独立，别把归一化做成「见谁折叠谁」
         assertTrue(throttle.beginAttempt("\u7ba1\u7406\u5458", OTHER_IP).isEmpty(),
                 "非兼容折叠的不同账号不应被牵连");
+    }
+
+    @Test
+    void accentVariantsShareTheSameBucket() {
+        // 账号查找走 *uca*_ai_ci 排序规则（忽略重音）：admín / ádmin 等都是同一个 admin 账号。
+        // 未命中路径的归一化必须把预组合重音一并剥离，否则它们会各占一个空桶（CWE-178）。
+        assertEquals(AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME, allowed("admin", IP, 11));
+
+        for (String variant : new String[]{"admín", "ádmin", "admìn", "admîn", "admïn", "admĩn"}) {
+            assertTrue(throttle.beginAttempt(variant, OTHER_IP).isPresent(),
+                    "重音变体必须共享同一锁定桶: " + variant);
+        }
+        assertTrue(throttle.beginAttempt("admin2", OTHER_IP).isEmpty(), "不同账号不应被牵连");
+    }
+
+    @Test
+    void resolvedAccountIdCollapsesEveryStringVariant() {
+        // 账号维度真正的口径是服务端解析出的 ID：只要解析到同一账号，提交字符串怎么变形都是同一个桶，
+        // 连 NFKD 无法折叠的字母对（ß）也被 ID 统一。这样应用层就不必复刻数据库排序规则的整个等价类。
+        String canonical = LoginThrottleService.accountBucket(Optional.of(7), "admin");
+        for (String variant : new String[]{"ａｄｍｉｎ", "ᵃdmin", "admín", "\u00dfdmin"}) {
+            assertEquals(canonical, LoginThrottleService.accountBucket(Optional.of(7), variant),
+                    "解析到同一账号 ID 时应得到同一个桶: " + variant);
+        }
+
+        // 用规范桶锁死账号后，任意变形在限流层都落在同一桶
+        assertEquals(AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME,
+                allowed(canonical, IP, AdminLoginThrottleService.MAX_FAILURES_PER_USERNAME + 1));
+        assertTrue(throttle.beginAttempt(LoginThrottleService.accountBucket(Optional.of(7), "\u00dfdmin"),
+                OTHER_IP).isPresent(), "字母对变体也应共享同一账号桶");
+
+        assertTrue(throttle.beginAttempt(LoginThrottleService.accountBucket(Optional.of(8), "admin"),
+                OTHER_IP).isEmpty(), "不同账号 ID 不应被牵连");
+    }
+
+    @Test
+    void unresolvedBucketCannotImpersonateResolvedBucket() {
+        // 未命中的提交恰好叫 "id:1" 时，只应落到 "in:id:1"，不能冒充真实账号 1 的桶
+        assertNotEquals(
+                LoginThrottleService.accountBucket(Optional.of(1), "admin"),
+                LoginThrottleService.accountBucket(Optional.empty(), "id:1"));
     }
 
     @Test

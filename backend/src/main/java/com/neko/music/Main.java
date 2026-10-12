@@ -29,6 +29,7 @@ import com.neko.music.filter.CrawlerProtectionFilter;
 import com.neko.music.filter.IPRateLimitFilter;
 import com.neko.music.filter.ReplayProtectionFilter;
 import com.neko.music.filter.SecurityHeadersFilter;
+import com.neko.music.filter.SourceBanFilter;
 import com.neko.music.filter.StaticPageSeoFilter;
 import com.neko.music.util.ClientReleaseStorage;
 import com.neko.music.util.SiteResourceStorage;
@@ -75,6 +76,7 @@ public class Main {
     private static AdminLoginThrottleService adminLoginThrottleService;
     private static UserLoginThrottleService userLoginThrottleService;
     private static AuthAbuseLimiter authAbuseLimiter;
+    private static SourceBanService sourceBanService;
     private static UserAuthService userAuthService;
     private static QrLoginService qrLoginService;
     private static EmailService emailService;
@@ -238,6 +240,10 @@ public class Main {
         // 初始化通知服务
         notificationService = new NotificationService(configManager);
 
+        // 认证失败来源封禁：触发封禁时经 Webhook 告警（复用通知服务），让处置可见
+        sourceBanService = new SourceBanService(new SourceBanService.RedisStore(redisService),
+                notificationService::scheduleAuthSourceBanNotification);
+
         // 网易云登录掉线告警（事件驱动，无定时巡检）：Cookie 失效时由真实请求结果触发一次 hook
         neteaseLoginMonitor = new NeteaseLoginMonitor(configManager, neteaseCloudMusicClient, notificationService);
         
@@ -297,12 +303,17 @@ public class Main {
         // 注册服务到 ServletContext，供 Filter 使用
         context.setAttribute("configManager", configManager);
         context.setAttribute("ipRateLimitService", ipRateLimitService);
+        context.setAttribute("sourceBanService", sourceBanService);
 
         // 通用安全加固：禁用 TRACE/TRACK、补安全响应头、隐藏版本（最先注册，作用于全部响应）
         context.addFilter(SecurityHeadersFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
 
         // IP 限流需在嵌入式 Jetty 中显式注册（@WebFilter 不会生效）
         context.addFilter(IPRateLimitFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
+
+        // 认证失败来源封禁：反复失败的来源在进入路由前被挡掉（429）。放在防爬 / 防重放门禁之前，
+        // 免得被封来源还要走一遍 nonce 校验；不依赖前置门禁，门禁被绕过时仍独立生效
+        context.addFilter(SourceBanFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
 
         // 保守防爬：拦截明确为爬虫/无头/命令行工具对 /api/* 的访问（不影响浏览器与原生客户端）
         context.addFilter(CrawlerProtectionFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
@@ -394,6 +405,10 @@ public class Main {
 
     public static AuthAbuseLimiter getAuthAbuseLimiter() {
         return authAbuseLimiter;
+    }
+
+    public static SourceBanService getSourceBanService() {
+        return sourceBanService;
     }
     
     public static UserAuthService getUserAuthService() {

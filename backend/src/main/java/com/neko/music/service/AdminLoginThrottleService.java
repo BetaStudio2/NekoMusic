@@ -8,7 +8,8 @@ package com.neko.music.service;
  * （CWE-307）。</p>
  *
  * <p>计数、锁定、成功回退与存储脚本等通用机制见 {@link LoginThrottleService}；本类只负责给出
- * 管理端的键前缀与阈值。</p>
+ * 管理端的键前缀与阈值。用户名的「每账号」口径由 {@link LoginThrottleService#accountBucket} 用
+ * 解析出的管理员 ID 保证，不再依赖应用层复刻数据库排序规则的等价类。</p>
  */
 public class AdminLoginThrottleService extends LoginThrottleService {
 

@@ -42,11 +42,29 @@ public class AdminAuthService {
      * （{@link AdminLoginThrottleService}）必须同时生效。</p>
      */
     public Optional<Admin> authenticate(String username, String password) {
-        Optional<Admin> adminOpt = adminDatabaseManager.findAdminByUsername(username);
+        return authenticateResolved(findByUsername(username), password);
+    }
 
-        if (passwordVerifier.verify(adminOpt.map(Admin::passwordHash).orElse(null), password.toCharArray())) {
-            adminDatabaseManager.updateLastLogin(username);
-            return adminOpt;
+    /**
+     * 按提交的用户名解析管理员，走与 {@link #authenticate(String, String)} 完全相同的查找路径
+     * （即数据库排序规则）。登录限流据此取得账号 ID，按服务端身份分桶，避免同一账号的变形
+     * （大小写 / 全角 / 兼容 / 重音）各开一个计数桶。
+     */
+    public Optional<Admin> findByUsername(String username) {
+        return adminDatabaseManager.findAdminByUsername(username);
+    }
+
+    /**
+     * 用已解析的账号完成等时口令校验，避免重复查询。
+     *
+     * <p>账号不存在时 {@code resolved} 为空，{@link ConstantTimePasswordVerifier} 仍会跑一次同参数的
+     * Argon2，保持「账号存在但口令错」与「账号不存在」耗时一致（CWE-204），因此调用方在解析之后、
+     * 校验之前必须先过登录限流。</p>
+     */
+    public Optional<Admin> authenticateResolved(Optional<Admin> resolved, String password) {
+        if (passwordVerifier.verify(resolved.map(Admin::passwordHash).orElse(null), password.toCharArray())) {
+            resolved.ifPresent(admin -> adminDatabaseManager.updateLastLogin(admin.username()));
+            return resolved;
         }
 
         return Optional.empty();
