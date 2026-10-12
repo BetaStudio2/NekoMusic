@@ -132,6 +132,26 @@ public class NotificationService {
         });
     }
 
+    /**
+     * 异步发送「来源因反复认证失败被临时封禁」告警，用于让处置可见（不阻塞认证请求）。
+     *
+     * <p>是否发送由 {@link SourceBanService} 按来源冷却后再决定，这里只负责投递。IP 与入口名称
+     * 都不含用户提交内容，直接进消息。</p>
+     */
+    public void scheduleAuthSourceBanNotification(String clientIp, long durationSeconds, String scope) {
+        asyncExecutor.execute(() -> {
+            String message = "认证失败来源封禁告警\n"
+                    + "来源 IP：" + safe(clientIp) + "\n"
+                    + "触发入口：" + safe(scope) + "\n"
+                    + "封禁时长：" + durationSeconds + " 秒";
+            try {
+                sendNotification(message);
+            } catch (Exception e) {
+                logger.warn("异步发送来源封禁告警异常 ip={}: {}", clientIp, e.getMessage(), e);
+            }
+        });
+    }
+
     private static String safe(String value) {
         return value == null ? "" : value;
     }

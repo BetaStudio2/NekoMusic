@@ -4,6 +4,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongSupplier;
 
 /**
  * 认证失败来源的<b>递增退避临时封禁</b>：在既有的「账号锁定 + 来源失败计数」之上，对反复失败的
@@ -16,7 +19,8 @@ import java.util.Locale;
  *
  * <p><b>为什么必需</b>：{@link AuthAbuseLimiter} 只做「请求速率」闸门——超限当前请求被拒，窗口一过
  * 又能继续；{@link LoginThrottleService} 的来源维度锁定窗口只有 15 分钟。二者对「长时间、跨窗口
- * 的持续爆破」都只是短暂降温。递增退避让同一来源的复发代价越来越大，直至单次封禁 24 小时。</p>
+ * 的持续爆破」都只是短暂降温。递增退避让同一来源的复发代价越来越大，直至单次封禁 24 小时；
+ * 每次触发封禁还会经可注入的告警出口异步投递通知（生产复用通知服务的 Webhook），让处置可见。</p>
  *
  * <p>阈值、窗口、退避阶梯与封禁时长都是<b>类常量</b>，不新增配置项；判定在 Redis 中以单条 Lua
  * 原子完成，多实例部署共享同一份额度。存储不可用时放行（只记 WARN），与既有各限流一致——
@@ -47,10 +51,45 @@ public class SourceBanService {
     /** 递增退避封禁时长（秒）：5min → 15min → 1h → 6h → 24h（封顶）。 */
     static final int[] BAN_LADDER_SECONDS = {300, 900, 3600, 21600, 86400};
 
+    /** 同一来源两次告警之间的最小间隔（秒）：避免攻击者用大量来源把告警通道刷爆。 */
+    static final int ALERT_COOLDOWN_SECONDS = 300;
+
+    /** 告警去重表的上限：超过即整体清空，防止被大量不同来源撑爆内存。 */
+    static final int ALERT_TRACK_MAX_ENTRIES = 10_000;
+
     private final Store store;
 
+    /**
+     * 告警出口（可为 {@code null}）：生产接 {@link NotificationService} 的 Webhook，
+     * 测试接计数 lambda。用函数式接口而非直接依赖 {@code NotificationService}，既解耦也便于断言。
+     */
+    private final AlertSink alertSink;
+
+    /** 来源 → 上次告警时刻（秒）。仅在启用告警时使用。 */
+    private final Map<String, Long> lastAlertAt;
+
+    /** 秒级时钟：默认取系统时间，测试可注入可控时钟。 */
+    private final LongSupplier clockSeconds;
+
     public SourceBanService(Store store) {
+        this(store, null, null);
+    }
+
+    public SourceBanService(Store store, AlertSink alertSink) {
+        this(store, alertSink, null);
+    }
+
+    SourceBanService(Store store, AlertSink alertSink, LongSupplier clockSeconds) {
         this.store = store;
+        this.alertSink = alertSink;
+        this.lastAlertAt = alertSink == null ? null : new ConcurrentHashMap<>();
+        this.clockSeconds = clockSeconds != null ? clockSeconds : () -> System.currentTimeMillis() / 1000L;
+    }
+
+    /** 认证失败来源被封禁时的告警出口。 */
+    @FunctionalInterface
+    public interface AlertSink {
+        void authSourceBanned(String clientIp, long durationSeconds, String scope);
     }
 
     /**
@@ -59,6 +98,16 @@ public class SourceBanService {
      * <p>必须在确认凭据失败之后调用（而非尝试之前）：本类只统计真实失败，正常用户的成功登录不参与。</p>
      */
     public long recordAuthFailure(String clientIp) {
+        return recordAuthFailure(clientIp, "auth");
+    }
+
+    /**
+     * 记录一次认证失败，并带上触发入口标签。
+     *
+     * @param scope 触发入口的短标签（如 {@code admin-login} / {@code register}），仅用于日志与告警
+     * @return 本次触发的封禁秒数；未触发或存储不可用返回 {@code 0}
+     */
+    public long recordAuthFailure(String clientIp, String scope) {
         if (store == null) {
             return 0;
         }
@@ -67,9 +116,34 @@ public class SourceBanService {
                 STRIKES_PREFIX + ip, LEVEL_PREFIX + ip, BANNED_PREFIX + ip,
                 STRIKE_WINDOW_SECONDS, FAILURES_BEFORE_BAN, LEVEL_QUIET_SECONDS, BAN_LADDER_SECONDS);
         if (duration > 0) {
-            logger.warn("来源认证失败反复超阈值，已临时封禁: ip={} 时长={}秒", ip, duration);
+            logger.warn("来源认证失败反复超阈值，已临时封禁: ip={} 入口={} 时长={}秒", ip, scope, duration);
+            alertBan(ip, duration, scope);
         }
         return Math.max(0, duration);
+    }
+
+    /**
+     * 按来源冷却后投递告警：同一来源在 {@link #ALERT_COOLDOWN_SECONDS} 内只告警一次，
+     * 避免攻击者用海量来源把告警通道刷爆；告警本身异常不得影响封禁结果。
+     */
+    private void alertBan(String ip, long duration, String scope) {
+        if (alertSink == null) {
+            return;
+        }
+        long now = clockSeconds.getAsLong();
+        if (lastAlertAt.size() > ALERT_TRACK_MAX_ENTRIES) {
+            lastAlertAt.clear();
+        }
+        Long previous = lastAlertAt.get(ip);
+        if (previous != null && now - previous < ALERT_COOLDOWN_SECONDS) {
+            return;
+        }
+        lastAlertAt.put(ip, now);
+        try {
+            alertSink.authSourceBanned(ip, duration, scope);
+        } catch (Exception e) {
+            logger.warn("发送来源封禁告警失败 ip={}: {}", ip, e.getMessage());
+        }
     }
 
     /**

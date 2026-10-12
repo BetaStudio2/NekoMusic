@@ -2,7 +2,9 @@ package com.neko.music.handlers;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
+import com.neko.music.service.SourceBanService;
 import com.neko.music.service.UserAuthService;
+import com.neko.music.util.ClientIpResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,10 +22,12 @@ import java.io.IOException;
 public class ResetPasswordHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(ResetPasswordHandler.class);
     private UserAuthService userAuthService;
+    private SourceBanService sourceBanService;
 
     @Override
     public void init() throws ServletException {
         userAuthService = Main.getUserAuthService();
+        sourceBanService = Main.getSourceBanService();
     }
 
     @Override
@@ -91,6 +95,10 @@ public class ResetPasswordHandler extends ApiServlet {
             // 验证验证码
             if (!userAuthService.verifyResetPasswordCode(email, code)) {
                 logger.warn("验证码验证失败: {}", email);
+                // 重置验证码是可猜的短秘密：失败按来源计入递增退避封禁，防「换邮箱猜码」
+                if (sourceBanService != null) {
+                    sourceBanService.recordAuthFailure(ClientIpResolver.clientIp(request), "reset-password");
+                }
                 sendResponse(response, false, "验证码错误或已过期", null);
                 return;
             }

@@ -3,7 +3,9 @@ package com.neko.music.handlers;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
 import com.neko.music.service.AuthAbuseLimiter;
+import com.neko.music.service.SourceBanService;
 import com.neko.music.service.UserAuthService;
+import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.NicknameValidator;
 import jakarta.servlet.annotation.WebServlet;
 import org.slf4j.Logger;
@@ -20,10 +22,12 @@ import java.util.Map;
 public class UserRegisterHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserRegisterHandler.class);
     private UserAuthService userAuthService;
+    private SourceBanService sourceBanService;
 
     @Override
     public void init() throws ServletException {
         userAuthService = Main.getUserAuthService();
+        sourceBanService = Main.getSourceBanService();
     }
 
     @Override
@@ -32,6 +36,8 @@ public class UserRegisterHandler extends ApiServlet {
         if (enforceAuthAbuseLimit(request, response, AuthAbuseLimiter.Scope.REGISTER)) {
             return;
         }
+
+        String clientIp = ClientIpResolver.clientIp(request);
 
         StringBuilder requestBody = new StringBuilder();
         try (BufferedReader reader = request.getReader()) {
@@ -62,6 +68,7 @@ public class UserRegisterHandler extends ApiServlet {
             // 2. 邮箱验证码
             if (isEmpty(verificationCode)) {
                 logger.warn("检测到恶意注册尝试：未提供验证码。IP: {}", request.getRemoteAddr());
+                recordAuthFailure(clientIp, "register");
                 sendResponse(response, false, "必须提供验证码喵！", null);
                 return;
             }
@@ -91,6 +98,8 @@ public class UserRegisterHandler extends ApiServlet {
             // 5. 邮箱验证码有效性校验
             boolean isValidCode = userAuthService.verifyCode(email, verificationCode);
             if (!isValidCode) {
+                // 验证码是可猜的短秘密：失败同样按来源计入递增退避封禁，防「换邮箱猜码」
+                recordAuthFailure(clientIp, "register");
                 sendResponse(response, false, "验证码错误或已过期喵", null);
                 return;
             }
@@ -107,6 +116,13 @@ public class UserRegisterHandler extends ApiServlet {
         } catch (Exception e) {
             logger.error("注册处理异常: {}", e.getMessage(), e);
             sendResponse(response, false, "服务器内部错误喵", null);
+        }
+    }
+
+    /** 计一次来源认证失败（未初始化时静默跳过，避免把注册链路打死）。 */
+    private void recordAuthFailure(String clientIp, String scope) {
+        if (sourceBanService != null) {
+            sourceBanService.recordAuthFailure(clientIp, scope);
         }
     }
 

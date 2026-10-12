@@ -151,7 +151,7 @@ public class UserLoginHandler extends ApiServlet {
                 logger.warn("用户登录失败: {}", email);
                 // 来源维度失败计数：反复失败的来源会被递增退避临时封禁（只看请求，不看账号存在性）
                 if (sourceBanService != null) {
-                    sourceBanService.recordAuthFailure(clientIp);
+                    sourceBanService.recordAuthFailure(clientIp, "user-login");
                 }
                 sendResponse(response, false, "邮箱或密码错误", null);
             }

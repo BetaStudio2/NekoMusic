@@ -3,6 +3,11 @@ package com.neko.music.service;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -125,5 +130,57 @@ class SourceBanServiceTest {
             assertEquals(0, ban.recordAuthFailure(IP));
         }
         assertFalse(ban.isBanned(IP), "存储不可用时不应封禁，也不能把认证链路打死");
+    }
+
+    @Test
+    void banTriggersAlertWithScope() {
+        List<String> alerts = new ArrayList<>();
+        SourceBanService withAlert = new SourceBanService(store, (ip, duration, scope) ->
+                alerts.add(ip + "|" + duration + "|" + scope));
+
+        for (int i = 0; i < SourceBanService.FAILURES_BEFORE_BAN; i++) {
+            withAlert.recordAuthFailure(IP, "user-login");
+        }
+
+        assertEquals(1, alerts.size(), "触发封禁应告警一次");
+        assertEquals(IP + "|" + SourceBanService.BAN_LADDER_SECONDS[0] + "|user-login", alerts.get(0));
+    }
+
+    @Test
+    void alertIsCoalescedWithinCooldown() {
+        AtomicLong clock = new AtomicLong(1_000L);
+        AtomicInteger alerts = new AtomicInteger();
+        SourceBanService withAlert = new SourceBanService(store,
+                (ip, duration, scope) -> alerts.incrementAndGet(), clock::get);
+
+        for (int i = 0; i < SourceBanService.FAILURES_BEFORE_BAN; i++) {
+            withAlert.recordAuthFailure(IP, "login");
+        }
+        assertEquals(1, alerts.get());
+
+        // 冷却期内升级封禁也不重复告警：避免攻击者用海量来源刷爆告警通道
+        for (int i = 0; i < SourceBanService.FAILURES_BEFORE_BAN; i++) {
+            withAlert.recordAuthFailure(IP, "login");
+        }
+        assertEquals(1, alerts.get(), "同一来源冷却期内不应重复告警");
+
+        // 越过告警冷却后应再次告警
+        clock.addAndGet(SourceBanService.ALERT_COOLDOWN_SECONDS + 1L);
+        for (int i = 0; i < SourceBanService.FAILURES_BEFORE_BAN; i++) {
+            withAlert.recordAuthFailure(IP, "login");
+        }
+        assertEquals(2, alerts.get());
+    }
+
+    @Test
+    void alertFailureDoesNotBreakBan() {
+        SourceBanService withAlert = new SourceBanService(store, (ip, duration, scope) -> {
+            throw new RuntimeException("告警通道故障");
+        });
+
+        for (int i = 0; i < SourceBanService.FAILURES_BEFORE_BAN; i++) {
+            withAlert.recordAuthFailure(IP, "login");
+        }
+        assertTrue(withAlert.isBanned(IP), "告警异常不应影响封禁本身");
     }
 }

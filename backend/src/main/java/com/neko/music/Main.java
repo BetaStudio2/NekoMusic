@@ -186,7 +186,6 @@ public class Main {
         userLoginThrottleService =
                 new UserLoginThrottleService(new UserLoginThrottleService.RedisStore(redisService));
         authAbuseLimiter = new AuthAbuseLimiter(new AuthAbuseLimiter.RedisStore(redisService));
-        sourceBanService = new SourceBanService(new SourceBanService.RedisStore(redisService));
         
         // 初始化邮件服务
         emailService = new EmailService(configManager);
@@ -240,6 +239,10 @@ public class Main {
         
         // 初始化通知服务
         notificationService = new NotificationService(configManager);
+
+        // 认证失败来源封禁：触发封禁时经 Webhook 告警（复用通知服务），让处置可见
+        sourceBanService = new SourceBanService(new SourceBanService.RedisStore(redisService),
+                notificationService::scheduleAuthSourceBanNotification);
 
         // 网易云登录掉线告警（事件驱动，无定时巡检）：Cookie 失效时由真实请求结果触发一次 hook
         neteaseLoginMonitor = new NeteaseLoginMonitor(configManager, neteaseCloudMusicClient, notificationService);

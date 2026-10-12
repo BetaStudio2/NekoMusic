@@ -152,7 +152,7 @@ public class AdminLoginHandler extends ApiServlet {
                 // 本次失败已在 beginAttempt 里计过数（与账号是否存在无关，因此 429 不是枚举信号）；
                 // 再记一次来源维度的失败，供递增退避封禁使用（同样是「只看请求、不看账号存在性」）
                 if (sourceBanService != null) {
-                    sourceBanService.recordAuthFailure(clientIp);
+                    sourceBanService.recordAuthFailure(clientIp, "admin-login");
                 }
                 sendErrorResponse(response, 401, "用户名或密码错误");
             }
