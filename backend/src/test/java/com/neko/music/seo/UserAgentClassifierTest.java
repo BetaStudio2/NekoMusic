@@ -141,6 +141,11 @@ class UserAgentClassifierTest {
         assertFalse(UserAgentClassifier.looksLikeRealBrowser("Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)"));
         assertFalse(UserAgentClassifier.looksLikeRealBrowser(null));
         assertFalse(UserAgentClassifier.looksLikeRealBrowser(""));
+        // 站内 Web 前端自报的 `NekoMusic-web/<版本>` 不是浏览器 UA：WebKit / Firefox 会按脚本设置
+        // 真正发出它，若这里放行就等于用「改写 UA」绕过浏览器完整性校验。它必须继续被判为
+        // 「结构不像浏览器」，由前端改为不改写 UA（保留浏览器自身 UA + X-Neko-Client）来修 iOS。
+        assertFalse(UserAgentClassifier.looksLikeRealBrowser("NekoMusic-web/2026.110.5"));
+        assertFalse(UserAgentClassifier.isNativeClient("NekoMusic-web/2026.110.5"));
     }
 
     @Test
