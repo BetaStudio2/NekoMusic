@@ -19,6 +19,9 @@ public final class ClientFingerprint {
     public static final String SCANNER = "scanner";
     public static final String UNKNOWN = "unknown";
 
+    /** 站内 Web 前端自报的平台取值：运行在浏览器里，归入浏览器类型。 */
+    private static final String WEB_PLATFORM = "web";
+
     /** {@code X-Neko-Client: <平台>+<版本>} 的取值上限，超长或非法一律忽略。 */
     private static final int MAX_PLATFORM_LENGTH = 24;
     private static final int MAX_VERSION_LENGTH = 32;
@@ -30,17 +33,18 @@ public final class ClientFingerprint {
      * 客户端类型。判定用两个信号：UA 与 {@code X-Neko-Client}（三端都会同时发）。
      *
      * <p>为什么要看 {@code X-Neko-Client}：UA 是三样东西里最容易被中间层改写的——企业代理、
-     * Android 系统 WebView 包装、抓包 / 下载工具都可能把官方客户端的 UA 换成库默认值（{@code okhttp/…}、
-     * 空、被截断），单看 UA 就会把自家客户端记成第三方甚至爬虫。官方客户端的 UA 形态与自报平台本来
-     * 就是一一对应的，两个信号一起看才不会因一次改写就丢失身份。</p>
+     * Android 系统 WebView 包装、抓包 / 下载工具都可能把官方客户端的 UA 换成库默认值（{@code okhttp/…}）
+     * 甚至整段浏览器 UA。只按 UA 判定，自家客户端就会在日志里被记成浏览器或第三方。
+     * {@code X-Neko-Client} 是客户端自己声明的平台，正好用来纠正这类被改写的 UA。</p>
      *
-     * <p>顺序不能调换：<b>先黑名单、后自报</b>。{@code X-Neko-Client} 是客户端自己写的，随手就能伪造，
+     * <p>顺序不能调换：<b>先黑名单，后自报</b>。{@code X-Neko-Client} 是客户端自己写的，随手就能伪造，
      * {@code sqlmap/1.7} 加一个 {@code android+1} 不能因此变成官方客户端。因此固定为
-     * 安全扫描器 → 爬虫 → 真浏览器 → 自报官方平台 → 官方 UA 锚定 → 其它客户端。</p>
+     * 安全扫描器 → 爬虫 → 自报官方平台 → 真浏览器 → 官方 UA 锚定 → 其它客户端。
+     * 自报平台只在「UA 没命中黑名单」时才采信；空 / 缺失 UA 一律按爬虫口径处理，不因自报豁免。</p>
      *
-     * <p>自报平台要求与 UA 不矛盾：UA 带浏览器内核标记时按浏览器记（浏览器不可能是 PC / Android
-     * 原生客户端）；UA 已锚定为官方形态时本就走官方客户端。只有「UA 看不出身份 + 自报官方平台」
-     * 才由自报决定。</p>
+     * <p>自报平台优先于浏览器启发式：官方客户端的 UA 被中间层换成浏览器形态时（系统 WebView、
+     * QtWebEngine、公司代理），只要自报平台是官方平台，仍按官方客户端记录。{@code web+<版本>} 是站内
+     * 前端在浏览器里注入的，不算原生客户端，仍按浏览器记。</p>
      */
     public static String type(String userAgent, String nekoClient) {
         if (userAgent == null || userAgent.isBlank()) {
@@ -52,36 +56,54 @@ public final class ClientFingerprint {
         if (UserAgentClassifier.isBotForApi(userAgent)) {
             return BOT;
         }
+        // UA 没命中黑名单时才采信自报平台：官方平台记官方客户端，web 记浏览器。
+        String[] declared = parseNekoClient(nekoClient);
+        if (declared != null) {
+            if (UserAgentClassifier.isOfficialClientPlatform(declared[0])) {
+                return OFFICIAL_CLIENT;
+            }
+            if (WEB_PLATFORM.equals(declared[0])) {
+                return BROWSER;
+            }
+        }
         if (UserAgentClassifier.looksLikeRealBrowser(userAgent)) {
             return BROWSER;
-        }
-        String[] declared = parseNekoClient(nekoClient);
-        if (declared != null && UserAgentClassifier.isOfficialClientPlatform(declared[0])) {
-            return OFFICIAL_CLIENT;
         }
         return UserAgentClassifier.isNativeClient(userAgent) ? OFFICIAL_CLIENT : THIRD_PARTY;
     }
 
-    /** 客户端平台：官方客户端 UA → {@code X-Neko-Client} → 浏览器统一记 web；无法判定返回 null。 */
+    /**
+     * 客户端平台：自报官方平台 → 官方客户端 UA → 自报平台 → 浏览器统一记 web。
+     *
+     * <p>{@code X-Neko-Client} 报的是官方平台时优先于 UA：UA 被中间层换成浏览器形态时，
+     * 这里必须跟 {@link #type(String, String)} 一致仍报原生平台，不能一个字段记官方客户端、
+     * 另一个字段记 web。{@code web+<版本>} 仍算浏览器。无法判定返回 null。</p>
+     */
     public static String platform(String userAgent, String nekoClient) {
+        String[] parts = parseNekoClient(nekoClient);
+        if (parts != null && UserAgentClassifier.isOfficialClientPlatform(parts[0])) {
+            return parts[0];
+        }
         String official = UserAgentClassifier.officialClientPlatform(userAgent);
         if (!official.isEmpty()) {
             return official;
         }
-        String[] parts = parseNekoClient(nekoClient);
         if (parts != null) {
             return parts[0];
         }
-        return looksLikeBrowser(userAgent) ? "web" : null;
+        return looksLikeBrowser(userAgent) ? WEB_PLATFORM : null;
     }
 
-    /** 客户端版本：官方客户端 UA → {@code X-Neko-Client}；无法判定返回 null。 */
+    /** 客户端版本：与 {@link #platform(String, String)} 同源，保证平台与版本成对取自同一信号。 */
     public static String version(String userAgent, String nekoClient) {
+        String[] parts = parseNekoClient(nekoClient);
+        if (parts != null && UserAgentClassifier.isOfficialClientPlatform(parts[0])) {
+            return parts[1];
+        }
         String official = UserAgentClassifier.officialClientVersion(userAgent);
         if (!official.isEmpty()) {
             return official;
         }
-        String[] parts = parseNekoClient(nekoClient);
         return parts == null ? null : parts[1];
     }
 

@@ -29,16 +29,35 @@ class ClientFingerprintTest {
     }
 
     @Test
-    @DisplayName("类型：UA 看不出身份时由 X-Neko-Client 补上（UA 被中间层改写也要认出自家客户端）")
+    @DisplayName("类型：X-Neko-Client 是决定性信号（UA 被中间层改写也要认出自家客户端）")
     void classifiesTypeFromNekoClientHeader() {
-        // PC / Android 客户端：UA 被代理或系统 WebView 换成别的写法，自报平台仍能认出来
+        // UA 看不出身份时，自报平台定类型
         assertEquals(ClientFingerprint.OFFICIAL_CLIENT, ClientFingerprint.type("SomeAgent/1.0", "android+202601008"));
         assertEquals(ClientFingerprint.OFFICIAL_CLIENT, ClientFingerprint.type("SomeAgent/1.0", "PC+2026.108.52"));
         // 第三方客户端：登记放行的自报平台不在官方名单里
         assertEquals(ClientFingerprint.THIRD_PARTY, ClientFingerprint.type("SomePlayer/1.0", "foo+1.0"));
-        // 浏览器端：web+<版本> 是前端注入的，按浏览器记；UA 已经像浏览器时以 UA 为准
+        // 浏览器端：web+<版本> 是前端注入的，按浏览器记
         assertEquals(ClientFingerprint.BROWSER, ClientFingerprint.type(CHROME_UA, "web+1.2.3"));
-        assertEquals(ClientFingerprint.BROWSER, ClientFingerprint.type(CHROME_UA, "pc+2026.108.52"));
+        // 关键点：官方客户端的 UA 被改成浏览器形态（系统 WebView / QtWebEngine / 代理），
+        // 自报官方平台优先于浏览器启发式，仍记官方客户端
+        assertEquals(ClientFingerprint.OFFICIAL_CLIENT, ClientFingerprint.type(CHROME_UA, "pc+2026.108.52"));
+        assertEquals(ClientFingerprint.OFFICIAL_CLIENT,
+                ClientFingerprint.type("Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+                        "android+202601008"));
+    }
+
+    @Test
+    @DisplayName("平台与版本：自报官方平台与类型保持一致（不能让类型记客户端、平台记 web）")
+    void nekoClientPlatformWinsOverBrowserUa() {
+        assertEquals("pc", ClientFingerprint.platform(CHROME_UA, "pc+2026.108.52"));
+        assertEquals("2026.108.52", ClientFingerprint.version(CHROME_UA, "pc+2026.108.52"));
+        // 浏览器自报 web 时平台是 web；第三方平台按原语义照记（类型侧仍按浏览器记）
+        assertEquals("web", ClientFingerprint.platform(CHROME_UA, "web+1.2.3"));
+        assertEquals("foo", ClientFingerprint.platform(CHROME_UA, "foo+1.0"));
+        assertEquals(ClientFingerprint.BROWSER, ClientFingerprint.type(CHROME_UA, "foo+1.0"));
+        // 自报官方平台优先于 UA，且平台与版本成对取自同一信号（不出现 pc 平台配 android 版本）
+        assertEquals("android", ClientFingerprint.platform("NekoMusic-PC/2026.108.52", "android+202601008"));
+        assertEquals("202601008", ClientFingerprint.version("NekoMusic-PC/2026.108.52", "android+202601008"));
     }
 
     @Test
