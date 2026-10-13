@@ -105,6 +105,7 @@ public class Main {
     private static NeteaseSearchFillService neteaseSearchFillService;
     private static ExternalImportService externalImportService;
     private static QQMusicClient qqMusicClient;
+    private static QQMusicLoginService qqMusicLoginService;
     private static KugouMusicClient kugouMusicClient;
     private static AppReleaseService appReleaseService;
     private static DailyRecommendationService dailyRecommendationService;
@@ -221,13 +222,15 @@ public class Main {
 
         adminMusicIngestService = new AdminMusicIngestService();
         neteaseCloudMusicClient = new NeteaseCloudMusicClient(configManager, objectMapper);
+        qqMusicClient = new QQMusicClient(objectMapper, configManager);
+        qqMusicLoginService = new QQMusicLoginService(objectMapper);
         neteaseSearchFillService = new NeteaseSearchFillService(
                 configManager,
                 neteaseCloudMusicClient,
+                qqMusicClient,
                 adminMusicIngestService,
                 redisService);
         Runtime.getRuntime().addShutdownHook(new Thread(neteaseSearchFillService::shutdown, "netease-fill-shutdown"));
-        qqMusicClient = new QQMusicClient(objectMapper);
         kugouMusicClient = new KugouMusicClient(objectMapper);
         dailyRecommendationService = new DailyRecommendationService(
                 databaseManager, redisService, configManager, objectMapper);
@@ -553,6 +556,10 @@ public class Main {
 
     public static QQMusicClient getQQMusicClient() {
         return qqMusicClient;
+    }
+
+    public static QQMusicLoginService getQQMusicLoginService() {
+        return qqMusicLoginService;
     }
 
     public static KugouMusicClient getKugouMusicClient() {

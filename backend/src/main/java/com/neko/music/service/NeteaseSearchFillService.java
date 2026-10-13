@@ -35,7 +35,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * 本地单曲搜索无结果时：从网易云官方接口拉取一首匹配曲并走管理员入库流程。
+ * 本地单曲搜索无结果时：优先从网易云官方接口拉取一首匹配曲并走管理员入库流程；
+ * 网易云无结果（或候选均未能入库）时，若已启用则改用 QQ 音乐接口再补全一次。
  */
 public class NeteaseSearchFillService {
     private static final Logger logger = LoggerFactory.getLogger(NeteaseSearchFillService.class);
@@ -48,9 +49,12 @@ public class NeteaseSearchFillService {
     private static final ConcurrentHashMap<String, ReentrantLock> QUERY_LOCKS = new ConcurrentHashMap<>();
     /** 同一网易云 songId 串行化下载入库，避免多查询命中同一曲并发写入 */
     private static final ConcurrentHashMap<Long, ReentrantLock> NETEASE_SONG_LOCKS = new ConcurrentHashMap<>();
+    /** 同一 QQ 音乐 songmid 串行化下载入库，避免多查询命中同一曲并发写入 */
+    private static final ConcurrentHashMap<String, ReentrantLock> QQ_SONG_LOCKS = new ConcurrentHashMap<>();
 
     private final ConfigManager config;
     private final NeteaseCloudMusicClient neteaseClient;
+    private final QQMusicClient qqClient;
     private final AdminMusicIngestService ingestService;
     private final RedisService redisService;
     private final ExecutorService batchFillExecutor;
@@ -58,11 +62,13 @@ public class NeteaseSearchFillService {
     public NeteaseSearchFillService(
             ConfigManager config,
             NeteaseCloudMusicClient neteaseClient,
+            QQMusicClient qqClient,
             AdminMusicIngestService ingestService,
             RedisService redisService
     ) {
         this.config = config;
         this.neteaseClient = neteaseClient;
+        this.qqClient = qqClient;
         this.ingestService = ingestService;
         this.redisService = redisService;
         int maxParallelFills = Math.max(1, Math.min(10, config.getNeteaseMaxParallelFills()));
@@ -299,7 +305,7 @@ public class NeteaseSearchFillService {
                     searchNeteaseCandidates(reqTitle, reqArtist);
             if (candidates.isEmpty()) {
                 logger.info("网易云搜索无结果: title={} artist={}", reqTitle, reqArtist);
-                return failReason(loggedIn);
+                return fallbackToQq(reqTitle, reqArtist, failReason(loggedIn));
             }
 
             candidates.sort(Comparator.comparingInt(c -> scoreCandidate(c, reqTitle, reqArtist)));
@@ -328,7 +334,7 @@ public class NeteaseSearchFillService {
                 }
             }
             logger.info("网易云候选均未能入库: title={} artist={}", reqTitle, reqArtist);
-            return failReason(loggedIn);
+            return fallbackToQq(reqTitle, reqArtist, failReason(loggedIn));
         } catch (Exception e) {
             logger.error("网易云搜索补全失败 title={} artist={}", reqTitle, reqArtist, e);
             return new FillAttempt(Optional.empty(), FillReason.ERROR);
@@ -578,6 +584,176 @@ public class NeteaseSearchFillService {
         return exactTitleOnly
                 ? ingestService.findSameTitleDuplicate(title, artist, album)
                 : ingestService.findExistingDuplicate(title, artist, album);
+    }
+
+    // ───────────────────── QQ 音乐兜底补全（网易云无结果时的第二次拉取） ─────────────────────
+
+    /**
+     * 网易云无结果或候选均未能入库时的兜底：优先网易云，故这里只在网易云失败后调用一次。
+     * QQ 补全成功则返回其结果；仍失败则保留网易云的失败原因（更贴近首站语义）。
+     */
+    private FillAttempt fallbackToQq(String reqTitle, String reqArtist, FillAttempt neteaseAttempt) {
+        if (!config.isQqSearchFillEnabled()) {
+            return neteaseAttempt;
+        }
+        logger.info("网易云无可用结果，尝试 QQ 音乐兜底补全: title={} artist={}", reqTitle, reqArtist);
+        FillAttempt qqAttempt = doFillFromQq(reqTitle, reqArtist);
+        return qqAttempt.music().isPresent() ? qqAttempt : neteaseAttempt;
+    }
+
+    /** 从 QQ 音乐搜索一首匹配曲并走管理员入库流程。 */
+    private FillAttempt doFillFromQq(String reqTitle, String reqArtist) {
+        if (!RuntimeDiskGuard.hasSufficientSpaceForMusicWrites()) {
+            return new FillAttempt(Optional.empty(), FillReason.LOW_DISK_SPACE);
+        }
+        Path workDir = null;
+        try {
+            List<QQMusicClient.QqSongCandidate> candidates = searchQqCandidates(reqTitle, reqArtist);
+            if (candidates.isEmpty()) {
+                logger.info("QQ 音乐搜索无结果: title={} artist={}", reqTitle, reqArtist);
+                return new FillAttempt(Optional.empty(), FillReason.NOT_FOUND);
+            }
+            candidates.sort(Comparator.comparingInt(c -> scoreQqCandidate(c, reqTitle, reqArtist)));
+
+            RuntimeDiskGuard.logStorageForOperation(
+                    "QQ 音乐自动补全",
+                    "title=" + reqTitle + (reqArtist.isBlank() ? "" : ", artist=" + reqArtist));
+
+            workDir = Files.createTempDirectory("neko-qq-fill-");
+            for (QQMusicClient.QqSongCandidate candidate : candidates) {
+                String album = candidate.album() == null || candidate.album().isBlank()
+                        ? "未知专辑"
+                        : candidate.album();
+                if (ingestService.isDuplicateMusic(candidate.title(), candidate.artist(), album)) {
+                    Optional<AdminMusicIngestService.IngestedMusic> dup =
+                            ingestService.findExistingDuplicate(candidate.title(), candidate.artist(), album);
+                    if (dup.isPresent()) {
+                        return new FillAttempt(dup, FillReason.NONE);
+                    }
+                    continue;
+                }
+                Optional<AdminMusicIngestService.IngestedMusic> ingested =
+                        downloadQqAndIngest(candidate, workDir);
+                if (ingested.isPresent()) {
+                    return new FillAttempt(ingested, FillReason.NONE);
+                }
+            }
+            logger.info("QQ 音乐候选均未能入库: title={} artist={}", reqTitle, reqArtist);
+            return new FillAttempt(Optional.empty(), FillReason.NOT_FOUND);
+        } catch (Exception e) {
+            logger.error("QQ 音乐搜索补全失败 title={} artist={}", reqTitle, reqArtist, e);
+            return new FillAttempt(Optional.empty(), FillReason.ERROR);
+        } finally {
+            if (workDir != null) {
+                deleteRecursively(workDir);
+            }
+        }
+    }
+
+    /** 复用网易云的搜索词构造（核心歌名 + 主歌手优先），对 QQ 音乐逐词搜索并去重。 */
+    private List<QQMusicClient.QqSongCandidate> searchQqCandidates(String reqTitle, String reqArtist)
+            throws IOException {
+        Map<String, QQMusicClient.QqSongCandidate> merged = new LinkedHashMap<>();
+        for (String query : buildNeteaseSearchQueries(reqTitle, reqArtist)) {
+            for (QQMusicClient.QqSongCandidate c : qqClient.searchSongs(query, 12)) {
+                merged.putIfAbsent(c.mid(), c);
+            }
+            if (!merged.isEmpty() && merged.size() >= 5) {
+                break;
+            }
+        }
+        return new ArrayList<>(merged.values());
+    }
+
+    private Optional<AdminMusicIngestService.IngestedMusic> downloadQqAndIngest(
+            QQMusicClient.QqSongCandidate candidate,
+            Path workDir
+    ) throws IOException, SQLException {
+        String mid = candidate.mid();
+        ReentrantLock songLock = QQ_SONG_LOCKS.computeIfAbsent(mid, k -> new ReentrantLock());
+        songLock.lock();
+        try {
+            return downloadQqAndIngestUnderLock(candidate, workDir);
+        } finally {
+            songLock.unlock();
+        }
+    }
+
+    /** QQ 曲目下载入库：取链 → 下载音频 → 占位歌词 + 封面 → 入库。 */
+    private Optional<AdminMusicIngestService.IngestedMusic> downloadQqAndIngestUnderLock(
+            QQMusicClient.QqSongCandidate candidate,
+            Path workDir
+    ) throws IOException, SQLException {
+        String title = candidate.title();
+        String artist = candidate.artist();
+        String album = candidate.album() == null || candidate.album().isBlank()
+                ? "未知专辑"
+                : candidate.album();
+
+        Optional<AdminMusicIngestService.IngestedMusic> existing =
+                ingestService.findExistingDuplicate(title, artist, album);
+        if (existing.isPresent()) {
+            return existing;
+        }
+
+        List<QQMusicClient.QqPlayUrl> playUrls =
+                qqClient.resolvePlayUrls(candidate.mid(), candidate.mediaMid(), config.getNeteaseQuality());
+        if (playUrls.isEmpty()) {
+            logger.warn("无法获取 QQ 播放链接 mid={} title={}", candidate.mid(), title);
+            return Optional.empty();
+        }
+        QQMusicClient.QqPlayUrl playUrl = playUrls.get(0);
+
+        String audioExt = "flac".equalsIgnoreCase(playUrl.type()) ? "flac" : "mp3";
+        Path audioTemp = workDir.resolve("audio." + audioExt);
+        qqClient.downloadToFile(playUrl.url(), audioTemp, null);
+
+        // QQ 音乐歌词为加密 QRC，暂不解密，写占位歌词保证入库流程完整。
+        Path lyricsTemp = workDir.resolve("lyrics.lrc");
+        writePlaceholderLyrics(lyricsTemp);
+
+        Path coverTemp = null;
+        if (candidate.coverUrl() != null && !candidate.coverUrl().isBlank()) {
+            coverTemp = workDir.resolve("cover.jpg");
+            try {
+                qqClient.downloadToFile(candidate.coverUrl(), coverTemp, null);
+            } catch (IOException e) {
+                logger.warn("QQ 封面下载失败 mid={}: {}", candidate.mid(), e.getMessage());
+                Files.deleteIfExists(coverTemp);
+                coverTemp = null;
+            }
+        }
+
+        int durationSec = candidate.durationMs() > 0 ? candidate.durationMs() / 1000 : 0;
+        String language = SongLanguageInferer.infer(title, artist, album, "");
+        logger.info("QQ 音乐补全语种: title={} language={}", title, language);
+
+        Optional<AdminMusicIngestService.IngestedMusic> ingested = ingestService.ingestFromTempFiles(
+                audioTemp,
+                coverTemp,
+                lyricsTemp,
+                title,
+                artist,
+                album,
+                language,
+                "",
+                durationSec,
+                config.getNeteaseFillUploadUserId(),
+                false
+        );
+        return ingested.isPresent()
+                ? ingested
+                : ingestService.findExistingDuplicate(title, artist, album);
+    }
+
+    private static int scoreQqCandidate(
+            QQMusicClient.QqSongCandidate c,
+            String reqTitle,
+            String reqArtist
+    ) {
+        int score = BatchMusicMatchUtil.scoreTitleContribution(reqTitle, c.title())
+                + BatchMusicMatchUtil.scoreArtistContribution(reqArtist, c.artist());
+        return score <= 0 ? 999 : -score;
     }
 
     private record InvalidLyricsAlert(

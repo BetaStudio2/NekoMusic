@@ -57,7 +57,7 @@ public record SystemSettingDefinition(
         NOTIFY("消息通知"),
         STORAGE("存储"),
         VIDEO_RENDER("视频渲染"),
-        NETEASE("网易云补全"),
+        EXTERNAL("外站补全"),
         RECOMMENDATION("每日推荐"),
         RECOGNITION("听歌识曲"),
         PAY("支付"),

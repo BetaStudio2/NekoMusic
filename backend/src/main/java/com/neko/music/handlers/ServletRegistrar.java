@@ -270,6 +270,10 @@ public final class ServletRegistrar {
         ServletHolder adminNeteaseLoginHolder = new ServletHolder(new AdminNeteaseLoginHandler());
         context.addServlet(adminNeteaseLoginHolder, "/api/admin/netease/*");
 
+        // QQ 音乐补全扫码登录（管理员及以上）：/api/admin/qq/*
+        ServletHolder adminQqLoginHolder = new ServletHolder(new AdminQQLoginHandler());
+        context.addServlet(adminQqLoginHolder, "/api/admin/qq/*");
+
         ServletHolder vipPayCreateHolder = new ServletHolder(new VipPayCreateHandler());
         context.addServlet(vipPayCreateHolder, "/api/vip/pay/create");
 

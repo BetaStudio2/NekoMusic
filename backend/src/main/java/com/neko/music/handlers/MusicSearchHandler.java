@@ -182,7 +182,7 @@ public class MusicSearchHandler extends ApiServlet {
             return lastFillFailure != null ? lastFillFailure : "未找到匹配的音乐";
         }
         if (fillCount > 0) {
-            return "搜索成功（" + found + "/" + total + " 已找到，" + fillCount + " 条已从网易云补全入库）";
+            return "搜索成功（" + found + "/" + total + " 已找到，" + fillCount + " 条已从外站补全入库）";
         }
         return found == total ? "搜索成功" : "搜索成功（" + found + "/" + total + " 已找到）";
     }
@@ -190,7 +190,7 @@ public class MusicSearchHandler extends ApiServlet {
     private static String neteaseFillFailureMessage(String defaultMessage, NeteaseSearchFillService.FillReason reason) {
         return switch (reason) {
             case LOGIN_EXPIRED ->
-                    "未找到匹配的音乐（网易云登录已失效，无法补全 Hi-Res/无损，请更新 API Cookie 后重试）";
+                    "未找到匹配的音乐（外站补全登录已失效，无法补全 Hi-Res/无损，请到后台重新扫码登录后重试）";
             case ERROR -> "未找到匹配的音乐";
             case LOW_DISK_SPACE -> com.neko.music.util.RuntimeDiskGuard.neteaseFillBlockedMessage();
             case NOT_FOUND -> "未找到匹配的音乐";

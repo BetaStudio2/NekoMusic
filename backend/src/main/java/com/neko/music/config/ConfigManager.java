@@ -111,6 +111,10 @@ public class ConfigManager {
     /** 批量搜索中网易云补全的全局最大并发数 */
     private int neteaseMaxParallelFills = 10;
 
+    /** 网易云无结果时，改用 QQ 音乐接口再补全一次（优先级低于网易云） */
+    private boolean qqSearchFillEnabled = false;
+    private String qqCookie = "";
+
     /** 运行目录所在分区最低可用空间（GB，十进制 1 GB = 10⁹ 字节），不足时禁止音乐上传与网易云补全 */
     private int storageMinFreeGb = 5;
 
@@ -483,6 +487,15 @@ public class ConfigManager {
                     }
                     if (neteaseFillNode.has("max_parallel_fills")) {
                         neteaseMaxParallelFills = neteaseFillNode.get("max_parallel_fills").asInt();
+                    }
+                }
+                JsonNode qqFillNode = configNode.get("qq_search_fill");
+                if (qqFillNode != null) {
+                    if (qqFillNode.has("enabled")) {
+                        qqSearchFillEnabled = qqFillNode.get("enabled").asBoolean();
+                    }
+                    if (qqFillNode.has("cookie")) {
+                        qqCookie = qqFillNode.get("cookie").asText("").trim();
                     }
                 }
 
@@ -1112,6 +1125,16 @@ public class ConfigManager {
 
     public int getNeteaseMaxParallelFills() {
         return neteaseMaxParallelFills;
+    }
+
+    /** 网易云无结果时是否改用 QQ 音乐补全。 */
+    public boolean isQqSearchFillEnabled() {
+        return qqSearchFillEnabled;
+    }
+
+    /** QQ 音乐登录 Cookie（扫码登录写入，通常含 uin / qm_keyst）；为空表示游客态。 */
+    public String getQqCookie() {
+        return qqCookie == null ? "" : qqCookie;
     }
 
     public boolean isZpayEnabled() {

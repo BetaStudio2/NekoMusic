@@ -121,17 +121,21 @@ public final class SystemSettingRegistry {
             text("video_render.notify_frontend_base_url", Group.VIDEO_RENDER, "通知站点根地址", "https://music.nekocore.cn",
                     "渲染完成邮件里的下载页站点根，如 https://music.nekocore.cn；留空则按支付回调地址推断"),
 
-            // ---------- 网易云补全 ----------
-            flag("netease_search_fill.enabled", Group.NETEASE, "启用补全", true,
+            // ---------- 外站补全（网易云优先，QQ 音乐兜底） ----------
+            flag("netease_search_fill.enabled", Group.EXTERNAL, "启用网易云补全", true,
                     "本地曲库搜索无结果时，通过网易云接口补全入库"),
-            secret("netease_search_fill.cookie", Group.NETEASE, "网易云登录",
+            secret("netease_search_fill.cookie", Group.EXTERNAL, "网易云登录",
                     "由扫码登录写入，仅服务端保存与使用；后台不提供手工填写入口，未登录时按游客态请求"),
-            text("netease_search_fill.quality", Group.NETEASE, "优先音质", "hires",
-                    "与网易云 level 取值一致；无该档时自动降级"),
-            number("netease_search_fill.http_timeout_seconds", Group.NETEASE, "HTTP 超时（秒）", "45", 1, 600,
-                    "请求网易云接口的超时时间"),
-            number("netease_search_fill.max_parallel_fills", Group.NETEASE, "最大并发补全数", "10", 1, 10,
+            text("netease_search_fill.quality", Group.EXTERNAL, "优先音质", "hires",
+                    "外站补全共用：与网易云 level 取值一致，QQ 音乐按对应档位取链；无该档时自动降级"),
+            number("netease_search_fill.http_timeout_seconds", Group.EXTERNAL, "HTTP 超时（秒）", "45", 1, 600,
+                    "外站补全共用：请求网易云 / QQ 音乐接口的超时时间"),
+            number("netease_search_fill.max_parallel_fills", Group.EXTERNAL, "最大并发补全数", "10", 1, 10,
                     "批量搜索时的全局并发上限"),
+            flag("qq_search_fill.enabled", Group.EXTERNAL, "启用 QQ 音乐补全", true,
+                    "网易云无结果时，改用 QQ 音乐接口再补全一次（优先级低于网易云）"),
+            secret("qq_search_fill.cookie", Group.EXTERNAL, "QQ 音乐登录",
+                    "由扫码登录写入，仅服务端保存与使用；后台不提供手工填写入口，未登录时按游客态请求"),
 
             // ---------- 每日推荐 ----------
             number("recommendation.daily_limit", Group.RECOMMENDATION, "每人每日条数", "300", 1, 10000,

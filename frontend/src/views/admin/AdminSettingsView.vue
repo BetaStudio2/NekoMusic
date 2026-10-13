@@ -68,6 +68,10 @@
               <NeteaseLoginCard />
             </template>
 
+            <template v-else-if="item.key === 'qq_search_fill.cookie'">
+              <QQLoginCard />
+            </template>
+
             <label
               v-else-if="item.type === 'bool'"
               class="switch"
@@ -147,6 +151,7 @@ import NIcon from '@/icons/NIcon.vue'
 import { NButton, NInput, NSpinner, NTag } from '@/ui'
 import { fetchAdminSettings, saveAdminSettings } from '@/api/adminSettings.js'
 import NeteaseLoginCard from './components/NeteaseLoginCard.vue'
+import QQLoginCard from './components/QQLoginCard.vue'
 
 const router = useRouter()
 const toast = useToast()

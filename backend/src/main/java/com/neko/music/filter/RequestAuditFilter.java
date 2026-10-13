@@ -122,9 +122,11 @@ public class RequestAuditFilter implements Filter {
             new OperationRule("/api/admin/releases", Set.of("PUT"), "客户端更新", "更新客户端版本号"),
             // VIP 价目
             new OperationRule("/api/admin/vip/pricing", Set.of("PUT"), "VIP 定价", "修改 VIP 价目"),
-            // 网易云补全扫码登录
-            new OperationRule("/api/admin/netease/qr/key", Set.of("POST"), "网易云补全", "申请扫码登录"),
-            new OperationRule("/api/admin/netease/logout", Set.of("POST"), "网易云补全", "退出网易云登录"),
+            // 外站补全扫码登录
+            new OperationRule("/api/admin/netease/qr/key", Set.of("POST"), "外站补全", "申请网易云扫码登录"),
+            new OperationRule("/api/admin/netease/logout", Set.of("POST"), "外站补全", "退出网易云登录"),
+            new OperationRule("/api/admin/qq/qr/key", Set.of("POST"), "外站补全", "申请 QQ 音乐扫码登录"),
+            new OperationRule("/api/admin/qq/logout", Set.of("POST"), "外站补全", "退出 QQ 音乐登录"),
             // 防重放来源标记
             new OperationRule("/api/admin/replay-marks", Set.of("DELETE"), "防重放标记", "清除来源标记"),
             // 管理员会话
@@ -137,7 +139,8 @@ public class RequestAuditFilter implements Filter {
             new String[] { "/api/admin/replay-marks", "防重放标记" },
             new String[] { "/api/admin/settings", "系统设置" },
             new String[] { "/api/admin/releases", "客户端更新" },
-            new String[] { "/api/admin/netease", "网易云补全" },
+            new String[] { "/api/admin/netease", "外站补全" },
+            new String[] { "/api/admin/qq", "外站补全" },
             new String[] { "/api/admin/vip/pricing", "VIP 定价" },
             new String[] { "/api/admin/users", "用户管理" },
             new String[] { "/api/admin/music", "音乐管理" },
