@@ -7,6 +7,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neko.music.config.ConfigManager;
 import com.neko.music.util.HttpTransport;
 import com.neko.music.util.OutboundUrlGuard;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,7 +29,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Base64;
 
 /**
@@ -38,6 +42,8 @@ import java.util.Base64;
  * {@code check privacy error!}。</p>
  */
 public class QQMusicClient {
+    private static final Logger logger = LoggerFactory.getLogger(QQMusicClient.class);
+
     private static final String UPSTREAM = "https://u.y.qq.com/cgi-bin/musicu.fcg";
     /** 桌面协议搜索入口：需对请求体计算 {@code ?sign=zzc...}（见 {@link #zzcSign(String)}）。 */
     private static final String DESKTOP_UPSTREAM = "https://u.y.qq.com/cgi-bin/musics.fcg";
@@ -54,6 +60,15 @@ public class QQMusicClient {
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
     /** 音频直链重定向跟随上限（上游偶有 302 到其它 QQ CDN）。 */
     private static final int MAX_AUDIO_REDIRECTS = 3;
+    /** 单个音质档位探活的超时；探活只取前 256 字节，属轻量请求。 */
+    private static final Duration PROBE_TIMEOUT = Duration.ofSeconds(8);
+    /**
+     * 一次取链里所有档位探活的总时限：档位变多、CDN 变慢时兜底，避免逐档串行探测把耗时放大
+     * （且在持有 per-mid 锁内）。
+     */
+    private static final Duration PROBE_TOTAL_BUDGET = Duration.ofSeconds(15);
+    /** 每个档位最多尝试的 sip 镜像数（上游常给多个等价 CDN 地址，首镜像故障可在同档内轮换）。 */
+    private static final int MAX_SIP_MIRRORS = 3;
     private static final String SEARCH_MODULE = "music.search.SearchCgiService";
     private static final String DESKTOP_GUID = "1F70E520B2EAA7D25E11760783C53CA9";
     private static final String DESKTOP_WID = "7223299733393904640";
@@ -79,6 +94,17 @@ public class QQMusicClient {
     private record QqQualityTemplate(String prefix, String ext, String level) {
     }
 
+    /** 探活结果三态：只有确凿的 404/403 才判定为「档位不可用」，网络异常一律按「未知」处理。 */
+    private enum ProbeOutcome {
+        PLAYABLE,
+        UNAVAILABLE,
+        UNKNOWN
+    }
+
+    /** 同一音质档位的多个 CDN 镜像（同一 purl 对每个 sip 都有效）。 */
+    private record MirrorGroup(String tier, String ext, String level, List<String> urls) {
+    }
+
     private final ObjectMapper objectMapper;
     /**
      * 出站统一不自动跟随重定向：{@link OutboundUrlGuard} 要求放行后对每个 3xx 目标重新校验，
@@ -87,6 +113,9 @@ public class QQMusicClient {
      */
     private final HttpClient httpClient = HttpTransport.createWithoutRedirects(REQUEST_TIMEOUT);
     private final ConfigManager config;
+    /** 当前 Cookie 下已在 CDN 确认取不到的档位（假直链），避免反复探活；Cookie 变化即失效重探。 */
+    private final Set<String> phantomTiers = ConcurrentHashMap.newKeySet();
+    private volatile String phantomTierCookieSignature = "";
 
     public QQMusicClient(ObjectMapper objectMapper, ConfigManager config) {
         this.objectMapper = objectMapper;
@@ -416,39 +445,110 @@ public class QQMusicClient {
             purlByFilename.put(info.path("filename").asText(""), info.path("purl").asText(""));
         }
 
-        List<QqPlayUrl> urls = new ArrayList<>();
+        // 同一档位对多个 sip 镜像都有效：逐个生成镜像候选，首镜像故障可在同档内轮换（见 MirrorGroup）。
+        Set<String> phantom = refreshPhantomTiers();
+        List<MirrorGroup> groups = new ArrayList<>();
         for (QqQualityTemplate candidate : candidates) {
+            if (phantom.contains(candidate.prefix())) {
+                continue;
+            }
             String purl = purlByFilename.get(candidate.prefix() + fileBase + candidate.ext());
             if (purl == null || purl.isBlank()) {
                 continue;
             }
-            String url = purl.startsWith("http") ? purl : sips.get(0) + purl;
-            urls.add(new QqPlayUrl(url, candidate.ext().replace(".", ""), candidate.level()));
-        }
-        if (urls.isEmpty()) {
-            return urls;
-        }
-        // 上游会对「下发了 purl 但实际取不到」的档位（常见于当前账号无权限的臻品 Hi-Res 档）
-        // 在 CDN 上直接返回 404。这里按顺位探活，跳过这种假直链，返回首个真正可下载的档位，
-        // 其后更低档位作为降级备选。
-        for (int i = 0; i < urls.size(); i++) {
-            if (probePlayable(urls.get(i).url())) {
-                return new ArrayList<>(urls.subList(i, urls.size()));
+            String ext = candidate.ext().replace(".", "");
+            List<String> mirrors = new ArrayList<>();
+            if (purl.startsWith("http")) {
+                mirrors.add(purl);
+            } else {
+                for (String sip : sips) {
+                    if (mirrors.size() >= MAX_SIP_MIRRORS) {
+                        break;
+                    }
+                    mirrors.add(sip + purl);
+                }
+            }
+            if (!mirrors.isEmpty()) {
+                groups.add(new MirrorGroup(candidate.prefix(), ext, candidate.level(), mirrors));
             }
         }
-        // 探活全部失败（如探测本身被限流）时退回原候选，交给下载侧决定，避免丢源。
+
+        // 上游会对「下发了 purl 但实际取不到」的档位（常见于当前账号无权限的臻品 Hi-Res 档）
+        // 在 CDN 上直接返回 404。这里按顺位探活，跳过这种假直链，返回首个真正可下载的档位，
+        // 其后更低档位（含同档其它镜像）作为降级备选。
+        long deadline = System.nanoTime() + PROBE_TOTAL_BUDGET.toNanos();
+        for (int i = 0; i < groups.size(); i++) {
+            MirrorGroup group = groups.get(i);
+            ProbeOutcome outcome = ProbeOutcome.UNKNOWN;
+            for (int m = 0; m < group.urls().size(); m++) {
+                if (System.nanoTime() > deadline) {
+                    logger.info("QQ 音质探活超出总时限，停止探测 tier={} level={}", group.tier(), group.level());
+                    outcome = ProbeOutcome.UNKNOWN;
+                    break;
+                }
+                outcome = probeUrl(group.urls().get(m), group.level());
+                if (outcome != ProbeOutcome.UNKNOWN) {
+                    // PLAYABLE / UNAVAILABLE 都是确定结论，无需再试同档其它镜像。
+                    break;
+                }
+            }
+            if (outcome == ProbeOutcome.PLAYABLE) {
+                return flattenFrom(groups, i);
+            }
+            if (outcome == ProbeOutcome.UNKNOWN) {
+                // 探测本身失败（限流 / 超时）无法证明该档不可用：交给下载侧决定，避免丢源。
+                return flattenFrom(groups, i);
+            }
+            // UNAVAILABLE：该档位在 CDN 上是假直链，记入缓存并继续看更低档位。
+            phantom.add(group.tier());
+        }
+        if (groups.isEmpty()) {
+            return List.of();
+        }
+        // 所有档位都在 CDN 确认取不到：返回空，避免把 404 直链交给下载侧白下载一轮。
+        logger.warn("QQ 音乐所有音质档位在 CDN 均不可取（假直链），本次不补全");
+        return List.of();
+    }
+
+    /** 展平从第 {@code from} 组起的镜像候选，供下载侧按顺位降级重试。 */
+    private static List<QqPlayUrl> flattenFrom(List<MirrorGroup> groups, int from) {
+        List<QqPlayUrl> urls = new ArrayList<>();
+        for (int i = from; i < groups.size(); i++) {
+            MirrorGroup group = groups.get(i);
+            for (String url : group.urls()) {
+                urls.add(new QqPlayUrl(url, group.ext(), group.level()));
+            }
+        }
         return urls;
+    }
+
+    /** 取当前 Cookie 对应的「假直链档位」缓存；Cookie 变化（重新登录）时清空重探。 */
+    private Set<String> refreshPhantomTiers() {
+        String signature = cookieHeader();
+        if (!signature.equals(phantomTierCookieSignature)) {
+            phantomTiers.clear();
+            phantomTierCookieSignature = signature;
+        }
+        return phantomTiers;
     }
 
     /**
      * 轻量探活：拉候选直链的前 256 字节，确认 2xx/206 且不是错误页（text/json/xml/html）。
      * 用于识别「purl 非空但 CDN 实际 404」的假直链。
+     *
+     * <p>返回三态：确凿的 404/403/410 或错误页判为 {@link ProbeOutcome#UNAVAILABLE}（档位不可用）；
+     * 2xx/206 且拿到音频字节判为 {@link ProbeOutcome#PLAYABLE}；其余（超时 / IO 异常 / 5xx 等）
+     * 一律 {@link ProbeOutcome#UNKNOWN}，不据此下结论。</p>
      */
-    private boolean probePlayable(String url) {
+    private ProbeOutcome probeUrl(String url, String level) {
         try {
             HttpResponse<InputStream> response =
-                    sendAudioGet(url, Duration.ofSeconds(8), "bytes=0-255", "QQ 音质探活被中断");
+                    sendAudioGet(url, PROBE_TIMEOUT, "bytes=0-255", "QQ 音质探活被中断");
             int status = response.statusCode();
+            if (status == 404 || status == 403 || status == 410) {
+                response.body().close();
+                return ProbeOutcome.UNAVAILABLE;
+            }
             byte[] head = new byte[64];
             int read = 0;
             try (InputStream body = response.body()) {
@@ -461,14 +561,18 @@ public class QQMusicClient {
                 }
             }
             if (status != 200 && status != 206) {
-                return false;
+                return ProbeOutcome.UNKNOWN;
             }
             String mime = response.headers().firstValue("Content-Type").orElse("").toLowerCase(Locale.ROOT);
             boolean errorPage = mime.contains("text") || mime.contains("json")
                     || mime.contains("xml") || mime.contains("html");
-            return !errorPage && read > 0;
+            if (errorPage || read == 0) {
+                return ProbeOutcome.UNAVAILABLE;
+            }
+            return ProbeOutcome.PLAYABLE;
         } catch (IOException e) {
-            return false;
+            logger.debug("QQ 音质探活失败（按未知处理）level={}: {}", level, e.getMessage());
+            return ProbeOutcome.UNKNOWN;
         }
     }
 
@@ -529,6 +633,26 @@ public class QQMusicClient {
     /** 当前 Cookie 是否含有效登录凭据（uin + musickey）。 */
     public boolean isLoggedIn() {
         return !loggedInUin().equals("0") && !musicKey().isEmpty();
+    }
+
+    /**
+     * 服务端登录态探测：当前 Cookie 凭据是否仍被上游接受。
+     *
+     * <p>与 {@link #isLoggedIn()}（只看本地 Cookie 是否含凭据）不同，这里真的请求一次
+     * {@code GetLoginUserInfo}，用于识别「Cookie 还在、但已被风控 / 改密失效」的掉线。</p>
+     *
+     * @return {@code Optional.of(true)} 有效；{@code Optional.of(false)} 有凭据但被上游拒绝（掉线）；
+     *         {@code Optional.empty()} 请求失败（网络 / 接口异常，状态未知）
+     */
+    public Optional<Boolean> probeLoginState() {
+        if (!isLoggedIn()) {
+            return Optional.of(false);
+        }
+        try {
+            return Optional.of(fetchAccountProfile() != null);
+        } catch (IOException e) {
+            return Optional.empty();
+        }
     }
 
     /**

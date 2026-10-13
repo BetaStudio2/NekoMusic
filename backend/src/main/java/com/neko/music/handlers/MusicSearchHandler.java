@@ -3,9 +3,11 @@ package com.neko.music.handlers;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.neko.music.Main;
 import com.neko.music.service.AdminMusicIngestService;
+import com.neko.music.service.ExternalFillQuotaService;
 import com.neko.music.service.MusicSearchRanker;
 import com.neko.music.service.NeteaseSearchFillService;
 import com.neko.music.util.ChineseConverter;
+import com.neko.music.util.ClientIpResolver;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -74,11 +76,11 @@ public class MusicSearchHandler extends ApiServlet {
             }
 
             if (hasItems) {
-                handleBatchSearch(searchRequest.items(), response);
+                handleBatchSearch(searchRequest.items(), request, response);
                 return;
             }
 
-            handleLegacySearch(searchRequest.query().trim(), response);
+            handleLegacySearch(searchRequest.query().trim(), request, response);
 
         } catch (Exception e) {
             // Jackson 解析异常的 message 含全限定处理器/DTO 类名与字段清单，只能落日志，响应只回泛化提示
@@ -88,12 +90,14 @@ public class MusicSearchHandler extends ApiServlet {
     }
 
 
-    private void handleLegacySearch(String query, HttpServletResponse response) throws IOException {
+    private void handleLegacySearch(String query, HttpServletRequest request, HttpServletResponse response)
+            throws IOException {
         List<Music> results = searchMusic(query);
 
         String message = "搜索成功";
         // 站内元数据 + 歌词均无结果时，先走外站补全（网易云优先，无结果再 QQ 兜底），再决定是否返回空结果。
-        if (results.isEmpty() && externalFillEnabled()) {
+        // 外站补全消耗来源配额，超出只跳过补全（仍返回站内结果），不拒绝整个搜索请求。
+        if (results.isEmpty() && externalFillEnabled() && allowExternalFill(request)) {
             NeteaseSearchFillService.FillAttempt fill =
                     Main.getNeteaseSearchFillService().tryFillFromNetease(query);
             if (fill.music().isPresent()) {
@@ -111,7 +115,8 @@ public class MusicSearchHandler extends ApiServlet {
         writeSearchResponse(response, !results.isEmpty(), message, responseResults);
     }
 
-    private void handleBatchSearch(List<SearchItem> items, HttpServletResponse response) throws IOException {
+    private void handleBatchSearch(List<SearchItem> items, HttpServletRequest request, HttpServletResponse response)
+            throws IOException {
         List<Music> results = new ArrayList<>(items.size());
         List<PendingNeteaseFill> pendingFills = new ArrayList<>();
         int foundCount = 0;
@@ -144,22 +149,35 @@ public class MusicSearchHandler extends ApiServlet {
         }
 
         if (!pendingFills.isEmpty()) {
-            List<NeteaseSearchFillService.FillRequest> fillRequests = pendingFills.stream()
-                    .map(p -> new NeteaseSearchFillService.FillRequest(p.title(), p.artist()))
-                    .toList();
-            List<NeteaseSearchFillService.FillAttempt> fillAttempts =
-                    Main.getNeteaseSearchFillService().tryFillBatchFromNetease(fillRequests);
-            for (int i = 0; i < pendingFills.size(); i++) {
-                PendingNeteaseFill pending = pendingFills.get(i);
-                NeteaseSearchFillService.FillAttempt fill = i < fillAttempts.size()
-                        ? fillAttempts.get(i)
-                        : FillAttemptErrorHolder.ERROR;
-                if (fill.music().isPresent()) {
-                    results.set(pending.resultIndex(), toSearchMusic(fill.music().get()));
-                    foundCount++;
-                    fillCount++;
-                } else if (fill.reason() != NeteaseSearchFillService.FillReason.NONE) {
-                    lastFillFailure = neteaseFillFailureMessage("搜索成功", fill.reason());
+            // 外站补全逐条消耗来源配额：超出的条目只跳过补全（仍保留站内结果），不拒绝整个请求。
+            List<PendingNeteaseFill> allowedFills = new ArrayList<>(pendingFills.size());
+            for (PendingNeteaseFill pending : pendingFills) {
+                if (allowExternalFill(request)) {
+                    allowedFills.add(pending);
+                }
+            }
+            if (allowedFills.size() < pendingFills.size()) {
+                logger.warn("批量搜索外站补全超过来源配额，跳过 {} 条",
+                        pendingFills.size() - allowedFills.size());
+            }
+            if (!allowedFills.isEmpty()) {
+                List<NeteaseSearchFillService.FillRequest> fillRequests = allowedFills.stream()
+                        .map(p -> new NeteaseSearchFillService.FillRequest(p.title(), p.artist()))
+                        .toList();
+                List<NeteaseSearchFillService.FillAttempt> fillAttempts =
+                        Main.getNeteaseSearchFillService().tryFillBatchFromNetease(fillRequests);
+                for (int i = 0; i < allowedFills.size(); i++) {
+                    PendingNeteaseFill pending = allowedFills.get(i);
+                    NeteaseSearchFillService.FillAttempt fill = i < fillAttempts.size()
+                            ? fillAttempts.get(i)
+                            : FillAttemptErrorHolder.ERROR;
+                    if (fill.music().isPresent()) {
+                        results.set(pending.resultIndex(), toSearchMusic(fill.music().get()));
+                        foundCount++;
+                        fillCount++;
+                    } else if (fill.reason() != NeteaseSearchFillService.FillReason.NONE) {
+                        lastFillFailure = neteaseFillFailureMessage("搜索成功", fill.reason());
+                    }
                 }
             }
         }
@@ -185,6 +203,19 @@ public class MusicSearchHandler extends ApiServlet {
             return "搜索成功（" + found + "/" + total + " 已找到，" + fillCount + " 条已从外站补全入库）";
         }
         return found == total ? "搜索成功" : "搜索成功（" + found + "/" + total + " 已找到）";
+    }
+
+    /**
+     * 外站补全来源配额闸门：公开搜索未命中站内曲库时会触发服务端外站下载入库，这里按来源限制触发次数，
+     * 避免被构造大量不同歌名刷带宽 / 磁盘。超配额只跳过补全，不影响正常返回站内结果。
+     */
+    private static boolean allowExternalFill(HttpServletRequest request) {
+        ExternalFillQuotaService quota = Main.getExternalFillQuotaService();
+        if (quota == null) {
+            // 未初始化（例如脱离 Main 的单元测试）时不限流，避免把搜索链路打死
+            return true;
+        }
+        return quota.tryAcquire(ClientIpResolver.clientIp(request));
     }
 
     /** 外站补全总开关：网易云或 QQ 任一开启即视为启用（网易云优先，无结果再 QQ 兜底）。 */

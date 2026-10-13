@@ -132,6 +132,18 @@ public class NotificationService {
         });
     }
 
+    /** 异步发送 QQ 音乐登录掉线告警（Cookie 失效 / 被风控），不阻塞补全线程。 */
+    public void scheduleQqLoginOfflineNotification(String reason) {
+        asyncExecutor.execute(() -> {
+            String message = "QQ 音乐登录状态已掉线\n" + safe(reason);
+            try {
+                sendNotification(message);
+            } catch (Exception e) {
+                logger.warn("异步发送 QQ 音乐掉线告警异常: {}", e.getMessage(), e);
+            }
+        });
+    }
+
     /**
      * 异步发送「来源因反复认证失败被临时封禁」告警，用于让处置可见（不阻塞认证请求）。
      *

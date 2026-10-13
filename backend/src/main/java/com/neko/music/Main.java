@@ -79,6 +79,7 @@ public class Main {
     private static AdminLoginThrottleService adminLoginThrottleService;
     private static UserLoginThrottleService userLoginThrottleService;
     private static AuthAbuseLimiter authAbuseLimiter;
+    private static ExternalFillQuotaService externalFillQuotaService;
     private static SourceBanService sourceBanService;
     private static UserAuthService userAuthService;
     private static QrLoginService qrLoginService;
@@ -102,6 +103,7 @@ public class Main {
     private static AdminMusicIngestService adminMusicIngestService;
     private static NeteaseCloudMusicClient neteaseCloudMusicClient;
     private static NeteaseLoginMonitor neteaseLoginMonitor;
+    private static QQLoginMonitor qqLoginMonitor;
     private static NeteaseSearchFillService neteaseSearchFillService;
     private static ExternalImportService externalImportService;
     private static QQMusicClient qqMusicClient;
@@ -203,6 +205,9 @@ public class Main {
         userLoginThrottleService =
                 new UserLoginThrottleService(new UserLoginThrottleService.RedisStore(redisService));
         authAbuseLimiter = new AuthAbuseLimiter(new AuthAbuseLimiter.RedisStore(redisService));
+        // 外站补全来源配额（复用认证限流的 Redis 固定窗口实现，阈值是类常量）
+        externalFillQuotaService =
+                new ExternalFillQuotaService(new AuthAbuseLimiter.RedisStore(redisService));
         
         // 初始化邮件服务
         emailService = new EmailService(configManager);
@@ -265,6 +270,8 @@ public class Main {
 
         // 网易云登录掉线告警（事件驱动，无定时巡检）：Cookie 失效时由真实请求结果触发一次 hook
         neteaseLoginMonitor = new NeteaseLoginMonitor(configManager, neteaseCloudMusicClient, notificationService);
+        // QQ 音乐登录掉线告警（同样事件驱动，由 QQ 补全失败时探测上报）
+        qqLoginMonitor = new QQLoginMonitor(configManager, qqMusicClient, notificationService);
         
         // 创建默认管理员账号（如果不存在）
         createDefaultAdminIfNotExists();
@@ -526,6 +533,10 @@ public class Main {
         return authAbuseLimiter;
     }
 
+    public static ExternalFillQuotaService getExternalFillQuotaService() {
+        return externalFillQuotaService;
+    }
+
     public static SourceBanService getSourceBanService() {
         return sourceBanService;
     }
@@ -573,6 +584,10 @@ public class Main {
 
     public static NeteaseLoginMonitor getNeteaseLoginMonitor() {
         return neteaseLoginMonitor;
+    }
+
+    public static QQLoginMonitor getQqLoginMonitor() {
+        return qqLoginMonitor;
     }
 
     public static AppReleaseService getAppReleaseService() {

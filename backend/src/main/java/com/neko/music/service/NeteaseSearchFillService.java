@@ -7,6 +7,7 @@ import com.neko.music.util.ChineseConverter;
 import com.neko.music.util.LrcValidator;
 import com.neko.music.util.RuntimeDiskGuard;
 import com.neko.music.util.SongLanguageInferer;
+import com.neko.music.util.StripedLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,7 +26,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -45,12 +45,18 @@ public class NeteaseSearchFillService {
     private static final int PEER_WAIT_MAX_MS = 90_000;
     private static final int PEER_WAIT_POLL_MS = 500;
 
+    /**
+     * 按 key 串行化的固定条带锁。补全并发上限为 {@code netease_search_fill.max_parallel_fills}（≤10），
+     * 远小于条带数，因此不同 key 落到同一条带的碰撞概率很低；同时内存占用有界——原先按
+     * 歌名 / songId / songmid 建表会随查询词与曲目数量无限增长。
+     */
+    private static final int LOCK_STRIPES = 256;
     /** 同一 JVM 内按规范化歌名+主歌手串行化补全，避免不同查询词并发双份入库 */
-    private static final ConcurrentHashMap<String, ReentrantLock> QUERY_LOCKS = new ConcurrentHashMap<>();
+    private static final StripedLock QUERY_LOCKS = new StripedLock(LOCK_STRIPES);
     /** 同一网易云 songId 串行化下载入库，避免多查询命中同一曲并发写入 */
-    private static final ConcurrentHashMap<Long, ReentrantLock> NETEASE_SONG_LOCKS = new ConcurrentHashMap<>();
+    private static final StripedLock NETEASE_SONG_LOCKS = new StripedLock(LOCK_STRIPES);
     /** 同一 QQ 音乐 songmid 串行化下载入库，避免多查询命中同一曲并发写入 */
-    private static final ConcurrentHashMap<String, ReentrantLock> QQ_SONG_LOCKS = new ConcurrentHashMap<>();
+    private static final StripedLock QQ_SONG_LOCKS = new StripedLock(LOCK_STRIPES);
 
     private final ConfigManager config;
     private final NeteaseCloudMusicClient neteaseClient;
@@ -128,7 +134,7 @@ public class NeteaseSearchFillService {
             return new FillAttempt(Optional.empty(), FillReason.LOW_DISK_SPACE);
         }
         String lockKey = canonicalIngestLockKey(trimmedTitle, trimmedArtist);
-        ReentrantLock localLock = QUERY_LOCKS.computeIfAbsent(lockKey, k -> new ReentrantLock());
+        ReentrantLock localLock = QUERY_LOCKS.forKey(lockKey);
 
         localLock.lock();
         try {
@@ -256,7 +262,7 @@ public class NeteaseSearchFillService {
         }
 
         Path workDir = null;
-        ReentrantLock songLock = NETEASE_SONG_LOCKS.computeIfAbsent(songId, k -> new ReentrantLock());
+        ReentrantLock songLock = NETEASE_SONG_LOCKS.forKey(songId);
         songLock.lock();
         try {
             // 导入按完整歌名判重：同名不同版本（Live / Remix / Ver.）不能被并掉，否则会少曲目
@@ -473,7 +479,7 @@ public class NeteaseSearchFillService {
             Path workDir
     ) throws IOException, SQLException {
         long songId = candidate.id();
-        ReentrantLock songLock = NETEASE_SONG_LOCKS.computeIfAbsent(songId, k -> new ReentrantLock());
+        ReentrantLock songLock = NETEASE_SONG_LOCKS.forKey(songId);
         songLock.lock();
         try {
             return downloadAndIngestUnderLock(candidate, workDir, songId, null, false);
@@ -656,6 +662,8 @@ public class NeteaseSearchFillService {
                 }
             }
             logger.info("QQ 音乐候选均未能入库: title={} artist={}", reqTitle, reqArtist);
+            // 有候选却全部下载 / 入库失败，可能是 Cookie 被风控导致付费曲退化为游客态：探测一次并上报。
+            probeQqLoginStateAndReport();
             return new FillAttempt(Optional.empty(), FillReason.NOT_FOUND);
         } catch (Exception e) {
             logger.error("QQ 音乐搜索补全失败 title={} artist={}", reqTitle, reqArtist, e);
@@ -687,7 +695,7 @@ public class NeteaseSearchFillService {
             Path workDir
     ) throws IOException, SQLException {
         String mid = candidate.mid();
-        ReentrantLock songLock = QQ_SONG_LOCKS.computeIfAbsent(mid, k -> new ReentrantLock());
+        ReentrantLock songLock = QQ_SONG_LOCKS.forKey(mid);
         songLock.lock();
         try {
             return downloadQqAndIngestUnderLock(candidate, workDir);
@@ -922,6 +930,22 @@ public class NeteaseSearchFillService {
             }
         });
         return probed.orElse(false);
+    }
+
+    /**
+     * 探测一次 QQ 登录态并上报给 {@link QQLoginMonitor}（事件驱动掉线告警，与网易云同构）。
+     *
+     * <p>仅在 QQ 补全「有候选但全部未能入库」时调用：Cookie 失效会让付费曲退化为游客态、
+     * 静默 NOT_FOUND，这个时机最贴近真实掉线。查询失败（网络异常）不判为掉线。</p>
+     */
+    private void probeQqLoginStateAndReport() {
+        Optional<Boolean> probed = qqClient.probeLoginState();
+        probed.ifPresent(state -> {
+            QQLoginMonitor monitor = Main.getQqLoginMonitor();
+            if (monitor != null) {
+                monitor.reportLoginState(state);
+            }
+        });
     }
 
     private static boolean prefersHighQuality(String quality) {
