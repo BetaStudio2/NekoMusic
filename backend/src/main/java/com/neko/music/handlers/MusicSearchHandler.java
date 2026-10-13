@@ -3,7 +3,9 @@ package com.neko.music.handlers;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.neko.music.Main;
 import com.neko.music.service.AdminMusicIngestService;
+import com.neko.music.service.MusicSearchRanker;
 import com.neko.music.service.NeteaseSearchFillService;
+import com.neko.music.util.ChineseConverter;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,7 +28,8 @@ import java.util.Set;
 public class MusicSearchHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicSearchHandler.class);
     private static final int SEARCH_LIMIT = 50;
-    private static final int METADATA_FETCH_LIMIT = SEARCH_LIMIT * 3;
+    /** 单个查询词条的候选上限；多词条查询按词条分别取回后在内存里合并去重。 */
+    private static final int TERM_FETCH_LIMIT = SEARCH_LIMIT * 3;
     private static final int STRONG_METADATA_SCORE = 80;
     private static final int LYRICS_EXISTING_BONUS = 10;
     private static final int LYRICS_EXISTING_SCORE_CAP = 70;
@@ -43,9 +46,12 @@ public class MusicSearchHandler extends ApiServlet {
     private static final String MUSIC_SEARCH_COLUMNS = MUSIC_BASE_COLUMNS + ", " +
             "title_pinyin, title_pinyin_initials, title_word_initials, " +
             "artist_pinyin, artist_pinyin_initials, artist_word_initials, album_pinyin ";
-    private static final MatchWeights TITLE_MATCH_WEIGHTS = new MatchWeights(100, 80, 60, 95, 75, 55);
-    private static final MatchWeights ARTIST_MATCH_WEIGHTS = new MatchWeights(50, 40, 30, 45, 35, 25);
-    private static final MatchWeights ALBUM_MATCH_WEIGHTS = new MatchWeights(20, 15, 10, 18, 13, 8);
+    private static final String TERM_TEXT_CONDITION = "(title LIKE ? OR artist LIKE ? OR album LIKE ?)";
+    private static final String TERM_PINYIN_CONDITION =
+            "(title_pinyin LIKE ? OR title_pinyin_initials LIKE ? OR title_word_initials LIKE ? "
+            + "OR artist_pinyin LIKE ? OR artist_pinyin_initials LIKE ? OR artist_word_initials LIKE ? "
+            + "OR album_pinyin LIKE ?)";
+    private static final int TERM_PINYIN_PARAM_COUNT = 7;
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -210,76 +216,51 @@ public class MusicSearchHandler extends ApiServlet {
     }
 
     /**
-     * 使用预计算拼音列进行SQL筛选，避免全表加载到内存
+     * 使用预计算拼音列进行SQL筛选，避免全表加载到内存。
+     *
+     * <p>查询串先按「歌名 + 歌手」拆成词条（如 晴天 周杰伦、周杰伦-晴天），
+     * 每个词条各自取回一批候选后再在内存里合并去重：这样即使歌手名下曲目极多，
+     * 歌名词条的候选也不会被 created_at 排序窗口挤掉。
      */
     private List<Music> searchMusic(String query) {
-        if (query == null || query.trim().isEmpty()) {
+        List<String> terms = MusicSearchRanker.splitTerms(query);
+        if (terms.isEmpty()) {
             return new ArrayList<>();
         }
 
         List<Music> results = new ArrayList<>();
-        String queryLower = query.toLowerCase().trim();
-        boolean containsPinyin = com.neko.music.util.PinyinUtil.isLikelyPinyin(query);
 
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql;
-            List<String> params = new ArrayList<>();
+            String sql = buildCandidateSql(terms);
 
-            if (containsPinyin) {
-                // 拼音搜索：利用预计算的拼音列在SQL层筛选
-                // 匹配：标题/歌手/专辑的原文LIKE + 拼音列LIKE + 拼音首字母列LIKE + 词首字母列LIKE
-                sql = "SELECT " + MUSIC_SEARCH_COLUMNS +
-                      "FROM music " +
-                      "WHERE (title LIKE ? OR artist LIKE ? OR album LIKE ? " +
-                      "OR title_pinyin LIKE ? OR title_pinyin_initials LIKE ? OR title_word_initials LIKE ? " +
-                      "OR artist_pinyin LIKE ? OR artist_pinyin_initials LIKE ? OR artist_word_initials LIKE ? " +
-                      "OR album_pinyin LIKE ?) " +
-                      "ORDER BY created_at DESC LIMIT ?";
-                String likeQuery = "%" + queryLower + "%";
-                for (int i = 0; i < 10; i++) {
-                    params.add(likeQuery);
-                }
-            } else {
-                // 中文搜索：利用繁简体变体 + 预计算拼音列
-                List<String> variants = com.neko.music.util.ChineseConverter.getFullSearchVariants(query);
-                StringBuilder sqlBuilder = new StringBuilder();
-                sqlBuilder.append("SELECT ").append(MUSIC_SEARCH_COLUMNS).append("FROM music WHERE (");
-
-                List<String> conditions = new ArrayList<>();
-                // 原文变体匹配
-                for (String variant : variants) {
-                    conditions.add("(title LIKE ? OR artist LIKE ? OR album LIKE ?)");
-                }
-                // 拼音列匹配（应对用户输入拼音搜中文的场景）
-                conditions.add("(title_pinyin LIKE ? OR title_pinyin_initials LIKE ? OR title_word_initials LIKE ? OR artist_pinyin LIKE ? OR artist_pinyin_initials LIKE ? OR artist_word_initials LIKE ? OR album_pinyin LIKE ?)");
-
-                sqlBuilder.append(String.join(" OR ", conditions));
-                sqlBuilder.append(") ORDER BY created_at DESC LIMIT ?");
-
-                sql = sqlBuilder.toString();
-
-                for (String variant : variants) {
-                    String likeVariant = "%" + variant + "%";
-                    params.add(likeVariant);
-                    params.add(likeVariant);
-                    params.add(likeVariant);
-                }
-                String likeQuery = "%" + queryLower + "%";
-                for (int i = 0; i < 7; i++) {
-                    params.add(likeQuery);
-                }
-            }
+            // SQL已经筛选了候选集，只需在内存中做精细打分排序
+            List<ScoredMusic> scoredResults = new ArrayList<>();
+            Set<Integer> seenIds = new HashSet<>();
+            int topMetadataScore = 0;
 
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                for (int i = 0; i < params.size(); i++) {
-                    stmt.setString(i + 1, params.get(i));
+                int paramIndex = 1;
+                for (String term : terms) {
+                    for (String variant : searchVariants(term)) {
+                        String likeVariant = "%" + variant + "%";
+                        for (int i = 0; i < 3; i++) {
+                            stmt.setString(paramIndex++, likeVariant);
+                        }
+                    }
+                    String likeTerm = "%" + term.toLowerCase(Locale.ROOT) + "%";
+                    for (int i = 0; i < TERM_PINYIN_PARAM_COUNT; i++) {
+                        stmt.setString(paramIndex++, likeTerm);
+                    }
+                    stmt.setInt(paramIndex++, TERM_FETCH_LIMIT);
                 }
-                stmt.setInt(params.size() + 1, METADATA_FETCH_LIMIT);
 
-                // SQL已经筛选了候选集，只需在内存中做精细打分排序
-                List<ScoredMusic> scoredResults = new ArrayList<>();
                 try (ResultSet rs = stmt.executeQuery()) {
                     while (rs.next()) {
+                        int id = rs.getInt("id");
+                        if (!seenIds.add(id)) {
+                            continue;
+                        }
+
                         Music music = mapMusicRow(rs);
 
                         // 读取预计算的拼音列
@@ -291,24 +272,28 @@ public class MusicSearchHandler extends ApiServlet {
                         music.setArtistWordInitials(rs.getString("artist_word_initials"));
                         music.setAlbumPinyin(rs.getString("album_pinyin"));
 
-                        int score = calculateMatchScore(music, query);
+                        MusicSearchRanker.MusicFields fields = toRankerFields(music);
+                        int score = MusicSearchRanker.score(fields, terms);
                         if (score > 0) {
                             scoredResults.add(new ScoredMusic(music, score));
+                            // 歌词兜底只看用户输入的完整串，与拆分出的词条无关
+                            topMetadataScore = Math.max(topMetadataScore,
+                                    MusicSearchRanker.wholeQueryStrength(fields, query));
                         }
                     }
                 }
-
-                mergeLyricsSearchResults(conn, query, scoredResults);
-
-                // 按分数排序
-                scoredResults.sort((a, b) -> Integer.compare(b.score, a.score));
-
-                for (int i = 0; i < Math.min(SEARCH_LIMIT, scoredResults.size()); i++) {
-                    results.add(scoredResults.get(i).music);
-                }
             }
 
-            logger.debug("搜索完成: query='{}', 结果数={}", query, results.size());
+            mergeLyricsSearchResults(conn, query, scoredResults, topMetadataScore);
+
+            // 按分数排序
+            scoredResults.sort((a, b) -> Integer.compare(b.score, a.score));
+
+            for (int i = 0; i < Math.min(SEARCH_LIMIT, scoredResults.size()); i++) {
+                results.add(scoredResults.get(i).music);
+            }
+
+            logger.debug("搜索完成: query='{}', 词条={}, 结果数={}", query, terms, results.size());
 
         } catch (Exception e) {
             logger.error("搜索音乐时出错", e);
@@ -317,17 +302,46 @@ public class MusicSearchHandler extends ApiServlet {
         return results;
     }
 
-    private void mergeLyricsSearchResults(Connection conn, String query, List<ScoredMusic> scoredResults)
+    /** 每个词条一个子查询，各自按 {@link #TERM_FETCH_LIMIT} 取候选，再 UNION ALL 合并。 */
+    private static String buildCandidateSql(List<String> terms) {
+        StringBuilder sql = new StringBuilder();
+        for (int i = 0; i < terms.size(); i++) {
+            if (i > 0) {
+                sql.append(" UNION ALL ");
+            }
+            List<String> conditions = new ArrayList<>();
+            for (int variant = 0; variant < searchVariants(terms.get(i)).size(); variant++) {
+                conditions.add(TERM_TEXT_CONDITION);
+            }
+            conditions.add(TERM_PINYIN_CONDITION);
+            sql.append("(SELECT ").append(MUSIC_SEARCH_COLUMNS)
+                    .append("FROM music WHERE (").append(String.join(" OR ", conditions))
+                    .append(") ORDER BY created_at DESC LIMIT ?)");
+        }
+        return sql.toString();
+    }
+
+    /** 词条的繁简体/拼音变体（大小写归一后去重）。 */
+    private static List<String> searchVariants(String term) {
+        return ChineseConverter.getFullSearchVariants(term.toLowerCase(Locale.ROOT));
+    }
+
+    private static MusicSearchRanker.MusicFields toRankerFields(Music music) {
+        return new MusicSearchRanker.MusicFields(
+                music.getTitle(), music.getArtist(), music.getAlbum(),
+                music.getTitlePinyin(), music.getTitlePinyinInitials(), music.getTitleWordInitials(),
+                music.getArtistPinyin(), music.getArtistPinyinInitials(), music.getArtistWordInitials(),
+                music.getAlbumPinyin());
+    }
+
+    private void mergeLyricsSearchResults(
+            Connection conn, String query, List<ScoredMusic> scoredResults, int topMetadataScore)
             throws SQLException {
         var index = Main.getLyricsSearchIndex();
         if (index == null || !index.isReady()) {
             return;
         }
 
-        int topMetadataScore = scoredResults.stream()
-                .mapToInt(scored -> scored.score)
-                .max()
-                .orElse(0);
         if (!shouldSearchLyricsForQuery(query, topMetadataScore, !scoredResults.isEmpty())) {
             return;
         }
@@ -529,121 +543,6 @@ public class MusicSearchHandler extends ApiServlet {
                 || script == Character.UnicodeScript.HANGUL;
     }
 
-    /**
-     * 计算匹配分数 - 使用预计算拼音列，避免运行时拼音转换
-     */
-    private int calculateMatchScore(Music music, String query) {
-        if (query == null || query.isEmpty()) {
-            return 0;
-        }
-
-        String queryLower = query.toLowerCase();
-        String querySimplifiedLower = com.neko.music.util.ChineseConverter.toSimplified(query).toLowerCase();
-        int score = 0;
-
-        // 检查标题 / 歌手 / 专辑
-        score += matchTextScore(music.getTitle(), queryLower, querySimplifiedLower, TITLE_MATCH_WEIGHTS);
-        score += matchTextScore(music.getArtist(), queryLower, querySimplifiedLower, ARTIST_MATCH_WEIGHTS);
-        score += matchTextScore(music.getAlbum(), queryLower, querySimplifiedLower, ALBUM_MATCH_WEIGHTS);
-
-        // 拼音匹配 - 使用预计算列，不再运行时调用PinyinUtil
-        // 取文本匹配和拼音匹配中的较高分
-        int pinyinScore = matchPinyinScore(music, queryLower);
-        if (pinyinScore > score) {
-            score = pinyinScore;
-        }
-
-        return score;
-    }
-
-    /**
-     * 单字段文本匹配打分：精确 &gt; 前缀 &gt; 子串，并兼容繁简体变体。
-     */
-    private static int matchTextScore(
-            String value, String queryLower, String querySimplifiedLower, MatchWeights weights) {
-        if (value == null || value.isEmpty()) {
-            return 0;
-        }
-
-        String valueLower = value.toLowerCase();
-        String valueSimplified = com.neko.music.util.ChineseConverter.toSimplified(value).toLowerCase();
-
-        if (valueLower.equals(queryLower)) {
-            return weights.exact();
-        }
-        if (valueLower.startsWith(queryLower)) {
-            return weights.prefix();
-        }
-        if (valueLower.contains(queryLower)) {
-            return weights.contains();
-        }
-        if (valueSimplified.equals(queryLower) || valueLower.equals(querySimplifiedLower)) {
-            return weights.simplifiedExact();
-        }
-        if (valueSimplified.startsWith(queryLower) || valueLower.startsWith(querySimplifiedLower)) {
-            return weights.simplifiedPrefix();
-        }
-        if (valueSimplified.contains(queryLower) || valueLower.contains(querySimplifiedLower)) {
-            return weights.simplifiedContains();
-        }
-        return 0;
-    }
-
-    /**
-     * 使用预计算拼音列匹配，避免运行时拼音转换
-     * 评分优先级：精确匹配 > 前缀匹配 > 子串匹配
-     */
-    private int matchPinyinScore(Music music, String queryLower) {
-        // 标题拼音匹配（词首字母精确匹配最高优先级，如 "jhp" 匹配 "jhp"）
-        int score = matchFieldPinyinScore(
-                music.getTitleWordInitials(),
-                music.getTitlePinyin(),
-                music.getTitlePinyinInitials(),
-                queryLower);
-
-        // 歌手拼音匹配
-        if (score == 0) {
-            score += matchFieldPinyinScore(
-                    music.getArtistWordInitials(),
-                    music.getArtistPinyin(),
-                    music.getArtistPinyinInitials(),
-                    queryLower);
-        }
-
-        // 专辑拼音匹配
-        if (score == 0) {
-            String albumPinyin = music.getAlbumPinyin();
-            if (albumPinyin != null && albumPinyin.contains(queryLower)) {
-                score += 90;
-            }
-        }
-
-        return score;
-    }
-
-    private static int matchFieldPinyinScore(
-            String wordInitials, String pinyin, String initials, String queryLower) {
-        int score = 0;
-
-        if (wordInitials != null) {
-            if (wordInitials.equals(queryLower)) {
-                score += 95;
-            } else if (wordInitials.startsWith(queryLower)) {
-                score += 90;
-            } else if (wordInitials.contains(queryLower)) {
-                score += 80;
-            }
-        }
-        if (score == 0 && pinyin != null && pinyin.contains(queryLower)) {
-            score += 85;
-        }
-        if (score == 0 && initials != null && initials.contains(queryLower)) {
-            score += 75;
-        }
-
-        return score;
-    }
-
     private static Music toSearchMusic(AdminMusicIngestService.IngestedMusic row) {
         Music music = new Music();
         music.setId(row.id());
@@ -693,12 +592,6 @@ public class MusicSearchHandler extends ApiServlet {
     }
 
     private record TokenStats(int wordLikeTokenCount, int latinWordCount, String meaningfulLatinWord) {
-    }
-
-    /** 单字段文本匹配各命中类型的加分。 */
-    private record MatchWeights(
-            int exact, int prefix, int contains,
-            int simplifiedExact, int simplifiedPrefix, int simplifiedContains) {
     }
 
     // 搜索请求（Jackson 反序列化，只读）
