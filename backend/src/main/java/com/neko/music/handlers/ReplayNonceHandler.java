@@ -3,6 +3,7 @@ package com.neko.music.handlers;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.neko.music.service.ReplayChallengeService;
+import com.neko.music.service.ReplayDifficultyPolicy;
 import com.neko.music.service.ReplayIssueLimiter;
 import com.neko.music.service.ReplayNonceService;
 import com.neko.music.util.ClientIpResolver;
@@ -59,6 +60,9 @@ public class ReplayNonceHandler extends ApiServlet {
             sendTooManyRequests(response, "请求过于频繁，请稍后再试");
             return;
         }
+
+        // 兑换同样是「领取侧请求」，计入该来源的压力窗口（与换题共用一份计数）
+        ReplayDifficultyPolicy.observe(clientIp);
 
         String challengeId = request.getParameter("challenge");
         if (challengeId == null || challengeId.isBlank()) {

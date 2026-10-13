@@ -2,6 +2,8 @@ package com.neko.music.handlers;
 
 import com.google.gson.JsonObject;
 import com.neko.music.service.ReplayChallengeService;
+import com.neko.music.service.ReplayDifficultyPolicy;
+import com.neko.music.service.ReplaySourceMarkService;
 import com.neko.music.service.ReplayIssueLimiter;
 import com.neko.music.service.ReplayNonceService;
 import com.neko.music.util.ClientIpResolver;
@@ -17,9 +19,15 @@ import java.io.IOException;
  * <p>领取 nonce 的第一步：客户端按需要的数量换一道题（{@code seed} + {@code difficulty}），
  * 解题后带 {@code challenge} / {@code proof} 调 {@code GET /api/replay/nonce} 兑换 nonce。
  * 题目一次性、短时有效，并绑定领取方的来源，因此无法转卖或换端复用；批量越大题目越难，
- * 用于抵消「一次请求签发一大批 nonce」的放大效应。</p>
+ * 用于抵消「一次请求签发一大批 nonce」的放大效应；此外还会按**该来源的领取压力**动态加压
+ * （见 {@link ReplayDifficultyPolicy}），让持续脚本的单价随频率上升。</p>
  *
  * <p>本接口与 nonce 接口同样是自举接口，豁免 nonce 校验，由签发限额与防爬过滤器兜底。</p>
+ *
+ * <p>加压档位随来源频率无限累加；当目标难度越过
+ * {@link ReplayChallengeService#MAX_ISSUABLE_DIFFICULTY_BITS}（任何客户端都已解不开）时，本接口不再
+ * 发题，改为把来源落库标记（{@link ReplaySourceMarkService}）并回 {@code 429}。已被标记的来源在标记
+ * 有效期内不再签发新题。</p>
  */
 public class ReplayChallengeHandler extends ApiServlet {
 
@@ -41,8 +49,33 @@ public class ReplayChallengeHandler extends ApiServlet {
             return;
         }
 
+        // 按该来源的领取压力给出加压档位：批量由客户端自选、可以压低，压力计数不能。
+        // 阶梯无上限，因此费用会一直往上涨，直到越过「题目还发得出去」的界线。
+        ReplayDifficultyPolicy.Pressure pressure = ReplayDifficultyPolicy.measure(clientIp);
+        int extraBits = ReplayDifficultyPolicy.extraBits(pressure);
+
+        // 已经落库标记的来源：在标记有效期内不再发题。只在来源已有加压档位时才回源查库，
+        // 正常用户（恒为基准档）永不触达标记表
+        ReplaySourceMarkService marks = ReplaySourceMarkService.current();
+        if (extraBits > 0 && marks != null && marks.isMarked(clientIp)) {
+            sendTooManyRequests(response, "请求过于频繁，请稍后再试");
+            return;
+        }
+
+        int target = ReplayChallengeService.targetDifficulty(readCount, writeCount, extraBits);
+        if (target > ReplayChallengeService.MAX_ISSUABLE_DIFFICULTY_BITS) {
+            // 再大的题任何客户端都解不开，发出去只会锁死同出口的正常用户：
+            // 改为落库标记 + 拒绝，把"无限加价"升级成可见、可复核的处置
+            if (marks != null) {
+                marks.mark(clientIp, (int) Math.min(Integer.MAX_VALUE, Math.max(0, pressure.requests())),
+                        target, ReplaySourceMarkService.REASON_UNSOLVABLE);
+            }
+            sendTooManyRequests(response, "请求过于频繁，请稍后再试");
+            return;
+        }
+
         ReplayChallengeService.Challenge challenge = ReplayChallengeService.issue(
-                readCount, writeCount, clientIp, request.getHeader("User-Agent"));
+                readCount, writeCount, clientIp, request.getHeader("User-Agent"), extraBits);
         if (challenge == null) {
             sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "服务繁忙，请稍后重试");
             return;
@@ -55,7 +88,7 @@ public class ReplayChallengeHandler extends ApiServlet {
         data.addProperty("difficulty", challenge.difficulty());
         data.addProperty("read", challenge.read());
         data.addProperty("write", challenge.write());
-        data.addProperty("expiresIn", ReplayChallengeService.CHALLENGE_TTL_SECONDS);
+        data.addProperty("expiresIn", challenge.ttlSeconds());
 
         JsonObject body = new JsonObject();
         body.addProperty("success", true);

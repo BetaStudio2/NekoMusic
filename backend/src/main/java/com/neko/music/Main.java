@@ -11,6 +11,7 @@ import com.neko.music.database.CommentDatabaseManager;
 import com.neko.music.database.LyricsDatabaseManager;
 import com.neko.music.service.*;
 import com.neko.music.database.VipPayOrderDatabaseManager;
+import com.neko.music.database.ReplaySourceMarkDatabaseManager;
 import com.neko.music.database.VipPricingDatabaseManager;
 import com.neko.music.database.SystemSettingsDatabaseManager;
 import com.neko.music.database.UserNotificationDatabaseManager;
@@ -89,6 +90,7 @@ public class Main {
     private static UserNotificationService userNotificationService;
     private static IpRegionService ipRegionService;
     private static VipPricingDatabaseManager vipPricingDatabaseManager;
+    private static ReplaySourceMarkDatabaseManager replaySourceMarkDatabaseManager;
     private static VipPayOrderDatabaseManager vipPayOrderDatabaseManager;
     private static SystemSettingsDatabaseManager systemSettingsDatabaseManager;
     private static VideoRenderJobStore videoRenderJobStore;
@@ -149,6 +151,11 @@ public class Main {
 
         vipPricingDatabaseManager = new VipPricingDatabaseManager(databaseManager);
         vipPayOrderDatabaseManager = new VipPayOrderDatabaseManager(databaseManager);
+
+        // 防重放加压越界来源标记：越界即落主库留痕（表随业务库备份），领取侧按标记临时拒绝
+        replaySourceMarkDatabaseManager = new ReplaySourceMarkDatabaseManager(databaseManager);
+        ReplaySourceMarkService.setCurrent(new ReplaySourceMarkService(
+                new ReplaySourceMarkService.SqlStore(replaySourceMarkDatabaseManager)));
 
         // 运行时配置改由主库 system_settings 表承载：首次启动把 config.yml 的现值灌进表里，
         // 之后用表里的值覆盖配置树。必须在依赖配置的服务（Redis 等）之前完成。
@@ -510,6 +517,11 @@ public class Main {
 
     public static VipPayOrderDatabaseManager getVipPayOrderDatabaseManager() {
         return vipPayOrderDatabaseManager;
+    }
+
+    /** 防重放加压来源标记表（后台/运维查询与人工放行）。 */
+    public static ReplaySourceMarkDatabaseManager getReplaySourceMarkDatabaseManager() {
+        return replaySourceMarkDatabaseManager;
     }
 
     public static SystemSettingsDatabaseManager getSystemSettingsDatabaseManager() {

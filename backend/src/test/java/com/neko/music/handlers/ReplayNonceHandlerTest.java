@@ -202,7 +202,8 @@ class ReplayNonceHandlerTest {
                 data.get("write").getAsInt(),
                 null,
                 null,
-                0L));
+                0L,
+                0));
     }
 
     private Result runChallenge(int read, int write) throws Exception {

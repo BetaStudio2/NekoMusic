@@ -24,11 +24,17 @@ public final class ReplayIssueLimiter {
 
     private static final Logger logger = LoggerFactory.getLogger(ReplayIssueLimiter.class);
 
-    /** 单个来源每秒可发起的签发请求数。 */
-    static final int PER_IP_REQUESTS_PER_SECOND = 8;
+    /**
+     * 单个来源每秒可发起的签发请求数。
+     *
+     * <p>这**不是**价格机制：越频繁越贵的部分由 {@link ReplayDifficultyPolicy} 的无上限加压承担，
+     * 这里的速率闸门只负责兜住「不解题也狂发」的裸请求（保护 Redis 写入与下游线程）。取值必须明显高于
+     * 任何客户端真能换到的速率，否则会先把加压阶梯的上升空间卡死（脚本被 429 挡住、难度却停在低档）。</p>
+     */
+    static final int PER_IP_REQUESTS_PER_SECOND = 32;
 
     /** 单个来源的突发额度。 */
-    public static final int PER_IP_REQUEST_BURST = 16;
+    public static final int PER_IP_REQUEST_BURST = 64;
 
     /** 全站每秒可签发的 nonce 个数（读 + 写合计）。 */
     static final int GLOBAL_NONCES_PER_SECOND = 12_000;

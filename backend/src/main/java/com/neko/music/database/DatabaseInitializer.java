@@ -217,6 +217,25 @@ public class DatabaseInitializer {
             executeTableDdl(stmt, createUserNotifications,
                     "user_notifications 表已就绪", "创建 user_notifications 表失败（可能已存在）");
 
+            // 防重放加压越界来源：加压阶梯无上限，越界（题目已不可解）时落库标记并拒绝领取，
+            // 让处置可见、可复核、可人工放行；到期自动失效，不需要人工清理
+            String createReplaySourceMarks = """
+                CREATE TABLE IF NOT EXISTS replay_source_marks (
+                    ip VARCHAR(64) NOT NULL,
+                    marks INT NOT NULL DEFAULT 1,
+                    peak_difficulty_bits INT NOT NULL DEFAULT 0,
+                    window_requests INT NOT NULL DEFAULT 0,
+                    reason VARCHAR(64) NOT NULL DEFAULT '',
+                    first_marked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    last_marked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    expires_at TIMESTAMP NOT NULL,
+                    PRIMARY KEY (ip),
+                    KEY idx_replay_marks_expires (expires_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """;
+            executeTableDdl(stmt, createReplaySourceMarks,
+                    "replay_source_marks 表已就绪", "创建 replay_source_marks 表失败（可能已存在）");
+
             String createVipPayOrders = """
                 CREATE TABLE IF NOT EXISTS vip_pay_orders (
                     id INT AUTO_INCREMENT PRIMARY KEY,

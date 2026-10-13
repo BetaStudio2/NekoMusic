@@ -64,6 +64,10 @@ public final class ServletRegistrar {
         // 注册管理员统计API处理器
         ServletHolder adminStatsHolder = new ServletHolder(new AdminStatsHandler());
         context.addServlet(adminStatsHolder, "/api/admin/stats");
+
+        // 防重放加压越界来源：后台查看当前标记 / 按来源人工放行（加压阶梯无上限，越界即落库）
+        ServletHolder adminReplayMarkHolder = new ServletHolder(new AdminReplayMarkHandler());
+        context.addServlet(adminReplayMarkHolder, "/api/admin/replay-marks");
         
         // 注册管理员用户管理API处理器
         ServletHolder adminUserManagementHolder = new ServletHolder(new AdminUserManagementHandler());

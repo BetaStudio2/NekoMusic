@@ -117,6 +117,48 @@ class ReplayChallengeServiceTest {
     }
 
     @Test
+    void elevationRaisesDifficultyWithoutAnyCapAndWidensTtlUpToItsLimit() {
+        ReplayChallengeService.Challenge base = ReplayChallengeService.issue(16, 16, IP, UA);
+        assertEquals(ReplayChallengeService.BASE_DIFFICULTY_BITS, base.difficulty());
+        assertEquals(ReplayChallengeService.CHALLENGE_TTL_SECONDS, base.ttlSeconds());
+
+        // 加压档位写进题目记录：兑换时以记录为准，客户端无法自己「要」一道低难度的题
+        ReplayChallengeService.Challenge small = ReplayChallengeService.issue(1, 0, IP, UA, 2);
+        assertEquals(ReplayChallengeService.BASE_DIFFICULTY_BITS + 2, small.difficulty());
+
+        // 难度不封顶：叠多少就是多少（越过可发题界线的表达由调用方转成落库标记 + 拒绝）
+        ReplayChallengeService.Challenge huge = ReplayChallengeService.issue(16, 16, IP, UA, 20);
+        assertEquals(ReplayChallengeService.BASE_DIFFICULTY_BITS + 20, huge.difficulty());
+        assertTrue(huge.difficulty() > ReplayChallengeService.MAX_ISSUABLE_DIFFICULTY_BITS);
+
+        // 有效期随难度放宽，但不越过上限：难度无上限，题目有效期有
+        assertEquals(ReplayChallengeService.CHALLENGE_TTL_SECONDS
+                        + 2 * ReplayChallengeService.TTL_BONUS_SECONDS_PER_BIT,
+                small.ttlSeconds());
+        assertEquals(ReplayChallengeService.MAX_CHALLENGE_TTL_SECONDS, huge.ttlSeconds());
+        assertTrue(huge.ttlSeconds() > base.ttlSeconds());
+    }
+
+    @Test
+    void batchLadderAndPressureBitsAreIndependentAxes() {
+        // 大批量本身就要比加压线更高的难度：加压只能往上叠，绝不能把它压回来
+        ReplayChallengeService.Challenge large = ReplayChallengeService.issue(2048, 2048, IP, UA);
+        assertEquals(ReplayChallengeService.MAX_DIFFICULTY_BITS, large.difficulty());
+
+        ReplayChallengeService.Challenge largeElevated = ReplayChallengeService.issue(2048, 2048, IP, UA, 6);
+        assertEquals(ReplayChallengeService.MAX_DIFFICULTY_BITS + 6, largeElevated.difficulty());
+    }
+
+    @Test
+    void targetDifficultyMatchesTheIssuedChallenge() {
+        // 调用方先用它判越界、再发题，两处必须同源
+        ReplayChallengeService.Challenge issued = ReplayChallengeService.issue(16, 16, IP, UA, 5);
+        assertEquals(issued.difficulty(), ReplayChallengeService.targetDifficulty(16, 16, 5));
+        assertEquals(ReplayChallengeService.BASE_DIFFICULTY_BITS,
+                ReplayChallengeService.targetDifficulty(16, 16, -3));
+    }
+
+    @Test
     void meetsDifficultyChecksLeadingZeroBits() {
         assertTrue(ReplayChallengeService.meetsDifficulty(new byte[]{0x00, 0x00}, 16));
         assertTrue(ReplayChallengeService.meetsDifficulty(new byte[]{0x00, 0x1F}, 11));
@@ -125,6 +167,15 @@ class ReplayChallengeServiceTest {
         assertTrue(ReplayChallengeService.meetsDifficulty(new byte[]{0x01, 0x00}, 7));
         // 摘要长度不足时不得误判为通过
         assertFalse(ReplayChallengeService.meetsDifficulty(new byte[]{0x00}, 16));
+    }
+
+    @Test
+    void proofCounterAcceptsTheFullLongRangeButNoMore() {
+        // 计数器裁剪到 19 位（Long 范围）：高难度档位的解答不会被格式判为非法
+        assertEquals(19, ReplayChallengeService.MAX_PROOF_DIGITS);
+        assertTrue(ReplayChallengeService.validProof("seed", 0, "1234567890123456789"));
+        assertFalse(ReplayChallengeService.validProof("seed", 0, "12345678901234567890"));
+        assertFalse(ReplayChallengeService.validProof("seed", 0, "123456789012345678a"));
     }
 
     private static String solve(ReplayChallengeService.Challenge challenge) {

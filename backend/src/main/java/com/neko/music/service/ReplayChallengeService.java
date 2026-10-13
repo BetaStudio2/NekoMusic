@@ -24,6 +24,10 @@ import java.util.function.LongSupplier;
  * <p>成本不对称：服务端验一次哈希，客户端要试 {@code 2^difficulty} 量级次。题目一次性、短时效，
  * 并绑定领取方的来源指纹，无法转卖或换端复用。为避免给 Redis 添负担，挑战只存在进程内
  * （带 TTL 的单次映射），不落库。</p>
+ *
+ * <p>难度本身**不设上限**：批量档位之上再叠加按来源频率给出的加压档位
+ * （{@link ReplayDifficultyPolicy}，档位随频率与持续时间无限累加）。本类只负责"这道题还发不发得
+ * 出去"：越过 {@link #MAX_ISSUABLE_DIFFICULTY_BITS} 的表达由调用方转成落库标记 + 拒绝。</p>
  */
 public final class ReplayChallengeService {
 
@@ -49,6 +53,34 @@ public final class ReplayChallengeService {
 
     /** 难度上限：避免批量拉满时把正常客户端卡死。 */
     static final int MAX_DIFFICULTY_BITS = 26;
+
+    /**
+     * 还愿意**发题**的难度上限——它不是加压上限，加压阶梯本身没有上限
+     * （见 {@link ReplayDifficultyPolicy}）。
+     *
+     * <p>{@code 2^32} 次哈希（约 43 亿次）已经超出任何客户端在合理解题窗口内的能力：按浏览器
+     * 2 MH/s 也要半小时以上。越过这条线还继续发题，唯一的效果是连同出口的正常用户一起锁死
+     * ——他们同样解不开。因此调用方改为**落库标记该来源并明确拒绝**（{@link ReplaySourceMarkService}），
+     * 把"无限加价"升级成可见、可复核的处置。</p>
+     *
+     * <p>协议侧更远的硬界：SHA-256 摘要空间 256 位；解答计数器用十进制裁剪到
+     * {@link #MAX_PROOF_DIGITS} 位（Long 范围）。两者都远在本线之外，本线纯粹是"人还解不解得开"。</p>
+     */
+    public static final int MAX_ISSUABLE_DIFFICULTY_BITS = 32;
+
+    /** 每加压 1 比特，题目有效期放宽的秒数。 */
+    static final int TTL_BONUS_SECONDS_PER_BIT = 15;
+
+    /**
+     * 题目有效期上限（秒）。
+     *
+     * <p>难度可以无上限，**有效期不行**：题目在有效期内绑定来源即可兑换，窗口越长越像一次长期凭证。
+     * 因此难度继续涨、有效期到顶为止（慢设备也不至于解到一半就过期）。</p>
+     */
+    static final int MAX_CHALLENGE_TTL_SECONDS = 300;
+
+    /** 解答计数器的最大位数（Long 范围），对应协议侧的硬界。 */
+    static final int MAX_PROOF_DIGITS = 19;
 
     /** 进程内最多暂存的挑战数；超过则先清理过期项，仍然超限就拒绝签发。 */
     private static final int MAX_PENDING = 200_000;
@@ -91,13 +123,22 @@ public final class ReplayChallengeService {
 
     /** 一道待解的挑战。 */
     public record Challenge(String id, String seed, int difficulty, int read, int write,
-                            String ipHash, String uaHash, long expiresAtMillis) {
+                            String ipHash, String uaHash, long expiresAtMillis, int ttlSeconds) {
     }
 
     /**
      * 下发一道挑战；暂存超限时返回 {@code null}（调用方按服务繁忙处理）。
      */
     public static Challenge issue(int read, int write, String clientIp, String userAgent) {
+        return issue(read, write, clientIp, userAgent, 0);
+    }
+
+    /**
+     * 下发一道挑战，并按来源压力叠加加压档位（见 {@link ReplayDifficultyPolicy}）。
+     *
+     * @param extraBits 服务端按该来源的领取压力给出的加压比特数；{@code 0} 表示基准档
+     */
+    public static Challenge issue(int read, int write, String clientIp, String userAgent, int extraBits) {
         long now = clock.getAsLong();
         if (PENDING.size() > MAX_PENDING) {
             sweep(now);
@@ -108,15 +149,19 @@ public final class ReplayChallengeService {
         } else if (ISSUED.incrementAndGet() % SWEEP_INTERVAL == 0) {
             sweep(now);
         }
+        int elevation = Math.max(0, extraBits);
+        int difficulty = targetDifficulty(read, write, elevation);
+        int ttlSeconds = challengeTtlSeconds(elevation);
         Challenge challenge = new Challenge(
                 randomHex(16),
                 randomHex(16),
-                difficultyFor(read + write),
+                difficulty,
                 read,
                 write,
                 ReplayNonceService.fingerprint(clientIp),
                 ReplayNonceService.fingerprint(userAgent),
-                now + CHALLENGE_TTL_SECONDS * 1000L);
+                now + ttlSeconds * 1000L,
+                ttlSeconds);
         PENDING.put(challenge.id(), challenge);
         return challenge;
     }
@@ -146,6 +191,22 @@ public final class ReplayChallengeService {
         return new Outcome(Status.OK, challenge.read(), challenge.write());
     }
 
+    /**
+     * 叠加加压档位后的目标难度：{@code 批量档位 + 加压档位}，**不封顶**。
+     *
+     * <p>单独暴露给调用方，是为了让"是否已越过可解线"的判定与实际发题用同一个算式，避免两处漂移；
+     * 越过 {@link #MAX_ISSUABLE_DIFFICULTY_BITS} 时调用方不发题，改走标记处置。</p>
+     */
+    public static int targetDifficulty(int read, int write, int extraBits) {
+        return difficultyFor(read + write) + Math.max(0, extraBits);
+    }
+
+    /** 题目有效期：随加压档位放宽，但不越过 {@link #MAX_CHALLENGE_TTL_SECONDS}。 */
+    static int challengeTtlSeconds(int extraBits) {
+        int bonus = Math.max(0, extraBits) * TTL_BONUS_SECONDS_PER_BIT;
+        return Math.min(CHALLENGE_TTL_SECONDS + bonus, MAX_CHALLENGE_TTL_SECONDS);
+    }
+
     /** 批量越大题目越难：每翻一倍批量加 1 比特，上限 {@link #MAX_DIFFICULTY_BITS}。 */
     static int difficultyFor(int total) {
         int bits = BASE_DIFFICULTY_BITS;
@@ -163,7 +224,7 @@ public final class ReplayChallengeService {
             return false;
         }
         String value = proof.trim();
-        if (value.isEmpty() || value.length() > 12) {
+        if (value.isEmpty() || value.length() > MAX_PROOF_DIGITS) {
             return false;
         }
         for (int i = 0; i < value.length(); i++) {
