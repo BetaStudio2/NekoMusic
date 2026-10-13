@@ -1,7 +1,8 @@
 // 客户端标识：所有出站请求统一带上
 //   - X-Neko-Client: web+<版本>
 //   - User-Agent:    NekoMusic-web/<版本>
-// 便于后端按来源端与版本做统计、灰度或最低版本拦截。
+//   - Authorization: Bearer <用户令牌>（已登录时；后台页面自己设的管理员令牌优先）
+// 便于后端按来源端与版本做统计、灰度或最低版本拦截，并把访问日志落到具体账号。
 //
 // 版本号在构建时由 Vite 注入（见 vite.config.js 的 __NEKO_WEB_VERSION__）：
 // 优先取 NEKO_WEB_VERSION / VITE_APP_VERSION 环境变量，其次 git describe 结果。
@@ -37,6 +38,29 @@ const NEKO_REQUEST_HEADERS = {
   [NEKO_USER_AGENT_HEADER]: NEKO_USER_AGENT_VALUE,
 }
 
+/** 用户令牌标头；与后端 `Authorization: Bearer <token>` 约定一致 */
+export const AUTHORIZATION_HEADER = 'Authorization'
+
+/** 用户令牌的本地存储键；与 utils/userStore.js 的 getToken() 同源 */
+const USER_TOKEN_STORAGE_KEY = 'userToken'
+
+/**
+ * 已登录用户令牌的标头取值；未登录 / 取不到返回空串。
+ *
+ * 每次请求现读 localStorage，不缓存到内存：登出、换号后下一条请求立刻不再带旧令牌
+ * （缓存一份就要额外维护失效，漏一处就是把上一个人的身份发出去）。
+ */
+function userAuthorizationValue() {
+  if (typeof window === 'undefined' || !window.localStorage) return ''
+  try {
+    const token = window.localStorage.getItem(USER_TOKEN_STORAGE_KEY)
+    return token ? `Bearer ${token}` : ''
+  } catch {
+    // 隐私模式下 localStorage 可能直接抛异常：没有令牌照常发请求
+    return ''
+  }
+}
+
 /**
  * 仅对发往自家后端的请求附加标头。
  * 跨域请求附带自定义标头会触发 CORS 预检，第三方接口不一定放行。
@@ -68,14 +92,17 @@ function withFetchHeader(input, init) {
         : ''
   if (!shouldAttachHeader(url)) return null
 
-  if (input instanceof Request) {
-    const headers = new Headers(input.headers)
-    for (const [name, value] of Object.entries(NEKO_REQUEST_HEADERS)) headers.set(name, value)
-    return new Request(input, { ...(init || {}), headers })
-  }
-  const headers = new Headers(init?.headers || {})
+  const headers =
+    input instanceof Request ? new Headers(input.headers) : new Headers(init?.headers || {})
   for (const [name, value] of Object.entries(NEKO_REQUEST_HEADERS)) headers.set(name, value)
-  return { ...(init || {}), headers }
+  // 用户令牌只补空缺：后台页面用管理员令牌，调用方显式设过就一律不动
+  const authorization = userAuthorizationValue()
+  if (authorization && !headers.has(AUTHORIZATION_HEADER)) {
+    headers.set(AUTHORIZATION_HEADER, authorization)
+  }
+  return input instanceof Request
+    ? new Request(input, { ...(init || {}), headers })
+    : { ...(init || {}), headers }
 }
 
 function patchFetch() {
@@ -112,7 +139,10 @@ function patchXhr() {
     // axios 等库会先自行设置标头，这里只在缺失时补一次，避免重复值
     if (shouldAttachHeader(this.__nekoRequestUrl)) {
       const sent = this.__nekoHeaderSet || new Set()
-      for (const [name, value] of Object.entries(NEKO_REQUEST_HEADERS)) {
+      const headers = { ...NEKO_REQUEST_HEADERS }
+      const authorization = userAuthorizationValue()
+      if (authorization) headers[AUTHORIZATION_HEADER] = authorization
+      for (const [name, value] of Object.entries(headers)) {
         if (!sent.has(name.toLowerCase())) {
           sent.add(name.toLowerCase())
           originalSetRequestHeader.call(this, name, value)
@@ -124,8 +154,10 @@ function patchXhr() {
 }
 
 /**
- * 安装客户端标识：在应用启动最早期调用一次即可。
+ * 安装客户端标识与用户令牌：在应用启动最早期调用一次即可。
  * 覆盖原生 fetch、XMLHttpRequest 与 axios（axios 浏览器端默认走 XHR）。
+ *
+ * 用户令牌不进 axios 默认值：它是随登录态变化的，写死一份会在登出后继续发出去。
  */
 export function installNekoClientHeader() {
   for (const [name, value] of Object.entries(NEKO_REQUEST_HEADERS)) {
