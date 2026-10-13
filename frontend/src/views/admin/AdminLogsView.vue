@@ -2,9 +2,9 @@
   <div class="subpage">
     <header class="subpage__head">
       <div>
-        <h1 class="subpage__title">日志</h1>
+        <h1 class="subpage__title">操作日志</h1>
         <p class="subpage__desc">
-          访问日志记录每个请求的访问量、UA、客户端与来源，用于安全分析；操作日志记录管理后台的写操作。
+          记录后台写操作：系统设置修改、审核通过 / 驳回、音乐上传 / 修改 / 删除、歌词修改等，并保留操作人、时间、结果与来源。
         </p>
       </div>
     </header>
@@ -122,6 +122,10 @@
           <span class="stat__label">今日异常（≥400）</span>
         </NCard>
         <NCard pad="lg" class="stat">
+          <span class="stat__number">{{ stats.todayPowRejected ?? 0 }}</span>
+          <span class="stat__label">今日 PoW 拦截</span>
+        </NCard>
+        <NCard pad="lg" class="stat">
           <span class="stat__number">{{ stats.totalRequests ?? 0 }}</span>
           <span class="stat__label">累计访问</span>
         </NCard>
@@ -185,6 +189,10 @@
         </select>
         <NInput v-model="accessQuery.ip" placeholder="来源 IP 含…" clearable class="toolbar__search" />
         <NInput v-model="accessQuery.path" placeholder="路径含…" clearable class="toolbar__search" />
+        <select v-model="accessQuery.powStatus" class="select" aria-label="PoW 结果">
+          <option value="">全部 PoW 结果</option>
+          <option v-for="item in POW_STATUSES" :key="item.value" :value="item.value">{{ item.label }}</option>
+        </select>
         <NInput
           v-model="accessQuery.keyword"
           icon="search"
@@ -194,7 +202,18 @@
           @keyup.enter="loadAccess(1)"
         />
         <NButton variant="primary" icon="search" :disabled="loading" @click="loadAccess(1)">查询</NButton>
+        <NButton
+          :variant="live ? 'primary' : 'secondary'"
+          icon="activity"
+          :title="liveHint"
+          @click="toggleLive"
+        >{{ liveLabel }}</NButton>
       </div>
+
+      <p v-if="live && livePaused" class="live-note">
+        <NIcon name="activity" :size="14" />
+        实时更新已开启，但当前在第 {{ access.page }} 页 / 带筛选条件，新记录不插入表格；回到第 1 页并清空筛选即可看到实时追加。
+      </p>
 
       <div class="table-wrap">
         <table class="table">
@@ -203,6 +222,7 @@
               <th>时间</th>
               <th>请求</th>
               <th>状态</th>
+              <th>PoW</th>
               <th>耗时</th>
               <th>分类</th>
               <th>客户端</th>
@@ -212,13 +232,19 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in access.items" :key="row.id">
+            <tr v-for="row in access.items" :key="row.id ?? row.__liveKey">
               <td class="cell-dim">{{ formatTime(row.occurred_at) }}</td>
               <td class="cell-path" :title="fullPath(row)">
                 <span class="cell-method">{{ row.method }}</span> {{ row.path }}
               </td>
               <td>
                 <NTag :variant="statusVariant(row.status)" size="sm">{{ row.status }}</NTag>
+              </td>
+              <td class="cell-dim" :title="powTitle(row)">
+                <template v-if="row.pow_status">
+                  <span v-if="row.pow_difficulty">难度 {{ row.pow_difficulty }} · </span>{{ powLabel(row.pow_status) }}
+                </template>
+                <template v-else>—</template>
               </td>
               <td class="cell-dim">{{ row.duration_ms }} ms</td>
               <td class="cell-dim">{{ categoryLabel(row.category) }}</td>
@@ -228,7 +254,7 @@
               <td class="cell-ua" :title="row.user_agent">{{ row.user_agent || '（空）' }}</td>
             </tr>
             <tr v-if="!access.items.length">
-              <td colspan="9" class="cell-empty">暂无记录</td>
+              <td colspan="10" class="cell-empty">暂无记录</td>
             </tr>
           </tbody>
         </table>
@@ -257,7 +283,12 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NInput, NTag } from '@/ui'
-import { fetchAccessLogs, fetchAccessLogStats, fetchOperationLogs } from '@/api/adminLogs.js'
+import {
+  fetchAccessLogs,
+  fetchAccessLogStats,
+  fetchOperationLogs,
+  openAccessLogStream
+} from '@/api/adminLogs.js'
 import {
   Chart as ChartJS,
   LineController,
@@ -332,11 +363,46 @@ const access = reactive({ total: 0, page: 1, size: PAGE_SIZE, items: [] })
 const operations = reactive({ total: 0, page: 1, size: PAGE_SIZE, items: [] })
 const stats = ref({})
 
-const accessQuery = reactive({ ip: '', path: '', clientType: '', keyword: '' })
+const accessQuery = reactive({ ip: '', path: '', clientType: '', keyword: '', powStatus: '' })
 const operationQuery = reactive({ module: '', keyword: '' })
 
 const trendCanvas = ref(null)
 let trendChart = null
+
+/** 实时流最多在表格顶部保留多少行；再多就丢掉最旧的实时行，避免页面越开越卡。 */
+const LIVE_MAX_ROWS = 200
+/** PoW 结果标签：与后端 PowAudit 的词表一致（仅后台展示用）。 */
+const POW_STATUSES = [
+  { value: 'verified', label: '通过（verified）' },
+  { value: 'missing', label: '缺 nonce（missing）' },
+  { value: 'invalid', label: '无效 / 重放（invalid）' },
+  { value: 'expired', label: '挑战过期（expired）' },
+  { value: 'mismatch', label: '来源不匹配（mismatch）' },
+  { value: 'bad_proof', label: '解答不合格（bad_proof）' },
+  { value: 'issued', label: '下发挑战（issued）' },
+  { value: 'exchanged', label: '兑换 nonce（exchanged）' },
+  { value: 'rate_limited', label: '被限额（rate_limited）' },
+  { value: 'marked', label: '加压越界（marked）' },
+  { value: 'error', label: '故障（error）' }
+]
+const POW_LABELS = Object.fromEntries(POW_STATUSES.map((item) => [item.value, item.label]))
+/** 只有这些结果算「没通过」，与后端统计口径一致。 */
+const POW_REJECTED = new Set([
+  'missing',
+  'invalid',
+  'expired',
+  'mismatch',
+  'bad_proof',
+  'rate_limited',
+  'marked',
+  'error'
+])
+
+const live = ref(true)
+const liveState = ref('connecting')
+const liveReceived = ref(0)
+let liveStop = null
+let liveSeq = 0
 
 const canViewOperations = computed(() => role.value === 'admin' || role.value === 'super_admin')
 const canViewAccess = computed(() =>
@@ -345,8 +411,24 @@ const canViewAccess = computed(() =>
 const tabs = computed(() => {
   const list = []
   if (canViewOperations.value) list.push({ key: 'operations', label: '操作日志' })
-  if (canViewAccess.value) list.push({ key: 'access', label: '访问日志' })
+  if (canViewAccess.value) list.push({ key: 'access', label: '访问日志（安全分析）' })
   return list
+})
+
+const livePaused = computed(() =>
+  access.page !== 1 ||
+  Boolean(accessQuery.ip || accessQuery.path || accessQuery.clientType || accessQuery.keyword || accessQuery.powStatus)
+)
+const liveLabel = computed(() => {
+  if (!live.value) return '实时已关闭'
+  if (liveState.value === 'open') return '实时更新中'
+  if (liveState.value === 'connecting') return '实时连接中…'
+  return '实时已断开'
+})
+const liveHint = computed(() => {
+  if (!live.value) return '点击开启访问日志实时更新（SSE）'
+  if (liveState.value === 'error') return `实时流已断开（累计收到 ${liveReceived.value} 条），点击重连`
+  return `已实时收到 ${liveReceived.value} 条新日志，点击关闭`
 })
 
 onMounted(() => {
@@ -358,11 +440,13 @@ onMounted(() => {
       role.value = 'admin'
     }
   }
-  activeTab.value = tabs.value[0]?.key || 'access'
+  activeTab.value = canViewOperations.value ? 'operations' : 'access'
   loadActiveTab()
+  syncLiveStream()
 })
 
 onUnmounted(() => {
+  closeLiveStream()
   destroyChart()
 })
 
@@ -370,6 +454,56 @@ function switchTab(key) {
   if (activeTab.value === key) return
   activeTab.value = key
   loadActiveTab()
+  syncLiveStream()
+}
+
+// ── 实时流（SSE） ─────────────────────────────────────────────
+// 只在「访问日志」标签页且已勾选实时时保持连接：实时流会一直占用一条长连接，
+// 停在操作日志页还开着纯属浪费（服务端也限制了并发连接数）。
+
+function toggleLive() {
+  live.value = !live.value
+  syncLiveStream()
+}
+
+function syncLiveStream() {
+  if (live.value && activeTab.value === 'access' && canViewAccess.value) {
+    openLiveStream()
+  } else {
+    closeLiveStream()
+  }
+}
+
+function openLiveStream() {
+  if (liveStop || !liveTransportReady()) return
+  liveState.value = 'connecting'
+  liveStop = openAccessLogStream({
+    onRecord: applyLiveRecord,
+    onState: (state) => {
+      liveState.value = state
+      // 鉴权失败（401/403）时浏览器会自动无限重连，这里主动收手，等用户手动重开
+      if (state === 'error') closeLiveStream()
+    }
+  })
+}
+
+function closeLiveStream() {
+  if (!liveStop) return
+  liveStop()
+  liveStop = null
+}
+
+function liveTransportReady() {
+  return typeof EventSource !== 'undefined' && Boolean(localStorage.getItem('adminToken'))
+}
+
+/** 新日志插入表格顶部：翻页或带筛选时不动表格（那会把不属于当前视图的行混进来）。 */
+function applyLiveRecord(row) {
+  liveReceived.value += 1
+  if (activeTab.value !== 'access' || livePaused.value) return
+  row.__liveKey = `live-${(liveSeq += 1)}`
+  access.items = [row, ...access.items].slice(0, LIVE_MAX_ROWS)
+  access.total += 1
 }
 
 function loadActiveTab() {
@@ -415,6 +549,7 @@ async function loadAccess(page) {
       ip: accessQuery.ip,
       path: accessQuery.path,
       clientType: accessQuery.clientType,
+      powStatus: accessQuery.powStatus,
       keyword: accessQuery.keyword
     })
     access.total = data.total || 0
@@ -506,6 +641,16 @@ function clientTypeLabel(value) {
 
 function categoryLabel(value) {
   return CATEGORY_LABELS[value] || value || '—'
+}
+
+function powLabel(value) {
+  return POW_LABELS[value] || value
+}
+
+function powTitle(row) {
+  if (!row.pow_status) return '本次请求未经过防重放挑战（静态资源 / 无需 nonce 的接口）'
+  if (POW_REJECTED.has(row.pow_status)) return `PoW 未通过：${powLabel(row.pow_status)}`
+  return `PoW：${powLabel(row.pow_status)}`
 }
 
 function platformText(row) {
@@ -754,6 +899,19 @@ function statusVariant(status) {
   justify-content: center;
   gap: var(--n-space-4);
   margin-top: var(--n-space-4);
+}
+
+.live-note {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-2);
+  margin: 0 0 var(--n-space-3);
+  padding: var(--n-space-2) var(--n-space-3);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-md);
+  background: var(--n-surface-2);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
 }
 
 .pager__info {

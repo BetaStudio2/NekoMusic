@@ -4,27 +4,107 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
-/** 操作日志的模块 / 动作归类：后台检索全靠它，不能把「用户管理」记成「管理后台」。 */
+/**
+ * 操作日志的模块 / 动作 / 目标归类。
+ *
+ * <p>这是「后台到底做了什么」唯一的人话来源，归错就等于没记；其中 {@code /api/music/*} 上的
+ * 管理员音乐上传 / 修改 / 删除最容易被漏掉——它们的路径不在 {@code /api/admin/*} 下。</p>
+ */
 class RequestAuditFilterTest {
 
     @Test
-    @DisplayName("模块按最长前缀归类")
-    void resolvesModuleByLongestPrefix() {
-        assertEquals("用户管理", RequestAuditFilter.resolveModule("/api/admin/users/12"));
-        assertEquals("歌词管理", RequestAuditFilter.resolveModule("/api/admin/lyrics-files/9"));
-        assertEquals("VIP 定价", RequestAuditFilter.resolveModule("/api/admin/vip/pricing"));
-        assertEquals("审核管理", RequestAuditFilter.resolveModule("/api/admin/audit/pending"));
-        assertEquals("管理后台", RequestAuditFilter.resolveModule("/api/admin/unknown"));
+    @DisplayName("系统设置 / 审核 / 歌词 / 用户 / 版本 的写操作有语义化动作")
+    void resolvesSemanticActionsForAdminWrites() {
+        assertRule("PUT", "/api/admin/settings", "系统设置", "修改系统设置");
+        assertRule("POST", "/api/admin/audit/approve/37", "审核管理", "审核通过");
+        assertRule("POST", "/api/admin/audit/reject/37", "审核管理", "审核驳回");
+        assertRule("PUT", "/api/admin/lyrics-files/file/148.lrc", "歌词管理", "修改歌词");
+        assertRule("DELETE", "/api/admin/lyrics-files/file/148.lrc", "歌词管理", "删除歌词");
+        assertRule("PUT", "/api/admin/users/12/edit", "用户管理", "修改用户信息");
+        assertRule("DELETE", "/api/admin/users/12", "用户管理", "删除用户");
+        assertRule("POST", "/api/admin/create", "管理员管理", "创建管理员账号");
+        assertRule("PUT", "/api/admin/releases", "客户端更新", "更新客户端版本号");
+        assertRule("POST", "/api/admin/releases/upload", "客户端更新", "上传客户端安装包");
+        assertRule("PUT", "/api/admin/vip/pricing", "VIP 定价", "修改 VIP 价目");
+        assertRule("POST", "/api/admin/netease/qr/key", "网易云补全", "申请扫码登录");
+        assertRule("POST", "/api/admin/netease/logout", "网易云补全", "退出网易云登录");
+        assertRule("DELETE", "/api/admin/replay-marks", "防重放标记", "清除来源标记");
+        assertRule("POST", "/api/admin/login", "管理员登录", "登录");
+        assertRule("POST", "/api/admin/logout", "管理员登录", "登出");
     }
 
     @Test
-    @DisplayName("登录 / 登出单列，其余按方法归纳")
-    void resolvesAction() {
-        assertEquals("登录", RequestAuditFilter.resolveAction("/api/admin/login", "POST"));
-        assertEquals("登出", RequestAuditFilter.resolveAction("/api/admin/logout", "POST"));
-        assertEquals("提交", RequestAuditFilter.resolveAction("/api/admin/users", "POST"));
-        assertEquals("更新", RequestAuditFilter.resolveAction("/api/admin/settings", "PUT"));
-        assertEquals("删除", RequestAuditFilter.resolveAction("/api/admin/users/1", "DELETE"));
+    @DisplayName("音乐的上传 / 修改 / 删除挂在 /api/music/*，必须纳入操作日志")
+    void resolvesMusicOperationsOutsideAdminPrefix() {
+        assertRule("POST", "/api/music/upload", "音乐管理", "上传音乐");
+        assertRule("PUT", "/api/music/upload", "音乐管理", "修改音乐");
+        assertRule("POST", "/api/music", "音乐管理", "新增音乐");
+        assertRule("PUT", "/api/music/148", "音乐管理", "修改音乐");
+        assertRule("DELETE", "/api/music/148", "音乐管理", "删除音乐");
+        assertRule("DELETE", "/api/music/delete/148", "音乐管理", "删除音乐");
+    }
+
+    @Test
+    @DisplayName("公开接口不算操作：听歌识曲、搜索、读取一律无规则")
+    void publicEndpointsHaveNoOperationRule() {
+        assertNull(RequestAuditFilter.resolveRule("/api/music/recognize", "POST"));
+        assertNull(RequestAuditFilter.resolveRule("/api/music/search", "POST"));
+        assertNull(RequestAuditFilter.resolveRule("/api/music/148", "GET"));
+        assertNull(RequestAuditFilter.resolveRule("/api/music/recognize", "PUT"));
+        assertNull(RequestAuditFilter.resolveRule("/api/admin/settings", "GET"));
+        assertNull(RequestAuditFilter.resolveRule("/api/admin/audit/pending", "GET"));
+        assertNull(RequestAuditFilter.resolveRule("/api/admin/logs/access", "GET"));
+    }
+
+    @Test
+    @DisplayName("未登记规则的后台写操作：模块兜底 + 通用动作，仍然留痕")
+    void fallsBackForUnregisteredAdminWrites() {
+        assertEquals("管理后台", RequestAuditFilter.moduleFor("/api/admin/something-new", null));
+        assertEquals("更新", RequestAuditFilter.actionFor("/api/admin/something-new", "PUT", null));
+        assertEquals("删除", RequestAuditFilter.actionFor("/api/admin/something-new", "DELETE", null));
+        // 已登记的路径优先给出语义化模块名
+        assertEquals("歌词管理", RequestAuditFilter.moduleFor("/api/admin/lyrics-files/file/1.lrc",
+                RequestAuditFilter.resolveRule("/api/admin/lyrics-files/file/1.lrc", "PUT")));
+    }
+
+    @Test
+    @DisplayName("操作目标：取路径里最后一段纯数字，便于看出改的是哪一条")
+    void extractsTargetDetail() {
+        assertEquals("#148", RequestAuditFilter.targetDetail("/api/music/148"));
+        assertEquals("#148", RequestAuditFilter.targetDetail("/api/admin/lyrics-files/file/148.lrc"));
+        assertEquals("#37", RequestAuditFilter.targetDetail("/api/admin/audit/approve/37"));
+        assertEquals("#12", RequestAuditFilter.targetDetail("/api/admin/users/12/edit"));
+        assertNull(RequestAuditFilter.targetDetail("/api/admin/settings"));
+        assertNull(RequestAuditFilter.targetDetail("/api/music/upload"));
+        assertNull(RequestAuditFilter.targetDetail(null));
+    }
+
+    @Test
+    @DisplayName("查询串脱敏：令牌等一次性凭证的值不落库，其余查询串原样保留")
+    void redactsSensitiveQueryValues() {
+        // SSE 接口只能把管理员令牌放在查询串里，落库必须脱敏
+        assertEquals("token=***",
+                RequestAuditFilter.redactQuery("token=abc123"));
+        assertEquals("q=%E6%99%B4%E5%A4%A9&page=2",
+                RequestAuditFilter.redactQuery("q=%E6%99%B4%E5%A4%A9&page=2"));
+        assertEquals("size=50&token=***&keyword=x",
+                RequestAuditFilter.redactQuery("size=50&token=abc&keyword=x"));
+        assertEquals("TOKEN=***", RequestAuditFilter.redactQuery("TOKEN=abc"));
+        assertEquals("code=***&t=a", RequestAuditFilter.redactQuery("code=9999&t=a"));
+        // 无值 / 无查询串不改变形状
+        assertEquals("token", RequestAuditFilter.redactQuery("token"));
+        assertEquals("a=1&", RequestAuditFilter.redactQuery("a=1&"));
+        assertNull(RequestAuditFilter.redactQuery(null));
+        assertEquals("", RequestAuditFilter.redactQuery(""));
+    }
+
+    private static void assertRule(String method, String path, String module, String action) {
+        RequestAuditFilter.OperationRule rule = RequestAuditFilter.resolveRule(path, method);
+        assertNotNull(rule, method + " " + path + " 应命中操作规则");
+        assertEquals(module, rule.module(), method + " " + path + " 的模块");
+        assertEquals(action, rule.action(), method + " " + path + " 的动作");
     }
 }

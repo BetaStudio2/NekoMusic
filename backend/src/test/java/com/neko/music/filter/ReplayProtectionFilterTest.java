@@ -2,6 +2,7 @@ package com.neko.music.filter;
 
 import com.neko.music.service.ReplayNonceService;
 import com.neko.music.service.TestNonceStore;
+import com.neko.music.util.PowAudit;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -20,6 +21,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -49,7 +51,8 @@ class ReplayProtectionFilterTest {
         redis.clear();
     }
 
-    private record Outcome(int status, boolean chained, String body, String replayStatus, String cacheControl) {
+    private record Outcome(int status, boolean chained, String body, String replayStatus, String cacheControl,
+                           Integer powDifficulty, String powStatus) {
     }
 
     private Outcome run(String method, String uri, String nonce, boolean multipart) throws Exception {
@@ -62,6 +65,7 @@ class ReplayProtectionFilterTest {
             requestHeaders.put(ReplayNonceService.NONCE_HEADER.toLowerCase(), nonce);
         }
         Map<String, String> responseHeaders = new HashMap<>();
+        Map<String, Object> attributes = new HashMap<>();
         int[] status = {200};
         StringWriter body = new StringWriter();
         PrintWriter writer = new PrintWriter(body);
@@ -85,6 +89,12 @@ class ReplayProtectionFilterTest {
             case "getRemoteAddr" -> "127.0.0.1";
             case "getContentType" -> contentType;
             case "getHeader" -> requestHeaders.get(((String) a[0]).toLowerCase());
+            // 请求属性是 PoW 难度 / 结果的传递通道，桩里必须真的存下来才能断言
+            case "setAttribute" -> {
+                attributes.put((String) a[0], a[1]);
+                yield null;
+            }
+            case "getAttribute" -> attributes.get((String) a[0]);
             default -> defaultValue(m);
         });
 
@@ -99,7 +109,9 @@ class ReplayProtectionFilterTest {
         new ReplayProtectionFilter().doFilter(request, response, chain);
         return new Outcome(status[0], chained[0], body.toString(),
                 responseHeaders.get(ReplayProtectionFilter.REPLAY_STATUS_HEADER.toLowerCase()),
-                responseHeaders.get("cache-control"));
+                responseHeaders.get("cache-control"),
+                (Integer) attributes.get(PowAudit.ATTR_DIFFICULTY),
+                (String) attributes.get(PowAudit.ATTR_STATUS));
     }
 
     private static String readNonce() {
@@ -214,6 +226,26 @@ class ReplayProtectionFilterTest {
         assertTrue(run("GET", "/assets/index-abc.js", null, false).chained());
         // SEO 详情页是浏览器导航，不带自定义头
         assertTrue(run("GET", "/detail/music/42", null, false).chained());
+    }
+
+    @Test
+    void powDifficultyOfTheConsumedNonceIsRecordedForSecurityAnalysis() throws Exception {
+        // 签发难度 24 的一枚 nonce：受保护请求消费它时，访问日志要能写出「这次请求花了多少算力」
+        String nonce = ReplayNonceService.issue(ReplayNonceService.SCOPE_READ, 1, "127.0.0.1", 24).get(0);
+        Outcome accepted = run("GET", "/api/music/search", nonce, false);
+        assertTrue(accepted.chained());
+        assertEquals(PowAudit.VERIFIED, accepted.powStatus());
+        assertEquals(24, accepted.powDifficulty());
+
+        // 缺 nonce：难度未知，只留痕失败类别
+        Outcome missing = run("GET", "/api/music/search", null, false);
+        assertEquals(PowAudit.MISSING, missing.powStatus());
+        assertNull(missing.powDifficulty());
+
+        // 重放同一枚 nonce：记录为非法的 nonce（难度随之无从得知）
+        Outcome replay = run("GET", "/api/music/search", nonce, false);
+        assertEquals(PowAudit.INVALID, replay.powStatus());
+        assertNull(replay.powDifficulty());
     }
 
     @Test

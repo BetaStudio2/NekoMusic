@@ -332,9 +332,9 @@ const router = createRouter({
           component: () => import('@/views/admin/AdminLogsView.vue'),
           beforeEnter: adminGuard,
           meta: {
-            title: '日志 - Neko歌姬计划',
-            description: '查看访问日志与操作日志。',
-            keywords: '日志,访问日志,操作日志,安全分析,管理'
+            title: '操作日志 - Neko歌姬计划',
+            description: '查看后台写操作日志（系统设置修改、审核、音乐上传修改删除、歌词修改等）。',
+            keywords: '操作日志,后台操作,审核日志,音乐上传,歌词修改,管理'
           }
         },
       ]

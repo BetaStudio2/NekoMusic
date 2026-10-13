@@ -113,11 +113,20 @@ public final class ReplayChallengeService {
         BAD_PROOF
     }
 
-    /** 校验结论；通过时带回该题绑定的批量。 */
-    public record Outcome(Status status, int read, int write) {
+    /**
+     * 校验结论；通过时带回该题绑定的批量，以及这道题的难度（写进访问日志，供安全分析）。
+     *
+     * <p>失败时难度仅在「题目确实存在且已取出」的情形下才有值——题不存在时无从得知难度，
+     * 记 0 表示未知。</p>
+     */
+    public record Outcome(Status status, int read, int write, int difficulty) {
 
         static Outcome failed(Status status) {
-            return new Outcome(status, 0, 0);
+            return new Outcome(status, 0, 0, 0);
+        }
+
+        static Outcome failed(Status status, int difficulty) {
+            return new Outcome(status, 0, 0, Math.max(0, difficulty));
         }
     }
 
@@ -179,16 +188,16 @@ public final class ReplayChallengeService {
             return Outcome.failed(Status.MISSING);
         }
         if (challenge.expiresAtMillis() < clock.getAsLong()) {
-            return Outcome.failed(Status.EXPIRED);
+            return Outcome.failed(Status.EXPIRED, challenge.difficulty());
         }
         if (!challenge.ipHash().equals(ReplayNonceService.fingerprint(clientIp))
                 || !challenge.uaHash().equals(ReplayNonceService.fingerprint(userAgent))) {
-            return Outcome.failed(Status.MISMATCH);
+            return Outcome.failed(Status.MISMATCH, challenge.difficulty());
         }
         if (!validProof(challenge.seed(), challenge.difficulty(), proof)) {
-            return Outcome.failed(Status.BAD_PROOF);
+            return Outcome.failed(Status.BAD_PROOF, challenge.difficulty());
         }
-        return new Outcome(Status.OK, challenge.read(), challenge.write());
+        return new Outcome(Status.OK, challenge.read(), challenge.write(), challenge.difficulty());
     }
 
     /**

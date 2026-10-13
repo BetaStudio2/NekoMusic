@@ -5,6 +5,7 @@ import com.neko.music.Main;
 import com.neko.music.service.ReplayNonceService;
 import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.HttpResourceCache;
+import com.neko.music.util.PowAudit;
 import com.neko.music.util.RequestPath;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
@@ -99,6 +100,7 @@ public class ReplayProtectionFilter implements Filter {
             "/api/payment/zpay/notify",
             "/api/user/qrlogin/status", // EventSource(SSE) 且浏览器会自动重连
             "/api/user/notifications/stream", // 站内消息实时推送：EventSource 无法带 nonce
+            "/api/admin/logs/access/stream", // 后台访问日志实时流：同为 EventSource，只能靠管理端令牌鉴权
             // 审核页试听 / 封面预览：媒体流会被 CDN 与播放器按 Range 分片取，一次客户端请求对应
             // 多次回源请求（后续分片由 CDN 内部发起、不带自定义头），一次性 nonce 会把后续分片
             // 打成 409 并导致大文件被截断。接口本身要求管理员 token、只读、无副作用。
@@ -134,21 +136,30 @@ public class ReplayProtectionFilter implements Filter {
         String nonce = httpRequest.getHeader(ReplayNonceService.NONCE_HEADER);
         if (nonce == null || nonce.isBlank()) {
             logger.debug("缺少防重放 nonce: {} {}", httpRequest.getMethod(), path);
+            // 难度未知（没带 nonce），只留痕「缺 nonce」这一结果
+            PowAudit.mark(httpRequest, null, PowAudit.MISSING);
             // 响应体与「nonce 无效」保持同一句话：细分失败原因等于把防护流程讲给探测者
             reject(httpResponse, STATUS_MISSING, "请求已失效，请刷新后重试");
             return;
         }
 
         String clientIp = ClientIpResolver.clientIp(httpRequest);
-        ReplayNonceService.Result result = ReplayNonceService.consume(nonce, scope, clientIp);
-        switch (result) {
-            case OK -> chain.doFilter(request, response);
+        ReplayNonceService.Consumption consumption =
+                ReplayNonceService.consumeDetailed(nonce, scope, clientIp);
+        switch (consumption.result()) {
+            case OK -> {
+                // 这批 nonce 签发时按该来源的加压档位计过费，难度随 nonce 带回并写进访问日志
+                PowAudit.mark(httpRequest, consumption.difficulty(), PowAudit.VERIFIED);
+                chain.doFilter(request, response);
+            }
             case REJECTED -> {
                 // nonce 已存在但校验失败：典型的重放（或过期 / 换 IP / 跨类别使用）。
                 logger.warn("疑似重放请求被拒: {} {} ip={}", httpRequest.getMethod(), path, clientIp);
+                PowAudit.mark(httpRequest, null, PowAudit.INVALID);
                 reject(httpResponse, STATUS_INVALID, "请求已失效，请刷新后重试");
             }
             case ERROR -> {
+                PowAudit.mark(httpRequest, null, PowAudit.ERROR);
                 if (FAIL_OPEN_ON_REDIS_ERROR) {
                     logger.warn("防重放校验因 Redis 故障放行: {} {}", httpRequest.getMethod(), path);
                     chain.doFilter(request, response);
@@ -156,7 +167,10 @@ public class ReplayProtectionFilter implements Filter {
                     reject(httpResponse, STATUS_ERROR, "服务繁忙，请稍后重试");
                 }
             }
-            default -> reject(httpResponse, STATUS_ERROR, "服务繁忙，请稍后重试");
+            default -> {
+                PowAudit.mark(httpRequest, null, PowAudit.ERROR);
+                reject(httpResponse, STATUS_ERROR, "服务繁忙，请稍后重试");
+            }
         }
     }
 

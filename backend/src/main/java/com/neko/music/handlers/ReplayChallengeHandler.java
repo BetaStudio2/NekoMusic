@@ -8,6 +8,7 @@ import com.neko.music.service.ReplayIssueLimiter;
 import com.neko.music.service.ReplayNonceService;
 import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.HttpResourceCache;
+import com.neko.music.util.PowAudit;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -39,12 +40,14 @@ public class ReplayChallengeHandler extends ApiServlet {
         int writeCount = ReplayNonceService.clampBatch(request.getParameter("write"), ReplayNonceService.DEFAULT_BATCH);
         if (readCount + writeCount <= 0) {
             // 不解释参数该怎么写：请求本身有误时统一回一句，别把领取规则指给探测者
+            PowAudit.mark(request, null, PowAudit.INVALID);
             sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "请求无效");
             return;
         }
 
         String clientIp = ClientIpResolver.clientIp(request);
         if (!ReplayIssueLimiter.tryAcquireRequest(clientIp)) {
+            PowAudit.mark(request, null, PowAudit.RATE_LIMITED);
             sendTooManyRequests(response, "请求过于频繁，请稍后再试");
             return;
         }
@@ -58,6 +61,7 @@ public class ReplayChallengeHandler extends ApiServlet {
         // 正常用户（恒为基准档）永不触达标记表
         ReplaySourceMarkService marks = ReplaySourceMarkService.current();
         if (extraBits > 0 && marks != null && marks.isMarked(clientIp)) {
+            PowAudit.mark(request, null, PowAudit.RATE_LIMITED);
             sendTooManyRequests(response, "请求过于频繁，请稍后再试");
             return;
         }
@@ -70,6 +74,8 @@ public class ReplayChallengeHandler extends ApiServlet {
                 marks.mark(clientIp, (int) Math.min(Integer.MAX_VALUE, Math.max(0, pressure.requests())),
                         target, ReplaySourceMarkService.REASON_UNSOLVABLE);
             }
+            // 难度就是这次算出来、已经越过可解线的那个值：落库留痕，便于复核加压是否合理
+            PowAudit.mark(request, target, PowAudit.MARKED);
             sendTooManyRequests(response, "请求过于频繁，请稍后再试");
             return;
         }
@@ -77,9 +83,11 @@ public class ReplayChallengeHandler extends ApiServlet {
         ReplayChallengeService.Challenge challenge = ReplayChallengeService.issue(
                 readCount, writeCount, clientIp, request.getHeader("User-Agent"), extraBits);
         if (challenge == null) {
+            PowAudit.mark(request, target, PowAudit.ERROR);
             sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "服务繁忙，请稍后重试");
             return;
         }
+        PowAudit.mark(request, challenge.difficulty(), PowAudit.ISSUED);
 
         JsonObject data = new JsonObject();
         data.addProperty("challenge", challenge.id());

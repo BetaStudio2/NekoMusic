@@ -109,8 +109,11 @@ const navGroups = computed(() => {
   if (hasPermission('settings_view')) {
     ops.push({ to: '/admin/settings', icon: 'settings', label: '系统设置' })
   }
-  if (hasPermission('access_log_view') || hasPermission('operation_log_view')) {
-    ops.push({ to: '/admin/logs', icon: 'clipboard', label: '日志' })
+  if (hasPermission('operation_log_view')) {
+    ops.push({ to: '/admin/logs', icon: 'clipboard-check', label: '操作日志' })
+  } else if (hasPermission('access_log_view')) {
+    // 审核员没有操作日志权限，页面只剩访问日志，标题按实际内容显示
+    ops.push({ to: '/admin/logs', icon: 'activity', label: '访问日志' })
   }
 
   return [

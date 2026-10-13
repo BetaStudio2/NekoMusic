@@ -7,6 +7,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.regex.Pattern;
@@ -116,11 +118,14 @@ public class LogDatabaseManager {
                 scheme VARCHAR(16) NULL,
                 protocol VARCHAR(16) NULL,
                 thread VARCHAR(128) NULL,
+                pow_difficulty INT NULL COMMENT '本次请求对应的 PoW 难度（比特）',
+                pow_status VARCHAR(24) NULL COMMENT 'PoW 结果标签：verified/missing/issued/...',
                 KEY idx_access_occurred (occurred_at),
                 KEY idx_access_ip (client_ip),
                 KEY idx_access_path (path(191)),
                 KEY idx_access_status (status),
-                KEY idx_access_type (client_type)
+                KEY idx_access_type (client_type),
+                KEY idx_access_pow (pow_status)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             """;
 
@@ -153,7 +158,59 @@ public class LogDatabaseManager {
              Statement stmt = conn.createStatement()) {
             stmt.execute(accessLogTable);
             stmt.execute(operationLogTable);
+            migrate(conn);
             logger.info("日志库 {} 已就绪（access_log / operation_log）", databaseName);
+        }
+    }
+
+    /**
+     * 老库升级：{@code CREATE TABLE IF NOT EXISTS} 不会给已存在的表补列，新增字段必须显式迁移。
+     *
+     * <p>MySQL 不支持 {@code ADD COLUMN IF NOT EXISTS}（那是 MariaDB 的扩展），因此先查
+     * {@code information_schema} 再决定是否执行 DDL；整个过程幂等，可在每次启动时安全重跑。</p>
+     */
+    private static void migrate(Connection conn) throws SQLException {
+        ensureColumn(conn, "access_log", "pow_difficulty", "INT NULL COMMENT '本次请求对应的 PoW 难度（比特）'");
+        ensureColumn(conn, "access_log", "pow_status",
+                "VARCHAR(24) NULL COMMENT 'PoW 结果标签：verified/missing/issued/...'");
+        ensureIndex(conn, "access_log", "idx_access_pow", "pow_status");
+    }
+
+    private static void ensureColumn(Connection conn, String table, String column, String definition)
+            throws SQLException {
+        String check = "SELECT COUNT(*) FROM information_schema.columns "
+                + "WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?";
+        try (PreparedStatement stmt = conn.prepareStatement(check)) {
+            stmt.setString(1, table);
+            stmt.setString(2, column);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next() && rs.getLong(1) > 0) {
+                    return;
+                }
+            }
+        }
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("ALTER TABLE `" + table + "` ADD COLUMN `" + column + "` " + definition);
+            logger.info("日志库补列: {}.{}", table, column);
+        }
+    }
+
+    private static void ensureIndex(Connection conn, String table, String index, String column)
+            throws SQLException {
+        String check = "SELECT COUNT(*) FROM information_schema.statistics "
+                + "WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?";
+        try (PreparedStatement stmt = conn.prepareStatement(check)) {
+            stmt.setString(1, table);
+            stmt.setString(2, index);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next() && rs.getLong(1) > 0) {
+                    return;
+                }
+            }
+        }
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("ALTER TABLE `" + table + "` ADD INDEX `" + index + "` (`" + column + "`)");
+            logger.info("日志库补索引: {}.{}", table, index);
         }
     }
 

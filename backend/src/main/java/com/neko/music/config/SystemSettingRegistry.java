@@ -182,7 +182,8 @@ public final class SystemSettingRegistry {
             flag("logging.access_enabled", Group.LOGGING, "记录访问日志", true,
                     "记录每个请求的访问量、UA、客户端与来源信息，用于安全分析"),
             flag("logging.operation_enabled", Group.LOGGING, "记录操作日志", true,
-                    "记录管理后台的写操作（谁在什么时间做了什么），仅管理员及以上可查看"),
+                    "记录后台写操作：系统设置修改、审核通过/驳回、音乐上传/修改/删除、歌词修改等，"
+                            + "仅管理员及以上可查看"),
             text("logging.database", Group.LOGGING, "日志库名称", "",
                     "日志专用 MySQL 库名（与主库分开存放）；留空表示使用「主库名_logs」。改动需重启后端")
                     .restart(),

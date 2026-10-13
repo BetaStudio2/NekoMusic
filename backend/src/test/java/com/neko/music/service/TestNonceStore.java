@@ -61,15 +61,26 @@ public class TestNonceStore implements ReplayNonceService.Store {
     }
 
     @Override
-    public Long consumeIfMatches(String key, String expectedValue) {
+    public ReplayNonceService.ConsumeResult consume(String key, String expectedIpHash) {
         if (down.get()) {
-            return null;
+            return ReplayNonceService.ConsumeResult.STORAGE_ERROR;
         }
         String current = store.get(key);
-        if (current == null || !current.equals(expectedValue)) {
-            return 0L;
+        // 存储值为 <来源哈希>|<难度>，比对只看竖线前的来源哈希（与生产 Lua 一致）
+        String owner = current == null ? null : current.split("\\|", 2)[0];
+        if (owner == null || !owner.equals(expectedIpHash)) {
+            return ReplayNonceService.ConsumeResult.MISS;
+        }
+        int difficulty = 0;
+        int sep = current.indexOf('|');
+        if (sep >= 0) {
+            try {
+                difficulty = Integer.parseInt(current.substring(sep + 1));
+            } catch (NumberFormatException ignored) {
+                difficulty = 0;
+            }
         }
         store.remove(key);
-        return 1L;
+        return ReplayNonceService.ConsumeResult.granted(difficulty);
     }
 }

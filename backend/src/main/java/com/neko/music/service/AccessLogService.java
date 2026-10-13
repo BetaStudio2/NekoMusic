@@ -15,6 +15,11 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 访问日志：记录**每一个**请求的量、来源与客户端信息，供安全分析与访问量统计。
@@ -38,14 +43,17 @@ public class AccessLogService {
             INSERT INTO access_log (occurred_at, method, path, query, category, status, duration_ms,
                 response_bytes, client_ip, ip_subnet, user_agent, client_type, client_platform,
                 client_version, neko_client, referer, origin, accept_language, authenticated,
-                admin_id, admin_username, host, scheme, protocol, thread)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                admin_id, admin_username, host, scheme, protocol, thread, pow_difficulty, pow_status)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """;
 
     private static volatile AccessLogService current;
 
     private final LogDatabaseManager logDatabaseManager;
     private final LogBatchWriter<AccessLogRecord> writer;
+
+    /** 实时订阅者（后台访问日志页的 SSE 连接）；每个订阅各持一个**有界**队列。 */
+    private final CopyOnWriteArrayList<LiveSubscription> subscribers = new CopyOnWriteArrayList<>();
 
     public AccessLogService(LogDatabaseManager logDatabaseManager) {
         this.logDatabaseManager = logDatabaseManager;
@@ -56,16 +64,89 @@ public class AccessLogService {
         writer.start();
     }
 
-    /** 停止写入线程并把队列里的存量刷盘。 */
+    /** 停止写入线程并把队列里的存量刷盘，同时断开全部实时订阅。 */
     public void close() {
         writer.close();
+        for (LiveSubscription subscriber : subscribers) {
+            subscriber.close();
+        }
+        subscribers.clear();
     }
 
     /** 记录一条访问日志；未启用或队列满时静默丢弃，绝不阻塞请求。 */
     public static void record(AccessLogRecord record) {
         AccessLogService service = current;
         if (service != null) {
-            service.writer.offer(record);
+            service.publish(record);
+        }
+    }
+
+    /** 入队落库 + 广播给实时订阅者；两者都是非阻塞写，慢消费者只会丢自己的行。 */
+    private void publish(AccessLogRecord record) {
+        writer.offer(record);
+        if (subscribers.isEmpty()) {
+            return;
+        }
+        Map<String, Object> row = toMap(record);
+        for (LiveSubscription subscriber : subscribers) {
+            subscriber.offer(row);
+        }
+    }
+
+    /**
+     * 订阅实时访问日志（后台 SSE 流）。返回的句柄用完必须 {@link LiveSubscription#close()}，
+     * 否则连接断开后广播仍会往它的队列里写。
+     */
+    public LiveSubscription subscribe() {
+        LiveSubscription subscription = new LiveSubscription(this);
+        subscribers.add(subscription);
+        return subscription;
+    }
+
+    private void unsubscribe(LiveSubscription subscription) {
+        subscribers.remove(subscription);
+    }
+
+    /**
+     * 一条实时订阅：有界队列 + 丢弃计数。
+     *
+     * <p>广播由请求线程顺带完成，因此这里**只允许非阻塞写**：后台页面若因断网、标签页被挂起而
+     * 消费不过来，丢弃的是它自己的实时行（列表接口仍能补全），绝不会反压到正常请求。</p>
+     */
+    public static final class LiveSubscription implements AutoCloseable {
+
+        /** 单条订阅的积压上限：够覆盖页面卡顿，又小到不会占住内存。 */
+        private static final int QUEUE_CAPACITY = 512;
+
+        private final AccessLogService owner;
+        private final BlockingQueue<Map<String, Object>> queue =
+                new ArrayBlockingQueue<>(QUEUE_CAPACITY);
+        private final AtomicLong dropped = new AtomicLong();
+
+        private LiveSubscription(AccessLogService owner) {
+            this.owner = owner;
+        }
+
+        private void offer(Map<String, Object> row) {
+            if (!queue.offer(row)) {
+                dropped.incrementAndGet();
+            }
+        }
+
+        /** 取下一行；超时返回 {@code null}（调用方据此发心跳）。 */
+        public Map<String, Object> poll(long timeoutMillis) throws InterruptedException {
+            return queue.poll(timeoutMillis, TimeUnit.MILLISECONDS);
+        }
+
+        /** 本条连接累计丢弃的行数（页面卡顿 / 断网时留下的实时缺口）。 */
+        public long droppedCount() {
+            return dropped.get();
+        }
+
+        @Override
+        public void close() {
+            owner.unsubscribe(this);
+            queue.clear();
         }
     }
 
@@ -118,7 +199,51 @@ public class AccessLogService {
         stmt.setString(i++, LogQuerySupport.truncate(r.host(), 255));
         stmt.setString(i++, LogQuerySupport.truncate(r.scheme(), 16));
         stmt.setString(i++, LogQuerySupport.truncate(r.protocol(), 16));
-        stmt.setString(i, LogQuerySupport.truncate(r.thread(), 128));
+        stmt.setString(i++, LogQuerySupport.truncate(r.thread(), 128));
+        if (r.powDifficulty() == null) {
+            stmt.setNull(i++, Types.INTEGER);
+        } else {
+            stmt.setInt(i++, r.powDifficulty());
+        }
+        stmt.setString(i, LogQuerySupport.truncate(r.powStatus(), 24));
+    }
+
+    /**
+     * 记录 → 与 {@code access_log} 列同名的行（供 SSE 实时推送）。
+     *
+     * <p>列名与顺序必须与 {@link #INSERT_SQL} 完全一致：后台表格直接按列名取值，实时行与列表行
+     * 共用同一套渲染代码，形状不一致就会在实时行上缺列。该约束由 {@code LogSqlShapeTest} 兜底。</p>
+     */
+    static Map<String, Object> toMap(AccessLogRecord r) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("occurred_at", r.occurredAt());
+        row.put("method", r.method());
+        row.put("path", r.path());
+        row.put("query", r.query());
+        row.put("category", r.category());
+        row.put("status", r.status());
+        row.put("duration_ms", r.durationMs());
+        row.put("response_bytes", r.responseBytes());
+        row.put("client_ip", r.clientIp());
+        row.put("ip_subnet", r.ipSubnet());
+        row.put("user_agent", r.userAgent());
+        row.put("client_type", r.clientType());
+        row.put("client_platform", r.clientPlatform());
+        row.put("client_version", r.clientVersion());
+        row.put("neko_client", r.nekoClient());
+        row.put("referer", r.referer());
+        row.put("origin", r.origin());
+        row.put("accept_language", r.acceptLanguage());
+        row.put("authenticated", r.authenticated());
+        row.put("admin_id", r.adminId());
+        row.put("admin_username", r.adminUsername());
+        row.put("host", r.host());
+        row.put("scheme", r.scheme());
+        row.put("protocol", r.protocol());
+        row.put("thread", r.thread());
+        row.put("pow_difficulty", r.powDifficulty());
+        row.put("pow_status", r.powStatus());
+        return row;
     }
 
     /**
@@ -128,18 +253,20 @@ public class AccessLogService {
      * @param path      路径（模糊匹配）
      * @param clientType 客户端类型（精确）
      * @param status    状态码（精确）
+     * @param powStatus PoW 结果标签（精确，见 {@link com.neko.music.util.PowAudit}）
      * @param fromMs    起始时间（含），null 不限
      * @param toMs      结束时间（含），null 不限
      * @param keyword   关键字，命中 路径 / 查询串 / UA / IP / 管理员用户名 任一
      */
     public LogPage list(int page, int size, String ip, String path, String clientType, Integer status,
-                        Long fromMs, Long toMs, String keyword) throws SQLException {
+                        String powStatus, Long fromMs, Long toMs, String keyword) throws SQLException {
         int safePage = Math.max(1, page);
         int safeSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
 
         StringBuilder where = new StringBuilder(" WHERE 1=1");
         List<Object> params = new ArrayList<>();
         appendEquals(where, params, "client_type", blankToNull(clientType));
+        appendEquals(where, params, "pow_status", blankToNull(powStatus));
         if (status != null) {
             where.append(" AND status = ?");
             params.add(status);
@@ -197,6 +324,12 @@ public class AccessLogService {
                     startOfToday));
             stats.put("todayErrors", scalar(conn,
                     "SELECT COUNT(*) FROM access_log WHERE occurred_at >= ? AND status >= 400", startOfToday));
+            // PoW 侧「没通过」的总数：缺 nonce、重放、验题失败、被限额或加压越界都算
+            stats.put("todayPowRejected", scalar(conn,
+                    "SELECT COUNT(*) FROM access_log WHERE occurred_at >= ? AND pow_status IN ("
+                            + "'missing','invalid','expired','mismatch','bad_proof',"
+                            + "'rate_limited','marked','error')",
+                    startOfToday));
             stats.put("days", window);
             stats.put("dailyTrend", dailyTrend(conn, windowStart, window));
             stats.put("topIps", grouped(conn,

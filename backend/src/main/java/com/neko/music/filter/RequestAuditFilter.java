@@ -9,6 +9,7 @@ import com.neko.music.service.AccessLogService;
 import com.neko.music.service.OperationLogService;
 import com.neko.music.util.ClientFingerprint;
 import com.neko.music.util.ClientIpResolver;
+import com.neko.music.util.PowAudit;
 import com.neko.music.util.RequestCategory;
 import com.neko.music.util.RequestPath;
 import jakarta.servlet.DispatcherType;
@@ -25,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 访问日志 + 操作日志过滤器。
@@ -50,7 +52,81 @@ public class RequestAuditFilter implements Filter {
 
     private static final String BEARER_PREFIX = "Bearer ";
 
-    /** 管理后台路径 → 业务模块；按最长前缀匹配，命中顺序与列表顺序无关（先排序后匹配）。 */
+    /**
+     * 查询串里这些参数的值不落库。
+     *
+     * <p>浏览器 {@code EventSource} 无法带请求头，SSE 类接口只能把令牌放在查询串里；照原样写进日志
+     * 等于把一次性凭证长期留在日志库（一个导出、一次错配的备份就泄露了）。因此只脱敏「值」，
+     * 参数名与其余查询串保持原样，日志的可检索性不受影响。</p>
+     */
+    private static final Set<String> SENSITIVE_QUERY_PARAMS = Set.of(
+            "token", "access_token", "authorization", "password", "passwd", "secret", "code");
+
+    /**
+     * 一条语义化操作规则：命中「最长路径前缀 + 方法」的一边，决定操作日志里写什么模块与动作。
+     *
+     * @param pathPrefix 路径前缀
+     * @param methods    适用的 HTTP 方法（大写）
+     * @param module     业务模块，如「歌词管理」
+     * @param action     动作，如「修改歌词」
+     */
+    record OperationRule(String pathPrefix, Set<String> methods, String module, String action) {
+    }
+
+    /**
+     * 语义化操作规则表：把「接口做了什么」写成人看得懂的短语（修改系统设置 / 审核通过 / 上传音乐 /
+     * 修改歌词……），而不是一律记成「提交 / 更新 / 删除」。
+     *
+     * <p>规则只决定「怎么写」，不决定「要不要记」：后台写操作即使没有命中规则也会留痕，动作退化为
+     * 方法名对应的通用说法。反过来要注意，管理员的音乐上传 / 修改 / 删除挂在 {@code /api/music/*}
+     * 而不是 {@code /api/admin/*}，不在这里显式登记就会整类漏记。</p>
+     */
+    /**
+     * 与管理员音乐接口共用 {@code /api/music} 前缀、但不属于后台操作的路径。
+     *
+     * <p>前缀规则分不出「管理员的音乐增删改」和「对公众开放的写接口」，必须显式排除：听歌识曲
+     * {@code /api/music/recognize} 就是 POST，被前缀规则吞掉就会在操作日志里记成「新增音乐」。
+     * 搜索是 GET-only，一并排除，免得错误方法在日志里变成一次并不存在的操作。</p>
+     */
+    private static final Set<String> NON_OPERATION_PATHS = Set.of(
+            "/api/music/recognize",
+            "/api/music/search");
+
+    private static final List<OperationRule> OPERATION_RULES = List.of(
+            // 系统设置
+            new OperationRule("/api/admin/settings", Set.of("PUT"), "系统设置", "修改系统设置"),
+            // 审核（用户上传的音乐）
+            new OperationRule("/api/admin/audit/approve", Set.of("POST"), "审核管理", "审核通过"),
+            new OperationRule("/api/admin/audit/reject", Set.of("POST"), "审核管理", "审核驳回"),
+            // 歌词
+            new OperationRule("/api/admin/lyrics-files", Set.of("PUT"), "歌词管理", "修改歌词"),
+            new OperationRule("/api/admin/lyrics-files", Set.of("DELETE"), "歌词管理", "删除歌词"),
+            // 音乐：/api/music 同时承载公开接口，这里只登记写方法；听歌识曲 /api/music/recognize 不在其列
+            new OperationRule("/api/music/upload", Set.of("POST"), "音乐管理", "上传音乐"),
+            new OperationRule("/api/music/upload", Set.of("PUT"), "音乐管理", "修改音乐"),
+            new OperationRule("/api/music", Set.of("POST"), "音乐管理", "新增音乐"),
+            new OperationRule("/api/music", Set.of("PUT"), "音乐管理", "修改音乐"),
+            new OperationRule("/api/music", Set.of("DELETE"), "音乐管理", "删除音乐"),
+            // 用户
+            new OperationRule("/api/admin/users", Set.of("PUT"), "用户管理", "修改用户信息"),
+            new OperationRule("/api/admin/users", Set.of("DELETE"), "用户管理", "删除用户"),
+            // 管理员账号
+            new OperationRule("/api/admin/create", Set.of("POST"), "管理员管理", "创建管理员账号"),
+            // 客户端更新
+            new OperationRule("/api/admin/releases/upload", Set.of("POST"), "客户端更新", "上传客户端安装包"),
+            new OperationRule("/api/admin/releases", Set.of("PUT"), "客户端更新", "更新客户端版本号"),
+            // VIP 价目
+            new OperationRule("/api/admin/vip/pricing", Set.of("PUT"), "VIP 定价", "修改 VIP 价目"),
+            // 网易云补全扫码登录
+            new OperationRule("/api/admin/netease/qr/key", Set.of("POST"), "网易云补全", "申请扫码登录"),
+            new OperationRule("/api/admin/netease/logout", Set.of("POST"), "网易云补全", "退出网易云登录"),
+            // 防重放来源标记
+            new OperationRule("/api/admin/replay-marks", Set.of("DELETE"), "防重放标记", "清除来源标记"),
+            // 管理员会话
+            new OperationRule("/api/admin/login", Set.of("POST"), "管理员登录", "登录"),
+            new OperationRule("/api/admin/logout", Set.of("POST"), "管理员登录", "登出"));
+
+    /** 模块兜底表：没有命中操作规则的后台路径按它归类（只用于模块名）。 */
     private static final List<String[]> ADMIN_MODULES = List.of(
             new String[] { "/api/admin/lyrics-files", "歌词管理" },
             new String[] { "/api/admin/replay-marks", "防重放标记" },
@@ -66,7 +142,8 @@ public class RequestAuditFilter implements Filter {
             new String[] { "/api/admin/logout", "管理员登录" },
             new String[] { "/api/admin/current", "管理员会话" },
             new String[] { "/api/admin/stats", "数据统计" },
-            new String[] { "/api/admin/chart-data", "数据统计" });
+            new String[] { "/api/admin/chart-data", "数据统计" },
+            new String[] { "/api/music", "音乐管理" });
 
     private ConfigManager configManager;
 
@@ -116,9 +193,13 @@ public class RequestAuditFilter implements Filter {
         boolean isAdminPath = RequestCategory.ADMIN.equals(category);
         String method = request.getMethod();
         boolean mutating = MUTATING_METHODS.contains(method.toUpperCase(java.util.Locale.ROOT));
-        boolean logOperation = operationEnabled && isAdminPath && mutating;
+        OperationRule rule = mutating ? resolveRule(path, method) : null;
+        // 后台写操作一律留痕（将来新增的后台接口不必再改这里）；后台之外的路径只有登记了规则才算
+        // 「操作」——管理员的音乐上传 / 修改 / 删除挂在 /api/music/*，正是靠规则表纳进来的。
+        boolean logOperation = operationEnabled && mutating && (isAdminPath || rule != null);
 
-        Admin admin = (isAdminPath && (logOperation || accessEnabled)) ? resolveAdmin(authorization) : null;
+        boolean adminContext = isAdminPath || rule != null;
+        Admin admin = (adminContext && (logOperation || accessEnabled)) ? resolveAdmin(authorization) : null;
 
         if (accessEnabled) {
             AccessLogService.record(buildAccessRecord(request, response, path, category, method, status,
@@ -126,7 +207,7 @@ public class RequestAuditFilter implements Filter {
         }
         if (logOperation) {
             OperationLogService.record(buildOperationRecord(request, path, method, status, startedAt,
-                    durationMs, admin, resolveClientIp(request)));
+                    durationMs, admin, resolveClientIp(request), rule));
         }
     }
 
@@ -141,7 +222,7 @@ public class RequestAuditFilter implements Filter {
                 occurredAt,
                 method,
                 path,
-                request.getQueryString(),
+                redactQuery(request.getQueryString()),
                 category,
                 status,
                 durationMs,
@@ -162,34 +243,89 @@ public class RequestAuditFilter implements Filter {
                 request.getHeader("Host"),
                 request.getScheme(),
                 request.getProtocol(),
-                Thread.currentThread().getName());
+                Thread.currentThread().getName(),
+                // PoW 难度与结果由防重放链路与换题 / 兑换接口挂在请求属性上（见 PowAudit）
+                PowAudit.difficulty(request),
+                PowAudit.status(request));
     }
 
     private OperationLogRecord buildOperationRecord(HttpServletRequest request, String path, String method,
                                                     int status, long occurredAt, int durationMs,
-                                                    Admin admin, String clientIp) {
+                                                    Admin admin, String clientIp, OperationRule rule) {
         String userAgent = request.getHeader("User-Agent");
         return new OperationLogRecord(
                 occurredAt,
                 admin == null ? null : admin.id(),
                 admin == null ? null : admin.username(),
                 admin == null ? null : admin.role(),
-                resolveModule(path),
-                resolveAction(path, method),
+                moduleFor(path, rule),
+                actionFor(path, method, rule),
                 method,
                 path,
-                request.getQueryString(),
+                redactQuery(request.getQueryString()),
                 status,
                 status >= 200 && status < 400,
                 durationMs,
                 clientIp,
                 userAgent,
                 ClientFingerprint.platform(userAgent, request.getHeader("X-Neko-Client")),
-                null);
+                targetDetail(path));
     }
 
-    /** 管理后台路径 → 业务模块（最长前缀优先）。 */
-    static String resolveModule(String path) {
+    /** 查询串脱敏：把敏感参数的值换成 {@code ***}，其余按原样（含分隔符）保留。 */
+    static String redactQuery(String rawQuery) {
+        if (rawQuery == null || rawQuery.isEmpty()) {
+            return rawQuery;
+        }
+        String[] pairs = rawQuery.split("&", -1);
+        StringBuilder out = new StringBuilder(rawQuery.length());
+        for (int i = 0; i < pairs.length; i++) {
+            if (i > 0) {
+                out.append('&');
+            }
+            out.append(redactPair(pairs[i]));
+        }
+        return out.toString();
+    }
+
+    private static String redactPair(String pair) {
+        int equals = pair.indexOf('=');
+        if (equals < 0) {
+            return pair;
+        }
+        String name = pair.substring(0, equals);
+        return SENSITIVE_QUERY_PARAMS.contains(name.trim().toLowerCase(java.util.Locale.ROOT))
+                ? name + "=***"
+                : pair;
+    }
+
+    /** 命中「最长路径前缀 + 方法」的操作规则；没有登记规则的路径返回 null。 */
+    static OperationRule resolveRule(String path, String method) {
+        if (path == null || NON_OPERATION_PATHS.contains(path)) {
+            return null;
+        }
+        String upper = method == null ? "" : method.toUpperCase(java.util.Locale.ROOT);
+        OperationRule best = null;
+        for (OperationRule rule : OPERATION_RULES) {
+            if (!rule.methods().contains(upper) || !path.startsWith(rule.pathPrefix())) {
+                continue;
+            }
+            if (best == null || rule.pathPrefix().length() > best.pathPrefix().length()) {
+                best = rule;
+            }
+        }
+        return best;
+    }
+
+    /** 业务模块：优先用操作规则，其次按兜底表的最长前缀归类。 */
+    static String moduleFor(String path, OperationRule rule) {
+        return rule != null ? rule.module() : fallbackModule(path);
+    }
+
+    static String fallbackModule(String path) {
+        if (path == null) {
+            return "管理后台";
+        }
         String[] best = null;
         for (String[] entry : ADMIN_MODULES) {
             if (path.startsWith(entry[0]) && (best == null || entry[0].length() > best[0].length())) {
@@ -199,21 +335,42 @@ public class RequestAuditFilter implements Filter {
         return best == null ? "管理后台" : best[1];
     }
 
-    /** 动作：登录 / 登出单列，其余按 HTTP 方法归纳。 */
-    static String resolveAction(String path, String method) {
-        if ("/api/admin/login".equals(path)) {
-            return "登录";
+    /** 动作：优先用操作规则，其余按 HTTP 方法归纳。 */
+    static String actionFor(String path, String method, OperationRule rule) {
+        if (rule != null) {
+            return rule.action();
         }
-        if ("/api/admin/logout".equals(path)) {
-            return "登出";
-        }
-        return switch (method.toUpperCase(java.util.Locale.ROOT)) {
-            case "POST" -> "提交";
+        return switch (method == null ? "" : method.toUpperCase(java.util.Locale.ROOT)) {
+            case "POST" -> "新增";
             case "PUT" -> "更新";
             case "PATCH" -> "更新";
             case "DELETE" -> "删除";
             default -> method;
         };
+    }
+
+    /**
+     * 操作目标：取路径里最后一段「纯数字」的片段（{@code /api/music/148}、
+     * {@code /api/admin/audit/approve/37}、{@code /api/admin/users/12/edit} 都能取到），
+     * 让日志能看出改的是哪一条记录；取不到返回 null。
+     */
+    static String targetDetail(String path) {
+        if (path == null) {
+            return null;
+        }
+        String[] segments = path.split("/");
+        for (int i = segments.length - 1; i >= 0; i--) {
+            String segment = segments[i];
+            if (segment.isEmpty()) {
+                continue;
+            }
+            int dot = segment.indexOf('.');
+            String candidate = dot > 0 ? segment.substring(0, dot) : segment;
+            if (!candidate.isEmpty() && candidate.chars().allMatch(Character::isDigit)) {
+                return "#" + candidate;
+            }
+        }
+        return null;
     }
 
     private static Admin resolveAdmin(String authorization) {

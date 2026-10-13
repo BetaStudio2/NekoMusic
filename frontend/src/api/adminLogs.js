@@ -69,3 +69,37 @@ export async function fetchOperationLogs(params) {
   })
   return readJson(res)
 }
+
+/**
+ * 打开访问日志实时流（SSE）。
+ *
+ * EventSource 无法携带自定义请求头，因此令牌只能走查询串（服务端对该端点同时接受
+ * `Authorization` 与 `?token=`）。连接最长存活 5 分钟，服务端到点主动断开，浏览器自带重连；
+ * 实时只是「提前告知」，断线期间漏掉的行用列表接口补全即可。
+ *
+ * @param {(row: object) => void} [options.onRecord] 每来一条访问日志回调一次
+ * @param {(state: 'connecting'|'open'|'error') => void} [options.onState] 连接状态变化
+ * @returns {() => void} 关闭函数
+ */
+export function openAccessLogStream({ onRecord, onState } = {}) {
+  const token = localStorage.getItem('adminToken')
+  if (!token || typeof EventSource === 'undefined') {
+    onState?.('error')
+    return () => {}
+  }
+  const source = new EventSource(
+    `${API_CONFIG.BASE_URL}/api/admin/logs/access/stream?token=${encodeURIComponent(token)}`
+  )
+  onState?.('connecting')
+  source.addEventListener('ready', () => onState?.('open'))
+  source.addEventListener('record', (event) => {
+    try {
+      const row = JSON.parse(event.data)
+      if (row && typeof row === 'object') onRecord?.(row)
+    } catch {
+      // 单条坏帧不该打断整条流
+    }
+  })
+  source.onerror = () => onState?.('error')
+  return () => source.close()
+}

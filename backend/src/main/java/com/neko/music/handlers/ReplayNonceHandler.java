@@ -8,6 +8,7 @@ import com.neko.music.service.ReplayIssueLimiter;
 import com.neko.music.service.ReplayNonceService;
 import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.HttpResourceCache;
+import com.neko.music.util.PowAudit;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -54,9 +55,12 @@ public class ReplayNonceHandler extends ApiServlet {
         String clientIp = ClientIpResolver.clientIp(request);
         int readCount = 0;
         int writeCount = 0;
+        // 这次兑换对应的 PoW 难度：只有解出题目才有值（0 表示未知），随签发写进 nonce 与访问日志
+        int difficulty = 0;
 
         // 先过单来源闸门：限额被拒时不该消耗客户端已经解好的题目
         if (!ReplayIssueLimiter.tryAcquireRequest(clientIp)) {
+            PowAudit.mark(request, null, PowAudit.RATE_LIMITED);
             sendTooManyRequests(response, "请求过于频繁，请稍后再试");
             return;
         }
@@ -68,6 +72,7 @@ public class ReplayNonceHandler extends ApiServlet {
         if (challengeId == null || challengeId.isBlank()) {
             if (REQUIRE_CHALLENGE) {
                 // 领取必须先换题：没有 challenge 一律拒绝（不说明原因）
+                PowAudit.mark(request, null, PowAudit.MISSING);
                 sendGrantRejected(response);
                 return;
             }
@@ -78,28 +83,36 @@ public class ReplayNonceHandler extends ApiServlet {
             ReplayChallengeService.Outcome outcome = ReplayChallengeService.verify(
                     challengeId, request.getParameter("proof"), clientIp, request.getHeader("User-Agent"));
             if (outcome.status() != ReplayChallengeService.Status.OK) {
-                // 题目不存在 / 已过期 / 已被兑换 / 来源不匹配 / 解答不合格，一律同一个回应
+                // 题目不存在 / 已过期 / 已被兑换 / 来源不匹配 / 解答不合格，一律同一个回应；
+                // 日志里区分开来，便于看出是脚本乱试（bad_proof）还是真的过期
+                PowAudit.mark(request, outcome.difficulty(), verifyLabel(outcome.status()));
                 sendGrantRejected(response);
                 return;
             }
             // 以题目绑定的数量为准，避免「小批量领题、大批量兑换」
             readCount = outcome.read();
             writeCount = outcome.write();
+            difficulty = outcome.difficulty();
         }
 
         if (!ReplayIssueLimiter.tryAcquireNonces(readCount + writeCount)) {
+            PowAudit.mark(request, difficulty, PowAudit.RATE_LIMITED);
             sendTooManyRequests(response, "请求过于频繁，请稍后再试");
             return;
         }
 
-        List<String> readNonces = ReplayNonceService.issue(ReplayNonceService.SCOPE_READ, readCount, clientIp);
-        List<String> writeNonces = ReplayNonceService.issue(ReplayNonceService.SCOPE_WRITE, writeCount, clientIp);
+        List<String> readNonces = ReplayNonceService.issue(
+                ReplayNonceService.SCOPE_READ, readCount, clientIp, difficulty);
+        List<String> writeNonces = ReplayNonceService.issue(
+                ReplayNonceService.SCOPE_WRITE, writeCount, clientIp, difficulty);
 
         // 少发即视为 Redis 故障：明确报错，绝不静默返回不足的 nonce（否则客户端会拿到空池）
         if (readNonces.size() < readCount || writeNonces.size() < writeCount) {
+            PowAudit.mark(request, difficulty, PowAudit.ERROR);
             sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "服务繁忙，请稍后重试");
             return;
         }
+        PowAudit.mark(request, difficulty, PowAudit.EXCHANGED);
 
         JsonObject nonces = new JsonObject();
         nonces.add("read", toJsonArray(readNonces));
@@ -114,6 +127,16 @@ public class ReplayNonceHandler extends ApiServlet {
         body.addProperty("message", "");
         body.add("data", data);
         sendSuccessResponse(response, body);
+    }
+
+    /** 验题失败的具体原因 → 日志标签（对客户端仍然只回一句话，不给探测者线索）。 */
+    private static String verifyLabel(ReplayChallengeService.Status status) {
+        return switch (status) {
+            case EXPIRED -> PowAudit.EXPIRED;
+            case MISMATCH -> PowAudit.MISMATCH;
+            case BAD_PROOF -> PowAudit.BAD_PROOF;
+            default -> PowAudit.MISSING;
+        };
     }
 
     private static JsonArray toJsonArray(List<String> values) {

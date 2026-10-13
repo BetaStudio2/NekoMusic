@@ -84,8 +84,28 @@ public final class ReplayNonceService {
             return granted;
         }
 
-        /** 原子「GET + 比对 + DEL」：1 = 消费成功，0 = 不存在 / 不匹配，{@code null} = 存储故障。 */
-        Long consumeIfMatches(String key, String expectedValue);
+        /**
+         * 原子「GET + 比对 + DEL」：比对的是签发时绑定的来源哈希，成功后立即删除，
+         * 并把**签发时一并写入的 PoW 难度**带回，供访问日志记录本次请求的计算成本。
+         *
+         * @param key            存储键
+         * @param expectedIpHash 签发时绑定的来源哈希
+         * @return 消费结果；存储故障用 {@link ConsumeResult#STORAGE_ERROR} 区分「不存在 / 不匹配」
+         */
+        ConsumeResult consume(String key, String expectedIpHash);
+    }
+
+    /** 单次消费结果：是否成功、绑定的难度（未知为 0）、是否存储故障。 */
+    public record ConsumeResult(boolean ok, int difficulty, boolean storageError) {
+
+        /** 键不存在、值不匹配或已被消费（重放）。 */
+        public static final ConsumeResult MISS = new ConsumeResult(false, 0, false);
+        /** 存储不可用。 */
+        public static final ConsumeResult STORAGE_ERROR = new ConsumeResult(false, 0, true);
+
+        static ConsumeResult granted(int difficulty) {
+            return new ConsumeResult(true, difficulty, false);
+        }
     }
 
     /** 仅供单元测试替换存储实现；生产代码请勿调用（传 {@code null} 恢复 Redis 实现）。 */
@@ -96,13 +116,21 @@ public final class ReplayNonceService {
     /** Redis 实现：用 Lua 保证「比对 + 删除」原子，避免并发或重放出现两个成功。 */
     private static final class RedisStore implements Store {
 
-        /** 原子消费：值必须等于调用方给出的 IP 哈希，成功后立即删除。返回 1 成功 / 0 失败。 */
+        /**
+         * 原子消费：值与「来源哈希」比对，成功后删除。
+         *
+         * <p>存储值是 {@code <来源哈希>|<难度>}：比对只看竖线前的来源哈希，竖线后的难度随结果返回，
+         * 让访问日志能写出这次请求的计算成本。返回 {@code {1, difficulty}} 成功 / {@code {0, 0}} 失败。</p>
+         */
         private static final String CONSUME_LUA =
                 "local v = redis.call('GET', KEYS[1]) "
-                        + "if not v then return 0 end "
-                        + "if v ~= ARGV[1] then return 0 end "
+                        + "if not v then return {0, 0} end "
+                        + "local sep = string.find(v, '|', 1, true) "
+                        + "local owner = sep and string.sub(v, 1, sep - 1) or v "
+                        + "if owner ~= ARGV[1] then return {0, 0} end "
+                        + "local difficulty = sep and tonumber(string.sub(v, sep + 1)) or 0 "
                         + "redis.call('DEL', KEYS[1]) "
-                        + "return 1";
+                        + "return {1, difficulty or 0}";
 
         /** 批量签发：一次往返完成 N 个 {@code SET NX EX}，避免「每个 nonce 一次借还连接」。 */
         private static final String ISSUE_LUA =
@@ -136,10 +164,18 @@ public final class ReplayNonceService {
         }
 
         @Override
-        public Long consumeIfMatches(String key, String expectedValue) {
-            Object result = Main.getRedisService().eval(
-                    CONSUME_LUA, new String[]{key}, new String[]{expectedValue});
-            return result instanceof Number number ? number.longValue() : null;
+        public ConsumeResult consume(String key, String expectedIpHash) {
+            List<Object> result = Main.getRedisService().evalMulti(
+                    CONSUME_LUA, new String[]{key}, new String[]{expectedIpHash});
+            if (result == null || result.size() != 2) {
+                return ConsumeResult.STORAGE_ERROR;
+            }
+            boolean ok = toLong(result.get(0)) == 1L;
+            return ok ? ConsumeResult.granted((int) toLong(result.get(1))) : ConsumeResult.MISS;
+        }
+
+        private static long toLong(Object value) {
+            return value instanceof Number number ? number.longValue() : 0L;
         }
     }
 
@@ -149,10 +185,19 @@ public final class ReplayNonceService {
     }
 
     /**
-     * 批量签发 nonce。一次 Lua 往返完成整批 {@code SET NX EX}，把每请求的 Redis 往返数从 N 降到 1；
-     * 存储不可用时返回空列表（由调用方明确报 503，不静默降级）。
+     * 批量签发 nonce（难度未知，记为 0）。仅供不需要区分难度的场景与测试使用。
      */
     public static List<String> issue(String scope, int count, String clientIp) {
+        return issue(scope, count, clientIp, 0);
+    }
+
+    /**
+     * 批量签发 nonce。一次 Lua 往返完成整批 {@code SET NX EX}，把每请求的 Redis 往返数从 N 降到 1；
+     * 存储不可用时返回空列表（由调用方明确报 503，不静默降级）。
+     *
+     * @param difficulty 签发这批 nonce 所对应的 PoW 难度（比特）；随 nonce 绑定，消费时原样带回
+     */
+    public static List<String> issue(String scope, int count, String clientIp, int difficulty) {
         int wanted = Math.max(0, Math.min(count, MAX_BATCH));
         List<String> nonces = new ArrayList<>(wanted);
         if (wanted == 0) {
@@ -169,7 +214,7 @@ public final class ReplayNonceService {
                 candidates.add(candidate);
                 keys.add(key(scope, candidate));
             }
-            List<Boolean> granted = store.putManyIfAbsent(keys, ipHash, NONCE_TTL_SECONDS);
+            List<Boolean> granted = store.putManyIfAbsent(keys, storedValue(ipHash, difficulty), NONCE_TTL_SECONDS);
             if (granted == null) {
                 logger.error("签发防重放 nonce 失败（存储不可用） scope={}", scope);
                 break;
@@ -183,24 +228,37 @@ public final class ReplayNonceService {
         return nonces;
     }
 
+    /** 消费结果 + 该 nonce 绑定的 PoW 难度（未知 / 失败为 0）。 */
+    public record Consumption(Result result, int difficulty) {
+    }
+
     /**
      * 原子消费 nonce：同一个 nonce 第二次调用必定失败，这是反重放的关键一步。
      */
     public static Result consume(String nonce, String scope, String clientIp) {
+        return consumeDetailed(nonce, scope, clientIp).result();
+    }
+
+    /**
+     * 原子消费 nonce，并带回签发时绑定的 PoW 难度（写进访问日志，供安全分析）。
+     */
+    public static Consumption consumeDetailed(String nonce, String scope, String clientIp) {
         if (!isWellFormed(nonce)) {
-            return Result.REJECTED;
+            return new Consumption(Result.REJECTED, 0);
         }
         String normalizedScope = normalizeScope(scope);
         if (normalizedScope == null) {
-            return Result.REJECTED;
+            return new Consumption(Result.REJECTED, 0);
         }
-        Long consumed = store.consumeIfMatches(
+        ConsumeResult consumed = store.consume(
                 key(normalizedScope, nonce.trim()), ipHash(clientIp));
-        if (consumed == null) {
+        if (consumed.storageError()) {
             logger.error("消费防重放 nonce 失败（存储不可用）");
-            return Result.ERROR;
+            return new Consumption(Result.ERROR, 0);
         }
-        return consumed == 1L ? Result.OK : Result.REJECTED;
+        return consumed.ok()
+                ? new Consumption(Result.OK, consumed.difficulty())
+                : new Consumption(Result.REJECTED, 0);
     }
 
     /** 只接受 16–64 位十六进制，避免把任意字符串直接拼进 Redis key。 */
@@ -271,6 +329,14 @@ public final class ReplayNonceService {
             return scope;
         }
         return null;
+    }
+
+    /**
+     * 存储值：{@code <来源哈希>|<难度>}。难度只为审计留痕，不参与比对（比对只看来源哈希），
+     * 因此难度缺失的旧 nonce 也能正常消费。
+     */
+    private static String storedValue(String ipHash, int difficulty) {
+        return ipHash + "|" + Math.max(0, difficulty);
     }
 
     private static String key(String scope, String nonce) {

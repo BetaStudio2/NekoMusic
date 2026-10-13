@@ -9,6 +9,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -77,7 +78,31 @@ class LogSqlShapeTest {
     @Test
     @DisplayName("字段数与表列数一致（防止只改一边）")
     void recordFieldCountsAreStable() {
-        assertEquals(25, AccessLogRecord.class.getRecordComponents().length);
+        assertEquals(27, AccessLogRecord.class.getRecordComponents().length);
         assertEquals(16, OperationLogRecord.class.getRecordComponents().length);
+    }
+
+    @Test
+    @DisplayName("SSE 实时行与列表行同形：记录 → Map 的键序必须等于 INSERT 列序")
+    void accessLogStreamMapMatchesColumns() throws Exception {
+        Field field = AccessLogService.class.getDeclaredField("INSERT_SQL");
+        field.setAccessible(true);
+        String sql = (String) field.get(null);
+        Matcher matcher = INSERT.matcher(sql);
+        assertTrue(matcher.find(), "解析 INSERT 语句失败: " + sql);
+
+        Map<String, Object> row = AccessLogService.toMap(sampleRecord());
+        assertEquals(split(matcher.group(1)), new ArrayList<>(row.keySet()),
+                "实时推送的行缺少列（后台表格按列名取值，缺列会直接显示为空）");
+    }
+
+    /** 造一条填满全部字段的记录：只要键序对得上，值本身不重要。 */
+    private static AccessLogRecord sampleRecord() {
+        return new AccessLogRecord(
+                1L, "GET", "/api/music/search", "q=x", "api", 200, 12, 34L,
+                "127.0.0.1", "127.0.0.0/24", "NekoMusic-android/1", "official_client", "android", "1",
+                "android+1", "https://example.com", "https://example.com", "zh-CN", true,
+                7, "admin", "music.example.com", "https", "HTTP/1.1", "jetty-1",
+                24, "verified");
     }
 }

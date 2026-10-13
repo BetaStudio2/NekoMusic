@@ -31,6 +31,9 @@ package com.neko.music.model;
  * @param scheme         请求 scheme
  * @param protocol       协议（HTTP/1.1 等）
  * @param thread         处理线程名
+ * @param powDifficulty  本次请求对应的 PoW 难度（比特）；不涉及 PoW 或未知时为 null
+ * @param powStatus      PoW 结果标签（verified / missing / issued / rate_limited…），见
+ *                       {@link com.neko.music.util.PowAudit}；不涉及 PoW 时为 null
  */
 public record AccessLogRecord(
         long occurredAt,
@@ -57,5 +60,7 @@ public record AccessLogRecord(
         String host,
         String scheme,
         String protocol,
-        String thread) {
+        String thread,
+        Integer powDifficulty,
+        String powStatus) {
 }
