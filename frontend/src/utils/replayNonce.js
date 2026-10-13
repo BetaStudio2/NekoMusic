@@ -13,7 +13,7 @@
 // 只按「路径」判定，且仅处理同源请求；跨域请求附带自定义头会触发 CORS 预检，不在本模块内处理。
 // 豁免清单必须与后端 ReplayProtectionFilter 保持一致（不一致只会浪费 nonce，不会误拦）。
 import API_CONFIG from '@/config/apiConfig.js'
-import { solveProof } from '@/utils/pow.js'
+import { MAX_SOLVABLE_DIFFICULTY_BITS, solveProof } from '@/utils/pow.js'
 
 export const NONCE_HEADER = 'X-Neko-Nonce'
 export const REPLAY_STATUS_HEADER = 'X-Neko-Replay-Status'
@@ -27,6 +27,9 @@ const SCOPE_WRITE = 'w'
 const REFILL_READ = 16
 const REFILL_WRITE = 16
 const LOW_WATER = 4
+// 服务端加压无上限：拿到明显解不出的题目时不要当场硬解（同步解题会冻住主线程），
+// 而是退避一小段时间再试；这段时间内请求照发，拿不到 nonce 就走 409 重试路径
+const TOO_HARD_BACKOFF_MS = 60_000
 // 服务端 nonce TTL 120s，本地提前作废（留出网络与重试余量），避免用到已过期的 nonce
 const MAX_AGE_MS = 90_000
 // XHR 延迟发送的最长等待：领不到 nonce 也照发（服务端 Redis 故障时会 fail-open 放行）
@@ -59,6 +62,8 @@ const PROTECTED_PATHS = new Set(['/version'])
 
 const pools = { [SCOPE_READ]: [], [SCOPE_WRITE]: [] }
 let refillInFlight = null
+// 拿到解不出的题目后的退避截止时刻（毫秒）：期间不再换题，避免把挑战接口刷成新的热点
+let tooHardUntil = 0
 let installed = false
 let outboundFetch = null
 
@@ -172,9 +177,17 @@ async function fetchChallenge(read, write) {
  */
 async function fetchNonces(read, write) {
   if (typeof outboundFetch !== 'function') return {}
+  if (Date.now() < tooHardUntil) {
+    throw new Error('来源被加压到本端解不出的难度，退避中')
+  }
   let lastError = null
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const challenge = await fetchChallenge(read, write)
+    if (challenge && challenge.difficulty > MAX_SOLVABLE_DIFFICULTY_BITS) {
+      tooHardUntil = Date.now() + TOO_HARD_BACKOFF_MS
+      console.warn(`[replay] 挑战难度 ${challenge.difficulty} 超出本端可解范围，${TOO_HARD_BACKOFF_MS / 1000} 秒后再试`)
+      throw new Error('挑战难度超出本端可解范围')
+    }
     const query = challenge
       ? new URLSearchParams({
           challenge: challenge.challenge,

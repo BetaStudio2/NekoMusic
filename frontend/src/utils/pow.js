@@ -34,8 +34,17 @@ const INIT = new Uint32Array([
 
 /** 单块运算要求消息（含 ':' 与计数器）不超过 55 字节 */
 const MAX_MESSAGE_BYTES = 55
-/** 难度上限：服务端远低于此值，这里只是防止异常输入把页面卡死 */
-const MAX_DIFFICULTY_BITS = 64
+/** 协议上限：SHA-256 摘要空间就是 256 位，超过它的题目不存在解 */
+const MAX_PROTOCOL_DIFFICULTY_BITS = 256
+
+/**
+ * 本端愿意解的难度上限。
+ *
+ * <p>服务端的加压阶梯没有上限（请求越频繁越难），被推到高位的来源拿到的题目可能高到任何客户端都
+ * 解不开。本端解题是同步的，一旦硬解就会把页面冻住几十分钟——因此超过本线上限时直接判为"本轮不可用"，
+ * 由调用方退避等待，而不是把主线程锁死。</p>
+ */
+export const MAX_SOLVABLE_DIFFICULTY_BITS = 32
 
 const encoder = new TextEncoder()
 
@@ -90,8 +99,13 @@ function meetsBits(digest, bits) {
  */
 export function solveProof(seed, difficulty) {
   const bits = Math.floor(Number(difficulty))
-  if (!Number.isFinite(bits) || bits < 0 || bits > MAX_DIFFICULTY_BITS) {
+  if (!Number.isFinite(bits) || bits < 0 || bits > MAX_PROTOCOL_DIFFICULTY_BITS) {
     throw new Error(`挑战难度非法：${difficulty}`)
+  }
+  if (bits > MAX_SOLVABLE_DIFFICULTY_BITS) {
+    const error = new Error(`挑战难度超出本端可解范围：${bits} 位`)
+    error.code = 'CHALLENGE_TOO_HARD'
+    throw error
   }
 
   const prefix = encoder.encode(`${seed}:`)
