@@ -742,9 +742,11 @@ public class NeteaseSearchFillService {
                     : new IOException("QQ 音乐无可下载的音质档位");
         }
 
-        // QQ 音乐歌词为加密 QRC，暂不解密，写占位歌词保证入库流程完整。
         Path lyricsTemp = workDir.resolve("lyrics.lrc");
-        writePlaceholderLyrics(lyricsTemp);
+        if (!prepareQqLyricsFile(lyricsTemp, candidate)) {
+            // 拿不到歌词或未通过校验时回落占位歌词，保证入库流程完整。
+            writePlaceholderLyrics(lyricsTemp);
+        }
 
         Path coverTemp = null;
         if (candidate.coverUrl() != null && !candidate.coverUrl().isBlank()) {
@@ -759,7 +761,7 @@ public class NeteaseSearchFillService {
         }
 
         int durationSec = candidate.durationMs() > 0 ? candidate.durationMs() / 1000 : 0;
-        String language = SongLanguageInferer.infer(title, artist, album, "");
+        String language = resolveLanguage(title, artist, album, lyricsTemp);
         logger.info("QQ 音乐补全语种: title={} language={}", title, language);
 
         Optional<AdminMusicIngestService.IngestedMusic> ingested = ingestService.ingestFromTempFiles(
@@ -863,6 +865,40 @@ public class NeteaseSearchFillService {
                 Files.copy(fallback, lyricsTemp, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             }
         }
+    }
+
+    /**
+     * 取 QQ 明文歌词写入 {@code lyricsTemp} 并通过 LRC 校验时返回 true；
+     * 取不到、为空或校验不通过时返回 false（由调用方写占位歌词），不抛异常中断入库。
+     */
+    private boolean prepareQqLyricsFile(Path lyricsTemp, QQMusicClient.QqSongCandidate candidate)
+            throws IOException {
+        String lrc;
+        try {
+            lrc = qqClient.fetchLyric(candidate.mid());
+        } catch (IOException e) {
+            logger.warn("获取 QQ 歌词失败 mid={} title={}: {}",
+                    candidate.mid(), candidate.title(), e.getMessage());
+            return false;
+        }
+        if (lrc == null || lrc.isBlank()) {
+            logger.info("QQ 歌词为空 mid={} title={}，使用占位歌词",
+                    candidate.mid(), candidate.title());
+            return false;
+        }
+        // 时间轴归一化（多时间戳展开 / 补毫秒）对 QQ 与网易云通用，直接复用。
+        Files.writeString(lyricsTemp, LrcValidator.normalizeNeteaseTimestamps(lrc));
+        try (InputStream in = Files.newInputStream(lyricsTemp)) {
+            LrcValidator.ValidationResult check =
+                    LrcValidator.validate(in, Files.size(lyricsTemp));
+            if (check.isValid()) {
+                return true;
+            }
+            logger.warn("QQ 歌词未通过 LRC 校验 mid={} title={}: {}，使用占位歌词",
+                    candidate.mid(), candidate.title(), check.getErrorMessage());
+        }
+        Files.deleteIfExists(lyricsTemp);
+        return false;
     }
 
     private FillAttempt failReason(boolean loggedIn) {

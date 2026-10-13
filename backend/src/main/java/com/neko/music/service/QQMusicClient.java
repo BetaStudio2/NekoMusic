@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -40,6 +41,12 @@ public class QQMusicClient {
     private static final String UPSTREAM = "https://u.y.qq.com/cgi-bin/musicu.fcg";
     /** 桌面协议搜索入口：需对请求体计算 {@code ?sign=zzc...}（见 {@link #zzcSign(String)}）。 */
     private static final String DESKTOP_UPSTREAM = "https://u.y.qq.com/cgi-bin/musics.fcg";
+    /**
+     * 歌词接口：响应的 {@code lyric} / {@code trans} 字段是 **Base64 编码**的 LRC 文本，
+     * 必须在代码里解码后才是可用歌词（见 {@link #fetchLyric(String)}）。返回体形如
+     * {@code {"retcode":0,"lyric":"W3RpOi4u","trans":""}}。
+     */
+    private static final String LYRIC_UPSTREAM = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg";
     /** 只允许访问 QQ 官方域名：qq.com（u.y.qq.com / ssl.ptlogin2.qq.com 等）与其图片 CDN gtimg.cn。 */
     private static final Set<String> ALLOWED_HOSTS = Set.of("qq.com", "gtimg.cn");
     private static final String MODULE = "music.srfDissInfo.DissInfo";
@@ -471,6 +478,50 @@ public class QQMusicClient {
     /** 当前 Cookie 是否含有效登录凭据（uin + musickey）。 */
     public boolean isLoggedIn() {
         return !loggedInUin().equals("0") && !musicKey().isEmpty();
+    }
+
+    /**
+     * 取一首歌的标准 LRC 歌词：请求上游拿到 Base64 编码的 {@code lyric}，**在代码里解码**后返回。
+     * 无歌词或接口异常返回空串，由调用方决定是否回落占位歌词。
+     *
+     * <p>上游 {@code lyric} / {@code trans} 字段均为 Base64 编码（并非明文），必须解码，且主歌词
+     * 为空时退用翻译轨，取值口径与网易云补全一致。</p>
+     */
+    public String fetchLyric(String mid) throws IOException {
+        if (mid == null || mid.isBlank()) {
+            return "";
+        }
+        String url = LYRIC_UPSTREAM + "?songmid=" + URLEncoder.encode(mid.trim(), StandardCharsets.UTF_8)
+                + "&g_tk=5381&format=json&inCharset=utf-8&outCharset=utf-8&platform=h5&needNewCode=1";
+        URI targetUri = OutboundUrlGuard.requireAllowedHttpUrl(url, ALLOWED_HOSTS);
+        HttpRequest request = HttpRequest.newBuilder().uri(targetUri)
+                .timeout(requestTimeout())
+                .header("User-Agent", WEB_UA)
+                .header("Referer", "https://y.qq.com/")
+                .GET().build();
+        HttpResponse<String> response =
+                HttpTransport.sendString(httpClient, request, "请求 QQ 歌词接口被中断");
+        if (!HttpTransport.isSuccess(response.statusCode())) {
+            throw new UpstreamException(response.statusCode());
+        }
+        JsonNode json = objectMapper.readTree(response.body());
+        if (json == null || json.isMissingNode()) {
+            return "";
+        }
+        String lyric = decodeLyricBase64(json.path("lyric").asText(""));
+        return lyric.isBlank() ? decodeLyricBase64(json.path("trans").asText("")) : lyric;
+    }
+
+    /** 解码歌词字段的 Base64 文本（容忍换行）；空值或非法 Base64 返回空串。 */
+    private static String decodeLyricBase64(String encoded) {
+        if (encoded == null || encoded.isBlank()) {
+            return "";
+        }
+        try {
+            return new String(Base64.getMimeDecoder().decode(encoded.trim()), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            return "";
+        }
     }
 
     /** 按当前 Cookie 拉取登录账号资料；未登录或失败返回 null。 */
