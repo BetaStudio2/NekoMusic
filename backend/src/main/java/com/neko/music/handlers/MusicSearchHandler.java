@@ -92,8 +92,8 @@ public class MusicSearchHandler extends ApiServlet {
         List<Music> results = searchMusic(query);
 
         String message = "搜索成功";
-        // 站内元数据 + 歌词均无结果时，先走网易云外源补全，再决定是否返回空结果。
-        if (results.isEmpty() && Main.getConfigManager().isNeteaseSearchFillEnabled()) {
+        // 站内元数据 + 歌词均无结果时，先走外站补全（网易云优先，无结果再 QQ 兜底），再决定是否返回空结果。
+        if (results.isEmpty() && externalFillEnabled()) {
             NeteaseSearchFillService.FillAttempt fill =
                     Main.getNeteaseSearchFillService().tryFillFromNetease(query);
             if (fill.music().isPresent()) {
@@ -133,7 +133,7 @@ public class MusicSearchHandler extends ApiServlet {
                 logger.error("批量搜索查库失败 title={} artist={}", title, artist, e);
             }
 
-            if (music == null && Main.getConfigManager().isNeteaseSearchFillEnabled()) {
+            if (music == null && externalFillEnabled()) {
                 pendingFills.add(new PendingNeteaseFill(results.size(), title, artist));
             }
 
@@ -185,6 +185,12 @@ public class MusicSearchHandler extends ApiServlet {
             return "搜索成功（" + found + "/" + total + " 已找到，" + fillCount + " 条已从外站补全入库）";
         }
         return found == total ? "搜索成功" : "搜索成功（" + found + "/" + total + " 已找到）";
+    }
+
+    /** 外站补全总开关：网易云或 QQ 任一开启即视为启用（网易云优先，无结果再 QQ 兜底）。 */
+    private static boolean externalFillEnabled() {
+        return Main.getConfigManager().isNeteaseSearchFillEnabled()
+                || Main.getConfigManager().isQqSearchFillEnabled();
     }
 
     private static String neteaseFillFailureMessage(String defaultMessage, NeteaseSearchFillService.FillReason reason) {

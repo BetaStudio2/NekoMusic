@@ -587,6 +587,8 @@ public class ConfigManager {
             logger.info("  网易云搜索补全: enabled={}, quality={}, maxParallelFills={}, cookieConfigured={}",
                     neteaseSearchFillEnabled, neteaseQuality,
                     neteaseMaxParallelFills, !neteaseCookie.isEmpty());
+            logger.info("  QQ 音乐补全: enabled={}, cookieConfigured={}",
+                    qqSearchFillEnabled, !qqCookie.isEmpty());
             logger.info("  ZPay 支付: enabled={}, pidConfigured={}, publicBaseUrlConfigured={}",
                     zpayEnabled, !zpayPid.isEmpty(), !zpayPublicBaseUrl.isEmpty());
             logger.info("  每日推荐: dailyLimit={}", recommendationDailyLimit);

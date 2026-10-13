@@ -114,7 +114,9 @@ public class NeteaseSearchFillService {
      * 按歌名与可选歌手从网易云补全一首（用于批量精确搜索等场景）。
      */
     public FillAttempt tryFillFromNetease(String title, String artist) {
-        if (!config.isNeteaseSearchFillEnabled()) {
+        boolean neteaseEnabled = config.isNeteaseSearchFillEnabled();
+        // 网易云与 QQ 都关掉时整条外站补全链才跳过；只关网易云时仍可走 QQ 兜底（见下）。
+        if (!neteaseEnabled && !config.isQqSearchFillEnabled()) {
             return FillAttempt.skipped();
         }
         if (title == null || title.isBlank()) {
@@ -138,7 +140,7 @@ public class NeteaseSearchFillService {
 
             boolean redisHeld = tryAcquireRedisLock(lockKey);
             if (!redisHeld) {
-                logger.info("网易云补全已有其它实例/请求在处理: title={} artist={}",
+                logger.info("外站补全已有其它实例/请求在处理: title={} artist={}",
                         trimmedTitle, trimmedArtist);
                 return waitForPeerIngest(trimmedTitle, trimmedArtist);
             }
@@ -147,6 +149,13 @@ public class NeteaseSearchFillService {
                 existing = findLocalBeforeNetease(trimmedTitle, trimmedArtist);
                 if (existing.isPresent()) {
                     return new FillAttempt(existing, FillReason.NONE);
+                }
+                if (!neteaseEnabled) {
+                    // 管理端关闭了网易云补全：不请求网易云，直接给 QQ 音乐一次兜底机会。
+                    logger.info("网易云补全已关闭，直接尝试 QQ 音乐兜底: title={} artist={}",
+                            trimmedTitle, trimmedArtist);
+                    return fallbackToQq(trimmedTitle, trimmedArtist,
+                            new FillAttempt(Optional.empty(), FillReason.NOT_FOUND));
                 }
                 return doFillFromNetease(trimmedTitle, trimmedArtist);
             } finally {
@@ -337,7 +346,8 @@ public class NeteaseSearchFillService {
             return fallbackToQq(reqTitle, reqArtist, failReason(loggedIn));
         } catch (Exception e) {
             logger.error("网易云搜索补全失败 title={} artist={}", reqTitle, reqArtist, e);
-            return new FillAttempt(Optional.empty(), FillReason.ERROR);
+            // 网易云整段异常（含登录失效 / 网络错误）也再给 QQ 一次机会，避免只差一步就放弃补全。
+            return fallbackToQq(reqTitle, reqArtist, new FillAttempt(Optional.empty(), FillReason.ERROR));
         } finally {
             if (workDir != null) {
                 deleteRecursively(workDir);
