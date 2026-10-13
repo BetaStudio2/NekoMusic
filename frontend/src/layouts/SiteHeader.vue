@@ -249,7 +249,7 @@ onUnmounted(() => {
         <NInput
           v-model="searchQuery"
           icon="search"
-          placeholder="搜索音乐、艺术家或歌词"
+          placeholder="搜索歌名、歌手、歌词或歌曲 ID"
           clearable
           @update:model-value="onSearchInput"
           @enter="performSearch"

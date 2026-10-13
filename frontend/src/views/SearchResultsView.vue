@@ -365,7 +365,7 @@ onMounted(async () => {
     <NCard v-else-if="!searchQuery" pad="lg" class="empty">
       <span class="empty__icon"><NIcon name="search" :size="28" /></span>
       <h2 class="empty__title">开始搜索</h2>
-      <p class="empty__text">在顶栏搜索框输入歌名、歌手或专辑，回车即可查看结果。</p>
+      <p class="empty__text">在顶栏搜索框输入歌名、歌手、专辑或歌曲 ID，回车即可查看结果。</p>
     </NCard>
 
     <!-- 无结果 -->
