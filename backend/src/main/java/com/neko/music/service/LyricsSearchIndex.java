@@ -14,6 +14,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -25,6 +26,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * 站内歌词搜索索引：仅索引已入库曲目（{@code music} 表存在且 {@code music_lyrics} 有有效歌词）。
  * 纯文本缓存目录：{@code /tmp/.neko/lyrics-index/plain}（tmpfs）。
+ *
+ * <p>索引与查询用同一套归一（繁简转换 + 去空白 + 小写），所以繁体歌词也能被简体查询命中；
+ * 命中判定按 2-gram 覆盖率容忍少量漏字（用户按记忆搜歌词常多打/漏打一两个字）。
  */
 public class LyricsSearchIndex {
     private static final Logger logger = LoggerFactory.getLogger(LyricsSearchIndex.class);
@@ -35,6 +39,8 @@ public class LyricsSearchIndex {
     private static final int MIN_QUERY_LEN = 7;
     private static final int NGRAM_SIZE = 2;
     private static final int MAX_RESULTS = 200;
+    /** 单次搜索最多扫描多少个候选（取最小倒排桶，仅防御性上限）。 */
+    private static final int MAX_CANDIDATE_SCAN = 20_000;
 
     private final Map<Integer, String> plainById = new ConcurrentHashMap<>();
     private final Map<Integer, Set<String>> ngramsById = new ConcurrentHashMap<>();
@@ -114,37 +120,77 @@ public class LyricsSearchIndex {
             return new SearchOutcome(List.of(), 0, false);
         }
 
-        Set<Integer> candidates = null;
+        // 候选集取所有倒排桶的并集（规模不会超过索引曲目数）：旧实现取桶的交集，
+        // 「来自中原一群伙伴」漏掉一个「的」就一律判死，连近似命中都进不了候选。
+        Set<Integer> candidates = new HashSet<>();
         for (String gram : grams) {
             Set<Integer> bucket = postings.get(gram);
-            if (bucket == null || bucket.isEmpty()) {
-                return new SearchOutcome(List.of(), 0, false);
+            if (bucket != null) {
+                candidates.addAll(bucket);
             }
-            if (candidates == null) {
-                candidates = new HashSet<>(bucket);
-            } else {
-                candidates.retainAll(bucket);
-                if (candidates.isEmpty()) {
-                    return new SearchOutcome(List.of(), 0, false);
+        }
+        if (candidates.isEmpty()) {
+            return new SearchOutcome(List.of(), 0, false);
+        }
+        if (candidates.size() > MAX_CANDIDATE_SCAN) {
+            logger.info("歌词候选过多，跳过本次歌词搜索: query='{}', candidates={}", query, candidates.size());
+            return new SearchOutcome(List.of(), candidates.size(), true);
+        }
+
+        int required = grams.size() - allowedMisses(grams.size());
+        List<LyricHit> exactHits = new ArrayList<>();
+        List<LyricHit> nearHits = new ArrayList<>();
+        for (Integer id : candidates) {
+            Set<String> songGrams = ngramsById.get(id);
+            if (songGrams == null) {
+                continue;
+            }
+            int matched = 0;
+            for (String gram : grams) {
+                if (songGrams.contains(gram)) {
+                    matched++;
                 }
+            }
+            if (matched < required) {
+                continue;
+            }
+            String plain = plainById.get(id);
+            LyricHit hit = new LyricHit(id, matched, plain != null && plain.contains(normalized));
+            if (hit.exactPhrase()) {
+                exactHits.add(hit);
+            } else {
+                nearHits.add(hit);
             }
         }
 
+        // 完整短语命中就只返回完整短语（与旧行为一致）；一个完整短语都没有时，才退回近似命中。
+        // 近似命中按命中 gram 数排序，同分按 id，保证结果顺序稳定。
+        List<LyricHit> hits = exactHits.isEmpty() ? nearHits : exactHits;
+        hits.sort(Comparator.comparingInt(LyricHit::matched).reversed()
+                .thenComparingInt(LyricHit::musicId));
+
         int cap = Math.min(Math.max(1, limit), MAX_RESULTS);
-        List<Integer> hits = new ArrayList<>();
-        boolean saturated = false;
-        for (Integer id : candidates) {
-            String plain = plainById.get(id);
-            if (plain != null && plain.contains(normalized)) {
-                if (hits.size() < cap) {
-                    hits.add(id);
-                } else {
-                    saturated = true;
-                    break;
-                }
-            }
+        boolean saturated = hits.size() > cap;
+        List<Integer> ids = new ArrayList<>(Math.min(hits.size(), cap));
+        for (LyricHit hit : hits.subList(0, Math.min(hits.size(), cap))) {
+            ids.add(hit.musicId());
         }
-        return new SearchOutcome(List.copyOf(hits), candidates.size(), saturated);
+        return new SearchOutcome(List.copyOf(ids), exactHits.size(), saturated);
+    }
+
+    /**
+     * 允许漏掉几个 2-gram：短查询要求全中保精度，长查询容忍一两个字。
+     * 用户按记忆搜歌词常多打/漏打一个字，全中才认会让这类查询直接无结果。
+     */
+    private static int allowedMisses(int gramCount) {
+        if (gramCount <= 4) {
+            return 0;
+        }
+        return gramCount <= 8 ? 1 : 2;
+    }
+
+    /** 一条歌词命中：{@code exactPhrase} 表示正文含完整短语，{@code matched} 是命中的 gram 数。 */
+    private record LyricHit(int musicId, int matched, boolean exactPhrase) {
     }
 
     /** 新入库或歌词更新后增量重建（仅当曲目已在库且 lrc 存在）。 */
@@ -165,9 +211,12 @@ public class LyricsSearchIndex {
     }
 
     private boolean indexOne(int musicId, String lrcContent, String precomputedPlain) {
-        String plain = precomputedPlain == null || precomputedPlain.isBlank()
+        String indexed = precomputedPlain == null || precomputedPlain.isBlank()
                 ? LyricsPlainTextExtractor.fromLrc(lrcContent)
                 : precomputedPlain;
+        // plain_text 可能是历史遗留或外部写入的未归一原文（如繁体、带空白），必须在这里再归一一次：
+        // 查询侧是归一后的文本，索引侧不归一就会出现「繁体歌词永远搜不到简体关键词」。
+        String plain = LyricsPlainTextExtractor.normalize(indexed);
         if (plain.length() < MIN_QUERY_LEN || LyricsPlainTextExtractor.isPlaceholder(plain)) {
             return false;
         }
