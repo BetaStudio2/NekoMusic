@@ -5,6 +5,7 @@ import com.neko.music.service.SourceBanService;
 import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.RequestPath;
+import com.neko.music.util.SsePaths;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.FilterConfig;
@@ -29,8 +30,9 @@ import java.util.Locale;
  * 干预；触发封禁的是<b>反复认证失败</b>，正常浏览请求不产生失败，因此不会平白被牵连。</p>
  *
  * <p>响应与 {@link IPRateLimitFilter} 保持一致：{@code 429} + {@code Retry-After}，文案保持通用，
- * 不向探测者区分「被封禁」与「请求过快」；{@code OPTIONS}/{@code HEAD} 与第三方回调（支付异步
- * 通知）照常放行。需在 {@link com.neko.music.Main} 中显式注册（嵌入式 Jetty 不处理 {@code @WebFilter}）。</p>
+ * 不向探测者区分「被封禁」与「请求过快」；{@code OPTIONS}/{@code HEAD}、第三方回调（支付异步
+ * 通知）与 SSE 长连接（见 {@link SsePaths}）照常放行。需在 {@link com.neko.music.Main} 中显式
+ * 注册（嵌入式 Jetty 不处理 {@code @WebFilter}）。</p>
  */
 public class SourceBanFilter implements Filter {
 
@@ -93,6 +95,11 @@ public class SourceBanFilter implements Filter {
             path = path.substring(0, path.length() - 1);
         }
         if (ZPAY_NOTIFY_PATH.equals(path)) {
+            return false;
+        }
+        // SSE 长连接同样豁免：EventSource 断线后自动重连、又无法携带自定义请求头，一旦来源被误封，
+        // 用户的实时流（扫码登录 / 站内消息 / 后台日志 / 歌单导入进度）会整体连接失败。
+        if (SsePaths.isStreamPath(path)) {
             return false;
         }
         for (String prefix : PROTECTED_PREFIXES) {

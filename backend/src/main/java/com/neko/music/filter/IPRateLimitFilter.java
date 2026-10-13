@@ -5,6 +5,7 @@ import com.neko.music.config.ConfigManager;
 import com.neko.music.service.IPRateLimitService;
 import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.RequestPath;
+import com.neko.music.util.SsePaths;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -52,7 +53,7 @@ public class IPRateLimitFilter implements Filter {
 
         HttpServletRequest httpRequest = (HttpServletRequest) request;
 
-        if (isMusicUploadApiPath(httpRequest) || isZpayNotifyPath(httpRequest)) {
+        if (isExemptPath(requestPath(httpRequest))) {
             chain.doFilter(request, response);
             return;
         }
@@ -81,27 +82,38 @@ public class IPRateLimitFilter implements Filter {
     }
 
     /**
-     * 仅音乐上传接口不参与 IP 限流（不检查封锁、不计数），避免大文件上传误触发 429。
+     * 不参与 IP 限流的请求（既不检查封锁、也不计数）：
+     * <ul>
+     *   <li>大文件上传端点：一次上传会被拆成多个分片请求，按请求计数会误触发 429；</li>
+     *   <li>ZPay 异步通知：由平台服务器回调，误伤会丢失支付通知；</li>
+     *   <li>SSE 长连接（见 {@link SsePaths}）：EventSource 断线后会自动重连、又无法携带自定义请求头，
+     *       一条长连接会被按请求计数当成高频流量，NAT / 移动网络等共享出口下正常用户也会被打成 429，
+     *       连接再也建不起来。</li>
+     * </ul>
+     *
+     * <p>传入的应为路由视角的规范化路径（见 {@link RequestPath}），豁免清单才不会因为
+     * {@code /./api/x}、{@code /a/../api/x}、{@code /api;/x} 这类等价写法而失效。</p>
      */
-    private static boolean isMusicUploadApiPath(HttpServletRequest req) {
-        String path = requestPath(req);
+    static boolean isExemptPath(String path) {
+        return isMusicUploadPath(path) || isZpayNotifyPath(path) || SsePaths.isStreamPath(path);
+    }
+
+    /** 仅音乐上传接口不参与 IP 限流（不检查封锁、不计数），避免大文件上传分片误触发 429。 */
+    private static boolean isMusicUploadPath(String path) {
         if (path.equals("/api/music/upload")) {
             return true;
         }
         return path.equals("/api/user/upload") || path.startsWith("/api/user/upload/");
     }
 
-    /**
-     * 请求路径：走 {@link RequestPath} 的「路由视角」规范化路径，豁免清单才不会因为
-     * {@code /./api/x}、{@code /a/../api/x}、{@code /api;/x} 这类等价写法而失效。
-     */
-    private static String requestPath(HttpServletRequest req) {
-        return RequestPath.of(req);
+    /** ZPay 异步通知由平台服务器回调，不参与 IP 限流，避免通知失败。 */
+    private static boolean isZpayNotifyPath(String path) {
+        return path.equals("/api/payment/zpay/notify");
     }
 
-    /** ZPay 异步通知由平台服务器回调，不参与 IP 限流，避免通知失败。 */
-    private static boolean isZpayNotifyPath(HttpServletRequest req) {
-        return requestPath(req).equals("/api/payment/zpay/notify");
+    /** 请求路径：走 {@link RequestPath} 的「路由视角」规范化路径。 */
+    private static String requestPath(HttpServletRequest req) {
+        return RequestPath.of(req);
     }
 
     /**

@@ -105,9 +105,30 @@ class SourceBanFilterTest {
 
     @Test
     void bannedSourceIsRejectedOnLoserApiToo() throws Exception {
-        Result result = run(BANNED_IP, "POST", "/loser/foo/pull");
+        Result result = run(BANNED_IP, "POST", "/loser/kugou/getSongListDetail");
         assertFalse(result.chained());
         assertEquals(429, result.status());
+    }
+
+    @Test
+    void sseStreamsAreNeverBlocked() throws Exception {
+        for (String path : new String[]{
+                "/api/user/qrlogin/status",
+                "/api/user/notifications/stream",
+                "/api/admin/logs/access/stream",
+                "/loser/netease/pull",
+                "/loser/qq/pull",
+                "/loser/kugou/pull",
+                "/loser/qishui/pull"}) {
+            Result result = run(BANNED_IP, "GET", path);
+            assertTrue(result.chained(), "SSE 长连接不应被来源封禁挡下: " + path);
+        }
+    }
+
+    @Test
+    void sseExemptionToleratesTrailingSlash() throws Exception {
+        Result result = run(BANNED_IP, "GET", "/api/user/notifications/stream/");
+        assertTrue(result.chained(), "尾部斜杠不应绕过 SSE 豁免判定");
     }
 
     @Test
