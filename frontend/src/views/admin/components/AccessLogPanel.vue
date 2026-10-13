@@ -140,6 +140,7 @@
             <th>平台 / 版本</th>
             <th>来源 IP</th>
             <th>User-Agent</th>
+            <th>详情</th>
           </tr>
         </thead>
         <tbody>
@@ -163,9 +164,12 @@
             <td class="cell-dim">{{ platformText(row) }}</td>
             <td class="cell-dim">{{ row.client_ip }}</td>
             <td class="cell-ua" :title="row.user_agent">{{ row.user_agent || '（空）' }}</td>
+            <td>
+              <NButton size="sm" variant="ghost" icon="eye" @click="openDetail(row)">详情</NButton>
+            </td>
           </tr>
           <tr v-if="!access.items.length">
-            <td colspan="10" class="cell-empty">暂无记录</td>
+            <td colspan="11" class="cell-empty">暂无记录</td>
           </tr>
         </tbody>
       </table>
@@ -186,6 +190,13 @@
         下一页
       </NButton>
     </div>
+
+    <!-- 列表只放得下几列；完整 UA / Referer / 网段 / 线程 / PoW 等安全分析字段在这里全给出来 -->
+    <LogDetailModal
+      v-model="detailOpen"
+      :title="detailTitle"
+      :fields="detailFields"
+    />
   </section>
 </template>
 
@@ -193,8 +204,8 @@
 /**
  * 访问日志面板（安全分析）。
  *
- * 放在管理后台首页「统计分析」里，而不是单独一个日志页：访问量统计与安全分析是运维每天要看的
- * 第一手数据，混在「操作日志」里会让人以为日志页只关心后台动作。
+ * 放在左侧「安全」页里，而不是混进「操作日志」：访问量统计与安全分析是运维每天要看的第一手数据，
+ * 混在「操作日志」里会让人以为日志页只关心后台动作。
  *
  * 实时更新走 SSE（`/api/admin/logs/access/stream`）：连上后台则新日志直接追加到表格顶部；
  * 翻页或带筛选条件时暂停追加（否则会把不属于当前视图的行混进来），只提示；断线期间缺的行用列表接口补。
@@ -202,6 +213,7 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NInput, NTag } from '@/ui'
+import LogDetailModal from '@/views/admin/components/LogDetailModal.vue'
 import { fetchAccessLogs, fetchAccessLogStats, openAccessLogStream } from '@/api/adminLogs.js'
 import {
   Chart as ChartJS,
@@ -287,6 +299,10 @@ const statsDays = ref(7)
 const stats = ref({})
 const access = reactive({ total: 0, page: 1, size: PAGE_SIZE, items: [] })
 const accessQuery = reactive({ ip: '', path: '', clientType: '', keyword: '', powStatus: '' })
+
+const detailOpen = ref(false)
+const detailTitle = ref('访问日志详情')
+const detailFields = ref([])
 
 const trendCanvas = ref(null)
 let trendChart = null
@@ -483,6 +499,56 @@ function statusVariant(status) {
 
 function powLabel(value) {
   return POW_LABELS[value] || value
+}
+
+function formatBytes(value) {
+  const bytes = Number(value) || 0
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`
+}
+
+/**
+ * 详情弹窗：把这一条访问日志的全部字段摊开。
+ *
+ * 表格里只放得下「谁、什么时候、做了什么」；排查爬虫 / 脚本 / 被刷要看的是完整 UA、Referer、
+ * Origin、网段、Host、线程与 PoW 难度，这些一个都不能省。
+ */
+function openDetail(row) {
+  detailTitle.value = row.id ? `访问日志详情 · #${row.id}` : '访问日志详情 · 实时记录'
+  detailFields.value = [
+    { label: '记录 ID', value: row.id ?? '实时行（尚未落库）', mono: true },
+    { label: '时间', value: formatTime(row.occurred_at) },
+    { label: '时间戳', value: row.occurred_at, mono: true },
+    { label: '请求方法', value: row.method, mono: true },
+    { label: '路径', value: row.path, mono: true },
+    { label: '查询串', value: row.query || '（无）', mono: true, block: true },
+    { label: '完整请求', value: fullPath(row), mono: true, block: true },
+    { label: '请求分类', value: categoryLabel(row.category) },
+    { label: '状态码', value: row.status },
+    { label: '耗时', value: `${row.duration_ms} ms` },
+    { label: '响应体大小', value: formatBytes(row.response_bytes) },
+    { label: '来源 IP', value: row.client_ip, mono: true },
+    { label: '所属网段', value: row.ip_subnet, mono: true },
+    { label: '客户端类型', value: clientTypeLabel(row.client_type) },
+    { label: '客户端平台', value: row.client_platform },
+    { label: '客户端版本', value: row.client_version },
+    { label: 'X-Neko-Client', value: row.neko_client, mono: true },
+    { label: 'User-Agent', value: row.user_agent, mono: true, block: true },
+    { label: 'Referer', value: row.referer, block: true },
+    { label: 'Origin', value: row.origin, block: true },
+    { label: 'Accept-Language', value: row.accept_language },
+    { label: '已认证', value: Number(row.authenticated) ? '是' : '否' },
+    { label: '管理员 ID', value: row.admin_id },
+    { label: '管理员', value: row.admin_username },
+    { label: 'Host', value: row.host, mono: true },
+    { label: '请求方案', value: row.scheme, mono: true },
+    { label: 'HTTP 协议', value: row.protocol, mono: true },
+    { label: '处理线程', value: row.thread, mono: true },
+    { label: 'PoW 难度', value: row.pow_difficulty == null ? '—' : `${row.pow_difficulty} 比特` },
+    { label: 'PoW 结果', value: row.pow_status ? powLabel(row.pow_status) : '未经过防重放挑战' }
+  ]
+  detailOpen.value = true
 }
 
 function powTitle(row) {

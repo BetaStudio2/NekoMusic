@@ -23,7 +23,7 @@ const adminGuard = (to) => {
         if (to.path.startsWith('/admin/vip-pricing')) return '/admin'
         if (to.path.startsWith('/admin/releases')) return '/admin'
         if (to.path.startsWith('/admin/settings')) return '/admin'
-        // 操作日志仅管理员及以上；审核员的访问日志在首页「统计分析」里
+        // 操作日志仅管理员及以上；审核员可看「安全」页里的访问日志（安全分析需要）
         if (to.path.startsWith('/admin/logs')) return '/admin'
       }
     } catch {
@@ -247,8 +247,19 @@ const router = createRouter({
           beforeEnter: adminGuard,
           meta: {
             title: '统计分析 - Neko歌姬计划',
-            description: '管理后台首页：平台数据统计与访问日志（访问量、来源、客户端与 PoW 难度）。',
-            keywords: '统计分析,访问日志,访问量,安全分析,管理后台'
+            description: '管理后台首页：平台业务数据统计与趋势。',
+            keywords: '统计分析,数据统计,管理后台'
+          }
+        },
+        {
+          path: 'security',
+          name: 'admin-security',
+          component: () => import('@/views/admin/AdminSecurityView.vue'),
+          beforeEnter: adminGuard,
+          meta: {
+            title: '安全 - Neko歌姬计划',
+            description: '访问日志与安全分析：访问量、来源、客户端指纹与 PoW 难度。',
+            keywords: '安全,访问日志,访问量,安全分析,爬虫,PoW,管理后台'
           }
         },
         {

@@ -9,6 +9,7 @@ import com.neko.music.config.SystemSettingRegistry;
 import com.neko.music.database.SystemSettingsDatabaseManager;
 import com.neko.music.model.Admin;
 import com.neko.music.util.AdminPermissionUtil;
+import com.neko.music.util.OperationAudit;
 import com.neko.music.util.PermissionHelper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -17,11 +18,14 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -143,6 +147,10 @@ public class AdminSettingsHandler extends ApiServlet {
             return;
         }
 
+        // 先把「改了什么」挂到请求属性上：操作日志过滤器在响应写出后才落库，这里不记录就只剩
+        // 「修改系统设置」一句空话，翻日志时看不出到底动了哪一项。
+        recordChanges(request, stored, updates);
+
         Admin admin = PermissionHelper.getAdminFromRequest(request);
         try {
             int written = settingsDatabase().upsertAll(updates, admin == null ? null : admin.id());
@@ -189,6 +197,53 @@ public class AdminSettingsHandler extends ApiServlet {
             item.put("defaultValue", definition.defaultValue());
         }
         return item;
+    }
+
+    /**
+     * 把「改了哪些设置项、原来是什么、改成了什么」挂到请求属性上，供操作日志落库。
+     *
+     * <p>原值取「当前生效值」（库里优先，其次 config.yml，最后出厂默认值）——后台页面上给管理员看的
+     * 就是这个值，日志与页面对不上才是最糟的。只记真正变化的项：前端本来就只提交改动过的键，
+     * 这里再按值过滤一次，避免「改了又改回去」留下一条什么也没改的日志。</p>
+     *
+     * <p>敏感项不落明文：只记状态迁移（已配置 / 已更新 / 已清空），不记新旧取值。</p>
+     */
+    private static void recordChanges(HttpServletRequest request, Map<String, String> stored,
+                                      Map<String, String> updates) {
+        for (OperationAudit.Change change : settingChanges(stored, updates)) {
+            OperationAudit.add(request, change.label(), change.before(), change.after());
+        }
+    }
+
+    /**
+     * 纯函数版变更明细：把「提交的键值」与「当前生效值」比出差异，方便单测直接断言。
+     *
+     * @param stored  库里已保存的值
+     * @param updates 归一化后的待保存值（前端只提交改动过的键）
+     * @return 只包含真正发生变化的项；未登记的键被忽略
+     */
+    static List<OperationAudit.Change> settingChanges(Map<String, String> stored, Map<String, String> updates) {
+        List<OperationAudit.Change> changes = new ArrayList<>();
+        for (Map.Entry<String, String> entry : updates.entrySet()) {
+            SystemSettingDefinition definition = SystemSettingRegistry.find(entry.getKey()).orElse(null);
+            if (definition == null) {
+                continue;
+            }
+            String after = entry.getValue();
+            if (definition.secret()) {
+                boolean configured = !stored.getOrDefault(entry.getKey(), "").isBlank();
+                String afterState = after.isBlank() ? "已清空" : (configured ? "已更新（不回显）" : "已配置");
+                changes.add(new OperationAudit.Change(definition.label(),
+                        configured ? "已配置" : "未配置", afterState));
+                continue;
+            }
+            String before = effectiveValue(definition, stored);
+            if (Objects.equals(before, after)) {
+                continue;
+            }
+            changes.add(new OperationAudit.Change(definition.label(), before, after));
+        }
+        return changes;
     }
 
     /** 当前生效值：优先数据库，其次 config.yml，最后出厂默认值。 */

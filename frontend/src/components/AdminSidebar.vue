@@ -85,8 +85,14 @@ const hasPermission = (permission) => {
 
 /** 分组导航：组内无可见项时不渲染该组 */
 const navGroups = computed(() => {
-  // 首页 = 统计分析：业务数据趋势 + 访问日志（访问量、来源、PoW 等）
+  // 首页 = 统计分析：只看业务数据趋势
   const overview = [{ to: '/admin', icon: 'chart', label: '统计分析' }]
+
+  // 安全 = 访问日志（访问量、来源、客户端指纹、PoW 难度），单独成组放在「概览」下方
+  const security = []
+  if (hasPermission('access_log_view')) {
+    security.push({ to: '/admin/security', icon: 'shield-check', label: '安全' })
+  }
 
   const content = []
   if (hasPermission('music_view')) {
@@ -111,12 +117,13 @@ const navGroups = computed(() => {
     ops.push({ to: '/admin/settings', icon: 'settings', label: '系统设置' })
   }
   if (hasPermission('operation_log_view')) {
-    // 操作日志 = 后台写操作留痕；访问日志在首页「统计分析」里，不单独占侧栏项
+    // 操作日志 = 后台写操作留痕（改了什么、谁改的）；访问日志在「安全」页里
     ops.push({ to: '/admin/logs', icon: 'clipboard-check', label: '操作日志' })
   }
 
   return [
     { title: '概览', items: overview },
+    { title: '安全', items: security },
     { title: '内容', items: content },
     { title: '运营', items: ops },
   ].filter((g) => g.items.length > 0)

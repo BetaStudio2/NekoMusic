@@ -9,6 +9,7 @@ import com.neko.music.service.AccessLogService;
 import com.neko.music.service.OperationLogService;
 import com.neko.music.util.ClientFingerprint;
 import com.neko.music.util.ClientIpResolver;
+import com.neko.music.util.OperationAudit;
 import com.neko.music.util.PowAudit;
 import com.neko.music.util.RequestCategory;
 import com.neko.music.util.RequestPath;
@@ -269,7 +270,7 @@ public class RequestAuditFilter implements Filter {
                 clientIp,
                 userAgent,
                 ClientFingerprint.platform(userAgent, request.getHeader("X-Neko-Client")),
-                targetDetail(path));
+                operationDetail(OperationAudit.changes(request), path));
     }
 
     /** 查询串脱敏：把敏感参数的值换成 {@code ***}，其余按原样（含分隔符）保留。 */
@@ -347,6 +348,18 @@ public class RequestAuditFilter implements Filter {
             case "DELETE" -> "删除";
             default -> method;
         };
+    }
+
+    /**
+     * 操作说明：优先用处理器挂上来的变更明细（「标签：原值 → 新值」，见 {@link OperationAudit}），
+     * 没有明细时退回路径里的目标编号（{@code #148}）。
+     *
+     * <p>明细为空是常态——读取类接口、以及没有新旧值可比的删除类操作，路径里的编号就是最有用的一句
+     * 话；明细存在时它更具体（改的是哪个字段、从什么变成什么），所以优先。</p>
+     */
+    static String operationDetail(List<OperationAudit.Change> changes, String path) {
+        String detail = OperationAudit.describe(changes);
+        return detail == null || detail.isBlank() ? targetDetail(path) : detail;
     }
 
     /**

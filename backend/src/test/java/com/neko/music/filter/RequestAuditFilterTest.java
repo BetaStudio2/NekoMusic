@@ -1,7 +1,10 @@
 package com.neko.music.filter;
 
+import com.neko.music.util.OperationAudit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -80,6 +83,19 @@ class RequestAuditFilterTest {
         assertNull(RequestAuditFilter.targetDetail("/api/admin/settings"));
         assertNull(RequestAuditFilter.targetDetail("/api/music/upload"));
         assertNull(RequestAuditFilter.targetDetail(null));
+    }
+
+    @Test
+    @DisplayName("操作说明：优先用处理器挂上来的变更明细，没有明细才退回路径里的编号")
+    void detailPrefersRecordedChanges() {
+        assertEquals("#148", RequestAuditFilter.operationDetail(List.of(), "/api/music/148"));
+        assertNull(RequestAuditFilter.operationDetail(List.of(), "/api/admin/settings"));
+        assertEquals("运行端口：65535 → 8080", RequestAuditFilter.operationDetail(
+                List.of(new OperationAudit.Change("运行端口", "65535", "8080")),
+                "/api/admin/settings"));
+        // 有明细时不再退回编号：明细更具体，「改了什么」比「改的是哪一条」重要
+        assertEquals("名称：晴天 → 晴 天", RequestAuditFilter.operationDetail(
+                List.of(new OperationAudit.Change("名称", "晴天", "晴 天")), "/api/music/148"));
     }
 
     @Test

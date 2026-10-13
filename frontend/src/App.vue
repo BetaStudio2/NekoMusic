@@ -60,6 +60,15 @@ const showAppBanner = computed(
 /** 深色 chrome：管理后台除外 */
 const isChromeDarkShell = computed(() => !String(route.name || '').startsWith('admin'))
 
+/**
+ * 顶栏是否收起。
+ *
+ * 下载页与后台都自带布局：下载页是独立落地页，后台有侧栏 + 自己的页头，再把全站顶栏（搜索 /
+ * 用户区）压在上面既占高度又和后台导航打架。这里复用下载页的「视觉收起」而不是 v-if 卸载——
+ * SiteHeader 挂着搜索防抖、通知流与顶栏高度观测（--app-header-h），卸载会连带把观测目标弄丢。
+ */
+const isChromeHeaderHidden = computed(() => isDownloadPage.value || isAdminPage.value)
+
 /** 是否存在当前曲目（决定播放条显隐） */
 const hasTrack = ref(false)
 
@@ -130,9 +139,9 @@ onUnmounted(() => {
     <SiteHeader
       ref="headerRef"
       class="app-chrome-header"
-      :class="{ 'app-chrome-header--hidden': isDownloadPage }"
-      :inert="isDownloadPage || null"
-      :aria-hidden="isDownloadPage || undefined"
+      :class="{ 'app-chrome-header--hidden': isChromeHeaderHidden }"
+      :inert="isChromeHeaderHidden || null"
+      :aria-hidden="isChromeHeaderHidden || undefined"
     />
 
     <MobileAppBanner v-if="showAppBanner" />
@@ -181,8 +190,8 @@ main.main--flush {
   padding: 0;
 }
 
-/* ===== 顶栏：进入下载页时上滑收起，并同步收拢布局占位 =====
-   下载页无顶栏；此处保留挂载只做视觉隐藏，以便播放收起/展开过渡。
+/* ===== 顶栏：下载页 / 管理后台收起，并同步收拢布局占位 =====
+   这两种页面都没有全站顶栏的用武之地；此处保留挂载只做视觉隐藏，以便过渡与高度观测。
    用 --app-header-h（JS 实测高度）精确收拢，避免硬编码与移动端换行偏差。 */
 .app-chrome-header {
   transition:

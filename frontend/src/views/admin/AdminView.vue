@@ -2,7 +2,7 @@
   <div class="subpage">
     <header class="subpage__head">
       <h1 class="subpage__title">管理中心</h1>
-      <p class="subpage__desc">平台数据统计与访问安全分析</p>
+      <p class="subpage__desc">平台业务数据统计；访问日志与安全分析见左侧「安全」</p>
     </header>
 
     <div v-if="activeTab === 'stats'" class="stats">
@@ -30,20 +30,16 @@
           <canvas ref="trendChartCanvas"></canvas>
         </div>
       </NCard>
-
-      <!-- 访问日志（访问量统计 + 安全分析）：不只是「另一个日志页」，是运维每天要看的第一手数据 -->
-      <AccessLogPanel v-if="canViewAccessLog" />
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onActivated, onUnmounted } from 'vue'
+import { ref, onMounted, onActivated, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NInput, NModal, NSpinner } from '@/ui'
-import AccessLogPanel from '@/views/admin/components/AccessLogPanel.vue'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import {
   Chart as ChartJS,
@@ -80,11 +76,6 @@ const stats = ref({
 // 管理员信息
 const adminInfo = ref({})
 const activeTab = ref('stats')
-
-/** 访问日志（访问量统计 + 安全分析）对「除普通用户外」的角色开放，与后端 ACCESS_LOG_VIEW 一致 */
-const canViewAccessLog = computed(() =>
-  ['super_admin', 'admin', 'auditor'].includes(adminInfo.value?.role || 'admin')
-)
 const trendChartCanvas = ref(null)
 let trendChart = null
 

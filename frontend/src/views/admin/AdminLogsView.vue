@@ -4,8 +4,8 @@
       <div>
         <h1 class="subpage__title">操作日志</h1>
         <p class="subpage__desc">
-          记录后台写操作：系统设置修改、审核通过 / 驳回、音乐上传 / 修改 / 删除、歌词修改等，并保留操作人、时间、结果与来源。
-          访问量与安全分析见首页「统计分析」。
+          记录后台写操作：系统设置修改、审核通过 / 驳回、音乐上传 / 修改 / 删除、歌词修改等，并保留操作人、时间、
+          结果与来源；系统设置类修改会写明改了哪一项、原值是什么、改成了什么。访问量与安全分析见左侧「安全」。
         </p>
       </div>
     </header>
@@ -44,6 +44,8 @@
             <th>状态</th>
             <th>耗时</th>
             <th>来源 IP</th>
+            <th>说明</th>
+            <th>详情</th>
           </tr>
         </thead>
         <tbody>
@@ -61,9 +63,13 @@
             </td>
             <td class="cell-dim">{{ row.duration_ms }} ms</td>
             <td class="cell-dim">{{ row.client_ip }}</td>
+            <td class="cell-detail" :title="row.detail || ''">{{ detailSummary(row) }}</td>
+            <td>
+              <NButton size="sm" variant="ghost" icon="eye" @click="openDetail(row)">详情</NButton>
+            </td>
           </tr>
           <tr v-if="!operations.items.length">
-            <td colspan="9" class="cell-empty">暂无记录</td>
+            <td colspan="11" class="cell-empty">暂无记录</td>
           </tr>
         </tbody>
       </table>
@@ -84,6 +90,15 @@
         下一页
       </NButton>
     </div>
+
+    <!-- 列表只放得下概览；改了哪个字段、从什么变成什么，以及完整 UA / 平台等在详情里全给出来 -->
+    <LogDetailModal
+      v-model="detailOpen"
+      :title="detailTitle"
+      :fields="detailFields"
+      :changes="detailChanges"
+      changes-title="变更内容（原值 → 新值）"
+    />
   </div>
 </template>
 
@@ -91,13 +106,15 @@
 /**
  * 操作日志：后台写操作的人话留痕（谁、什么时候、对哪个模块做了什么、结果如何）。
  *
- * 这里只放操作日志——访问量统计与安全分析（含实时流）在首页「统计分析」里
- * （见 components/AccessLogPanel.vue）。
+ * 这里只放操作日志——访问量统计与安全分析（含实时流）在左侧「安全」页里
+ * （见 AdminSecurityView.vue / components/AccessLogPanel.vue）。
  */
 import { onMounted, reactive, ref } from 'vue'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NInput, NTag } from '@/ui'
+import LogDetailModal from '@/views/admin/components/LogDetailModal.vue'
 import { fetchOperationLogs } from '@/api/adminLogs.js'
+import { parseOperationDetail } from '@/utils/operationDetail.js'
 
 const PAGE_SIZE = 50
 
@@ -121,6 +138,11 @@ const error = ref('')
 const loading = ref(false)
 const operations = reactive({ total: 0, page: 1, size: PAGE_SIZE, items: [] })
 const operationQuery = reactive({ module: '', keyword: '' })
+
+const detailOpen = ref(false)
+const detailTitle = ref('操作日志详情')
+const detailFields = ref([])
+const detailChanges = ref([])
 
 onMounted(() => {
   loadOperations(1)
@@ -163,6 +185,52 @@ function fullPath(row) {
 
 function roleLabel(value) {
   return { super_admin: '超级管理员', admin: '管理员', auditor: '审核员' }[value] || value || '—'
+}
+
+/**
+ * 列表里的「说明」：写明这条操作改了什么。
+ *
+ * detail 是多行「字段：原值 → 新值」，列表格宽度有限，只显示第一条并标出总条数——
+ * 只写「修改系统设置」而不写改了哪一项，等于没记（完整内容在详情弹窗里）。
+ */
+function detailSummary(row) {
+  const raw = typeof row.detail === 'string' ? row.detail.trim() : ''
+  if (!raw) return '—'
+  const lines = raw.split('\n').filter((line) => line.trim())
+  if (lines.length <= 1) return lines[0] || raw
+  return `${lines[0]} 等 ${lines.length} 项`
+}
+
+/** 详情弹窗：操作日志的全部字段，并把 detail 解析成「原值 → 新值」三列。 */
+function openDetail(row) {
+  detailTitle.value = row.id ? `操作日志详情 · #${row.id}` : '操作日志详情'
+  const changes = parseOperationDetail(row.detail)
+  detailChanges.value = changes
+  detailFields.value = [
+    { label: '记录 ID', value: row.id, mono: true },
+    { label: '时间', value: formatTime(row.occurred_at) },
+    { label: '时间戳', value: row.occurred_at, mono: true },
+    { label: '管理员 ID', value: row.admin_id },
+    { label: '管理员', value: row.admin_username },
+    { label: '角色', value: roleLabel(row.admin_role) },
+    { label: '模块', value: row.module },
+    { label: '动作', value: row.action },
+    { label: '请求方法', value: row.method, mono: true },
+    { label: '路径', value: row.path, mono: true },
+    { label: '查询串', value: row.query || '（无）', mono: true, block: true },
+    { label: '完整请求', value: fullPath(row), mono: true, block: true },
+    { label: '状态码', value: row.status },
+    { label: '结果', value: Number(row.success) ? '成功' : '失败' },
+    { label: '耗时', value: `${row.duration_ms} ms` },
+    { label: '来源 IP', value: row.client_ip, mono: true },
+    { label: '客户端平台', value: row.client_platform },
+    { label: 'User-Agent', value: row.user_agent, mono: true, block: true }
+  ]
+  // 解析不出「原值 → 新值」时才把原文照抄一份（老记录写的是路径编号这类纯文本）
+  if (!changes.length && row.detail) {
+    detailFields.value.push({ label: '说明', value: row.detail, mono: true, block: true })
+  }
+  detailOpen.value = true
 }
 </script>
 
@@ -273,6 +341,14 @@ function roleLabel(value) {
 .cell-method {
   color: var(--n-accent-strong);
   font-weight: var(--n-weight-semibold);
+}
+
+.cell-detail {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--n-text-muted);
 }
 
 .cell-empty {
