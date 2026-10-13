@@ -1,8 +1,14 @@
-// 客户端标识：所有出站请求统一带上
+// 客户端标识：所有发往自家后端的请求统一带上
 //   - X-Neko-Client: web+<版本>
-//   - User-Agent:    NekoMusic-web/<版本>
 //   - Authorization: Bearer <用户令牌>（已登录时；后台页面自己设的管理员令牌优先）
 // 便于后端按来源端与版本做统计、灰度或最低版本拦截，并把访问日志落到具体账号。
+//
+// 严禁用脚本改写 User-Agent：它虽已不在 Fetch 规范的 forbidden header 列表内，但各浏览器处理
+// 并不一致——WebKit（iOS Safari 及 iOS 上所有浏览器）与 Firefox 会按脚本设置原样发送，后端在
+// 浏览器完整性校验里看到的就是一个不含 `Mozilla/` 与内核标记的 UA，会把整个 Web 前端当成伪造
+// 客户端而整体 403（连 `/api/replay/challenge` 都拿不到，表现为「无法通过 PoW」）；Chrome/Chromium
+// 则静默丢弃脚本设置、仍发自身 UA。不能依赖这种浏览器差异：Web 端身份一律由 X-Neko-Client 自报，
+// User-Agent 必须保持浏览器自身取值，浏览器完整性校验才有真实信号可判。
 //
 // 版本号在构建时由 Vite 注入（见 vite.config.js 的 __NEKO_WEB_VERSION__）：
 // 优先取 NEKO_WEB_VERSION / VITE_APP_VERSION 环境变量，其次 git describe 结果。
@@ -12,9 +18,6 @@ import API_CONFIG from './apiConfig.js'
 /** 标头名；原生客户端（pc/android）必须与此保持一致 */
 export const NEKO_CLIENT_HEADER = 'X-Neko-Client'
 
-/** User-Agent 标头名；浏览器可能按自身策略忽略脚本设置 */
-export const NEKO_USER_AGENT_HEADER = 'User-Agent'
-
 /** 平台标识；三端分别是 web / pc / android */
 export const NEKO_CLIENT_NAME = 'web'
 
@@ -23,19 +26,14 @@ export const NEKO_CLIENT_VERSION =
 
 export const NEKO_CLIENT_VALUE = `${NEKO_CLIENT_NAME}+${NEKO_CLIENT_VERSION}`
 
-/** User-Agent 取值：`NekoMusic-web/<版本>` */
-export const NEKO_USER_AGENT_VALUE = `NekoMusic-${NEKO_CLIENT_NAME}/${NEKO_CLIENT_VERSION}`
-
 /**
- * 需要注入的请求标头。
+ * 需要注入的请求标头：只注入 X-Neko-Client。
  *
- * 关于 User-Agent：它已不在 Fetch 规范的 forbidden header 列表内，Firefox 等浏览器
- * 会按脚本设置发送；但 Chrome/Chromium 会静默丢弃脚本设置的值、仍发送自身 UA，
- * 这是浏览器行为限制，网页端无法绕过。
+ * User-Agent 保持浏览器自身取值，**不要**加进来：改写它会让 WebKit / Firefox 真正发出一个不带
+ * 内核标记的 UA，被后端浏览器完整性校验判为伪造客户端而整体 403（详见文件头说明）。
  */
 const NEKO_REQUEST_HEADERS = {
   [NEKO_CLIENT_HEADER]: NEKO_CLIENT_VALUE,
-  [NEKO_USER_AGENT_HEADER]: NEKO_USER_AGENT_VALUE,
 }
 
 /** 用户令牌标头；与后端 `Authorization: Bearer <token>` 约定一致 */
