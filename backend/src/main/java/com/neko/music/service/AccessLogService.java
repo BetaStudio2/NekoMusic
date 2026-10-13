@@ -43,9 +43,10 @@ public class AccessLogService {
             INSERT INTO access_log (occurred_at, method, path, query, category, status, duration_ms,
                 response_bytes, client_ip, ip_subnet, user_agent, client_type, client_platform,
                 client_version, neko_client, referer, origin, accept_language, authenticated,
+                user_id, user_name,
                 admin_id, admin_username, host, scheme, protocol, thread, pow_difficulty, pow_status,
                 seo_render)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """;
 
     private static volatile AccessLogService current;
@@ -191,6 +192,12 @@ public class AccessLogService {
         stmt.setString(i++, LogQuerySupport.truncate(r.origin(), 255));
         stmt.setString(i++, LogQuerySupport.truncate(r.acceptLanguage(), 255));
         stmt.setBoolean(i++, r.authenticated());
+        if (r.userId() == null) {
+            stmt.setNull(i++, Types.INTEGER);
+        } else {
+            stmt.setInt(i++, r.userId());
+        }
+        stmt.setString(i++, LogQuerySupport.truncate(r.userName(), 255));
         if (r.adminId() == null) {
             stmt.setNull(i++, Types.INTEGER);
         } else {
@@ -241,6 +248,8 @@ public class AccessLogService {
         row.put("origin", r.origin());
         row.put("accept_language", r.acceptLanguage());
         row.put("authenticated", r.authenticated());
+        row.put("user_id", r.userId());
+        row.put("user_name", r.userName());
         row.put("admin_id", r.adminId());
         row.put("admin_username", r.adminUsername());
         row.put("host", r.host());
@@ -263,7 +272,7 @@ public class AccessLogService {
      * @param powStatus PoW 结果标签（精确，见 {@link com.neko.music.util.PowAudit}）
      * @param fromMs    起始时间（含），null 不限
      * @param toMs      结束时间（含），null 不限
-     * @param keyword   关键字，命中 路径 / 查询串 / UA / IP / 管理员用户名 任一
+     * @param keyword   关键字，命中 路径 / 查询串 / UA / IP / 登录用户昵称 / 管理员用户名 任一
      */
     public LogPage list(int page, int size, String ip, String path, String clientType, Integer status,
                         String powStatus, Long fromMs, Long toMs, String keyword) throws SQLException {
@@ -289,7 +298,7 @@ public class AccessLogService {
             params.add(toMs);
         }
         appendKeyword(where, params, blankToNull(keyword),
-                "path", "query", "user_agent", "client_ip", "admin_username");
+                "path", "query", "user_agent", "client_ip", "user_name", "admin_username");
 
         long total;
         List<Map<String, Object>> items = new ArrayList<>();
@@ -326,6 +335,10 @@ public class AccessLogService {
                     startOfToday));
             stats.put("todayUniqueIps", scalar(conn,
                     "SELECT COUNT(DISTINCT client_ip) FROM access_log WHERE occurred_at >= ?", startOfToday));
+            // 今日有登录身份的独立用户数：与「独立 IP」并列，登录规模与出口复用一眼可分
+            stats.put("todayLoggedUsers", scalar(conn,
+                    "SELECT COUNT(DISTINCT user_id) FROM access_log WHERE occurred_at >= ? "
+                            + "AND user_id IS NOT NULL", startOfToday));
             stats.put("todayBots", scalar(conn,
                     "SELECT COUNT(*) FROM access_log WHERE occurred_at >= ? AND client_type IN ('bot','scanner')",
                     startOfToday));
@@ -345,6 +358,11 @@ public class AccessLogService {
             stats.put("topIps", grouped(conn,
                     "SELECT client_ip AS k, COUNT(*) AS c FROM access_log WHERE occurred_at >= ? "
                             + "GROUP BY client_ip ORDER BY c DESC LIMIT " + TOP_LIMIT, windowStart));
+            // 登录用户榜：谁在频繁访问，比单看 IP 更能定位到具体账号
+            stats.put("topUsers", grouped(conn,
+                    "SELECT CONCAT('#', user_id, ' ', COALESCE(user_name, '')) AS k, COUNT(*) AS c "
+                            + "FROM access_log WHERE occurred_at >= ? AND user_id IS NOT NULL "
+                            + "GROUP BY k ORDER BY c DESC LIMIT " + TOP_LIMIT, windowStart));
             stats.put("topPaths", grouped(conn,
                     "SELECT path AS k, COUNT(*) AS c FROM access_log WHERE occurred_at >= ? "
                             + "GROUP BY path ORDER BY c DESC LIMIT " + TOP_LIMIT, windowStart));

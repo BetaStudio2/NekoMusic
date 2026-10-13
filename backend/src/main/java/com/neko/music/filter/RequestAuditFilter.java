@@ -6,7 +6,9 @@ import com.neko.music.model.Admin;
 import com.neko.music.model.AccessLogRecord;
 import com.neko.music.model.OperationLogRecord;
 import com.neko.music.service.AccessLogService;
+import com.neko.music.service.AccessLogUserResolver;
 import com.neko.music.service.OperationLogService;
+import com.neko.music.service.UserAuthService;
 import com.neko.music.util.ClientFingerprint;
 import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.OperationAudit;
@@ -38,7 +40,9 @@ import java.util.Set;
  * 挡下的请求同样要留痕，否则「谁在试探」这部分恰好缺失。</p>
  *
  * <ul>
- *   <li><b>访问日志</b>：每个请求一条，落 `access_log`（`logging.access_enabled` 控制）。</li>
+ *   <li><b>访问日志</b>：每个请求一条，落 `access_log`（`logging.access_enabled` 控制），
+ *       带已登录用户身份（`user_id` / `user_name`）与管理员身份（`admin_id` / `admin_username`），
+ *       被 403 / 409 / 429 挡下的请求同样留痕。</li>
  *   <li><b>操作日志</b>：`/api/admin/*` 上的写操作（POST/PUT/PATCH/DELETE）各一条，落
  *       `operation_log`（`logging.operation_enabled` 控制）。</li>
  * </ul>
@@ -203,9 +207,18 @@ public class RequestAuditFilter implements Filter {
         boolean adminContext = isAdminPath || rule != null;
         Admin admin = (adminContext && (logOperation || accessEnabled)) ? resolveAdmin(authorization) : null;
 
+        // 已登录用户身份：只对访问日志解析，且只在真的开着访问日志时才花这次 Redis 查询。
+        // 管理员另有 admin_* 两列；普通用户在这里落 user_id / user_name，两者互不覆盖。
+        Integer userId = null;
+        String userName = null;
+        if (accessEnabled && authenticated) {
+            userId = resolveUserId(authorization);
+            userName = AccessLogUserResolver.nicknameOf(userId);
+        }
+
         if (accessEnabled) {
             AccessLogService.record(buildAccessRecord(request, response, path, category, method, status,
-                    startedAt, durationMs, authenticated, admin));
+                    startedAt, durationMs, authenticated, userId, userName, admin));
         }
         if (logOperation) {
             OperationLogService.record(buildOperationRecord(request, path, method, status, startedAt,
@@ -216,7 +229,8 @@ public class RequestAuditFilter implements Filter {
     private AccessLogRecord buildAccessRecord(HttpServletRequest request, HttpServletResponse response,
                                               String path, String category, String method, int status,
                                               long occurredAt, int durationMs,
-                                              boolean authenticated, Admin admin) {
+                                              boolean authenticated, Integer userId, String userName,
+                                              Admin admin) {
         String userAgent = request.getHeader("User-Agent");
         String nekoClient = request.getHeader("X-Neko-Client");
         String clientIp = resolveClientIp(request);
@@ -240,6 +254,8 @@ public class RequestAuditFilter implements Filter {
                 request.getHeader("Origin"),
                 request.getHeader("Accept-Language"),
                 authenticated,
+                userId,
+                userName,
                 admin == null ? null : admin.id(),
                 admin == null ? null : admin.username(),
                 request.getHeader("Host"),
@@ -387,6 +403,28 @@ public class RequestAuditFilter implements Filter {
             }
         }
         return null;
+    }
+
+    /**
+     * 已登录用户 ID：解析 Bearer 令牌对应的用户，解析不出（未登录 / 令牌失效 / Redis 不可用）返回 null。
+     *
+     * <p>用只读入口 {@link UserAuthService#findUserIdByToken}，不走认证路径的 {@code validateToken}：
+     * 后者在令牌临近过期时会顺手续期，日志组件不该有「记一条日志 = 会话延长」这种副作用。</p>
+     */
+    private static Integer resolveUserId(String authorization) {
+        if (authorization == null || !authorization.startsWith(BEARER_PREFIX)) {
+            return null;
+        }
+        try {
+            UserAuthService authService = Main.getUserAuthService();
+            if (authService == null) {
+                return null;
+            }
+            return authService.findUserIdByToken(authorization.substring(BEARER_PREFIX.length()))
+                    .orElse(null);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static Admin resolveAdmin(String authorization) {

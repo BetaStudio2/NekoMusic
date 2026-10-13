@@ -558,6 +558,16 @@ public class UserAuthService {
     }
     
     /**
+     * 只读解析 token 对应的用户 ID（仅查 Redis，**不续期**）。
+     *
+     * <p>给审计 / 日志这类旁路使用：它们需要知道「是谁」，但不该因为记了一条日志就把会话
+     * 悄悄续上——那会让「开不开日志」影响会话时长。认证路径请继续用 {@link #validateToken}。</p>
+     */
+    public Optional<Integer> findUserIdByToken(String token) {
+        return tokenStore.getUserIdByToken(token);
+    }
+
+    /**
      * 注销 token（从 Redis 删除）。
      */
     public boolean revokeToken(String token) {

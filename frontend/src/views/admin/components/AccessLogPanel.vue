@@ -3,8 +3,8 @@
     <header class="access__head">
       <h2 class="access__title">访问日志（安全分析）</h2>
       <p class="access__desc">
-        每个请求一条：访问量、来源 IP 与网段、User-Agent、客户端指纹、状态码、耗时与本次的 PoW 难度，
-        用于安全分析与爬虫 / 脚本排查。数据落在独立日志库，不参与业务库备份。
+        每个请求一条：访问量、来源 IP 与网段、User-Agent、客户端指纹、已登录用户、状态码、耗时与本次的
+        PoW 难度，用于安全分析与爬虫 / 脚本排查。数据落在独立日志库，不参与业务库备份。
       </p>
     </header>
 
@@ -21,6 +21,10 @@
       <NCard pad="lg" class="stat">
         <span class="stat__number">{{ stats.todayUniqueIps ?? 0 }}</span>
         <span class="stat__label">今日独立 IP</span>
+      </NCard>
+      <NCard pad="lg" class="stat">
+        <span class="stat__number">{{ stats.todayLoggedUsers ?? 0 }}</span>
+        <span class="stat__label">今日登录用户</span>
       </NCard>
       <NCard pad="lg" class="stat">
         <span class="stat__number">{{ stats.todayBots ?? 0 }}</span>
@@ -69,6 +73,15 @@
         </ul>
       </NCard>
       <NCard pad="lg" class="card">
+        <h2 class="card__title">Top 登录用户</h2>
+        <ul class="ranking">
+          <li v-for="item in stats.topUsers || []" :key="item.key">
+            <span class="ranking__key" :title="item.key">{{ item.key || '未知' }}</span>
+            <span class="ranking__count">{{ item.count }}</span>
+          </li>
+        </ul>
+      </NCard>
+      <NCard pad="lg" class="card">
         <h2 class="card__title">Top 路径</h2>
         <ul class="ranking">
           <li v-for="item in stats.topPaths || []" :key="item.key">
@@ -111,7 +124,7 @@
       <NInput
         v-model="accessQuery.keyword"
         icon="search"
-        placeholder="路径 / UA / IP 关键字…"
+        placeholder="路径 / UA / IP / 用户名 关键字…"
         clearable
         class="toolbar__search"
         @keyup.enter="loadAccess(1)"
@@ -143,6 +156,7 @@
             <th>客户端</th>
             <th>平台 / 版本</th>
             <th>来源 IP</th>
+            <th>登录用户</th>
             <th>User-Agent</th>
             <th>详情</th>
           </tr>
@@ -170,13 +184,16 @@
             <td>{{ clientTypeLabel(row.client_type) }}</td>
             <td class="cell-dim">{{ platformText(row) }}</td>
             <td class="cell-dim">{{ row.client_ip }}</td>
+            <td :class="loginUserText(row) === '—' ? 'cell-dim' : 'cell-user'" :title="loginUserTitle(row)">
+              {{ loginUserText(row) }}
+            </td>
             <td class="cell-ua" :title="row.user_agent">{{ row.user_agent || '（空）' }}</td>
             <td>
               <NButton size="sm" variant="ghost" icon="eye" @click="openDetail(row)">详情</NButton>
             </td>
           </tr>
           <tr v-if="!access.items.length">
-            <td colspan="11" class="cell-empty">暂无记录</td>
+            <td colspan="12" class="cell-empty">暂无记录</td>
           </tr>
         </tbody>
       </table>
@@ -494,6 +511,28 @@ function categoryLabel(value) {
 }
 
 /**
+ * 已登录用户：日志里存的是**解析当时**的快照（昵称改了不回溯旧记录）。
+ *
+ * 未登录、令牌失效或用户已被删除时都是「—」——注意它与 `authenticated` 不是一回事：后者只说明
+ * 请求带了 Bearer 头，令牌能不能换来用户 ID 才是这里的判据。
+ */
+function loginUserText(row) {
+  const id = row.user_id == null ? null : Number(row.user_id)
+  const name = row.user_name || ''
+  if (name && id) return `#${id} ${name}`
+  if (name) return name
+  if (id) return `#${id}`
+  return '—'
+}
+
+function loginUserTitle(row) {
+  if (loginUserText(row) === '—') {
+    return Number(row.authenticated) ? '带了令牌但未解析出用户（令牌失效 / 已注销 / 管理员令牌）' : '未登录'
+  }
+  return `用户 ID ${row.user_id}${row.user_name ? ` · ${row.user_name}` : ''}`
+}
+
+/**
  * 响应分支：同一 URL 对爬虫与浏览器有两张表示（SEO 服务端 HTML / SPA 壳）。
  *
  * 「分类」是按路径算的，`/detail/148` 永远是 page；只有这一个字段能说明这次到底是「被收录」
@@ -568,7 +607,9 @@ function openDetail(row) {
     { label: 'Referer', value: row.referer, block: true },
     { label: 'Origin', value: row.origin, block: true },
     { label: 'Accept-Language', value: row.accept_language },
-    { label: '已认证', value: Number(row.authenticated) ? '是' : '否' },
+    { label: '已认证', value: Number(row.authenticated) ? '是（携带令牌）' : '否' },
+    { label: '登录用户 ID', value: row.user_id, mono: true },
+    { label: '登录用户昵称', value: row.user_name || '（未解析出用户）' },
     { label: '管理员 ID', value: row.admin_id },
     { label: '管理员', value: row.admin_username },
     { label: 'Host', value: row.host, mono: true },
@@ -619,6 +660,12 @@ function powTitle(row) {
   margin-bottom: var(--n-space-4);
   color: var(--n-color-danger, #ff6b6b);
   font-size: var(--n-text-sm);
+}
+
+/* 已登录用户：一眼分出「谁在登着账号访问」，未登录的行保持暗色 */
+.cell-user {
+  color: var(--n-accent-strong);
+  white-space: nowrap;
 }
 
 /* 「本次返回的是 SEO 服务端渲染」——分类列里的加注，别让爬虫收录看起来像普通页面浏览 */

@@ -112,6 +112,8 @@ public class LogDatabaseManager {
                 origin VARCHAR(255) NULL,
                 accept_language VARCHAR(255) NULL,
                 authenticated TINYINT(1) NOT NULL DEFAULT 0,
+                user_id INT NULL COMMENT '已登录用户 ID（用户令牌有效时解析，否则 NULL）',
+                user_name VARCHAR(255) NULL COMMENT '已登录用户昵称（随日志快照保存，改名不改历史）',
                 admin_id INT NULL,
                 admin_username VARCHAR(255) NULL,
                 host VARCHAR(255) NULL,
@@ -126,7 +128,8 @@ public class LogDatabaseManager {
                 KEY idx_access_path (path(191)),
                 KEY idx_access_status (status),
                 KEY idx_access_type (client_type),
-                KEY idx_access_pow (pow_status)
+                KEY idx_access_pow (pow_status),
+                KEY idx_access_user (user_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             """;
 
@@ -177,6 +180,11 @@ public class LogDatabaseManager {
         ensureIndex(conn, "access_log", "idx_access_pow", "pow_status");
         ensureColumn(conn, "access_log", "seo_render",
                 "TINYINT(1) NULL COMMENT '本次是否返回服务端 SEO 渲染 HTML；与 SEO 无关为 NULL'");
+        ensureColumn(conn, "access_log", "user_id",
+                "INT NULL COMMENT '已登录用户 ID（用户令牌有效时解析，否则 NULL）'");
+        ensureColumn(conn, "access_log", "user_name",
+                "VARCHAR(255) NULL COMMENT '已登录用户昵称（随日志快照保存）'");
+        ensureIndex(conn, "access_log", "idx_access_user", "user_id");
     }
 
     private static void ensureColumn(Connection conn, String table, String column, String definition)

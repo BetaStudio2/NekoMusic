@@ -24,7 +24,9 @@ package com.neko.music.model;
  * @param referer        Referer
  * @param origin         Origin
  * @param acceptLanguage Accept-Language
- * @param authenticated  是否携带 Bearer 令牌
+ * @param authenticated  是否携带 Bearer 令牌（只说明「带头了」，令牌是否有效看 {@code userId}）
+ * @param userId         已登录用户 ID（用户令牌有效时解析，否则为 null）
+ * @param userName       已登录用户昵称（与 {@code userId} 同时解析，随日志快照保存）
  * @param adminId        管理员 ID（仅管理端路径解析，其它为 null）
  * @param adminUsername  管理员用户名（同上）
  * @param host           Host 头
@@ -57,6 +59,8 @@ public record AccessLogRecord(
         String origin,
         String acceptLanguage,
         boolean authenticated,
+        Integer userId,
+        String userName,
         Integer adminId,
         String adminUsername,
         String host,
