@@ -91,6 +91,49 @@ class MusicSearchRankerTest {
         assertEquals(0, MusicSearchRanker.wholeQueryStrength(fields("晴天", "周杰伦", "叶惠美"), "晴天 周杰伦"));
     }
 
+    @Test
+    void splitsConcatenatedTitleAndArtist() {
+        assertEquals(List.of(List.of("晴天", "周杰伦"), List.of("晴天周", "杰伦")),
+                MusicSearchRanker.splitConcatenations("晴天周杰伦"));
+        assertTrue(MusicSearchRanker.splitConcatenations("周杰伦晴天").contains(List.of("周杰伦", "晴天")));
+    }
+
+    @Test
+    void skipsConcatenationForQueriesThatAreNotConcatenations() {
+        assertEquals(List.of(), MusicSearchRanker.splitConcatenations("晴天"));
+        assertEquals(List.of(), MusicSearchRanker.splitConcatenations("晴天周"));
+        assertEquals(List.of(), MusicSearchRanker.splitConcatenations("晴天 周杰伦"));
+        assertEquals(List.of(), MusicSearchRanker.splitConcatenations("qingtianzhoujielun"));
+        assertEquals(List.of(), MusicSearchRanker.splitConcatenations("晴天周杰伦晴天周杰伦晴天"));
+        assertEquals(List.of(), MusicSearchRanker.splitConcatenations(null));
+    }
+
+    @Test
+    void concatenatedQueryScoresLikeSeparatedQuery() {
+        List<List<String>> hypotheses = MusicSearchRanker.splitConcatenations("晴天周杰伦");
+        int concatenated = MusicSearchRanker.concatenatedScore(fields("晴天", "周杰伦", "叶惠美"), hypotheses);
+        int separated = MusicSearchRanker.score(fields("晴天", "周杰伦", "叶惠美"), List.of("晴天", "周杰伦"));
+
+        assertTrue(concatenated > 0, "连写查询应能命中「歌名 + 歌手」");
+        assertEquals(separated, concatenated);
+    }
+
+    @Test
+    void concatenatedQueryAlsoWorksWithArtistFirst() {
+        assertTrue(MusicSearchRanker.concatenatedScore(fields("晴天", "周杰伦", "叶惠美"),
+                MusicSearchRanker.splitConcatenations("周杰伦晴天")) > 0);
+    }
+
+    @Test
+    void concatenatedSplitRequiresBothRolesToMatch() {
+        // 歌名片段（想见你只想见你）不能因为前半段刚好是歌名就被当成「歌名 + 歌手」
+        assertEquals(0, MusicSearchRanker.concatenatedScore(fields("想见你", "王菲", "专辑"),
+                MusicSearchRanker.splitConcatenations("想见你只想见你")));
+        // 只有歌名命中、歌手不是库里任何一条的歌手时，同样不算命中
+        assertEquals(0, MusicSearchRanker.concatenatedScore(fields("晴天娃娃", "张杰", "专辑"),
+                MusicSearchRanker.splitConcatenations("晴天娃娃")));
+    }
+
     private static MusicSearchRanker.MusicFields fields(String title, String artist, String album) {
         return new MusicSearchRanker.MusicFields(
                 title, artist, album,

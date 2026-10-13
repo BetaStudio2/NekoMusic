@@ -45,6 +45,10 @@ public final class MusicSearchRanker {
      */
     private static final int TITLE_ROLE_MULTIPLIER = 10_000;
     private static final int ARTIST_ROLE_MULTIPLIER = 100;
+    /** 连写拆分时每段的最短长度（避免把单字当成歌名或歌手）。 */
+    private static final int MIN_CONCATENATION_PART_LENGTH = 2;
+    /** 连写拆分的整串长度上限（避免超长串产生过多拆分假设与 SQL 子查询）。 */
+    private static final int MAX_CONCATENATION_LENGTH = 10;
     /** 英文长句（>= 4 个单词）视为歌词片段，不做「歌名 + 歌手」切分。 */
     private static final int FREE_TEXT_LATIN_WORD_THRESHOLD = 4;
     /** 专辑拼音命中沿用旧实现的固定分（专辑角色本就排在最后）。 */
@@ -102,16 +106,81 @@ public final class MusicSearchRanker {
         int[] artistScores = new int[count];
         int[] albumScores = new int[count];
         for (int i = 0; i < count; i++) {
-            String term = terms.get(i).toLowerCase(Locale.ROOT);
-            titleScores[i] = fieldScore(fields.title(), fields.titlePinyin(),
-                    fields.titlePinyinInitials(), fields.titleWordInitials(), term, TITLE_WEIGHTS);
-            artistScores[i] = fieldScore(fields.artist(), fields.artistPinyin(),
-                    fields.artistPinyinInitials(), fields.artistWordInitials(), term, ARTIST_WEIGHTS);
-            albumScores[i] = Math.max(
-                    textScore(fields.album(), term, ALBUM_WEIGHTS),
-                    pinyinFieldScore(null, fields.albumPinyin(), null, term));
+            String term = terms.get(i);
+            titleScores[i] = titleScore(fields, term);
+            artistScores[i] = artistScore(fields, term);
+            albumScores[i] = albumScore(fields, term);
         }
         return bestRoleAssignment(titleScores, artistScores, albumScores);
+    }
+
+    /**
+     * 「歌名 + 歌手」直接连写（如 晴天周杰伦、周杰伦晴天）的拆分假设：
+     * 每个假设把整串切成前后两段，两段分别充当歌名与歌手（两种顺序都会试）。
+     * 只对「没有分隔符、整串都是中文、长度 4~10」的查询生成，其余返回空列表。
+     */
+    public static List<List<String>> splitConcatenations(String rawQuery) {
+        if (rawQuery == null) {
+            return List.of();
+        }
+        String trimmed = rawQuery.trim();
+        if (trimmed.length() < MIN_CONCATENATION_PART_LENGTH * 2
+                || trimmed.length() > MAX_CONCATENATION_LENGTH
+                || !isAllCjk(trimmed)) {
+            return List.of();
+        }
+
+        List<List<String>> hypotheses = new ArrayList<>();
+        for (int split = MIN_CONCATENATION_PART_LENGTH;
+                split <= trimmed.length() - MIN_CONCATENATION_PART_LENGTH; split++) {
+            hypotheses.add(List.of(trimmed.substring(0, split), trimmed.substring(split)));
+        }
+        return List.copyOf(hypotheses);
+    }
+
+    /**
+     * 连写查询的得分：只认「一段命中歌名、另一段命中歌手」的拆分假设，
+     * 两部分都必须真的命中，避免把单首歌名（如 想见你只想见你）拆成无意义的片段。
+     */
+    public static int concatenatedScore(MusicFields fields, List<List<String>> hypotheses) {
+        if (fields == null || hypotheses == null || hypotheses.isEmpty()) {
+            return 0;
+        }
+
+        int best = 0;
+        for (List<String> hypothesis : hypotheses) {
+            String first = hypothesis.get(0);
+            String second = hypothesis.get(1);
+            // 前段当歌名（晴天周杰伦），或后段当歌名（周杰伦晴天）
+            best = Math.max(best, pairedScore(titleScore(fields, first), artistScore(fields, second)));
+            best = Math.max(best, pairedScore(titleScore(fields, second), artistScore(fields, first)));
+        }
+        return best;
+    }
+
+    private static int titleScore(MusicFields fields, String term) {
+        String termLower = term.toLowerCase(Locale.ROOT);
+        return fieldScore(fields.title(), fields.titlePinyin(), fields.titlePinyinInitials(),
+                fields.titleWordInitials(), termLower, TITLE_WEIGHTS);
+    }
+
+    private static int artistScore(MusicFields fields, String term) {
+        String termLower = term.toLowerCase(Locale.ROOT);
+        return fieldScore(fields.artist(), fields.artistPinyin(), fields.artistPinyinInitials(),
+                fields.artistWordInitials(), termLower, ARTIST_WEIGHTS);
+    }
+
+    private static int albumScore(MusicFields fields, String term) {
+        String termLower = term.toLowerCase(Locale.ROOT);
+        return Math.max(textScore(fields.album(), termLower, ALBUM_WEIGHTS),
+                pinyinFieldScore(null, fields.albumPinyin(), null, termLower));
+    }
+
+    private static int pairedScore(int titleScore, int artistScore) {
+        if (titleScore <= 0 || artistScore <= 0) {
+            return 0;
+        }
+        return layeredScore(titleScore, artistScore, 0);
     }
 
     /**
@@ -243,12 +312,16 @@ public final class MusicSearchRanker {
                     default -> album = Math.max(album, albumScores[i]);
                 }
             }
-            int score = title * TITLE_ROLE_MULTIPLIER + artist * ARTIST_ROLE_MULTIPLIER + album;
+            int score = layeredScore(title, artist, album);
             if (score > best) {
                 best = score;
             }
         }
         return best;
+    }
+
+    private static int layeredScore(int titleScore, int artistScore, int albumScore) {
+        return titleScore * TITLE_ROLE_MULTIPLIER + artistScore * ARTIST_ROLE_MULTIPLIER + albumScore;
     }
 
     private static List<String> splitOnSeparators(String text) {
@@ -295,6 +368,18 @@ public final class MusicSearchRanker {
             }
         }
         return cjkCount == 0 && latinWords >= FREE_TEXT_LATIN_WORD_THRESHOLD;
+    }
+
+    private static boolean isAllCjk(String text) {
+        if (text.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < text.length(); i++) {
+            if (!isCjk(text.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean isCjk(char c) {

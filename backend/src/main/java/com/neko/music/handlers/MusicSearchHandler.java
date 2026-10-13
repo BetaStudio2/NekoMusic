@@ -20,6 +20,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.List;
 import java.util.Map;
@@ -231,56 +232,16 @@ public class MusicSearchHandler extends ApiServlet {
         List<Music> results = new ArrayList<>();
 
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = buildCandidateSql(terms);
-
             // SQL已经筛选了候选集，只需在内存中做精细打分排序
             List<ScoredMusic> scoredResults = new ArrayList<>();
-            Set<Integer> seenIds = new HashSet<>();
-            int topMetadataScore = 0;
+            int topMetadataScore = collectScoredCandidates(conn, terms, null, query, scoredResults);
 
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                int paramIndex = 1;
-                for (String term : terms) {
-                    for (String variant : searchVariants(term)) {
-                        String likeVariant = "%" + variant + "%";
-                        for (int i = 0; i < 3; i++) {
-                            stmt.setString(paramIndex++, likeVariant);
-                        }
-                    }
-                    String likeTerm = "%" + term.toLowerCase(Locale.ROOT) + "%";
-                    for (int i = 0; i < TERM_PINYIN_PARAM_COUNT; i++) {
-                        stmt.setString(paramIndex++, likeTerm);
-                    }
-                    stmt.setInt(paramIndex++, TERM_FETCH_LIMIT);
-                }
-
-                try (ResultSet rs = stmt.executeQuery()) {
-                    while (rs.next()) {
-                        int id = rs.getInt("id");
-                        if (!seenIds.add(id)) {
-                            continue;
-                        }
-
-                        Music music = mapMusicRow(rs);
-
-                        // 读取预计算的拼音列
-                        music.setTitlePinyin(rs.getString("title_pinyin"));
-                        music.setTitlePinyinInitials(rs.getString("title_pinyin_initials"));
-                        music.setTitleWordInitials(rs.getString("title_word_initials"));
-                        music.setArtistPinyin(rs.getString("artist_pinyin"));
-                        music.setArtistPinyinInitials(rs.getString("artist_pinyin_initials"));
-                        music.setArtistWordInitials(rs.getString("artist_word_initials"));
-                        music.setAlbumPinyin(rs.getString("album_pinyin"));
-
-                        MusicSearchRanker.MusicFields fields = toRankerFields(music);
-                        int score = MusicSearchRanker.score(fields, terms);
-                        if (score > 0) {
-                            scoredResults.add(new ScoredMusic(music, score));
-                            // 歌词兜底只看用户输入的完整串，与拆分出的词条无关
-                            topMetadataScore = Math.max(topMetadataScore,
-                                    MusicSearchRanker.wholeQueryStrength(fields, query));
-                        }
-                    }
+            // 站内没有任何元数据命中时，再尝试「歌名 + 歌手」直接连写的拆分（如 晴天周杰伦）
+            if (scoredResults.isEmpty()) {
+                List<List<String>> concatenations = MusicSearchRanker.splitConcatenations(query);
+                if (!concatenations.isEmpty()) {
+                    topMetadataScore = collectScoredCandidates(conn, concatenationParts(concatenations),
+                            concatenations, query, scoredResults);
                 }
             }
 
@@ -300,6 +261,78 @@ public class MusicSearchHandler extends ApiServlet {
         }
 
         return results;
+    }
+
+    /**
+     * 取回候选并在内存中打分，结果追加到 {@code collected}。
+     *
+     * @param terms          用于 SQL 候选筛选的词条
+     * @param concatenations 非空时按「歌名 + 歌手」连写拆分打分，否则按 {@code terms} 分角色打分
+     * @return 本批候选里「完整查询串」的最高元数据分（用于决定是否还要搜歌词）
+     */
+    private int collectScoredCandidates(
+            Connection conn, List<String> terms, List<List<String>> concatenations, String rawQuery,
+            List<ScoredMusic> collected) throws SQLException {
+        int topMetadataScore = 0;
+        Set<Integer> seenIds = new HashSet<>();
+
+        try (PreparedStatement stmt = conn.prepareStatement(buildCandidateSql(terms))) {
+            int paramIndex = 1;
+            for (String term : terms) {
+                for (String variant : searchVariants(term)) {
+                    String likeVariant = "%" + variant + "%";
+                    for (int i = 0; i < 3; i++) {
+                        stmt.setString(paramIndex++, likeVariant);
+                    }
+                }
+                String likeTerm = "%" + term.toLowerCase(Locale.ROOT) + "%";
+                for (int i = 0; i < TERM_PINYIN_PARAM_COUNT; i++) {
+                    stmt.setString(paramIndex++, likeTerm);
+                }
+                stmt.setInt(paramIndex++, TERM_FETCH_LIMIT);
+            }
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    int id = rs.getInt("id");
+                    if (!seenIds.add(id)) {
+                        continue;
+                    }
+
+                    Music music = mapMusicRow(rs);
+
+                    // 读取预计算的拼音列
+                    music.setTitlePinyin(rs.getString("title_pinyin"));
+                    music.setTitlePinyinInitials(rs.getString("title_pinyin_initials"));
+                    music.setTitleWordInitials(rs.getString("title_word_initials"));
+                    music.setArtistPinyin(rs.getString("artist_pinyin"));
+                    music.setArtistPinyinInitials(rs.getString("artist_pinyin_initials"));
+                    music.setArtistWordInitials(rs.getString("artist_word_initials"));
+                    music.setAlbumPinyin(rs.getString("album_pinyin"));
+
+                    MusicSearchRanker.MusicFields fields = toRankerFields(music);
+                    int score = concatenations == null
+                            ? MusicSearchRanker.score(fields, terms)
+                            : MusicSearchRanker.concatenatedScore(fields, concatenations);
+                    if (score > 0) {
+                        collected.add(new ScoredMusic(music, score));
+                        // 歌词兜底只看用户输入的完整串，与拆分出的词条无关
+                        topMetadataScore = Math.max(topMetadataScore,
+                                MusicSearchRanker.wholeQueryStrength(fields, rawQuery));
+                    }
+                }
+            }
+        }
+        return topMetadataScore;
+    }
+
+    /** 连写拆分涉及的全部片段（用于 SQL 候选筛选，去重保序）。 */
+    private static List<String> concatenationParts(List<List<String>> concatenations) {
+        Set<String> parts = new LinkedHashSet<>();
+        for (List<String> hypothesis : concatenations) {
+            parts.addAll(hypothesis);
+        }
+        return List.copyOf(parts);
     }
 
     /** 每个词条一个子查询，各自按 {@link #TERM_FETCH_LIMIT} 取候选，再 UNION ALL 合并。 */
