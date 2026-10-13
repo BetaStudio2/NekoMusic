@@ -411,7 +411,61 @@ public class QQMusicClient {
             String url = purl.startsWith("http") ? purl : sips.get(0) + purl;
             urls.add(new QqPlayUrl(url, candidate.ext().replace(".", ""), candidate.level()));
         }
+        if (urls.isEmpty()) {
+            return urls;
+        }
+        // 上游会对「下发了 purl 但实际取不到」的档位（常见于当前账号无权限的臻品 Hi-Res 档）
+        // 在 CDN 上直接返回 404。这里按顺位探活，跳过这种假直链，返回首个真正可下载的档位，
+        // 其后更低档位作为降级备选。
+        for (int i = 0; i < urls.size(); i++) {
+            if (probePlayable(urls.get(i).url())) {
+                return new ArrayList<>(urls.subList(i, urls.size()));
+            }
+        }
+        // 探活全部失败（如探测本身被限流）时退回原候选，交给下载侧决定，避免丢源。
         return urls;
+    }
+
+    /**
+     * 轻量探活：拉候选直链的前 256 字节，确认 2xx/206 且不是错误页（text/json/xml/html）。
+     * 用于识别「purl 非空但 CDN 实际 404」的假直链。
+     */
+    private boolean probePlayable(String url) {
+        try {
+            URI targetUri = OutboundUrlGuard.requireAllowedHttpUrl(url, ALLOWED_HOSTS);
+            HttpRequest request = HttpRequest.newBuilder().uri(targetUri)
+                    .timeout(Duration.ofSeconds(8))
+                    .header("User-Agent", WEB_UA)
+                    .header("Referer", "https://y.qq.com/")
+                    .header("Range", "bytes=0-255")
+                    .GET().build();
+            HttpResponse<InputStream> response =
+                    httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            int status = response.statusCode();
+            byte[] head = new byte[64];
+            int read = 0;
+            try (InputStream body = response.body()) {
+                if (status == 200 || status == 206) {
+                    int r;
+                    while (read < head.length
+                            && (r = body.read(head, read, head.length - read)) != -1) {
+                        read += r;
+                    }
+                }
+            }
+            if (status != 200 && status != 206) {
+                return false;
+            }
+            String mime = response.headers().firstValue("Content-Type").orElse("").toLowerCase(Locale.ROOT);
+            boolean errorPage = mime.contains("text") || mime.contains("json")
+                    || mime.contains("xml") || mime.contains("html");
+            return !errorPage && read > 0;
+        } catch (IOException e) {
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 
     /** 当前 Cookie 是否含有效登录凭据（uin + musickey）。 */

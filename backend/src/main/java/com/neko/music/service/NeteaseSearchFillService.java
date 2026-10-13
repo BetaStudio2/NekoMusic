@@ -642,8 +642,15 @@ public class NeteaseSearchFillService {
                     }
                     continue;
                 }
-                Optional<AdminMusicIngestService.IngestedMusic> ingested =
-                        downloadQqAndIngest(candidate, workDir);
+                Optional<AdminMusicIngestService.IngestedMusic> ingested;
+                try {
+                    ingested = downloadQqAndIngest(candidate, workDir);
+                } catch (IOException e) {
+                    // 单个候选下载失败不该拖垮整次补全：记一条并继续试下一个候选。
+                    logger.warn("QQ 候选下载失败，跳过该候选 mid={} title={}: {}",
+                            candidate.mid(), candidate.title(), e.getMessage());
+                    continue;
+                }
                 if (ingested.isPresent()) {
                     return new FillAttempt(ingested, FillReason.NONE);
                 }
@@ -712,11 +719,28 @@ public class NeteaseSearchFillService {
             logger.warn("无法获取 QQ 播放链接 mid={} title={}", candidate.mid(), title);
             return Optional.empty();
         }
-        QQMusicClient.QqPlayUrl playUrl = playUrls.get(0);
-
-        String audioExt = "flac".equalsIgnoreCase(playUrl.type()) ? "flac" : "mp3";
-        Path audioTemp = workDir.resolve("audio." + audioExt);
-        qqClient.downloadToFile(playUrl.url(), audioTemp, null);
+        // 按音质顺位逐个尝试：上游可能对无权档位下发「假直链」（CDN 404），逐档降级重试。
+        Path audioTemp = null;
+        IOException lastDownloadError = null;
+        for (QQMusicClient.QqPlayUrl playUrl : playUrls) {
+            String audioExt = "flac".equalsIgnoreCase(playUrl.type()) ? "flac" : "mp3";
+            Path attempt = workDir.resolve("audio." + audioExt);
+            try {
+                qqClient.downloadToFile(playUrl.url(), attempt, null);
+                audioTemp = attempt;
+                break;
+            } catch (IOException e) {
+                lastDownloadError = e;
+                logger.info("QQ 音质档位不可下载，降级重试 mid={} level={}: {}",
+                        candidate.mid(), playUrl.level(), e.getMessage());
+                Files.deleteIfExists(attempt);
+            }
+        }
+        if (audioTemp == null) {
+            throw lastDownloadError != null
+                    ? lastDownloadError
+                    : new IOException("QQ 音乐无可下载的音质档位");
+        }
 
         // QQ 音乐歌词为加密 QRC，暂不解密，写占位歌词保证入库流程完整。
         Path lyricsTemp = workDir.resolve("lyrics.lrc");
