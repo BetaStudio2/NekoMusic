@@ -7,6 +7,7 @@ import com.neko.music.Main;
 import com.neko.music.database.UserNotificationDatabaseManager;
 import com.neko.music.database.UserNotificationDatabaseManager.NotificationRow;
 import com.neko.music.database.UserNotificationDatabaseManager.Page;
+import com.neko.music.service.NotificationPushBus;
 import com.neko.music.service.UserNotificationService;
 import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.RequestAuthUtil;
@@ -44,6 +45,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * {@code message}（负载与列表里的单条消息一致），15 秒发一次注释心跳。连接最长存活
  * {@value #STREAM_MAX_LIFETIME_MS} 毫秒后主动断开、由客户端重连；重连期间漏掉的消息由客户端
  * 拿 {@code ready.latestId} 与本地游标比对后走列表接口补拉，服务端不做重放。</p>
+ *
+ * <p><b>推送模型（单机）：</b>连接空闲时阻塞在进程内信号上（见 {@link NotificationPushBus}），
+ * 本地写入会立刻唤醒对应连接，不再按秒轮询 Redis；只有长时间没有本地写入时才回落到一次兜底的
+ * 版本号比对。因此单连接成本与「在线连接数」解耦，单机不再需要用一个全局连接上限去挡住后来者。</p>
  */
 public class UserNotificationHandler extends ApiServlet {
 
@@ -56,21 +61,24 @@ public class UserNotificationHandler extends ApiServlet {
     private static final long STREAM_MAX_LIFETIME_MS = 300_000L;
     /** 心跳间隔：防止反向代理 / CDN 掐掉长时间没有数据的连接。 */
     private static final long STREAM_PING_INTERVAL_MS = 15_000L;
-    /** 实时信号轮询间隔：只读 Redis 里的版本号，够快又几乎不产生成本。 */
-    private static final long STREAM_POLL_INTERVAL_MS = 1_000L;
+    /**
+     * 兜底比对间隔：正常情况下靠 {@link NotificationPushBus} 进程内即时唤醒，只有长时间没有本地
+     * 写入时才回落到「读一次 Redis 版本号」。取较大的值，让空闲连接的成本真正接近 0，而不是
+     * 「每条连接每秒一次」。
+     */
+    private static final long STREAM_FALLBACK_POLL_INTERVAL_MS = 30_000L;
     /** 单次补推的最大条数，避免突发批量把一条连接堵死。 */
     private static final int STREAM_BATCH_LIMIT = MAX_LIMIT;
-    /** 每个用户同时允许的流连接数（多标签页 / 多端）。 */
-    private static final int MAX_STREAMS_PER_USER = 2;
-    /** 全局同时允许的流连接数，防止被大量连接拖垮。 */
-    private static final int MAX_STREAMS_TOTAL = 1000;
-
     /**
-     * 在册的流连接。{@code /stream} 因为浏览器 EventSource 无法携带自定义请求头而豁免了防重放，
-     * 所以这里必须自己兜住连接数：按用户限并发 + 全局总量上限。
+     * 每个用户同时允许的流连接数（多标签页 / 多端）。
+     *
+     * <p>单机部署刻意<b>不设全局连接上限</b>：全局上限会让「第 N+1 个用户无论他是谁都连不上」，
+     * 与「所有用户都要能连上」直接冲突。这里改成按用户限并发，再叠加「接口需登录鉴权」，单个来源
+     * 就无法靠堆连接把单机句柄 / 内存打满；真正的容量天花板交给机器本身（fd、内存）。</p>
      */
+    private static final int MAX_STREAMS_PER_USER = 2;
+
     private static final ConcurrentHashMap<Integer, AtomicInteger> STREAMS_BY_USER = new ConcurrentHashMap<>();
-    private static final AtomicInteger STREAM_TOTAL = new AtomicInteger();
 
     private final ExecutorService streamExecutor = Executors.newThreadPerTaskExecutor(
             Thread.ofVirtual().name("notification-sse-", 0).factory());
@@ -241,9 +249,10 @@ public class UserNotificationHandler extends ApiServlet {
     }
 
     /**
-     * 连接存续期间只读 Redis 版本号，变了才去数据库取新消息。
+     * 连接存续期间阻塞等待进程内推送信号，被唤醒或兜底超时后才去数据库取新消息。
      *
-     * <p>消息可能由另一台实例写入（Redis 信号是共享的），所以这里不做本地事件监听。</p>
+     * <p>单机下写入与连接同进程，本地写库会直接唤醒这条连接（见 {@link NotificationPushBus}）；
+     * Redis 版本号只在兜底周期上比对一次，用于覆盖信号丢失或未来的旁路写入。</p>
      */
     private void streamNotifications(int userId, PrintWriter writer) {
         UserNotificationDatabaseManager db = Main.getUserNotificationDatabaseManager();
@@ -254,11 +263,13 @@ public class UserNotificationHandler extends ApiServlet {
         long lastVersion = notificationService.currentVersion(userId);
         int cursor = latestId(db, userId);
 
-        try {
+        try (NotificationPushBus.StreamSignal signal = notificationService.subscribeStream(userId)) {
             writeEvent(writer, "ready", readyPayload(db, userId, cursor));
             while (true) {
+                // 有本地写入时立刻被唤醒；空闲时只在兜底周期上醒来比对一次版本号
+                boolean woken = signal.await(STREAM_FALLBACK_POLL_INTERVAL_MS);
                 long version = notificationService.currentVersion(userId);
-                if (version != lastVersion) {
+                if (woken || version != lastVersion) {
                     lastVersion = version;
                     cursor = pushNewItems(db, writer, userId, cursor);
                 }
@@ -272,7 +283,6 @@ public class UserNotificationHandler extends ApiServlet {
                     writer.flush();
                     lastPing = now;
                 }
-                Thread.sleep(STREAM_POLL_INTERVAL_MS);
             }
         } catch (IOException e) {
             logger.debug("站内消息 SSE 连接已断开: {}", e.getMessage());
@@ -333,15 +343,11 @@ public class UserNotificationHandler extends ApiServlet {
     }
 
     private static synchronized boolean acquireStreamSlot(int userId) {
-        if (STREAM_TOTAL.get() >= MAX_STREAMS_TOTAL) {
-            return false;
-        }
         AtomicInteger counter = STREAMS_BY_USER.computeIfAbsent(userId, key -> new AtomicInteger());
         if (counter.get() >= MAX_STREAMS_PER_USER) {
             return false;
         }
         counter.incrementAndGet();
-        STREAM_TOTAL.incrementAndGet();
         return true;
     }
 
@@ -350,7 +356,6 @@ public class UserNotificationHandler extends ApiServlet {
         if (counter != null && counter.decrementAndGet() <= 0) {
             STREAMS_BY_USER.remove(userId);
         }
-        STREAM_TOTAL.updateAndGet(value -> Math.max(0, value - 1));
     }
 
     private static void completeQuietly(AsyncContext asyncContext) {

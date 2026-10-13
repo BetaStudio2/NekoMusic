@@ -12,6 +12,10 @@ import org.slf4j.LoggerFactory;
  *
  * <p>版本号只用于「变没变」的比较，不参与任何判定：Redis 故障时读到的一直是同一个值，
  * 表现为「不推送」而不是推错；断线期间的消息由客户端重连后按游标走列表接口补拉。</p>
+ *
+ * <p><b>单机即时推送：</b>不集群时写入与 SSE 连接同在一个 JVM，{@link #notify} 落库后会经
+ * {@link NotificationPushBus} 直接唤醒本地等待中的连接，连接端不必每秒轮询 Redis；Redis 版本号
+ * 退居为兜底（覆盖信号丢失或未来的旁路写入）。</p>
  */
 public class UserNotificationService {
 
@@ -31,6 +35,9 @@ public class UserNotificationService {
     private final UserNotificationDatabaseManager databaseManager;
     private final RedisService redisService;
 
+    /** 单机进程内推送总线：把本地写入直接推给等待中的 SSE 连接。 */
+    private final NotificationPushBus pushBus = new NotificationPushBus();
+
     public UserNotificationService(UserNotificationDatabaseManager databaseManager, RedisService redisService) {
         this.databaseManager = databaseManager;
         this.redisService = redisService;
@@ -45,8 +52,23 @@ public class UserNotificationService {
         int id = databaseManager.insert(userId, type, title, body, link, actorUserId);
         if (id > 0) {
             bumpVersion(userId);
+            // 本地即时唤醒：SSE 连接不再轮询，写入即推送
+            pushBus.signal(userId);
         }
         return id;
+    }
+
+    /**
+     * 为一条 SSE 连接注册进程内推送句柄；用完必须 {@link NotificationPushBus.StreamSignal#close()}。
+     * SSE 连接注册后即可阻塞等待，无需再按秒轮询。
+     */
+    public NotificationPushBus.StreamSignal subscribeStream(int userId) {
+        return pushBus.subscribe(userId);
+    }
+
+    /** 当前等待推送的连接数，仅用于观测与测试。 */
+    public int streamSubscriberCount(int userId) {
+        return pushBus.subscriberCount(userId);
     }
 
     /**
