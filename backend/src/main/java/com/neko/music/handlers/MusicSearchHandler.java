@@ -24,6 +24,7 @@ import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public class MusicSearchHandler extends ApiServlet {
@@ -232,6 +233,21 @@ public class MusicSearchHandler extends ApiServlet {
         List<Music> results = new ArrayList<>();
 
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
+            // 纯数字查询先按歌曲 ID 精确命中：用户从详情页地址（/detail/148）或客户端里抄来的编号，
+            // 直接给这一首，不再去拼标题 / 歌手 / 歌词的模糊匹配——也就不会因为「148」这串数字
+            // 恰好出现在别的曲目里，把用户要的那首挤到后面去。
+            Optional<Integer> musicId = parseMusicId(query);
+            if (musicId.isPresent()) {
+                Music byId = findMusicById(conn, musicId.get());
+                if (byId != null) {
+                    // 不查歌词索引：lrc 的语义是「本次由歌词正文命中」（见 Music#lrc），按 ID 命中
+                    // 与歌词无关，一律保持 false——否则客户端拿这个徽标当「含歌词」用就会时真时假。
+                    results.add(byId);
+                    logger.debug("搜索按歌曲 ID 命中: query='{}', id={}", query, musicId.get());
+                    return results;
+                }
+            }
+
             // SQL已经筛选了候选集，只需在内存中做精细打分排序
             List<ScoredMusic> scoredResults = new ArrayList<>();
             int topMetadataScore = collectScoredCandidates(conn, terms, null, query, scoredResults);
@@ -591,6 +607,47 @@ public class MusicSearchHandler extends ApiServlet {
     }
 
     /** 读取 music 行的公共字段（不含预计算拼音列）。 */
+    /**
+     * 查询串是不是「歌曲 ID」。
+     *
+     * <p>只在整串都是 ASCII 数字时才认，并且要求首位不为 0：带空格、连字符、字母，或者
+     * {@code 007}、全角数字这类写法一律交回模糊搜索，否则「专辑叫 1989」「歌名是 24」这类
+     * 正常搜索会被一个恰好存在的 ID 抢走。</p>
+     *
+     * @return 合法 ID；不是纯数字 / 越界 / 为 0 时返回 {@link Optional#empty()}
+     */
+    static Optional<Integer> parseMusicId(String query) {
+        if (query == null) {
+            return Optional.empty();
+        }
+        String trimmed = query.trim();
+        if (trimmed.isEmpty() || trimmed.length() > 9 || trimmed.charAt(0) == '0') {
+            return Optional.empty();
+        }
+        for (int i = 0; i < trimmed.length(); i++) {
+            char c = trimmed.charAt(i);
+            if (c < '0' || c > '9') {
+                return Optional.empty();
+            }
+        }
+        try {
+            return Optional.of(Integer.parseInt(trimmed));
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
+    }
+
+    /** 按 ID 取一首曲目；不存在返回 null。列与模糊搜索一致，保证返回结构（含 maxQuality）同形。 */
+    private static Music findMusicById(Connection conn, int musicId) throws SQLException {
+        String sql = "SELECT " + MUSIC_BASE_COLUMNS + " FROM music WHERE id = ?";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, musicId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next() ? mapMusicRow(rs) : null;
+            }
+        }
+    }
+
     private static Music mapMusicRow(ResultSet rs) throws SQLException {
         Music music = new Music();
         music.setId(rs.getInt("id"));
