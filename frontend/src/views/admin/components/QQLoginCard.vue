@@ -4,6 +4,9 @@
  * ------------------------------------------------------------
  * 展示 QQ 音乐登录状态，点按生成二维码（后端直出 QQ 下发的 PNG），
  * 轮询扫码结果；确认后由后端保存登录 Cookie。组件自管状态，无需父级传参。
+ *
+ * 注意：这是 QQ 互联授权码，必须用「手机 QQ」扫一扫；用相机 / 微信 / QQ 音乐 App
+ * 扫描会把它当普通链接打开并跳到 im.qq.com，无法完成登录。
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import NIcon from '@/icons/NIcon.vue'
@@ -38,7 +41,7 @@ const qrTip = computed(() => {
     case 'loading':
       return '正在生成二维码…'
     case 'pending':
-      return '请使用 QQ 音乐 App 扫码并确认'
+      return '请打开手机 QQ「扫一扫」扫描并确认'
     case 'scanned':
       return '已扫码，请在手机上确认登录'
     case 'expired':
@@ -240,6 +243,10 @@ loadStatus()
           </div>
         </div>
         <p class="qr__tip">{{ qrTip }}</p>
+        <p class="qr__note">
+          这是 QQ 互联授权码，请用<strong>手机 QQ</strong>的「扫一扫」扫描；
+          用相机、微信或 QQ 音乐 App 扫描会把它当成普通链接打开（跳到 im.qq.com），无法登录。
+        </p>
         <NButton
           v-if="qrState === 'expired' || qrState === 'failed'"
           size="sm"
@@ -350,5 +357,18 @@ loadStatus()
   margin: 0;
   color: var(--n-text-muted);
   font-size: var(--n-text-sm);
+}
+
+.qr__note {
+  margin: 0;
+  max-width: 320px;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+  line-height: 1.6;
+}
+
+.qr__note strong {
+  color: var(--n-text-muted);
+  font-weight: var(--n-weight-medium);
 }
 </style>

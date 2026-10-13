@@ -135,7 +135,8 @@ public final class SystemSettingRegistry {
             flag("qq_search_fill.enabled", Group.EXTERNAL, "启用 QQ 音乐补全", true,
                     "网易云无结果时，改用 QQ 音乐接口再补全一次（优先级低于网易云）"),
             secret("qq_search_fill.cookie", Group.EXTERNAL, "QQ 音乐登录",
-                    "由扫码登录写入，仅服务端保存与使用；后台不提供手工填写入口，未登录时按游客态请求"),
+                    "由扫码登录写入（用手机 QQ「扫一扫」，非 QQ 音乐 App），仅服务端保存与使用；"
+                            + "后台不提供手工填写入口，未登录时按游客态请求"),
 
             // ---------- 每日推荐 ----------
             number("recommendation.daily_limit", Group.RECOMMENDATION, "每人每日条数", "300", 1, 10000,
