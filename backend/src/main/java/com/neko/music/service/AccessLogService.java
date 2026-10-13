@@ -43,8 +43,9 @@ public class AccessLogService {
             INSERT INTO access_log (occurred_at, method, path, query, category, status, duration_ms,
                 response_bytes, client_ip, ip_subnet, user_agent, client_type, client_platform,
                 client_version, neko_client, referer, origin, accept_language, authenticated,
-                admin_id, admin_username, host, scheme, protocol, thread, pow_difficulty, pow_status)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                admin_id, admin_username, host, scheme, protocol, thread, pow_difficulty, pow_status,
+                seo_render)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """;
 
     private static volatile AccessLogService current;
@@ -205,7 +206,12 @@ public class AccessLogService {
         } else {
             stmt.setInt(i++, r.powDifficulty());
         }
-        stmt.setString(i, LogQuerySupport.truncate(r.powStatus(), 24));
+        stmt.setString(i++, LogQuerySupport.truncate(r.powStatus(), 24));
+        if (r.seoRender() == null) {
+            stmt.setNull(i, Types.BOOLEAN);
+        } else {
+            stmt.setBoolean(i, r.seoRender());
+        }
     }
 
     /**
@@ -243,6 +249,7 @@ public class AccessLogService {
         row.put("thread", r.thread());
         row.put("pow_difficulty", r.powDifficulty());
         row.put("pow_status", r.powStatus());
+        row.put("seo_render", r.seoRender());
         return row;
     }
 
@@ -324,6 +331,9 @@ public class AccessLogService {
                     startOfToday));
             stats.put("todayErrors", scalar(conn,
                     "SELECT COUNT(*) FROM access_log WHERE occurred_at >= ? AND status >= 400", startOfToday));
+            // 今日被搜索引擎 / 链接预览拿走的服务端渲染页次数：收录与抓取强度的直接指标
+            stats.put("todaySeo", scalar(conn,
+                    "SELECT COUNT(*) FROM access_log WHERE occurred_at >= ? AND seo_render = 1", startOfToday));
             // PoW 侧「没通过」的总数：缺 nonce、重放、验题失败、被限额或加压越界都算
             stats.put("todayPowRejected", scalar(conn,
                     "SELECT COUNT(*) FROM access_log WHERE occurred_at >= ? AND pow_status IN ("

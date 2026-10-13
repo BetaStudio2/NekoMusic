@@ -3,6 +3,7 @@ package com.neko.music.filter;
 import com.neko.music.seo.BrowserEvidence;
 import com.neko.music.seo.StaticPageSeoRenderer;
 import com.neko.music.seo.UserAgentClassifier;
+import com.neko.music.util.SeoAudit;
 import com.neko.music.util.SiteUrlResolver;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
@@ -44,6 +45,8 @@ public class StaticPageSeoFilter implements Filter {
         httpResponse.setHeader("Vary", "User-Agent");
         if (!UserAgentClassifier.shouldRenderSeo(
                 httpRequest.getHeader("User-Agent"), BrowserEvidence.hasFetchEvidence(httpRequest))) {
+            // 浏览器版：同一个 URL 走 SPA，明确记 false，好和爬虫拿走的 SEO 版区分开
+            SeoAudit.markNotSeo(httpRequest);
             chain.doFilter(request, response);
             return;
         }
@@ -61,6 +64,7 @@ public class StaticPageSeoFilter implements Filter {
             return;
         }
 
+        SeoAudit.mark(httpRequest);
         httpResponse.setStatus(HttpServletResponse.SC_OK);
         httpResponse.setCharacterEncoding(StandardCharsets.UTF_8.name());
         httpResponse.setContentType("text/html;charset=utf-8");

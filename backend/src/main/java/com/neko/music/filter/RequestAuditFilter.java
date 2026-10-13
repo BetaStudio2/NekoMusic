@@ -13,6 +13,7 @@ import com.neko.music.util.OperationAudit;
 import com.neko.music.util.PowAudit;
 import com.neko.music.util.RequestCategory;
 import com.neko.music.util.RequestPath;
+import com.neko.music.util.SeoAudit;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
@@ -247,7 +248,9 @@ public class RequestAuditFilter implements Filter {
                 Thread.currentThread().getName(),
                 // PoW 难度与结果由防重放链路与换题 / 兑换接口挂在请求属性上（见 PowAudit）
                 PowAudit.difficulty(request),
-                PowAudit.status(request));
+                PowAudit.status(request),
+                // 同一 URL 的两种表示（SEO HTML / SPA 壳）由渲染方挂在请求属性上（见 SeoAudit）
+                SeoAudit.seoRender(request));
     }
 
     private OperationLogRecord buildOperationRecord(HttpServletRequest request, String path, String method,

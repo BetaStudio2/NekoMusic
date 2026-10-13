@@ -4,6 +4,7 @@ import com.neko.music.seo.BrowserEvidence;
 import com.neko.music.seo.PlaylistPageRenderer;
 import com.neko.music.seo.UserAgentClassifier;
 import com.neko.music.util.PublicPlaylistLookup;
+import com.neko.music.util.SeoAudit;
 import com.neko.music.util.SiteUrlResolver;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -40,10 +41,17 @@ public class PlaylistDetailPageHandler extends HttpServlet {
         String pathInfo = request.getPathInfo();
         // /playlist/create 等非数字路径不是歌单详情页，交回 SPA 处理。
         Matcher matcher = pathInfo == null ? null : ID_PATTERN.matcher(pathInfo);
-        if (matcher == null || !matcher.matches() || !shouldRenderSeo(request)) {
+        if (matcher == null || !matcher.matches()) {
             request.getRequestDispatcher("/index.html").forward(request, response);
             return;
         }
+        // 与音乐详情同构：同一 URL 对爬虫是 SEO HTML、对浏览器是 SPA 壳，两种表示都要留痕
+        if (!shouldRenderSeo(request)) {
+            SeoAudit.markNotSeo(request);
+            request.getRequestDispatcher("/index.html").forward(request, response);
+            return;
+        }
+        SeoAudit.mark(request);
 
         // UA 相关，且歌单内容随时会被创建者修改：SEO 分支一律不缓存。
         response.setHeader("Cache-Control", "private, no-store");

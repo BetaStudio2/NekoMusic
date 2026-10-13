@@ -120,6 +120,7 @@ public class LogDatabaseManager {
                 thread VARCHAR(128) NULL,
                 pow_difficulty INT NULL COMMENT '本次请求对应的 PoW 难度（比特）',
                 pow_status VARCHAR(24) NULL COMMENT 'PoW 结果标签：verified/missing/issued/...',
+                seo_render TINYINT(1) NULL COMMENT '本次是否返回服务端 SEO 渲染 HTML；与 SEO 无关为 NULL',
                 KEY idx_access_occurred (occurred_at),
                 KEY idx_access_ip (client_ip),
                 KEY idx_access_path (path(191)),
@@ -174,6 +175,8 @@ public class LogDatabaseManager {
         ensureColumn(conn, "access_log", "pow_status",
                 "VARCHAR(24) NULL COMMENT 'PoW 结果标签：verified/missing/issued/...'");
         ensureIndex(conn, "access_log", "idx_access_pow", "pow_status");
+        ensureColumn(conn, "access_log", "seo_render",
+                "TINYINT(1) NULL COMMENT '本次是否返回服务端 SEO 渲染 HTML；与 SEO 无关为 NULL'");
     }
 
     private static void ensureColumn(Connection conn, String table, String column, String definition)

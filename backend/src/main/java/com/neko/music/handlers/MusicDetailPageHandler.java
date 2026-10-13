@@ -4,6 +4,7 @@ import com.neko.music.seo.BrowserEvidence;
 import com.neko.music.seo.MusicDetailPageRenderer;
 import com.neko.music.seo.UserAgentClassifier;
 import com.neko.music.util.PublicMusicLookup;
+import com.neko.music.util.SeoAudit;
 import com.neko.music.util.SiteUrlResolver;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -34,12 +35,16 @@ public class MusicDetailPageHandler extends HttpServlet {
         // either branch so a proxy cannot reuse the crawler response for a
         // normal browser (or vice versa).
         response.setHeader("Vary", "User-Agent");
+        // 先把「这次给的是哪一张表示」记下来：/detail/{id} 对爬虫是 SEO HTML、对浏览器是 SPA 壳，
+        // 二者的路径分类都是 page，光看分类分不出「被收录」还是「用户在浏览」（见 SeoAudit）。
         if (!shouldRenderSeo(request)) {
+            SeoAudit.markNotSeo(request);
             // Forward internally so the address bar remains /detail/{id}; the
             // SPA then reads that URL and loads the music through its API.
             request.getRequestDispatcher("/index.html").forward(request, response);
             return;
         }
+        SeoAudit.mark(request);
 
         String siteBase = SiteUrlResolver.resolvePublicSiteBase(request);
         String pathInfo = request.getPathInfo();

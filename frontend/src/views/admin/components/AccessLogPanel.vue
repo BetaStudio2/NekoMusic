@@ -27,6 +27,10 @@
         <span class="stat__label">今日爬虫 / 扫描</span>
       </NCard>
       <NCard pad="lg" class="stat">
+        <span class="stat__number">{{ stats.todaySeo ?? 0 }}</span>
+        <span class="stat__label">今日 SEO 渲染</span>
+      </NCard>
+      <NCard pad="lg" class="stat">
         <span class="stat__number">{{ stats.todayErrors ?? 0 }}</span>
         <span class="stat__label">今日异常（≥400）</span>
       </NCard>
@@ -159,7 +163,10 @@
               <template v-else>—</template>
             </td>
             <td class="cell-dim">{{ row.duration_ms }} ms</td>
-            <td class="cell-dim">{{ categoryLabel(row.category) }}</td>
+            <td class="cell-dim" :title="renderBranchTitle(row)">
+              <span v-if="row.seo_render" class="cell-seo">SEO</span>
+              {{ categoryLabel(row.category) }}
+            </td>
             <td>{{ clientTypeLabel(row.client_type) }}</td>
             <td class="cell-dim">{{ platformText(row) }}</td>
             <td class="cell-dim">{{ row.client_ip }}</td>
@@ -486,6 +493,28 @@ function categoryLabel(value) {
   return CATEGORY_LABELS[value] || value || '—'
 }
 
+/**
+ * 响应分支：同一 URL 对爬虫与浏览器有两张表示（SEO 服务端 HTML / SPA 壳）。
+ *
+ * 「分类」是按路径算的，`/detail/148` 永远是 page；只有这一个字段能说明这次到底是「被收录」
+ * 还是「用户在浏览」。与 SEO 无关的路径记为「不适用」，不要把它显示成「非 SEO」。
+ */
+function renderBranchText(row) {
+  if (row.seo_render === true || row.seo_render === 1) return 'SEO 服务端渲染（爬虫 / 链接预览）'
+  if (row.seo_render === false || row.seo_render === 0) return 'SPA 入口（浏览器表示）'
+  return '未记录（历史数据，或该路径没有 SEO 表示）'
+}
+
+function renderBranchTitle(row) {
+  if (row.seo_render === true || row.seo_render === 1) {
+    return '本次返回服务端 SEO 渲染的 HTML（爬虫 / 链接预览拿到的表示）'
+  }
+  if (row.seo_render === false || row.seo_render === 0) {
+    return '本次走 SPA：浏览器拿到的站点应用入口'
+  }
+  return '本次未记录渲染分支：旧数据，或该路径没有 SEO 表示'
+}
+
 function platformText(row) {
   if (!row.client_platform) return '—'
   return row.client_version ? `${row.client_platform} / ${row.client_version}` : row.client_platform
@@ -525,6 +554,7 @@ function openDetail(row) {
     { label: '查询串', value: row.query || '（无）', mono: true, block: true },
     { label: '完整请求', value: fullPath(row), mono: true, block: true },
     { label: '请求分类', value: categoryLabel(row.category) },
+    { label: '响应分支', value: renderBranchText(row) },
     { label: '状态码', value: row.status },
     { label: '耗时', value: `${row.duration_ms} ms` },
     { label: '响应体大小', value: formatBytes(row.response_bytes) },
@@ -589,6 +619,17 @@ function powTitle(row) {
   margin-bottom: var(--n-space-4);
   color: var(--n-color-danger, #ff6b6b);
   font-size: var(--n-text-sm);
+}
+
+/* 「本次返回的是 SEO 服务端渲染」——分类列里的加注，别让爬虫收录看起来像普通页面浏览 */
+.cell-seo {
+  margin-right: 2px;
+  padding: 0 4px;
+  border-radius: var(--n-radius-xs);
+  background: var(--n-accent-soft);
+  color: var(--n-accent-strong);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-semibold);
 }
 
 /* ==================== 统计卡 ==================== */

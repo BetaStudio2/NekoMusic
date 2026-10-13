@@ -34,6 +34,8 @@ package com.neko.music.model;
  * @param powDifficulty  本次请求对应的 PoW 难度（比特）；不涉及 PoW 或未知时为 null
  * @param powStatus      PoW 结果标签（verified / missing / issued / rate_limited…），见
  *                       {@link com.neko.music.util.PowAudit}；不涉及 PoW 时为 null
+ * @param seoRender      本次是否返回了服务端 SEO 渲染的 HTML（爬虫 / 链接预览拿到的表示）；
+ *                       非 SEO 分支（浏览器拿到 SPA 壳）为 false，与 SEO 无关的路径为 null
  */
 public record AccessLogRecord(
         long occurredAt,
@@ -62,5 +64,6 @@ public record AccessLogRecord(
         String protocol,
         String thread,
         Integer powDifficulty,
-        String powStatus) {
+        String powStatus,
+        Boolean seoRender) {
 }
