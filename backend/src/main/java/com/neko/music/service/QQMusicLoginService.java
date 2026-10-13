@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -62,6 +63,8 @@ public class QQMusicLoginService {
     private final HttpClient httpClient = HttpTransport.create(TIMEOUT);
     private final HttpClient noRedirectClient = HttpTransport.createWithoutRedirects(TIMEOUT);
     private final Map<String, Session> sessions = new ConcurrentHashMap<>();
+    /** 同一 key 串行化轮询：避免前端并发/重试把一次扫码的登录流程重复驱动（重复换票会失败）。 */
+    private final Map<String, ReentrantLock> keyLocks = new ConcurrentHashMap<>();
 
     public QQMusicLoginService(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
@@ -107,6 +110,16 @@ public class QQMusicLoginService {
 
     /** 轮询扫码状态；status=4 时返回可持久化的登录 Cookie。 */
     public QrCheck checkQr(String key) throws IOException {
+        ReentrantLock lock = keyLocks.computeIfAbsent(key, k -> new ReentrantLock());
+        lock.lock();
+        try {
+            return checkQrUnderLock(key);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private QrCheck checkQrUnderLock(String key) throws IOException {
         purgeExpired();
         Session session = sessions.computeIfAbsent(key, k -> {
             Session created = new Session();
@@ -176,16 +189,19 @@ public class QQMusicLoginService {
         authForm.put("src", "1");
         authForm.put("update_auth", "1");
         authForm.put("openapi", "1010_1030");
+        // g_tk 由会话 p_skey 派生，缺少它 authorize 会退化成授权确认页而不是回跳 code
+        authForm.put("g_tk", Long.toString(QQMusicClient.hash33(pSkey, 5381)));
         authForm.put("auth_time", Long.toString(now));
         authForm.put("ui", Long.toHexString(now));
         Response authResponse = request(noRedirectClient, "POST", GRAPH + "/oauth2.0/authorize",
                 joinQuery(authForm), Map.of("Referer", PTLOGIN_REFERER,
                         "Content-Type", "application/x-www-form-urlencoded"), session);
-        Matcher codeMatcher = CODE_IN_LOCATION.matcher(authResponse.location());
-        if (!codeMatcher.find()) {
+        String code = extractAuthCode(authResponse);
+        if (code.isEmpty()) {
+            logger.warn("QQ 授权换 code 失败: status={} location={} body={}",
+                    authResponse.status(), authResponse.location(), head(authResponse.text(), 400));
             throw new IOException("获取 QQ 授权 code 失败");
         }
-        String code = codeMatcher.group(1);
 
         Matcher uinMatcher = UIN_IN_JUMP.matcher(jumpUrl);
         String fallbackUin = uinMatcher.find() ? uinMatcher.group(1) : "";
@@ -344,6 +360,25 @@ public class QQMusicLoginService {
         return args;
     }
 
+    /** 从 authorize 响应里取 code：优先 Location 头，回退到响应体（授权页可能把回跳地址写在 HTML 里）。 */
+    private static String extractAuthCode(Response response) {
+        Matcher inLocation = CODE_IN_LOCATION.matcher(response.location());
+        if (inLocation.find()) {
+            return inLocation.group(1);
+        }
+        Matcher inBody = CODE_IN_LOCATION.matcher(response.text());
+        return inBody.find() ? inBody.group(1) : "";
+    }
+
+    /** 日志用：压平并截断响应体，便于排查 authorize 为何没回跳 code。 */
+    private static String head(String text, int max) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+        String flat = text.replaceAll("\\s+", " ").trim();
+        return flat.length() <= max ? flat : flat.substring(0, max);
+    }
+
     private static String text(JsonNode node, String field) {
         if (node == null) {
             return "";
@@ -366,7 +401,13 @@ public class QQMusicLoginService {
 
     private void purgeExpired() {
         long cutoff = System.currentTimeMillis() - SESSION_TTL_MS;
-        sessions.entrySet().removeIf(entry -> entry.getValue().createdAt < cutoff);
+        sessions.entrySet().removeIf(entry -> {
+            if (entry.getValue().createdAt < cutoff) {
+                keyLocks.remove(entry.getKey());
+                return true;
+            }
+            return false;
+        });
     }
 
     private record Response(int status, byte[] body, String location) {
