@@ -23,6 +23,8 @@ const adminGuard = (to) => {
         if (to.path.startsWith('/admin/vip-pricing')) return '/admin'
         if (to.path.startsWith('/admin/releases')) return '/admin'
         if (to.path.startsWith('/admin/settings')) return '/admin'
+        // 操作日志仅管理员及以上；审核员的访问日志在首页「统计分析」里
+        if (to.path.startsWith('/admin/logs')) return '/admin'
       }
     } catch {
       /* adminInfo 损坏时按已登录处理，交由页面自行兜底 */
@@ -244,9 +246,9 @@ const router = createRouter({
           component: () => import('@/views/admin/AdminView.vue'),
           beforeEnter: adminGuard,
           meta: {
-            title: '管理后台 - Neko歌姬计划',
-            description: '管理后台首页，管理免费音乐平台各项功能。',
-            keywords: '管理后台,后台管理'
+            title: '统计分析 - Neko歌姬计划',
+            description: '管理后台首页：平台数据统计与访问日志（访问量、来源、客户端与 PoW 难度）。',
+            keywords: '统计分析,访问日志,访问量,安全分析,管理后台'
           }
         },
         {
