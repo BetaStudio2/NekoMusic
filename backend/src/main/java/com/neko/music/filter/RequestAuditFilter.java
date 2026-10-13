@@ -249,7 +249,7 @@ public class RequestAuditFilter implements Filter {
                 clientIp,
                 ClientFingerprint.ipSubnet(clientIp),
                 userAgent,
-                ClientFingerprint.type(userAgent),
+                ClientFingerprint.type(userAgent, nekoClient),
                 ClientFingerprint.platform(userAgent, nekoClient),
                 ClientFingerprint.version(userAgent, nekoClient),
                 nekoClient,

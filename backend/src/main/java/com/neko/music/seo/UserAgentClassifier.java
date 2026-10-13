@@ -1,5 +1,6 @@
 package com.neko.music.seo;
 
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -101,6 +102,22 @@ public final class UserAgentClassifier {
     /** 与 {@link #OFFICIAL_CLIENT_UA} 同一形态，但额外捕获平台与版本，供「访问日志」标注客户端。 */
     private static final Pattern OFFICIAL_CLIENT_UA_PARTS = Pattern.compile(
             "(?i)^nekomusic-([a-z0-9]+)/(\\d[\\w.+-]*)$");
+
+    /** 官方客户端可自报的平台取值，与 {@link #OFFICIAL_CLIENT_UA} 的平台列表保持一致。 */
+    private static final Set<String> OFFICIAL_CLIENT_PLATFORMS = Set.of(
+            "android", "pc", "ios", "macos", "windows", "linux", "qt");
+
+    /**
+     * {@code X-Neko-Client} 自报的平台是否属于官方客户端（{@code <平台>+<版本>} 里的平台）。
+     *
+     * <p>{@code web} 不算：那是运行在浏览器里的前端应用，身份是「浏览器」，不是原生客户端。
+     * 第三方客户端即使被 {@code network.allow_client_user_agents} 登记放行，其自报平台也不在
+     * 这份名单里。</p>
+     */
+    public static boolean isOfficialClientPlatform(String platform) {
+        return platform != null
+                && OFFICIAL_CLIENT_PLATFORMS.contains(platform.trim().toLowerCase(java.util.Locale.ROOT));
+    }
 
     public static boolean shouldRenderSeo(String userAgent) {
         if (userAgent == null || userAgent.isBlank()) {

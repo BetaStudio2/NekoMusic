@@ -6,6 +6,9 @@ import com.neko.music.seo.UserAgentClassifier;
  * 从 User-Agent 与 {@code X-Neko-Client} 头提取「客户端指纹」，写入访问日志供安全分析。
  *
  * <p>判定全部复用 {@link UserAgentClassifier} 的既有名单，不另立一套关键词，避免防爬策略与日志口径漂移。
+ * 类型、平台、版本三个字段都同时看 UA 与 {@code X-Neko-Client}：UA 可被中间层改写，自报平台可伪造，
+ * 两个信号互相印证才能既认得出自家客户端、又不给脚本开口子（顺序见
+ * {@link #type(String, String)}）。</p>
  */
 public final class ClientFingerprint {
 
@@ -24,15 +27,24 @@ public final class ClientFingerprint {
     }
 
     /**
-     * 客户端类型。顺序不能调换：先认官方客户端（UA 已严格锚定），再把「安全扫描器」从通用爬虫里
-     * 单独摘出来，最后才按浏览器特征头区分真实浏览器与其它客户端。
+     * 客户端类型。判定用两个信号：UA 与 {@code X-Neko-Client}（三端都会同时发）。
+     *
+     * <p>为什么要看 {@code X-Neko-Client}：UA 是三样东西里最容易被中间层改写的——企业代理、
+     * Android 系统 WebView 包装、抓包 / 下载工具都可能把官方客户端的 UA 换成库默认值（{@code okhttp/…}、
+     * 空、被截断），单看 UA 就会把自家客户端记成第三方甚至爬虫。官方客户端的 UA 形态与自报平台本来
+     * 就是一一对应的，两个信号一起看才不会因一次改写就丢失身份。</p>
+     *
+     * <p>顺序不能调换：<b>先黑名单、后自报</b>。{@code X-Neko-Client} 是客户端自己写的，随手就能伪造，
+     * {@code sqlmap/1.7} 加一个 {@code android+1} 不能因此变成官方客户端。因此固定为
+     * 安全扫描器 → 爬虫 → 真浏览器 → 自报官方平台 → 官方 UA 锚定 → 其它客户端。</p>
+     *
+     * <p>自报平台要求与 UA 不矛盾：UA 带浏览器内核标记时按浏览器记（浏览器不可能是 PC / Android
+     * 原生客户端）；UA 已锚定为官方形态时本就走官方客户端。只有「UA 看不出身份 + 自报官方平台」
+     * 才由自报决定。</p>
      */
-    public static String type(String userAgent) {
+    public static String type(String userAgent, String nekoClient) {
         if (userAgent == null || userAgent.isBlank()) {
             return UNKNOWN;
-        }
-        if (UserAgentClassifier.isNativeClient(userAgent)) {
-            return OFFICIAL_CLIENT;
         }
         if (UserAgentClassifier.isSecurityScanner(userAgent)) {
             return SCANNER;
@@ -40,7 +52,14 @@ public final class ClientFingerprint {
         if (UserAgentClassifier.isBotForApi(userAgent)) {
             return BOT;
         }
-        return UserAgentClassifier.looksLikeRealBrowser(userAgent) ? BROWSER : THIRD_PARTY;
+        if (UserAgentClassifier.looksLikeRealBrowser(userAgent)) {
+            return BROWSER;
+        }
+        String[] declared = parseNekoClient(nekoClient);
+        if (declared != null && UserAgentClassifier.isOfficialClientPlatform(declared[0])) {
+            return OFFICIAL_CLIENT;
+        }
+        return UserAgentClassifier.isNativeClient(userAgent) ? OFFICIAL_CLIENT : THIRD_PARTY;
     }
 
     /** 客户端平台：官方客户端 UA → {@code X-Neko-Client} → 浏览器统一记 web；无法判定返回 null。 */
