@@ -13,6 +13,7 @@ import com.neko.music.util.ClientFingerprint;
 import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.OperationAudit;
 import com.neko.music.util.PowAudit;
+import com.neko.music.util.RequestAuthUtil;
 import com.neko.music.util.RequestCategory;
 import com.neko.music.util.RequestPath;
 import com.neko.music.util.SeoAudit;
@@ -55,8 +56,6 @@ public class RequestAuditFilter implements Filter {
 
     /** 产生「操作日志」的方法：只有会改变服务端状态的方法才算操作。 */
     private static final List<String> MUTATING_METHODS = List.of("POST", "PUT", "PATCH", "DELETE");
-
-    private static final String BEARER_PREFIX = "Bearer ";
 
     /**
      * 查询串里这些参数的值不落库。
@@ -193,8 +192,12 @@ public class RequestAuditFilter implements Filter {
         String category = RequestCategory.of(path);
         int status = response.getStatus();
         int durationMs = (int) Math.min(Integer.MAX_VALUE, finishedAt - startedAt);
-        String authorization = request.getHeader("Authorization");
-        boolean authenticated = authorization != null && authorization.startsWith(BEARER_PREFIX);
+        // 令牌形态不止一种：官方 PC / Android 客户端多数直接发 `Authorization: <token>`（没有 Bearer
+        // 前缀），浏览器 EventSource 还会退化成 `?token=`。这里必须与认证层用同一套提取逻辑
+        // （{@link RequestAuthUtil}），否则访问日志会把自家客户端整片记成「未登录」——而它们恰恰是
+        // 访问量最大的来源，安全分析就瞎了一半。
+        String token = RequestAuthUtil.extractToken(request);
+        boolean authenticated = token != null;
 
         boolean isAdminPath = RequestCategory.ADMIN.equals(category);
         String method = request.getMethod();
@@ -205,14 +208,14 @@ public class RequestAuditFilter implements Filter {
         boolean logOperation = operationEnabled && mutating && (isAdminPath || rule != null);
 
         boolean adminContext = isAdminPath || rule != null;
-        Admin admin = (adminContext && (logOperation || accessEnabled)) ? resolveAdmin(authorization) : null;
+        Admin admin = (adminContext && (logOperation || accessEnabled)) ? resolveAdmin(token) : null;
 
         // 已登录用户身份：只对访问日志解析，且只在真的开着访问日志时才花这次 Redis 查询。
         // 管理员另有 admin_* 两列；普通用户在这里落 user_id / user_name，两者互不覆盖。
         Integer userId = null;
         String userName = null;
         if (accessEnabled && authenticated) {
-            userId = resolveUserId(authorization);
+            userId = resolveUserId(token);
             userName = AccessLogUserResolver.nicknameOf(userId);
         }
 
@@ -406,13 +409,15 @@ public class RequestAuditFilter implements Filter {
     }
 
     /**
-     * 已登录用户 ID：解析 Bearer 令牌对应的用户，解析不出（未登录 / 令牌失效 / Redis 不可用）返回 null。
+     * 已登录用户 ID：解析令牌对应的用户，解析不出（未登录 / 令牌失效 / Redis 不可用）返回 null。
      *
-     * <p>用只读入口 {@link UserAuthService#findUserIdByToken}，不走认证路径的 {@code validateToken}：
-     * 后者在令牌临近过期时会顺手续期，日志组件不该有「记一条日志 = 会话延长」这种副作用。</p>
+     * <p>入参是 {@link RequestAuthUtil#extractToken} 归一化后的令牌，因此裸 token、{@code Bearer}
+     * 前缀、{@code ?token=} 三种形态都能解析。用只读入口 {@link UserAuthService#findUserIdByToken}，
+     * 不走认证路径的 {@code validateToken}：后者在令牌临近过期时会顺手续期，日志组件不该有
+     * 「记一条日志 = 会话延长」这种副作用。</p>
      */
-    private static Integer resolveUserId(String authorization) {
-        if (authorization == null || !authorization.startsWith(BEARER_PREFIX)) {
+    private static Integer resolveUserId(String token) {
+        if (token == null || token.isEmpty()) {
             return null;
         }
         try {
@@ -420,22 +425,21 @@ public class RequestAuditFilter implements Filter {
             if (authService == null) {
                 return null;
             }
-            return authService.findUserIdByToken(authorization.substring(BEARER_PREFIX.length()))
-                    .orElse(null);
+            return authService.findUserIdByToken(token).orElse(null);
         } catch (Exception e) {
             return null;
         }
     }
 
-    private static Admin resolveAdmin(String authorization) {
-        if (authorization == null || !authorization.startsWith(BEARER_PREFIX)) {
+    private static Admin resolveAdmin(String token) {
+        if (token == null || token.isEmpty()) {
             return null;
         }
         try {
             if (Main.getAdminAuthService() == null) {
                 return null;
             }
-            return Main.getAdminAuthService().getAdminByToken(authorization.substring(BEARER_PREFIX.length()));
+            return Main.getAdminAuthService().getAdminByToken(token);
         } catch (Exception e) {
             return null;
         }

@@ -24,7 +24,9 @@ package com.neko.music.model;
  * @param referer        Referer
  * @param origin         Origin
  * @param acceptLanguage Accept-Language
- * @param authenticated  是否携带 Bearer 令牌（只说明「带头了」，令牌是否有效看 {@code userId}）
+ * @param authenticated  是否携带令牌：{@code Authorization} 头（裸 token 或 {@code Bearer} 前缀）或
+ *                       {@code ?token=} 任一形态。只说明「带到令牌了」，令牌能不能换成身份看
+ *                       {@code userId} / {@code adminId}
  * @param userId         已登录用户 ID（用户令牌有效时解析，否则为 null）
  * @param userName       已登录用户昵称（与 {@code userId} 同时解析，随日志快照保存）
  * @param adminId        管理员 ID（仅管理端路径解析，其它为 null）

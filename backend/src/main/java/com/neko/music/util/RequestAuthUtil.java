@@ -26,6 +26,9 @@ public final class RequestAuthUtil {
         String token = raw.trim();
         if (token.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())) {
             token = token.substring("Bearer ".length()).trim();
+        } else if (token.equalsIgnoreCase("Bearer")) {
+            // 只有前缀、令牌为空（`Authorization: Bearer`）：别把前缀这个词本身当成令牌拿去查会话
+            token = "";
         }
         return token.isEmpty() ? null : token;
     }
