@@ -41,6 +41,7 @@ public class LyricsSearchIndex {
     private final Map<String, Set<Integer>> postings = new ConcurrentHashMap<>();
     private final AtomicBoolean ready = new AtomicBoolean(false);
     private final AtomicBoolean building = new AtomicBoolean(false);
+    private final AtomicBoolean notReadyWarned = new AtomicBoolean(false);
 
     public boolean isReady() {
         return ready.get();
@@ -72,6 +73,9 @@ public class LyricsSearchIndex {
             }
             ready.set(true);
             logger.info("站内歌词索引就绪: {} 首, tmpfs={}", indexed, PLAIN_DIR);
+            if (indexed == 0) {
+                logger.warn("站内歌词索引为空：music_lyrics 里没有可用歌词（缺行/占位符/正文过短），歌词搜索会全部落空");
+            }
         } catch (Exception e) {
             logger.error("站内歌词索引构建失败", e);
         } finally {
@@ -95,6 +99,9 @@ public class LyricsSearchIndex {
     /** 返回歌词搜索命中，并附带候选规模，供调用方过滤过宽泛的查询。 */
     public SearchOutcome searchWithStats(String query, int limit) {
         if (!ready.get() || query == null) {
+            if (!ready.get() && notReadyWarned.compareAndSet(false, true)) {
+                logger.warn("歌词索引尚未就绪，本次歌词搜索被跳过（索引为空或仍在构建）");
+            }
             return new SearchOutcome(List.of(), 0, false);
         }
         String normalized = LyricsPlainTextExtractor.normalize(query);

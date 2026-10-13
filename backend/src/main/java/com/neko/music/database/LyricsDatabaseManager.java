@@ -66,7 +66,8 @@ public class LyricsDatabaseManager {
                 rows.add(mapStoredLyrics(rs));
             }
         } catch (SQLException e) {
-            logger.warn("读取歌词索引数据失败: {}", e.toString());
+            // 这里失败会直接导致歌词索引为空，必须带堆栈，否则线上只剩「索引就绪: 0 首」这种看不清原因的现象
+            logger.warn("读取歌词索引数据失败（歌词搜索将无结果）", e);
         }
         return rows;
     }

@@ -376,6 +376,7 @@ public class MusicSearchHandler extends ApiServlet {
         }
 
         if (!shouldSearchLyricsForQuery(query, topMetadataScore, !scoredResults.isEmpty())) {
+            logger.debug("跳过歌词搜索: query='{}', 元数据分={}", query, topMetadataScore);
             return;
         }
 
@@ -386,7 +387,7 @@ public class MusicSearchHandler extends ApiServlet {
         }
         if (outcome.saturated() || lyricIds.size() > MAX_LYRIC_HITS_TO_MERGE
                 || outcome.candidateCount() > MAX_LYRIC_CANDIDATES) {
-            logger.debug("跳过过宽泛歌词搜索: query='{}', hits={}, candidates={}, saturated={}",
+            logger.info("放弃过宽泛的歌词搜索: query='{}', hits={}, candidates={}, saturated={}",
                     query, lyricIds.size(), outcome.candidateCount(), outcome.saturated());
             return;
         }
