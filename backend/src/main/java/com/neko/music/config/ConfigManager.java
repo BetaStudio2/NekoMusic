@@ -58,6 +58,12 @@ public class ConfigManager {
     /** 验证码发信：同邮箱冷却秒数 */
     private int verificationCodeEmailCooldownSeconds = 60;
 
+    /** 日志：访问日志 / 操作日志落在独立库（不共用主库），见 system_settings 的 logging.* */
+    private boolean loggingAccessEnabled = true;
+    private boolean loggingOperationEnabled = true;
+    private String loggingDatabase = "";
+    private int loggingRetentionDays = 90;
+
     /** Jetty / Hikari / Redis 连接池，可在 config.yml 的 performance、redis.pool_max_total 中覆盖 */
     private int jettyMaxThreads = 200;
     private int jettyMinThreads = 10;
@@ -355,6 +361,14 @@ public class ConfigManager {
                     if (rateLimitNode.has("silent_timeout")) rateLimitSilentTimeout = rateLimitNode.get("silent_timeout").asBoolean();
                 }
 
+                JsonNode loggingNode = configNode.get("logging");
+                if (loggingNode != null) {
+                    if (loggingNode.has("access_enabled")) loggingAccessEnabled = loggingNode.get("access_enabled").asBoolean();
+                    if (loggingNode.has("operation_enabled")) loggingOperationEnabled = loggingNode.get("operation_enabled").asBoolean();
+                    if (loggingNode.has("database")) loggingDatabase = loggingNode.get("database").asText();
+                    if (loggingNode.has("retention_days")) loggingRetentionDays = loggingNode.get("retention_days").asInt();
+                }
+
                 // 安全/网络：可信客户端 IP 头 + 保守防爬拦截开关
                 JsonNode networkNode = configNode.get("network");
                 if (networkNode != null) {
@@ -563,6 +577,9 @@ public class ConfigManager {
             logger.info("  ZPay 支付: enabled={}, pidConfigured={}, publicBaseUrlConfigured={}",
                     zpayEnabled, !zpayPid.isEmpty(), !zpayPublicBaseUrl.isEmpty());
             logger.info("  每日推荐: dailyLimit={}", recommendationDailyLimit);
+            logger.info("  日志: access={}, operation={}, database={}, retentionDays={}",
+                    loggingAccessEnabled, loggingOperationEnabled,
+                    loggingDatabase.isBlank() ? "(主库名_logs)" : loggingDatabase, loggingRetentionDays);
             logger.info("  听歌识曲: enabled={}, maxUploadBytes={}, sampleDuration={}..{}s, rateLimit={}/min, maxConcurrent={}, indexBuildThreads={}",
                     musicRecognitionEnabled, musicRecognitionMaxUploadBytes,
                     musicRecognitionMinSampleDurationSeconds, musicRecognitionMaxSampleDurationSeconds,
@@ -843,6 +860,26 @@ public class ConfigManager {
 
     public String getMysqlPassword() {
         return mysqlPassword;
+    }
+
+    /** 是否记录访问日志 */
+    public boolean isLoggingAccessEnabled() {
+        return loggingAccessEnabled;
+    }
+
+    /** 是否记录操作日志 */
+    public boolean isLoggingOperationEnabled() {
+        return loggingOperationEnabled;
+    }
+
+    /** 日志库名；留空表示「主库名_logs」 */
+    public String getLoggingDatabase() {
+        return loggingDatabase;
+    }
+
+    /** 日志保留天数，0 表示永久保留 */
+    public int getLoggingRetentionDays() {
+        return loggingRetentionDays;
     }
     
     public int getPort() {

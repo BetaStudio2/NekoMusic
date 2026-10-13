@@ -1,0 +1,772 @@
+<template>
+  <div class="subpage">
+    <header class="subpage__head">
+      <div>
+        <h1 class="subpage__title">日志</h1>
+        <p class="subpage__desc">
+          访问日志记录每个请求的访问量、UA、客户端与来源，用于安全分析；操作日志记录管理后台的写操作。
+        </p>
+      </div>
+    </header>
+
+    <div class="tabs" role="tablist">
+      <button
+        v-for="tab in tabs"
+        :key="tab.key"
+        type="button"
+        role="tab"
+        class="tabs__item"
+        :class="{ 'tabs__item--active': activeTab === tab.key }"
+        :aria-selected="activeTab === tab.key"
+        @click="switchTab(tab.key)"
+      >
+        {{ tab.label }}
+      </button>
+    </div>
+
+    <p v-if="error" class="err">
+      <NIcon name="triangle-alert" :size="16" />
+      {{ error }}
+    </p>
+
+    <!-- ==================== 操作日志 ==================== -->
+    <template v-if="activeTab === 'operations'">
+      <div class="toolbar">
+        <select v-model="operationQuery.module" class="select" aria-label="模块">
+          <option value="">全部模块</option>
+          <option v-for="name in MODULES" :key="name" :value="name">{{ name }}</option>
+        </select>
+        <NInput
+          v-model="operationQuery.keyword"
+          icon="search"
+          placeholder="路径 / 查询串 / 管理员 / 说明…"
+          clearable
+          class="toolbar__search"
+          @keyup.enter="loadOperations(1)"
+        />
+        <NButton variant="primary" icon="search" :disabled="loading" @click="loadOperations(1)">查询</NButton>
+      </div>
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>管理员</th>
+              <th>角色</th>
+              <th>模块</th>
+              <th>动作</th>
+              <th>请求</th>
+              <th>状态</th>
+              <th>耗时</th>
+              <th>来源 IP</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in operations.items" :key="row.id">
+              <td class="cell-dim">{{ formatTime(row.occurred_at) }}</td>
+              <td class="cell-strong">{{ row.admin_username || '—' }}</td>
+              <td>{{ roleLabel(row.admin_role) }}</td>
+              <td>{{ row.module || '—' }}</td>
+              <td>{{ row.action || '—' }}</td>
+              <td class="cell-path" :title="fullPath(row)">
+                <span class="cell-method">{{ row.method }}</span> {{ row.path }}
+              </td>
+              <td>
+                <NTag :variant="row.success ? 'success' : 'danger'" size="sm">{{ row.status }}</NTag>
+              </td>
+              <td class="cell-dim">{{ row.duration_ms }} ms</td>
+              <td class="cell-dim">{{ row.client_ip }}</td>
+            </tr>
+            <tr v-if="!operations.items.length">
+              <td colspan="9" class="cell-empty">暂无记录</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pager">
+        <NButton size="sm" variant="secondary" icon="chevron-left" :disabled="operations.page <= 1 || loading" @click="loadOperations(operations.page - 1)">
+          上一页
+        </NButton>
+        <span class="pager__info">共 {{ operations.total }} 条 · 第 {{ operations.page }} / {{ totalPages(operations) }} 页</span>
+        <NButton
+          size="sm"
+          variant="secondary"
+          icon-after="chevron-right"
+          :disabled="operations.page >= totalPages(operations) || loading"
+          @click="loadOperations(operations.page + 1)"
+        >
+          下一页
+        </NButton>
+      </div>
+    </template>
+
+    <!-- ==================== 访问日志 ==================== -->
+    <template v-else>
+      <div class="stats">
+        <NCard pad="lg" class="stat">
+          <span class="stat__number">{{ stats.todayRequests ?? 0 }}</span>
+          <span class="stat__label">今日访问</span>
+        </NCard>
+        <NCard pad="lg" class="stat">
+          <span class="stat__number">{{ stats.todayUniqueIps ?? 0 }}</span>
+          <span class="stat__label">今日独立 IP</span>
+        </NCard>
+        <NCard pad="lg" class="stat">
+          <span class="stat__number">{{ stats.todayBots ?? 0 }}</span>
+          <span class="stat__label">今日爬虫 / 扫描</span>
+        </NCard>
+        <NCard pad="lg" class="stat">
+          <span class="stat__number">{{ stats.todayErrors ?? 0 }}</span>
+          <span class="stat__label">今日异常（≥400）</span>
+        </NCard>
+        <NCard pad="lg" class="stat">
+          <span class="stat__number">{{ stats.totalRequests ?? 0 }}</span>
+          <span class="stat__label">累计访问</span>
+        </NCard>
+      </div>
+
+      <NCard pad="lg" class="card">
+        <h2 class="card__title">最近 {{ statsDays }} 天访问趋势</h2>
+        <div class="chart__canvas">
+          <canvas ref="trendCanvas"></canvas>
+        </div>
+      </NCard>
+
+      <div class="grid-two">
+        <NCard pad="lg" class="card">
+          <h2 class="card__title">Top 来源 IP</h2>
+          <ul class="ranking">
+            <li v-for="item in stats.topIps || []" :key="item.key">
+              <span class="ranking__key" :title="item.key">{{ item.key || '未知' }}</span>
+              <span class="ranking__count">{{ item.count }}</span>
+            </li>
+          </ul>
+        </NCard>
+        <NCard pad="lg" class="card">
+          <h2 class="card__title">Top 路径</h2>
+          <ul class="ranking">
+            <li v-for="item in stats.topPaths || []" :key="item.key">
+              <span class="ranking__key" :title="item.key">{{ item.key || '未知' }}</span>
+              <span class="ranking__count">{{ item.count }}</span>
+            </li>
+          </ul>
+        </NCard>
+        <NCard pad="lg" class="card">
+          <h2 class="card__title">客户端类型</h2>
+          <ul class="ranking">
+            <li v-for="(count, type) in stats.clientTypes || {}" :key="type">
+              <span class="ranking__key">{{ clientTypeLabel(type) }}</span>
+              <span class="ranking__count">{{ count }}</span>
+            </li>
+          </ul>
+        </NCard>
+        <NCard pad="lg" class="card">
+          <h2 class="card__title">Top User-Agent</h2>
+          <ul class="ranking">
+            <li v-for="item in stats.topUserAgents || []" :key="item.key">
+              <span class="ranking__key" :title="item.key">{{ item.key || '（空）' }}</span>
+              <span class="ranking__count">{{ item.count }}</span>
+            </li>
+          </ul>
+        </NCard>
+      </div>
+
+      <div class="toolbar">
+        <select v-model.number="statsDays" class="select" aria-label="统计天数" @change="loadStats">
+          <option :value="7">最近 7 天</option>
+          <option :value="14">最近 14 天</option>
+          <option :value="30">最近 30 天</option>
+        </select>
+        <select v-model="accessQuery.clientType" class="select" aria-label="客户端类型">
+          <option value="">全部类型</option>
+          <option v-for="type in CLIENT_TYPES" :key="type" :value="type">{{ clientTypeLabel(type) }}</option>
+        </select>
+        <NInput v-model="accessQuery.ip" placeholder="来源 IP 含…" clearable class="toolbar__search" />
+        <NInput v-model="accessQuery.path" placeholder="路径含…" clearable class="toolbar__search" />
+        <NInput
+          v-model="accessQuery.keyword"
+          icon="search"
+          placeholder="路径 / UA / IP 关键字…"
+          clearable
+          class="toolbar__search"
+          @keyup.enter="loadAccess(1)"
+        />
+        <NButton variant="primary" icon="search" :disabled="loading" @click="loadAccess(1)">查询</NButton>
+      </div>
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>请求</th>
+              <th>状态</th>
+              <th>耗时</th>
+              <th>分类</th>
+              <th>客户端</th>
+              <th>平台 / 版本</th>
+              <th>来源 IP</th>
+              <th>User-Agent</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in access.items" :key="row.id">
+              <td class="cell-dim">{{ formatTime(row.occurred_at) }}</td>
+              <td class="cell-path" :title="fullPath(row)">
+                <span class="cell-method">{{ row.method }}</span> {{ row.path }}
+              </td>
+              <td>
+                <NTag :variant="statusVariant(row.status)" size="sm">{{ row.status }}</NTag>
+              </td>
+              <td class="cell-dim">{{ row.duration_ms }} ms</td>
+              <td class="cell-dim">{{ categoryLabel(row.category) }}</td>
+              <td>{{ clientTypeLabel(row.client_type) }}</td>
+              <td class="cell-dim">{{ platformText(row) }}</td>
+              <td class="cell-dim">{{ row.client_ip }}</td>
+              <td class="cell-ua" :title="row.user_agent">{{ row.user_agent || '（空）' }}</td>
+            </tr>
+            <tr v-if="!access.items.length">
+              <td colspan="9" class="cell-empty">暂无记录</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pager">
+        <NButton size="sm" variant="secondary" icon="chevron-left" :disabled="access.page <= 1 || loading" @click="loadAccess(access.page - 1)">
+          上一页
+        </NButton>
+        <span class="pager__info">共 {{ access.total }} 条 · 第 {{ access.page }} / {{ totalPages(access) }} 页</span>
+        <NButton
+          size="sm"
+          variant="secondary"
+          icon-after="chevron-right"
+          :disabled="access.page >= totalPages(access) || loading"
+          @click="loadAccess(access.page + 1)"
+        >
+          下一页
+        </NButton>
+      </div>
+    </template>
+  </div>
+</template>
+
+<script setup>
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
+import NIcon from '@/icons/NIcon.vue'
+import { NButton, NCard, NInput, NTag } from '@/ui'
+import { fetchAccessLogs, fetchAccessLogStats, fetchOperationLogs } from '@/api/adminLogs.js'
+import {
+  Chart as ChartJS,
+  LineController,
+  LineElement,
+  PointElement,
+  CategoryScale,
+  LinearScale,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js'
+
+ChartJS.register(
+  LineController,
+  LineElement,
+  PointElement,
+  CategoryScale,
+  LinearScale,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+)
+
+const PAGE_SIZE = 50
+
+/** 与后端 RequestAuditFilter.ADMIN_MODULES 的模块名保持一致 */
+const MODULES = [
+  '用户管理',
+  '音乐管理',
+  '歌词管理',
+  '审核管理',
+  '客户端更新',
+  '系统设置',
+  '网易云补全',
+  'VIP 定价',
+  '防重放标记',
+  '管理员管理',
+  '管理员登录',
+  '数据统计'
+]
+
+/** 与后端 ClientFingerprint 的类型保持一致 */
+const CLIENT_TYPES = ['browser', 'official_client', 'third_party', 'bot', 'scanner', 'unknown']
+
+const CLIENT_TYPE_LABELS = {
+  browser: '浏览器',
+  official_client: '官方客户端',
+  third_party: '第三方客户端',
+  bot: '爬虫',
+  scanner: '安全扫描器',
+  unknown: '未知'
+}
+
+const CATEGORY_LABELS = {
+  api: '动态接口',
+  admin: '管理后台',
+  page: '页面',
+  media: '媒体',
+  static: '静态资源',
+  other: '其它'
+}
+
+const role = ref('')
+const activeTab = ref('access')
+const error = ref('')
+const loading = ref(false)
+const statsDays = ref(7)
+
+const access = reactive({ total: 0, page: 1, size: PAGE_SIZE, items: [] })
+const operations = reactive({ total: 0, page: 1, size: PAGE_SIZE, items: [] })
+const stats = ref({})
+
+const accessQuery = reactive({ ip: '', path: '', clientType: '', keyword: '' })
+const operationQuery = reactive({ module: '', keyword: '' })
+
+const trendCanvas = ref(null)
+let trendChart = null
+
+const canViewOperations = computed(() => role.value === 'admin' || role.value === 'super_admin')
+const canViewAccess = computed(() =>
+  ['super_admin', 'admin', 'auditor'].includes(role.value)
+)
+const tabs = computed(() => {
+  const list = []
+  if (canViewOperations.value) list.push({ key: 'operations', label: '操作日志' })
+  if (canViewAccess.value) list.push({ key: 'access', label: '访问日志' })
+  return list
+})
+
+onMounted(() => {
+  const stored = localStorage.getItem('adminInfo')
+  if (stored) {
+    try {
+      role.value = JSON.parse(stored).role || 'admin'
+    } catch {
+      role.value = 'admin'
+    }
+  }
+  activeTab.value = tabs.value[0]?.key || 'access'
+  loadActiveTab()
+})
+
+onUnmounted(() => {
+  destroyChart()
+})
+
+function switchTab(key) {
+  if (activeTab.value === key) return
+  activeTab.value = key
+  loadActiveTab()
+}
+
+function loadActiveTab() {
+  if (activeTab.value === 'operations') {
+    loadOperations(1)
+  } else {
+    loadAccess(1)
+    loadStats()
+  }
+}
+
+async function loadOperations(page) {
+  if (!canViewOperations.value) return
+  loading.value = true
+  error.value = ''
+  try {
+    const data = await fetchOperationLogs({
+      page,
+      size: PAGE_SIZE,
+      module: operationQuery.module,
+      keyword: operationQuery.keyword
+    })
+    operations.total = data.total || 0
+    operations.page = data.page || page
+    operations.items = data.items || []
+  } catch (e) {
+    error.value = e.message
+    operations.items = []
+    operations.total = 0
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadAccess(page) {
+  if (!canViewAccess.value) return
+  loading.value = true
+  error.value = ''
+  try {
+    const data = await fetchAccessLogs({
+      page,
+      size: PAGE_SIZE,
+      ip: accessQuery.ip,
+      path: accessQuery.path,
+      clientType: accessQuery.clientType,
+      keyword: accessQuery.keyword
+    })
+    access.total = data.total || 0
+    access.page = data.page || page
+    access.items = data.items || []
+  } catch (e) {
+    error.value = e.message
+    access.items = []
+    access.total = 0
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadStats() {
+  if (!canViewAccess.value) return
+  try {
+    stats.value = await fetchAccessLogStats(statsDays.value)
+    await nextTick()
+    renderChart()
+  } catch (e) {
+    error.value = e.message
+  }
+}
+
+function renderChart() {
+  if (!trendCanvas.value) return
+  const trend = stats.value.dailyTrend || []
+  destroyChart()
+  trendChart = new ChartJS(trendCanvas.value, {
+    type: 'line',
+    data: {
+      labels: trend.map((item) => item.date),
+      datasets: [
+        {
+          label: '访问量',
+          data: trend.map((item) => item.count),
+          borderColor: '#5fd0e0',
+          backgroundColor: 'rgba(95, 208, 224, 0.16)',
+          fill: true,
+          tension: 0.32,
+          pointRadius: 2
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: 'rgba(255,255,255,0.55)' }, grid: { display: false } },
+        y: {
+          beginAtZero: true,
+          ticks: { color: 'rgba(255,255,255,0.55)', precision: 0 },
+          grid: { color: 'rgba(255,255,255,0.06)' }
+        }
+      }
+    }
+  })
+}
+
+function destroyChart() {
+  if (trendChart) {
+    trendChart.destroy()
+    trendChart = null
+  }
+}
+
+function totalPages(page) {
+  return Math.max(1, Math.ceil((page.total || 0) / (page.size || PAGE_SIZE)))
+}
+
+function formatTime(millis) {
+  if (!millis) return '—'
+  return new Date(Number(millis)).toLocaleString('zh-CN', { hour12: false })
+}
+
+function fullPath(row) {
+  return row.query ? `${row.path}?${row.query}` : row.path
+}
+
+function roleLabel(value) {
+  return { super_admin: '超级管理员', admin: '管理员', auditor: '审核员' }[value] || value || '—'
+}
+
+function clientTypeLabel(value) {
+  return CLIENT_TYPE_LABELS[value] || value || '未知'
+}
+
+function categoryLabel(value) {
+  return CATEGORY_LABELS[value] || value || '—'
+}
+
+function platformText(row) {
+  if (!row.client_platform) return '—'
+  return row.client_version ? `${row.client_platform} / ${row.client_version}` : row.client_platform
+}
+
+function statusVariant(status) {
+  if (status >= 500) return 'danger'
+  if (status >= 400) return 'warning'
+  return 'success'
+}
+</script>
+
+<style scoped>
+.subpage {
+  width: 100%;
+}
+
+.subpage__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--n-space-4);
+  margin-bottom: var(--n-space-5);
+}
+
+.subpage__title {
+  margin: 0 0 var(--n-space-1);
+  font-size: clamp(1.25rem, 2.6vw, 1.6rem);
+  font-weight: var(--n-weight-bold);
+  letter-spacing: -0.02em;
+  color: var(--n-text);
+}
+
+.subpage__desc {
+  margin: 0;
+  max-width: 72ch;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  line-height: var(--n-leading-normal);
+}
+
+/* ==================== 标签页 ==================== */
+.tabs {
+  display: flex;
+  gap: var(--n-space-1);
+  margin-bottom: var(--n-space-4);
+  border-bottom: 1px solid var(--n-line);
+}
+
+.tabs__item {
+  padding: var(--n-space-2) var(--n-space-4);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--n-text-muted);
+  font-size: var(--n-text-base);
+  cursor: pointer;
+  transition: color var(--n-duration-fast) var(--n-ease);
+}
+
+.tabs__item--active {
+  border-bottom-color: var(--n-accent);
+  color: var(--n-accent-strong);
+  font-weight: var(--n-weight-semibold);
+}
+
+/* ==================== 统计卡 ==================== */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--n-space-4);
+  margin-bottom: var(--n-space-4);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--n-space-1);
+}
+
+.stat__number {
+  font-size: clamp(1.4rem, 3vw, 1.9rem);
+  font-weight: var(--n-weight-bold);
+  color: var(--n-text);
+}
+
+.stat__label {
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+}
+
+/* ==================== 卡片 ==================== */
+.card {
+  margin-bottom: var(--n-space-4);
+}
+
+.card__title {
+  margin: 0 0 var(--n-space-3);
+  font-size: var(--n-text-base);
+  font-weight: var(--n-weight-semibold);
+  color: var(--n-text);
+}
+
+.chart__canvas {
+  position: relative;
+  height: 260px;
+}
+
+.grid-two {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--n-space-4);
+  margin-bottom: var(--n-space-4);
+}
+
+.ranking {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--n-space-2);
+}
+
+.ranking li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--n-space-3);
+  font-size: var(--n-text-sm);
+}
+
+.ranking__key {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--n-text-muted);
+}
+
+.ranking__count {
+  flex: none;
+  color: var(--n-text);
+  font-weight: var(--n-weight-semibold);
+}
+
+/* ==================== 工具条 ==================== */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--n-space-3);
+  margin-bottom: var(--n-space-4);
+}
+
+.toolbar__search {
+  min-width: 200px;
+}
+
+.select {
+  height: var(--n-tap-min);
+  padding: 0 var(--n-space-3);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-sm);
+  background: var(--n-surface-soft);
+  color: var(--n-text);
+  font-size: var(--n-text-sm);
+}
+
+/* ==================== 表格 ==================== */
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-md);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--n-text-sm);
+}
+
+.table th,
+.table td {
+  padding: var(--n-space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--n-line-subtle);
+  vertical-align: top;
+}
+
+.table th {
+  color: var(--n-text-faint);
+  font-weight: var(--n-weight-medium);
+  white-space: nowrap;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.cell-dim {
+  color: var(--n-text-muted);
+  white-space: nowrap;
+}
+
+.cell-strong {
+  color: var(--n-text);
+  font-weight: var(--n-weight-semibold);
+  white-space: nowrap;
+}
+
+.cell-path {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--n-text-muted);
+}
+
+.cell-method {
+  color: var(--n-accent-strong);
+  font-weight: var(--n-weight-semibold);
+}
+
+.cell-ua {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--n-text-faint);
+}
+
+.cell-empty {
+  text-align: center;
+  color: var(--n-text-faint);
+}
+
+/* ==================== 分页 ==================== */
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--n-space-4);
+  margin-top: var(--n-space-4);
+}
+
+.pager__info {
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+}
+
+.err {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-2);
+  margin-bottom: var(--n-space-4);
+  color: var(--n-color-danger, #ff6b6b);
+  font-size: var(--n-text-sm);
+}
+</style>

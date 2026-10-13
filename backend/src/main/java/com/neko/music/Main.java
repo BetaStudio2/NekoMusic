@@ -9,6 +9,7 @@ import com.neko.music.database.DatabaseManager;
 import com.neko.music.database.DatabaseInitializer;
 import com.neko.music.database.CommentDatabaseManager;
 import com.neko.music.database.LyricsDatabaseManager;
+import com.neko.music.database.LogDatabaseManager;
 import com.neko.music.service.*;
 import com.neko.music.database.VipPayOrderDatabaseManager;
 import com.neko.music.database.ReplaySourceMarkDatabaseManager;
@@ -27,6 +28,7 @@ import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import com.neko.music.filter.CacheControlFilter;
 import com.neko.music.filter.CrawlerProtectionFilter;
+import com.neko.music.filter.RequestAuditFilter;
 import com.neko.music.filter.IPRateLimitFilter;
 import com.neko.music.filter.ReplayProtectionFilter;
 import com.neko.music.filter.SecurityHeadersFilter;
@@ -110,6 +112,10 @@ public class Main {
     private static LyricsDatabaseManager lyricsDatabaseManager;
     private static MusicRecognitionService musicRecognitionService;
     private static ScheduledExecutorService dailyRecommendationScheduler;
+    private static LogDatabaseManager logDatabaseManager;
+    private static AccessLogService accessLogService;
+    private static OperationLogService operationLogService;
+    private static ScheduledExecutorService logMaintenanceScheduler;
 
     public static void main(String[] args) throws Exception {
         // 设置JVM默认时区为中国标准时间（UTC+8）
@@ -165,6 +171,9 @@ public class Main {
         java.util.Map<String, String> storedSettings = systemSettingsDatabaseManager.loadAll();
         configManager.applyOverrides(storedSettings);
         logger.info("已从数据库加载 {} 条系统设置", storedSettings.size());
+
+        // 访问日志 / 操作日志：独立日志库（不共用主库），失败只停用日志能力
+        initializeLogging();
 
         // 初始化Redis服务（视频配额依赖 Redis，须在 video 服务之前）
         redisService = new RedisService(configManager);
@@ -312,6 +321,10 @@ public class Main {
         context.setAttribute("ipRateLimitService", ipRateLimitService);
         context.setAttribute("sourceBanService", sourceBanService);
 
+        // 访问日志 + 操作日志：必须注册在最外层，才能看到经过后续门禁（限流/封禁/防爬/防重放）
+        // 之后的真实状态码与总耗时——被挡下的请求同样要留痕
+        context.addFilter(RequestAuditFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
+
         // 通用安全加固：禁用 TRACE/TRACK、补安全响应头、隐藏版本（最先注册，作用于全部响应）
         context.addFilter(SecurityHeadersFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
 
@@ -343,6 +356,102 @@ public class Main {
         server.join();
     }
     
+    /**
+     * 初始化日志库与日志服务：访问日志 / 操作日志落在**独立库**（不共用 neko_music 主库）。
+     *
+     * <p>日志是旁路能力：建库、连池、建表任一步失败都只记错误并停用日志，绝不影响业务启动。</p>
+     */
+    private static void initializeLogging() {
+        String logDatabase = LogDatabaseManager.resolveDatabaseName(configManager);
+        if (logDatabase.isEmpty()) {
+            logger.warn("日志库名不可用，日志功能已停用");
+            return;
+        }
+        if (!configManager.isLoggingAccessEnabled() && !configManager.isLoggingOperationEnabled()) {
+            logger.info("访问日志与操作日志均已关闭，跳过日志库初始化");
+            return;
+        }
+        try {
+            LogDatabaseManager.ensureDatabaseExists(databaseManager, logDatabase);
+            LogDatabaseManager manager = new LogDatabaseManager(configManager, logDatabase);
+            manager.init();
+            logDatabaseManager = manager;
+
+            if (configManager.isLoggingAccessEnabled()) {
+                AccessLogService accessService = new AccessLogService(manager);
+                accessService.start();
+                accessLogService = accessService;
+                AccessLogService.setCurrent(accessService);
+            }
+            if (configManager.isLoggingOperationEnabled()) {
+                OperationLogService operationService = new OperationLogService(manager);
+                operationService.start();
+                operationLogService = operationService;
+                OperationLogService.setCurrent(operationService);
+            }
+
+            logMaintenanceScheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
+                Thread thread = new Thread(runnable, "log-maintenance");
+                thread.setDaemon(true);
+                return thread;
+            });
+            // 保留期清理：启动 10 分钟后跑一次，之后每天一次
+            logMaintenanceScheduler.scheduleAtFixedRate(Main::purgeExpiredLogs, 10, 24 * 60, TimeUnit.MINUTES);
+            Runtime.getRuntime().addShutdownHook(new Thread(Main::closeLogResources, "log-shutdown"));
+            logger.info("日志功能已启用（访问日志={}, 操作日志={}），日志库: {}",
+                    accessLogService != null, operationLogService != null, logDatabase);
+        } catch (Exception e) {
+            logger.error("初始化日志库失败，日志功能已停用: {}", e.getMessage(), e);
+            closeLogResources();
+        }
+    }
+
+    /** 按保留期清理两张日志表；0 表示永久保留。 */
+    private static void purgeExpiredLogs() {
+        int retentionDays = configManager == null ? 0 : configManager.getLoggingRetentionDays();
+        if (retentionDays <= 0) {
+            return;
+        }
+        try {
+            if (accessLogService != null) {
+                int deleted = accessLogService.purgeOlderThan(retentionDays);
+                if (deleted > 0) {
+                    logger.info("已清理 {} 条过期访问日志（保留 {} 天）", deleted, retentionDays);
+                }
+            }
+            if (operationLogService != null) {
+                int deleted = operationLogService.purgeOlderThan(retentionDays);
+                if (deleted > 0) {
+                    logger.info("已清理 {} 条过期操作日志（保留 {} 天）", deleted, retentionDays);
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("清理过期日志失败: {}", e.getMessage());
+        }
+    }
+
+    /** 停机时把队列里的日志刷盘并释放日志库连接池。 */
+    private static void closeLogResources() {
+        if (logMaintenanceScheduler != null) {
+            logMaintenanceScheduler.shutdownNow();
+            logMaintenanceScheduler = null;
+        }
+        if (accessLogService != null) {
+            accessLogService.close();
+            AccessLogService.setCurrent(null);
+            accessLogService = null;
+        }
+        if (operationLogService != null) {
+            operationLogService.close();
+            OperationLogService.setCurrent(null);
+            operationLogService = null;
+        }
+        if (logDatabaseManager != null) {
+            logDatabaseManager.close();
+            logDatabaseManager = null;
+        }
+    }
+
     private static void createDefaultAdminIfNotExists() {
         String defaultUsername = "admin";
         String defaultPassword = "admin";

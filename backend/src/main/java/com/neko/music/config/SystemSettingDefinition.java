@@ -60,7 +60,8 @@ public record SystemSettingDefinition(
         NETEASE("网易云补全"),
         RECOMMENDATION("每日推荐"),
         RECOGNITION("听歌识曲"),
-        PAY("支付");
+        PAY("支付"),
+        LOGGING("日志");
 
         private final String title;
 

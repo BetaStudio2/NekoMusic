@@ -98,6 +98,10 @@ public final class UserAgentClassifier {
     private static final Pattern OFFICIAL_CLIENT_UA = Pattern.compile(
             "(?i)^nekomusic-(?:android|pc|ios|macos|windows|linux|qt)/\\d[\\w.+-]*$");
 
+    /** 与 {@link #OFFICIAL_CLIENT_UA} 同一形态，但额外捕获平台与版本，供「访问日志」标注客户端。 */
+    private static final Pattern OFFICIAL_CLIENT_UA_PARTS = Pattern.compile(
+            "(?i)^nekomusic-([a-z0-9]+)/(\\d[\\w.+-]*)$");
+
     public static boolean shouldRenderSeo(String userAgent) {
         if (userAgent == null || userAgent.isBlank()) {
             return true;
@@ -196,6 +200,39 @@ public final class UserAgentClassifier {
         return userAgent.contains("AppleWebKit/")
                 || userAgent.contains("Gecko/")
                 || userAgent.contains("Trident/");
+    }
+
+    /**
+     * 是否命中「安全扫描 / 漏洞探测工具」黑名单（sqlmap、Nikto、Nmap 等）。
+     *
+     * <p>与 {@link #isBotForApi} 分开暴露：访问日志要把「业务爬虫」与「攻击性扫描器」区分开，
+     * 便于安全分析直接按类型筛。
+     */
+    public static boolean isSecurityScanner(String userAgent) {
+        if (userAgent == null || userAgent.isBlank()) {
+            return false;
+        }
+        return SECURITY_SCANNERS.matcher(userAgent.trim()).find();
+    }
+
+    /** 官方客户端 UA 的平台（小写）；非官方客户端返回空串。 */
+    public static String officialClientPlatform(String userAgent) {
+        java.util.regex.Matcher matcher = officialClientMatcher(userAgent);
+        return matcher == null ? "" : matcher.group(1).toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /** 官方客户端 UA 的版本；非官方客户端返回空串。 */
+    public static String officialClientVersion(String userAgent) {
+        java.util.regex.Matcher matcher = officialClientMatcher(userAgent);
+        return matcher == null ? "" : matcher.group(2);
+    }
+
+    private static java.util.regex.Matcher officialClientMatcher(String userAgent) {
+        if (userAgent == null || userAgent.isBlank()) {
+            return null;
+        }
+        java.util.regex.Matcher matcher = OFFICIAL_CLIENT_UA_PARTS.matcher(userAgent.trim());
+        return matcher.matches() ? matcher : null;
     }
 
     private static boolean matchesAny(String userAgent, Pattern... patterns) {

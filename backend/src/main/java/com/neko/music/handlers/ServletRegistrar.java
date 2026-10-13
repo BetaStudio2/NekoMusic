@@ -262,6 +262,10 @@ public final class ServletRegistrar {
         ServletHolder adminSettingsHolder = new ServletHolder(new AdminSettingsHandler());
         context.addServlet(adminSettingsHolder, "/api/admin/settings");
 
+        // 日志（访问日志 / 操作日志）：/api/admin/logs/*
+        ServletHolder adminLogHolder = new ServletHolder(new AdminLogHandler());
+        context.addServlet(adminLogHolder, "/api/admin/logs/*");
+
         // 网易云补全扫码登录（管理员及以上）：/api/admin/netease/*
         ServletHolder adminNeteaseLoginHolder = new ServletHolder(new AdminNeteaseLoginHandler());
         context.addServlet(adminNeteaseLoginHolder, "/api/admin/netease/*");

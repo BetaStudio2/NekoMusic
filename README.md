@@ -31,7 +31,7 @@ curl -fsS http://127.0.0.1:65535/version
 主库 `system_settings` 表，同样不要外泄。升级代码后执行 `docker compose build --pull && docker compose up -d`。
 
 首次启动会自动建表 `system_settings`，并把出厂默认值（或旧 `config.yml` 里的现值）灌一次；之后
-所有运行时配置（端口、Redis、JWT、邮件、频率限制、网络与安全、视频渲染、支付等）都在管理后台
+所有运行时配置（端口、Redis、JWT、邮件、频率限制、网络与安全、视频渲染、支付、日志等）都在管理后台
 「系统设置」页维护，改完即时生效，`config.yml` 里对应项不再生效。
 
 默认配置使用 `video_render.pipeline: cuda_native`，需要 NVIDIA GPU、驱动和容器工具包，并要求 FFmpeg 具备 NVENC/CUDA。没有 GPU 时，在管理后台「系统设置 → 视频渲染」把 `pipeline` 改为 `cpu_legacy`、把 `video_codec` 改为

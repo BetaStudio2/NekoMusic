@@ -176,7 +176,18 @@ public final class SystemSettingRegistry {
             text("zpay.public_base_url", Group.PAY, "异步通知地址", "",
                     "支付平台回调的站点根地址；留空则无法异步通知"),
             text("zpay.frontend_return_url", Group.PAY, "同步跳转地址", "https://music.nekocore.cn/vip",
-                    "支付完成后浏览器跳回的地址")
+                    "支付完成后浏览器跳回的地址"),
+
+            // ---------- 日志（访问日志 / 操作日志，落在独立库，不共用主库） ----------
+            flag("logging.access_enabled", Group.LOGGING, "记录访问日志", true,
+                    "记录每个请求的访问量、UA、客户端与来源信息，用于安全分析"),
+            flag("logging.operation_enabled", Group.LOGGING, "记录操作日志", true,
+                    "记录管理后台的写操作（谁在什么时间做了什么），仅管理员及以上可查看"),
+            text("logging.database", Group.LOGGING, "日志库名称", "",
+                    "日志专用 MySQL 库名（与主库分开存放）；留空表示使用「主库名_logs」。改动需重启后端")
+                    .restart(),
+            number("logging.retention_days", Group.LOGGING, "保留天数", "90", 0, 3650,
+                    "访问日志与操作日志的保留天数，超出后自动清理；0 表示永久保留")
     );
 
     private static final Map<String, SystemSettingDefinition> BY_KEY = buildIndex();

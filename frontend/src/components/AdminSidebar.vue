@@ -63,11 +63,21 @@ const hasPermission = (permission) => {
       'stats_view',
       'release_manage',
       'settings_view',
+      'access_log_view',
+      'operation_log_view',
     ].includes(permission)
   }
 
   if (role === 'auditor') {
-    return ['audit_view', 'audit_approve', 'audit_reject', 'stats_view', 'user_view'].includes(permission)
+    return [
+      'audit_view',
+      'audit_approve',
+      'audit_reject',
+      'stats_view',
+      'user_view',
+      // 访问日志用于安全分析，审核员同样可以查看
+      'access_log_view',
+    ].includes(permission)
   }
 
   return false
@@ -98,6 +108,9 @@ const navGroups = computed(() => {
   }
   if (hasPermission('settings_view')) {
     ops.push({ to: '/admin/settings', icon: 'settings', label: '系统设置' })
+  }
+  if (hasPermission('access_log_view') || hasPermission('operation_log_view')) {
+    ops.push({ to: '/admin/logs', icon: 'clipboard', label: '日志' })
   }
 
   return [

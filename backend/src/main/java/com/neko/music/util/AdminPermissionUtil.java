@@ -68,7 +68,12 @@ public class AdminPermissionUtil {
 
         // 系统设置相关（管理员及以上；审核员不可见）
         SETTINGS_VIEW,
-        SETTINGS_EDIT
+        SETTINGS_EDIT,
+
+        // 日志相关：访问日志用于安全分析，除普通用户外的角色都可查看；
+        // 操作日志涉及后台管理动作，仅管理员及以上可查看
+        ACCESS_LOG_VIEW,
+        OPERATION_LOG_VIEW
     }
     
     /**
@@ -109,6 +114,7 @@ public class AdminPermissionUtil {
                     case AUDIT_APPROVE:
                     case AUDIT_REJECT:
                     case STATS_VIEW:
+                    case ACCESS_LOG_VIEW:
                         return true;
                     default:
                         return false;

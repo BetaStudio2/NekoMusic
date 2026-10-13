@@ -326,6 +326,17 @@ const router = createRouter({
             keywords: '系统设置,配置,管理'
           }
         },
+        {
+          path: 'logs',
+          name: 'admin-logs',
+          component: () => import('@/views/admin/AdminLogsView.vue'),
+          beforeEnter: adminGuard,
+          meta: {
+            title: '日志 - Neko歌姬计划',
+            description: '查看访问日志与操作日志。',
+            keywords: '日志,访问日志,操作日志,安全分析,管理'
+          }
+        },
       ]
     },
     {
