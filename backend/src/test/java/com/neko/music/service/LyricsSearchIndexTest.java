@@ -42,6 +42,15 @@ class LyricsSearchIndexTest {
     }
 
     @Test
+    void toleratesOneInsertedCharacter() throws Exception {
+        // 用户按记忆多打了一个「的」：插入一个字会打断两个相邻 gram（原的 / 的一）
+        LyricsSearchIndex index = index(148, "[00:12.00]來自中原一群夥伴\n[00:16.00]啦啦啦啦啦\n", null);
+
+        assertEquals(List.of(148), index.searchWithStats("来自中原的一群伙伴", 81).ids());
+        assertEquals(List.of(148), index.searchWithStats("来自中原一群伙伴", 81).ids());
+    }
+
+    @Test
     void fallsBackToNearMissOnlyWhenNothingMatchesExactly() throws Exception {
         LyricsSearchIndex index = new LyricsSearchIndex();
         assertTrue(indexOne(index, 149, "[00:10.00]来自中原的一群小伙伴\n[00:14.00]啦啦啦啦啦\n", null));

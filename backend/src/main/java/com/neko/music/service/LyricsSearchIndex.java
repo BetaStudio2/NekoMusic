@@ -180,13 +180,17 @@ public class LyricsSearchIndex {
 
     /**
      * 允许漏掉几个 2-gram：短查询要求全中保精度，长查询容忍一两个字。
-     * 用户按记忆搜歌词常多打/漏打一个字，全中才认会让这类查询直接无结果。
+     * 注意多打/漏打一个字会打断两个相邻 gram（「来自中原一群伙伴」插入「的」后，
+     * 「原的」「的一」两个 gram 都不命中），所以长查询至少要容忍 2 个。
      */
     private static int allowedMisses(int gramCount) {
         if (gramCount <= 4) {
             return 0;
         }
-        return gramCount <= 8 ? 1 : 2;
+        if (gramCount <= 6) {
+            return 1;
+        }
+        return gramCount <= 10 ? 2 : 3;
     }
 
     /** 一条歌词命中：{@code exactPhrase} 表示正文含完整短语，{@code matched} 是命中的 gram 数。 */
