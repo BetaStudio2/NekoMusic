@@ -40,10 +40,80 @@ public final class AudioIntegrityValidator {
     private AudioIntegrityValidator() {
     }
 
+    /**
+     * MP3 最简完整性校验：跳过 ID3v2 标签后，在前 8KiB 内找到合法的 MPEG 帧同步头。
+     *
+     * <p>只挡「错误页 / 纯文本 / 截断」这类明显坏文件（例如上游返回的 HTML 被误当音频落盘），
+     * 不做解码，也不判断码率与音质。</p>
+     */
+    private static boolean hasMpegFrameHeader(Path path) {
+        byte[] head;
+        try (RandomAccessFile raf = new RandomAccessFile(path.toFile(), "r")) {
+            long offset = readId3v2Size(raf);
+            long remaining = raf.length() - offset;
+            if (remaining < 4) {
+                return false;
+            }
+            head = new byte[(int) Math.min(8192L, remaining)];
+            raf.seek(offset);
+            raf.readFully(head);
+        } catch (IOException e) {
+            return false;
+        }
+        for (int i = 0; i + 3 < head.length; i++) {
+            if (isValidMpegFrameHeader(head, i)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 存在 ID3v2 头时返回「标签头 + 标签体」的总长度，否则返回 0。 */
+    private static long readId3v2Size(RandomAccessFile raf) throws IOException {
+        if (raf.length() < 10) {
+            return 0;
+        }
+        byte[] header = new byte[10];
+        raf.seek(0);
+        raf.readFully(header);
+        if (header[0] != 'I' || header[1] != 'D' || header[2] != '3') {
+            return 0;
+        }
+        // ID3v2 大小是 4 个 7 位字节（syncsafe），不含 10 字节头。
+        long size = ((long) (header[6] & 0x7F) << 21)
+                | ((long) (header[7] & 0x7F) << 14)
+                | ((long) (header[8] & 0x7F) << 7)
+                | (long) (header[9] & 0x7F);
+        return 10 + size;
+    }
+
+    /** 校验 MPEG 音频帧头：同步字完整、版本/层/码率/采样率均非保留值。 */
+    private static boolean isValidMpegFrameHeader(byte[] data, int offset) {
+        if ((data[offset] & 0xFF) != 0xFF) {
+            return false;
+        }
+        int b1 = data[offset + 1] & 0xFF;
+        if ((b1 & 0xE0) != 0xE0) {
+            return false;
+        }
+        int version = (b1 >> 3) & 0x03;
+        int layer = (b1 >> 1) & 0x03;
+        if (version == 0x01 || layer == 0x00) {
+            return false;
+        }
+        int b2 = data[offset + 2] & 0xFF;
+        int bitrateIndex = (b2 >> 4) & 0x0F;
+        int sampleRateIndex = (b2 >> 2) & 0x03;
+        return bitrateIndex != 0x0F && sampleRateIndex != 0x03;
+    }
+
     /** @return null 通过；否则为错误文案 */
     public static String validateSavedFile(Path path, AudioFileValidator.AudioFormat format) {
         if (format == AudioFileValidator.AudioFormat.MP3) {
-            return null;
+            if (!Files.isRegularFile(path)) {
+                return "音频文件不存在";
+            }
+            return hasMpegFrameHeader(path) ? null : "文件内容不是有效 MP3（缺少 MPEG 帧同步头）";
         }
         if (!Files.isRegularFile(path)) {
             return "音频文件不存在";

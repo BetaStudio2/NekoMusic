@@ -52,6 +52,8 @@ public class QQMusicClient {
     private static final String MODULE = "music.srfDissInfo.DissInfo";
     private static final String METHOD = "CgiGetDiss";
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
+    /** 音频直链重定向跟随上限（上游偶有 302 到其它 QQ CDN）。 */
+    private static final int MAX_AUDIO_REDIRECTS = 3;
     private static final String SEARCH_MODULE = "music.search.SearchCgiService";
     private static final String DESKTOP_GUID = "1F70E520B2EAA7D25E11760783C53CA9";
     private static final String DESKTOP_WID = "7223299733393904640";
@@ -78,7 +80,12 @@ public class QQMusicClient {
     }
 
     private final ObjectMapper objectMapper;
-    private final HttpClient httpClient = HttpTransport.create(REQUEST_TIMEOUT);
+    /**
+     * 出站统一不自动跟随重定向：{@link OutboundUrlGuard} 要求放行后对每个 3xx 目标重新校验，
+     * 否则 QQ 侧可用重定向把请求引到非白名单 / 内网地址。需要跟随的音频 GET 走
+     * {@link #sendAudioGet(String, Duration, String, String)} 手动逐跳校验。
+     */
+    private final HttpClient httpClient = HttpTransport.createWithoutRedirects(REQUEST_TIMEOUT);
     private final ConfigManager config;
 
     public QQMusicClient(ObjectMapper objectMapper, ConfigManager config) {
@@ -439,15 +446,8 @@ public class QQMusicClient {
      */
     private boolean probePlayable(String url) {
         try {
-            URI targetUri = OutboundUrlGuard.requireAllowedHttpUrl(url, ALLOWED_HOSTS);
-            HttpRequest request = HttpRequest.newBuilder().uri(targetUri)
-                    .timeout(Duration.ofSeconds(8))
-                    .header("User-Agent", WEB_UA)
-                    .header("Referer", "https://y.qq.com/")
-                    .header("Range", "bytes=0-255")
-                    .GET().build();
             HttpResponse<InputStream> response =
-                    httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+                    sendAudioGet(url, Duration.ofSeconds(8), "bytes=0-255", "QQ 音质探活被中断");
             int status = response.statusCode();
             byte[] head = new byte[64];
             int read = 0;
@@ -469,10 +469,61 @@ public class QQMusicClient {
             return !errorPage && read > 0;
         } catch (IOException e) {
             return false;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return false;
         }
+    }
+
+    /**
+     * 音频直链 GET：手动逐跳跟随重定向，每一跳先过 {@link OutboundUrlGuard}，离开白名单即拒绝。
+     *
+     * @param rangeHeader 传 {@code bytes=0-255} 即探活请求，传 null 则完整下载
+     */
+    private HttpResponse<InputStream> sendAudioGet(
+            String url,
+            Duration timeout,
+            String rangeHeader,
+            String interruptMessage
+    ) throws IOException {
+        URI targetUri = OutboundUrlGuard.requireAllowedHttpUrl(url, ALLOWED_HOSTS);
+        for (int hop = 0; ; hop++) {
+            HttpRequest.Builder builder = HttpRequest.newBuilder().uri(targetUri)
+                    .timeout(timeout)
+                    .header("User-Agent", WEB_UA)
+                    .header("Referer", "https://y.qq.com/")
+                    .GET();
+            if (rangeHeader != null) {
+                builder.header("Range", rangeHeader);
+            }
+            HttpResponse<InputStream> response;
+            try {
+                response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofInputStream());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException(interruptMessage, e);
+            }
+            if (!isRedirect(response.statusCode())) {
+                return response;
+            }
+            String location = response.headers().firstValue("location").orElse("");
+            response.body().close();
+            if (hop >= MAX_AUDIO_REDIRECTS) {
+                throw new IOException("音频直链重定向次数过多");
+            }
+            targetUri = resolveRedirect(targetUri, location);
+        }
+    }
+
+    private static boolean isRedirect(int statusCode) {
+        return statusCode == 301 || statusCode == 302 || statusCode == 303
+                || statusCode == 307 || statusCode == 308;
+    }
+
+    /** 解析重定向目标并重新做一次出站校验（协议 + 白名单 + 公网地址）。 */
+    private static URI resolveRedirect(URI current, String location) throws IOException {
+        if (location == null || location.isBlank()) {
+            throw new IOException("重定向缺少目标地址");
+        }
+        URI next = current.resolve(location.trim());
+        return OutboundUrlGuard.requireAllowedHttpUrl(next.toString(), ALLOWED_HOSTS);
     }
 
     /** 当前 Cookie 是否含有效登录凭据（uin + musickey）。 */
@@ -555,42 +606,38 @@ public class QQMusicClient {
 
     /** 下载 QQ 音乐直链到本地文件（只放行官方 CDN 域名）。 */
     public void downloadToFile(String url, Path destination, DownloadProgressListener listener) throws IOException {
-        URI targetUri = OutboundUrlGuard.requireAllowedHttpUrl(url, ALLOWED_HOSTS);
-        HttpRequest request = HttpRequest.newBuilder().uri(targetUri)
-                .timeout(Duration.ofMinutes(15))
-                .header("User-Agent", WEB_UA)
-                .header("Referer", "https://y.qq.com/")
-                .GET().build();
-        try {
-            HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
-            if (response.statusCode() != 200) {
-                throw new IOException("下载失败 HTTP " + response.statusCode());
-            }
-            long totalBytes = response.headers().firstValueAsLong("Content-Length").orElse(-1L);
-            Path parent = destination.getParent();
-            if (parent != null) {
-                Files.createDirectories(parent);
-            }
-            try (InputStream in = response.body(); OutputStream out = Files.newOutputStream(destination)) {
-                byte[] buffer = new byte[64 * 1024];
-                long bytesRead = 0;
-                long lastReported = 0;
-                int read;
-                while ((read = in.read(buffer)) != -1) {
-                    out.write(buffer, 0, read);
-                    bytesRead += read;
-                    if (listener != null && (bytesRead - lastReported >= 512 * 1024 || bytesRead == totalBytes)) {
-                        lastReported = bytesRead;
-                        listener.onProgress(bytesRead, totalBytes);
-                    }
-                }
-                if (listener != null && lastReported != bytesRead) {
+        HttpResponse<InputStream> response =
+                sendAudioGet(url, Duration.ofMinutes(15), null, "下载被中断");
+        if (response.statusCode() != 200) {
+            response.body().close();
+            throw new IOException("下载失败 HTTP " + response.statusCode());
+        }
+        long totalBytes = response.headers().firstValueAsLong("Content-Length").orElse(-1L);
+        Path parent = destination.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        long bytesRead;
+        try (InputStream in = response.body(); OutputStream out = Files.newOutputStream(destination)) {
+            byte[] buffer = new byte[64 * 1024];
+            bytesRead = 0;
+            long lastReported = 0;
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                out.write(buffer, 0, read);
+                bytesRead += read;
+                if (listener != null && (bytesRead - lastReported >= 512 * 1024 || bytesRead == totalBytes)) {
+                    lastReported = bytesRead;
                     listener.onProgress(bytesRead, totalBytes);
                 }
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("下载被中断", e);
+            if (listener != null && lastReported != bytesRead) {
+                listener.onProgress(bytesRead, totalBytes);
+            }
+        }
+        // 中途断流不一定抛异常，会对齐 Content-Length 兜一次底，避免截断文件入库。
+        if (totalBytes >= 0 && bytesRead != totalBytes) {
+            throw new IOException("下载不完整：期望 " + totalBytes + " 字节，实际 " + bytesRead);
         }
     }
 
