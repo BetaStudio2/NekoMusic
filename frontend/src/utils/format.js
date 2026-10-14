@@ -59,3 +59,17 @@ export function formatDate(input) {
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
 }
+
+/**
+ * 请求耗时（微秒）→ 可读文案。
+ *
+ * 低于 1ms 的请求如果按毫秒取整会全是 0 ms，看不出快慢；这里对亚毫秒改用 us 展示：
+ * < 1000us 显示「123 us」，否则显示毫秒「12 ms」。
+ * @param {number} micros 处理耗时（微秒）
+ * @returns {string}
+ */
+export function formatLatency(micros) {
+  if (!Number.isFinite(micros) || micros < 0) return '—'
+  if (micros < 1000) return `${Math.round(micros)} us`
+  return `${Math.round(micros / 1000)} ms`
+}

@@ -40,7 +40,7 @@ public class AccessLogService {
     private static final int TOP_LIMIT = 10;
 
     private static final String INSERT_SQL = """
-            INSERT INTO access_log (occurred_at, method, path, query, category, status, duration_ms,
+            INSERT INTO access_log (occurred_at, method, path, query, category, status, duration_us,
                 response_bytes, client_ip, ip_subnet, user_agent, client_type, client_platform,
                 client_version, neko_client, referer, origin, accept_language, authenticated,
                 user_id, user_name,
@@ -179,7 +179,7 @@ public class AccessLogService {
         stmt.setString(i++, LogQuerySupport.truncate(r.query(), 2048));
         stmt.setString(i++, LogQuerySupport.truncate(r.category(), 16));
         stmt.setInt(i++, r.status());
-        stmt.setInt(i++, r.durationMs());
+        stmt.setLong(i++, r.durationUs());
         stmt.setLong(i++, r.responseBytes());
         stmt.setString(i++, LogQuerySupport.truncate(r.clientIp(), 64));
         stmt.setString(i++, LogQuerySupport.truncate(r.ipSubnet(), 64));
@@ -235,7 +235,7 @@ public class AccessLogService {
         row.put("query", r.query());
         row.put("category", r.category());
         row.put("status", r.status());
-        row.put("duration_ms", r.durationMs());
+        row.put("duration_us", r.durationUs());
         row.put("response_bytes", r.responseBytes());
         row.put("client_ip", r.clientIp());
         row.put("ip_subnet", r.ipSubnet());

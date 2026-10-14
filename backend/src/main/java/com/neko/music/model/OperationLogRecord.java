@@ -14,7 +14,7 @@ package com.neko.music.model;
  * @param query         原始查询串
  * @param status        响应状态码
  * @param success       是否成功（2xx/3xx）
- * @param durationMs    处理耗时（毫秒）
+ * @param durationUs    处理耗时（微秒）
  * @param clientIp      可信客户端 IP
  * @param userAgent     原始 User-Agent
  * @param clientPlatform 客户端平台
@@ -32,7 +32,7 @@ public record OperationLogRecord(
         String query,
         int status,
         boolean success,
-        int durationMs,
+        long durationUs,
         String clientIp,
         String userAgent,
         String clientPlatform,

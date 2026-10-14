@@ -61,7 +61,7 @@
             <td>
               <NTag :variant="row.success ? 'success' : 'danger'" size="sm">{{ row.status }}</NTag>
             </td>
-            <td class="cell-dim">{{ row.duration_ms }} ms</td>
+            <td class="cell-dim">{{ formatLatency(row.duration_us) }}</td>
             <td class="cell-dim">{{ row.client_ip }}</td>
             <td class="cell-detail" :title="row.detail || ''">{{ detailSummary(row) }}</td>
             <td>
@@ -115,6 +115,7 @@ import { NButton, NInput, NTag } from '@/ui'
 import LogDetailModal from '@/views/admin/components/LogDetailModal.vue'
 import { fetchOperationLogs } from '@/api/adminLogs.js'
 import { parseOperationDetail } from '@/utils/operationDetail.js'
+import { formatLatency } from '@/utils/format.js'
 
 const PAGE_SIZE = 50
 
@@ -221,7 +222,7 @@ function openDetail(row) {
     { label: '完整请求', value: fullPath(row), mono: true, block: true },
     { label: '状态码', value: row.status },
     { label: '结果', value: Number(row.success) ? '成功' : '失败' },
-    { label: '耗时', value: `${row.duration_ms} ms` },
+    { label: '耗时', value: formatLatency(row.duration_us) },
     { label: '来源 IP', value: row.client_ip, mono: true },
     { label: '客户端平台', value: row.client_platform },
     { label: 'User-Agent', value: row.user_agent, mono: true, block: true }

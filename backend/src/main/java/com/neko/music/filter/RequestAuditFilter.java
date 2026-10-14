@@ -171,11 +171,13 @@ public class RequestAuditFilter implements Filter {
         }
 
         long startedAt = System.currentTimeMillis();
+        long startedAtNanos = System.nanoTime();
         try {
             chain.doFilter(request, response);
         } finally {
             try {
-                capture(httpRequest, httpResponse, startedAt, System.currentTimeMillis());
+                // 耗时改用纳秒计时：currentTimeMillis 只有毫秒精度，亚毫秒的请求会被记成 0ms。
+                capture(httpRequest, httpResponse, startedAt, System.nanoTime() - startedAtNanos);
             } catch (Exception e) {
                 // 日志失败绝不能影响响应已经写出的内容
                 logger.debug("记录请求日志失败: {}", e.getMessage());
@@ -184,7 +186,7 @@ public class RequestAuditFilter implements Filter {
     }
 
     private void capture(HttpServletRequest request, HttpServletResponse response,
-                         long startedAt, long finishedAt) {
+                         long startedAt, long elapsedNanos) {
         boolean accessEnabled = configManager == null || configManager.isLoggingAccessEnabled();
         boolean operationEnabled = configManager == null || configManager.isLoggingOperationEnabled();
         if (!accessEnabled && !operationEnabled) {
@@ -194,7 +196,7 @@ public class RequestAuditFilter implements Filter {
         String path = RequestPath.of(request);
         String category = RequestCategory.of(path);
         int status = response.getStatus();
-        int durationMs = (int) Math.min(Integer.MAX_VALUE, finishedAt - startedAt);
+        long durationUs = Math.max(0L, elapsedNanos / 1000L);
         // 令牌形态不止一种：官方 PC / Android 客户端多数直接发 `Authorization: <token>`（没有 Bearer
         // 前缀），浏览器 EventSource 还会退化成 `?token=`。这里必须与认证层用同一套提取逻辑
         // （{@link RequestAuthUtil}），否则访问日志会把自家客户端整片记成「未登录」——而它们恰恰是
@@ -224,17 +226,17 @@ public class RequestAuditFilter implements Filter {
 
         if (accessEnabled) {
             AccessLogService.record(buildAccessRecord(request, response, path, category, method, status,
-                    startedAt, durationMs, authenticated, userId, userName, admin));
+                    startedAt, durationUs, authenticated, userId, userName, admin));
         }
         if (logOperation) {
             OperationLogService.record(buildOperationRecord(request, path, method, status, startedAt,
-                    durationMs, admin, resolveClientIp(request), rule));
+                    durationUs, admin, resolveClientIp(request), rule));
         }
     }
 
     private AccessLogRecord buildAccessRecord(HttpServletRequest request, HttpServletResponse response,
                                               String path, String category, String method, int status,
-                                              long occurredAt, int durationMs,
+                                              long occurredAt, long durationUs,
                                               boolean authenticated, Integer userId, String userName,
                                               Admin admin) {
         String userAgent = request.getHeader("User-Agent");
@@ -247,7 +249,7 @@ public class RequestAuditFilter implements Filter {
                 redactQuery(request.getQueryString()),
                 category,
                 status,
-                durationMs,
+                durationUs,
                 responseBytes(response),
                 clientIp,
                 ClientFingerprint.ipSubnet(clientIp),
@@ -276,7 +278,7 @@ public class RequestAuditFilter implements Filter {
     }
 
     private OperationLogRecord buildOperationRecord(HttpServletRequest request, String path, String method,
-                                                    int status, long occurredAt, int durationMs,
+                                                    int status, long occurredAt, long durationUs,
                                                     Admin admin, String clientIp, OperationRule rule) {
         String userAgent = request.getHeader("User-Agent");
         return new OperationLogRecord(
@@ -291,7 +293,7 @@ public class RequestAuditFilter implements Filter {
                 redactQuery(request.getQueryString()),
                 status,
                 status >= 200 && status < 400,
-                durationMs,
+                durationUs,
                 clientIp,
                 userAgent,
                 ClientFingerprint.platform(userAgent, request.getHeader("X-Neko-Client")),

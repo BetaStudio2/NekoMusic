@@ -99,7 +99,7 @@ public class LogDatabaseManager {
                 query VARCHAR(2048) NULL,
                 category VARCHAR(16) NOT NULL COMMENT 'api/static/media/page/admin/other',
                 status INT NOT NULL,
-                duration_ms INT NOT NULL,
+                duration_us BIGINT NOT NULL COMMENT '处理耗时（微秒）',
                 response_bytes BIGINT NOT NULL DEFAULT 0,
                 client_ip VARCHAR(64) NOT NULL,
                 ip_subnet VARCHAR(64) NULL COMMENT 'IPv4 /24 或 IPv6 /48，便于聚合同一网段',
@@ -147,7 +147,7 @@ public class LogDatabaseManager {
                 query VARCHAR(2048) NULL,
                 status INT NOT NULL,
                 success TINYINT(1) NOT NULL DEFAULT 0,
-                duration_ms INT NOT NULL,
+                duration_us BIGINT NOT NULL COMMENT '处理耗时（微秒）',
                 client_ip VARCHAR(64) NOT NULL,
                 user_agent VARCHAR(1024) NULL,
                 client_platform VARCHAR(32) NULL,
@@ -185,20 +185,54 @@ public class LogDatabaseManager {
         ensureColumn(conn, "access_log", "user_name",
                 "VARCHAR(255) NULL COMMENT '已登录用户昵称（随日志快照保存）'");
         ensureIndex(conn, "access_log", "idx_access_user", "user_id");
+        // 耗时精度升级：老库的毫秒列（duration_ms）改名为微秒列（duration_us）并 ×1000 换算。
+        migrateDurationToMicros(conn, "access_log");
+        migrateDurationToMicros(conn, "operation_log");
     }
 
-    private static void ensureColumn(Connection conn, String table, String column, String definition)
-            throws SQLException {
+    /**
+     * 把 {@code duration_ms} 升级成 {@code duration_us}（微秒），幂等。
+     *
+     * <p>亚毫秒的请求用毫秒计时只会得到 0，后台日志的「耗时」列因此长期全是 0 ms。这里把列改成
+     * 微秒：老库先 {@code CHANGE COLUMN} 改名，再把已有的毫秒值 ×1000（历史数据本来就只有毫秒精度，
+     * 不夸大也不丢失）；新库由建表语句直接生成 duration_us，走到这里已是空操作。</p>
+     */
+    private static void migrateDurationToMicros(Connection conn, String table) throws SQLException {
+        if (hasColumn(conn, table, "duration_us")) {
+            return;
+        }
+        if (hasColumn(conn, table, "duration_ms")) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("ALTER TABLE `" + table + "` CHANGE COLUMN `duration_ms` `duration_us` "
+                        + "BIGINT NOT NULL COMMENT '处理耗时（微秒）'");
+                stmt.execute("UPDATE `" + table + "` SET `duration_us` = `duration_us` * 1000");
+            }
+            logger.info("日志库迁移: {}.duration_ms → duration_us（毫秒换算为微秒）", table);
+            return;
+        }
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("ALTER TABLE `" + table + "` ADD COLUMN `duration_us` BIGINT NOT NULL DEFAULT 0 "
+                    + "COMMENT '处理耗时（微秒）'");
+        }
+        logger.info("日志库补列: {}.duration_us", table);
+    }
+
+    private static boolean hasColumn(Connection conn, String table, String column) throws SQLException {
         String check = "SELECT COUNT(*) FROM information_schema.columns "
                 + "WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?";
         try (PreparedStatement stmt = conn.prepareStatement(check)) {
             stmt.setString(1, table);
             stmt.setString(2, column);
             try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next() && rs.getLong(1) > 0) {
-                    return;
-                }
+                return rs.next() && rs.getLong(1) > 0;
             }
+        }
+    }
+
+    private static void ensureColumn(Connection conn, String table, String column, String definition)
+            throws SQLException {
+        if (hasColumn(conn, table, column)) {
+            return;
         }
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("ALTER TABLE `" + table + "` ADD COLUMN `" + column + "` " + definition);

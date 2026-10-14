@@ -12,7 +12,7 @@ package com.neko.music.model;
  * @param query          原始查询串，无则为 null
  * @param category       路径分类：api/static/media/page/admin/other
  * @param status         响应状态码
- * @param durationMs     处理耗时（毫秒）
+ * @param durationUs     处理耗时（微秒）
  * @param responseBytes  响应体字节数（取 Content-Length，未知为 0）
  * @param clientIp       可信客户端 IP
  * @param ipSubnet       同网段聚合键（IPv4 /24、IPv6 /48），无 IP 时为 null
@@ -48,7 +48,7 @@ public record AccessLogRecord(
         String query,
         String category,
         int status,
-        int durationMs,
+        long durationUs,
         long responseBytes,
         String clientIp,
         String ipSubnet,

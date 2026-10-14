@@ -176,7 +176,7 @@
               </template>
               <template v-else>—</template>
             </td>
-            <td class="cell-dim">{{ row.duration_ms }} ms</td>
+            <td class="cell-dim">{{ formatLatency(row.duration_us) }}</td>
             <td class="cell-dim" :title="renderBranchTitle(row)">
               <span v-if="row.seo_render" class="cell-seo">SEO</span>
               {{ categoryLabel(row.category) }}
@@ -239,6 +239,7 @@ import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NInput, NTag } from '@/ui'
 import LogDetailModal from '@/views/admin/components/LogDetailModal.vue'
 import { fetchAccessLogs, fetchAccessLogStats, openAccessLogStream } from '@/api/adminLogs.js'
+import { formatLatency } from '@/utils/format.js'
 import {
   Chart as ChartJS,
   LineController,
@@ -595,7 +596,7 @@ function openDetail(row) {
     { label: '请求分类', value: categoryLabel(row.category) },
     { label: '响应分支', value: renderBranchText(row) },
     { label: '状态码', value: row.status },
-    { label: '耗时', value: `${row.duration_ms} ms` },
+    { label: '耗时', value: formatLatency(row.duration_us) },
     { label: '响应体大小', value: formatBytes(row.response_bytes) },
     { label: '来源 IP', value: row.client_ip, mono: true },
     { label: '所属网段', value: row.ip_subnet, mono: true },
