@@ -7,8 +7,9 @@ import java.util.regex.Pattern;
  * 判断请求是否应收到服务端渲染的 SEO HTML。
  *
  * <p>详情页、歌单页与静态页（首页 / 下载 / 关于等）共用同一套判定，避免多处逻辑漂移。
- * 普通浏览器识别到 {@code Mozilla/} 前缀即返回 SPA；搜索引擎、AI 抓取器、链接预览
- * 机器人、监控与命令行客户端一律返回可被无 JS 解析的 HTML。</p>
+ * 浏览器（UA 结构像浏览器，或命中 {@link #KNOWN_BROWSER_UA_TOKENS}）返回 SPA；搜索引擎、
+ * AI 抓取器、链接预览机器人、监控与命令行客户端一律返回可被无 JS 解析的 HTML。
+ * 不能只看「有没有 {@code Mozilla/}」：该前缀随手可伪造，还会误伤不带它的真实浏览器。</p>
  *
  * <p>UA 列表按用途分组维护，新增抓取器时优先补到最贴近的分组里，不要堆进单个巨型正则。
  * 注意：不要匹配「带有 Mozilla 前缀的应用内浏览器」（如 MicroMessenger、QQ浏览器、
@@ -58,7 +59,9 @@ public final class UserAgentClassifier {
     private static final Pattern HTTP_CLIENTS = Pattern.compile(
             "(?i)(?:curl|wget|httpclient|okhttp|python|java/|dalvik|"
                     + "aiohttp|httpx|libwww-perl|go-http-client|node-fetch|undici|axios|superagent|"
+                    + "ktor|reqwest|"
                     + "scrapy|mechanize|httrack|postman|insomnia|restsharp|guzzle|"
+                    + "aria2|yt-dlp|youtube-dl|gallery-dl|motrix|"
                     + "winhttp|powershell|cfnetwork|dart|libmpv|mpv/|vlc|lavf|ffmpeg|ffprobe)");
 
     /** 无头浏览器 / 自动化测试框架。 */
@@ -83,6 +86,22 @@ public final class UserAgentClassifier {
                     + "xray|burpsuite|burp|zaproxy|owasp[ _-]?zap|whatweb|w3af|arachni|skipfish|"
                     + "jaeles|commix|dalfox|wapiti|netsparker|qualys|appscan|"
                     + "hydra|medusa|sslyze|sslscan|testssl|joomscan|droopescan)");
+
+
+    /**
+     * 真实浏览器的 UA token 名单：这些浏览器<b>既不写 {@code Mozilla/}，也不带内核标记</b>，
+     * 结构判定（{@link #looksLikeRealBrowser}）识别不出来，只能按 token 显式登记。当前成员为
+     * Via（{@code Via/1.9.0 (iPad; iOS 27.0.1; Scale/2.00)}）。
+     *
+     * <p>漏判的后果是整站不可用：{@code /api/*} 直接 403、页面被降级成 SEO HTML，且用户
+     * 无法通过「保留浏览器自身 UA」自救，因此必须在这里认出来。</p>
+     *
+     * <p><b>只登记真实浏览器，token 必须足够独特并要求 {@code /} 加版本号</b>（如 {@code via/\d}），
+     * 否则等于短子串万能放行。判定顺序与黑名单一致：先黑名单、后本名单（调用点均位于爬虫黑名单
+     * 之后），且 API 放行仍要求浏览器特征头（{@link BrowserEvidence}），不构成免检。</p>
+     */
+    private static final Pattern KNOWN_BROWSER_UA_TOKENS = Pattern.compile(
+            "(?i)\\bvia/\\d");
 
 
     private UserAgentClassifier() {
@@ -136,16 +155,16 @@ public final class UserAgentClassifier {
                 SECURITY_SCANNERS)) {
             return true;
         }
-        // Real browsers conventionally identify themselves with Mozilla. A
-        // non-Mozilla client is treated as a fetcher and receives SEO HTML.
-        return !normalized.contains("Mozilla/");
+        // 非浏览器 UA 一律按抓取器处理。不能只看「有没有 Mozilla/」：该前缀随手可伪造，
+        // 还会把不带它的真实浏览器（如 Via）误判成抓取器，导致整站 403。
+        return !looksLikeRealBrowser(normalized);
     }
 
     /**
      * 结合浏览器特征头判断是否应渲染 SEO HTML。
      *
      * <p>UA 判定为爬虫（{@link #shouldRenderSeo(String)}）时返回 {@code true}；
-     * UA 虽含 {@code Mozilla/} 但缺少浏览器特征头（疑似伪造的未知爬虫）时同样返回 {@code true}；
+     * UA 结构像浏览器但缺少浏览器特征头（疑似伪造的未知爬虫）时同样返回 {@code true}；
      * 只有「UA 结构像真浏览器 + 特征头齐全」才返回 {@code false}（走前端 SPA）。</p>
      */
     public static boolean shouldRenderSeo(String userAgent, boolean hasBrowserFetchEvidence) {
@@ -207,16 +226,27 @@ public final class UserAgentClassifier {
      * 真浏览器与应用内 WebView 则一定带内核标记。注意 iOS WKWebView（微信 / QQ / 支付宝等）
      * 的 UA <b>常省略 {@code Safari/}、{@code Version/}</b>，因此这里只要求存在内核标记，
      * 不强制 Safari 版本串，避免误伤应用内浏览器。</p>
+     *
+     * <p>少数真实浏览器（如 Via）既不写 {@code Mozilla/} 也不带内核标记，属于「结构不像浏览器
+     * 但确实是浏览器」，由 {@link #KNOWN_BROWSER_UA_TOKENS} 显式识别。</p>
      */
     public static boolean looksLikeRealBrowser(String userAgent) {
-        if (userAgent == null || userAgent.isBlank() || !userAgent.contains("Mozilla/")) {
+        if (userAgent == null || userAgent.isBlank()) {
+            return false;
+        }
+        String ua = userAgent.trim();
+        // 少数真实浏览器（见 KNOWN_BROWSER_UA_TOKENS）既没有 Mozilla/ 也没有内核标记
+        if (KNOWN_BROWSER_UA_TOKENS.matcher(ua).find()) {
+            return true;
+        }
+        if (!ua.contains("Mozilla/")) {
             return false;
         }
         // AppleWebKit/（Chrome/Chromium/Safari/Edge/Opera/iOS WebView）
         // Gecko/（Firefox）、Trident/（旧 Edge/IE11）
-        return userAgent.contains("AppleWebKit/")
-                || userAgent.contains("Gecko/")
-                || userAgent.contains("Trident/");
+        return ua.contains("AppleWebKit/")
+                || ua.contains("Gecko/")
+                || ua.contains("Trident/");
     }
 
     /**

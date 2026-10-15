@@ -78,6 +78,8 @@ class UserAgentClassifierTest {
                 "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0"));
         assertFalse(UserAgentClassifier.shouldRenderSeo(
                 "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1"));
+        // 不带 Mozilla/ 也不带内核标记的真实浏览器（Via）同样是浏览器
+        assertFalse(UserAgentClassifier.shouldRenderSeo("Via/1.9.0 (iPad; iOS 27.0.1; Scale/2.00)"));
     }
 
     @Test
@@ -96,6 +98,16 @@ class UserAgentClassifierTest {
     void flagsScriptTrafficOnApi() {
         assertTrue(UserAgentClassifier.isBotForApi("curl/8.5.0"));
         assertTrue(UserAgentClassifier.isBotForApi("Wget/1.21.3"));
+        // 库 / 下载器 / 抓取器的默认 UA：与 curl、okhttp 同类，同样按爬虫拦截
+        assertTrue(UserAgentClassifier.isBotForApi("ktor-client/3.0.0"));
+        assertTrue(UserAgentClassifier.isBotForApi("aria2/1.36.0"));
+        assertTrue(UserAgentClassifier.isBotForApi("reqwest/0.12.5"));
+        assertTrue(UserAgentClassifier.isBotForApi("yt-dlp/2026.09.05"));
+        assertTrue(UserAgentClassifier.isBotForApi("youtube-dl/2021.12.17"));
+        assertTrue(UserAgentClassifier.isBotForApi("gallery-dl/1.27.0"));
+        assertTrue(UserAgentClassifier.isBotForApi("Motrix/1.8.19"));
+        assertTrue(UserAgentClassifier.shouldRenderSeo("ktor-client/3.0.0"));
+        assertTrue(UserAgentClassifier.shouldRenderSeo("aria2/1.36.0"));
         assertTrue(UserAgentClassifier.isBotForApi("python-requests/2.31.0"));
         assertTrue(UserAgentClassifier.isBotForApi("Go-http-client/1.1"));
         assertTrue(UserAgentClassifier.isBotForApi(
@@ -215,5 +227,25 @@ class UserAgentClassifierTest {
         // 空 UA 走 SEO
         assertTrue(UserAgentClassifier.shouldRenderSeo(null, false));
         assertTrue(UserAgentClassifier.shouldRenderSeo("", true));
+    }
+
+    @Test
+    void treatsBrowsersWithoutMozillaPrefixAsBrowsers() {
+        // 回归：Via 的 UA 既不带 Mozilla/ 也不带内核标记，此前被判成「结构不像浏览器」，
+        // 导致 /api 全部 403、页面被降级成 SEO HTML——真实浏览器必须按浏览器处理。
+        String via = "Via/1.9.0 (iPad; iOS 27.0.1; Scale/2.00)";
+        assertTrue(UserAgentClassifier.looksLikeRealBrowser(via));
+        assertFalse(UserAgentClassifier.shouldRenderSeo(via));
+        assertFalse(UserAgentClassifier.shouldRenderSeo(via, true));
+        assertTrue(UserAgentClassifier.shouldRenderSeo(via, false));
+        assertFalse(UserAgentClassifier.isBotForApi(via));
+        assertFalse(UserAgentClassifier.isNativeClient(via));
+
+        // token 必须整体成词并带版本号，不能退化成短子串放行
+        assertFalse(UserAgentClassifier.looksLikeRealBrowser("AnotherVia/2.0"));
+        assertFalse(UserAgentClassifier.looksLikeRealBrowser("Via"));
+        assertFalse(UserAgentClassifier.looksLikeRealBrowser("Mozilla/5.0 (compatible; AnotherVia/1.0)"));
+        // 黑名单优先级不变：脚本即使带上该 token 也照样拦
+        assertTrue(UserAgentClassifier.isBotForApi("curl/8.5.0 via/1.9.0"));
     }
 }

@@ -216,6 +216,34 @@ class CrawlerProtectionFilterTest {
     }
 
     @Test
+    void blocksScriptAndDownloaderStacksOnApi() throws Exception {
+        // 库 / 下载器 / 抓取器的默认 UA 与 curl、okhttp 同类：即便请求头装成浏览器也一律 403
+        for (String scriptUa : new String[]{"ktor-client/3.0.0", "aria2/1.36.0", "reqwest/0.12.5",
+                "yt-dlp/2026.09.05", "Motrix/1.8.19"}) {
+            Outcome outcome = inspect(scriptUa, Map.of("Accept", "*/*", "Accept-Language", "zh-CN"));
+            assertEquals(403, outcome.status(), scriptUa);
+            assertNull(outcome.forwarded(), scriptUa);
+            assertFalse(outcome.chained(), scriptUa);
+        }
+    }
+
+    @Test
+    void allowsBrowserWithoutMozillaPrefixOnlyWithFetchEvidence() throws Exception {
+        // Via 不带 Mozilla/ 与内核标记，但确实是浏览器：带齐特征头必须放行，否则整站不可用
+        String via = "Via/1.9.0 (iPad; iOS 27.0.1; Scale/2.00)";
+        Outcome withEvidence = inspect(via, Map.of("Accept", "*/*", "Accept-Language", "zh-CN,zh;q=0.9"));
+        assertEquals(200, withEvidence.status());
+        assertTrue(withEvidence.chained());
+        assertNull(withEvidence.forwarded());
+
+        // 只报 UA、不给浏览器特征头：继续按抓取器处理（不在接口路径上渲染 SEO 页）
+        Outcome noEvidence = inspect(via, null);
+        assertEquals(403, noEvidence.status());
+        assertNull(noEvidence.forwarded());
+        assertFalse(noEvidence.chained());
+    }
+
+    @Test
     void allowsOnlyOfficialNativeClientUserAgents() throws Exception {
         Outcome android = inspect("NekoMusic-android/202601008", null);
         assertEquals(200, android.status());

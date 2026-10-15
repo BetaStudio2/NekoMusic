@@ -16,6 +16,9 @@ class ClientFingerprintTest {
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
                     + "Chrome/120.0.0.0 Safari/537.36";
 
+    /** Via 浏览器：不带 Mozilla/ 与内核标记，但确实是浏览器。 */
+    private static final String VIA_UA = "Via/1.9.0 (iPad; iOS 27.0.1; Scale/2.00)";
+
     @Test
     @DisplayName("类型：官方客户端 / 扫描器 / 爬虫 / 浏览器 / 其它 / 空")
     void classifiesType() {
@@ -24,6 +27,9 @@ class ClientFingerprintTest {
         assertEquals(ClientFingerprint.BOT, ClientFingerprint.type("curl/8.0.1", null));
         assertEquals(ClientFingerprint.BROWSER, ClientFingerprint.type(CHROME_UA, null));
         assertEquals(ClientFingerprint.THIRD_PARTY, ClientFingerprint.type("MyCustomAgent/1.0", null));
+        // 不带 Mozilla/ 与内核标记的真实浏览器（Via）是浏览器，不是第三方客户端
+        assertEquals(ClientFingerprint.BROWSER, ClientFingerprint.type(VIA_UA, null));
+        assertEquals("web", ClientFingerprint.platform(VIA_UA, null));
         assertEquals(ClientFingerprint.UNKNOWN, ClientFingerprint.type("", null));
         assertEquals(ClientFingerprint.UNKNOWN, ClientFingerprint.type(null, null));
     }
