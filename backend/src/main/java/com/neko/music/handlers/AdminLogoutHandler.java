@@ -35,7 +35,7 @@ public class AdminLogoutHandler extends ApiServlet {
         AdminAuthService service = adminAuthService != null ? adminAuthService : Main.getAdminAuthService();
         String token = RedisTokenStore.normalizeBearerToken(request.getHeader("Authorization"));
         if (service == null || token.isEmpty()) {
-            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "未授权访问");
+            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "auth.unauthorized");
             return;
         }
 
@@ -43,10 +43,10 @@ public class AdminLogoutHandler extends ApiServlet {
             service.logout(token);
         } catch (Exception e) {
             logger.error("管理端登出时吊销令牌失败", e);
-            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "退出登录失败，请稍后重试");
+            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "auth.logout.failed");
             return;
         }
 
-        sendSuccessResponse(response, "已退出登录");
+        sendSuccessResponse(response, "auth.logout.ok");
     }
 }

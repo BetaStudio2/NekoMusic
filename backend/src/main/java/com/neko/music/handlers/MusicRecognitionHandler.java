@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neko.music.Main;
 import com.neko.music.service.MusicRecognitionService;
@@ -34,7 +35,7 @@ public final class MusicRecognitionHandler extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setHeader("Cache-Control", "no-store");
         if (!Main.getConfigManager().isMusicRecognitionEnabled()) {
-            writeError(response, HttpStatus.SERVICE_UNAVAILABLE_503, "听歌识曲功能未启用");
+            writeError(response, HttpStatus.SERVICE_UNAVAILABLE_503, "recognition.disabled");
             return;
         }
 
@@ -43,7 +44,7 @@ public final class MusicRecognitionHandler extends HttpServlet {
                 Main.getConfigManager().getMusicRecognitionRateLimitPerMinute());
         if (!rateDecision.allowed()) {
             response.setHeader("Retry-After", String.valueOf(rateDecision.retryAfterSeconds()));
-            writeError(response, HttpStatus.TOO_MANY_REQUESTS_429, "识曲请求过于频繁，请稍后重试");
+            writeError(response, HttpStatus.TOO_MANY_REQUESTS_429, "recognition.too_frequent");
             return;
         }
 
@@ -51,7 +52,7 @@ public final class MusicRecognitionHandler extends HttpServlet {
         if (contentType == null
                 || !contentType.toLowerCase(Locale.ROOT).startsWith("multipart/form-data")) {
             writeError(response, HttpStatus.UNSUPPORTED_MEDIA_TYPE_415,
-                    "请使用 multipart/form-data，并通过 audio 字段上传录音");
+                    "recognition.multipart_required");
             return;
         }
         long maxUploadBytes = Main.getConfigManager().getMusicRecognitionMaxUploadBytes();
@@ -68,11 +69,11 @@ public final class MusicRecognitionHandler extends HttpServlet {
             writeError(response, HttpStatus.PAYLOAD_TOO_LARGE_413, maxUploadMessage(maxUploadBytes));
             return;
         } catch (ServletException e) {
-            writeError(response, HttpStatus.BAD_REQUEST_400, "无法解析上传的录音");
+            writeError(response, HttpStatus.BAD_REQUEST_400, "recognition.unparsable");
             return;
         }
         if (audioPart == null || audioPart.getSize() <= 0) {
-            writeError(response, HttpStatus.BAD_REQUEST_400, "请通过 audio 字段上传录音");
+            writeError(response, HttpStatus.BAD_REQUEST_400, "recognition.audio_field_required");
             return;
         }
         if (audioPart.getSize() > maxUploadBytes) {
@@ -106,7 +107,7 @@ public final class MusicRecognitionHandler extends HttpServlet {
             writeError(response, HttpStatus.SERVICE_UNAVAILABLE_503, e.getMessage());
         } catch (IOException e) {
             logger.error("识曲音频处理失败", e);
-            writeError(response, HttpStatus.SERVICE_UNAVAILABLE_503, "识曲服务暂不可用，请稍后重试");
+            writeError(response, HttpStatus.SERVICE_UNAVAILABLE_503, "recognition.service_unavailable");
         } finally {
             Files.deleteIfExists(uploaded);
         }
@@ -136,7 +137,7 @@ public final class MusicRecognitionHandler extends HttpServlet {
         ObjectNode root = Main.getObjectMapper().createObjectNode();
         root.put("success", true);
         root.put("matched", true);
-        root.put("message", "识别成功");
+        root.put("message", ApiMessages.translate("recognition.ok"));
         root.set("data", data);
         writeJson(response, HttpStatus.OK_200, root);
     }
@@ -145,7 +146,7 @@ public final class MusicRecognitionHandler extends HttpServlet {
         ObjectNode root = Main.getObjectMapper().createObjectNode();
         root.put("success", true);
         root.put("matched", false);
-        root.put("message", "未在当前曲库中识别到歌曲");
+        root.put("message", ApiMessages.translate("recognition.not_in_library"));
         root.putNull("data");
         writeJson(response, HttpStatus.OK_200, root);
     }
@@ -154,7 +155,7 @@ public final class MusicRecognitionHandler extends HttpServlet {
         ObjectNode root = Main.getObjectMapper().createObjectNode();
         root.put("success", false);
         root.put("matched", false);
-        root.put("message", message == null || message.isBlank() ? "请求失败" : message);
+        root.put("message", message == null || message.isBlank() ? ApiMessages.translate("recognition.request_failed") : message);
         root.putNull("data");
         writeJson(response, status, root);
     }
@@ -199,7 +200,7 @@ public final class MusicRecognitionHandler extends HttpServlet {
     }
 
     private static String maxUploadMessage(long maxBytes) {
-        return "录音文件不得超过 " + Math.max(1, maxBytes / (1024 * 1024)) + " MiB";
+        return ApiMessages.translate("recognition.file_too_large", Math.max(1, maxBytes / (1024 * 1024)) + " MiB");
     }
 
     private static double round(double value, int decimalPlaces) {

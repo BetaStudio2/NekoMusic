@@ -17,6 +17,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
+import com.neko.music.i18n.ApiMessages;
 
 public class MusicRankingHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicRankingHandler.class);
@@ -35,7 +36,7 @@ public class MusicRankingHandler extends HttpServlet {
         response.setContentType("application/json;charset=utf-8");
         response.setHeader("Cache-Control",
                 "public, max-age=" + HttpResourceCache.MAX_AGE_HALF_HOUR);
-        RankingResponse rankingResponse = new RankingResponse(true, "获取播放次数排行榜成功", ranking);
+        RankingResponse rankingResponse = new RankingResponse(true, ApiMessages.translate("music.ranking_ok"), ranking);
         response.getWriter().println(Main.getObjectMapper().writeValueAsString(rankingResponse));
     }
 

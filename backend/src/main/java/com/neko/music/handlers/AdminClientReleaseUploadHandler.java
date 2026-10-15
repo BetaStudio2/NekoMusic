@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neko.music.Main;
 import com.neko.music.service.AppReleaseService;
@@ -32,12 +33,12 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
         String token = request.getHeader("Authorization");
         if (token == null || token.isBlank()) {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
-            writeJson(response, false, "未授权访问");
+            writeJson(response, false, "auth.unauthorized");
             return;
         }
         if (!Main.getAdminAuthService().canUploadClientReleaseByToken(token)) {
             response.setStatus(HttpStatus.FORBIDDEN_403);
-            writeJson(response, false, "需要管理员及以上权限");
+            writeJson(response, false, "admin.release.permission_required");
             return;
         }
 
@@ -57,26 +58,26 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
 
         if (platform == null || platform.isBlank()) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            writeJson(response, false, "请提供 platform 字段（android/windows/linux/mac）");
+            writeJson(response, false, ApiMessages.translate("admin.release.upload.platform_required"));
             return;
         }
         if (filePart == null) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            writeJson(response, false, "请上传 file 字段");
+            writeJson(response, false, ApiMessages.translate("admin.release.upload.file_required"));
             return;
         }
 
         Optional<AppReleaseService.AppRelease> release = Main.getAppReleaseService().getTargetReleaseForUpload();
         if (release.isEmpty()) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            writeJson(response, false, "请先在后台保存 Android 与 PC 版本号");
+            writeJson(response, false, ApiMessages.translate("admin.release.upload.versions_required"));
             return;
         }
 
         String expectedFileName = ClientReleaseStorage.expectedFileNameForPlatform(platform, release.get());
         if (expectedFileName == null) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            writeJson(response, false, "无效的平台");
+            writeJson(response, false, ApiMessages.translate("admin.release.upload.platform_invalid"));
             return;
         }
 
@@ -99,7 +100,7 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
                 ClientReleaseStorage.validateSourceFileForPlatform(platform, sourceName, written);
             }
             if (written > ClientReleaseStorage.MAX_UPLOAD_BYTES) {
-                throw new IllegalArgumentException("安装包体积不得超过 50MiB");
+                throw new IllegalArgumentException(ApiMessages.translate("admin.release.upload.too_large"));
             }
             if ("android".equalsIgnoreCase(platform.trim())) {
                 ApkUploadValidator.validate(temp, release.get().androidVer());
@@ -121,7 +122,7 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
 
             ObjectNode root = Main.getObjectMapper().createObjectNode();
             root.put("success", true);
-            root.put("message", "上传成功");
+            root.put("message", ApiMessages.translate("admin.release.upload_ok"));
             root.set("data", data);
 
             response.setStatus(HttpStatus.OK_200);
@@ -135,7 +136,7 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
         } catch (Exception e) {
             logger.error("上传安装包失败 platform={} source={}", platform, sourceName, e);
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
-            writeJson(response, false, "上传失败: " + e.getMessage());
+            writeJson(response, false, ApiMessages.translate("admin.release.upload.failed", e.getMessage()));
         } finally {
             if (temp != null) {
                 Files.deleteIfExists(temp);
@@ -160,7 +161,7 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
             while ((read = in.read(buffer)) != -1) {
                 total += read;
                 if (total > maxBytes) {
-                    throw new IllegalArgumentException("安装包体积不得超过 50MiB");
+                    throw new IllegalArgumentException(ApiMessages.translate("admin.release.upload.too_large"));
                 }
                 out.write(buffer, 0, read);
             }
@@ -172,7 +173,7 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
     private void writeJson(HttpServletResponse response, boolean success, String message) throws IOException {
         ObjectNode root = Main.getObjectMapper().createObjectNode();
         root.put("success", success);
-        root.put("message", message);
+        root.put("message", ApiMessages.translate(message));
         response.setContentType("application/json;charset=utf-8");
         response.getWriter().write(Main.getObjectMapper().writeValueAsString(root));
     }

@@ -480,7 +480,7 @@ public class NeteaseCloudMusicClient {
         JsonNode playlistRoot = postApi("/api/v6/playlist/detail", Map.of("id", playlistId, "n", 100000, "s", 8));
         if (playlistRoot.path("code").asInt(0) != 200) return playlistRoot;
         JsonNode trackIds = playlistRoot.path("playlist").path("trackIds");
-        if (!trackIds.isArray()) return objectMapper.createObjectNode().put("code", 404).put("msg", "歌单不存在");
+        if (!trackIds.isArray()) return objectMapper.createObjectNode().put("code", 404).put("msg", "playlist.not_found");
         int start = Math.max(0, offset);
         int end = Math.min(trackIds.size(), start + (limit <= 0 ? 5000 : Math.min(limit, 5000)));
         ArrayNode songs = objectMapper.createArrayNode();

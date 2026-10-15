@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -40,7 +41,7 @@ public class VipPricingAdminHandler extends HttpServlet {
 
         if (!isAdminTokenPresent(request)) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write("{\"success\":false,\"message\":\"需要管理员权限\"}");
+            response.getWriter().write("{\"success\":false,\"message\":\"" + ApiMessages.translate("admin.permission_required") + "\"}");
             return;
         }
         if (!PermissionHelper.checkPermission(request, response, AdminPermissionUtil.Permission.USER_EDIT)) {
@@ -55,7 +56,7 @@ public class VipPricingAdminHandler extends HttpServlet {
             }
         } catch (IOException e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write("{\"success\":false,\"message\":\"无法读取请求体\"}");
+            response.getWriter().write("{\"success\":false,\"message\":\"" + ApiMessages.translate("admin.vip.bad_body") + "\"}");
             return;
         }
 
@@ -65,25 +66,25 @@ public class VipPricingAdminHandler extends HttpServlet {
             root = mapper.readTree(body.toString());
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write("{\"success\":false,\"message\":\"JSON 格式无效\"}");
+            response.getWriter().write("{\"success\":false,\"message\":\"" + ApiMessages.translate("net.invalid_json") + "\"}");
             return;
         }
 
         if (!root.has("items") || !root.get("items").isArray()) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write("{\"success\":false,\"message\":\"缺少 items 数组\"}");
+            response.getWriter().write("{\"success\":false,\"message\":\"" + ApiMessages.translate("admin.vip.items_missing") + "\"}");
             return;
         }
 
         JsonNode itemsNode = root.get("items");
         if (itemsNode.size() == 0) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write("{\"success\":false,\"message\":\"items 不能为空\"}");
+            response.getWriter().write("{\"success\":false,\"message\":\"" + ApiMessages.translate("admin.vip.items_empty") + "\"}");
             return;
         }
         if (itemsNode.size() > MAX_ITEMS) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write("{\"success\":false,\"message\":\"items 数量超过上限\"}");
+            response.getWriter().write("{\"success\":false,\"message\":\"" + ApiMessages.translate("admin.vip.items_too_many") + "\"}");
             return;
         }
 
@@ -92,25 +93,25 @@ public class VipPricingAdminHandler extends HttpServlet {
             JsonNode row = itemsNode.get(i);
             if (!row.isObject()) {
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                response.getWriter().write("{\"success\":false,\"message\":\"items 元素必须为对象\"}");
+                response.getWriter().write("{\"success\":false,\"message\":\"" + ApiMessages.translate("admin.vip.item_not_object") + "\"}");
                 return;
             }
             int months = row.has("months") && row.get("months").isIntegralNumber() ? row.get("months").asInt() : 0;
             int days = row.has("days") && row.get("days").isIntegralNumber() ? row.get("days").asInt() : 0;
             if (!row.has("priceYuan") || !row.get("priceYuan").isNumber()) {
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                response.getWriter().write("{\"success\":false,\"message\":\"每项必须包含数字 priceYuan\"}");
+                response.getWriter().write("{\"success\":false,\"message\":\"" + ApiMessages.translate("admin.vip.item_price_required") + "\"}");
                 return;
             }
             double price = row.get("priceYuan").asDouble();
             if (months < 0 || days < 0 || months + days <= 0) {
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                response.getWriter().write("{\"success\":false,\"message\":\"months、days 须为非负整数且至少一项大于 0\"}");
+                response.getWriter().write("{\"success\":false,\"message\":\"" + ApiMessages.translate("admin.vip.item_duration_invalid") + "\"}");
                 return;
             }
             if (price < 0 || Double.isNaN(price) || Double.isInfinite(price)) {
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                response.getWriter().write("{\"success\":false,\"message\":\"priceYuan 须为非负有限数\"}");
+                response.getWriter().write("{\"success\":false,\"message\":\"" + ApiMessages.translate("admin.vip.item_price_invalid") + "\"}");
                 return;
             }
             VipPriceItem it = new VipPriceItem(0, months, days, price, 0, null);
@@ -132,14 +133,14 @@ public class VipPricingAdminHandler extends HttpServlet {
             }
             ObjectNode out = mapper.createObjectNode();
             out.put("success", true);
-            out.put("message", "价目已更新");
+            out.put("message", ApiMessages.translate("admin.vip.pricing_updated"));
             out.set("data", arr);
             response.setStatus(HttpServletResponse.SC_OK);
             response.getWriter().write(mapper.writeValueAsString(out));
         } catch (Exception e) {
             logger.error("更新 VIP 价目失败", e);
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            response.getWriter().write("{\"success\":false,\"message\":\"更新价目失败\"}");
+            response.getWriter().write("{\"success\":false,\"message\":\"" + ApiMessages.translate("admin.vip.update_failed") + "\"}");
         }
     }
 

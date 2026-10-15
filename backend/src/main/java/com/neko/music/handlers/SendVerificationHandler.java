@@ -65,13 +65,13 @@ public class SendVerificationHandler extends ApiServlet {
 
             // 验证请求参数
             if (email == null || email.trim().isEmpty()) {
-                sendResponse(response, false, "邮箱不能为空", null);
+                sendResponse(response, false, "auth.password_reset.email_required", null);
                 return;
             }
 
             // 验证邮箱格式
             if (!isValidEmail(email)) {
-                sendResponse(response, false, "邮箱格式不正确", null);
+                sendResponse(response, false, "auth.password_reset.email_invalid", null);
                 return;
             }
 
@@ -87,21 +87,21 @@ public class SendVerificationHandler extends ApiServlet {
 
             if (captchaPassToken == null || captchaPassToken.isEmpty()) {
                 logger.warn("发送验证码缺少 captchaPassToken IP: {}", request.getRemoteAddr());
-                sendResponse(response, false, "请先完成安全验证（滑动拼图）", null);
+                sendResponse(response, false, "captcha.required", null);
                 return;
             }
             if (!Main.getSliderCaptchaService().consumePassToken(
                     captchaPassToken,
                     ClientIpResolver.clientIp(request),
                     request.getHeader("User-Agent"))) {
-                sendResponse(response, false, "安全验证已失效或已使用，请重新滑动验证", null);
+                sendResponse(response, false, "captcha.expired_or_used", null);
                 return;
             }
 
             // 检查邮箱是否在白名单中
             if (!userAuthService.isWhitelistedEmail(email)) {
                 logger.warn("邮箱不在白名单中: {}", email);
-                sendResponse(response, false, "该邮箱域名不在允许的注册列表中", null);
+                sendResponse(response, false, "auth.captcha.email_domain_not_allowed", null);
                 return;
             }
 
@@ -113,15 +113,15 @@ public class SendVerificationHandler extends ApiServlet {
             }
             if (result.success()) {
                 logger.info("验证码发送成功: {}", email);
-                sendResponse(response, true, "验证码已发送至您的邮箱", null);
+                sendResponse(response, true, "auth.captcha.sent", null);
             } else {
                 logger.error("验证码发送失败: {}", email);
-                sendResponse(response, false, "验证码发送失败，请稍后重试", null);
+                sendResponse(response, false, "auth.captcha.send_failed", null);
             }
 
         } catch (Exception e) {
             logger.error("处理发送验证码请求时发生错误: {}", e.getMessage(), e);
-            sendResponse(response, false, "服务器内部错误", null);
+            sendResponse(response, false, "common.internal_error", null);
         }
     }
 

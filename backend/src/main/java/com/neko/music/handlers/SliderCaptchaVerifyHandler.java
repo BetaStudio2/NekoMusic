@@ -46,16 +46,16 @@ public class SliderCaptchaVerifyHandler extends ApiServlet {
         try {
             JsonNode root = Main.getObjectMapper().readTree(body.toString());
             if (root == null) {
-                sendJson(response, false, "请求体不能为空喵", null);
+                sendJson(response, false, "captcha.body_required", null);
                 return;
             }
             String token = root.has("captchaToken") ? root.get("captchaToken").asText().trim() : "";
             if (token.isEmpty()) {
-                sendJson(response, false, "缺少 captchaToken 喵", null);
+                sendJson(response, false, "captcha.token_required", null);
                 return;
             }
             if (!root.has("captchaOffsetX") || !root.get("captchaOffsetX").isNumber()) {
-                sendJson(response, false, "缺少 captchaOffsetX 喵", null);
+                sendJson(response, false, "captcha.offset_x_required", null);
                 return;
             }
             int offsetX = root.get("captchaOffsetX").asInt();
@@ -68,13 +68,13 @@ public class SliderCaptchaVerifyHandler extends ApiServlet {
                     ClientIpResolver.clientIp(request),
                     request.getHeader("User-Agent"));
             if (pass.isEmpty()) {
-                sendJson(response, false, "拼图位置不正确或已失效，请换一张重试喵", null);
+                sendJson(response, false, "captcha.wrong_position", null);
                 return;
             }
-            sendJson(response, true, "验证通过喵", Map.of("captchaPassToken", pass.get()));
+            sendJson(response, true, "captcha.verified", Map.of("captchaPassToken", pass.get()));
         } catch (Exception e) {
             logger.error("滑块校验接口异常", e);
-            sendJson(response, false, "服务器内部错误喵", null);
+            sendJson(response, false, "auth.register.internal_error", null);
         }
     }
 

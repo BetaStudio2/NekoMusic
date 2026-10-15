@@ -31,6 +31,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import com.neko.music.i18n.ApiMessages;
 
 public class UserManagementHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserManagementHandler.class);
@@ -55,12 +56,12 @@ public class UserManagementHandler extends HttpServlet {
             // 获取所有普通用户
             List<RegularUser> regularUsers = getAllRegularUsers();
 
-            HandlerResponses.writeJson(response, HttpStatus.OK_200, new RegularUsersResponse(true, "获取用户列表成功", regularUsers));
+            HandlerResponses.writeJson(response, HttpStatus.OK_200, new RegularUsersResponse(true, ApiMessages.translate("user.list_ok"), regularUsers));
             return;
         }
 
         // 其他路径处理（如果需要）
-        HandlerResponses.writeJson(response, HttpStatus.NOT_FOUND_404, new ErrorResponse("未找到请求的资源"));
+        HandlerResponses.writeJson(response, HttpStatus.NOT_FOUND_404, new ErrorResponse("user.not_found"));
     }
 
     @Override
@@ -78,7 +79,7 @@ public class UserManagementHandler extends HttpServlet {
 
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || !pathInfo.endsWith("/edit")) {
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("无效的请求路径"));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("user.bad_path"));
             return;
         }
 
@@ -89,7 +90,7 @@ public class UserManagementHandler extends HttpServlet {
         try {
             userId = Integer.parseInt(idStr);
         } catch (NumberFormatException e) {
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("无效的用户ID"));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("admin.user.id_invalid"));
             return;
         }
 
@@ -104,7 +105,7 @@ public class UserManagementHandler extends HttpServlet {
         try {
             root = Main.getObjectMapper().readTree(requestBody.toString());
         } catch (Exception e) {
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("无效的请求格式"));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("user.bad_request"));
             return;
         }
 
@@ -112,14 +113,14 @@ public class UserManagementHandler extends HttpServlet {
         boolean hasPassword = root.has("password") && !pwdField.isBlank();
         boolean hasVip = root.has("vipExpiresAt");
         if (!hasPassword && !hasVip) {
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("请提供非空 password 和/或 vipExpiresAt"));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("admin.user.update_fields_required"));
             return;
         }
 
         try {
             boolean success = updateUserFields(userId, root);
             if (!success) {
-                HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("修改用户信息失败"));
+                HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("admin.user.update_failed"));
                 return;
             }
         } catch (IllegalArgumentException e) {
@@ -128,7 +129,7 @@ public class UserManagementHandler extends HttpServlet {
             return;
         }
 
-        HandlerResponses.writeJson(response, HttpStatus.OK_200, new SuccessResponse(true, "修改用户信息成功"));
+        HandlerResponses.writeJson(response, HttpStatus.OK_200, new SuccessResponse(true, ApiMessages.translate("user.management.update_ok")));
     }
 
     @Override
@@ -146,7 +147,7 @@ public class UserManagementHandler extends HttpServlet {
 
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("用户ID不能为空"));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("admin.user.id_required"));
             return;
         }
 
@@ -156,7 +157,7 @@ public class UserManagementHandler extends HttpServlet {
         try {
             userId = Integer.parseInt(idStr);
         } catch (NumberFormatException e) {
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("无效的用户ID"));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("admin.user.id_invalid"));
             return;
         }
 
@@ -164,7 +165,7 @@ public class UserManagementHandler extends HttpServlet {
         boolean success = deleteUser(userId);
         
         if (!success) {
-            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("删除用户失败"));
+            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("admin.user.delete_failed"));
             return;
         }
 
@@ -172,7 +173,7 @@ public class UserManagementHandler extends HttpServlet {
         // 不删会话的话，被删账号的令牌仍能按旧 userId 继续访问读类端点（幽灵令牌）。
         revokeAllUserSessions(userId);
 
-        HandlerResponses.writeJson(response, HttpStatus.OK_200, new SuccessResponse(true, "删除用户成功"));
+        HandlerResponses.writeJson(response, HttpStatus.OK_200, new SuccessResponse(true, ApiMessages.translate("user.management.delete_ok")));
     }
 
     // 检查管理员权限
@@ -227,7 +228,7 @@ public class UserManagementHandler extends HttpServlet {
                 return rowsAffected > 0;
             }
         } catch (Exception e) {
-            logger.error("删除用户失败", e);
+            logger.error("admin.user.delete_failed", e);
             return false;
         }
     }
@@ -310,13 +311,13 @@ public class UserManagementHandler extends HttpServlet {
                 return true;
             } catch (SQLException e) {
                 conn.rollback();
-                logger.error("修改用户信息失败", e);
+                logger.error("admin.user.update_failed", e);
                 return false;
             } finally {
                 conn.setAutoCommit(true);
             }
         } catch (SQLException e) {
-            logger.error("修改用户信息失败", e);
+            logger.error("admin.user.update_failed", e);
             return false;
         }
     }

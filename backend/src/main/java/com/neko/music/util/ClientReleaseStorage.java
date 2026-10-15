@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import com.neko.music.i18n.ApiMessages;
 
 /** 客户端安装包目录（直链 {@code GET /update/{文件名}}，固定 {@code {user.dir}/releases}） */
 public final class ClientReleaseStorage {
@@ -91,7 +92,7 @@ public final class ClientReleaseStorage {
             throw new IllegalArgumentException("该平台仅允许上传 " + requiredExt.substring(1) + " 文件");
         }
         if (sizeBytes < 0 || sizeBytes > MAX_UPLOAD_BYTES) {
-            throw new IllegalArgumentException("安装包体积不得超过 50MiB");
+            throw new IllegalArgumentException(ApiMessages.translate("admin.release.upload.too_large"));
         }
     }
 
@@ -141,7 +142,7 @@ public final class ClientReleaseStorage {
     public static void validateUpload(String fileName, long sizeBytes) {
         validateFileName(fileName);
         if (sizeBytes < 0 || sizeBytes > MAX_UPLOAD_BYTES) {
-            throw new IllegalArgumentException("安装包体积不得超过 50MiB");
+            throw new IllegalArgumentException(ApiMessages.translate("admin.release.upload.too_large"));
         }
     }
 

@@ -64,7 +64,7 @@ public class UserQrLoginHandler extends ApiServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
         if (!"/status".equals(path(request))) {
-            sendJson(response, HttpServletResponse.SC_NOT_FOUND, false, "接口不存在", null);
+            sendJson(response, HttpServletResponse.SC_NOT_FOUND, false, "admin.lyrics.endpoint_not_found", null);
             return;
         }
         handleStatusStream(request, response);
@@ -77,7 +77,7 @@ public class UserQrLoginHandler extends ApiServlet {
             case "/scan" -> handleScan(request, response);
             case "/confirm" -> handleConfirm(request, response);
             case "/claim" -> handleClaim(request, response);
-            default -> sendJson(response, HttpServletResponse.SC_NOT_FOUND, false, "接口不存在", null);
+            default -> sendJson(response, HttpServletResponse.SC_NOT_FOUND, false, "admin.lyrics.endpoint_not_found", null);
         }
     }
 
@@ -87,7 +87,7 @@ public class UserQrLoginHandler extends ApiServlet {
     private void handleCreate(HttpServletResponse response) throws IOException {
         QrLoginService.NewSession session = qrLoginService.createSession();
         if (session == null) {
-            sendJson(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false, "服务暂时不可用，请稍后重试", null);
+            sendJson(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false, "qr.service_unavailable", null);
             return;
         }
 
@@ -99,7 +99,7 @@ public class UserQrLoginHandler extends ApiServlet {
             qrImage = QrCodeRenderer.toPngDataUrl(qrContent, 320);
         } catch (Exception e) {
             logger.error("登录二维码图片渲染失败", e);
-            sendJson(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false, "二维码生成失败，请稍后重试", null);
+            sendJson(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false, "qr.generate_failed", null);
             return;
         }
 
@@ -116,7 +116,7 @@ public class UserQrLoginHandler extends ApiServlet {
     private void handleStatusStream(HttpServletRequest request, HttpServletResponse response) throws IOException {
         String sessionId = request.getParameter("sessionId");
         if (!QrLoginService.isValidSessionId(sessionId)) {
-            sendJson(response, HttpServletResponse.SC_BAD_REQUEST, false, "sessionId 无效", null);
+            sendJson(response, HttpServletResponse.SC_BAD_REQUEST, false, "qr.session_invalid", null);
             return;
         }
 
@@ -125,7 +125,7 @@ public class UserQrLoginHandler extends ApiServlet {
             asyncContext = request.startAsync();
         } catch (IllegalStateException e) {
             logger.warn("扫码登录 SSE 异步上下文创建失败", e);
-            sendJson(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false, "服务不支持流式响应", null);
+            sendJson(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false, "qr.sse_unsupported", null);
             return;
         }
         asyncContext.setTimeout(0);
@@ -242,24 +242,24 @@ public class UserQrLoginHandler extends ApiServlet {
     private void handleScan(HttpServletRequest request, HttpServletResponse response) throws IOException {
         Integer userId = RequestAuthUtil.authenticate(request);
         if (userId == null) {
-            sendJson(response, HttpServletResponse.SC_UNAUTHORIZED, false, "请先登录", null);
+            sendJson(response, HttpServletResponse.SC_UNAUTHORIZED, false, "auth.login_required", null);
             return;
         }
 
         String sessionId = readSessionId(request);
         Optional<QrLoginService.Session> sessionOpt = qrLoginService.load(sessionId);
         if (sessionOpt.isEmpty()) {
-            sendJson(response, HttpServletResponse.SC_GONE, false, "二维码已过期，请刷新后重试", null);
+            sendJson(response, HttpServletResponse.SC_GONE, false, "qr.expired", null);
             return;
         }
 
         QrLoginService.Session session = sessionOpt.get();
         if (QrLoginService.STATUS_CONFIRMED.equals(session.status)) {
-            sendJson(response, HttpServletResponse.SC_OK, true, "已确认", statusData(session.status));
+            sendJson(response, HttpServletResponse.SC_OK, true, "qr.confirmed", statusData(session.status));
             return;
         }
         if (session.userId != null && !session.userId.equals(userId)) {
-            sendJson(response, HttpServletResponse.SC_CONFLICT, false, "该二维码已被其他账号扫描", null);
+            sendJson(response, HttpServletResponse.SC_CONFLICT, false, "qr.scanned_by_other", null);
             return;
         }
 
@@ -274,7 +274,7 @@ public class UserQrLoginHandler extends ApiServlet {
     private void handleConfirm(HttpServletRequest request, HttpServletResponse response) throws IOException {
         Integer userId = RequestAuthUtil.authenticate(request);
         if (userId == null) {
-            sendJson(response, HttpServletResponse.SC_UNAUTHORIZED, false, "请先登录", null);
+            sendJson(response, HttpServletResponse.SC_UNAUTHORIZED, false, "auth.login_required", null);
             return;
         }
 
@@ -284,17 +284,17 @@ public class UserQrLoginHandler extends ApiServlet {
 
         Optional<QrLoginService.Session> sessionOpt = qrLoginService.load(sessionId);
         if (sessionOpt.isEmpty()) {
-            sendJson(response, HttpServletResponse.SC_GONE, false, "二维码已过期，请刷新后重试", null);
+            sendJson(response, HttpServletResponse.SC_GONE, false, "qr.expired", null);
             return;
         }
 
         QrLoginService.Session session = sessionOpt.get();
         if (session.userId != null && !session.userId.equals(userId)) {
-            sendJson(response, HttpServletResponse.SC_CONFLICT, false, "该二维码已被其他账号扫描", null);
+            sendJson(response, HttpServletResponse.SC_CONFLICT, false, "qr.scanned_by_other", null);
             return;
         }
         if (QrLoginService.STATUS_CONFIRMED.equals(session.status)) {
-            sendJson(response, HttpServletResponse.SC_OK, true, "已确认", statusData(session.status));
+            sendJson(response, HttpServletResponse.SC_OK, true, "qr.confirmed", statusData(session.status));
             return;
         }
 
@@ -304,13 +304,13 @@ public class UserQrLoginHandler extends ApiServlet {
             session.token = null;
             qrLoginService.save(sessionId, session);
             logger.info("扫码登录：用户 {} 拒绝了登录请求", userId);
-            sendJson(response, HttpServletResponse.SC_OK, true, "已取消", statusData(session.status));
+            sendJson(response, HttpServletResponse.SC_OK, true, "qr.cancelled", statusData(session.status));
             return;
         }
 
         String token = userAuthService.createTokenForUser(userId);
         if (token == null) {
-            sendJson(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false, "登录失败，请稍后重试", null);
+            sendJson(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false, "qr.login_failed", null);
             return;
         }
 
@@ -332,7 +332,7 @@ public class UserQrLoginHandler extends ApiServlet {
         String sessionId = body == null ? null : text(body, "sessionId");
         String deliveryKey = body == null ? null : text(body, "deliveryKey");
         if (!QrLoginService.isValidSessionId(sessionId) || deliveryKey == null || deliveryKey.isBlank()) {
-            sendJson(response, HttpServletResponse.SC_BAD_REQUEST, false, "sessionId 或 deliveryKey 无效", null);
+            sendJson(response, HttpServletResponse.SC_BAD_REQUEST, false, "qr.session_or_key_invalid", null);
             return;
         }
 
@@ -354,7 +354,7 @@ public class UserQrLoginHandler extends ApiServlet {
             case REJECTED, MISSING -> sendJson(response, HttpServletResponse.SC_OK, true, "ok",
                     statusData(QrLoginService.STATUS_EXPIRED));
             case ERROR -> sendJson(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false,
-                    "服务暂时不可用，请稍后重试", null);
+                    "qr.service_unavailable", null);
         }
     }
 

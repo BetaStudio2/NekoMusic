@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import com.neko.music.i18n.ApiMessages;
 
 public class MusicSearchHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicSearchHandler.class);
@@ -67,11 +68,11 @@ public class MusicSearchHandler extends ApiServlet {
             boolean hasItems = searchRequest.items() != null && !searchRequest.items().isEmpty();
 
             if (hasQuery && hasItems) {
-                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "请求格式错误: query 与 items 不能同时提供");
+                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "search.query_and_items_conflict");
                 return;
             }
             if (!hasQuery && !hasItems) {
-                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "请求格式错误: 请提供 query 或 items");
+                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "search.query_or_items_required");
                 return;
             }
 
@@ -85,7 +86,7 @@ public class MusicSearchHandler extends ApiServlet {
         } catch (Exception e) {
             // Jackson 解析异常的 message 含全限定处理器/DTO 类名与字段清单，只能落日志，响应只回泛化提示
             logger.warn("搜索请求处理失败", e);
-            sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "请求格式错误");
+            sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "auth.bad_request");
         }
     }
 
@@ -94,7 +95,7 @@ public class MusicSearchHandler extends ApiServlet {
             throws IOException {
         List<Music> results = searchMusic(query);
 
-        String message = "搜索成功";
+        String message = "playlist.search_ok";
         // 站内元数据 + 歌词均无结果时，先走外站补全（网易云优先，无结果再 QQ 兜底），再决定是否返回空结果。
         // 外站补全消耗来源配额，超出只跳过补全（仍返回站内结果），不拒绝整个搜索请求。
         if (results.isEmpty() && externalFillEnabled() && allowExternalFill(request)) {
@@ -102,15 +103,15 @@ public class MusicSearchHandler extends ApiServlet {
                     Main.getNeteaseSearchFillService().tryFillFromNetease(query);
             if (fill.music().isPresent()) {
                 results.add(toSearchMusic(fill.music().get()));
-                message = "搜索成功";
+                message = "playlist.search_ok";
             } else {
                 message = neteaseFillFailureMessage(message, fill.reason());
             }
         }
 
         Object responseResults = results.isEmpty() ? null : results;
-        if (results.isEmpty() && "搜索成功".equals(message)) {
-            message = "未找到匹配的音乐";
+        if (results.isEmpty() && "playlist.search_ok".equals(message)) {
+            message = "search.not_found";
         }
         writeSearchResponse(response, !results.isEmpty(), message, responseResults);
     }
@@ -125,7 +126,7 @@ public class MusicSearchHandler extends ApiServlet {
 
         for (SearchItem item : items) {
             if (item == null || item.title() == null || item.title().isBlank()) {
-                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "请求格式错误: items 中每项 title 不能为空");
+                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "search.items_title_required");
                 return;
             }
             String title = item.title().trim();
@@ -176,7 +177,7 @@ public class MusicSearchHandler extends ApiServlet {
                         foundCount++;
                         fillCount++;
                     } else if (fill.reason() != NeteaseSearchFillService.FillReason.NONE) {
-                        lastFillFailure = neteaseFillFailureMessage("搜索成功", fill.reason());
+                        lastFillFailure = neteaseFillFailureMessage("playlist.search_ok", fill.reason());
                     }
                 }
             }
@@ -197,12 +198,12 @@ public class MusicSearchHandler extends ApiServlet {
 
     private static String buildBatchMessage(int found, int total, int fillCount, String lastFillFailure) {
         if (found == 0) {
-            return lastFillFailure != null ? lastFillFailure : "未找到匹配的音乐";
+            return lastFillFailure != null ? lastFillFailure : "search.not_found";
         }
         if (fillCount > 0) {
-            return "搜索成功（" + found + "/" + total + " 已找到，" + fillCount + " 条已从外站补全入库）";
+            return ApiMessages.translate("search.ok_partial_filled", found, total, fillCount);
         }
-        return found == total ? "搜索成功" : "搜索成功（" + found + "/" + total + " 已找到）";
+        return found == total ? ApiMessages.translate("playlist.search_ok") : ApiMessages.translate("search.ok_partial", found, total);
     }
 
     /**
@@ -227,10 +228,10 @@ public class MusicSearchHandler extends ApiServlet {
     private static String neteaseFillFailureMessage(String defaultMessage, NeteaseSearchFillService.FillReason reason) {
         return switch (reason) {
             case LOGIN_EXPIRED ->
-                    "未找到匹配的音乐（外站补全登录已失效，无法补全 Hi-Res/无损，请到后台重新扫码登录后重试）";
-            case ERROR -> "未找到匹配的音乐";
+                    "search.not_found_login_expired";
+            case ERROR -> "search.not_found";
             case LOW_DISK_SPACE -> com.neko.music.util.RuntimeDiskGuard.neteaseFillBlockedMessage();
-            case NOT_FOUND -> "未找到匹配的音乐";
+            case NOT_FOUND -> "search.not_found";
             default -> defaultMessage;
         };
     }
@@ -241,7 +242,7 @@ public class MusicSearchHandler extends ApiServlet {
             String message,
             Object results
     ) throws IOException {
-        SearchResponse searchResponse = new SearchResponse(success, message, results);
+        SearchResponse searchResponse = new SearchResponse(success, ApiMessages.translate(message), results);
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
         response.getWriter().println(Main.getObjectMapper().writeValueAsString(searchResponse));

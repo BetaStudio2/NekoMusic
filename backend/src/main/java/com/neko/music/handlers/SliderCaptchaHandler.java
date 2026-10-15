@@ -35,7 +35,7 @@ public class SliderCaptchaHandler extends ApiServlet {
             sendJson(response, true, "ok", data);
         } catch (Exception e) {
             logger.error("生成滑块验证码失败", e);
-            sendJson(response, false, "生成验证码失败喵", null);
+            sendJson(response, false, "captcha.generate_failed", null);
         }
     }
 

@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -94,7 +95,7 @@ public class UserNotificationHandler extends ApiServlet {
         resp.setHeader("Cache-Control", HttpResourceCache.CACHE_CONTROL_NO_STORE);
         Integer userId = RequestAuthUtil.authenticate(req);
         if (userId == null) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "请先登录");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.login_required");
             return;
         }
         String path = path(req);
@@ -103,7 +104,7 @@ public class UserNotificationHandler extends ApiServlet {
         } else if ("/stream".equals(path)) {
             handleStream(req, resp, userId);
         } else {
-            sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "接口不存在");
+            sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "admin.lyrics.endpoint_not_found");
         }
     }
 
@@ -112,13 +113,13 @@ public class UserNotificationHandler extends ApiServlet {
         resp.setHeader("Cache-Control", HttpResourceCache.CACHE_CONTROL_NO_STORE);
         Integer userId = RequestAuthUtil.authenticate(req);
         if (userId == null) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "请先登录");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.login_required");
             return;
         }
         if ("/read".equals(path(req))) {
             handleMarkRead(req, resp, userId);
         } else {
-            sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "接口不存在");
+            sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "admin.lyrics.endpoint_not_found");
         }
     }
 
@@ -148,7 +149,7 @@ public class UserNotificationHandler extends ApiServlet {
 
         JsonObject body = new JsonObject();
         body.addProperty("success", true);
-        body.addProperty("message", "获取成功");
+        body.addProperty("message", ApiMessages.translate("notify.list_ok"));
         body.add("data", data);
         sendSuccessResponse(resp, body);
     }
@@ -165,7 +166,7 @@ public class UserNotificationHandler extends ApiServlet {
 
         JsonObject body = new JsonObject();
         body.addProperty("success", true);
-        body.addProperty("message", "已标记为已读");
+        body.addProperty("message", ApiMessages.translate("notify.marked_read"));
         body.add("data", data);
         sendSuccessResponse(resp, body);
     }
@@ -204,7 +205,7 @@ public class UserNotificationHandler extends ApiServlet {
     private void handleStream(HttpServletRequest req, HttpServletResponse resp, int userId) throws IOException {
         if (!acquireStreamSlot(userId)) {
             resp.setHeader("Retry-After", "30");
-            sendErrorResponse(resp, 429, "消息连接数已达上限，请稍后再试");
+            sendErrorResponse(resp, 429, "notify.sse_limit");
             return;
         }
 
@@ -214,7 +215,7 @@ public class UserNotificationHandler extends ApiServlet {
         } catch (IllegalStateException e) {
             releaseStreamSlot(userId);
             logger.warn("站内消息 SSE 异步上下文创建失败", e);
-            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "服务不支持流式响应");
+            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "qr.sse_unsupported");
             return;
         }
         asyncContext.setTimeout(0);

@@ -14,6 +14,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Optional;
+import com.neko.music.i18n.ApiMessages;
 
 /**
  * 发送重置密码验证码处理器。
@@ -36,7 +37,7 @@ public class SendResetPasswordCodeHandler extends ApiServlet {
      * 统一响应文案：不区分邮箱是否注册。中性表述既完成账号枚举防护，也仍能提示正常用户查收邮件；
      * 未注册邮箱不会收到任何邮件，客户端在下一步校验验证码时会得到与「验证码错误」一致的回应。
      */
-    static final String UNIFORM_MESSAGE = "如果该邮箱已注册，我们已发送重置密码验证码，请查收邮件";
+    static final String UNIFORM_MESSAGE = ApiMessages.translate("auth.password_reset.code_sent");
 
     private UserAuthService userAuthService;
 
@@ -66,13 +67,13 @@ public class SendResetPasswordCodeHandler extends ApiServlet {
 
             // 验证请求参数
             if (email == null || email.trim().isEmpty()) {
-                sendResponse(response, false, "邮箱不能为空", null);
+                sendResponse(response, false, "auth.password_reset.email_required", null);
                 return;
             }
 
             // 验证邮箱格式
             if (!isValidEmail(email)) {
-                sendResponse(response, false, "邮箱格式不正确", null);
+                sendResponse(response, false, "auth.password_reset.email_invalid", null);
                 return;
             }
 
@@ -101,7 +102,7 @@ public class SendResetPasswordCodeHandler extends ApiServlet {
 
         } catch (Exception e) {
             logger.error("处理发送重置密码验证码请求时发生错误", e);
-            sendResponse(response, false, "服务器内部错误", null);
+            sendResponse(response, false, "common.internal_error", null);
         }
     }
 

@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import com.neko.music.i18n.ApiMessages;
 
 /**
  * 后台「系统设置」：system_settings 表里运行时配置的读取与修改，需要管理员及以上权限
@@ -88,12 +89,12 @@ public class AdminSettingsHandler extends ApiServlet {
         try {
             root = MAPPER.readTree(readBody(request));
         } catch (Exception e) {
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "JSON 格式无效");
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "net.invalid_json");
             return;
         }
         JsonNode valuesNode = root == null ? null : root.get("values");
         if (valuesNode == null || !valuesNode.isObject() || valuesNode.isEmpty()) {
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "缺少 values 对象");
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "admin.settings.values_required");
             return;
         }
 
@@ -107,7 +108,7 @@ public class AdminSettingsHandler extends ApiServlet {
             String key = field.getKey();
             Optional<SystemSettingDefinition> found = SystemSettingRegistry.find(key);
             if (found.isEmpty()) {
-                sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "未知的设置项: " + key);
+                sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, ApiMessages.translate("admin.settings.unknown_key", key));
                 return;
             }
             SystemSettingDefinition definition = found.get();
@@ -124,7 +125,7 @@ public class AdminSettingsHandler extends ApiServlet {
             } else {
                 if (raw == null) {
                     sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
-                            definition.label() + " 缺少取值");
+                            ApiMessages.translate("admin.settings.value_required", definition.label()));
                     return;
                 }
                 String error = validate(definition, raw);
@@ -143,7 +144,7 @@ public class AdminSettingsHandler extends ApiServlet {
         }
 
         if (updates.isEmpty()) {
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "没有需要保存的设置项");
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "admin.settings.nothing_to_save");
             return;
         }
 
@@ -162,10 +163,10 @@ public class AdminSettingsHandler extends ApiServlet {
             data.put("updated", written);
             ArrayNode restart = data.putArray("restartRequired");
             restartKeys.forEach(restart::add);
-            sendJson(response, HttpServletResponse.SC_OK, true, "设置已保存", data);
+            sendJson(response, HttpServletResponse.SC_OK, true, "admin.settings.saved", data);
         } catch (SQLException e) {
             logger.error("保存系统设置失败", e);
-            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "保存失败");
+            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "admin.settings.save_failed");
         }
     }
 
@@ -232,9 +233,13 @@ public class AdminSettingsHandler extends ApiServlet {
             String after = entry.getValue();
             if (definition.secret()) {
                 boolean configured = !stored.getOrDefault(entry.getKey(), "").isBlank();
-                String afterState = after.isBlank() ? "已清空" : (configured ? "已更新（不回显）" : "已配置");
+                String afterState = ApiMessages.translate(after.isBlank()
+                        ? "admin.settings.secret_cleared"
+                        : (configured ? "admin.settings.secret_updated_hidden" : "admin.settings.secret_configured"));
                 changes.add(new OperationAudit.Change(definition.label(),
-                        configured ? "已配置" : "未配置", afterState));
+                        ApiMessages.translate(configured
+                                ? "admin.settings.secret_configured"
+                                : "admin.settings.secret_not_configured"), afterState));
                 continue;
             }
             String before = effectiveValue(definition, stored);
@@ -262,13 +267,13 @@ public class AdminSettingsHandler extends ApiServlet {
         switch (definition.type()) {
             case STRING -> {
                 if (value.length() > MAX_STRING_LENGTH) {
-                    return definition.label() + " 过长";
+                    return ApiMessages.translate("admin.settings.too_long", definition.label());
                 }
             }
             case BOOL -> {
                 String normalized = value.trim().toLowerCase(Locale.ROOT);
                 if (!normalized.equals("true") && !normalized.equals("false")) {
-                    return definition.label() + " 只能是 true 或 false";
+                    return ApiMessages.translate("admin.settings.bool_required", definition.label());
                 }
             }
             case INT, LONG -> {
@@ -281,7 +286,7 @@ public class AdminSettingsHandler extends ApiServlet {
                             ? Integer.parseInt(value.trim())
                             : Long.parseLong(value.trim());
                 } catch (NumberFormatException e) {
-                    return definition.label() + " 必须是整数";
+                    return ApiMessages.translate("admin.settings.int_required", definition.label());
                 }
                 return checkRange(definition, parsed);
             }
@@ -293,26 +298,26 @@ public class AdminSettingsHandler extends ApiServlet {
                 try {
                     parsed = Double.parseDouble(value.trim());
                 } catch (NumberFormatException e) {
-                    return definition.label() + " 必须是数字";
+                    return ApiMessages.translate("admin.settings.number_required", definition.label());
                 }
                 if (!Double.isFinite(parsed)) {
-                    return definition.label() + " 必须是有限数字";
+                    return ApiMessages.translate("admin.settings.finite_number_required", definition.label());
                 }
                 if (definition.min() != null && parsed < definition.min()) {
-                    return definition.label() + " 不能小于 " + definition.min();
+                    return ApiMessages.translate("admin.settings.below_min", definition.label(), definition.min());
                 }
                 if (definition.max() != null && parsed > definition.max()) {
-                    return definition.label() + " 不能大于 " + definition.max();
+                    return ApiMessages.translate("admin.settings.above_max", definition.label(), definition.max());
                 }
             }
             case LIST -> {
                 String[] lines = value.split("\\r?\\n");
                 if (lines.length > MAX_LIST_ITEMS) {
-                    return definition.label() + " 条目过多（最多 " + MAX_LIST_ITEMS + " 条）";
+                    return ApiMessages.translate("admin.settings.list_too_many", definition.label(), MAX_LIST_ITEMS);
                 }
                 for (String line : lines) {
                     if (line.trim().length() > MAX_LIST_ITEM_LENGTH) {
-                        return definition.label() + " 单条过长";
+                        return ApiMessages.translate("admin.settings.list_item_too_long", definition.label());
                     }
                 }
             }
@@ -322,10 +327,10 @@ public class AdminSettingsHandler extends ApiServlet {
 
     private static String checkRange(SystemSettingDefinition definition, long parsed) {
         if (definition.min() != null && parsed < definition.min()) {
-            return definition.label() + " 不能小于 " + definition.min();
+            return ApiMessages.translate("admin.settings.below_min", definition.label(), definition.min());
         }
         if (definition.max() != null && parsed > definition.max()) {
-            return definition.label() + " 不能大于 " + definition.max();
+            return ApiMessages.translate("admin.settings.above_max", definition.label(), definition.max());
         }
         return null;
     }

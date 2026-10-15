@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
+import com.neko.music.i18n.ApiMessages;
 import com.neko.music.service.AuthAbuseLimiter;
 import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.HttpResourceCache;
@@ -45,7 +46,7 @@ public abstract class ApiServlet extends HttpServlet {
     protected void sendSuccessResponse(HttpServletResponse resp, String message) throws IOException {
         JsonObject body = new JsonObject();
         body.addProperty("success", true);
-        body.addProperty("message", message);
+        body.addProperty("message", ApiMessages.translate(message));
         writeJson(resp, HttpServletResponse.SC_OK, GSON.toJson(body));
     }
 
@@ -53,7 +54,7 @@ public abstract class ApiServlet extends HttpServlet {
     protected void sendErrorResponse(HttpServletResponse resp, int statusCode, String message) throws IOException {
         JsonObject body = new JsonObject();
         body.addProperty("success", false);
-        body.addProperty("message", message);
+        body.addProperty("message", ApiMessages.translate(message));
         writeJson(resp, statusCode, GSON.toJson(body));
     }
 
@@ -71,7 +72,7 @@ public abstract class ApiServlet extends HttpServlet {
     protected void sendErrorResponse(HttpServletResponse resp, String message) throws IOException {
         JsonObject body = new JsonObject();
         body.addProperty("success", false);
-        body.addProperty("message", message);
+        body.addProperty("message", ApiMessages.translate(message));
         writeJsonPreservingStatus(resp, GSON.toJson(body));
     }
 
@@ -111,7 +112,7 @@ public abstract class ApiServlet extends HttpServlet {
             throws IOException {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("success", success);
-        body.put("message", message);
+        body.put("message", ApiMessages.translate(message));
         body.put("data", data);
         writeJsonPreservingStatus(resp, MAPPER.writeValueAsString(body));
     }
@@ -127,7 +128,7 @@ public abstract class ApiServlet extends HttpServlet {
             throws IOException {
         JsonObject o = new JsonObject();
         o.addProperty("success", success);
-        o.addProperty("message", message);
+        o.addProperty("message", ApiMessages.translate(message));
         writeJsonStatic(resp, code, GSON.toJson(o));
     }
 
@@ -136,7 +137,7 @@ public abstract class ApiServlet extends HttpServlet {
             throws IOException {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("success", success);
-        body.put("message", message);
+        body.put("message", ApiMessages.translate(message));
         body.put("data", data);
         writeJsonStatic(resp, status, MAPPER.writeValueAsString(body));
     }
@@ -167,7 +168,7 @@ public abstract class ApiServlet extends HttpServlet {
         resp.setHeader("Retry-After", String.valueOf(sec));
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("retryAfterSec", sec);
-        sendResponse(resp, false, "发送过于频繁，请 " + sec + " 秒后再试", data);
+        sendResponse(resp, false, ApiMessages.translate("common.send_too_frequent", sec), data);
     }
 
     /**
@@ -195,7 +196,7 @@ public abstract class ApiServlet extends HttpServlet {
     /** 兼容旧接口的 {@code {"error":"..."}} 错误体，带状态码。 */
     protected void sendErrorObject(HttpServletResponse resp, int status, String message) throws IOException {
         JsonObject body = new JsonObject();
-        body.addProperty("error", message);
+        body.addProperty("error", ApiMessages.translate(message));
         writeJson(resp, status, GSON.toJson(body));
     }
 
@@ -203,7 +204,7 @@ public abstract class ApiServlet extends HttpServlet {
     protected void sendErrorData(HttpServletResponse resp, int status, String message) throws IOException {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("success", false);
-        body.put("message", message);
+        body.put("message", ApiMessages.translate(message));
         body.put("data", null);
         writeJson(resp, status, MAPPER.writeValueAsString(body));
     }

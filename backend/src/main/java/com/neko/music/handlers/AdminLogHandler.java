@@ -88,11 +88,11 @@ public class AdminLogHandler extends ApiServlet {
             } else if (path.equals("/operations") || path.equals("/operations/")) {
                 handleOperationList(request, response);
             } else {
-                sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "未知的日志接口");
+                sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "admin.log.unknown_endpoint");
             }
         } catch (SQLException e) {
             logger.error("查询日志失败: {}", e.getMessage());
-            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "日志库查询失败");
+            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "admin.log.query_failed");
         }
     }
 
@@ -103,7 +103,7 @@ public class AdminLogHandler extends ApiServlet {
         }
         AccessLogService service = AccessLogService.current();
         if (service == null) {
-            sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "访问日志功能未启用");
+            sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "admin.log.access_log_disabled");
             return;
         }
         int days = parseInt(request.getParameter("days"), DEFAULT_STATS_DAYS, 1, MAX_STATS_DAYS);
@@ -117,7 +117,7 @@ public class AdminLogHandler extends ApiServlet {
         }
         AccessLogService service = AccessLogService.current();
         if (service == null) {
-            sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "访问日志功能未启用");
+            sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "admin.log.access_log_disabled");
             return;
         }
         LogPage page = service.list(
@@ -141,7 +141,7 @@ public class AdminLogHandler extends ApiServlet {
         }
         OperationLogService service = OperationLogService.current();
         if (service == null) {
-            sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "操作日志功能未启用");
+            sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "admin.log.audit_disabled");
             return;
         }
         LogPage page = service.list(
@@ -168,12 +168,12 @@ public class AdminLogHandler extends ApiServlet {
         }
         AccessLogService service = AccessLogService.current();
         if (service == null) {
-            sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "访问日志功能未启用");
+            sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "admin.log.access_log_disabled");
             return;
         }
         if (STREAM_TOTAL.get() >= MAX_STREAMS) {
             response.setHeader("Retry-After", "30");
-            sendErrorResponse(response, 429, "实时连接数已达上限，请稍后再试");
+            sendErrorResponse(response, 429, "admin.log.sse_limit");
             return;
         }
         STREAM_TOTAL.incrementAndGet();
@@ -185,7 +185,7 @@ public class AdminLogHandler extends ApiServlet {
         } catch (IllegalStateException e) {
             releaseStreamSlot(subscription);
             logger.warn("访问日志 SSE 异步上下文创建失败", e);
-            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "服务不支持流式响应");
+            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "qr.sse_unsupported");
             return;
         }
         asyncContext.setTimeout(0);
@@ -277,11 +277,11 @@ public class AdminLogHandler extends ApiServlet {
                 ? null
                 : Main.getAdminAuthService().getAdminByToken(token);
         if (admin == null) {
-            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "未授权访问");
+            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "auth.unauthorized");
             return false;
         }
         if (!AdminPermissionUtil.hasPermission(admin, permission)) {
-            sendErrorResponse(response, HttpServletResponse.SC_FORBIDDEN, "权限不足");
+            sendErrorResponse(response, HttpServletResponse.SC_FORBIDDEN, "common.forbidden");
             return false;
         }
         return true;

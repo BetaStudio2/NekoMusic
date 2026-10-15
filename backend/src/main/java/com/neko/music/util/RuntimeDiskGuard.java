@@ -9,6 +9,7 @@ import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
+import com.neko.music.i18n.ApiMessages;
 
 /**
  * 检测运行目录（{@code user.dir}）所在文件系统的可用空间；
@@ -46,12 +47,12 @@ public final class RuntimeDiskGuard {
     public static String uploadBlockedMessage() {
         int gb = Main.getConfigManager().getStorageMinFreeGb();
 //        return "磁盘可用空间不足，已暂停音乐上传（运行目录所在分区需保留至少 " + gb + "GB 可用空间）";
-        return "服务器硬盘可用空间不足，已暂停相关功能。需预留" + gb + "GB 可用空间";
+        return ApiMessages.translate("storage.upload_blocked", gb);
     }
 
     public static String neteaseFillBlockedMessage() {
         int gb = Main.getConfigManager().getStorageMinFreeGb();
-        return "未找到匹配的音乐（磁盘可用空间不足，需保留至少 " + gb + "GB 可用空间）";
+        return ApiMessages.translate("search.not_found_low_disk", gb);
     }
 
     /**

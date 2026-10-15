@@ -147,7 +147,7 @@ public class AdminDatabaseManager {
     public boolean deleteAdmin(String username) {
         return executeUpdate(
                 "DELETE FROM admins WHERE username = ?",
-                "删除管理员失败",
+                "admin.account.delete_failed",
                 stmt -> stmt.setString(1, username));
     }
 

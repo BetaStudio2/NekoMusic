@@ -66,29 +66,29 @@ public class ResetPasswordHandler extends ApiServlet {
 
             // 验证请求参数
             if (email == null || email.trim().isEmpty()) {
-                sendResponse(response, false, "邮箱不能为空", null);
+                sendResponse(response, false, "auth.password_reset.email_required", null);
                 return;
             }
 
             if (code == null || code.trim().isEmpty()) {
-                sendResponse(response, false, "验证码不能为空", null);
+                sendResponse(response, false, "auth.password_reset.captcha_required", null);
                 return;
             }
 
             if (newPassword == null || newPassword.trim().isEmpty()) {
-                sendResponse(response, false, "新密码不能为空", null);
+                sendResponse(response, false, "auth.password_reset.new_required", null);
                 return;
             }
 
             // 验证邮箱格式
             if (!isValidEmail(email)) {
-                sendResponse(response, false, "邮箱格式不正确", null);
+                sendResponse(response, false, "auth.password_reset.email_invalid", null);
                 return;
             }
 
             // 验证密码长度
             if (newPassword.length() < 6 || newPassword.length() > 30) {
-                sendResponse(response, false, "密码长度必须在6-30位之间", null);
+                sendResponse(response, false, "auth.password_reset.length_invalid", null);
                 return;
             }
 
@@ -99,7 +99,7 @@ public class ResetPasswordHandler extends ApiServlet {
                 if (sourceBanService != null) {
                     sourceBanService.recordAuthFailure(ClientIpResolver.clientIp(request), "reset-password");
                 }
-                sendResponse(response, false, "验证码错误或已过期", null);
+                sendResponse(response, false, "auth.password_reset.captcha_invalid", null);
                 return;
             }
 
@@ -108,15 +108,15 @@ public class ResetPasswordHandler extends ApiServlet {
 
             if (success) {
                 logger.info("密码重置成功: {}", email);
-                sendResponse(response, true, "密码重置成功，请使用新密码重新登录", null);
+                sendResponse(response, true, "auth.password_reset.ok", null);
             } else {
                 logger.error("密码重置失败: {}", email);
-                sendResponse(response, false, "密码重置失败，请稍后重试", null);
+                sendResponse(response, false, "auth.password_reset.failed", null);
             }
 
         } catch (Exception e) {
             logger.error("处理重置密码请求时发生错误: {}", e.getMessage(), e);
-            sendResponse(response, false, "服务器内部错误", null);
+            sendResponse(response, false, "common.internal_error", null);
         }
     }
 

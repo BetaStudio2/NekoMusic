@@ -2,6 +2,7 @@ package com.neko.music.filter;
 
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
+import com.neko.music.i18n.ApiMessages;
 import com.neko.music.service.ReplayNonceService;
 import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.HttpResourceCache;
@@ -139,7 +140,7 @@ public class ReplayProtectionFilter implements Filter {
             // 难度未知（没带 nonce），只留痕「缺 nonce」这一结果
             PowAudit.mark(httpRequest, null, PowAudit.MISSING);
             // 响应体与「nonce 无效」保持同一句话：细分失败原因等于把防护流程讲给探测者
-            reject(httpResponse, STATUS_MISSING, "请求已失效，请刷新后重试");
+            reject(httpResponse, STATUS_MISSING, "security.replay.stale");
             return;
         }
 
@@ -156,7 +157,7 @@ public class ReplayProtectionFilter implements Filter {
                 // nonce 已存在但校验失败：典型的重放（或过期 / 换 IP / 跨类别使用）。
                 logger.warn("疑似重放请求被拒: {} {} ip={}", httpRequest.getMethod(), path, clientIp);
                 PowAudit.mark(httpRequest, null, PowAudit.INVALID);
-                reject(httpResponse, STATUS_INVALID, "请求已失效，请刷新后重试");
+                reject(httpResponse, STATUS_INVALID, "security.replay.stale");
             }
             case ERROR -> {
                 PowAudit.mark(httpRequest, null, PowAudit.ERROR);
@@ -164,12 +165,12 @@ public class ReplayProtectionFilter implements Filter {
                     logger.warn("防重放校验因 Redis 故障放行: {} {}", httpRequest.getMethod(), path);
                     chain.doFilter(request, response);
                 } else {
-                    reject(httpResponse, STATUS_ERROR, "服务繁忙，请稍后重试");
+                    reject(httpResponse, STATUS_ERROR, "security.replay.busy");
                 }
             }
             default -> {
                 PowAudit.mark(httpRequest, null, PowAudit.ERROR);
-                reject(httpResponse, STATUS_ERROR, "服务繁忙，请稍后重试");
+                reject(httpResponse, STATUS_ERROR, "security.replay.busy");
             }
         }
     }
@@ -219,7 +220,7 @@ public class ReplayProtectionFilter implements Filter {
         response.setHeader(REPLAY_STATUS_HEADER, statusCode);
         JsonObject body = new JsonObject();
         body.addProperty("success", false);
-        body.addProperty("message", message);
+        body.addProperty("message", ApiMessages.translate(message));
         try (PrintWriter out = response.getWriter()) {
             out.print(Main.getGson().toJson(body));
             out.flush();

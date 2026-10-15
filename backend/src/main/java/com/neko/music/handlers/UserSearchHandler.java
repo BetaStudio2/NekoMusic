@@ -15,6 +15,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
+import com.neko.music.i18n.ApiMessages;
 
 public class UserSearchHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserSearchHandler.class);
@@ -28,7 +29,7 @@ public class UserSearchHandler extends HttpServlet {
             if (query == null || query.trim().isEmpty()) {
                 response.setStatus(HttpStatus.BAD_REQUEST_400);
                 response.setContentType("application/json;charset=utf-8");
-                ErrorResponse errorResponse = new ErrorResponse("查询参数不能为空");
+                ErrorResponse errorResponse = new ErrorResponse("user.query_required");
                 response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
                 return;
             }
@@ -38,7 +39,7 @@ public class UserSearchHandler extends HttpServlet {
             
             // 返回结果
             UserSearchResponse searchResponse = new UserSearchResponse(true, 
-                "搜索成功", 
+                "playlist.search_ok", 
                 results);
             
             response.setStatus(HttpStatus.OK_200);
@@ -48,7 +49,7 @@ public class UserSearchHandler extends HttpServlet {
         } catch (Exception e) {
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
             response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("搜索用户时出错: " + e.getMessage());
+            ErrorResponse errorResponse = new ErrorResponse(ApiMessages.translate("user.search_failed", e.getMessage()));
             response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
         }
     }

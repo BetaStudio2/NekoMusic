@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.neko.music.Main;
 import com.neko.music.util.AudioFileValidator;
 import com.neko.music.util.RuntimeDiskGuard;
@@ -43,14 +44,14 @@ public class UserUploadHandler extends ApiServlet {
         // 验证用户登录
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            sendErrorResponse(response, 401, "未授权访问");
+            sendErrorResponse(response, 401, "auth.unauthorized");
             return;
         }
         
         String token = authHeader.substring(7);
         java.util.Optional<Integer> userIdOpt = Main.getUserAuthService().validateToken(token);
         if (userIdOpt.isEmpty()) {
-            sendErrorResponse(response, 401, "未授权访问");
+            sendErrorResponse(response, 401, "auth.unauthorized");
             return;
         }
         
@@ -74,32 +75,32 @@ public class UserUploadHandler extends ApiServlet {
             
             // 验证必填字段
             if (title == null || title.isEmpty() || artist == null || artist.isEmpty() || language == null || language.isEmpty()) {
-                sendErrorResponse(response, 400, "标题、歌手和语言为必填项");
+                sendErrorResponse(response, 400, "upload.fields_required");
                 return;
             }
 
             // 验证违禁词
             if (SensitiveWordUtil.contains(title)) {
-                sendErrorResponse(response, 400, "标题包含违禁词");
+                sendErrorResponse(response, 400, "upload.title_contains_banned");
                 return;
             }
             else logger.info("标题不包含违禁词");
             if (SensitiveWordUtil.contains(artist)) {
-                sendErrorResponse(response, 400, "歌手名包含违禁词");
+                sendErrorResponse(response, 400, "upload.artist_contains_banned");
                 return;
             }
             else logger.info("歌手名不包含违禁词");
             if (album != null && !album.isEmpty() && SensitiveWordUtil.contains(album)) {
-                sendErrorResponse(response, 400, "专辑名包含违禁词");
+                sendErrorResponse(response, 400, "upload.album_contains_banned");
                 return;
             }
             // 验证语言字段白名单
             if (!java.util.Set.of("中文", "粤语", "上海语", "英文", "日语", "韩语", "法语", "德语", "俄语", "纯音乐").contains(language)) {
-                sendErrorResponse(response, 400, "语言字段不合法，仅支持：中文、粤语、上海语、英文、日语、韩语、法语、德语、俄语、纯音乐");
+                sendErrorResponse(response, 400, "upload.language_invalid");
                 return;
             }
             if (tags != null && !tags.isEmpty() && SensitiveWordUtil.contains(tags)) {
-                sendErrorResponse(response, 400, "标签包含违禁词");
+                sendErrorResponse(response, 400, "upload.tags_contains_banned");
                 return;
             }
             else logger.info("所有内容未包含违禁词");
@@ -119,7 +120,7 @@ public class UserUploadHandler extends ApiServlet {
             Part lyricsFilePart = request.getPart("lyricsFile");
             
             if (musicFilePart == null || musicFilePart.getSize() == 0) {
-                sendErrorResponse(response, 400, "请上传音乐文件");
+                sendErrorResponse(response, 400, "upload.audio_required");
                 return;
             }
             
@@ -140,7 +141,7 @@ public class UserUploadHandler extends ApiServlet {
                 AudioFileValidator.FormatDetectionResult detectionResult =
                         AudioFileValidator.detectAndValidatePath(musicTemp, musicFileExtension);
                 if (!detectionResult.isValid()) {
-                    sendErrorResponse(response, 400, "音频文件格式错误: " + detectionResult.getErrorMessage());
+                    sendErrorResponse(response, 400, ApiMessages.translate("upload.audio_format_invalid", detectionResult.getErrorMessage()));
                     return;
                 }
                 detectedFormat = detectionResult.getFormat();
@@ -155,7 +156,7 @@ public class UserUploadHandler extends ApiServlet {
                         fileFormat = "wav";
                         break;
                     default:
-                        sendErrorResponse(response, 400, "不支持的音频格式");
+                        sendErrorResponse(response, 400, "upload.unsupported_audio");
                         return;
                 }
                 logger.info("检测到文件格式: {} (实际格式: {})", fileFormat, detectionResult.getFormatDescription());
@@ -169,9 +170,9 @@ public class UserUploadHandler extends ApiServlet {
                 String duplicateType = isDuplicateMusic(title, artist, album);
                 if (duplicateType != null) {
                     if ("pending".equals(duplicateType)) {
-                        sendErrorResponse(response, 409, "已有用户上传。请勿重复提交");
+                        sendErrorResponse(response, 409, "upload.duplicate_submission");
                     } else {
-                        sendErrorResponse(response, 409, "已有重复音乐，请检查后重新上传");
+                        sendErrorResponse(response, 409, "upload.duplicate_music");
                     }
                     return;
                 }
@@ -186,7 +187,7 @@ public class UserUploadHandler extends ApiServlet {
                 deleteTempIfPresent = false;
             } catch (Exception e) {
                 logger.error("处理音乐文件时出错", e);
-                sendErrorResponse(response, 400, "处理音乐文件时出错: " + e.getMessage());
+                sendErrorResponse(response, 400, ApiMessages.translate("upload.process_failed", e.getMessage()));
                 return;
             } finally {
                 if (deleteTempIfPresent) {
@@ -220,7 +221,7 @@ public class UserUploadHandler extends ApiServlet {
                 // 检查歌词文件类型
                 String lyricsFileName = "lyrics_" + timestamp + getFileExtension(lyricsFilePart.getSubmittedFileName());
                 if (!lyricsFileName.toLowerCase().endsWith(".lrc")) {
-                    sendErrorResponse(response, 400, "只支持LRC格式的歌词文件");
+                    sendErrorResponse(response, 400, "upload.lyrics_only_lrc");
                     // 删除已上传的音乐和封面文件
                     deleteFileIfExists(musicFilePath);
                     deleteFileIfExists(coverFilePath);
@@ -232,7 +233,7 @@ public class UserUploadHandler extends ApiServlet {
                     LrcValidator.ValidationResult validationResult = LrcValidator.validate(
                             lyricsInputStream, lyricsFilePart.getSize());
                     if (!validationResult.isValid()) {
-                        sendErrorResponse(response, 400, "歌词文件格式错误: " + validationResult.getErrorMessage());
+                        sendErrorResponse(response, 400, ApiMessages.translate("upload.lyrics_format_invalid", validationResult.getErrorMessage()));
                         // 删除已上传的音乐和封面文件
                         deleteFileIfExists(musicFilePath);
                         deleteFileIfExists(coverFilePath);
@@ -240,7 +241,7 @@ public class UserUploadHandler extends ApiServlet {
                     }
                 } catch (Exception e) {
                     logger.error("校验歌词文件时出错", e);
-                    sendErrorResponse(response, 400, "校验歌词文件时出错: " + e.getMessage());
+                    sendErrorResponse(response, 400, ApiMessages.translate("upload.lyrics_validate_failed", e.getMessage()));
                     // 删除已上传的音乐和封面文件
                     deleteFileIfExists(musicFilePath);
                     deleteFileIfExists(coverFilePath);
@@ -298,7 +299,7 @@ public class UserUploadHandler extends ApiServlet {
                 // 返回成功响应
                 Map<String, Object> result = new HashMap<>();
                 result.put("success", true);
-                result.put("message", "上传成功，等待审核");
+                result.put("message", ApiMessages.translate("upload.ok_pending_review"));
                 result.put("data", Map.of(
                     "id", uploadId,
                     "status", "pending",
@@ -313,12 +314,12 @@ public class UserUploadHandler extends ApiServlet {
                 deleteFileIfExists(coverFilePath);
                 deleteFileIfExists(lyricsFilePath);
                 
-                sendErrorResponse(response, 500, "保存上传记录失败");
+                sendErrorResponse(response, 500, "upload.save_record_failed");
             }
             
         } catch (Exception e) {
             logger.error("处理用户上传失败: " + e.getMessage(), e);
-            sendErrorResponse(response, 500, "服务器错误: " + e.getMessage());
+            sendErrorResponse(response, 500, ApiMessages.translate("common.server_error", e.getMessage()));
         }
     }
     

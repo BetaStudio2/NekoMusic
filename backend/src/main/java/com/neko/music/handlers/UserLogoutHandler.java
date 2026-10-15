@@ -37,7 +37,7 @@ public class UserLogoutHandler extends ApiServlet {
         UserAuthService service = userAuthService != null ? userAuthService : Main.getUserAuthService();
         String token = RedisTokenStore.normalizeBearerToken(request.getHeader("Authorization"));
         if (service == null || token.isEmpty()) {
-            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "请先登录");
+            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "auth.login_required");
             return;
         }
 
@@ -45,10 +45,10 @@ public class UserLogoutHandler extends ApiServlet {
             service.revokeToken(token);
         } catch (Exception e) {
             logger.error("用户登出时吊销令牌失败", e);
-            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "退出登录失败，请稍后重试");
+            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "auth.logout.failed");
             return;
         }
 
-        sendSuccessResponse(response, "已退出登录");
+        sendSuccessResponse(response, "auth.logout.ok");
     }
 }

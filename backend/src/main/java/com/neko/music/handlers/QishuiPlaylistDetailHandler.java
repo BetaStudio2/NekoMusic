@@ -27,7 +27,7 @@ public class QishuiPlaylistDetailHandler extends ApiServlet {
                 request.getParameter("id"));
         if (input == null || input.isBlank() || input.length() > 2048) {
             sendErrorData(response, HttpServletResponse.SC_BAD_REQUEST,
-                    "缺少有效的 playlist_id（汽水歌单 ID 或分享链接）");
+                    "source.qishui.playlist_id_required");
             return;
         }
 

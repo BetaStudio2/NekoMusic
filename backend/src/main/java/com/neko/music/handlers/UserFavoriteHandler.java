@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -28,14 +29,14 @@ public class UserFavoriteHandler extends ApiServlet {
         String token = req.getHeader("Authorization");
         
         if (token == null || token.isEmpty()) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未提供认证令牌");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.token_missing");
             return;
         }
         
         // 验证token并获取用户ID
         Integer userId = validateToken(token);
         if (userId == null) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "无效的认证令牌");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.invalid_bearer");
             return;
         }
         
@@ -48,7 +49,7 @@ public class UserFavoriteHandler extends ApiServlet {
             sendSuccessResponse(resp, response);
         } catch (Exception e) {
             logger.error("获取收藏列表失败: {}", e.getMessage(), e);
-            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "获取收藏列表失败");
+            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "favorite.list_failed");
         }
     }
     
@@ -58,14 +59,14 @@ public class UserFavoriteHandler extends ApiServlet {
         String token = req.getHeader("Authorization");
         
         if (token == null || token.isEmpty()) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未提供认证令牌");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.token_missing");
             return;
         }
         
         // 验证token并获取用户ID
         Integer userId = validateToken(token);
         if (userId == null) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "无效的认证令牌");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.invalid_bearer");
             return;
         }
         
@@ -81,7 +82,7 @@ public class UserFavoriteHandler extends ApiServlet {
             }
             if (requestBody.has("musicIds")) {
                 if (!requestBody.get("musicIds").isJsonArray()) {
-                    sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "musicIds 必须是 JSON 数组");
+                    sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "playlist.music_ids_not_array");
                     return;
                 }
                 JsonArray arr = requestBody.getAsJsonArray("musicIds");
@@ -95,7 +96,7 @@ public class UserFavoriteHandler extends ApiServlet {
 
         List<Integer> toAdd = new ArrayList<>(new LinkedHashSet<>(musicIds));
         if (toAdd.isEmpty()) {
-            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "音乐ID不能为空（可传 musicId 或 musicIds 数组）");
+            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "music.id_required_detail");
             return;
         }
 
@@ -112,9 +113,9 @@ public class UserFavoriteHandler extends ApiServlet {
                 response.addProperty("success", true);
                 response.addProperty("addedCount", toAdd.size());
                 if (toAdd.size() == 1) {
-                    response.addProperty("message", "收藏成功");
+                    response.addProperty("message", ApiMessages.translate("favorite.add_ok"));
                 } else {
-                    response.addProperty("message", "已收藏 " + toAdd.size() + " 首音乐");
+                    response.addProperty("message", ApiMessages.translate("favorite.add.done", toAdd.size()));
                 }
                 sendSuccessResponse(resp, response);
             } else {
@@ -127,7 +128,7 @@ public class UserFavoriteHandler extends ApiServlet {
                     failedArr.add(f);
                 }
                 response.add("failedMusicIds", failedArr);
-                response.addProperty("message", "部分音乐未能收藏（已存在或收藏失败），失败数量: " + failed.size());
+                response.addProperty("message", ApiMessages.translate("favorite.add.partial", failed.size()));
 
                 resp.setContentType("application/json");
                 resp.setCharacterEncoding("UTF-8");
@@ -139,7 +140,7 @@ public class UserFavoriteHandler extends ApiServlet {
             }
         } catch (Exception e) {
             logger.error("添加收藏失败: {}", e.getMessage(), e);
-            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "添加收藏失败");
+            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "favorite.add_failed");
         }
     }
     
@@ -149,21 +150,21 @@ public class UserFavoriteHandler extends ApiServlet {
         String token = req.getHeader("Authorization");
         
         if (token == null || token.isEmpty()) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未提供认证令牌");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.token_missing");
             return;
         }
         
         // 验证token并获取用户ID
         Integer userId = validateToken(token);
         if (userId == null) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "无效的认证令牌");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.invalid_bearer");
             return;
         }
         
         // 从路径中获取音乐ID
         String pathInfo = req.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
-            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "缺少音乐ID");
+            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "music.id_missing");
             return;
         }
         
@@ -174,16 +175,16 @@ public class UserFavoriteHandler extends ApiServlet {
             if (success) {
                 JsonObject response = new JsonObject();
                 response.addProperty("success", true);
-                response.addProperty("message", "取消收藏成功");
+                response.addProperty("message", ApiMessages.translate("favorite.cancel_ok"));
                 sendSuccessResponse(resp, response);
             } else {
-                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "取消收藏失败");
+                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "favorite.cancel_failed");
             }
         } catch (NumberFormatException e) {
-            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "无效的音乐ID");
+            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "music.id_invalid");
         } catch (Exception e) {
             logger.error("删除收藏失败: {}", e.getMessage(), e);
-            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "删除收藏失败");
+            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "favorite.remove_failed");
         }
     }
     

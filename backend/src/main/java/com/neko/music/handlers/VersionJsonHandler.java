@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neko.music.Main;
 import com.neko.music.service.AppReleaseService;
@@ -29,7 +30,7 @@ public class VersionJsonHandler extends HttpServlet {
             response.setContentType("application/json;charset=utf-8");
             ObjectNode err = Main.getObjectMapper().createObjectNode();
             err.put("success", false);
-            err.put("message", "未配置客户端版本，请在 app_release 表写入 android_ver 与 pc_ver");
+            err.put("message", ApiMessages.translate("admin.release.not_configured"));
             response.getWriter().write(Main.getObjectMapper().writeValueAsString(err));
             return;
         }

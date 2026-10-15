@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
@@ -35,7 +36,7 @@ public class GetUserUploadedMusicHandler extends ApiServlet {
             // 验证用户身份
             String token = req.getHeader("Authorization");
             if (token == null || token.isEmpty()) {
-                sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "用户未登录或token无效");
+                sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.not_logged_in");
                 return;
             }
 
@@ -46,7 +47,7 @@ public class GetUserUploadedMusicHandler extends ApiServlet {
 
             Integer userId = userAuthService.validateToken(token).orElse(null);
             if (userId == null) {
-                sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "用户未登录或token无效");
+                sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.not_logged_in");
                 return;
             }
 
@@ -55,7 +56,7 @@ public class GetUserUploadedMusicHandler extends ApiServlet {
 
             JsonObject response = new JsonObject();
             response.addProperty("success", true);
-            response.addProperty("message", "获取用户上传审核通过的音乐列表成功");
+            response.addProperty("message", ApiMessages.translate("music.uploaded_list_ok"));
             response.addProperty("userId", userId);
 
             JsonArray musicArray = new JsonArray();
@@ -69,7 +70,7 @@ public class GetUserUploadedMusicHandler extends ApiServlet {
             sendSuccessResponse(resp, response);
         } catch (Exception e) {
             logger.error("处理获取用户上传审核通过的音乐请求时发生错误: {}", e.getMessage(), e);
-            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "服务器内部错误");
+            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "common.internal_error");
         }
     }
 

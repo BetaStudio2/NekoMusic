@@ -54,7 +54,7 @@ public class AdminLyricsFileHandler extends ApiServlet {
         }
 
         response.setStatus(HttpStatus.NOT_FOUND_404);
-        sendErrorResponse(response, "接口不存在");
+        sendErrorResponse(response, "admin.lyrics.endpoint_not_found");
     }
 
     @Override
@@ -66,7 +66,7 @@ public class AdminLyricsFileHandler extends ApiServlet {
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || !pathInfo.startsWith("/file/")) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            sendErrorResponse(response, "缺少文件路径");
+            sendErrorResponse(response, "admin.lyrics.path_required");
             return;
         }
 
@@ -76,35 +76,35 @@ public class AdminLyricsFileHandler extends ApiServlet {
             saveRequest = Main.getObjectMapper().readValue(body, SaveLyricsRequest.class);
         } catch (Exception e) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            sendErrorResponse(response, "请求格式错误");
+            sendErrorResponse(response, "auth.bad_request");
             return;
         }
 
         if (saveRequest.content() == null) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            sendErrorResponse(response, "歌词内容不能为空");
+            sendErrorResponse(response, "music.lyrics.content_required");
             return;
         }
         if (saveRequest.content().getBytes(StandardCharsets.UTF_8).length > MAX_LYRICS_BYTES) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            sendErrorResponse(response, "歌词文件不能超过 1MB");
+            sendErrorResponse(response, "admin.lyrics.file_too_large");
             return;
         }
 
         Integer musicId = musicIdFromEncodedPath(pathInfo.substring("/file/".length()));
         if (musicId == null) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            sendErrorResponse(response, "无效的歌词文件路径");
+            sendErrorResponse(response, "admin.lyrics.invalid_path");
             return;
         }
         if (!musicMetaById().containsKey(musicId)) {
             response.setStatus(HttpStatus.NOT_FOUND_404);
-            sendErrorResponse(response, "音乐不存在，无法保存歌词");
+            sendErrorResponse(response, "music.not_found_no_lyrics");
             return;
         }
         if (!Main.getLyricsDatabaseManager().upsert(musicId, saveRequest.content(), "admin")) {
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
-            sendErrorResponse(response, "保存歌词失败");
+            sendErrorResponse(response, "admin.lyrics.save_failed");
             return;
         }
         if (Main.getLyricsSearchIndex() != null) {
@@ -115,7 +115,7 @@ public class AdminLyricsFileHandler extends ApiServlet {
         EmbeddedMetadataSyncService.syncOne(musicId);
 
         ObjectNode data = buildDbFileNode(musicId, saveRequest.content(), musicMetaById());
-        sendResponse(response, true, "保存成功", data);
+        sendResponse(response, true, "admin.lyrics.save_ok", data);
     }
 
     @Override
@@ -127,19 +127,19 @@ public class AdminLyricsFileHandler extends ApiServlet {
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || !pathInfo.startsWith("/file/")) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            sendErrorResponse(response, "缺少文件路径");
+            sendErrorResponse(response, "admin.lyrics.path_required");
             return;
         }
 
         Integer musicId = musicIdFromEncodedPath(pathInfo.substring("/file/".length()));
         if (musicId == null) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            sendErrorResponse(response, "无效的歌词文件路径");
+            sendErrorResponse(response, "admin.lyrics.invalid_path");
             return;
         }
         if (Main.getLyricsDatabaseManager().findByMusicId(musicId).isEmpty()) {
             response.setStatus(HttpStatus.NOT_FOUND_404);
-            sendErrorResponse(response, "数据库歌词不存在");
+            sendErrorResponse(response, "admin.lyrics.not_in_db");
             return;
         }
 
@@ -151,7 +151,7 @@ public class AdminLyricsFileHandler extends ApiServlet {
         // 歌词删除后同步进音频文件（保留广告元数据与横幅）
         EmbeddedMetadataSyncService.syncOne(musicId);
 
-        sendResponse(response, true, "删除成功", Main.getObjectMapper().createObjectNode());
+        sendResponse(response, true, "admin.lyrics.delete_ok", Main.getObjectMapper().createObjectNode());
     }
 
     private void listTree(HttpServletResponse response) throws IOException {
@@ -172,26 +172,26 @@ public class AdminLyricsFileHandler extends ApiServlet {
         data.set("tree", root);
         data.put("totalFiles", dbLyrics.size());
         data.put("basePath", "database");
-        sendResponse(response, true, "查询成功", data);
+        sendResponse(response, true, "admin.lyrics.query_ok", data);
     }
 
     private void readFile(String encodedPath, HttpServletResponse response) throws IOException {
         Integer musicId = musicIdFromEncodedPath(encodedPath);
         if (musicId == null) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            sendErrorResponse(response, "无效的歌词文件路径");
+            sendErrorResponse(response, "admin.lyrics.invalid_path");
             return;
         }
         var stored = Main.getLyricsDatabaseManager().findByMusicId(musicId);
         if (stored.isEmpty()) {
             response.setStatus(HttpStatus.NOT_FOUND_404);
-            sendErrorResponse(response, "数据库歌词不存在");
+            sendErrorResponse(response, "admin.lyrics.not_in_db");
             return;
         }
 
         ObjectNode data = buildDbFileNode(musicId, stored.get().content(), musicMetaById());
         data.put("content", stored.get().content());
-        sendResponse(response, true, "读取成功", data);
+        sendResponse(response, true, "admin.lyrics.read_ok", data);
     }
 
     private void appendNode(ObjectNode root, ObjectNode fileNode) {

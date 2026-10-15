@@ -29,6 +29,7 @@ import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import com.neko.music.filter.CacheControlFilter;
 import com.neko.music.filter.CrawlerProtectionFilter;
 import com.neko.music.filter.RequestAuditFilter;
+import com.neko.music.filter.RequestLocaleFilter;
 import com.neko.music.filter.IPRateLimitFilter;
 import com.neko.music.filter.ReplayProtectionFilter;
 import com.neko.music.filter.SecurityHeadersFilter;
@@ -334,6 +335,10 @@ public class Main {
         // 访问日志 + 操作日志：必须注册在最外层，才能看到经过后续门禁（限流/封禁/防爬/防重放）
         // 之后的真实状态码与总耗时——被挡下的请求同样要留痕
         context.addFilter(RequestAuditFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
+
+        // 响应语言：按 Accept-Language 决定 API 文案用中文还是英文。紧跟访问日志注册，
+        // 让限流 / 封禁 / 防爬等门禁写出的错误体也带上正确语言
+        context.addFilter(RequestLocaleFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
 
         // 通用安全加固：禁用 TRACE/TRACK、补安全响应头、隐藏版本（最先注册，作用于全部响应）
         context.addFilter(SecurityHeadersFilter.class, "/*", EnumSet.allOf(DispatcherType.class));

@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
+import com.neko.music.i18n.ApiMessages;
 
 /** 客户端安装包直链：{@code GET /update/{文件名}} */
 public class ClientReleaseDownloadHandler extends HttpServlet {
@@ -28,7 +29,7 @@ public class ClientReleaseDownloadHandler extends HttpServlet {
         if (pathInfo == null || pathInfo.isEmpty() || "/".equals(pathInfo)) {
             response.setStatus(HttpStatus.NOT_FOUND_404);
             response.setContentType("text/plain;charset=utf-8");
-            response.getWriter().println("请指定安装包文件名，例如 /update/20260207-35.apk");
+            response.getWriter().println(ApiMessages.translate("client.release.filename_required"));
             return;
         }
 
@@ -39,7 +40,7 @@ public class ClientReleaseDownloadHandler extends HttpServlet {
         if (fileOpt.isEmpty()) {
             response.setStatus(HttpStatus.NOT_FOUND_404);
             response.setContentType("text/plain;charset=utf-8");
-            response.getWriter().println("安装包不存在: " + fileName);
+            response.getWriter().println(ApiMessages.translate("client.release.not_found", fileName));
             logger.debug("安装包未找到: {}", fileName);
             return;
         }

@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.neko.music.Main;
 import com.neko.music.model.Admin;
 import com.neko.music.service.AdminAuthService;
@@ -79,7 +80,7 @@ public class AdminLoginHandler extends ApiServlet {
 
             // 验证参数
             if (username == null || password == null || username.trim().isEmpty() || password.trim().isEmpty()) {
-                sendErrorResponse(response, 400, "用户名和密码不能为空");
+                sendErrorResponse(response, 400, "admin.login.credentials_required");
                 return;
             }
 
@@ -105,7 +106,7 @@ public class AdminLoginHandler extends ApiServlet {
                     long retryAfterSec = locked.get();
                     response.setHeader("Retry-After", String.valueOf(retryAfterSec));
                     sendErrorResponse(response, 429,
-                            "登录失败次数过多，请 " + retryAfterSec + " 秒后再试");
+                            ApiMessages.translate("auth.login.too_many_attempts", retryAfterSec));
                     return;
                 }
             }
@@ -126,14 +127,14 @@ public class AdminLoginHandler extends ApiServlet {
                 // 创建会话令牌
                 String sessionToken = authService.createAdminSession(admin);
                 if (sessionToken == null) {
-                    sendErrorResponse(response, 500, "创建会话失败");
+                    sendErrorResponse(response, 500, "admin.login.create_session_failed");
                     return;
                 }
                 
                 // 创建成功响应
                 Map<String, Object> successResponse = new HashMap<>();
                 successResponse.put("success", true);
-                successResponse.put("message", "登录成功");
+                successResponse.put("message", ApiMessages.translate("auth.login.ok"));
                 successResponse.put("token", sessionToken);  // 返回会话令牌
                 successResponse.put("admin", Map.of(
                     "id", admin.id(),
@@ -154,11 +155,11 @@ public class AdminLoginHandler extends ApiServlet {
                 if (sourceBanService != null) {
                     sourceBanService.recordAuthFailure(clientIp, "admin-login");
                 }
-                sendErrorResponse(response, 401, "用户名或密码错误");
+                sendErrorResponse(response, 401, "admin.login.bad_credentials");
             }
         } catch (Exception e) {
             logger.error("管理员登录处理错误", e);
-            sendErrorResponse(response, 500, "服务器内部错误");
+            sendErrorResponse(response, 500, "common.internal_error");
         }
     }
 

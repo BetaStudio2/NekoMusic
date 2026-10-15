@@ -15,6 +15,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import com.neko.music.i18n.ApiMessages;
 
 /**
  * 违禁词检测 API：供前端在上传、注册等提交前预校验文案。
@@ -33,7 +34,7 @@ public class SensitiveWordCheckHandler extends HttpServlet {
 
         String body = readBody(request);
         if (body.isBlank()) {
-            writeError(response, HttpStatus.BAD_REQUEST_400, "请求体不能为空");
+            writeError(response, HttpStatus.BAD_REQUEST_400, "sensitive.body_required");
             return;
         }
 
@@ -47,10 +48,10 @@ public class SensitiveWordCheckHandler extends HttpServlet {
                 handleSingle(root.get("text").asText(), response);
                 return;
             }
-            writeError(response, HttpStatus.BAD_REQUEST_400, "请提供 text 或 texts 字段");
+            writeError(response, HttpStatus.BAD_REQUEST_400, "sensitive.text_required");
         } catch (Exception e) {
             logger.warn("违禁词检测请求解析失败: {}", e.toString());
-            writeError(response, HttpStatus.BAD_REQUEST_400, "请求格式错误");
+            writeError(response, HttpStatus.BAD_REQUEST_400, "auth.bad_request");
         }
     }
 
@@ -70,7 +71,7 @@ public class SensitiveWordCheckHandler extends HttpServlet {
         List<String> words = SensitiveWordUtil.findAll(text);
         boolean contains = !words.isEmpty();
         CheckItem item = new CheckItem(text, contains, words);
-        CheckResponse checkResponse = new CheckResponse(true, "检测完成", item, contains);
+        CheckResponse checkResponse = new CheckResponse(true, "sensitive.check_ok", item, contains);
         response.setStatus(HttpStatus.OK_200);
         response.getWriter().println(Main.getObjectMapper().writeValueAsString(checkResponse));
     }
@@ -78,7 +79,7 @@ public class SensitiveWordCheckHandler extends HttpServlet {
     private void handleBatch(JsonNode textsNode, HttpServletResponse response) throws IOException {
         if (textsNode.size() > MAX_BATCH_SIZE) {
             writeError(response, HttpStatus.BAD_REQUEST_400,
-                    "单次最多检测 " + MAX_BATCH_SIZE + " 条文本");
+                    ApiMessages.translate("sensitive.batch.too_many", MAX_BATCH_SIZE));
             return;
         }
 
@@ -86,7 +87,7 @@ public class SensitiveWordCheckHandler extends HttpServlet {
         boolean anyContains = false;
         for (JsonNode node : textsNode) {
             if (!node.isTextual()) {
-                writeError(response, HttpStatus.BAD_REQUEST_400, "texts 数组元素必须为字符串");
+                writeError(response, HttpStatus.BAD_REQUEST_400, "sensitive.texts_not_string");
                 return;
             }
             String text = node.asText();
@@ -101,17 +102,17 @@ public class SensitiveWordCheckHandler extends HttpServlet {
             items.add(new CheckItem(text, contains, words));
         }
 
-        BatchCheckResponse batchResponse = new BatchCheckResponse(true, "检测完成", items, anyContains);
+        BatchCheckResponse batchResponse = new BatchCheckResponse(true, "sensitive.check_ok", items, anyContains);
         response.setStatus(HttpStatus.OK_200);
         response.getWriter().println(Main.getObjectMapper().writeValueAsString(batchResponse));
     }
 
     private static String validateText(String text) {
         if (text == null) {
-            return "文本不能为 null";
+            return ApiMessages.translate("sensitive.text_null");
         }
         if (text.length() > MAX_TEXT_LENGTH) {
-            return "单条文本长度不能超过 " + MAX_TEXT_LENGTH;
+            return ApiMessages.translate("sensitive.text_too_long", MAX_TEXT_LENGTH);
         }
         return null;
     }

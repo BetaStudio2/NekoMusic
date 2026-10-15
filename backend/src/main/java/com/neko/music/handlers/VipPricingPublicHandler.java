@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neko.music.Main;
+import com.neko.music.i18n.ApiMessages;
 import com.neko.music.model.VipPriceItem;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -47,7 +48,7 @@ public class VipPricingPublicHandler extends HttpServlet {
         } catch (Exception e) {
             logger.error("获取 VIP 价目失败", e);
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            response.getWriter().write("{\"success\":false,\"message\":\"服务器内部错误\"}");
+            response.getWriter().write("{\"success\":false,\"message\":\"" + ApiMessages.translate("common.internal_error") + "\"}");
         }
     }
 

@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
@@ -33,7 +34,7 @@ public class AdminReplayMarkHandler extends ApiServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
         if (!PermissionHelper.checkPermission(request, response,
                 AdminPermissionUtil.Permission.SETTINGS_VIEW)) {
-            logger.warn("权限不足，无法查看防重放来源标记");
+            logger.warn(ApiMessages.translate("admin.replay_mark.forbidden_view"));
             return;
         }
 
@@ -73,13 +74,13 @@ public class AdminReplayMarkHandler extends ApiServlet {
     protected void doDelete(HttpServletRequest request, HttpServletResponse response) throws IOException {
         if (!PermissionHelper.checkPermission(request, response,
                 AdminPermissionUtil.Permission.SETTINGS_EDIT)) {
-            logger.warn("权限不足，无法清除防重放来源标记");
+            logger.warn(ApiMessages.translate("admin.replay_mark.forbidden_clear"));
             return;
         }
 
         String ip = request.getParameter("ip");
         if (ip == null || ip.isBlank()) {
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "缺少 ip 参数");
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "admin.replay_mark.ip_required");
             return;
         }
 
@@ -92,7 +93,7 @@ public class AdminReplayMarkHandler extends ApiServlet {
 
         JsonObject body = new JsonObject();
         body.addProperty("success", true);
-        body.addProperty("message", cleared ? "已清除标记" : "未找到有效标记");
+        body.addProperty("message", cleared ? ApiMessages.translate("admin.replay_mark.cleared") : ApiMessages.translate("admin.replay_mark.not_found"));
         body.add("data", data);
         sendSuccessResponse(response, body);
     }

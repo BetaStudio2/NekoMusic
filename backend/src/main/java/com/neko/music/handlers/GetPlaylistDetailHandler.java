@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.neko.music.util.UserLookup;
 
 import com.google.gson.JsonObject;
@@ -35,7 +36,7 @@ public class GetPlaylistDetailHandler extends ApiServlet {
         // 从URL路径中获取歌单ID
         String pathInfo = req.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
-            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "缺少歌单ID");
+            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "playlist.favorite.id_required");
             return;
         }
 
@@ -48,7 +49,7 @@ public class GetPlaylistDetailHandler extends ApiServlet {
             Optional<Playlist> playlistOpt = playlistService.getPlaylistById(playlistId);
 
             if (!playlistOpt.isPresent()) {
-                sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "歌单不存在");
+                sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "playlist.not_found");
                 return;
             }
 
@@ -58,7 +59,7 @@ public class GetPlaylistDetailHandler extends ApiServlet {
 
             JsonObject response = new JsonObject();
             response.addProperty("success", true);
-            response.addProperty("message", "获取歌单详情成功");
+            response.addProperty("message", ApiMessages.translate("playlist.detail_ok"));
 
             JsonObject playlistJson = new JsonObject();
             playlistJson.addProperty("id", playlist.id());
@@ -80,10 +81,10 @@ public class GetPlaylistDetailHandler extends ApiServlet {
             sendSuccessResponse(resp, response);
         } catch (NumberFormatException e) {
             logger.error("歌单ID格式错误: {}", pathInfo);
-            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "歌单ID格式错误");
+            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "playlist.id_format_invalid");
         } catch (Exception e) {
             logger.error("处理获取歌单详情请求时发生错误: {}", e.getMessage(), e);
-            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "服务器内部错误");
+            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "common.internal_error");
         }
     }
 

@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -45,7 +46,7 @@ public class VideoRenderHandler extends ApiServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setCharacterEncoding("UTF-8");
         if (!isCreatePath(req)) {
-            sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "接口不存在");
+            sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "admin.lyrics.endpoint_not_found");
             return;
         }
         handleCreate(req, resp);
@@ -56,7 +57,7 @@ public class VideoRenderHandler extends ApiServlet {
         resp.setCharacterEncoding("UTF-8");
         String pathInfo = normalizePathInfo(req.getPathInfo());
         if (pathInfo == null || pathInfo.isEmpty()) {
-            sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "接口不存在");
+            sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "admin.lyrics.endpoint_not_found");
             return;
         }
         if (pathInfo.endsWith("/download")) {
@@ -74,13 +75,13 @@ public class VideoRenderHandler extends ApiServlet {
     private void handleCreate(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         ConfigManager cfg = Main.getConfigManager();
         if (!cfg.isVideoRenderEnabled()) {
-            sendJson(resp, HttpServletResponse.SC_SERVICE_UNAVAILABLE, false, "视频生成功能未启用");
+            sendJson(resp, HttpServletResponse.SC_SERVICE_UNAVAILABLE, false, "video.disabled");
             return;
         }
 
         Optional<Integer> userIdOpt = requireUser(req);
         if (userIdOpt.isEmpty()) {
-            sendJson(resp, HttpServletResponse.SC_UNAUTHORIZED, false, "请先登录");
+            sendJson(resp, HttpServletResponse.SC_UNAUTHORIZED, false, "auth.login_required");
             return;
         }
         int userId = userIdOpt.get();
@@ -90,29 +91,29 @@ public class VideoRenderHandler extends ApiServlet {
         try {
             root = JsonParser.parseString(body).getAsJsonObject();
         } catch (Exception e) {
-            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "请求体不是合法 JSON");
+            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "vip.body_not_json");
             return;
         }
         // 数值字段必须先确认类型再转换：Gson 的 getAsInt()/getAsDouble() 对字符串等非数字原语会抛
         // NumberFormatException，一旦冒到容器层就会连异常类名与用户原始输入一起回显（CWE-209）。
         JsonElement musicIdEl = root == null ? null : root.get("musicId");
         if (musicIdEl == null || !musicIdEl.isJsonPrimitive()) {
-            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "缺少 musicId");
+            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "video.music_id_required");
             return;
         }
         if (!musicIdEl.getAsJsonPrimitive().isNumber()) {
-            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "musicId 必须为数字");
+            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "video.music_id_not_number");
             return;
         }
         int musicId;
         try {
             musicId = musicIdEl.getAsInt();
         } catch (NumberFormatException | UnsupportedOperationException e) {
-            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "musicId 必须为数字");
+            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "video.music_id_not_number");
             return;
         }
         if (musicId <= 0) {
-            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "musicId 无效");
+            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "video.music_id_invalid");
             return;
         }
 
@@ -120,35 +121,35 @@ public class VideoRenderHandler extends ApiServlet {
         if (root.has("startSec") && !root.get("startSec").isJsonNull()) {
             JsonElement startSecEl = root.get("startSec");
             if (!startSecEl.isJsonPrimitive() || !startSecEl.getAsJsonPrimitive().isNumber()) {
-                sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "startSec 必须为数字");
+                sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "video.start_sec_not_number");
                 return;
             }
             try {
                 startSec = startSecEl.getAsDouble();
             } catch (NumberFormatException | UnsupportedOperationException e) {
-                sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "startSec 必须为数字");
+                sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "video.start_sec_not_number");
                 return;
             }
             if (!Double.isFinite(startSec)) {
-                sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "startSec 无效");
+                sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "video.start_sec_invalid");
                 return;
             }
             if (startSec < 0) {
-                sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "startSec 不能为负数");
+                sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "video.start_sec_negative");
                 return;
             }
         }
 
         Optional<MusicMeta> metaOpt = loadMusicMeta(musicId);
         if (metaOpt.isEmpty()) {
-            sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "音乐不存在");
+            sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "music.not_found");
             return;
         }
         MusicMeta meta = metaOpt.get();
 
         Optional<Path> audioOpt = VideoRenderService.resolveAudio(musicId);
         if (audioOpt.isEmpty()) {
-            sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "音频文件不存在");
+            sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "video.audio_missing");
             return;
         }
 
@@ -157,7 +158,7 @@ public class VideoRenderHandler extends ApiServlet {
 
         int trackDuration = meta.durationSec > 0 ? meta.durationSec : 300;
         if (startSec >= trackDuration) {
-            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "startSec 超出歌曲时长");
+            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "video.start_sec_too_late");
             return;
         }
 
@@ -175,7 +176,7 @@ public class VideoRenderHandler extends ApiServlet {
             watermarked = watermarkedParam != null ? watermarkedParam : false;
         } else {
             if (watermarkedParam != null && !watermarkedParam) {
-                sendJson(resp, HttpServletResponse.SC_FORBIDDEN, false, "非会员须开启水印");
+                sendJson(resp, HttpServletResponse.SC_FORBIDDEN, false, "video.nonvip.watermark_required");
                 return;
             }
             int limit = cfg.getVideoRenderNonVipDailyLimit();
@@ -183,14 +184,14 @@ public class VideoRenderHandler extends ApiServlet {
             double maxStart = Math.max(0, trackDuration - maxSec);
             if (startSec > maxStart + 0.001) {
                 sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false,
-                        "非会员起始时间过晚，所选范围不能超过 " + maxSec + " 秒");
+                        ApiMessages.translate("video.nonvip.range_too_long", maxSec));
                 return;
             }
             VideoRenderQuotaService quota = Main.getVideoRenderQuotaService();
             int remaining = quota.reserveDailySlot(userId);
             if (remaining < 0) {
                 sendJson(resp, 429, false,
-                        "今日免费生成次数已用完（" + limit + " 次/天），开通 VIP 可无限制使用");
+                        ApiMessages.translate("video.limit.daily_exhausted", limit));
                 return;
             }
             remainingToday = remaining;
@@ -199,7 +200,7 @@ public class VideoRenderHandler extends ApiServlet {
         }
 
         if (clipDuration <= 0.5) {
-            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "可渲染时长过短");
+            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "video.clip_too_short");
             return;
         }
 
@@ -216,7 +217,7 @@ public class VideoRenderHandler extends ApiServlet {
             Main.getVideoRenderJobStore().insertPending(job);
         } catch (Exception e) {
             logger.error("创建视频任务失败 userId={} musicId={}", userId, musicId, e);
-            sendJson(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false, "创建任务失败");
+            sendJson(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false, "video.task_create_failed");
             return;
         }
 
@@ -224,8 +225,8 @@ public class VideoRenderHandler extends ApiServlet {
         try {
             Main.getVideoRenderService().submit(job, meta.title, meta.artist, audioOpt.get(), coverOpt);
         } catch (RejectedExecutionException e) {
-            jobDbMarkFailed(jobId, "渲染队列已满，请稍后再试");
-            sendJson(resp, HttpServletResponse.SC_SERVICE_UNAVAILABLE, false, "渲染队列已满，请稍后再试");
+            jobDbMarkFailed(jobId, "video.queue_full");
+            sendJson(resp, HttpServletResponse.SC_SERVICE_UNAVAILABLE, false, "video.queue_full");
             return;
         }
 
@@ -242,7 +243,7 @@ public class VideoRenderHandler extends ApiServlet {
 
         JsonObject out = new JsonObject();
         out.addProperty("success", true);
-        out.addProperty("message", "任务已创建，完成后将邮件通知并附下载链接");
+        out.addProperty("message", ApiMessages.translate("video.task_created"));
         out.add("data", data);
         sendRawJson(resp, HttpServletResponse.SC_ACCEPTED, out);
     }
@@ -256,19 +257,19 @@ public class VideoRenderHandler extends ApiServlet {
 
     private void handleStatus(HttpServletRequest req, HttpServletResponse resp, String jobId) throws IOException {
         if (!isValidJobId(jobId)) {
-            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "无效的任务 ID");
+            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "video.task_id_invalid");
             return;
         }
         Optional<Integer> userIdOpt = requireUser(req);
         if (userIdOpt.isEmpty()) {
-            sendJson(resp, HttpServletResponse.SC_UNAUTHORIZED, false, "请先登录");
+            sendJson(resp, HttpServletResponse.SC_UNAUTHORIZED, false, "auth.login_required");
             return;
         }
 
         Optional<VideoRenderJob> jobOpt = Main.getVideoRenderJobStore()
                 .findByIdAndUserId(jobId, userIdOpt.get());
         if (jobOpt.isEmpty()) {
-            sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "任务不存在");
+            sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "video.task_not_found");
             return;
         }
         VideoRenderJob job = jobOpt.get();
@@ -295,13 +296,13 @@ public class VideoRenderHandler extends ApiServlet {
     /** 仅凭 jobId 下载成片，无需登录或 token（jobId 为 UUID，难以猜测） */
     private void handleDownload(HttpServletRequest req, HttpServletResponse resp, String jobId) throws IOException {
         if (!isValidJobId(jobId)) {
-            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "无效的任务 ID");
+            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "video.task_id_invalid");
             return;
         }
 
         Optional<VideoRenderJob> jobOpt = Main.getVideoRenderJobStore().findById(jobId);
         if (jobOpt.isEmpty()) {
-            sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "任务不存在");
+            sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "video.task_not_found");
             return;
         }
         streamDoneJobVideo(req, resp, jobOpt.get());
@@ -310,13 +311,13 @@ public class VideoRenderHandler extends ApiServlet {
     private void streamDoneJobVideo(HttpServletRequest req, HttpServletResponse resp, VideoRenderJob job)
             throws IOException {
         if (!"done".equals(job.getStatus())) {
-            sendJson(resp, HttpServletResponse.SC_CONFLICT, false, "视频尚未生成完成");
+            sendJson(resp, HttpServletResponse.SC_CONFLICT, false, "video.not_ready");
             return;
         }
 
         Path file = VideoRenderPaths.outputFile(job.getId());
         if (!Files.isRegularFile(file) || !VideoRenderPaths.isAllowedOutput(file)) {
-            sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "视频文件不存在");
+            sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "video.file_missing");
             return;
         }
 

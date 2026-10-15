@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
 import com.neko.music.service.PlaylistService;
@@ -35,14 +36,14 @@ public class DeletePlaylistHandler extends ApiServlet {
         String token = req.getHeader("Authorization");
 
         if (token == null || token.isEmpty()) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未提供认证令牌");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.token_missing");
             return;
         }
 
         // 验证token并获取用户ID
         Integer userId = userAuthService.validateToken(token).orElse(null);
         if (userId == null) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "无效的认证令牌");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.invalid_bearer");
             return;
         }
 
@@ -60,14 +61,14 @@ public class DeletePlaylistHandler extends ApiServlet {
 
             // 验证请求参数
             if (playlistId == null) {
-                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "歌单ID不能为空");
+                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "playlist.id_required");
                 return;
             }
 
             // 检查用户是否是歌单的所有者
             if (!playlistService.isPlaylistOwner(playlistId, userId)) {
                 logger.warn("用户尝试删除不属于自己的歌单: userId={}, playlistId={}", userId, playlistId);
-                sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "无权限删除此歌单");
+                sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "playlist.no_permission_delete");
                 return;
             }
 
@@ -79,17 +80,17 @@ public class DeletePlaylistHandler extends ApiServlet {
 
                 JsonObject response = new JsonObject();
                 response.addProperty("success", true);
-                response.addProperty("message", "歌单删除成功");
+                response.addProperty("message", ApiMessages.translate("playlist.delete_ok"));
 
                 sendSuccessResponse(resp, response);
             } else {
                 logger.warn("歌单删除失败: id={}, userId={}", playlistId, userId);
-                sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "歌单删除失败");
+                sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "playlist.delete_failed");
             }
 
         } catch (Exception e) {
             logger.error("处理删除歌单请求时发生错误: {}", e.getMessage(), e);
-            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "服务器内部错误");
+            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "common.internal_error");
         }
     }
 

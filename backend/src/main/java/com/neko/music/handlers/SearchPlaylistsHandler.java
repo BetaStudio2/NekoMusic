@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
@@ -37,14 +38,14 @@ public class SearchPlaylistsHandler extends ApiServlet {
             JsonObject requestData = Main.getGson().fromJson(requestBody.toString(), JsonObject.class);
 
             if (requestData == null || !requestData.has("query")) {
-                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "缺少搜索关键词");
+                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "playlist.search_keyword_missing");
                 return;
             }
 
             String query = requestData.get("query").getAsString().trim();
 
             if (query.isEmpty()) {
-                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "搜索关键词不能为空");
+                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "playlist.search_keyword_required");
                 return;
             }
 
@@ -55,7 +56,7 @@ public class SearchPlaylistsHandler extends ApiServlet {
 
             JsonObject response = new JsonObject();
             response.addProperty("success", true);
-            response.addProperty("message", "搜索成功");
+            response.addProperty("message", ApiMessages.translate("playlist.search_ok"));
             response.addProperty("total", playlists.size());
 
             JsonArray playlistsArray = new JsonArray();
@@ -68,7 +69,7 @@ public class SearchPlaylistsHandler extends ApiServlet {
             sendSuccessResponse(resp, response);
         } catch (Exception e) {
             logger.error("处理搜索歌单请求时发生错误: {}", e.getMessage(), e);
-            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "服务器内部错误");
+            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "common.internal_error");
         }
     }
 

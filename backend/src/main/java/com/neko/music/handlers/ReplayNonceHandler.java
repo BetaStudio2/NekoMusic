@@ -61,7 +61,7 @@ public class ReplayNonceHandler extends ApiServlet {
         // 先过单来源闸门：限额被拒时不该消耗客户端已经解好的题目
         if (!ReplayIssueLimiter.tryAcquireRequest(clientIp)) {
             PowAudit.mark(request, null, PowAudit.RATE_LIMITED);
-            sendTooManyRequests(response, "请求过于频繁，请稍后再试");
+            sendTooManyRequests(response, "security.rate_limit.too_frequent");
             return;
         }
 
@@ -97,7 +97,7 @@ public class ReplayNonceHandler extends ApiServlet {
 
         if (!ReplayIssueLimiter.tryAcquireNonces(readCount + writeCount)) {
             PowAudit.mark(request, difficulty, PowAudit.RATE_LIMITED);
-            sendTooManyRequests(response, "请求过于频繁，请稍后再试");
+            sendTooManyRequests(response, "security.rate_limit.too_frequent");
             return;
         }
 
@@ -109,7 +109,7 @@ public class ReplayNonceHandler extends ApiServlet {
         // 少发即视为 Redis 故障：明确报错，绝不静默返回不足的 nonce（否则客户端会拿到空池）
         if (readNonces.size() < readCount || writeNonces.size() < writeCount) {
             PowAudit.mark(request, difficulty, PowAudit.ERROR);
-            sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "服务繁忙，请稍后重试");
+            sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "security.replay.busy");
             return;
         }
         PowAudit.mark(request, difficulty, PowAudit.EXCHANGED);
@@ -152,6 +152,6 @@ public class ReplayNonceHandler extends ApiServlet {
      * 细分提示（“缺少挑战”“需要先换题”之类）等于把防护流程和判定顺序告诉探测者。
      */
     private void sendGrantRejected(HttpServletResponse response) throws IOException {
-        sendErrorResponse(response, HttpServletResponse.SC_CONFLICT, "请求已失效，请刷新后重试");
+        sendErrorResponse(response, HttpServletResponse.SC_CONFLICT, "security.replay.stale");
     }
 }

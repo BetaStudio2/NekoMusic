@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import com.neko.music.i18n.ApiMessages;
 
 /**
  * QQ 音乐歌单详情代理，挂载在 {@code /loser/qq/getSongListDetail}。
@@ -30,7 +31,7 @@ public class QQMusicSongListDetailHandler extends ApiServlet {
         String disstid = request.getParameter("disstid");
         if (disstid == null || !disstid.matches("[0-9]{1,19}")) {
             sendErrorObject(response, HttpServletResponse.SC_BAD_REQUEST,
-                    "缺少有效的 disstid（歌单 ID 必须为数字）");
+                    "source.qq.disstid_required");
             return;
         }
 
@@ -43,11 +44,11 @@ public class QQMusicSongListDetailHandler extends ApiServlet {
         } catch (QQMusicClient.UpstreamException e) {
             logger.warn("QQ 音乐歌单接口返回 HTTP {}，disstid={}", e.getStatusCode(), disstid);
             sendErrorObject(response, HttpServletResponse.SC_BAD_GATEWAY,
-                    "QQ 音乐接口请求失败（HTTP " + e.getStatusCode() + "）");
+                    ApiMessages.translate("source.qq.api_failed", e.getStatusCode()));
         } catch (IOException e) {
             logger.warn("请求 QQ 音乐歌单接口失败，disstid={}: {}", disstid, e.getMessage());
             sendErrorObject(response, HttpServletResponse.SC_BAD_GATEWAY,
-                    e.getMessage() == null ? "请求 QQ 音乐接口失败" : e.getMessage());
+                    e.getMessage() == null ? "source.qq.request_failed" : e.getMessage());
         }
     }
 

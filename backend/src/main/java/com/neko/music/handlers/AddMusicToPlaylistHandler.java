@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -40,13 +41,13 @@ public class AddMusicToPlaylistHandler extends ApiServlet {
         String token = req.getHeader("Authorization");
 
         if (token == null || token.isEmpty()) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未提供认证令牌");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.token_missing");
             return;
         }
 
         Integer userId = userAuthService.validateToken(token).orElse(null);
         if (userId == null) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "无效的认证令牌");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.invalid_bearer");
             return;
         }
 
@@ -67,7 +68,7 @@ public class AddMusicToPlaylistHandler extends ApiServlet {
                 }
                 if (requestData.has("musicIds")) {
                     if (!requestData.get("musicIds").isJsonArray()) {
-                        sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "musicIds 必须是 JSON 数组");
+                        sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "playlist.music_ids_not_array");
                         return;
                     }
                     JsonArray arr = requestData.getAsJsonArray("musicIds");
@@ -80,19 +81,19 @@ public class AddMusicToPlaylistHandler extends ApiServlet {
             }
 
             if (playlistId == null) {
-                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "歌单ID不能为空");
+                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "playlist.id_required");
                 return;
             }
 
             List<Integer> toAdd = new ArrayList<>(new LinkedHashSet<>(musicIds));
             if (toAdd.isEmpty()) {
-                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "音乐ID不能为空（可传 musicId 或 musicIds 数组）");
+                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "music.id_required_detail");
                 return;
             }
 
             if (!playlistService.isPlaylistOwner(playlistId, userId)) {
                 logger.warn("用户尝试在不属于自己的歌单中添加音乐: userId={}, playlistId={}", userId, playlistId);
-                sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "无权限修改此歌单");
+                sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "playlist.no_permission_update");
                 return;
             }
 
@@ -110,9 +111,9 @@ public class AddMusicToPlaylistHandler extends ApiServlet {
                 response.addProperty("success", true);
                 response.addProperty("addedCount", toAdd.size());
                 if (toAdd.size() == 1) {
-                    response.addProperty("message", "音乐添加到歌单成功");
+                    response.addProperty("message", ApiMessages.translate("playlist.add_ok"));
                 } else {
-                    response.addProperty("message", "已向歌单添加 " + toAdd.size() + " 首音乐");
+                    response.addProperty("message", ApiMessages.translate("playlist.add.done", toAdd.size()));
                 }
 
                 sendSuccessResponse(resp, response);
@@ -128,7 +129,7 @@ public class AddMusicToPlaylistHandler extends ApiServlet {
                     failedArr.add(f);
                 }
                 response.add("failedMusicIds", failedArr);
-                response.addProperty("message", "部分音乐未能添加到歌单（已存在或添加失败），失败数量: " + failed.size());
+                response.addProperty("message", ApiMessages.translate("playlist.add.partial", failed.size()));
 
                 resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
                 resp.setContentType("application/json;charset=UTF-8");
@@ -140,7 +141,7 @@ public class AddMusicToPlaylistHandler extends ApiServlet {
 
         } catch (Exception e) {
             logger.error("处理添加音乐到歌单请求时发生错误: {}", e.getMessage(), e);
-            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "服务器内部错误");
+            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "common.internal_error");
         }
     }
 

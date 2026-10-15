@@ -35,11 +35,11 @@ public class MusicFileHandler extends ApiServlet {
 
         Integer musicId = parseMusicId(request.getPathInfo());
         if (musicId == null) {
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "无效的音乐ID");
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "music.id_invalid");
             return;
         }
         if (!MusicLookup.musicRowExists(musicId)) {
-            sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "音乐文件不存在");
+            sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "music.file_missing");
             return;
         }
 
@@ -48,7 +48,7 @@ public class MusicFileHandler extends ApiServlet {
             audioPath = MusicQualityService.resolveAudio(musicId, request.getParameter("quality"));
         } catch (Exception e) {
             logger.error("解析音乐音质失败 id={}", musicId, e);
-            sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "音乐文件不存在或音质处理失败");
+            sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "music.file_missing_or_quality_failed");
             return;
         }
 

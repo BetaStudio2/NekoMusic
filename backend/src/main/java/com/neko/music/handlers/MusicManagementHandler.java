@@ -25,6 +25,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import com.neko.music.i18n.ApiMessages;
 
 public class MusicManagementHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicManagementHandler.class);
@@ -104,7 +105,7 @@ public class MusicManagementHandler extends HttpServlet {
         String pathInfo = request.getPathInfo();
         
         if (pathInfo == null) {
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("音乐ID不能为空"));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("music.id_required"));
             return;
         }
         
@@ -114,7 +115,7 @@ public class MusicManagementHandler extends HttpServlet {
             idStr = pathInfo.substring("/delete/".length());
         } else {
             // 如果路径不是以 /delete/ 开头，返回错误
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("无效的DELETE请求路径: " + pathInfo + "，应为 /api/music/delete/{id}"));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse(ApiMessages.translate("music.invalid_delete_path", pathInfo)));
             return;
         }
         
@@ -123,7 +124,7 @@ public class MusicManagementHandler extends HttpServlet {
         try {
             id = Integer.parseInt(idStr);
         } catch (NumberFormatException e) {
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("无效的音乐ID: " + idStr));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse(ApiMessages.translate("music.id_invalid_detail", idStr)));
             return;
         }
 
@@ -138,12 +139,12 @@ public class MusicManagementHandler extends HttpServlet {
             }
         } catch (Exception e) {
             logger.error("删除音乐时出错", e);
-            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("删除音乐失败: " + e.getMessage()));
+            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse(ApiMessages.translate("music.delete_failed", e.getMessage())));
             return;
         }
 
         if (rowsDeleted == 0) {
-            HandlerResponses.writeJson(response, HttpStatus.NOT_FOUND_404, new ErrorResponse("音乐不存在或删除失败"));
+            HandlerResponses.writeJson(response, HttpStatus.NOT_FOUND_404, new ErrorResponse("music.not_found_or_delete_failed"));
             return;
         }
 
@@ -156,7 +157,7 @@ public class MusicManagementHandler extends HttpServlet {
         }
         MusicIngestSupport.invalidateRecognitionIndex();
 
-        HandlerResponses.writeJson(response, HttpStatus.OK_200, new SuccessResponse(true, "删除音乐成功"));
+        HandlerResponses.writeJson(response, HttpStatus.OK_200, new SuccessResponse(true, ApiMessages.translate("music.delete.ok")));
     }
     
     // 检查管理员权限
@@ -175,11 +176,11 @@ public class MusicManagementHandler extends HttpServlet {
             }
         } catch (Exception e) {
             logger.error("获取音乐列表时出错", e);
-            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("获取音乐列表失败: " + e.getMessage()));
+            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse(ApiMessages.translate("music.list_failed", e.getMessage())));
             return;
         }
         
-        HandlerResponses.writeJson(response, HttpStatus.OK_200, new MusicListResponse(true, "获取音乐列表成功", musicList));
+        HandlerResponses.writeJson(response, HttpStatus.OK_200, new MusicListResponse(true, ApiMessages.translate("music.list.ok"), musicList));
     }
 
     private void getMusicById(String pathInfo, HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -189,7 +190,7 @@ public class MusicManagementHandler extends HttpServlet {
         try {
             id = Integer.parseInt(idStr);
         } catch (NumberFormatException e) {
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("无效的音乐ID"));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("music.id_invalid"));
             return;
         }
         
@@ -208,16 +209,16 @@ public class MusicManagementHandler extends HttpServlet {
             }
         } catch (Exception e) {
             logger.error("获取音乐详情时出错", e);
-            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("获取音乐详情失败: " + e.getMessage()));
+            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse(ApiMessages.translate("music.detail_failed", e.getMessage())));
             return;
         }
         
         if (music == null) {
-            HandlerResponses.writeJson(response, HttpStatus.NOT_FOUND_404, new ErrorResponse("音乐不存在"));
+            HandlerResponses.writeJson(response, HttpStatus.NOT_FOUND_404, new ErrorResponse("music.not_found"));
             return;
         }
         
-        HandlerResponses.writeJson(response, HttpStatus.OK_200, new MusicResponse(true, "获取音乐详情成功", music));
+        HandlerResponses.writeJson(response, HttpStatus.OK_200, new MusicResponse(true, ApiMessages.translate("music.detail.ok"), music));
     }
 
     private void addMusic(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -231,7 +232,7 @@ public class MusicManagementHandler extends HttpServlet {
             if (addRequest.title() == null || addRequest.title().trim().isEmpty() ||
                 addRequest.artist() == null || addRequest.artist().trim().isEmpty() ||
                 addRequest.language() == null || addRequest.language().trim().isEmpty()) {
-                HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("音乐标题、艺术家和语言不能为空"));
+                HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("upload.music_fields_required"));
                 return;
             }
             
@@ -253,7 +254,7 @@ public class MusicManagementHandler extends HttpServlet {
                     int affectedRows = stmt.executeUpdate();
                     
                     if (affectedRows == 0) {
-                        HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("添加音乐失败"));
+                        HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("music.add_failed"));
                         return;
                     }
                     
@@ -284,12 +285,12 @@ public class MusicManagementHandler extends HttpServlet {
 
             MusicIngestSupport.invalidateRecognitionIndex();
             
-            HandlerResponses.writeJson(response, HttpStatus.OK_200, new MusicResponse(true, "添加音乐成功", newMusic));
+            HandlerResponses.writeJson(response, HttpStatus.OK_200, new MusicResponse(true, ApiMessages.translate("music.add.ok"), newMusic));
             
         } catch (Exception e) {
             // JSON 解析异常的消息含内部类名与字段清单，只能落日志，响应只回泛化提示
             logger.warn("添加音乐请求处理失败", e);
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("请求格式错误"));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("auth.bad_request"));
         }
     }
 
@@ -305,13 +306,13 @@ public class MusicManagementHandler extends HttpServlet {
             if (editRequest.id() == null || editRequest.title() == null || editRequest.title().trim().isEmpty() ||
                 editRequest.artist() == null || editRequest.artist().trim().isEmpty() ||
                 editRequest.language() == null || editRequest.language().trim().isEmpty()) {
-                HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("音乐ID、标题、艺术家和语言不能为空"));
+                HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("music.manage.fields_required"));
                 return;
             }
             
             // 验证歌词必填
             if (editRequest.lyrics() == null || editRequest.lyrics().trim().isEmpty()) {
-                HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("歌词内容不能为空"));
+                HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("music.lyrics.content_required"));
                 return;
             }
             
@@ -341,14 +342,14 @@ public class MusicManagementHandler extends HttpServlet {
                     } catch (Exception lyricsEx) {
                         logger.error("保存歌词失败 musicId={}", editRequest.id(), lyricsEx);
                         HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500,
-                                new ErrorResponse("保存歌词失败，请稍后重试"));
+                                new ErrorResponse("music.lyrics.save_failed"));
                         return;
                     }
                 }
             }
             
             if (rowsUpdated == 0) {
-                HandlerResponses.writeJson(response, HttpStatus.NOT_FOUND_404, new ErrorResponse("音乐不存在或更新失败"));
+                HandlerResponses.writeJson(response, HttpStatus.NOT_FOUND_404, new ErrorResponse(ApiMessages.translate("music.not_found_or_update_failed")));
                 return;
             }
 
@@ -386,12 +387,12 @@ public class MusicManagementHandler extends HttpServlet {
             
             MusicIngestSupport.invalidateRecognitionIndex();
 
-            HandlerResponses.writeJson(response, HttpStatus.OK_200, new MusicResponse(true, "编辑音乐成功", updatedMusic));
+            HandlerResponses.writeJson(response, HttpStatus.OK_200, new MusicResponse(true, ApiMessages.translate("music.edit.ok"), updatedMusic));
             
         } catch (Exception e) {
             // JSON 解析异常的消息含内部类名与字段清单，只能落日志，响应只回泛化提示
             logger.warn("编辑音乐请求处理失败", e);
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("请求格式错误"));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("auth.bad_request"));
         }
     }
 

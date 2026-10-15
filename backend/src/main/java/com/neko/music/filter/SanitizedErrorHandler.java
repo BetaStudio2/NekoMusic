@@ -1,5 +1,6 @@
 package com.neko.music.filter;
 
+import com.neko.music.i18n.ApiMessages;
 import org.eclipse.jetty.http.HttpStatus;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Response;
@@ -31,21 +32,21 @@ public class SanitizedErrorHandler extends ErrorHandler {
      */
     static String publicMessage(int status) {
         if (status >= 500) {
-            return "服务器内部错误";
+            return ApiMessages.translate("common.internal_error");
         }
         return switch (status) {
-            case 400 -> "请求参数错误";
-            case 401 -> "未授权";
-            case 403 -> "禁止访问";
-            case 404 -> "资源不存在";
-            case 405 -> "请求方法不被支持";
-            case 409 -> "资源状态冲突";
-            case 413 -> "请求体过大";
-            case 415 -> "不支持的媒体类型";
-            case 429 -> "请求过于频繁";
+            case 400 -> ApiMessages.translate("error.bad_request");
+            case 401 -> ApiMessages.translate("error.unauthorized");
+            case 403 -> ApiMessages.translate("error.forbidden");
+            case 404 -> ApiMessages.translate("error.resource_not_found");
+            case 405 -> ApiMessages.translate("error.method_not_allowed");
+            case 409 -> ApiMessages.translate("error.conflict");
+            case 413 -> ApiMessages.translate("error.payload_too_large");
+            case 415 -> ApiMessages.translate("error.unsupported_media_type");
+            case 429 -> ApiMessages.translate("error.too_many_requests");
             default -> {
                 String reason = HttpStatus.getMessage(status);
-                yield reason == null || reason.isBlank() ? "请求无法处理" : reason;
+                yield reason == null || reason.isBlank() ? ApiMessages.translate("error.unhandled") : reason;
             }
         };
     }

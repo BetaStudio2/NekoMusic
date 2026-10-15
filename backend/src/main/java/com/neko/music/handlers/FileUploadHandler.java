@@ -44,6 +44,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Collection;
+import com.neko.music.i18n.ApiMessages;
 
 public class FileUploadHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(FileUploadHandler.class);
@@ -83,7 +84,7 @@ public class FileUploadHandler extends HttpServlet {
             // 验证必要字段
             if (title == null || title.trim().isEmpty() || artist == null || artist.trim().isEmpty() || 
                 language == null || language.trim().isEmpty()) {
-                HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("音乐标题、艺术家和语言不能为空"));
+                HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("upload.music_fields_required"));
                 return;
             }
             
@@ -93,7 +94,7 @@ public class FileUploadHandler extends HttpServlet {
             }
             
             if (musicFilePart == null) {
-                HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("音乐文件不能为空"));
+                HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("upload.audio_file_required"));
                 return;
             }
             
@@ -135,7 +136,7 @@ public class FileUploadHandler extends HttpServlet {
 
                 // 音频通过后再查重，避免无效文件也访问库
                 if (isDuplicateMusic(title, artist, album)) {
-                    HandlerResponses.writeJson(response, HttpStatus.OK_200, new MusicResponse(false, "已有重复音乐", null));
+                    HandlerResponses.writeJson(response, HttpStatus.OK_200, new MusicResponse(false, ApiMessages.translate("music.duplicate"), null));
                     return;
                 }
 
@@ -175,7 +176,7 @@ public class FileUploadHandler extends HttpServlet {
                 }
                 logger.error("处理管理员上传音乐文件失败", e);
                 HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500,
-                        new ErrorResponse("上传音乐失败，请稍后重试或联系管理员"));
+                        new ErrorResponse("upload.failed"));
                 return;
             } finally {
                 if (deleteMusicTempIfPresent) {
@@ -194,12 +195,12 @@ public class FileUploadHandler extends HttpServlet {
             Music music = getMusicById(musicId);
             MusicIngestSupport.invalidateRecognitionIndex();
             
-            HandlerResponses.writeJson(response, HttpStatus.OK_200, new MusicResponse(true, "上传音乐成功", music));
+            HandlerResponses.writeJson(response, HttpStatus.OK_200, new MusicResponse(true, ApiMessages.translate("music.upload.ok"), music));
             
         } catch (Exception e) {
             logger.error("上传音乐时出错", e);
             HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500,
-                    new ErrorResponse("上传音乐失败，请稍后重试或联系管理员"));
+                    new ErrorResponse("upload.failed"));
         }
     }
     
@@ -234,7 +235,7 @@ public class FileUploadHandler extends HttpServlet {
             
             // 验证必要字段
             if (id == null || title == null || title.trim().isEmpty() || artist == null || artist.trim().isEmpty()) {
-                HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("音乐ID、标题和艺术家不能为空"));
+                HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse(ApiMessages.translate("music.meta.required")));
                 return;
             }
             
@@ -246,7 +247,7 @@ public class FileUploadHandler extends HttpServlet {
             // 获取当前音乐信息
             Music currentMusic = getMusicById(id);
             if (currentMusic == null) {
-                HandlerResponses.writeJson(response, HttpStatus.NOT_FOUND_404, new ErrorResponse("音乐不存在"));
+                HandlerResponses.writeJson(response, HttpStatus.NOT_FOUND_404, new ErrorResponse("music.not_found"));
                 return;
             }
             
@@ -289,7 +290,7 @@ public class FileUploadHandler extends HttpServlet {
                 } catch (Exception e) {
                     logger.error("更新音乐文件失败 id={}", id, e);
                     HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500,
-                            new ErrorResponse("更新音乐文件失败，请稍后重试或联系管理员"));
+                            new ErrorResponse(ApiMessages.translate("music.update_file.failed")));
                     return;
                 } finally {
                     if (deleteMusicTempIfPresent) {
@@ -337,12 +338,12 @@ public class FileUploadHandler extends HttpServlet {
             Music updatedMusic = getMusicById(id);
             MusicIngestSupport.invalidateRecognitionIndex();
             
-            HandlerResponses.writeJson(response, HttpStatus.OK_200, new MusicResponse(true, "更新音乐成功", updatedMusic));
+            HandlerResponses.writeJson(response, HttpStatus.OK_200, new MusicResponse(true, ApiMessages.translate("music.update.ok"), updatedMusic));
             
         } catch (Exception e) {
             logger.error("更新音乐时出错", e);
             HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500,
-                    new ErrorResponse("更新音乐失败，请稍后重试或联系管理员"));
+                    new ErrorResponse(ApiMessages.translate("music.update.failed")));
         }
     }
 
@@ -350,14 +351,14 @@ public class FileUploadHandler extends HttpServlet {
     private boolean validateLyricsOrReject(HttpServletResponse response, Part lyricsFilePart) throws IOException {
         // 验证歌词文件必填
         if (lyricsFilePart == null) {
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("歌词文件不能为空"));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse(ApiMessages.translate("music.lyrics_file.required")));
             return false;
         }
         
         // 检查歌词文件类型
         String lyricsFileName = getFileName(lyricsFilePart);
         if (!lyricsFileName.toLowerCase().endsWith(".lrc")) {
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("只支持LRC格式的歌词文件"));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("upload.lyrics_only_lrc"));
             return false;
         }
         
@@ -366,13 +367,13 @@ public class FileUploadHandler extends HttpServlet {
             LrcValidator.ValidationResult validationResult = LrcValidator.validate(
                     lyricsInputStream, lyricsFilePart.getSize());
             if (!validationResult.isValid()) {
-                HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("歌词文件格式错误: " + validationResult.getErrorMessage()));
+                HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse(ApiMessages.translate("upload.lyrics_format_invalid", validationResult.getErrorMessage())));
                 return false;
             }
         } catch (Exception e) {
             logger.error("校验歌词文件时出错", e);
             HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400,
-                    new ErrorResponse("校验歌词文件时出错，请检查文件后重试"));
+                    new ErrorResponse(ApiMessages.translate("upload.lyrics_validate_failed_retry")));
             return false;
         }
         return true;
@@ -401,7 +402,7 @@ public class FileUploadHandler extends HttpServlet {
         AudioFileValidator.FormatDetectionResult detectionResult =
                 AudioFileValidator.detectAndValidatePath(musicTemp, fileExtension);
         if (!detectionResult.isValid()) {
-            return new AudioValidation(false, "音频文件格式错误: " + detectionResult.getErrorMessage(), null, duration);
+            return new AudioValidation(false, ApiMessages.translate("upload.audio_format_invalid", detectionResult.getErrorMessage()), null, duration);
         }
         String fileFormat;
         switch (detectionResult.getFormat()) {
@@ -409,7 +410,7 @@ public class FileUploadHandler extends HttpServlet {
             case FLAC -> fileFormat = "flac";
             case WAV -> fileFormat = "wav";
             default -> {
-                return new AudioValidation(false, "不支持的音频格式", null, duration);
+                return new AudioValidation(false, "upload.unsupported_audio", null, duration);
             }
         }
         logger.info("检测到文件格式: {} (实际格式: {})", fileFormat, detectionResult.getFormatDescription());
@@ -540,7 +541,7 @@ public class FileUploadHandler extends HttpServlet {
                     language != null ? language : "未知语言",
                     tags != null ? tags : "",
                     duration, validUploadUserId, fileFormat,
-                    "添加音乐失败", "获取新音乐ID失败");
+                    "music.add_failed", "获取新音乐ID失败");
         }
     }
 

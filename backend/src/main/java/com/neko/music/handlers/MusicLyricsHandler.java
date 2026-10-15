@@ -14,6 +14,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.OptionalInt;
+import com.neko.music.i18n.ApiMessages;
 
 public class MusicLyricsHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicLyricsHandler.class);
@@ -30,7 +31,7 @@ public class MusicLyricsHandler extends HttpServlet {
         String lyrics = getLyricsById(musicId);
         
         if (lyrics == null) {
-            writeError(response, HttpStatus.NOT_FOUND_404, "歌词文件不存在");
+            writeError(response, HttpStatus.NOT_FOUND_404, "music.lyrics.file_missing");
             return;
         }
         
@@ -39,7 +40,7 @@ public class MusicLyricsHandler extends HttpServlet {
         
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
-        LyricsResponse lyricsResponse = new LyricsResponse(true, "获取歌词成功", lyrics);
+        LyricsResponse lyricsResponse = new LyricsResponse(true, ApiMessages.translate("music.lyrics.get_ok"), lyrics);
         response.getWriter().println(Main.getObjectMapper().writeValueAsString(lyricsResponse));
     }
     
@@ -47,7 +48,7 @@ public class MusicLyricsHandler extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         // 检查是否为管理员
         if (!isAdminRequest(request)) {
-            writeError(response, HttpStatus.UNAUTHORIZED_401, "需要管理员权限");
+            writeError(response, HttpStatus.UNAUTHORIZED_401, "admin.permission_required");
             return;
         }
         
@@ -68,12 +69,12 @@ public class MusicLyricsHandler extends HttpServlet {
         try {
             lyricsRequest = Main.getObjectMapper().readValue(requestBody.toString(), LyricsRequest.class);
         } catch (Exception e) {
-            writeError(response, HttpStatus.BAD_REQUEST_400, "无效的请求格式");
+            writeError(response, HttpStatus.BAD_REQUEST_400, "user.bad_request");
             return;
         }
         
         if (lyricsRequest.lyrics() == null) {
-            writeError(response, HttpStatus.BAD_REQUEST_400, "歌词内容不能为空");
+            writeError(response, HttpStatus.BAD_REQUEST_400, "music.lyrics.content_required");
             return;
         }
         
@@ -81,7 +82,7 @@ public class MusicLyricsHandler extends HttpServlet {
         boolean success = updateLyrics(musicId, lyricsRequest.lyrics());
         
         if (!success) {
-            writeError(response, HttpStatus.INTERNAL_SERVER_ERROR_500, "更新歌词失败");
+            writeError(response, HttpStatus.INTERNAL_SERVER_ERROR_500, "music.lyrics.update_failed");
             return;
         }
 
@@ -92,7 +93,7 @@ public class MusicLyricsHandler extends HttpServlet {
         // 同步内嵌歌词到音频文件（保留广告元数据与横幅）
         EmbeddedMetadataSyncService.syncOne(musicId);
         
-        writeSuccess(response, "更新歌词成功");
+        writeSuccess(response, ApiMessages.translate("music.lyrics.update_ok"));
     }
     
     /**
@@ -102,7 +103,7 @@ public class MusicLyricsHandler extends HttpServlet {
         String pathInfo = request.getPathInfo();
         
         if (pathInfo == null || pathInfo.equals("/")) {
-            writeError(response, HttpStatus.BAD_REQUEST_400, "音乐ID不能为空");
+            writeError(response, HttpStatus.BAD_REQUEST_400, "music.id_required");
             return OptionalInt.empty();
         }
         
@@ -112,7 +113,7 @@ public class MusicLyricsHandler extends HttpServlet {
         try {
             return OptionalInt.of(Integer.parseInt(idStr));
         } catch (NumberFormatException e) {
-            writeError(response, HttpStatus.BAD_REQUEST_400, "无效的音乐ID");
+            writeError(response, HttpStatus.BAD_REQUEST_400, "music.id_invalid");
             return OptionalInt.empty();
         }
     }

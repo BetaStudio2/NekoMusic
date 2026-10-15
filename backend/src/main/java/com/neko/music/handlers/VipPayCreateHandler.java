@@ -18,6 +18,7 @@ import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import com.neko.music.i18n.ApiMessages;
 
 /**
  * 登录用户发起 VIP 套餐 ZPay 支付：写入本地订单并调用 {@code mapi.php} 返回收银台 URL / 二维码等。
@@ -30,28 +31,28 @@ public class VipPayCreateHandler extends ApiServlet {
         resp.setCharacterEncoding("UTF-8");
         ConfigManager cfg = Main.getConfigManager();
         if (!cfg.isZpayEnabled()) {
-            sendJson(resp, HttpServletResponse.SC_SERVICE_UNAVAILABLE, false, "支付功能未启用");
+            sendJson(resp, HttpServletResponse.SC_SERVICE_UNAVAILABLE, false, "vip.disabled");
             return;
         }
         if (cfg.getZpayPid().isEmpty() || cfg.getZpayKey().isEmpty()) {
-            sendJson(resp, HttpServletResponse.SC_SERVICE_UNAVAILABLE, false, "支付未配置完整（pid/key）");
+            sendJson(resp, HttpServletResponse.SC_SERVICE_UNAVAILABLE, false, "vip.not_configured");
             return;
         }
         String notifyUrl = cfg.getZpayNotifyUrl();
         if (notifyUrl.isEmpty()) {
-            sendJson(resp, HttpServletResponse.SC_SERVICE_UNAVAILABLE, false, "未配置 zpay.public_base_url");
+            sendJson(resp, HttpServletResponse.SC_SERVICE_UNAVAILABLE, false, "vip.zpay_base_url_missing");
             return;
         }
         String ret = cfg.getZpayFrontendReturnUrl();
         if (ret.isEmpty()) {
-            sendJson(resp, HttpServletResponse.SC_SERVICE_UNAVAILABLE, false, "未配置 zpay.public_base_url 或 zpay.frontend_return_url（支付完成回跳）");
+            sendJson(resp, HttpServletResponse.SC_SERVICE_UNAVAILABLE, false, "vip.zpay_return_url_missing");
             return;
         }
 
         String auth = req.getHeader("Authorization");
         Optional<Integer> userIdOpt = Main.getUserAuthService().validateToken(auth == null ? "" : auth);
         if (userIdOpt.isEmpty()) {
-            sendJson(resp, HttpServletResponse.SC_UNAUTHORIZED, false, "请先登录");
+            sendJson(resp, HttpServletResponse.SC_UNAUTHORIZED, false, "auth.login_required");
             return;
         }
         int userId = userIdOpt.get();
@@ -67,11 +68,11 @@ public class VipPayCreateHandler extends ApiServlet {
         try {
             root = Main.getGson().fromJson(body.toString(), JsonObject.class);
         } catch (Exception e) {
-            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "请求体不是合法 JSON");
+            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "vip.body_not_json");
             return;
         }
         if (root == null || !root.has("pricingId") || !root.get("pricingId").isJsonPrimitive()) {
-            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "缺少 pricingId");
+            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "vip.pricing_id_required");
             return;
         }
         int pricingId = root.get("pricingId").getAsInt();
@@ -80,22 +81,22 @@ public class VipPayCreateHandler extends ApiServlet {
             payType = root.get("payType").getAsString().trim().toLowerCase();
         }
         if (!"alipay".equals(payType) && !"wxpay".equals(payType)) {
-            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "payType 仅支持 alipay 或 wxpay");
+            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "vip.pay_type_unsupported");
             return;
         }
 
         Optional<VipPriceItem> itemOpt = Main.getVipPricingDatabaseManager().getById(pricingId);
         if (itemOpt.isEmpty()) {
-            sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "套餐不存在");
+            sendJson(resp, HttpServletResponse.SC_NOT_FOUND, false, "vip.plan_not_found");
             return;
         }
         VipPriceItem item = itemOpt.get();
         if (item.months() <= 0 && item.days() <= 0) {
-            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "套餐时长无效");
+            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "vip.plan_duration_invalid");
             return;
         }
         if (item.priceYuan() <= 0) {
-            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "套餐价格无效");
+            sendJson(resp, HttpServletResponse.SC_BAD_REQUEST, false, "vip.plan_price_invalid");
             return;
         }
 
@@ -109,7 +110,7 @@ public class VipPayCreateHandler extends ApiServlet {
             orders.insertPending(outTradeNo, userId, pricingId, item.months(), item.days(), moneyBd, payType);
         } catch (Exception e) {
             logger.error("写入支付订单失败", e);
-            sendJson(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false, "创建订单失败");
+            sendJson(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false, "vip.order_create_failed");
             return;
         }
 
@@ -128,7 +129,7 @@ public class VipPayCreateHandler extends ApiServlet {
         try {
             JsonObject zr = ZpayMapiClient.requestMapi(cfg, mapi);
             if (!ZpayMapiClient.isApiSuccess(zr)) {
-                String msg = zr.has("msg") ? zr.get("msg").getAsString() : "ZPay 下单失败";
+                String msg = zr.has("msg") ? zr.get("msg").getAsString() : ApiMessages.translate("vip.zpay_order_failed");
                 orders.deletePending(outTradeNo);
                 sendJson(resp, HttpServletResponse.SC_BAD_GATEWAY, false, msg);
                 return;
@@ -148,7 +149,7 @@ public class VipPayCreateHandler extends ApiServlet {
         } catch (Exception e) {
             logger.error("调用 ZPay mapi 失败", e);
             orders.deletePending(outTradeNo);
-            sendJson(resp, HttpServletResponse.SC_BAD_GATEWAY, false, "支付网关请求失败: " + e.getMessage());
+            sendJson(resp, HttpServletResponse.SC_BAD_GATEWAY, false, ApiMessages.translate("vip.gateway_failed", e.getMessage()));
         }
     }
 

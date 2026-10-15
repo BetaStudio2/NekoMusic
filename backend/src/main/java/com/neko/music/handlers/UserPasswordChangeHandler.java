@@ -23,7 +23,7 @@ public class UserPasswordChangeHandler extends ApiServlet {
         // 验证用户Token
         String token = request.getHeader("Authorization");
         if (token == null || !token.startsWith("Bearer ")) {
-            sendErrorObject(response, HttpStatus.UNAUTHORIZED_401, "未授权访问");
+            sendErrorObject(response, HttpStatus.UNAUTHORIZED_401, "auth.unauthorized");
             return;
         }
         
@@ -31,7 +31,7 @@ public class UserPasswordChangeHandler extends ApiServlet {
         
         Integer userId = validateToken(token);
         if (userId == null) {
-            sendErrorObject(response, HttpStatus.UNAUTHORIZED_401, "无效的Token");
+            sendErrorObject(response, HttpStatus.UNAUTHORIZED_401, "auth.invalid_token");
             return;
         }
         
@@ -44,28 +44,28 @@ public class UserPasswordChangeHandler extends ApiServlet {
             
             // 验证请求参数
             if (changeRequest.oldPassword() == null || changeRequest.oldPassword().trim().isEmpty()) {
-                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "原密码不能为空");
+                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "auth.password_change.old_required");
                 return;
             }
             
             if (changeRequest.newPassword() == null || changeRequest.newPassword().trim().isEmpty()) {
-                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "新密码不能为空");
+                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "auth.password_reset.new_required");
                 return;
             }
             
             if (changeRequest.newPassword().length() < 6) {
-                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "新密码长度不能少于6位");
+                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "auth.password_change.new_too_short");
                 return;
             }
             
             if (changeRequest.oldPassword().equals(changeRequest.newPassword())) {
-                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "新密码不能与原密码相同");
+                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "auth.password_change.same_as_old");
                 return;
             }
             
             // 验证原密码
             if (!verifyOldPassword(userId, changeRequest.oldPassword())) {
-                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "原密码错误");
+                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "auth.password_change.old_wrong");
                 return;
             }
             
@@ -73,14 +73,14 @@ public class UserPasswordChangeHandler extends ApiServlet {
 
             if (success) {
                 logger.info("用户 {} 修改密码成功，已注销全部会话", userId);
-                sendSuccessResponse(response, "密码修改成功，请使用新密码重新登录");
+                sendSuccessResponse(response, "auth.password_change.ok");
             } else {
-                sendErrorObject(response, HttpStatus.INTERNAL_SERVER_ERROR_500, "密码修改失败");
+                sendErrorObject(response, HttpStatus.INTERNAL_SERVER_ERROR_500, "auth.password_change.failed");
             }
             
         } catch (Exception e) {
             logger.error("修改密码时出错", e);
-            sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "请求格式错误");
+            sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "auth.bad_request");
         }
     }
     

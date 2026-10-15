@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
 import com.neko.music.util.MusicAssetLocator;
@@ -22,13 +23,13 @@ public class UserFavoritePlaylistHandler extends ApiServlet {
         String token = req.getHeader("Authorization");
         
         if (token == null || token.isEmpty()) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未提供认证令牌");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.token_missing");
             return;
         }
         
         Integer userId = validateToken(token);
         if (userId == null) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "无效的认证令牌");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.invalid_bearer");
             return;
         }
         
@@ -46,10 +47,10 @@ public class UserFavoritePlaylistHandler extends ApiServlet {
                 
                 sendSuccessResponse(resp, response);
             } catch (NumberFormatException e) {
-                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "无效的歌单ID");
+                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "playlist.id_invalid");
             } catch (SQLException e) {
                 logger.error("获取歌单音乐失败: {}", e.getMessage(), e);
-                sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "获取歌单音乐失败");
+                sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "playlist.favorite.music_failed");
             }
         } else {
             // 获取收藏歌单列表
@@ -63,7 +64,7 @@ public class UserFavoritePlaylistHandler extends ApiServlet {
                 sendSuccessResponse(resp, response);
             } catch (SQLException e) {
                 logger.error("获取收藏歌单列表失败: {}", e.getMessage(), e);
-                sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "获取收藏歌单列表失败");
+                sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "playlist.favorite.list_failed");
             }
         }
     }
@@ -73,13 +74,13 @@ public class UserFavoritePlaylistHandler extends ApiServlet {
         String token = req.getHeader("Authorization");
         
         if (token == null || token.isEmpty()) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未提供认证令牌");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.token_missing");
             return;
         }
         
         Integer userId = validateToken(token);
         if (userId == null) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "无效的认证令牌");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.invalid_bearer");
             return;
         }
         
@@ -94,14 +95,14 @@ public class UserFavoritePlaylistHandler extends ApiServlet {
             if (success) {
                 JsonObject response = new JsonObject();
                 response.addProperty("success", true);
-                response.addProperty("message", "收藏歌单成功");
+                response.addProperty("message", ApiMessages.translate("playlist.favorite.add_ok"));
                 sendSuccessResponse(resp, response);
             } else {
-                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "收藏歌单失败或已收藏");
+                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "playlist.favorite.add_failed_or_exists");
             }
         } catch (SQLException e) {
             logger.error("收藏歌单失败: {}", e.getMessage(), e);
-            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "收藏歌单失败");
+            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "playlist.favorite.add_failed");
         }
     }
     
@@ -110,20 +111,20 @@ public class UserFavoritePlaylistHandler extends ApiServlet {
         String token = req.getHeader("Authorization");
         
         if (token == null || token.isEmpty()) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未提供认证令牌");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.token_missing");
             return;
         }
         
         Integer userId = validateToken(token);
         if (userId == null) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "无效的认证令牌");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.invalid_bearer");
             return;
         }
         
         // 从路径中获取歌单ID
         String pathInfo = req.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
-            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "缺少歌单ID");
+            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "playlist.favorite.id_required");
             return;
         }
         
@@ -134,16 +135,16 @@ public class UserFavoritePlaylistHandler extends ApiServlet {
             if (success) {
                 JsonObject response = new JsonObject();
                 response.addProperty("success", true);
-                response.addProperty("message", "取消收藏歌单成功");
+                response.addProperty("message", ApiMessages.translate("playlist.favorite.cancel_ok"));
                 sendSuccessResponse(resp, response);
             } else {
-                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "取消收藏歌单失败");
+                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "playlist.favorite.cancel_failed");
             }
         } catch (NumberFormatException e) {
-            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "无效的歌单ID");
+            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "playlist.id_invalid");
         } catch (SQLException e) {
             logger.error("取消收藏歌单失败: {}", e.getMessage(), e);
-            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "取消收藏歌单失败");
+            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "playlist.favorite.cancel_failed");
         }
     }
     

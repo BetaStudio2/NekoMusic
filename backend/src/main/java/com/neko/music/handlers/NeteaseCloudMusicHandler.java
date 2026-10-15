@@ -23,13 +23,13 @@ public class NeteaseCloudMusicHandler extends HttpServlet {
         response.setContentType("application/json;charset=UTF-8");
 
         if (RequestAuthUtil.authenticate(request) == null) {
-            writeError(response, HttpServletResponse.SC_UNAUTHORIZED, "缺少或无效的用户令牌");
+            writeError(response, HttpServletResponse.SC_UNAUTHORIZED, "source.netease.token_missing");
             return;
         }
 
         String path = request.getPathInfo();
         if (path == null || path.isBlank() || "/".equals(path)) {
-            writeError(response, HttpServletResponse.SC_NOT_FOUND, "缺少网易云接口路径");
+            writeError(response, HttpServletResponse.SC_NOT_FOUND, "source.netease.path_required");
             return;
         }
 
@@ -47,7 +47,7 @@ public class NeteaseCloudMusicHandler extends HttpServlet {
                 default -> null;
             };
             if (result == null) {
-                writeError(response, HttpServletResponse.SC_NOT_FOUND, "不支持的网易云接口路径");
+                writeError(response, HttpServletResponse.SC_NOT_FOUND, "source.netease.unsupported_path");
                 return;
             }
             response.setStatus(HttpServletResponse.SC_OK);
@@ -55,7 +55,7 @@ public class NeteaseCloudMusicHandler extends HttpServlet {
         } catch (IllegalArgumentException e) {
             writeError(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
         } catch (Exception e) {
-            writeError(response, HttpServletResponse.SC_BAD_GATEWAY, "网易云接口请求失败");
+            writeError(response, HttpServletResponse.SC_BAD_GATEWAY, "source.netease.api_failed");
         }
     }
 
@@ -90,6 +90,6 @@ public class NeteaseCloudMusicHandler extends HttpServlet {
     private static void writeError(HttpServletResponse response, int status, String message) throws IOException {
         response.setStatus(status);
         response.getWriter().write(Main.getObjectMapper().createObjectNode()
-                .put("code", status).put("msg", message == null ? "请求失败" : message).toString());
+                .put("code", status).put("msg", message == null ? "recognition.request_failed" : message).toString());
     }
 }

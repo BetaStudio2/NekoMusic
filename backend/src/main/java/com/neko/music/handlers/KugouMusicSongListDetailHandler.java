@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import com.neko.music.i18n.ApiMessages;
 
 /**
  * 酷狗音乐歌单详情代理，挂载在 {@code /loser/kugou/getSongListDetail}。
@@ -29,7 +30,7 @@ public class KugouMusicSongListDetailHandler extends ApiServlet {
         String listId = request.getParameter("listid");
         if (listId == null || listId.isBlank()) {
             sendErrorObject(response, HttpServletResponse.SC_BAD_REQUEST,
-                    "缺少有效的 listid（酷狗歌单链接或 ID）");
+                    "source.kugou.listid_required");
             return;
         }
 
@@ -45,11 +46,11 @@ public class KugouMusicSongListDetailHandler extends ApiServlet {
         } catch (KugouMusicClient.UpstreamException e) {
             logger.warn("酷狗歌单接口返回 HTTP {}，listid={}", e.getStatusCode(), listId);
             sendErrorObject(response, HttpServletResponse.SC_BAD_GATEWAY,
-                    "酷狗接口请求失败（HTTP " + e.getStatusCode() + "）");
+                    ApiMessages.translate("source.kugou.api_failed", e.getStatusCode()));
         } catch (IOException e) {
             logger.warn("请求酷狗歌单接口失败，listid={}: {}", listId, e.getMessage());
             sendErrorObject(response, HttpServletResponse.SC_BAD_GATEWAY,
-                    e.getMessage() == null ? "请求酷狗接口失败" : e.getMessage());
+                    e.getMessage() == null ? "source.kugou.request_failed" : e.getMessage());
         }
     }
 

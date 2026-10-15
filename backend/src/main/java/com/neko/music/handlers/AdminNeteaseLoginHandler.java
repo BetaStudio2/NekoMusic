@@ -48,7 +48,7 @@ public class AdminNeteaseLoginHandler extends ApiServlet {
         switch (path(request)) {
             case "/status" -> handleStatus(request, response);
             case "/qr/check" -> handleQrCheck(request, response);
-            default -> sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "不支持的接口");
+            default -> sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "common.unsupported_endpoint");
         }
     }
 
@@ -57,7 +57,7 @@ public class AdminNeteaseLoginHandler extends ApiServlet {
         switch (path(request)) {
             case "/qr/key" -> handleQrKey(request, response);
             case "/logout" -> handleLogout(request, response);
-            default -> sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "不支持的接口");
+            default -> sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "common.unsupported_endpoint");
         }
     }
 
@@ -87,7 +87,7 @@ public class AdminNeteaseLoginHandler extends ApiServlet {
         noStore(response);
         NeteaseCloudMusicClient client = Main.getNeteaseCloudMusicClient();
         if (client == null) {
-            sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "网易云客户端尚未就绪");
+            sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "source.netease.not_ready");
             return;
         }
         try {
@@ -101,7 +101,7 @@ public class AdminNeteaseLoginHandler extends ApiServlet {
             sendResponse(response, true, "ok", data);
         } catch (IOException e) {
             logger.warn("申请网易云扫码登录二维码失败: {}", e.getMessage());
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_GATEWAY, "无法连接网易云，请稍后重试");
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_GATEWAY, "source.netease.unreachable");
         }
     }
 
@@ -114,12 +114,12 @@ public class AdminNeteaseLoginHandler extends ApiServlet {
         noStore(response);
         String key = request.getParameter("key");
         if (key == null || !KEY_PATTERN.matcher(key).matches()) {
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "缺少有效的二维码 key");
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "source.netease.qr_key_required");
             return;
         }
         NeteaseCloudMusicClient client = Main.getNeteaseCloudMusicClient();
         if (client == null) {
-            sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "网易云客户端尚未就绪");
+            sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "source.netease.not_ready");
             return;
         }
         try {
@@ -136,12 +136,12 @@ public class AdminNeteaseLoginHandler extends ApiServlet {
                 return;
             }
             if (check.cookie().isBlank()) {
-                sendErrorResponse(response, HttpServletResponse.SC_BAD_GATEWAY, "网易云未下发登录凭证，请重试");
+                sendErrorResponse(response, HttpServletResponse.SC_BAD_GATEWAY, "source.netease.no_credential");
                 return;
             }
             Admin admin = PermissionHelper.getAdminFromRequest(request);
             if (!persistCookie(check.cookie(), admin == null ? null : admin.id())) {
-                sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "保存登录凭证失败");
+                sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "source.qq.save_credential_failed");
                 return;
             }
             NeteaseCloudMusicClient.AccountProfile profile = client.fetchAccountProfile();
@@ -154,7 +154,7 @@ public class AdminNeteaseLoginHandler extends ApiServlet {
             sendResponse(response, true, "ok", data);
         } catch (IOException e) {
             logger.warn("轮询网易云扫码状态失败: {}", e.getMessage());
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_GATEWAY, "无法连接网易云，请稍后重试");
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_GATEWAY, "source.netease.unreachable");
         }
     }
 
@@ -167,12 +167,12 @@ public class AdminNeteaseLoginHandler extends ApiServlet {
         noStore(response);
         Admin admin = PermissionHelper.getAdminFromRequest(request);
         if (!persistCookie("", admin == null ? null : admin.id())) {
-            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "退出登录失败");
+            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "source.qq.logout_failed");
             return;
         }
         ObjectNode data = MAPPER.createObjectNode();
         data.put("loggedIn", false);
-        sendResponse(response, true, "已退出网易云登录", data);
+        sendResponse(response, true, "source.netease.logged_out", data);
     }
 
     /** 组装当前登录状态；Cookie 未配置时直接判定未登录，不再请求网易云。 */

@@ -2,6 +2,7 @@ package com.neko.music.filter;
 
 import com.neko.music.Main;
 import com.neko.music.config.ConfigManager;
+import com.neko.music.i18n.ApiMessages;
 import com.neko.music.service.IPRateLimitService;
 import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.RequestPath;
@@ -148,7 +149,7 @@ public class IPRateLimitFilter implements Filter {
         }
     }
 
-    /** 将剩余秒数写进一句中文提示，便于直接展示给用户（{@link SourceBanFilter} 复用同一文案）。 */
+    /** 将剩余秒数写进一句提示，便于直接展示给用户（{@link SourceBanFilter} 复用同一文案）。 */
     static String formatRateLimitMessage(long sec) {
         if (sec < 1) {
             sec = 1;
@@ -156,19 +157,19 @@ public class IPRateLimitFilter implements Filter {
         if (sec >= 86400) {
             long d = sec / 86400;
             long h = (sec % 86400) / 3600;
-            return String.format("请求过于频繁，请 %d 天 %d 小时后可重试", d, h);
+            return ApiMessages.translate("security.rate_limit.retry_days_hours", d, h);
         }
         if (sec >= 3600) {
             long h = sec / 3600;
             long m = (sec % 3600) / 60;
-            return String.format("请求过于频繁，请 %d 小时 %d 分钟后可重试", h, m);
+            return ApiMessages.translate("security.rate_limit.retry_hours_minutes", h, m);
         }
         if (sec >= 60) {
             long m = sec / 60;
             long s = sec % 60;
-            return String.format("请求过于频繁，请 %d 分 %d 秒后可重试", m, s);
+            return ApiMessages.translate("security.rate_limit.retry_minutes_seconds", m, s);
         }
-        return String.format("请求过于频繁，请 %d 秒后可重试", sec);
+        return ApiMessages.translate("security.rate_limit.retry_seconds", sec);
     }
 
     @Override

@@ -54,7 +54,7 @@ public final class MusicQualityService {
     }
 
     public static String resolveAudio(int musicId, String requested) throws IOException, SQLException {
-        Path source = MusicAssetLocator.findAudioFile(musicId).orElseThrow(() -> new IOException("音乐文件不存在"));
+        Path source = MusicAssetLocator.findAudioFile(musicId).orElseThrow(() -> new IOException("music.file_missing"));
         String maxQuality;
         try {
             maxQuality = loadMaxQuality(musicId, source);

@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
 import com.neko.music.model.Playlist;
@@ -38,14 +39,14 @@ public class CreatePlaylistHandler extends ApiServlet {
         String token = req.getHeader("Authorization");
 
         if (token == null || token.isEmpty()) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未提供认证令牌");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.token_missing");
             return;
         }
 
         // 验证token并获取用户ID
         Integer userId = userAuthService.validateToken(token).orElse(null);
         if (userId == null) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "无效的认证令牌");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.invalid_bearer");
             return;
         }
 
@@ -69,27 +70,27 @@ public class CreatePlaylistHandler extends ApiServlet {
 
             // 验证请求参数
             if (name == null || name.trim().isEmpty()) {
-                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "歌单名称不能为空");
+                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "playlist.name_required");
                 return;
             }
 
             if (name.length() > 255) {
-                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "歌单名称过长");
+                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "playlist.name_too_long");
                 return;
             }
 
             if (description != null && description.length() > 500) {
-                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "歌单描述过长");
+                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "playlist.description_too_long");
                 return;
             }
 
             // 验证违禁词
             if (SensitiveWordUtil.contains(name)) {
-                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "歌单名称包含违禁词");
+                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "playlist.name_contains_banned");
                 return;
             }
             if (description != null && !description.trim().isEmpty() && SensitiveWordUtil.contains(description)) {
-                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "歌单描述包含违禁词");
+                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "playlist.description_contains_banned");
                 return;
             }
 
@@ -106,7 +107,7 @@ public class CreatePlaylistHandler extends ApiServlet {
 
                 JsonObject response = new JsonObject();
                 response.addProperty("success", true);
-                response.addProperty("message", "歌单创建成功");
+                response.addProperty("message", ApiMessages.translate("playlist.create_ok"));
 
                 JsonObject playlistData = new JsonObject();
                 playlistData.addProperty("id", playlist.id());
@@ -121,12 +122,12 @@ public class CreatePlaylistHandler extends ApiServlet {
                 sendSuccessResponse(resp, response);
             } else {
                 logger.warn("歌单创建失败: userId={}, name={}", userId, name);
-                sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "歌单创建失败");
+                sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "playlist.create_failed");
             }
 
         } catch (Exception e) {
             logger.error("处理创建歌单请求时发生错误: {}", e.getMessage(), e);
-            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "服务器内部错误");
+            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "common.internal_error");
         }
     }
 

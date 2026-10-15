@@ -2,6 +2,7 @@ package com.neko.music.filter;
 
 import com.neko.music.Main;
 import com.neko.music.config.ConfigManager;
+import com.neko.music.i18n.ApiMessages;
 import com.neko.music.seo.BrowserEvidence;
 import com.neko.music.seo.UserAgentClassifier;
 import com.neko.music.util.RequestPath;
@@ -134,7 +135,7 @@ public class CrawlerProtectionFilter implements Filter {
             }
             // 特征头不齐（尤其是缺 Accept-Language）按「环境异常」拒绝：文案刻意与爬虫黑名单那一路分开，
             // 便于用户自查环境与客户端联调，同时不含任何判定细节。
-            writeForbidden(httpResponse, "环境异常，请换用官方客户端或主流浏览器访问");
+            writeForbidden(httpResponse, "security.crawler.env_abnormal");
             return;
         }
 
@@ -186,10 +187,11 @@ public class CrawlerProtectionFilter implements Filter {
     }
 
     private static void writeForbidden(HttpServletResponse httpResponse) throws IOException {
-        writeForbidden(httpResponse, "请求已拒绝");
+        writeForbidden(httpResponse, "security.crawler.rejected");
     }
 
     private static void writeForbidden(HttpServletResponse httpResponse, String message) throws IOException {
+        message = ApiMessages.translate(message);
         httpResponse.setStatus(HttpServletResponse.SC_FORBIDDEN);
         httpResponse.setContentType("application/json;charset=UTF-8");
         httpResponse.setCharacterEncoding(StandardCharsets.UTF_8.name());

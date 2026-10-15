@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.neko.music.Main;
@@ -58,12 +59,12 @@ public class MusicCommentHandler extends ApiServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         Integer musicId = parseInteger(req.getParameter("musicId"));
         if (musicId == null) {
-            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "缺少音乐ID");
+            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "music.id_missing");
             return;
         }
 
         if (PublicMusicLookup.findById(musicId).isEmpty()) {
-            sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "音乐不存在");
+            sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "music.not_found");
             return;
         }
 
@@ -112,7 +113,7 @@ public class MusicCommentHandler extends ApiServlet {
 
         JsonObject body = new JsonObject();
         body.addProperty("success", true);
-        body.addProperty("message", "获取评论成功");
+        body.addProperty("message", ApiMessages.translate("comment.list_ok"));
         body.add("data", data);
         sendSuccessResponse(resp, body);
     }
@@ -121,7 +122,7 @@ public class MusicCommentHandler extends ApiServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         Integer userId = RequestAuthUtil.authenticate(req);
         if (userId == null) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "请先登录后再发表评论");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "comment.login_required");
             return;
         }
 
@@ -129,40 +130,40 @@ public class MusicCommentHandler extends ApiServlet {
         try {
             request = Main.getGson().fromJson(readBody(req), JsonObject.class);
         } catch (Exception e) {
-            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "请求格式错误");
+            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "auth.bad_request");
             return;
         }
         if (request == null) {
-            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "请求体不能为空");
+            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "sensitive.body_required");
             return;
         }
 
         Integer musicId = request.has("musicId") && !request.get("musicId").isJsonNull()
                 ? request.get("musicId").getAsInt() : null;
         if (musicId == null) {
-            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "缺少音乐ID");
+            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "music.id_missing");
             return;
         }
 
         String content = request.has("content") && !request.get("content").isJsonNull()
                 ? request.get("content").getAsString().trim() : "";
         if (content.isEmpty()) {
-            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "评论内容不能为空");
+            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "comment.content_required");
             return;
         }
         if (content.length() > MAX_CONTENT_LENGTH) {
             sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST,
-                    "评论内容不能超过 " + MAX_CONTENT_LENGTH + " 字");
+                    ApiMessages.translate("comment.too_long", MAX_CONTENT_LENGTH));
             return;
         }
         if (SensitiveWordUtil.contains(content)) {
-            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "评论内容包含违规词汇，请修改后再试");
+            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "comment.contains_banned");
             return;
         }
 
         PublicMusicLookup.PublicMusic music = PublicMusicLookup.findById(musicId).orElse(null);
         if (music == null) {
-            sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "音乐不存在");
+            sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "music.not_found");
             return;
         }
 
@@ -175,7 +176,7 @@ public class MusicCommentHandler extends ApiServlet {
         if (parentId != null) {
             CommentRow parent = db.findById(parentId);
             if (parent == null || parent.musicId != musicId) {
-                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "要回复的评论不存在");
+                sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "comment.reply_target_not_found");
                 return;
             }
             rootId = parent.parentId != null ? parent.parentId : parent.id;
@@ -194,7 +195,7 @@ public class MusicCommentHandler extends ApiServlet {
             if (Main.getRedisService() != null) {
                 Main.getRedisService().del(COOLDOWN_KEY_PREFIX + userId);
             }
-            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "评论发表失败，请稍后再试");
+            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "comment.post_failed");
             return;
         }
 
@@ -211,7 +212,7 @@ public class MusicCommentHandler extends ApiServlet {
 
         JsonObject body = new JsonObject();
         body.addProperty("success", true);
-        body.addProperty("message", parentId == null ? "评论成功" : "回复成功");
+        body.addProperty("message", parentId == null ? ApiMessages.translate("comment.post_ok") : ApiMessages.translate("comment.reply_ok"));
         body.add("data", data);
         sendSuccessResponse(resp, body);
     }
@@ -268,30 +269,30 @@ public class MusicCommentHandler extends ApiServlet {
         if (userId == null) {
             admin = PermissionHelper.isAdminAuthorized(req);
             if (!admin) {
-                sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "请先登录");
+                sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.login_required");
                 return;
             }
         }
 
         Integer id = parseInteger(req.getParameter("id"));
         if (id == null) {
-            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "缺少评论ID");
+            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "comment.id_required");
             return;
         }
 
         CommentDatabaseManager db = Main.getCommentDatabaseManager();
         CommentRow row = db.findById(id);
         if (row == null) {
-            sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "评论不存在");
+            sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "comment.not_found");
             return;
         }
         if (!admin && row.userId != userId) {
-            sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "只能删除自己的评论");
+            sendErrorResponse(resp, HttpServletResponse.SC_FORBIDDEN, "comment.delete_own_only");
             return;
         }
         int affected = db.delete(id, row.parentId, userId == null ? 0 : userId, admin);
         if (affected <= 0) {
-            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "删除失败，请稍后再试");
+            sendErrorResponse(resp, HttpServletResponse.SC_BAD_REQUEST, "comment.delete_failed");
             return;
         }
 
@@ -300,7 +301,7 @@ public class MusicCommentHandler extends ApiServlet {
         data.addProperty("repliesDeleted", row.parentId == null ? Math.max(0, affected - 1) : 0);
         JsonObject body = new JsonObject();
         body.addProperty("success", true);
-        body.addProperty("message", "删除成功");
+        body.addProperty("message", ApiMessages.translate("admin.lyrics.delete_ok"));
         body.add("data", data);
         sendSuccessResponse(resp, body);
     }

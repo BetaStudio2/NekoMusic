@@ -24,7 +24,7 @@ public class AdminCurrentHandler extends HttpServlet {
         if (!PermissionHelper.isAdminAuthorized(request)) {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
             response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("未授权访问");
+            ErrorResponse errorResponse = new ErrorResponse("auth.unauthorized");
             response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
@@ -34,7 +34,7 @@ public class AdminCurrentHandler extends HttpServlet {
         if (currentAdmin == null) {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
             response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("未授权访问");
+            ErrorResponse errorResponse = new ErrorResponse("auth.unauthorized");
             response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }

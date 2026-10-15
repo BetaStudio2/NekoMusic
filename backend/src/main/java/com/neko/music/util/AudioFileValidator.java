@@ -45,7 +45,7 @@ public class AudioFileValidator {
                 case WAV:
                     return validateWAV(header);
                 default:
-                    return ValidationResult.fail("不支持的音频格式");
+                    return ValidationResult.fail("upload.unsupported_audio");
             }
         } catch (IOException e) {
             return ValidationResult.fail("读取文件失败: " + e.getMessage());

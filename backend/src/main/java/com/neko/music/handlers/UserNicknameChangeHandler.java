@@ -24,7 +24,7 @@ public class UserNicknameChangeHandler extends ApiServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
         Integer userId = RequestAuthUtil.authenticate(request);
         if (userId == null) {
-            sendErrorResponse(response, HttpStatus.UNAUTHORIZED_401, "未授权访问，请先登录");
+            sendErrorResponse(response, HttpStatus.UNAUTHORIZED_401, "auth.unauthorized_please_login");
             return;
         }
 
@@ -44,13 +44,13 @@ public class UserNicknameChangeHandler extends ApiServlet {
             boolean success = Main.getUserAuthService().changeNickname(userId, nickname);
             if (success) {
                 logger.info("用户 {} 修改昵称成功: {}", userId, nickname);
-                sendSuccessResponse(response, "昵称修改成功喵！", nickname);
+                sendSuccessResponse(response, "user.nickname.change_ok", nickname);
             } else {
-                sendErrorResponse(response, HttpStatus.INTERNAL_SERVER_ERROR_500, "昵称修改失败，请稍后重试喵");
+                sendErrorResponse(response, HttpStatus.INTERNAL_SERVER_ERROR_500, "user.nickname.change_failed");
             }
         } catch (Exception e) {
             logger.error("修改昵称时出错", e);
-            sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "请求格式错误");
+            sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "auth.bad_request");
         }
     }
 

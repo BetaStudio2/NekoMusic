@@ -111,12 +111,12 @@ public final class AudioIntegrityValidator {
     public static String validateSavedFile(Path path, AudioFileValidator.AudioFormat format) {
         if (format == AudioFileValidator.AudioFormat.MP3) {
             if (!Files.isRegularFile(path)) {
-                return "音频文件不存在";
+                return "video.audio_missing";
             }
             return hasMpegFrameHeader(path) ? null : "文件内容不是有效 MP3（缺少 MPEG 帧同步头）";
         }
         if (!Files.isRegularFile(path)) {
-            return "音频文件不存在";
+            return "video.audio_missing";
         }
         long size;
         try {

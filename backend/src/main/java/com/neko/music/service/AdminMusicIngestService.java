@@ -120,7 +120,7 @@ public class AdminMusicIngestService {
             case MP3 -> "mp3";
             case FLAC -> "flac";
             case WAV -> "wav";
-            default -> throw new IOException("不支持的音频格式");
+            default -> throw new IOException("upload.unsupported_audio");
         };
 
         try (InputStream lrcIn = Files.newInputStream(lyricsTemp)) {

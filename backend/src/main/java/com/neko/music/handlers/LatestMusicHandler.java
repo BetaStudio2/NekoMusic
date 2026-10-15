@@ -17,6 +17,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
+import com.neko.music.i18n.ApiMessages;
 
 public class LatestMusicHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(LatestMusicHandler.class);
@@ -35,7 +36,7 @@ public class LatestMusicHandler extends HttpServlet {
         response.setContentType("application/json;charset=utf-8");
         response.setHeader("Cache-Control",
                 "public, max-age=" + HttpResourceCache.MAX_AGE_HALF_HOUR);
-        LatestMusicResponse latestMusicResponse = new LatestMusicResponse(true, "获取最新音乐成功", latestMusic);
+        LatestMusicResponse latestMusicResponse = new LatestMusicResponse(true, ApiMessages.translate("music.latest_ok"), latestMusic);
         response.getWriter().println(Main.getObjectMapper().writeValueAsString(latestMusicResponse));
     }
 

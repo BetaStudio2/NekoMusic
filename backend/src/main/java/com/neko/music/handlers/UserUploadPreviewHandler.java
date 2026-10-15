@@ -16,6 +16,7 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import com.neko.music.i18n.ApiMessages;
 
 public class UserUploadPreviewHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserUploadPreviewHandler.class);
@@ -38,7 +39,7 @@ public class UserUploadPreviewHandler extends HttpServlet {
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             logger.warn("未授权访问预览接口，缺少Authorization头");
-            response.sendError(401, "未授权访问");
+            response.sendError(401, "auth.unauthorized");
             return;
         }
         
@@ -46,7 +47,7 @@ public class UserUploadPreviewHandler extends HttpServlet {
         boolean isValid = Main.getAdminAuthService().validateAdminToken(token);
         if (!isValid) {
             logger.warn("未授权访问预览接口，无效的token");
-            response.sendError(401, "未授权访问");
+            response.sendError(401, "auth.unauthorized");
             return;
         }
         
@@ -54,7 +55,7 @@ public class UserUploadPreviewHandler extends HttpServlet {
         String filePath = request.getParameter("path");
         if (filePath == null || filePath.isEmpty()) {
             logger.warn("预览请求缺少文件路径参数");
-            response.sendError(400, "缺少文件路径参数");
+            response.sendError(400, ApiMessages.translate("upload.preview.path_required"));
             return;
         }
         
@@ -84,20 +85,20 @@ public class UserUploadPreviewHandler extends HttpServlet {
             
         } catch (Exception e) {
             logger.error("文件路径解析失败: {}", filePath, e);
-            response.sendError(400, "无效的文件路径");
+            response.sendError(400, ApiMessages.translate("upload.preview.path_invalid"));
             return;
         }
         
         if (!requestedPath.startsWith(uploadDirPath)) {
             logger.warn("访问被拒绝，文件路径不在审核目录内。请求路径: {}, 上传目录: {}", requestedPath, uploadDirPath);
-            response.sendError(403, "访问被拒绝");
+            response.sendError(403, ApiMessages.translate("upload.preview.forbidden"));
             return;
         }
         
         // 检查文件是否存在
         if (!Files.exists(requestedPath) || !Files.isRegularFile(requestedPath)) {
             logger.warn("预览文件不存在: {}", filePath);
-            response.sendError(404, "文件不存在");
+            response.sendError(404, ApiMessages.translate("upload.preview.file_missing"));
             return;
         }
         

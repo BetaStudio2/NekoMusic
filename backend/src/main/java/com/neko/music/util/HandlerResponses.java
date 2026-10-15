@@ -1,6 +1,7 @@
 package com.neko.music.util;
 
 import com.neko.music.Main;
+import com.neko.music.i18n.ApiMessages;
 import com.neko.music.model.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -32,7 +33,8 @@ public final class HandlerResponses {
         if (PermissionHelper.isAdminAuthorized(request)) {
             return false;
         }
-        writeJson(response, HttpStatus.UNAUTHORIZED_401, new ErrorResponse("未授权访问"));
+        writeJson(response, HttpStatus.UNAUTHORIZED_401,
+                new ErrorResponse(ApiMessages.translate("auth.unauthorized")));
         return true;
     }
 }

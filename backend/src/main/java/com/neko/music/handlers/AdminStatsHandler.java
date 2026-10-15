@@ -31,13 +31,13 @@ public class AdminStatsHandler extends ApiServlet {
         // 验证管理员登录状态
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            sendErrorResponse(response, 401, "需要管理员权限");
+            sendErrorResponse(response, 401, "admin.permission_required");
             return;
         }
         
         String token = authHeader.substring(7); // 移除 "Bearer " 前缀
         if (!Main.getAdminAuthService().validateAdminToken(token)) {
-            sendErrorResponse(response, 401, "需要管理员权限");
+            sendErrorResponse(response, 401, "admin.permission_required");
             return;
         }
         
@@ -60,7 +60,7 @@ public class AdminStatsHandler extends ApiServlet {
             out.flush();
         } catch (Exception e) {
             logger.error("获取统计信息错误", e);
-            sendErrorResponse(response, 500, "服务器内部错误");
+            sendErrorResponse(response, 500, "common.internal_error");
         }
     }
 

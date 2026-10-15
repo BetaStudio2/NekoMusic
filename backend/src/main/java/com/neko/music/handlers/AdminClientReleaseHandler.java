@@ -19,6 +19,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
+import com.neko.music.i18n.ApiMessages;
 
 /** 管理员：查询/更新客户端版本号与安装包状态 */
 public class AdminClientReleaseHandler extends ApiServlet {
@@ -45,7 +46,7 @@ public class AdminClientReleaseHandler extends ApiServlet {
             data.putArray("packages");
         }
 
-        sendResponse(response, true, "查询成功", data);
+        sendResponse(response, true, "admin.lyrics.query_ok", data);
     }
 
     @Override
@@ -60,13 +61,13 @@ public class AdminClientReleaseHandler extends ApiServlet {
             req = Main.getObjectMapper().readValue(body, VersionUpdateRequest.class);
         } catch (Exception e) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            sendErrorResponse(response, "请求格式错误");
+            sendErrorResponse(response, "auth.bad_request");
             return;
         }
 
         if (req.androidVer() == null || req.androidVer().isBlank() || req.pcVer() == null || req.pcVer().isBlank()) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            sendErrorResponse(response, "androidVer 与 pcVer 均不能为空");
+            sendErrorResponse(response, "admin.release.versions_required");
             return;
         }
 
@@ -74,7 +75,7 @@ public class AdminClientReleaseHandler extends ApiServlet {
         String pcVer = req.pcVer().trim();
         if (!isValidVersionToken(androidVer) || !isValidVersionToken(pcVer)) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            sendErrorResponse(response, "版本号仅允许字母、数字、点、横线");
+            sendErrorResponse(response, "admin.release.invalid_version");
             return;
         }
 
@@ -82,7 +83,7 @@ public class AdminClientReleaseHandler extends ApiServlet {
                 Main.getAppReleaseService().scheduleReleaseUpdate(androidVer, pcVer);
         if (state.isEmpty()) {
             response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
-            sendErrorResponse(response, "保存版本号失败");
+            sendErrorResponse(response, "admin.release.save_failed");
             return;
         }
 
@@ -91,12 +92,10 @@ public class AdminClientReleaseHandler extends ApiServlet {
         writeStateToJson(data, siteBase, state.get());
 
         String message = state.get().hasPending()
-                ? "版本号已保存，将于 "
-                + formatEffectiveAt(state.get().pendingEffectiveAt())
-                + " 起在 /version 对外生效（"
-                + AppReleaseService.VERSION_JSON_DELAY_MINUTES
-                + " 分钟内仍为旧版本）"
-                : "版本号已更新并立即对外生效";
+                ? ApiMessages.translate("admin.release.scheduled",
+                formatEffectiveAt(state.get().pendingEffectiveAt()),
+                AppReleaseService.VERSION_JSON_DELAY_MINUTES)
+                : ApiMessages.translate("admin.release.updated");
         sendResponse(response, true, message, data);
         logger.info("管理员排期/更新客户端版本 pending={}", state.get().hasPending());
     }
@@ -162,12 +161,12 @@ public class AdminClientReleaseHandler extends ApiServlet {
         String token = request.getHeader("Authorization");
         if (token == null || token.isBlank()) {
             response.setStatus(HttpStatus.UNAUTHORIZED_401);
-            sendErrorResponse(response, "未授权访问");
+            sendErrorResponse(response, "auth.unauthorized");
             return false;
         }
         if (!Main.getAdminAuthService().canUploadClientReleaseByToken(token)) {
             response.setStatus(HttpStatus.FORBIDDEN_403);
-            sendErrorResponse(response, "需要管理员及以上权限");
+            sendErrorResponse(response, "admin.release.permission_required");
             return false;
         }
         return true;

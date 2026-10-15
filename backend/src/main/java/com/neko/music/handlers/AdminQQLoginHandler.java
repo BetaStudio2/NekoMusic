@@ -44,7 +44,7 @@ public class AdminQQLoginHandler extends ApiServlet {
         switch (path(request)) {
             case "/status" -> handleStatus(request, response);
             case "/qr/check" -> handleQrCheck(request, response);
-            default -> sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "不支持的接口");
+            default -> sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "common.unsupported_endpoint");
         }
     }
 
@@ -53,7 +53,7 @@ public class AdminQQLoginHandler extends ApiServlet {
         switch (path(request)) {
             case "/qr/key" -> handleQrKey(request, response);
             case "/logout" -> handleLogout(request, response);
-            default -> sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "不支持的接口");
+            default -> sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "common.unsupported_endpoint");
         }
     }
 
@@ -83,7 +83,7 @@ public class AdminQQLoginHandler extends ApiServlet {
         noStore(response);
         QQMusicLoginService loginService = Main.getQQMusicLoginService();
         if (loginService == null) {
-            sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "QQ 音乐登录服务尚未就绪");
+            sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "source.qq.login_not_ready");
             return;
         }
         try {
@@ -94,7 +94,7 @@ public class AdminQQLoginHandler extends ApiServlet {
             sendResponse(response, true, "ok", data);
         } catch (IOException e) {
             logger.warn("申请 QQ 扫码登录二维码失败: {}", e.getMessage());
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_GATEWAY, "无法连接 QQ 登录服务，请稍后重试");
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_GATEWAY, "source.qq.login_unreachable");
         }
     }
 
@@ -107,12 +107,12 @@ public class AdminQQLoginHandler extends ApiServlet {
         noStore(response);
         String key = request.getParameter("key");
         if (key == null || key.isBlank()) {
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "缺少二维码 key");
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "source.qq.qr_key_required");
             return;
         }
         QQMusicLoginService loginService = Main.getQQMusicLoginService();
         if (loginService == null) {
-            sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "QQ 音乐登录服务尚未就绪");
+            sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "source.qq.login_not_ready");
             return;
         }
         try {
@@ -129,12 +129,12 @@ public class AdminQQLoginHandler extends ApiServlet {
                 return;
             }
             if (check.cookie().isBlank()) {
-                sendErrorResponse(response, HttpServletResponse.SC_BAD_GATEWAY, "QQ 音乐未下发登录凭证，请重试");
+                sendErrorResponse(response, HttpServletResponse.SC_BAD_GATEWAY, "source.qq.no_credential");
                 return;
             }
             Admin admin = PermissionHelper.getAdminFromRequest(request);
             if (!persistCookie(check.cookie(), admin == null ? null : admin.id())) {
-                sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "保存登录凭证失败");
+                sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "source.qq.save_credential_failed");
                 return;
             }
             QQMusicClient.AccountProfile profile = fetchProfileQuietly();
@@ -149,7 +149,7 @@ public class AdminQQLoginHandler extends ApiServlet {
             sendResponse(response, true, "ok", data);
         } catch (IOException e) {
             logger.warn("轮询 QQ 扫码状态失败: {}", e.getMessage());
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_GATEWAY, "无法连接 QQ 登录服务，请稍后重试");
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_GATEWAY, "source.qq.login_unreachable");
         }
     }
 
@@ -162,12 +162,12 @@ public class AdminQQLoginHandler extends ApiServlet {
         noStore(response);
         Admin admin = PermissionHelper.getAdminFromRequest(request);
         if (!persistCookie("", admin == null ? null : admin.id())) {
-            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "退出登录失败");
+            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "source.qq.logout_failed");
             return;
         }
         ObjectNode data = MAPPER.createObjectNode();
         data.put("loggedIn", false);
-        sendResponse(response, true, "已退出 QQ 音乐登录", data);
+        sendResponse(response, true, "source.qq.logged_out", data);
     }
 
     /** 组装当前登录状态；Cookie 未配置时直接判定未登录，不再请求 QQ 音乐。 */

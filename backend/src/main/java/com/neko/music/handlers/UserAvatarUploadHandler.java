@@ -20,6 +20,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.UUID;
+import com.neko.music.i18n.ApiMessages;
 
 public class UserAvatarUploadHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserAvatarUploadHandler.class);
@@ -35,7 +36,7 @@ public class UserAvatarUploadHandler extends ApiServlet {
         // 验证用户Token
         String token = request.getHeader("Authorization");
         if (token == null || !token.startsWith("Bearer ")) {
-            sendErrorObject(response, HttpStatus.UNAUTHORIZED_401, "未授权访问");
+            sendErrorObject(response, HttpStatus.UNAUTHORIZED_401, "auth.unauthorized");
             return;
         }
         
@@ -43,7 +44,7 @@ public class UserAvatarUploadHandler extends ApiServlet {
         
         Integer userId = validateToken(token);
         if (userId == null) {
-            sendErrorObject(response, HttpStatus.UNAUTHORIZED_401, "无效的Token");
+            sendErrorObject(response, HttpStatus.UNAUTHORIZED_401, "auth.invalid_token");
             return;
         }
         
@@ -55,7 +56,7 @@ public class UserAvatarUploadHandler extends ApiServlet {
             Part avatarPart = request.getPart("avatar");
             
             if (avatarPart == null || avatarPart.getSize() == 0) {
-                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "未上传头像文件");
+                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "user.avatar.no_file");
                 return;
             }
             
@@ -88,16 +89,16 @@ public class UserAvatarUploadHandler extends ApiServlet {
             
             if (success) {
                 logger.info("用户 {} 上传头像成功: {}", userId, uniqueFileName);
-                sendSuccessResponse(response, "头像上传成功", avatarPath);
+                sendSuccessResponse(response, "user.avatar.upload_ok", avatarPath);
             } else {
                 // 如果数据库更新失败，删除已上传的文件
                 Files.deleteIfExists(filePath);
-                sendErrorObject(response, HttpStatus.INTERNAL_SERVER_ERROR_500, "更新数据库失败");
+                sendErrorObject(response, HttpStatus.INTERNAL_SERVER_ERROR_500, "user.avatar.db_update_failed");
             }
             
         } catch (Exception e) {
             logger.error("上传头像时出错", e);
-            sendErrorObject(response, HttpStatus.INTERNAL_SERVER_ERROR_500, "上传头像失败: " + e.getMessage());
+            sendErrorObject(response, HttpStatus.INTERNAL_SERVER_ERROR_500, ApiMessages.translate("user.avatar.upload_failed", e.getMessage()));
         }
     }
     

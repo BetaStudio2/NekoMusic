@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import com.neko.music.i18n.ApiMessages;
 
 @WebServlet("/api/user/login")
 public class UserLoginHandler extends ApiServlet {
@@ -74,13 +75,13 @@ public class UserLoginHandler extends ApiServlet {
             if (email == null || password == null ||
                 email.trim().isEmpty() || password.trim().isEmpty()) {
 
-                sendResponse(response, false, "邮箱和密码不能为空", null);
+                sendResponse(response, false, "auth.login.fields_required", null);
                 return;
             }
 
             // 验证密码长度
             if (password.length() < 6 || password.length() > 30) {
-                sendResponse(response, false, "密码长度不正确", null);
+                sendResponse(response, false, "auth.login.bad_password_length", null);
                 return;
             }
 
@@ -104,7 +105,7 @@ public class UserLoginHandler extends ApiServlet {
                     response.setHeader("Retry-After", String.valueOf(retryAfterSec));
                     response.setStatus(429);
                     sendResponse(response, false,
-                            "登录失败次数过多，请 " + retryAfterSec + " 秒后再试", null);
+                            ApiMessages.translate("auth.login.too_many_attempts", retryAfterSec), null);
                     return;
                 }
             }
@@ -128,7 +129,7 @@ public class UserLoginHandler extends ApiServlet {
 
                 if (token == null) {
                     logger.error("生成token失败: {}", user.email());
-                    sendResponse(response, false, "登录失败，请稍后重试", null);
+                    sendResponse(response, false, "qr.login_failed", null);
                     return;
                 }
 
@@ -146,19 +147,19 @@ public class UserLoginHandler extends ApiServlet {
                 responseData.put("user", userData);
                 responseData.put("token", token);
 
-                sendResponse(response, true, "登录成功", responseData);
+                sendResponse(response, true, "auth.login.ok", responseData);
             } else {
                 logger.warn("用户登录失败: {}", email);
                 // 来源维度失败计数：反复失败的来源会被递增退避临时封禁（只看请求，不看账号存在性）
                 if (sourceBanService != null) {
                     sourceBanService.recordAuthFailure(clientIp, "user-login");
                 }
-                sendResponse(response, false, "邮箱或密码错误", null);
+                sendResponse(response, false, "auth.login.bad_credentials", null);
             }
 
         } catch (Exception e) {
             logger.error("处理用户登录请求时发生错误: {}", e.getMessage(), e);
-            sendResponse(response, false, "服务器内部错误", null);
+            sendResponse(response, false, "common.internal_error", null);
         }
     }
 

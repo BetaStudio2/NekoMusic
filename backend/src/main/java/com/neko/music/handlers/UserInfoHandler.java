@@ -30,13 +30,13 @@ public class UserInfoHandler extends ApiServlet {
 
         Integer userId = RequestAuthUtil.authenticate(request);
         if (userId == null) {
-            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "请先登录");
+            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "auth.login_required");
             return;
         }
 
         Optional<User> userOpt = Main.getUserAuthService().findUserById(userId);
         if (userOpt.isEmpty()) {
-            sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "用户不存在");
+            sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "user.not_exists");
             return;
         }
 
@@ -52,6 +52,6 @@ public class UserInfoHandler extends ApiServlet {
 
         Map<String, Object> data = new HashMap<>();
         data.put("user", userData);
-        sendResponse(response, true, "获取用户信息成功", data);
+        sendResponse(response, true, "user.info_ok", data);
     }
 }

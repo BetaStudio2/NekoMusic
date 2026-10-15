@@ -50,7 +50,7 @@ public class UserRegisterHandler extends ApiServlet {
         try {
             JsonNode requestData = Main.getObjectMapper().readTree(requestBody.toString());
             if (requestData == null) {
-                sendResponse(response, false, "请求数据不能为空喵", null);
+                sendResponse(response, false, "auth.register.body_required", null);
                 return;
             }
 
@@ -61,7 +61,7 @@ public class UserRegisterHandler extends ApiServlet {
 
             // 1. 基础非空校验
             if (isEmpty(nickname) || isEmpty(password) || isEmpty(email)) {
-                sendResponse(response, false, "昵称、密码和邮箱不能为空喵", null);
+                sendResponse(response, false, "auth.register.fields_required", null);
                 return;
             }
 
@@ -69,18 +69,18 @@ public class UserRegisterHandler extends ApiServlet {
             if (isEmpty(verificationCode)) {
                 logger.warn("检测到恶意注册尝试：未提供验证码。IP: {}", request.getRemoteAddr());
                 recordAuthFailure(clientIp, "register");
-                sendResponse(response, false, "必须提供验证码喵！", null);
+                sendResponse(response, false, "auth.register.captcha_required", null);
                 return;
             }
 
             // 3. 邮箱格式及白名单校验
             if (!isValidEmail(email)) {
-                sendResponse(response, false, "邮箱格式不正确喵", null);
+                sendResponse(response, false, "auth.register.email_invalid", null);
                 return;
             }
             if (!userAuthService.isWhitelistedEmail(email)) {
                 logger.warn("非白名单邮箱注册尝试: {}", email);
-                sendResponse(response, false, "该邮箱域名不在允许范围内喵", null);
+                sendResponse(response, false, "auth.register.email_domain_invalid", null);
                 return;
             }
 
@@ -91,7 +91,7 @@ public class UserRegisterHandler extends ApiServlet {
                 return;
             }
             if (password.length() < 6 || password.length() > 30) {
-                sendResponse(response, false, "密码长度需在6-30之间喵", null);
+                sendResponse(response, false, "auth.register.password_length_invalid", null);
                 return;
             }
 
@@ -100,7 +100,7 @@ public class UserRegisterHandler extends ApiServlet {
             if (!isValidCode) {
                 // 验证码是可猜的短秘密：失败同样按来源计入递增退避封禁，防「换邮箱猜码」
                 recordAuthFailure(clientIp, "register");
-                sendResponse(response, false, "验证码错误或已过期喵", null);
+                sendResponse(response, false, "auth.register.captcha_invalid", null);
                 return;
             }
 
@@ -108,14 +108,14 @@ public class UserRegisterHandler extends ApiServlet {
             boolean success = userAuthService.registerUser(nickname, password, email);
             if (success) {
                 logger.info("用户注册成功: {}", nickname);
-                sendResponse(response, true, "注册成功喵！", Map.of("nickname", nickname));
+                sendResponse(response, true, "auth.register.ok", Map.of("nickname", nickname));
             } else {
-                sendResponse(response, false, "注册失败，邮箱已存在喵", null);
+                sendResponse(response, false, "auth.register.email_exists", null);
             }
 
         } catch (Exception e) {
             logger.error("注册处理异常: {}", e.getMessage(), e);
-            sendResponse(response, false, "服务器内部错误喵", null);
+            sendResponse(response, false, "auth.register.internal_error", null);
         }
     }
 

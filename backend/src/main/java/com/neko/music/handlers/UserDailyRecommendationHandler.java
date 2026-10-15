@@ -14,6 +14,7 @@ import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.neko.music.i18n.ApiMessages;
 
 public class UserDailyRecommendationHandler extends HttpServlet {
     private static final ZoneId CN_ZONE = ZoneId.of("Asia/Shanghai");
@@ -23,18 +24,18 @@ public class UserDailyRecommendationHandler extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         String token = req.getHeader("Authorization");
         if (token == null || token.isEmpty()) {
-            write(resp, HttpServletResponse.SC_UNAUTHORIZED, Map.of("success", false, "message", "未提供认证令牌"));
+            write(resp, HttpServletResponse.SC_UNAUTHORIZED, Map.of("success", false, "message", "auth.token_missing"));
             return;
         }
         Integer userId = Main.getUserAuthService().validateToken(token).orElse(null);
         if (userId == null) {
-            write(resp, HttpServletResponse.SC_UNAUTHORIZED, Map.of("success", false, "message", "无效的认证令牌"));
+            write(resp, HttpServletResponse.SC_UNAUTHORIZED, Map.of("success", false, "message", "auth.invalid_bearer"));
             return;
         }
 
         DailyRecommendationService service = Main.getDailyRecommendationService();
         if (service == null) {
-            write(resp, HttpServletResponse.SC_SERVICE_UNAVAILABLE, Map.of("success", false, "message", "推荐服务未初始化"));
+            write(resp, HttpServletResponse.SC_SERVICE_UNAVAILABLE, Map.of("success", false, "message", ApiMessages.translate("recommend.service_unavailable")));
             return;
         }
 

@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.neko.music.Main;
 import com.neko.music.model.UserUpload;
 import com.neko.music.service.EmbeddedMetadataSyncService;
@@ -60,7 +61,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
             // 获取待审核列表
             handleGetPendingUploads(response);
         } else {
-            sendErrorResponse(response, 404, "请求的资源不存在");
+            sendErrorResponse(response, 404, "admin.upload_record.resource_not_found");
         }
     }
     
@@ -98,7 +99,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
             }
             handleRejectUpload(uploadId, request, response);
         } else {
-            sendErrorResponse(response, 404, "请求的资源不存在");
+            sendErrorResponse(response, 404, "admin.upload_record.resource_not_found");
         }
     }
     
@@ -108,14 +109,14 @@ public class AdminUploadAuditHandler extends ApiServlet {
     private boolean verifyAdmin(HttpServletRequest request, HttpServletResponse response) throws IOException {
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            sendErrorResponse(response, 401, "未授权访问");
+            sendErrorResponse(response, 401, "auth.unauthorized");
             return false;
         }
         
         String token = authHeader.substring(7);
         boolean isValid = Main.getAdminAuthService().validateAdminToken(token);
         if (!isValid) {
-            sendErrorResponse(response, 401, "未授权访问");
+            sendErrorResponse(response, 401, "auth.unauthorized");
             return false;
         }
         
@@ -173,7 +174,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
             
         } catch (Exception e) {
             logger.error("获取待审核列表失败: " + e.getMessage(), e);
-            sendErrorResponse(response, 500, "获取待审核列表失败，请稍后重试");
+            sendErrorResponse(response, 500, "admin.upload_audit.list_failed");
         }
     }
     
@@ -226,7 +227,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
             // 验证源文件存在并迁移到临时位置
             if (!Files.exists(Paths.get(upload.getMusicFilePath()))) {
                 conn.rollback();
-                sendErrorResponse(response, 500, "待审核的音乐文件不存在，无法完成审核");
+                sendErrorResponse(response, 500, "admin.upload_audit.audio_missing");
                 return;
             }
             
@@ -238,7 +239,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
                 if (!Files.exists(Paths.get(upload.getCoverFilePath()))) {
                     conn.rollback();
                     undoFileMoves(fileUndoLog);
-                    sendErrorResponse(response, 500, "待审核的封面文件不存在，无法完成审核");
+                    sendErrorResponse(response, 500, "admin.upload_audit.cover_missing");
                     return;
                 }
                 moveWithUndo(Paths.get(upload.getCoverFilePath()), Paths.get(tempCoverPath), fileUndoLog);
@@ -287,7 +288,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
             if (musicId == 0) {
                 conn.rollback();
                 undoFileMoves(fileUndoLog);
-                sendErrorResponse(response, 500, "写入音乐记录失败，请稍后重试");
+                sendErrorResponse(response, 500, "admin.upload_record.write_failed");
                 return;
             }
 
@@ -391,7 +392,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
 
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);
-            result.put("message", "审核通过，音乐已添加到库中");
+            result.put("message", ApiMessages.translate("admin.upload_audit.approved"));
             result.put("data", Map.of(
                 "uploadId", uploadId,
                 "status", "approved"
@@ -416,7 +417,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
                 undoFileMoves(fileUndoLog);
             }
             if (!response.isCommitted()) {
-                sendErrorResponse(response, 500, "审核通过失败，请稍后重试");
+                sendErrorResponse(response, 500, "admin.upload_audit.approve_failed");
             }
         } finally {
             // 关闭连接
@@ -464,7 +465,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
             // 1. 先删数据库记录：删记录失败时文件还在，重试仍可处理；
             //    反过来先删文件再删记录，失败就会留下一条再也无法处理的 pending 记录
             if (!uploadManager.deleteUserUpload(uploadId)) {
-                sendErrorResponse(response, 500, "删除上传记录失败，请稍后重试");
+                sendErrorResponse(response, 500, "admin.upload_record.delete_failed");
                 return;
             }
 
@@ -504,7 +505,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
 
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);
-            result.put("message", "审核拒绝，文件已删除");
+            result.put("message", ApiMessages.translate("admin.upload_audit.rejected"));
             result.put("data", Map.of(
                 "uploadId", uploadId,
                 "status", "rejected",
@@ -517,7 +518,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
         } catch (Exception e) {
             logger.error("审核拒绝失败 uploadId={}", uploadId, e);
             if (!response.isCommitted()) {
-                sendErrorResponse(response, 500, "审核拒绝失败，请稍后重试");
+                sendErrorResponse(response, 500, "admin.upload_audit.reject_failed");
             }
         }
     }
@@ -586,7 +587,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
             }
             return uploadId;
         } catch (NumberFormatException e) {
-            sendErrorResponse(response, 400, "上传ID格式错误");
+            sendErrorResponse(response, 400, "admin.upload_record.bad_id");
             return -1;
         }
     }
@@ -625,7 +626,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
         String token = authHeader.substring(7);
         int adminId = getAdminIdByToken(token);
         if (adminId <= 0) {
-            sendErrorResponse(response, 401, "未授权访问");
+            sendErrorResponse(response, 401, "auth.unauthorized");
         }
         return adminId;
     }
@@ -636,11 +637,11 @@ public class AdminUploadAuditHandler extends ApiServlet {
             int uploadId, HttpServletResponse response) throws IOException {
         UserUpload upload = uploadManager.getUserUploadById(uploadId);
         if (upload == null) {
-            sendErrorResponse(response, 404, "上传记录不存在");
+            sendErrorResponse(response, 404, "admin.upload_record.not_found");
             return null;
         }
         if (!"pending".equals(upload.getStatus())) {
-            sendErrorResponse(response, 400, "该记录已被审核，无需重复操作");
+            sendErrorResponse(response, 400, "admin.upload_record.already_audited");
             return null;
         }
         return upload;

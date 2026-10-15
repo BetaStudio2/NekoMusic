@@ -22,6 +22,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
+import com.neko.music.i18n.ApiMessages;
 
 public class AdminUserManagementHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(AdminUserManagementHandler.class);
@@ -41,7 +42,7 @@ public class AdminUserManagementHandler extends HttpServlet {
             com.neko.music.model.Admin currentAdmin = com.neko.music.util.PermissionHelper.getAdminFromRequest(request);
             
             if (currentAdmin == null) {
-                HandlerResponses.writeJson(response, HttpStatus.UNAUTHORIZED_401, new ErrorResponse("未授权访问"));
+                HandlerResponses.writeJson(response, HttpStatus.UNAUTHORIZED_401, new ErrorResponse("auth.unauthorized"));
                 return;
             }
             
@@ -67,12 +68,12 @@ public class AdminUserManagementHandler extends HttpServlet {
                 logger.info("超级管理员 {} 查看管理员列表", currentAdmin.username());
             }
 
-            HandlerResponses.writeJson(response, HttpStatus.OK_200, new AdminUsersResponse(true, "获取管理员列表成功", adminUsers));
+            HandlerResponses.writeJson(response, HttpStatus.OK_200, new AdminUsersResponse(true, ApiMessages.translate("admin.user.list_ok"), adminUsers));
             return;
         }
 
         // 其他路径处理（如果需要）
-        HandlerResponses.writeJson(response, HttpStatus.NOT_FOUND_404, new ErrorResponse("未找到请求的资源"));
+        HandlerResponses.writeJson(response, HttpStatus.NOT_FOUND_404, new ErrorResponse("user.not_found"));
     }
 
     @Override
@@ -82,15 +83,15 @@ public class AdminUserManagementHandler extends HttpServlet {
         
         // 检查管理员权限
         if (!PermissionHelper.isAdminAuthorized(request)) {
-            logger.warn("未授权访问");
-            HandlerResponses.writeJson(response, HttpStatus.UNAUTHORIZED_401, new ErrorResponse("未授权访问"));
+            logger.warn("auth.unauthorized");
+            HandlerResponses.writeJson(response, HttpStatus.UNAUTHORIZED_401, new ErrorResponse("auth.unauthorized"));
             return;
         }
 
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || !pathInfo.endsWith("/edit")) {
             logger.warn("无效的请求路径: {}", pathInfo);
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("无效的请求路径"));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("user.bad_path"));
             return;
         }
 
@@ -101,14 +102,14 @@ public class AdminUserManagementHandler extends HttpServlet {
         try {
             adminId = Integer.parseInt(idStr);
         } catch (NumberFormatException e) {
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("无效的管理员ID"));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("admin.account.id_invalid"));
             return;
         }
         
         // 获取当前管理员信息
         com.neko.music.model.Admin currentAdmin = com.neko.music.util.PermissionHelper.getAdminFromRequest(request);
         if (currentAdmin == null) {
-            HandlerResponses.writeJson(response, HttpStatus.UNAUTHORIZED_401, new ErrorResponse("未授权访问"));
+            HandlerResponses.writeJson(response, HttpStatus.UNAUTHORIZED_401, new ErrorResponse("auth.unauthorized"));
             return;
         }
         
@@ -116,8 +117,8 @@ public class AdminUserManagementHandler extends HttpServlet {
         if (!com.neko.music.util.AdminPermissionUtil.isSuperAdmin(currentAdmin)) {
             // 如果不是超管，只能编辑自己的账号
             if (currentAdmin.id() != adminId) {
-                logger.warn("权限不足，管理员只能编辑自己的账号");
-                HandlerResponses.writeJson(response, HttpStatus.FORBIDDEN_403, new ErrorResponse("权限不足，管理员只能编辑自己的账号"));
+                logger.warn("admin.account.edit_self_only");
+                HandlerResponses.writeJson(response, HttpStatus.FORBIDDEN_403, new ErrorResponse("admin.account.edit_self_only"));
                 return;
             }
         }
@@ -133,7 +134,7 @@ public class AdminUserManagementHandler extends HttpServlet {
         try {
             editRequest = Main.getObjectMapper().readValue(requestBody.toString(), AdminEditRequest.class);
         } catch (Exception e) {
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("无效的请求格式"));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("user.bad_request"));
             return;
         }
 
@@ -141,11 +142,11 @@ public class AdminUserManagementHandler extends HttpServlet {
         boolean success = updateAdminInfo(adminId, editRequest);
         
         if (!success) {
-            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("修改管理员信息失败"));
+            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("admin.account.update_failed"));
             return;
         }
 
-        HandlerResponses.writeJson(response, HttpStatus.OK_200, new SuccessResponse(true, "修改管理员信息成功"));
+        HandlerResponses.writeJson(response, HttpStatus.OK_200, new SuccessResponse(true, ApiMessages.translate("admin.user.update_ok")));
     }
 
     @Override
@@ -163,7 +164,7 @@ public class AdminUserManagementHandler extends HttpServlet {
 
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("管理员ID不能为空"));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("admin.account.id_required"));
             return;
         }
 
@@ -173,7 +174,7 @@ public class AdminUserManagementHandler extends HttpServlet {
         try {
             adminId = Integer.parseInt(idStr);
         } catch (NumberFormatException e) {
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("无效的管理员ID"));
+            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("admin.account.id_invalid"));
             return;
         }
 
@@ -181,14 +182,14 @@ public class AdminUserManagementHandler extends HttpServlet {
         boolean success = deleteAdminUser(adminId);
         
         if (!success) {
-            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("删除管理员失败"));
+            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("admin.account.delete_failed"));
             return;
         }
 
         // 删除账号后其令牌必须立即失效（令牌只查 Redis，不看管理员行）
         revokeAllAdminSessions(adminId);
 
-        HandlerResponses.writeJson(response, HttpStatus.OK_200, new SuccessResponse(true, "删除管理员成功"));
+        HandlerResponses.writeJson(response, HttpStatus.OK_200, new SuccessResponse(true, ApiMessages.translate("admin.user.delete_ok")));
     }
 
     // 检查管理员权限
@@ -254,7 +255,7 @@ public class AdminUserManagementHandler extends HttpServlet {
                 return rowsAffected > 0;
             }
         } catch (Exception e) {
-            logger.error("删除管理员失败", e);
+            logger.error("admin.account.delete_failed", e);
             return false;
         }
     }
@@ -283,7 +284,7 @@ public class AdminUserManagementHandler extends HttpServlet {
             
             return true; // 如果没有提供密码，也返回成功
         } catch (Exception e) {
-            logger.error("修改管理员信息失败", e);
+            logger.error("admin.account.update_failed", e);
             return false;
         }
     }

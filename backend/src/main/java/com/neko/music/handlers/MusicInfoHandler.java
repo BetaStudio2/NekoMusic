@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import com.neko.music.i18n.ApiMessages;
 
 public class MusicInfoHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicInfoHandler.class);
@@ -26,7 +27,7 @@ public class MusicInfoHandler extends HttpServlet {
         if (pathInfo == null || pathInfo.equals("/")) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("音乐ID不能为空");
+            ErrorResponse errorResponse = new ErrorResponse("music.id_required");
             response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
@@ -40,7 +41,7 @@ public class MusicInfoHandler extends HttpServlet {
         } catch (NumberFormatException e) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
             response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("无效的音乐ID");
+            ErrorResponse errorResponse = new ErrorResponse("music.id_invalid");
             response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
@@ -51,14 +52,14 @@ public class MusicInfoHandler extends HttpServlet {
         if (music == null) {
             response.setStatus(HttpStatus.NOT_FOUND_404);
             response.setContentType("application/json;charset=utf-8");
-            ErrorResponse errorResponse = new ErrorResponse("音乐不存在");
+            ErrorResponse errorResponse = new ErrorResponse("music.not_found");
             response.getWriter().println(Main.getObjectMapper().writeValueAsString(errorResponse));
             return;
         }
         
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
-        MusicResponse musicResponse = new MusicResponse(true, "获取音乐详情成功", music);
+        MusicResponse musicResponse = new MusicResponse(true, ApiMessages.translate("music.detail.ok"), music);
         response.getWriter().println(Main.getObjectMapper().writeValueAsString(musicResponse));
     }
     

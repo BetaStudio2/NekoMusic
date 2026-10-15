@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.neko.music.util.UserLookup;
 
 import com.google.gson.JsonArray;
@@ -44,14 +45,14 @@ public class GetPlaylistsHandler extends ApiServlet {
         String token = req.getHeader("Authorization");
 
         if (token == null || token.isEmpty()) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "未提供认证令牌");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.token_missing");
             return;
         }
 
         // 验证token并获取用户ID
         Integer userId = userAuthService.validateToken(token).orElse(null);
         if (userId == null) {
-            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "无效的认证令牌");
+            sendErrorResponse(resp, HttpServletResponse.SC_UNAUTHORIZED, "auth.invalid_bearer");
             return;
         }
 
@@ -63,7 +64,7 @@ public class GetPlaylistsHandler extends ApiServlet {
 
             JsonObject response = new JsonObject();
             response.addProperty("success", true);
-            response.addProperty("message", "获取歌单列表成功");
+            response.addProperty("message", ApiMessages.translate("playlist.list_ok"));
 
             JsonArray playlistsArray = new JsonArray();
             for (Playlist playlist : playlists) {
@@ -100,7 +101,7 @@ public class GetPlaylistsHandler extends ApiServlet {
             sendSuccessResponse(resp, response);
         } catch (Exception e) {
             logger.error("处理获取歌单列表请求时发生错误: {}", e.getMessage(), e);
-            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "服务器内部错误");
+            sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "common.internal_error");
         }
     }
 

@@ -1,5 +1,6 @@
 package com.neko.music.handlers;
 
+import com.neko.music.i18n.ApiMessages;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neko.music.Main;
 import com.neko.music.model.Playlist;
@@ -53,7 +54,7 @@ public class ExternalImportHandler extends HttpServlet {
     private void handle(HttpServletRequest request, HttpServletResponse response) throws IOException {
         Integer userId = RequestAuthUtil.authenticate(request);
         if (userId == null) {
-            writeJsonError(response, HttpServletResponse.SC_UNAUTHORIZED, "缺少或无效的用户令牌");
+            writeJsonError(response, HttpServletResponse.SC_UNAUTHORIZED, "source.netease.token_missing");
             return;
         }
 
@@ -64,7 +65,7 @@ public class ExternalImportHandler extends HttpServlet {
         String targetPlaylistIdParam = request.getParameter("targetPlaylistId");
         Integer targetPlaylistId = parseIntParam(targetPlaylistIdParam);
         if (targetPlaylistId == null && targetPlaylistIdParam != null && !targetPlaylistIdParam.isBlank()) {
-            writeJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "targetPlaylistId 必须为数字");
+            writeJsonError(response, HttpServletResponse.SC_BAD_REQUEST, ApiMessages.translate("external.target_playlist_id_not_number"));
             return;
         }
 
@@ -73,7 +74,7 @@ public class ExternalImportHandler extends HttpServlet {
         boolean playlistCreated = false;
         if (targetPlaylistId != null) {
             if (!Main.getPlaylistService().isPlaylistOwner(targetPlaylistId, userId)) {
-                writeJsonError(response, HttpServletResponse.SC_FORBIDDEN, "无权限修改此歌单");
+                writeJsonError(response, HttpServletResponse.SC_FORBIDDEN, "playlist.no_permission_update");
                 return;
             }
             resolvedPlaylistId = targetPlaylistId;
@@ -82,21 +83,21 @@ public class ExternalImportHandler extends HttpServlet {
             targetPlaylistName = targetPlaylistName == null ? null : targetPlaylistName.trim();
             if (targetPlaylistName == null || targetPlaylistName.isEmpty()) {
                 writeJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
-                        "需要提供 targetPlaylistId（导入到已有歌单）或 targetPlaylistName（新建歌单）");
+                        ApiMessages.translate("external.target_required"));
                 return;
             }
             if (targetPlaylistName.length() > 255) {
-                writeJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "歌单名称过长");
+                writeJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "playlist.name_too_long");
                 return;
             }
             if (SensitiveWordUtil.contains(targetPlaylistName)) {
-                writeJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "歌单名称包含违禁词");
+                writeJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "playlist.name_contains_banned");
                 return;
             }
             Optional<Playlist> created = Main.getPlaylistService()
                     .createPlaylist(userId, targetPlaylistName, "由外部歌单导入创建");
             if (created.isEmpty()) {
-                writeJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "创建歌单失败");
+                writeJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, ApiMessages.translate("external.playlist_create_failed"));
                 return;
             }
             resolvedPlaylistId = created.get().id();
@@ -113,7 +114,7 @@ public class ExternalImportHandler extends HttpServlet {
             disstid = request.getParameter("disstid");
             if (disstid == null || !disstid.matches("[0-9]{1,19}")) {
                 writeJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
-                        "缺少有效的 disstid（QQ 歌单 ID 必须为数字）");
+                        ApiMessages.translate("external.disstid_required"));
                 return;
             }
         } else if (qishui) {
@@ -121,7 +122,7 @@ public class ExternalImportHandler extends HttpServlet {
                     request.getParameter("url"), request.getParameter("id"));
             if (qishuiPlaylist == null || qishuiPlaylist.isBlank() || qishuiPlaylist.length() > 2048) {
                 writeJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
-                        "缺少有效的 playlist_id（汽水歌单 ID 或分享链接）");
+                        "source.qishui.playlist_id_required");
                 return;
             }
             qishuiPlaylist = qishuiPlaylist.trim();
@@ -129,7 +130,7 @@ public class ExternalImportHandler extends HttpServlet {
             kugouListId = request.getParameter("listid");
             if (kugouListId == null || kugouListId.isBlank() || kugouListId.length() > 255) {
                 writeJsonError(response, HttpServletResponse.SC_BAD_REQUEST,
-                        "缺少有效的 listid（酷狗歌单链接或 ID）");
+                        "source.kugou.listid_required");
                 return;
             }
             kugouListId = kugouListId.trim();
@@ -137,7 +138,7 @@ public class ExternalImportHandler extends HttpServlet {
             String playlistParam = request.getParameter("playlistId");
             neteasePlaylistId = parseLongParam(playlistParam);
             if (neteasePlaylistId == null && playlistParam != null && !playlistParam.isBlank()) {
-                writeJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "playlistId 必须为数字");
+                writeJsonError(response, HttpServletResponse.SC_BAD_REQUEST, ApiMessages.translate("external.playlist_id_not_number"));
                 return;
             }
             try {
@@ -147,7 +148,7 @@ public class ExternalImportHandler extends HttpServlet {
                 return;
             }
             if (neteasePlaylistId == null && songIds.isEmpty()) {
-                writeJsonError(response, HttpServletResponse.SC_BAD_REQUEST, "需要提供 playlistId 或 ids");
+                writeJsonError(response, HttpServletResponse.SC_BAD_REQUEST, ApiMessages.translate("external.playlist_required"));
                 return;
             }
         }
@@ -159,7 +160,7 @@ public class ExternalImportHandler extends HttpServlet {
             asyncContext = request.startAsync();
         } catch (IllegalStateException e) {
             logger.warn("SSE 异步上下文创建失败", e);
-            writeJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "服务不支持流式响应");
+            writeJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "qr.sse_unsupported");
             return;
         }
         asyncContext.setTimeout(0);
@@ -319,7 +320,7 @@ public class ExternalImportHandler extends HttpServlet {
         @Override
         public void onError(String message) {
             ObjectNode data = Main.getObjectMapper().createObjectNode();
-            data.put("message", message == null ? "导入失败" : message);
+            data.put("message", message == null ? ApiMessages.translate("source.external.import_failed") : message);
             send("error", data);
             finish();
         }
