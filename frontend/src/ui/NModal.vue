@@ -78,7 +78,7 @@ const panelClass = computed(() => ['n-modal__panel', `n-modal__panel--${props.si
             <div class="n-modal__title">
               <slot name="header">{{ title }}</slot>
             </div>
-            <button v-if="showClose" type="button" class="n-modal__close" aria-label="关闭" @click="close">
+            <button v-if="showClose" type="button" class="n-modal__close" :aria-label="$t('ui.close')" @click="close">
               <NIcon name="close" :size="18" />
             </button>
           </header>

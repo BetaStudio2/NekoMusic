@@ -23,6 +23,7 @@ import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
 import { playTrack, playTracks, isCurrentMusic } from '@/composables/usePlaybackBridge'
 import NowPlayingTag from '@/components/NowPlayingTag.vue'
+import { t } from '@/i18n'
 
 const toast = useToast()
 const route = useRoute()
@@ -69,14 +70,14 @@ const artistTrackCount = computed(() => {
 })
 
 const tabs = computed(() => [
-  { key: 'tracks', label: '单曲', icon: 'music', count: musicResults.value.length },
-  { key: 'playlists', label: '歌单', icon: 'list-music', count: playlistResults.value.length },
-  { key: 'artist', label: '艺人', icon: 'mic-2', count: artistPayload.value.name ? artistTrackCount.value : 0 },
+  { key: 'tracks', label: t('search.tabTracks'), icon: 'music', count: musicResults.value.length },
+  { key: 'playlists', label: t('search.tabPlaylists'), icon: 'list-music', count: playlistResults.value.length },
+  { key: 'artist', label: t('search.tabArtist'), icon: 'mic-2', count: artistPayload.value.name ? artistTrackCount.value : 0 },
 ])
 
 /** 有结果但当前标签为空时的引导：切到有内容的标签 */
 watch(
-  () => [searchLoading.value, hasAnyResults.value, tabs.value.map((t) => t.count).join(',')],
+  () => [searchLoading.value, hasAnyResults.value, tabs.value.map((item) => item.count).join(',')],
   () => {
     if (searchLoading.value || !hasAnyResults.value) return
     const current = tabs.value.find((t) => t.key === tab.value)
@@ -145,7 +146,7 @@ async function runSearch(query) {
     artistPayload.value = artist
   } catch (e) {
     console.error('搜索失败:', e)
-    toast.error('搜索失败，请稍后重试')
+    toast.error(t('search.failed'))
     musicResults.value = []
     playlistResults.value = []
     artistPayload.value = { name: '', musicCount: 0, musicList: [] }
@@ -246,7 +247,7 @@ async function downloadMusic(result) {
     window.URL.revokeObjectURL(url)
   } catch (error) {
     console.error('下载音乐失败:', error)
-    toast.error('下载失败，请重试')
+    toast.error(t('track.downloadFailed'))
   }
 }
 
@@ -256,7 +257,7 @@ const isFavorite = (musicId) => favoriteMusicIds.value.has(musicId)
 
 async function toggleFavorite(result) {
   if (!isLoggedIn()) {
-    toast.error('请先登录')
+    toast.error(t('common.needLogin'))
     return
   }
   const token = getToken()
@@ -270,13 +271,13 @@ async function toggleFavorite(result) {
       const data = await response.json()
       if (data.success) {
         favoriteMusicIds.value.delete(result.id)
-        toast.success('取消收藏成功')
+        toast.success(t('player.unfavoriteSuccess'))
       } else {
-        toast.error('取消收藏失败: ' + data.message)
+        toast.error(t('player.unfavoriteFailed') + ': ' + data.message)
       }
     } catch (error) {
       console.error('取消收藏失败:', error)
-      toast.error('取消收藏失败')
+      toast.error(t('player.unfavoriteFailed'))
     }
   } else {
     try {
@@ -288,13 +289,13 @@ async function toggleFavorite(result) {
       const data = await response.json()
       if (data.success) {
         favoriteMusicIds.value.add(result.id)
-        toast.success('收藏成功')
+        toast.success(t('player.favoriteSuccess'))
       } else {
-        toast.error('收藏失败: ' + data.message)
+        toast.error(t('player.favoriteFailed') + ': ' + data.message)
       }
     } catch (error) {
       console.error('收藏失败:', error)
-      toast.error('收藏失败')
+      toast.error(t('player.favoriteFailed'))
     }
   }
 }
@@ -348,40 +349,40 @@ onMounted(async () => {
   <PageShell width="default">
     <!-- 页头 -->
     <header class="head">
-      <h1 class="head__title">{{ searchQuery || '搜索' }}</h1>
+      <h1 class="head__title">{{ searchQuery || $t('search.title') }}</h1>
       <p class="head__sub">
-        <template v-if="searchQuery">关键词「{{ searchQuery }}」</template>
-        <template v-else>在顶栏输入关键词后跳转至此查看结果</template>
+        <template v-if="searchQuery">{{ $t('search.keywordLabel', { q: searchQuery }) }}</template>
+        <template v-else>{{ $t('search.hint') }}</template>
       </p>
     </header>
 
     <!-- 加载 -->
     <div v-if="searchQuery && searchLoading" class="state">
       <NSpinner :size="28" />
-      <p>正在搜索单曲、歌单与艺人…</p>
+      <p>{{ $t('search.searching') }}</p>
     </div>
 
     <!-- 未输入关键词 -->
     <NCard v-else-if="!searchQuery" pad="lg" class="empty">
       <span class="empty__icon"><NIcon name="search" :size="28" /></span>
-      <h2 class="empty__title">开始搜索</h2>
-      <p class="empty__text">在顶栏搜索框输入歌名、歌手、专辑或歌曲 ID，回车即可查看结果。</p>
+      <h2 class="empty__title">{{ $t('search.emptyTitle') }}</h2>
+      <p class="empty__text">{{ $t('search.emptyText') }}</p>
     </NCard>
 
     <!-- 无结果 -->
     <NCard v-else-if="!hasAnyResults" pad="lg" class="empty">
       <span class="empty__icon"><NIcon name="search-x" :size="28" /></span>
-      <h2 class="empty__title">未找到结果</h2>
-      <p class="empty__text">没有找到与「{{ searchQuery }}」匹配的单曲、歌单或艺人。</p>
+      <h2 class="empty__title">{{ $t('search.notFoundTitle') }}</h2>
+      <p class="empty__text">{{ $t('search.notFoundText', { q: searchQuery }) }}</p>
       <p class="empty__hint">
-        如需补全曲库，可联系
+        {{ $t('search.contactLead') }}
         <a href="mailto:support@nekocore.cn">support@nekocore.cn</a>
       </p>
     </NCard>
 
     <!-- 结果 -->
     <template v-else>
-      <div class="tabs" role="tablist" aria-label="搜索结果分类">
+      <div class="tabs" role="tablist" :aria-label="$t('search.tabsAria')">
         <button
           v-for="t in tabs"
           :key="t.key"
@@ -400,7 +401,7 @@ onMounted(async () => {
 
       <!-- 单曲 -->
       <div v-if="tab === 'tracks'" class="list">
-        <p v-if="!musicResults.length" class="list__empty">本关键词下暂无单曲</p>
+        <p v-if="!musicResults.length" class="list__empty">{{ $t('search.noTracks') }}</p>
         <article v-for="result in musicResults" v-else :key="'m-' + result.id" class="row">
           <img
             :src="getCoverUrl(result.id)"
@@ -413,7 +414,7 @@ onMounted(async () => {
           <button
             type="button"
             class="row__info"
-            :aria-label="`播放 ${result.title}`"
+            :aria-label="$t('home.playAria', { title: result.title })"
             @click="playFromResult(result, musicResults)"
           >
             <span class="row__title">
@@ -423,31 +424,31 @@ onMounted(async () => {
               <NIcon v-if="result.lrc" name="file-text" :size="13" class="row__lyric" />
             </span>
             <span class="row__meta">{{ result.artist }}</span>
-            <span class="row__sub">{{ result.album || '未知专辑' }}</span>
+            <span class="row__sub">{{ result.album || $t('common.unknownAlbum') }}</span>
           </button>
           <div class="row__actions">
             <NButton
               size="sm"
               :variant="isCurrentMusic(result.id) ? 'primary' : 'secondary'"
               :icon="isCurrentMusic(result.id) ? 'volume-2' : 'play'"
-              :title="isCurrentMusic(result.id) ? '正在播放' : '播放'"
+              :title="isCurrentMusic(result.id) ? $t('nowPlaying.label') : $t('track.play')"
               @click="playFromResult(result, musicResults)"
             />
             <NButton
               size="sm"
               :variant="isFavorite(result.id) ? 'primary' : 'secondary'"
               icon="heart"
-              :title="isFavorite(result.id) ? '取消收藏' : '收藏'"
+              :title="isFavorite(result.id) ? $t('track.unfavorite') : $t('track.favorite')"
               @click="toggleFavorite(result)"
             />
-            <NButton size="sm" variant="secondary" icon="download" title="下载" @click="downloadMusic(result)" />
+            <NButton size="sm" variant="secondary" icon="download" :title="$t('track.download')" @click="downloadMusic(result)" />
           </div>
         </article>
       </div>
 
       <!-- 歌单 -->
       <div v-else-if="tab === 'playlists'" class="list">
-        <p v-if="!playlistResults.length" class="list__empty">本关键词下暂无歌单</p>
+        <p v-if="!playlistResults.length" class="list__empty">{{ $t('search.noPlaylists') }}</p>
         <article v-for="pl in playlistResults" v-else :key="'p-' + pl.id" class="row">
           <img
             :src="playlistCoverUrl(pl)"
@@ -461,11 +462,11 @@ onMounted(async () => {
             <span class="row__title">
               <span class="row__title-text">{{ pl.name }}</span>
             </span>
-            <span class="row__meta">{{ pl.musicCount ?? 0 }} 首</span>
-            <span class="row__sub">{{ pl.description || '暂无简介' }}</span>
+            <span class="row__meta">{{ $t('track.songCount', { count: pl.musicCount ?? 0 }) }}</span>
+            <span class="row__sub">{{ pl.description || $t('track.noDescription') }}</span>
           </button>
           <div class="row__actions">
-            <NButton size="sm" variant="secondary" icon="arrow-right" @click="goPlaylist(pl)">打开</NButton>
+            <NButton size="sm" variant="secondary" icon="arrow-right" @click="goPlaylist(pl)">{{ $t('track.open') }}</NButton>
           </div>
         </article>
       </div>
@@ -477,12 +478,12 @@ onMounted(async () => {
             <span class="artist__avatar"><NIcon name="mic-2" :size="22" /></span>
             <div>
               <h2 class="artist__name">{{ artistPayload.name }}</h2>
-              <p class="artist__meta">{{ artistTrackCount }} 首作品</p>
+              <p class="artist__meta">{{ $t('track.artistWorks', { count: artistTrackCount }) }}</p>
             </div>
           </header>
 
           <div class="list">
-            <p v-if="!artistTracks.length" class="list__empty">暂无该艺人下的曲目列表</p>
+            <p v-if="!artistTracks.length" class="list__empty">{{ $t('search.noArtistTracks') }}</p>
             <article v-for="result in artistTracks" v-else :key="'a-' + result.id" class="row">
               <img
                 :src="trackCoverUrl(result)"
@@ -495,7 +496,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="row__info"
-                :aria-label="`播放 ${result.title}`"
+                :aria-label="$t('home.playAria', { title: result.title })"
                 @click="playFromResult(result, artistTracks)"
               >
                 <span class="row__title">
@@ -503,30 +504,30 @@ onMounted(async () => {
                   <QualityBadge :quality="result.maxQuality" />
                 </span>
                 <span class="row__meta">{{ result.artist }}</span>
-                <span class="row__sub">{{ result.album || '未知专辑' }}</span>
+                <span class="row__sub">{{ result.album || $t('common.unknownAlbum') }}</span>
               </button>
               <div class="row__actions">
                 <NButton
                   size="sm"
                   variant="secondary"
                   icon="play"
-                  title="播放"
+                  :title="$t('track.play')"
                   @click="playFromResult(result, artistTracks)"
                 />
                 <NButton
                   size="sm"
                   :variant="isFavorite(result.id) ? 'primary' : 'secondary'"
                   icon="heart"
-                  :title="isFavorite(result.id) ? '取消收藏' : '收藏'"
+                  :title="isFavorite(result.id) ? $t('track.unfavorite') : $t('track.favorite')"
                   @click="toggleFavorite(normalizeTrack(result))"
                 />
-                <NButton size="sm" variant="secondary" icon="download" title="下载" @click="downloadMusic(normalizeTrack(result))" />
+                <NButton size="sm" variant="secondary" icon="download" :title="$t('track.download')" @click="downloadMusic(normalizeTrack(result))" />
               </div>
             </article>
           </div>
         </template>
 
-        <p v-else class="list__empty">本关键词下暂无匹配艺人</p>
+        <p v-else class="list__empty">{{ $t('search.noArtists') }}</p>
       </div>
     </template>
   </PageShell>

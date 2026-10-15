@@ -3,7 +3,7 @@
     v-if="label"
     class="quality-badge"
     :class="`quality-badge--${tier}`"
-    :title="`最高音质：${label}`"
+    :title="$t('quality.title', { label })"
   >
     {{ label }}
   </span>
@@ -11,6 +11,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { t } from '@/i18n'
 
 const props = defineProps({
   /** 后端 maxQuality：standard / hq / sq / hires，空值不展示 */
@@ -21,9 +22,9 @@ const props = defineProps({
 })
 
 const TIERS = {
-  standard: { tier: 'standard', label: '标准' },
-  hq: { tier: 'hq', label: '极高' },
-  sq: { tier: 'sq', label: '无损' },
+  standard: { tier: 'standard', label: t('quality.standard') },
+  hq: { tier: 'hq', label: t('quality.high') },
+  sq: { tier: 'sq', label: t('quality.lossless') },
   hires: { tier: 'hires', label: 'Hi-Res' }
 }
 

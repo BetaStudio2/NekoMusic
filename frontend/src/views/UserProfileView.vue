@@ -8,7 +8,7 @@
         <div class="profile__avatar-wrap">
           <img
             :src="userAvatar"
-            alt="用户头像"
+            :alt="$t('nav.avatarAlt')"
             class="profile__avatar"
             :class="{ 'profile__avatar--busy': avatarUploading }"
             @error="handleAvatarError"
@@ -25,7 +25,7 @@
             for="avatar-upload"
             class="profile__avatar-btn"
             :class="{ 'profile__avatar-btn--busy': avatarUploading }"
-            :title="avatarUploading ? '头像上传中…' : '更换头像'"
+            :title="avatarUploading ? $t('profile.avatarUploading') : $t('profile.changeAvatar')"
           >
             <NIcon :name="avatarUploading ? 'loader-circle' : 'image-plus'" :size="16" />
           </label>
@@ -39,13 +39,13 @@
           <p class="profile__email">{{ user.email }}</p>
           <p class="profile__joined">
             <NIcon name="calendar" :size="14" />
-            加入时间 {{ formatDate(user.createdAt) }}
+            {{ $t('profile.joinedAt', { date: formatDate(user.createdAt) }) }}
           </p>
         </div>
       </header>
 
       <!-- 标签页 -->
-      <div class="tabs" role="tablist" aria-label="个人中心">
+      <div class="tabs" role="tablist" :aria-label="$t('nav.account')">
         <button
           v-for="tab in tabs"
           :key="tab.key"
@@ -62,14 +62,14 @@
 
       <!-- 个人信息 -->
       <div v-if="activeTab === 'profile'" class="panel">
-        <h2 class="panel__title">个人信息</h2>
+        <h2 class="panel__title">{{ $t('profile.infoTitle') }}</h2>
 
         <div class="info">
-          <span class="info__label">昵称</span>
+          <span class="info__label">{{ $t('auth.nickname') }}</span>
           <div class="info__value">
             <template v-if="!editingNickname">
               <span class="info__text">{{ user.nickname }}</span>
-              <NButton size="sm" variant="secondary" icon="pencil" @click="startEditNickname">修改</NButton>
+              <NButton size="sm" variant="secondary" icon="pencil" @click="startEditNickname">{{ $t('profile.modify') }}</NButton>
             </template>
             <template v-else>
               <NInput
@@ -77,63 +77,63 @@
                 v-model="nicknameInput"
                 class="info__edit"
                 maxlength="20"
-                placeholder="请输入新昵称（1-20字）"
+                :placeholder="$t('profile.nicknamePlaceholder')"
                 @keyup.enter="saveNickname"
                 @keyup.esc="cancelEditNickname"
               />
-              <NButton size="sm" variant="primary" :loading="savingNickname" @click="saveNickname">保存</NButton>
-              <NButton size="sm" variant="ghost" :disabled="savingNickname" @click="cancelEditNickname">取消</NButton>
+              <NButton size="sm" variant="primary" :loading="savingNickname" @click="saveNickname">{{ $t('playlists.save') }}</NButton>
+              <NButton size="sm" variant="ghost" :disabled="savingNickname" @click="cancelEditNickname">{{ $t('common.cancel') }}</NButton>
             </template>
           </div>
         </div>
 
         <div class="info">
-          <span class="info__label">邮箱</span>
+          <span class="info__label">{{ $t('auth.email') }}</span>
           <span class="info__text">{{ user.email }}</span>
         </div>
 
         <div class="info">
-          <span class="info__label">会员状态</span>
-          <span class="info__text">{{ user.isVip ? '会员' : '非会员' }}</span>
+          <span class="info__label">{{ $t('profile.vipStatus') }}</span>
+          <span class="info__text">{{ user.isVip ? $t('profile.vipMember') : $t('profile.vipNonMember') }}</span>
         </div>
 
         <div class="info">
-          <span class="info__label">会员到期</span>
+          <span class="info__label">{{ $t('profile.vipExpires') }}</span>
           <span class="info__text">{{ formatVipExpiresAt(user.vipExpiresAt) }}</span>
         </div>
 
         <div class="info info--last">
-          <span class="info__label">注册时间</span>
+          <span class="info__label">{{ $t('profile.registeredAt') }}</span>
           <span class="info__text">{{ formatDate(user.createdAt) }}</span>
         </div>
       </div>
 
       <!-- 安全设置 -->
       <div v-else class="panel">
-        <h2 class="panel__title">安全设置</h2>
+        <h2 class="panel__title">{{ $t('profile.securityTitle') }}</h2>
 
         <div class="field">
-          <label class="field__label" for="cur-pwd">当前密码</label>
-          <NInput id="cur-pwd" v-model="currentPassword" type="password" icon="lock" placeholder="请输入当前密码" />
+          <label class="field__label" for="cur-pwd">{{ $t('profile.currentPassword') }}</label>
+          <NInput id="cur-pwd" v-model="currentPassword" type="password" icon="lock" :placeholder="$t('profile.currentPasswordPlaceholder')" />
         </div>
         <div class="field">
-          <label class="field__label" for="new-pwd">新密码</label>
-          <NInput id="new-pwd" v-model="newPassword" type="password" icon="key" placeholder="请输入新密码" />
+          <label class="field__label" for="new-pwd">{{ $t('profile.newPassword') }}</label>
+          <NInput id="new-pwd" v-model="newPassword" type="password" icon="key" :placeholder="$t('profile.newPasswordPlaceholder')" />
         </div>
         <div class="field">
-          <label class="field__label" for="cfm-pwd">确认新密码</label>
-          <NInput id="cfm-pwd" v-model="confirmNewPassword" type="password" icon="key" placeholder="请确认新密码" />
+          <label class="field__label" for="cfm-pwd">{{ $t('profile.confirmNewPassword') }}</label>
+          <NInput id="cfm-pwd" v-model="confirmNewPassword" type="password" icon="key" :placeholder="$t('profile.confirmNewPasswordPlaceholder')" />
         </div>
 
         <NButton variant="primary" icon="shield-check" :loading="changePasswordLoading" @click="changePassword">
-          修改密码
+          {{ $t('profile.changePassword') }}
         </NButton>
       </div>
     </div>
 
     <div v-else class="profile profile--loading">
-      <p class="profile__hint">用户资料加载失败，可能是网络问题或登录已失效</p>
-      <NButton variant="primary" icon="refresh-cw" @click="reloadUserInfo">重新加载</NButton>
+      <p class="profile__hint">{{ $t('profile.loadFailedHint') }}</p>
+      <NButton variant="primary" icon="refresh-cw" @click="reloadUserInfo">{{ $t('profile.reload') }}</NButton>
     </div>
   </PageShell>
 </template>
@@ -142,6 +142,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import API_CONFIG from '@/config/apiConfig.js'
 import { useToast } from '@/composables/useToast'
+import { t, locale } from '@/i18n'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NInput, NModal, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
@@ -221,16 +222,16 @@ const nicknameInput = ref('')
 const nicknameInputEl = ref(null)
 const savingNickname = ref(false)
 
-const tabs = [
-  { key: 'profile', label: '个人信息' },
-  { key: 'security', label: '安全设置' }
-]
+const tabs = computed(() => [
+  { key: 'profile', label: t('profile.infoTitle') },
+  { key: 'security', label: t('profile.securityTitle') }
+])
 
 // 格式化日期
 const formatDate = (dateString) => {
-  if (!dateString) return '未知';
+  if (!dateString) return t('profile.unknown');
   const date = new Date(dateString);
-  return date.toLocaleDateString('zh-CN', {
+  return date.toLocaleDateString(locale.value, {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit'
@@ -262,22 +263,22 @@ const saveNickname = async () => {
   const nickname = nicknameInput.value.trim()
 
   if (!nickname) {
-    toast.error('昵称不能为空')
+    toast.error(t('profile.nicknameEmpty'))
     return
   }
   if (nickname.length > 20) {
-    toast.error('昵称长度需在1-20之间')
+    toast.error(t('profile.nicknameLength'))
     return
   }
   if (nickname === user.value?.nickname) {
-    toast.info('昵称没有变化')
+    toast.info(t('profile.nicknameUnchanged'))
     cancelEditNickname()
     return
   }
 
   const token = localStorage.getItem('userToken')
   if (!token) {
-    toast.error('登录状态已失效，请重新登录')
+    toast.error(t('profile.sessionExpired'))
     return
   }
 
@@ -298,14 +299,14 @@ const saveNickname = async () => {
       // 只更新内存中的用户资料（不落盘），并广播一次让导航栏等组件刷新昵称
       patchUser({ nickname: savedNickname })
       bumpUserFromStorage()
-      toast.success(data.message || '昵称修改成功')
+      toast.success(data.message || t('profile.nicknameSuccess'))
       cancelEditNickname()
     } else {
-      toast.error(data.message || '昵称修改失败')
+      toast.error(data.message || t('profile.nicknameFailed'))
     }
   } catch (error) {
     console.error('修改昵称失败:', error)
-    toast.error('昵称修改失败，请稍后重试')
+    toast.error(t('profile.nicknameFailedRetry'))
   } finally {
     savingNickname.value = false
   }
@@ -327,19 +328,19 @@ const handleAvatarUpload = async (event) => {
   }
 
   if (!file.type || !file.type.startsWith('image/')) {
-    toast.error('请选择图片文件')
+    toast.error(t('profile.pickImage'))
     resetInput()
     return
   }
   if (file.size > MAX_AVATAR_BYTES) {
-    toast.error('头像大小不能超过 10MiB')
+    toast.error(t('profile.avatarTooLarge'))
     resetInput()
     return
   }
 
   const token = localStorage.getItem('userToken')
   if (!token) {
-    toast.error('登录状态已失效，请重新登录')
+    toast.error(t('profile.sessionExpired'))
     resetInput()
     return
   }
@@ -360,13 +361,13 @@ const handleAvatarUpload = async (event) => {
     if (response.ok && data.success) {
       // 版本号变化 => 头像 URL 变化，页面与会话内其它头像同步刷新
       bumpAvatarVersion()
-      toast.success(data.message || '头像更新成功')
+      toast.success(data.message || t('profile.avatarSuccess'))
     } else {
-      toast.error(data.message || data.error || '头像上传失败')
+      toast.error(data.message || data.error || t('profile.avatarFailed'))
     }
   } catch (error) {
     console.error('上传头像失败:', error)
-    toast.error('头像上传失败，请稍后重试')
+    toast.error(t('profile.avatarFailedRetry'))
   } finally {
     avatarUploading.value = false
     resetInput()
@@ -381,17 +382,17 @@ const handleAvatarError = (event) => {
 // 修改密码
 const changePassword = async () => {
   if (!currentPassword.value || !newPassword.value || !confirmNewPassword.value) {
-    toast.error('请填写所有密码字段');
+    toast.error(t('profile.fillAllPasswords'));
     return;
   }
   
   if (newPassword.value !== confirmNewPassword.value) {
-    toast.error('新密码与确认密码不一致');
+    toast.error(t('profile.passwordMismatch'));
     return;
   }
   
   if (newPassword.value.length < 6) {
-    toast.error('新密码长度不能少于6位');
+    toast.error(t('profile.passwordTooShort6'));
     return;
   }
   
@@ -399,10 +400,10 @@ const changePassword = async () => {
   try {
     // 这里可以实现修改密码的API调用
     
-    toast.info('修改密码功能将在后续版本中实现');
+    toast.info(t('profile.passwordNotImplemented'));
   } catch (error) {
     console.error('修改密码失败:', error);
-    toast.error('修改密码失败，请稍后重试');
+    toast.error(t('profile.passwordChangeFailed'));
   } finally {
     changePasswordLoading.value = false;
   }

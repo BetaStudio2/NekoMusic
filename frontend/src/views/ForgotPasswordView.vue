@@ -16,6 +16,7 @@ import { NButton, NCard, NInput } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
 import { openAuthDialog } from '@/composables/useAuthDialog'
+import { t } from '@/i18n'
 
 const toast = useToast()
 const router = useRouter()
@@ -53,15 +54,15 @@ async function handleSendCode() {
       email: email.value,
     })
     if (response.data.success) {
-      toast.success(response.data.message || '验证码已发送')
+      toast.success(response.data.message || t('forgot.codeSent'))
       step.value = 2
       startCountdown()
     } else {
-      toast.error(response.data.message || '发送失败')
+      toast.error(response.data.message || t('forgot.sendFailed'))
     }
   } catch (error) {
     console.error('发送验证码失败:', error)
-    toast.error(error.response?.data?.message || (error.response ? '发送失败' : '网络错误，请检查服务器连接'))
+    toast.error(error.response?.data?.message || (error.response ? t('forgot.sendFailed') : t('common.networkError')))
   } finally {
     loading.value = false
   }
@@ -74,14 +75,14 @@ async function handleResendCode() {
       email: email.value,
     })
     if (response.data.success) {
-      toast.success(response.data.message || '验证码已重新发送')
+      toast.success(response.data.message || t('forgot.resendSent'))
       startCountdown()
     } else {
-      toast.error(response.data.message || '发送失败')
+      toast.error(response.data.message || t('forgot.sendFailed'))
     }
   } catch (error) {
     console.error('重新发送验证码失败:', error)
-    toast.error(error.response?.data?.message || (error.response ? '发送失败' : '网络错误，请检查服务器连接'))
+    toast.error(error.response?.data?.message || (error.response ? t('forgot.sendFailed') : t('common.networkError')))
   } finally {
     resendLoading.value = false
   }
@@ -89,11 +90,11 @@ async function handleResendCode() {
 
 async function handleResetPassword() {
   if (newPassword.value !== confirmPassword.value) {
-    toast.error('两次输入的密码不一致')
+    toast.error(t('auth.passwordMismatch'))
     return
   }
   if (newPassword.value.length < 6 || newPassword.value.length > 30) {
-    toast.error('密码长度必须在6-30位之间')
+    toast.error(t('forgot.passwordLength'))
     return
   }
 
@@ -105,16 +106,16 @@ async function handleResetPassword() {
       newPassword: newPassword.value,
     })
     if (response.data.success) {
-      toast.success(response.data.message || '密码重置成功')
+      toast.success(response.data.message || t('forgot.resetSuccess'))
       stopCountdown()
       countdown.value = 0
       setTimeout(() => openAuthDialog('login'), 1500)
     } else {
-      toast.error(response.data.message || '重置失败')
+      toast.error(response.data.message || t('forgot.resetFailed'))
     }
   } catch (error) {
     console.error('重置密码失败:', error)
-    toast.error(error.response?.data?.message || (error.response ? '重置失败' : '网络错误，请检查服务器连接'))
+    toast.error(error.response?.data?.message || (error.response ? t('forgot.resetFailed') : t('common.networkError')))
   } finally {
     loading.value = false
   }
@@ -134,7 +135,7 @@ onUnmounted(stopCountdown)
 
   <PageShell width="narrow" centered>
     <NCard pad="lg" class="forgot">
-      <h1 class="forgot__title">忘记密码</h1>
+      <h1 class="forgot__title">{{ $t('forgot.title') }}</h1>
 
       <!-- 步骤指示 -->
       <ol class="steps">
@@ -143,12 +144,12 @@ onUnmounted(stopCountdown)
             <NIcon v-if="step > 1" name="check" :size="16" />
             <template v-else>1</template>
           </span>
-          <span class="step__label">验证邮箱</span>
+          <span class="step__label">{{ $t('forgot.stepVerify') }}</span>
         </li>
         <li class="steps__divider" aria-hidden="true" />
         <li class="step" :class="{ 'step--active': step === 2 }">
           <span class="step__num">2</span>
-          <span class="step__label">重置密码</span>
+          <span class="step__label">{{ $t('forgot.stepReset') }}</span>
         </li>
       </ol>
 
@@ -158,26 +159,26 @@ onUnmounted(stopCountdown)
           v-model="email"
           type="email"
           icon="mail"
-          placeholder="请输入注册邮箱"
+          :placeholder="$t('forgot.emailPlaceholder')"
           required
         />
         <NButton type="submit" variant="primary" size="lg" block :loading="loading">
-          发送验证码
+          {{ $t('auth.getCode') }}
         </NButton>
         <p class="form__back">
-          <a href="#" @click.prevent="goToLogin">返回登录</a>
+          <a href="#" @click.prevent="goToLogin">{{ $t('forgot.backToLogin') }}</a>
         </p>
       </form>
 
       <!-- 第二步 -->
       <form v-else class="form" @submit.prevent="handleResetPassword">
-        <NInput v-model="email" type="email" icon="mail" placeholder="注册邮箱" disabled />
+        <NInput v-model="email" type="email" icon="mail" :placeholder="$t('forgot.emailLabel')" disabled />
 
         <div class="code-row">
           <NInput
             v-model="verificationCode"
             icon="shield-check"
-            placeholder="请输入验证码"
+            :placeholder="$t('forgot.codePlaceholder')"
             maxlength="6"
             required
           />
@@ -186,9 +187,9 @@ onUnmounted(stopCountdown)
             :disabled="countdown > 0 || resendLoading"
             @click="handleResendCode"
           >
-            <template v-if="countdown > 0">{{ countdown }}s 后重发</template>
-            <template v-else-if="resendLoading">发送中…</template>
-            <template v-else>重新发送</template>
+            <template v-if="countdown > 0">{{ $t('forgot.resendIn', { seconds: countdown }) }}</template>
+            <template v-else-if="resendLoading">{{ $t('forgot.sending') }}</template>
+            <template v-else>{{ $t('forgot.resend') }}</template>
           </NButton>
         </div>
 
@@ -196,7 +197,7 @@ onUnmounted(stopCountdown)
           v-model="newPassword"
           type="password"
           icon="lock"
-          placeholder="请输入新密码（6-30位）"
+          :placeholder="$t('forgot.newPasswordPlaceholder')"
           minlength="6"
           maxlength="30"
           required
@@ -205,17 +206,17 @@ onUnmounted(stopCountdown)
           v-model="confirmPassword"
           type="password"
           icon="lock"
-          placeholder="请确认新密码"
+          :placeholder="$t('forgot.confirmPasswordPlaceholder')"
           minlength="6"
           maxlength="30"
           required
         />
 
         <NButton type="submit" variant="primary" size="lg" block :loading="loading">
-          重置密码
+          {{ $t('forgot.submit') }}
         </NButton>
         <p class="form__back">
-          <a href="#" @click.prevent="goToLogin">返回登录</a>
+          <a href="#" @click.prevent="goToLogin">{{ $t('forgot.backToLogin') }}</a>
         </p>
       </form>
     </NCard>

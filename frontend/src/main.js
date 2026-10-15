@@ -11,8 +11,25 @@ import 'vue-toastification/dist/index.css'
 import { installBenignPlayAbortGuard } from './utils/benignPlayAbort'
 import { getToken, loadUserInfo } from './utils/userStore.js'
 import { initPwa } from './composables/usePwa.js'
+import { installI18n, t } from './i18n'
+
+/**
+ * 首屏骨架（index.html 的 #app-boot）在 JS 执行前就已可见，其中文案写死为中文。
+ * 这里在挂载前按已确定的语言替换品牌名与提示语；Vue 一旦挂载，整个 #app 会被替换掉。
+ */
+function applyBootSplashLocale() {
+  const brand = document.querySelector('#app-boot .app-splash__brand')
+  const hint = document.querySelector('#app-boot .app-splash__hint')
+  if (brand) brand.textContent = t('common.appName')
+  if (hint) hint.textContent = t('common.loadingApp')
+}
 
 const app = createApp(App)
+
+// 前端多语言：注册全局 $t，并按浏览器/用户偏好确定初始语言。
+// 必须早于任何视图创建——顶栏、路由标题都直接读它。
+installI18n(app)
+applyBootSplashLocale()
 
 // 客户端标识：所有 fetch / XHR / axios 请求统一带 X-Neko-Client: web+<版本>
 installNekoClientHeader()

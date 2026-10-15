@@ -1,5 +1,5 @@
 <template>
-  <span v-if="show" class="lrc-badge" title="有歌词" aria-label="有歌词">
+  <span v-if="show" class="lrc-badge" :title="$t('lrcBadge.label')" :aria-label="$t('lrcBadge.label')">
     <svg class="lrc-badge__icon" viewBox="0 0 1024 1024" aria-hidden="true">
       <path
         fill="currentColor"

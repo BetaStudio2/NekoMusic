@@ -23,12 +23,12 @@ function goBack() {
   <PageShell width="narrow" centered>
     <NCard pad="lg" class="err">
       <p class="err__code" aria-hidden="true">404</p>
-      <h1 class="err__title">页面未找到</h1>
-      <p class="err__desc">抱歉，您访问的页面不存在或已被移除。</p>
+      <h1 class="err__title">{{ $t('error.title') }}</h1>
+      <p class="err__desc">{{ $t('error.desc') }}</p>
 
       <div class="err__actions">
-        <NButton variant="primary" icon="home" to="/">返回首页</NButton>
-        <NButton variant="secondary" icon="arrow-left" @click="goBack">返回上一页</NButton>
+        <NButton variant="primary" icon="home" to="/">{{ $t('common.backHome') }}</NButton>
+        <NButton variant="secondary" icon="arrow-left" @click="goBack">{{ $t('common.goBack') }}</NButton>
       </div>
 
       <div class="err__notes" aria-hidden="true">

@@ -19,7 +19,7 @@
       <!-- 左：封面 + 歌词 -->
       <div class="upload__aside">
         <NCard pad="lg" class="cover-card">
-          <h2 class="side-title">封面</h2>
+          <h2 class="side-title">{{ $t('upload.coverTitle') }}</h2>
           <div
             class="dropzone dropzone--cover"
             :class="{ 'dropzone--filled': coverFile, 'dropzone--over': isCoverDragging }"
@@ -29,24 +29,24 @@
           >
             <input ref="coverFileInput" type="file" accept="image/*" class="dropzone__input" @change="handleCoverFileChange" />
             <button type="button" class="dropzone__hit" @click="selectCoverFile">
-              <span class="n-visually-hidden">选择封面图片</span>
+              <span class="n-visually-hidden">{{ $t('upload.selectCoverAria') }}</span>
               <template v-if="!coverFile">
                 <NIcon name="image" :size="44" class="dropzone__icon" />
-                <span class="dropzone__title">上传封面</span>
-                <span class="dropzone__hint">点击或拖拽 · 建议 800×800</span>
+                <span class="dropzone__title">{{ $t('upload.uploadCover') }}</span>
+                <span class="dropzone__hint">{{ $t('upload.coverHint') }}</span>
               </template>
             </button>
             <template v-if="coverFile">
-              <img :src="coverPreview" alt="封面预览" class="cover-preview" />
+              <img :src="coverPreview" :alt="$t('upload.coverPreviewAlt')" class="cover-preview" />
               <NButton class="cover-change" size="sm" variant="secondary" @click="removeCoverFile">
-                移除封面
+                {{ $t('upload.removeCover') }}
               </NButton>
             </template>
           </div>
         </NCard>
 
         <NCard pad="lg" class="lyrics-card">
-          <h2 class="side-title">歌词文件</h2>
+          <h2 class="side-title">{{ $t('upload.lyricsTitle') }}</h2>
           <div
             class="dropzone dropzone--file"
             :class="{ 'dropzone--filled': lyricsFile, 'dropzone--over': isLyricsDragging }"
@@ -56,16 +56,16 @@
           >
             <input ref="lyricsFileInput" type="file" accept=".lrc" class="dropzone__input" @change="handleLyricsFileChange" />
             <button type="button" class="dropzone__hit" @click="selectLyricsFile">
-              <span class="n-visually-hidden">选择 .lrc 歌词文件</span>
+              <span class="n-visually-hidden">{{ $t('upload.selectLyricsAria') }}</span>
               <template v-if="!lyricsFile">
                 <NIcon name="file-text" :size="22" class="dropzone__icon" />
-                <span class="dropzone__hint">选择 .lrc 歌词文件</span>
+                <span class="dropzone__hint">{{ $t('upload.chooseLyricsFile') }}</span>
               </template>
             </button>
             <template v-if="lyricsFile">
               <NIcon name="file-text" :size="18" class="dropzone__icon" />
               <span class="dropzone__filename">{{ lyricsFile.name }}</span>
-              <button type="button" class="icon-x" aria-label="移除歌词" @click="removeLyricsFile">
+              <button type="button" class="icon-x" :aria-label="$t('upload.removeLyricsAria')" @click="removeLyricsFile">
                 <NIcon name="close" :size="14" />
               </button>
             </template>
@@ -73,17 +73,17 @@
 
           <!-- 格式说明常驻展开：说明本身是使用前提，不做折叠 -->
           <section class="guide">
-            <h3 class="guide__title">双语歌词格式说明</h3>
-            <p class="guide__text">第一行为「时间戳 + 原文」，第二行为 JSON 翻译；没有翻译时只保留原文行。</p>
+            <h3 class="guide__title">{{ $t('upload.guideTitle') }}</h3>
+            <p class="guide__text">{{ $t('upload.guideText') }}</p>
             <pre class="guide__code">[00:00.389] ざこざこざこざこ くだらない存在 あわれだね
 {"杂鱼杂鱼杂鱼杂鱼 无聊的存在 真可怜呢"}
 
 [00:07.546] ざこざこざこざこ ざこのざこ攻撃 効かないよ
 {"杂鱼杂鱼杂鱼杂鱼 杂鱼的杂鱼攻击 根本没用喔"}</pre>
             <ul class="guide__list">
-              <li>时间戳格式：<code>[分:秒.毫秒]</code></li>
-              <li>翻译使用 <code>{"翻译内容"}</code></li>
-              <li>没有翻译可以只保留原文行</li>
+              <li>{{ $t('upload.guideLi1') }}<code>[分:秒.毫秒]</code></li>
+              <li>{{ $t('upload.guideLi2') }} <code>{"翻译内容"}</code></li>
+              <li>{{ $t('upload.guideLi3') }}</li>
             </ul>
           </section>
         </NCard>
@@ -91,8 +91,8 @@
 
       <!-- 右：表单 -->
       <div class="upload__form">
-        <h1 class="page-title">上传音乐</h1>
-        <p class="page-sub">填写曲目信息并选择音频文件后发布。</p>
+        <h1 class="page-title">{{ $t('upload.pageTitle') }}</h1>
+        <p class="page-sub">{{ $t('upload.pageSub') }}</p>
 
         <form class="form" @submit.prevent="handleSubmit">
           <div
@@ -104,61 +104,61 @@
           >
             <input ref="musicFileInput" type="file" accept="audio/*" class="dropzone__input" @change="handleMusicFileChange" />
             <button type="button" class="dropzone__hit" @click="selectMusicFile">
-              <span class="n-visually-hidden">选择音频文件</span>
+              <span class="n-visually-hidden">{{ $t('upload.selectAudioAria') }}</span>
               <template v-if="!musicFile">
                 <NIcon name="upload" :size="28" class="dropzone__icon" />
-                <span class="dropzone__title">选择音频文件</span>
-                <span class="dropzone__hint">点击或拖拽音频到此处</span>
+                <span class="dropzone__title">{{ $t('upload.chooseAudio') }}</span>
+                <span class="dropzone__hint">{{ $t('upload.audioHint') }}</span>
               </template>
             </button>
             <template v-if="musicFile">
               <NIcon name="file-music" :size="22" class="dropzone__icon" />
               <span class="dropzone__filename">{{ musicFile.name }}</span>
-              <button type="button" class="icon-x" aria-label="移除音频" @click="removeMusicFile">
+              <button type="button" class="icon-x" :aria-label="$t('upload.removeAudioAria')" @click="removeMusicFile">
                 <NIcon name="close" :size="14" />
               </button>
             </template>
           </div>
 
           <div class="field">
-            <label class="field__label" for="up-title">歌曲标题 <span class="req">*</span></label>
-            <NInput id="up-title" v-model="formData.title" placeholder="输入歌曲标题" required />
+            <label class="field__label" for="up-title">{{ $t('upload.labelTitle') }} <span class="req">*</span></label>
+            <NInput id="up-title" v-model="formData.title" :placeholder="$t('upload.phTitle')" required />
           </div>
 
           <div class="field">
-            <label class="field__label" for="up-artist">歌手 <span class="req">*</span></label>
-            <NInput id="up-artist" v-model="formData.artist" placeholder="输入歌手名称" required />
+            <label class="field__label" for="up-artist">{{ $t('upload.labelArtist') }} <span class="req">*</span></label>
+            <NInput id="up-artist" v-model="formData.artist" :placeholder="$t('upload.phArtist')" required />
           </div>
 
           <div class="field">
-            <label class="field__label" for="up-album">专辑</label>
-            <NInput id="up-album" v-model="formData.album" placeholder="输入专辑名称" />
+            <label class="field__label" for="up-album">{{ $t('upload.labelAlbum') }}</label>
+            <NInput id="up-album" v-model="formData.album" :placeholder="$t('upload.phAlbum')" />
           </div>
 
           <div class="field">
-            <label class="field__label" for="up-tags">标签</label>
-            <NInput id="up-tags" v-model="formData.tags" placeholder="多个标签用逗号分隔" />
+            <label class="field__label" for="up-tags">{{ $t('upload.labelTags') }}</label>
+            <NInput id="up-tags" v-model="formData.tags" :placeholder="$t('upload.phTags')" />
           </div>
 
           <div class="field">
-            <label class="field__label" for="up-lang">语言 <span class="req">*</span></label>
+            <label class="field__label" for="up-lang">{{ $t('upload.labelLang') }} <span class="req">*</span></label>
             <select id="up-lang" v-model="formData.language" class="select" required>
-              <option value="" disabled>请选择语言</option>
-              <option value="中文">中文</option>
-              <option value="粤语">粤语</option>
-              <option value="上海语">上海语</option>
-              <option value="英文">英文</option>
-              <option value="日语">日语</option>
-              <option value="韩语">韩语</option>
-              <option value="法语">法语</option>
-              <option value="德语">德语</option>
-              <option value="俄语">俄语</option>
-              <option value="纯音乐">纯音乐</option>
+              <option value="" disabled>{{ $t('upload.langPlaceholder') }}</option>
+              <option value="中文">{{ $t('upload.langChinese') }}</option>
+              <option value="粤语">{{ $t('upload.langCantonese') }}</option>
+              <option value="上海语">{{ $t('upload.langShanghainese') }}</option>
+              <option value="英文">{{ $t('upload.langEnglish') }}</option>
+              <option value="日语">{{ $t('upload.langJapanese') }}</option>
+              <option value="韩语">{{ $t('upload.langKorean') }}</option>
+              <option value="法语">{{ $t('upload.langFrench') }}</option>
+              <option value="德语">{{ $t('upload.langGerman') }}</option>
+              <option value="俄语">{{ $t('upload.langRussian') }}</option>
+              <option value="纯音乐">{{ $t('upload.langInstrumental') }}</option>
             </select>
           </div>
 
           <div class="field">
-            <label class="field__label" for="up-duration">音乐时长（秒）</label>
+            <label class="field__label" for="up-duration">{{ $t('upload.labelDuration') }}</label>
             <div class="duration">
               <NInput
                 id="up-duration"
@@ -166,29 +166,29 @@
                 type="number"
                 min="0"
                 step="1"
-                placeholder="输入时长或点击解析"
+                :placeholder="$t('upload.durationPlaceholder')"
                 :disabled="parsingDuration"
               />
               <NButton
                 variant="secondary"
                 icon="timer"
                 :disabled="!musicFile || parsingDuration"
-                :title="!musicFile ? '请先选择音乐文件' : '解析音频时长'"
+                :title="!musicFile ? $t('upload.durationNoFile') : $t('upload.durationParse')"
                 @click="parseDuration"
               >
-                解析
+                {{ $t('upload.durationParseBtn') }}
               </NButton>
             </div>
             <p class="field__hint">
-              当前时长：{{ formatDuration(formData.duration) }}
+              {{ $t('upload.durationCurrent', { duration: formatDuration(formData.duration) }) }}
               <span v-if="formData.duration === 0" class="field__warn">
-                <NIcon name="triangle-alert" :size="13" /> 请填写音乐时长
+                <NIcon name="triangle-alert" :size="13" /> {{ $t('upload.durationRequired') }}
               </span>
             </p>
           </div>
 
           <NButton type="submit" variant="primary" size="lg" block :loading="uploading">
-            {{ uploading ? `上传中 ${uploadProgress}%` : '发布音乐' }}
+            {{ uploading ? $t('upload.uploading', { percent: uploadProgress }) : $t('upload.submit') }}
           </NButton>
         </form>
       </div>
@@ -204,6 +204,7 @@ import { useToast } from '@/composables/useToast'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NInput, NModal, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
+import { t } from '@/i18n'
 
 const toast = useToast()
 const router = useRouter()
@@ -251,7 +252,7 @@ const selectCoverFile = () => {
 // 手动解析时长
 const parseDuration = async () => {
   if (!musicFile.value) {
-    toast.error('请先选择音乐文件')
+    toast.error(t('upload.needMusicFile'))
     return
   }
 
@@ -274,7 +275,7 @@ const parseDuration = async () => {
       console.warn('[手动时长解析] 10秒超时')
       if (!metadataLoaded && !canPlayLoaded) {
         URL.revokeObjectURL(objectUrl)
-        toast.error('解析超时，请尝试手动输入时长')
+        toast.error(t('upload.parseTimeout'))
       }
       parsingDuration.value = false
     }, 10000)
@@ -309,7 +310,7 @@ const parseDuration = async () => {
       console.error('[手动时长解析] audio.error.code:', audio.error?.code)
       console.error('[手动时长解析] audio.error.message:', audio.error?.message)
       URL.revokeObjectURL(objectUrl)
-      toast.error('无法解析音频时长，请手动输入')
+      toast.error(t('upload.parseFailed'))
       parsingDuration.value = false
     }
 
@@ -318,7 +319,7 @@ const parseDuration = async () => {
 
   } catch (error) {
     console.error('[手动时长解析] 解析出错:', error)
-    toast.error('解析失败: ' + error.message)
+    toast.error(t('upload.parseError', { message: error.message }))
     parsingDuration.value = false
   }
 }
@@ -333,7 +334,7 @@ const checkAndSaveDurationManual = (audio, objectUrl) => {
     if (duration && duration > 0 && duration !== Infinity && !isNaN(duration)) {
       formData.value.duration = Math.round(duration)
       URL.revokeObjectURL(objectUrl)
-      toast.success(`时长解析成功: ${formatDuration(formData.value.duration)}`)
+      toast.success(t('upload.parseSuccess', { duration: formatDuration(formData.value.duration) }))
       parsingDuration.value = false
       return true
     }
@@ -345,7 +346,7 @@ const checkAndSaveDurationManual = (audio, objectUrl) => {
       console.warn('[手动时长解析] ✗✗✗ 多次尝试后仍然无法获取有效时长')
       console.warn('[手动时长解析] 最后的duration值:', duration)
       URL.revokeObjectURL(objectUrl)
-      toast.error('无法解析音频时长，请手动输入')
+      toast.error(t('upload.parseFailed'))
       parsingDuration.value = false
     }
     return false
@@ -363,7 +364,7 @@ const handleMusicFileChange = async (event) => {
     const isValidFormat = ['.mp3', '.flac', '.wav'].includes('.' + fileExtension)
 
     if (!isValidFormat) {
-      toast.error('请选择 MP3、FLAC 或 WAV 格式的音乐文件')
+      toast.error(t('upload.invalidAudioFormat'))
       event.target.value = ''
       return
     }
@@ -456,7 +457,7 @@ const parseMP3Metadata = async (file) => {
         coverPreview.value = URL.createObjectURL(metadata.cover)
       }
 
-      toast.success('已自动解析MP3文件信息')
+      toast.success(t('upload.mp3Parsed'))
     } else {
     }
   } catch (error) {
@@ -481,7 +482,7 @@ const parseFlacMetadata = async (file) => {
 
 
     if (header !== 'fLaC') {
-      toast.warning('该FLAC文件不包含元数据标签')
+      toast.warning(t('upload.flacNoMetadata'))
       return
     }
 
@@ -614,17 +615,17 @@ const parseFlacMetadata = async (file) => {
       coverPreview.value = URL.createObjectURL(metadata.cover)
     }
 
-    toast.success('已自动解析FLAC文件信息')
+    toast.success(t('upload.flacParsed'))
   } catch (error) {
     console.error('[FLAC解析] 解析失败:', error)
-    toast.warning('无法自动解析FLAC文件信息，请手动填写')
+    toast.warning(t('upload.flacParseFailed'))
   }
 }
 
 // 解析WAV文件的元数据（简化版）
 const parseWavMetadata = async (file) => {
   // WAV文件通常不包含ID3标签，这里只做简单处理
-  toast.warning('WAV文件暂不支持自动解析元数据，请手动填写')
+  toast.warning(t('upload.wavNoMetadata'))
 }
 
 const handleCoverFileChange = (event) => {
@@ -690,14 +691,14 @@ const handleDrop = async (event) => {
         URL.revokeObjectURL(audio.src)
       }
     } else {
-      toast.error('请拖入音频文件')
+      toast.error(t('upload.dropAudio'))
     }
   }
 }
 
 // 格式化时长（秒转分:秒）
 const formatDuration = (seconds) => {
-  if (!seconds || seconds <= 0) return '未设置'
+  if (!seconds || seconds <= 0) return t('upload.notSet')
   const minutes = Math.floor(seconds / 60)
   const secs = Math.floor(seconds % 60)
   return `${minutes}:${secs.toString().padStart(2, '0')}`
@@ -861,14 +862,14 @@ const handleLyricsFileDrop = (event) => {
     if (fileName.endsWith('.lrc')) {
       lyricsFile.value = file
     } else {
-      toast.error('请拖入.lrc格式的歌词文件')
+      toast.error(t('upload.dropLrc'))
     }
   }
 }
 
 const showUploadNotice = (type, message) => {
   const normalizedType = type === 'success' ? 'success' : 'error'
-  const normalizedMessage = message || (normalizedType === 'success' ? '上传成功' : '上传失败')
+  const normalizedMessage = message || (normalizedType === 'success' ? t('upload.uploadSuccess') : t('upload.uploadFailed'))
 
   uploadNotice.value = {
     visible: true,
@@ -891,7 +892,7 @@ const showUploadNotice = (type, message) => {
 }
 
 const showUploadResultToast = (result, fallbackMessage) => {
-  const message = result?.message || fallbackMessage || '上传失败'
+  const message = result?.message || fallbackMessage || t('upload.uploadFailed')
   if (result?.success === true) {
     showUploadNotice('success', message)
     return true
@@ -920,9 +921,9 @@ function uploadWithProgress(url, form, token, onProgress) {
       onProgress(100)
       resolve({ status: xhr.status, responseText: xhr.responseText })
     }
-    xhr.onerror = () => reject(new Error('网络错误，上传失败'))
-    xhr.onabort = () => reject(new Error('上传已取消'))
-    xhr.ontimeout = () => reject(new Error('上传超时'))
+    xhr.onerror = () => reject(new Error(t('upload.networkErrorUpload')))
+    xhr.onabort = () => reject(new Error(t('upload.uploadCanceled')))
+    xhr.ontimeout = () => reject(new Error(t('upload.uploadTimeout')))
     xhr.send(form)
   })
 }
@@ -930,12 +931,12 @@ function uploadWithProgress(url, form, token, onProgress) {
 const handleSubmit = async () => {
   
   if (!musicFile.value) {
-    showUploadNotice('error', '请选择音乐文件')
+    showUploadNotice('error', t('upload.needMusicFile'))
     return
   }
 
   if (!formData.value.title || !formData.value.artist || !formData.value.language) {
-    showUploadNotice('error', '请填写歌曲标题、歌手和语言')
+    showUploadNotice('error', t('upload.needFields'))
     return
   }
 
@@ -976,7 +977,7 @@ const handleSubmit = async () => {
       console.error('上传接口返回内容不是JSON:', responseText)
     }
 
-    const fallbackMessage = result.error || responseText || `上传失败（HTTP ${status}）`
+    const fallbackMessage = result.error || responseText || t('upload.uploadFailedHttp', { status })
 
     if (showUploadResultToast(result, fallbackMessage)) {
       setTimeout(() => {
@@ -986,7 +987,7 @@ const handleSubmit = async () => {
 
   } catch (error) {
     console.error('上传错误:', error)
-    showUploadNotice('error', '上传失败，请稍后重试')
+    showUploadNotice('error', t('upload.uploadFailedRetry'))
   } finally {
     uploading.value = false
   }

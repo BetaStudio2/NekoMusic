@@ -2,7 +2,9 @@
  * 通用格式化工具（纯函数）
  * ------------------------------------------------------------
  * UI 展示相关的格式化集中在此，避免各页面重复实现。
+ * 需要随语言变化的格式化（如紧凑数字）读取 i18n 的当前语言。
  */
+import { locale } from '@/i18n'
 
 /**
  * 秒数 → mm:ss 或 h:mm:ss
@@ -21,16 +23,21 @@ export function formatDuration(seconds) {
 }
 
 /**
- * 数字 → 紧凑展示（如 12345 → 1.2万 / 1234567 → 123.5万）
+ * 数字 → 紧凑展示（中文 12345 → 1.2万，英文 1234567 → 1.2M）
+ * 单位随当前语言走，不写死中文的「万 / 亿」。
  * @param {number} n
  * @returns {string}
  */
 export function formatCount(n) {
   if (!Number.isFinite(n)) return '0'
-  const abs = Math.abs(n)
-  if (abs >= 1e8) return (n / 1e8).toFixed(1).replace(/\.0$/, '') + '亿'
-  if (abs >= 1e4) return (n / 1e4).toFixed(1).replace(/\.0$/, '') + '万'
-  return String(n)
+  try {
+    return new Intl.NumberFormat(locale.value, {
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    }).format(n)
+  } catch {
+    return String(n)
+  }
 }
 
 /**

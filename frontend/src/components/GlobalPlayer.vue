@@ -12,7 +12,7 @@
         :max="duration || 0"
         min="0"
         step="0.1"
-        aria-label="播放进度"
+        :aria-label="$t('player.progressAria')"
         @input="onProgressChange"
       />
     </div>
@@ -25,7 +25,7 @@
           type="button"
           class="gp-track__open"
           :disabled="!currentMusic"
-          :aria-label="currentMusic ? `打开播放页：${currentMusic.title}` : '暂无播放'"
+          :aria-label="currentMusic ? $t('player.openPageAria', { title: currentMusic.title }) : $t('player.nothingPlaying')"
           @click="goToDetails"
         >
           <span class="gp-track__cover">
@@ -41,7 +41,7 @@
 
           <span class="gp-track__meta">
             <span class="gp-track__title" :class="{ 'is-placeholder': !currentMusic }">
-              {{ currentMusic ? currentMusic.title : '请选择音乐播放' }}
+              {{ currentMusic ? currentMusic.title : $t('player.selectMusic') }}
             </span>
             <span class="gp-track__artist" :class="{ 'is-placeholder': !currentMusic }">
               {{ currentMusic ? currentMusic.artist : '—' }}
@@ -54,7 +54,7 @@
           class="gp-icon gp-track__fav"
           :class="{ 'is-on': isFavorite }"
           :disabled="!currentMusic"
-          :aria-label="isFavorite ? '取消收藏' : '收藏'"
+          :aria-label="isFavorite ? $t('track.unfavorite') : $t('track.favorite')"
           :aria-pressed="isFavorite"
           @click="toggleFavorite"
         >
@@ -67,8 +67,8 @@
         <button
           type="button"
           class="gp-icon gp-icon--lg"
-          title="上一曲"
-          aria-label="上一曲"
+          :title="$t('player.prev')"
+          :aria-label="$t('player.prev')"
           :disabled="!currentMusic"
           @click="playPrevious()"
         >
@@ -79,7 +79,7 @@
           type="button"
           class="gp-play"
           :disabled="!currentMusic"
-          :aria-label="isPlaying && currentMusic ? '暂停' : '播放'"
+          :aria-label="isPlaying && currentMusic ? $t('track.pause') : $t('track.play')"
           :aria-pressed="isPlaying && currentMusic"
           @click="togglePlayPause"
         >
@@ -89,8 +89,8 @@
         <button
           type="button"
           class="gp-icon gp-icon--lg"
-          title="下一曲"
-          aria-label="下一曲"
+          :title="$t('player.next')"
+          :aria-label="$t('player.next')"
           :disabled="!currentMusic"
           @click="playNext()"
         >
@@ -139,8 +139,8 @@
         <button
           type="button"
           class="gp-icon gp-icon--lg"
-          title="播放列表"
-          aria-label="播放列表"
+          :title="$t('player.playlist')"
+          :aria-label="$t('player.playlist')"
           @click="togglePlaylist"
         >
           <NIcon name="list-music" :size="20" />
@@ -165,8 +165,8 @@
       <div v-if="showPlaylist" class="gp-pop">
         <header class="gp-pop__head">
           <h3 class="gp-pop__title">
-            播放列表
-            <span v-if="playlist.length" class="gp-pop__count">{{ playlist.length }} 首</span>
+            {{ $t('player.playlist') }}
+            <span v-if="playlist.length" class="gp-pop__count">{{ $t('player.songCount', { count: playlist.length }) }}</span>
           </h3>
           <div class="gp-pop__head-actions">
             <button
@@ -175,12 +175,12 @@
               :disabled="playlist.length === 0"
               @click="clearPlaylist"
             >
-              清空
+              {{ $t('player.clear') }}
             </button>
             <button
               type="button"
               class="gp-icon gp-icon--sm"
-              aria-label="关闭播放列表"
+              :aria-label="$t('player.closePlaylist')"
               @click="togglePlaylist"
             >
               <NIcon name="close" :size="16" />
@@ -190,7 +190,7 @@
 
         <div class="gp-pop__list">
           <p v-if="playlist.length === 0" class="gp-pop__empty">
-            列表为空，播放任意曲目后会自动加入此处。
+            {{ $t('player.playlistEmpty') }}
           </p>
           <button
             v-for="(item, index) in playlist"
@@ -219,11 +219,11 @@
   </div>
 
   <!-- 清空播放列表确认 -->
-  <NModal v-model="showClearConfirm" title="确认清空" size="sm">
-    <p>确定要清空播放列表吗？清空后当前曲目仍会继续播放。</p>
+  <NModal v-model="showClearConfirm" :title="$t('player.clearConfirmTitle')" size="sm">
+    <p>{{ $t('player.clearConfirmDesc') }}</p>
     <template #footer>
-      <NButton variant="ghost" @click="showClearConfirm = false">取消</NButton>
-      <NButton variant="danger" @click="confirmClearPlaylist">确定清空</NButton>
+      <NButton variant="ghost" @click="showClearConfirm = false">{{ $t('common.cancel') }}</NButton>
+      <NButton variant="danger" @click="confirmClearPlaylist">{{ $t('player.clearConfirmOk') }}</NButton>
     </template>
   </NModal>
 </template>
@@ -238,6 +238,7 @@ import { attachAudioElement, unlockAudioAnalyser } from '@/composables/useAudioA
 import { clearUrlHash } from '@/utils/routerHistory'
 import SpectrumCanvas from '@/components/SpectrumCanvas.vue'
 import MiniLyric from '@/components/MiniLyric.vue'
+import { t } from '@/i18n'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NModal } from '@/ui'
 
@@ -298,7 +299,7 @@ const toggleFavorite = async () => {
   
   const token = getToken()
   if (!token) {
-    toast.error('请先登录')
+    toast.error(t('common.needLogin'))
     return
   }
   
@@ -315,13 +316,13 @@ const toggleFavorite = async () => {
       const data = await response.json()
       if (data.success) {
         isFavorite.value = false
-        toast.success('取消收藏成功')
+        toast.success(t('player.unfavoriteSuccess'))
       } else {
-        toast.error('取消收藏失败: ' + data.message)
+        toast.error(t('player.unfavoriteFailed') + ': ' + data.message)
       }
     } catch (error) {
       console.error('取消收藏失败:', error)
-      toast.error('取消收藏失败')
+      toast.error(t('player.unfavoriteFailed'))
     }
   } else {
     // 添加收藏
@@ -338,13 +339,13 @@ const toggleFavorite = async () => {
       const data = await response.json()
       if (data.success) {
         isFavorite.value = true
-        toast.success('收藏成功')
+        toast.success(t('player.favoriteSuccess'))
       } else {
-        toast.error('收藏失败: ' + data.message)
+        toast.error(t('player.favoriteFailed') + ': ' + data.message)
       }
     } catch (error) {
       console.error('收藏失败:', error)
-      toast.error('收藏失败')
+      toast.error(t('player.favoriteFailed'))
     }
   }
 }
@@ -789,7 +790,7 @@ const handleImageError = (event) => {
 // 清空播放列表
 const clearPlaylist = () => {
   if (playlist.value.length === 0) {
-    toast.warning('播放列表已经是空的')
+    toast.warning(t('player.playlistAlreadyEmpty'))
     return
   }
   
@@ -837,7 +838,7 @@ const confirmClearPlaylist = () => {
     navigator.mediaSession.playbackState = 'none'
   }
 
-  toast.success('播放列表已清空')
+  toast.success(t('player.playlistCleared'))
   showClearConfirm.value = false
 }
 
@@ -857,11 +858,11 @@ const togglePlaybackMode = () => {
 // 获取播放模式标题
 const getPlaybackModeTitle = () => {
   if (playbackMode.value === 'list_repeat') {
-    return '列表循环'
+    return t('player.modeListLoop')
   } else if (playbackMode.value === 'single_repeat') {
-    return '单曲循环'
+    return t('player.modeSingleLoop')
   } else {
-    return '随机播放'
+    return t('player.modeShuffle')
   }
 }
 
@@ -1114,7 +1115,7 @@ const refreshAudioSrc = async (track) => {
     if (seq !== audioSrcSeq) return
     console.error('[player] 获取播放地址失败', error)
     audioSrc.value = ''
-    toast.error('获取播放地址失败，请重试')
+    toast.error(t('player.playUrlFailed'))
   }
 }
 
@@ -1584,9 +1585,9 @@ const updateMediaSessionMetadata = (music) => {
       ]
       
       navigator.mediaSession.metadata = new MediaMetadata({
-        title: music.title || '未知标题',
-        artist: music.artist || '未知艺术家',
-        album: music.album || '未知专辑',
+        title: music.title || t('player.unknownTitle'),
+        artist: music.artist || t('player.unknownArtist'),
+        album: music.album || t('common.unknownAlbum'),
         artwork: artwork
       })
       

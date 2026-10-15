@@ -121,7 +121,7 @@ function onEnter(e) {
       v-if="showClear"
       type="button"
       class="n-input__affix n-input__clear"
-      aria-label="清空"
+      :aria-label="$t('ui.clearInput')"
       tabindex="-1"
       @click="clear"
     >
@@ -132,7 +132,7 @@ function onEnter(e) {
       v-if="isPassword"
       type="button"
       class="n-input__affix"
-      :aria-label="passwordVisible ? '隐藏密码' : '显示密码'"
+      :aria-label="passwordVisible ? $t('ui.hidePassword') : $t('ui.showPassword')"
       tabindex="-1"
       @click="passwordVisible = !passwordVisible"
     >

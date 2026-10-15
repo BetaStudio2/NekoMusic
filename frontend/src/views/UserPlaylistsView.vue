@@ -4,10 +4,10 @@
   <PageShell width="default">
     <header class="head">
       <div>
-        <h1 class="head__title">我的歌单</h1>
-        <p class="head__sub">管理自建歌单，点击进入详情或编辑。</p>
+        <h1 class="head__title">{{ $t('playlists.title') }}</h1>
+        <p class="head__sub">{{ $t('playlists.sub') }}</p>
       </div>
-      <NButton variant="primary" icon="plus" @click="goToCreatePlaylist">创建歌单</NButton>
+      <NButton variant="primary" icon="plus" @click="goToCreatePlaylist">{{ $t('playlists.create') }}</NButton>
     </header>
 
     <div v-if="loading" class="state">
@@ -33,47 +33,47 @@
           <h2 class="pl__title">{{ playlist.name }}</h2>
           <p class="pl__meta">
             <NIcon name="music" :size="13" />
-            {{ playlist.musicCount }} 首
+            {{ $t('track.songCount', { count: playlist.musicCount }) }}
           </p>
           <p v-if="playlist.description" class="pl__desc">{{ playlist.description }}</p>
         </div>
         <div v-if="isPlaylistOwner(playlist.userId)" class="pl__actions" @click.stop>
-          <NButton size="sm" variant="secondary" icon="pencil" @click="showEditDialog(playlist)">编辑</NButton>
-          <NButton size="sm" variant="danger" icon="trash-2" @click="confirmDelete(playlist)">删除</NButton>
+          <NButton size="sm" variant="secondary" icon="pencil" @click="showEditDialog(playlist)">{{ $t('playlists.edit') }}</NButton>
+          <NButton size="sm" variant="danger" icon="trash-2" @click="confirmDelete(playlist)">{{ $t('playlists.delete') }}</NButton>
         </div>
       </NCard>
     </div>
 
     <NCard v-else pad="lg" class="empty">
       <span class="empty__icon"><NIcon name="list-music" :size="26" /></span>
-      <h2 class="empty__title">暂无歌单</h2>
-      <p class="empty__text">创建第一个歌单，把喜欢的曲目收在一起。</p>
-      <NButton variant="primary" icon="plus" @click="goToCreatePlaylist">创建歌单</NButton>
+      <h2 class="empty__title">{{ $t('playlists.emptyTitle') }}</h2>
+      <p class="empty__text">{{ $t('playlists.emptyText') }}</p>
+      <NButton variant="primary" icon="plus" @click="goToCreatePlaylist">{{ $t('playlists.create') }}</NButton>
     </NCard>
 
     <!-- 编辑歌单 -->
-    <NModal v-model="showEdit" title="编辑歌单">
+    <NModal v-model="showEdit" :title="$t('playlists.editTitle')">
       <div class="field">
-        <label class="field__label" for="edit-name">歌单名称</label>
+        <label class="field__label" for="edit-name">{{ $t('playlists.nameLabel') }}</label>
         <NInput id="edit-name" v-model="editForm.name" maxlength="255" required />
       </div>
       <div class="field field--last">
-        <label class="field__label" for="edit-desc">歌单描述</label>
+        <label class="field__label" for="edit-desc">{{ $t('playlists.descLabel') }}</label>
         <NInput id="edit-desc" v-model="editForm.description" textarea :rows="4" maxlength="500" />
       </div>
       <template #footer>
-        <NButton variant="ghost" @click="closeEditDialog">取消</NButton>
-        <NButton variant="primary" @click="handleEditPlaylist">保存</NButton>
+        <NButton variant="ghost" @click="closeEditDialog">{{ $t('common.cancel') }}</NButton>
+        <NButton variant="primary" @click="handleEditPlaylist">{{ $t('playlists.save') }}</NButton>
       </template>
     </NModal>
 
     <!-- 删除确认 -->
-    <NModal v-model="showDeleteConfirm" title="确认删除" size="sm">
-      <p class="del-text">确定要删除歌单「{{ playlistToDelete?.name }}」吗？</p>
-      <p class="del-warn">此操作不可恢复，歌单内曲目会从歌单中移除。</p>
+    <NModal v-model="showDeleteConfirm" :title="$t('playlists.deleteConfirmTitle')" size="sm">
+      <p class="del-text">{{ $t('playlists.deleteConfirmText', { name: playlistToDelete?.name }) }}</p>
+      <p class="del-warn">{{ $t('playlists.deleteWarn') }}</p>
       <template #footer>
-        <NButton variant="ghost" @click="closeDeleteConfirm">取消</NButton>
-        <NButton variant="danger" @click="handleDeletePlaylist">删除</NButton>
+        <NButton variant="ghost" @click="closeDeleteConfirm">{{ $t('common.cancel') }}</NButton>
+        <NButton variant="danger" @click="handleDeletePlaylist">{{ $t('playlists.delete') }}</NButton>
       </template>
     </NModal>
   </PageShell>
@@ -90,6 +90,7 @@ import { useToast } from '@/composables/useToast'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NInput, NModal, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
+import { t } from '@/i18n'
 
 const toast = useToast()
 const router = useRouter()
@@ -146,11 +147,11 @@ const fetchPlaylists = async () => {
       })
       
     } else {
-      toast.error(data.message || '获取歌单列表失败')
+      toast.error(data.message || t('playlists.loadFailed'))
     }
   } catch (error) {
     console.error('获取歌单列表失败:', error)
-    toast.error('获取歌单列表失败')
+    toast.error(t('playlists.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -203,15 +204,15 @@ const handleEditPlaylist = async () => {
     
     const data = await response.json()
     if (data.success) {
-      toast.success('歌单更新成功')
+      toast.success(t('playlists.updateSuccess'))
       closeEditDialog()
       await fetchPlaylists()
     } else {
-      toast.error(data.message || '歌单更新失败')
+      toast.error(data.message || t('playlists.updateFailed'))
     }
   } catch (error) {
     console.error('歌单更新失败:', error)
-    toast.error('歌单更新失败')
+    toast.error(t('playlists.updateFailed'))
   }
 }
 
@@ -244,15 +245,15 @@ const handleDeletePlaylist = async () => {
     
     const data = await response.json()
     if (data.success) {
-      toast.success('歌单删除成功')
+      toast.success(t('playlists.deleteSuccess'))
       closeDeleteConfirm()
       await fetchPlaylists()
     } else {
-      toast.error(data.message || '歌单删除失败')
+      toast.error(data.message || t('playlists.deleteFailed'))
     }
   } catch (error) {
     console.error('歌单删除失败:', error)
-    toast.error('歌单删除失败')
+    toast.error(t('playlists.deleteFailed'))
   }
 }
 
@@ -312,10 +313,10 @@ const formatTime = (timeStr) => {
   const hours = Math.floor(diff / 3600000)
   const days = Math.floor(diff / 86400000)
   
-  if (minutes < 1) return '刚刚'
-  if (minutes < 60) return `${minutes}分钟前`
-  if (hours < 24) return `${hours}小时前`
-  if (days < 7) return `${days}天前`
+  if (minutes < 1) return t('time.justNow')
+  if (minutes < 60) return t('time.minutesAgo', { count: minutes })
+  if (hours < 24) return t('time.hoursAgo', { count: hours })
+  if (days < 7) return t('time.daysAgo', { count: days })
   
   return date.toLocaleDateString('zh-CN')
 }

@@ -17,6 +17,7 @@ import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
 import { NInput, NButton } from '@/ui'
 import PwaInstallButton from '@/components/PwaInstallButton.vue'
+import LocaleSwitcher from '@/components/LocaleSwitcher.vue'
 import { playTrack, playTracks, isCurrentMusic } from '@/composables/usePlaybackBridge'
 import { logoutUserSession } from '@/api/session.js'
 import NowPlayingTag from '@/components/NowPlayingTag.vue'
@@ -242,14 +243,14 @@ onUnmounted(() => {
   <header class="site-header">
     <div class="site-header__inner">
       <!-- Logo -->
-      <a class="site-header__logo" href="/" @click.prevent="goHome">Neko歌姬计划</a>
+      <a class="site-header__logo" href="/" @click.prevent="goHome">{{ $t('common.appName') }}</a>
 
       <!-- 搜索 -->
       <div ref="searchRoot" class="site-header__search">
         <NInput
           v-model="searchQuery"
           icon="search"
-          placeholder="搜索歌名、歌手、歌词或歌曲 ID"
+          :placeholder="$t('nav.searchPlaceholder')"
           clearable
           @update:model-value="onSearchInput"
           @enter="performSearch"
@@ -276,8 +277,8 @@ onUnmounted(() => {
                 <NowPlayingTag v-if="isCurrentMusic(result.id)" />
                 <NIcon v-if="result.lrc" name="file-text" :size="13" class="search-panel__lyric" />
               </span>
-              <span class="search-panel__artist">作曲：{{ result.artist }}</span>
-              <span class="search-panel__album">专辑：{{ result.album || '未知专辑' }}</span>
+              <span class="search-panel__artist">{{ $t('nav.searchComposer', { artist: result.artist }) }}</span>
+              <span class="search-panel__album">{{ $t('nav.searchAlbum', { album: result.album || $t('common.unknownAlbum') }) }}</span>
             </span>
           </button>
         </div>
@@ -285,21 +286,22 @@ onUnmounted(() => {
 
       <!-- 用户区 -->
       <div class="site-header__auth">
+        <LocaleSwitcher />
         <NButton
           class="site-header__download"
           variant="secondary"
           size="sm"
           icon="download"
           to="/download"
-          title="下载客户端"
+          :title="$t('nav.downloadClient')"
         >
-          下载客户端
+          {{ $t('nav.downloadClient') }}
         </NButton>
         <!-- 可安装时出现；已安装/不支持时组件自身不渲染 -->
         <PwaInstallButton />
         <template v-if="isLoggedIn">
-          <RouterLink to="/account" class="site-header__user" title="个人中心">
-            <img :src="userAvatar" alt="用户头像" class="site-header__avatar" @error="handleAvatarError" />
+          <RouterLink to="/account" class="site-header__user" :title="$t('nav.account')">
+            <img :src="userAvatar" :alt="$t('nav.avatarAlt')" class="site-header__avatar" @error="handleAvatarError" />
             <span class="site-header__nickname">{{ nickname }}</span>
           </RouterLink>
 
@@ -307,7 +309,7 @@ onUnmounted(() => {
             to="/vip"
             class="site-header__vip"
             :class="{ 'site-header__vip--active': user?.isVip }"
-            :title="user?.isVip ? '会员已开通 · 点击查看会员中心' : '非会员 · 点击查看会员中心'"
+            :title="user?.isVip ? $t('nav.vipActive') : $t('nav.vipInactive')"
           >
             VIP
           </RouterLink>
@@ -315,7 +317,7 @@ onUnmounted(() => {
           <RouterLink
             to="/notifications"
             class="site-header__notice"
-            :title="unreadCount > 0 ? `消息中心（${unreadCount} 条未读）` : '消息中心'"
+            :title="unreadCount > 0 ? $t('nav.messagesUnread', { count: unreadCount }) : $t('nav.messages')"
           >
             <NIcon name="bell" :size="18" />
             <span v-if="unreadCount > 0" class="site-header__notice-badge">
@@ -323,12 +325,12 @@ onUnmounted(() => {
             </span>
           </RouterLink>
 
-          <NButton size="sm" variant="ghost" icon="list-music" to="/playlists" title="我的歌单" />
-          <NButton size="sm" variant="ghost" icon="heart" to="/favorites" title="我的收藏" />
-          <NButton size="sm" variant="danger" icon="logout" @click="logout">退出</NButton>
+          <NButton size="sm" variant="ghost" icon="list-music" to="/playlists" :title="$t('nav.myPlaylists')" />
+          <NButton size="sm" variant="ghost" icon="heart" to="/favorites" :title="$t('nav.myFavorites')" />
+          <NButton size="sm" variant="danger" icon="logout" @click="logout">{{ $t('nav.logout') }}</NButton>
         </template>
 
-        <NButton v-else variant="primary" icon="login" @click="goToLogin">登录</NButton>
+        <NButton v-else variant="primary" icon="login" @click="goToLogin">{{ $t('nav.login') }}</NButton>
       </div>
     </div>
   </header>

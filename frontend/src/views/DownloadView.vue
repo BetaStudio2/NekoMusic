@@ -4,23 +4,23 @@
 
     <PageShell width="wide">
       <header class="topbar">
-        <NButton variant="ghost" size="sm" icon="arrow-left" to="/">返回 Web 播放器</NButton>
-        <NTag variant="outline" size="sm">下载客户端</NTag>
+        <NButton variant="ghost" size="sm" icon="arrow-left" to="/">{{ $t('download.backToWeb') }}</NButton>
+        <NTag variant="outline" size="sm">{{ $t('nav.downloadClient') }}</NTag>
       </header>
       <section class="hero" aria-labelledby="download-title">
         <div class="hero__copy">
-          <p class="hero__eyebrow">Neko 云音乐</p>
-          <h1 id="download-title" class="hero__title">把播放器装进口袋与桌面</h1>
+          <p class="hero__eyebrow">{{ $t('download.brand') }}</p>
+          <h1 id="download-title" class="hero__title">{{ $t('download.heroTitle') }}</h1>
           <p class="hero__lede">
-            同一套免费体验：搜索、播放、收藏与歌单。<strong class="hero__lede-strong">Android / PC 支持从网易云、QQ 音乐和酷狗迁入歌单</strong>（链接或歌单 ID，自动匹配站内曲库）。选择你的平台，一键获取安装包。
+            {{ $t('download.heroLedeLead') }}<strong class="hero__lede-strong">{{ $t('download.heroLedeStrong') }}</strong>{{ $t('download.heroLedeTail') }}
           </p>
           <ul class="hero__facts">
-            <li>完全免费</li>
-            <li>开源透明</li>
-            <li>网易、QQ、酷狗歌单可迁入</li>
+            <li>{{ $t('download.feature1') }}</li>
+            <li>{{ $t('download.feature2') }}</li>
+            <li>{{ $t('download.feature3') }}</li>
           </ul>
           <p class="hero__anchor-hint">
-            <a href="#netease-migrate" class="hero__anchor-link">查看迁入步骤与说明</a>
+            <a href="#netease-migrate" class="hero__anchor-link">{{ $t('download.anchor') }}</a>
           </p>
         </div>
         <div class="hero__art">
@@ -43,26 +43,26 @@
       <section id="netease-migrate" class="netease-panel" aria-labelledby="netease-migrate-title" tabindex="-1">
         <div class="netease-panel__inner">
           <header class="netease-panel__head">
-            <p class="netease-panel__eyebrow">换播放器不用从零攒歌单</p>
-            <h2 id="netease-migrate-title" class="netease-panel__title">从网易云 / QQ 音乐 / 酷狗迁入歌单</h2>
+            <p class="netease-panel__eyebrow">{{ $t('download.migrateEyebrow') }}</p>
+            <h2 id="netease-migrate-title" class="netease-panel__title">{{ $t('download.migrateTitle') }}</h2>
             <p class="netease-panel__lede">
-              在 <strong>Android</strong> 或 <strong>桌面客户端</strong> 内使用「导入外部歌单」：粘贴网易云 / QQ 音乐 / 酷狗的歌单分享链接或歌单 ID，客户端会拉取曲目列表，并在 Neko 曲库中按歌名与歌手匹配后，导入到你指定的歌单。
+              {{ $t('download.migrateDescLead') }} <strong>Android</strong> {{ $t('download.migrateDescMid') }} <strong>{{ $t('download.desktopClient') }}</strong> {{ $t('download.migrateDescTail') }}
             </p>
             <p class="netease-panel__note">
-              本页 Web 播放器暂不支持该流程；迁入后能否全部播放入库，取决于站内是否已有对应上传资源以及曲库。开源客户端行为可自查源码，无「背地里同步你网易账号密码」那一套。
+              {{ $t('download.migrateNote') }}
             </p>
           </header>
           <ol class="netease-panel__steps">
-            <li><span class="netease-panel__step-num">1</span> 在网易云 / QQ 音乐 / 酷狗复制歌单链接，或记下歌单 ID。</li>
-            <li><span class="netease-panel__step-num">2</span> 安装并打开本页下方提供的 Android / Windows / Linux / macOS 客户端。</li>
-            <li><span class="netease-panel__step-num">3</span> 在客户端内找到「导入外部歌单」，粘贴链接或 ID，选择目标歌单并开始匹配导入。</li>
+            <li><span class="netease-panel__step-num">1</span> {{ $t('download.step1') }}</li>
+            <li><span class="netease-panel__step-num">2</span> {{ $t('download.step2') }}</li>
+            <li><span class="netease-panel__step-num">3</span> {{ $t('download.step3') }}</li>
           </ol>
         </div>
       </section>
 
       <div v-if="loading" class="state state--loading">
         <div class="state__spinner" aria-hidden="true" />
-        <p class="state__text">正在拉取最新版本信息…</p>
+        <p class="state__text">{{ $t('download.loading') }}</p>
       </div>
 
       <div v-else-if="error" class="state state--error" role="alert">
@@ -77,11 +77,11 @@
         <section class="downloads" aria-labelledby="downloads-heading">
           <header class="downloads__head">
             <div class="downloads__heading">
-              <h2 id="downloads-heading" class="downloads__title">下载安装包</h2>
-              <p class="downloads__sub">选择你的平台 · 完全免费 · 开源透明</p>
+              <h2 id="downloads-heading" class="downloads__title">{{ $t('download.packagesTitle') }}</h2>
+              <p class="downloads__sub">{{ $t('download.packagesSub') }}</p>
             </div>
             <p class="downloads__version">
-              <span class="downloads__version-label">最新版本</span>
+              <span class="downloads__version-label">{{ $t('download.latestVersion') }}</span>
               <span class="downloads__version-value">v{{ desktopVersion }}</span>
             </p>
           </header>
@@ -98,21 +98,21 @@
                 </div>
                 <div class="dl-card__titles">
                   <h3 class="dl-card__name">Android</h3>
-                  <p class="dl-card__desc">手机与平板</p>
+                  <p class="dl-card__desc">{{ $t('download.androidDesc') }}</p>
                 </div>
-                <NTag v-if="detectedPlatform === 'android'" variant="accent" size="sm">你的设备</NTag>
+                <NTag v-if="detectedPlatform === 'android'" variant="accent" size="sm">{{ $t('download.yourDevice') }}</NTag>
               </header>
               <dl class="dl-card__meta">
                 <div class="dl-card__meta-item">
-                  <dt>版本</dt>
+                  <dt>{{ $t('download.labelVersion') }}</dt>
                   <dd>{{ versionInfo.ver || '-' }}</dd>
                 </div>
                 <div class="dl-card__meta-item">
-                  <dt>格式</dt>
+                  <dt>{{ $t('download.labelFormat') }}</dt>
                   <dd>.apk</dd>
                 </div>
                 <div class="dl-card__meta-item">
-                  <dt>大小</dt>
+                  <dt>{{ $t('download.labelSize') }}</dt>
                   <dd>{{ androidSize }}</dd>
                 </div>
               </dl>
@@ -124,7 +124,7 @@
                   :href="androidDownloadUrl"
                   download
                 >
-                  下载 APK
+                  {{ $t('download.downloadApk') }}
                 </NButton>
               </div>
             </article>
@@ -138,21 +138,21 @@
                 </div>
                 <div class="dl-card__titles">
                   <h3 class="dl-card__name">Windows</h3>
-                  <p class="dl-card__desc">Windows 10 / 11</p>
+                  <p class="dl-card__desc">{{ $t('download.winDesc') }}</p>
                 </div>
-                <NTag v-if="detectedPlatform === 'windows'" variant="accent" size="sm">你的设备</NTag>
+                <NTag v-if="detectedPlatform === 'windows'" variant="accent" size="sm">{{ $t('download.yourDevice') }}</NTag>
               </header>
               <dl class="dl-card__meta">
                 <div class="dl-card__meta-item">
-                  <dt>版本</dt>
+                  <dt>{{ $t('download.labelVersion') }}</dt>
                   <dd>{{ desktopVersion }}</dd>
                 </div>
                 <div class="dl-card__meta-item">
-                  <dt>格式</dt>
+                  <dt>{{ $t('download.labelFormat') }}</dt>
                   <dd>.exe</dd>
                 </div>
                 <div class="dl-card__meta-item">
-                  <dt>大小</dt>
+                  <dt>{{ $t('download.labelSize') }}</dt>
                   <dd>{{ windowsSize }}</dd>
                 </div>
               </dl>
@@ -164,7 +164,7 @@
                   :href="windowsDownloadUrl"
                   download
                 >
-                  下载 .exe
+                  {{ $t('download.downloadExe') }}
                 </NButton>
               </div>
             </article>
@@ -178,21 +178,21 @@
                 </div>
                 <div class="dl-card__titles">
                   <h3 class="dl-card__name">macOS</h3>
-                  <p class="dl-card__desc">macOS 11 及以上</p>
+                  <p class="dl-card__desc">{{ $t('download.macDesc') }}</p>
                 </div>
-                <NTag v-if="detectedPlatform === 'mac'" variant="accent" size="sm">你的设备</NTag>
+                <NTag v-if="detectedPlatform === 'mac'" variant="accent" size="sm">{{ $t('download.yourDevice') }}</NTag>
               </header>
               <dl class="dl-card__meta">
                 <div class="dl-card__meta-item">
-                  <dt>版本</dt>
+                  <dt>{{ $t('download.labelVersion') }}</dt>
                   <dd>{{ desktopVersion }}</dd>
                 </div>
                 <div class="dl-card__meta-item">
-                  <dt>格式</dt>
+                  <dt>{{ $t('download.labelFormat') }}</dt>
                   <dd>.pkg</dd>
                 </div>
                 <div class="dl-card__meta-item">
-                  <dt>大小</dt>
+                  <dt>{{ $t('download.labelSize') }}</dt>
                   <dd>{{ macSize }}</dd>
                 </div>
               </dl>
@@ -204,7 +204,7 @@
                   :href="macDownloadUrl"
                   download
                 >
-                  下载 .pkg
+                  {{ $t('download.downloadPkg') }}
                 </NButton>
               </div>
             </article>
@@ -219,11 +219,11 @@
                 </div>
                 <div class="dl-card__titles">
                   <h3 class="dl-card__name">Linux</h3>
-                  <p class="dl-card__desc">桌面发行版</p>
+                  <p class="dl-card__desc">{{ $t('download.linuxDesc') }}</p>
                 </div>
-                <NTag v-if="detectedPlatform === 'linux'" variant="accent" size="sm">你的设备</NTag>
+                <NTag v-if="detectedPlatform === 'linux'" variant="accent" size="sm">{{ $t('download.yourDevice') }}</NTag>
               </header>
-              <div class="dl-card__tabs" role="tablist" aria-label="Linux 发行版">
+              <div class="dl-card__tabs" role="tablist" :aria-label="$t('download.linuxTabsAria')">
                 <button
                     type="button"
                     class="dl-card__tab"
@@ -232,7 +232,7 @@
                     :aria-selected="linuxVariant === 'debian'"
                     @click="linuxVariant = 'debian'"
                 >
-                  Debian 系
+                  {{ $t('download.debianFamily') }}
                 </button>
                 <button
                     type="button"
@@ -242,20 +242,20 @@
                     :aria-selected="linuxVariant === 'arch'"
                     @click="linuxVariant = 'arch'"
                 >
-                  Arch 系
+                  {{ $t('download.archFamily') }}
                 </button>
               </div>
               <dl class="dl-card__meta">
                 <div class="dl-card__meta-item">
-                  <dt>版本</dt>
+                  <dt>{{ $t('download.labelVersion') }}</dt>
                   <dd>{{ desktopVersion }}</dd>
                 </div>
                 <div class="dl-card__meta-item">
-                  <dt>格式</dt>
+                  <dt>{{ $t('download.labelFormat') }}</dt>
                   <dd>{{ linuxVariant === 'debian' ? '.deb' : 'AUR' }}</dd>
                 </div>
                 <div class="dl-card__meta-item">
-                  <dt>大小</dt>
+                  <dt>{{ $t('download.labelSize') }}</dt>
                   <dd>{{ linuxVariant === 'debian' ? linuxSize : '-' }}</dd>
                 </div>
               </dl>
@@ -268,7 +268,7 @@
                     :href="linuxDownloadUrl"
                     download
                   >
-                    下载 .deb
+                    {{ $t('download.downloadDeb') }}
                   </NButton>
                 </template>
                 <template v-else>
@@ -277,10 +277,10 @@
                     <button
                         type="button"
                         class="dl-cmd__copy"
-                        :aria-label="archCopied ? '已复制' : '复制安装命令'"
+                        :aria-label="archCopied ? $t('download.copied') : $t('download.copyAria')"
                         @click="copyArchCommand"
                     >
-                      {{ archCopied ? '已复制' : '复制' }}
+                      {{ archCopied ? $t('download.copied') : $t('download.copy') }}
                     </button>
                   </div>
                 </template>
@@ -291,8 +291,8 @@
       </template>
 
       <footer class="foot">
-        <p class="foot__line">安装如遇系统拦截，请在系统设置中允许来自开发者的应用。</p>
-        <p class="foot__line foot__line--muted">© {{ year }} NekoMusic · 下载页</p>
+        <p class="foot__line">{{ $t('download.footNote') }}</p>
+        <p class="foot__line foot__line--muted">{{ $t('download.footCopyright', { year }) }}</p>
       </footer>
     </PageShell>
   </div>
@@ -304,6 +304,7 @@ import axios from 'axios'
 import API_CONFIG from '@/config/apiConfig.js'
 import { NButton, NTag } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
+import { t } from '@/i18n'
 
 const versionInfo = ref({ ver: '', updateUrl: '' })
 const loading = ref(true)
@@ -347,7 +348,7 @@ const fetchVersionInfo = async () => {
     versionInfo.value = response.data
   } catch (err) {
     console.error('获取版本信息失败:', err)
-    error.value = '获取下载信息失败，请稍后重试'
+    error.value = t('download.loadFailed')
   } finally {
     loading.value = false
   }

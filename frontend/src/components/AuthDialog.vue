@@ -36,8 +36,8 @@ onUnmounted(() => {
   <Teleport to="body">
     <Transition name="auth-dialog">
       <div v-if="isOpen" class="auth-dialog" @mousedown.self="closeAuthDialog">
-        <div class="auth-dialog__card" role="dialog" aria-modal="true" aria-label="登录 Neko歌姬计划">
-          <button type="button" class="auth-dialog__close" aria-label="关闭" @click="closeAuthDialog">
+        <div class="auth-dialog__card" role="dialog" aria-modal="true" :aria-label="$t('auth.dialogLabel')">
+          <button type="button" class="auth-dialog__close" :aria-label="$t('auth.close')" @click="closeAuthDialog">
             <NIcon name="close" :size="18" />
           </button>
           <AuthPanel

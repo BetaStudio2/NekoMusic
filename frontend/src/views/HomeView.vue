@@ -23,6 +23,7 @@ import { playTracks, playTrackInList, isCurrentMusic } from '@/composables/usePl
 import NowPlayingTag from '@/components/NowPlayingTag.vue'
 import { coverSrcset } from '@/utils/coverImage'
 import { getUser } from '@/utils/userStore.js'
+import { t } from '@/i18n'
 
 const toast = useToast()
 
@@ -46,11 +47,11 @@ const syncLoginState = () => {
 /** 按时段问候 */
 const greeting = computed(() => {
   const h = new Date().getHours()
-  if (h < 6) return '夜深了'
-  if (h < 12) return '早上好'
-  if (h < 14) return '中午好'
-  if (h < 18) return '下午好'
-  return '晚上好'
+  if (h < 6) return t('home.greetingNight')
+  if (h < 12) return t('home.greetingMorning')
+  if (h < 14) return t('home.greetingNoon')
+  if (h < 18) return t('home.greetingAfternoon')
+  return t('home.greetingEvening')
 })
 
 const hasDaily = computed(() => isLoggedIn.value && dailyList.value.length > 0)
@@ -71,14 +72,14 @@ const loadingAll = computed(
 
 const quickLinks = computed(() => {
   const links = [
-    { to: '/ranking', icon: 'trophy', title: '热门排行', desc: '按播放量排序' },
-    { to: '/latest', icon: 'sparkles', title: '最新上架', desc: '刚刚入库的新歌' },
-    { to: '/download', icon: 'download', title: '下载客户端', desc: 'Android · PC' },
+    { to: '/ranking', icon: 'trophy', title: t('home.quickRanking'), desc: t('home.quickRankingDesc') },
+    { to: '/latest', icon: 'sparkles', title: t('home.quickLatest'), desc: t('home.quickLatestDesc') },
+    { to: '/download', icon: 'download', title: t('home.quickDownload'), desc: t('home.quickDownloadDesc') },
   ]
   links.push(
     isLoggedIn.value
-      ? { to: '/upload', icon: 'upload', title: '上传音乐', desc: '分享你的作品' }
-      : { to: '/favorites', icon: 'heart', title: '我的收藏', desc: '登录后同步' }
+      ? { to: '/upload', icon: 'upload', title: t('home.quickUpload'), desc: t('home.quickUploadDesc') }
+      : { to: '/favorites', icon: 'heart', title: t('home.quickFavorites'), desc: t('home.quickFavoritesDesc') }
   )
   return links
 })
@@ -97,7 +98,7 @@ const fetchRanking = async () => {
     else console.error('获取排行榜失败:', data.message)
   } catch (error) {
     console.error('排行榜请求失败:', error)
-    toast.error('加载排行榜失败')
+    toast.error(t('home.loadRankingFailed'))
   } finally {
     rankingLoading.value = false
   }
@@ -112,7 +113,7 @@ const fetchLatest = async () => {
     else console.error('获取最新音乐失败:', data.message)
   } catch (error) {
     console.error('最新音乐请求失败:', error)
-    toast.error('加载最新音乐失败')
+    toast.error(t('home.loadLatestFailed'))
   } finally {
     latestLoading.value = false
   }
@@ -168,13 +169,13 @@ const toTrack = (m) => ({
 /** 点单曲：以所在列表为播放队列，保证能接着听「下一首」 */
 const playMusic = (m, list) => {
   playTrackInList(toTrack(m), (Array.isArray(list) ? list : []).map(toTrack))
-  toast.success(`开始播放：${m.title}`)
+  toast.success(t('home.playStarted', { title: m.title }))
 }
 
 const playList = (list, label) => {
   if (!list.length) return
   playTracks(list.map(toTrack), 0)
-  toast.success(`开始播放${label ? '：' + label : ''} ${list.length} 首`)
+  toast.success(t('home.playListStarted', { label: label || '', count: list.length }))
 }
 
 const playHero = () => {
@@ -182,7 +183,7 @@ const playHero = () => {
 }
 
 const playHeroList = () => {
-  playList(heroList.value, hasDaily.value ? '每日推荐' : '热门')
+  playList(heroList.value, hasDaily.value ? t('home.dailyBadge') : t('home.hot'))
 }
 
 function onStorage() {
@@ -211,9 +212,9 @@ onUnmounted(() => {
   <PageShell width="default">
     <!-- ==================== 页头 ==================== -->
     <header class="home-head">
-      <h1 class="home-head__title">首页</h1>
+      <h1 class="home-head__title">{{ $t('home.title') }}</h1>
       <p class="home-head__greeting">
-        {{ greeting }}<template v-if="isLoggedIn && nickname">，{{ nickname }}</template>，欢迎来到 Neko歌姬计划
+        {{ isLoggedIn && nickname ? $t('home.welcome', { greeting, nickname }) : $t('home.welcomeAnon', { greeting }) }}
       </p>
     </header>
 
@@ -230,18 +231,18 @@ onUnmounted(() => {
       <div class="hero__copy">
         <span class="hero__eyebrow">
           <NIcon name="sparkles" :size="14" />
-          {{ hasDaily ? '每日推荐' : '开源 · 免费 · 无广告' }}
+          {{ hasDaily ? $t('home.heroBadgeDaily') : $t('home.heroBadgeBrand') }}
         </span>
 
-        <h2 class="hero__title">{{ hasDaily ? '今日为你推荐' : '从这里开始听' }}</h2>
+        <h2 class="hero__title">{{ hasDaily ? $t('home.heroTitleDaily') : $t('home.heroTitleBrand') }}</h2>
 
         <p v-if="hasDaily" class="hero__lede">
-          根据你的收藏与口味生成，每天 00:00 更新<template v-if="dailyList.length">，共 {{ dailyList.length }} 首</template>。
+          {{ dailyList.length ? $t('home.heroDescDailyCount', { count: dailyList.length }) : $t('home.heroDescDaily') }}
         </p>
         <p v-else class="hero__lede">
-          搜索、播放、收藏全站音乐；在客户端还能从
-          <strong>网易、QQ、酷狗</strong>
-          一键迁入歌单。
+          {{ $t('home.heroDescBrandLead') }}
+          <strong>{{ $t('home.heroDescBrandSources') }}</strong>
+          {{ $t('home.heroDescBrandTail') }}
         </p>
 
         <div class="hero__actions">
@@ -251,7 +252,7 @@ onUnmounted(() => {
             icon="play"
             @click="playHeroList"
           >
-            播放推荐
+            {{ $t('home.playRecommended') }}
           </NButton>
           <NButton
             v-else-if="rankingList.length"
@@ -259,10 +260,10 @@ onUnmounted(() => {
             icon="play"
             @click="playHeroList"
           >
-            播放热门
+            {{ $t('home.playHot') }}
           </NButton>
           <NButton variant="secondary" icon="download" to="/download">
-            下载客户端
+            {{ $t('home.downloadClient') }}
           </NButton>
         </div>
       </div>
@@ -276,7 +277,7 @@ onUnmounted(() => {
       >
         <!-- 可见文本已含歌名/歌手，用视觉隐藏的「播放」补足动作语义：
              可访问名由内容计算，避免 aria-label 与可见文本不一致（WCAG 2.5.3） -->
-        <span class="n-visually-hidden">播放</span>
+        <span class="n-visually-hidden">{{ $t('home.heroPlayAria') }}</span>
         <span v-if="hasDaily" class="hero__mosaic">
           <img
             v-for="m in dailyMosaic"
@@ -305,7 +306,7 @@ onUnmounted(() => {
 
         <span class="hero__badge">
           <NIcon name="sparkles" :size="12" />
-          {{ hasDaily ? '每日推荐' : '热度第 1' }}
+          {{ hasDaily ? $t('home.dailyBadge') : $t('home.hotTopBadge') }}
         </span>
         <span class="hero__play"><NIcon name="play" :size="22" /></span>
         <span class="hero__feature-meta">
@@ -316,7 +317,7 @@ onUnmounted(() => {
     </section>
 
     <!-- ==================== 动作卡 ==================== -->
-    <section class="quick" aria-label="快捷入口">
+    <section class="quick" :aria-label="$t('home.quickAria')">
       <NCard
         v-for="q in quickLinks"
         :key="q.to"
@@ -338,7 +339,7 @@ onUnmounted(() => {
     <!-- ==================== 加载态 ==================== -->
     <div v-if="loadingAll" class="loading">
       <NSpinner :size="28" />
-      <p>正在加载音乐…</p>
+      <p>{{ $t('home.loadingMusic') }}</p>
     </div>
 
     <template v-else>
@@ -346,10 +347,10 @@ onUnmounted(() => {
       <section v-if="hotList.length" class="section">
         <header class="section__head">
           <div class="section__heading">
-            <h2 class="section__title">热门音乐</h2>
-            <p class="section__sub">按播放量排序</p>
+            <h2 class="section__title">{{ $t('home.hotTitle') }}</h2>
+            <p class="section__sub">{{ $t('home.hotSub') }}</p>
           </div>
-          <NButton variant="ghost" size="sm" icon-after="chevron-right" to="/ranking">更多</NButton>
+          <NButton variant="ghost" size="sm" icon-after="chevron-right" to="/ranking">{{ $t('common.more') }}</NButton>
         </header>
 
         <div class="rail">
@@ -382,7 +383,7 @@ onUnmounted(() => {
             <button
               type="button"
               class="cover-card__hit"
-              :aria-label="`播放 ${m.title}`"
+              :aria-label="$t('home.playAria', { title: m.title })"
               @click="playMusic(m, hotList)"
             ></button>
           </article>
@@ -393,10 +394,10 @@ onUnmounted(() => {
       <section v-if="latestGrid.length" class="section">
         <header class="section__head">
           <div class="section__heading">
-            <h2 class="section__title">最新上架</h2>
-            <p class="section__sub">刚刚入库的新歌</p>
+            <h2 class="section__title">{{ $t('home.latestTitle') }}</h2>
+            <p class="section__sub">{{ $t('home.latestSub') }}</p>
           </div>
-          <NButton variant="ghost" size="sm" icon-after="chevron-right" to="/latest">更多</NButton>
+          <NButton variant="ghost" size="sm" icon-after="chevron-right" to="/latest">{{ $t('common.more') }}</NButton>
         </header>
 
         <div class="rail">
@@ -428,7 +429,7 @@ onUnmounted(() => {
             <button
               type="button"
               class="cover-card__hit"
-              :aria-label="`播放 ${m.title}`"
+              :aria-label="$t('home.playAria', { title: m.title })"
               @click="playMusic(m, latestGrid)"
             ></button>
           </article>

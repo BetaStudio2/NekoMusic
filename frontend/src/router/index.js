@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { watch } from 'vue'
 import { openAuthDialog } from '@/composables/useAuthDialog'
+import { t, locale } from '@/i18n'
 
 // 检查管理员是否已登录
 function isAdminLoggedIn() {
@@ -397,6 +399,53 @@ const NOINDEX_PREFIXES = [
   '/playlist/create', '/forgot-password', '/login', '/register',
 ]
 
+/**
+ * 路由名 → 文案键。
+ *
+ * 路由的 `meta.title` 仍保留中文：它是给搜索引擎看的（description / keywords 同理），
+ * 只有浏览器标签页与 og:title 走这里的多语言文案。
+ */
+const ROUTE_TITLE_KEYS = {
+  home: 'route.home',
+  about: 'route.about',
+  privacy: 'route.privacy',
+  download: 'route.download',
+  upload: 'route.upload',
+  search: 'route.search',
+  'forgot-password': 'route.forgotPassword',
+  favorites: 'route.favorites',
+  playlists: 'route.playlists',
+  notifications: 'route.notifications',
+  account: 'route.account',
+  vip: 'route.vip',
+  ranking: 'route.ranking',
+  latest: 'route.latest',
+  'create-playlist': 'route.createPlaylist',
+  'playlist-detail': 'route.playlistDetail',
+  'admin-login': 'route.adminLogin',
+  admin: 'route.adminStats',
+  'admin-security': 'route.adminSecurity',
+  'admin-music': 'route.adminMusic',
+  'admin-lyrics': 'route.adminLyrics',
+  'admin-audit': 'route.adminAudit',
+  'admin-users': 'route.adminUsers',
+  'admin-vip-pricing': 'route.adminVipPricing',
+  'admin-releases': 'route.adminReleases',
+  'admin-settings': 'route.adminSettings',
+  'admin-logs': 'route.adminLogs',
+  detail: 'route.detail',
+  'not-found': 'route.notFound',
+}
+
+/** 当前路由对应的标签页标题；没有译文键时退回路由自带的中文标题 */
+function routeTitle(to) {
+  const key = ROUTE_TITLE_KEYS[to.name]
+  if (!key) return to.meta.title || 'Neko歌姬计划 - 完全免费的在线音乐播放平台'
+  const translated = t(key)
+  // t() 查不到会原样返回键名，那种情况按「没翻译」处理
+  return translated === key ? to.meta.title || translated : translated
+}
+
 function upsertMeta(attr, key, content) {
   if (!content) return
   let el = document.head.querySelector(`meta[${attr}="${key}"]`)
@@ -430,7 +479,7 @@ function upsertJsonLd(id, data) {
 }
 
 router.beforeEach((to) => {
-  const title = to.meta.title || 'Neko歌姬计划 - 完全免费的在线音乐播放平台'
+  const title = routeTitle(to)
   const description = to.meta.description || DEFAULT_DESCRIPTION
   const keywords = to.meta.keywords || DEFAULT_KEYWORDS
 
@@ -469,6 +518,12 @@ router.beforeEach((to) => {
   })
 
   return true
+})
+
+// 切语言后标题不会自己变（它不参与模板渲染），这里补一次
+watch(locale, () => {
+  const current = router.currentRoute.value
+  if (current?.name) document.title = routeTitle(current)
 })
 
 export default router

@@ -6,17 +6,17 @@
       <div class="auth__grid">
         <!-- 左：扫码登录（手机端 NekoMusic App 扫码确认） -->
         <aside class="auth__qr-col">
-          <h2 class="auth__qr-title">扫码登录</h2>
+          <h2 class="auth__qr-title">{{ $t('auth.qrTitle') }}</h2>
 
           <div class="auth__qr-box">
-            <img v-if="qrImageUrl" class="auth__qr-img" :src="qrImageUrl" alt="登录二维码" />
+            <img v-if="qrImageUrl" class="auth__qr-img" :src="qrImageUrl" :alt="$t('auth.qrAlt')" />
             <div v-else class="auth__qr-skeleton" aria-hidden="true">
               <NIcon name="qrcode" :size="44" />
             </div>
             <div v-if="qrRefreshable" class="auth__qr-mask">
               <NButton variant="secondary" size="sm" @click="startQrLogin">
                 <NIcon name="refresh" :size="14" />
-                刷新二维码
+                {{ $t('auth.qrRefresh') }}
               </NButton>
             </div>
           </div>
@@ -25,14 +25,14 @@
             {{ qrStatusText || '\u00A0' }}
           </p>
           <p class="auth__qr-hint">
-            请使用手机端 NekoMusic App<br />
-            扫描二维码并确认登录
+            {{ $t('auth.qrHint1') }}<br />
+            {{ $t('auth.qrHint2') }}
           </p>
         </aside>
 
         <!-- 右：登录 / 注册 -->
         <section class="auth__form-col">
-          <div class="auth__tabs" role="tablist" aria-label="登录或注册">
+          <div class="auth__tabs" role="tablist" :aria-label="$t('auth.tabsAria')">
             <button
               type="button"
               role="tab"
@@ -41,7 +41,7 @@
               :aria-selected="activeTab === 'login'"
               @click="switchTab('login')"
             >
-              登录
+              {{ $t('auth.tabLogin') }}
             </button>
             <button
               type="button"
@@ -51,30 +51,30 @@
               :aria-selected="activeTab === 'register'"
               @click="switchTab('register')"
             >
-              注册
+              {{ $t('auth.tabRegister') }}
             </button>
           </div>
 
           <form v-if="activeTab === 'login'" class="auth__form" @submit.prevent="handleLogin">
             <div class="auth__field">
-              <label class="auth__label" for="login-email">邮箱</label>
+              <label class="auth__label" for="login-email">{{ $t('auth.email') }}</label>
               <NInput
                 id="login-email"
                 v-model="loginEmail"
                 type="email"
                 icon="mail"
-                placeholder="输入邮箱"
+                :placeholder="$t('auth.emailPlaceholder')"
                 autocomplete="email"
               />
             </div>
             <div class="auth__field">
-              <label class="auth__label" for="login-password">密码</label>
+              <label class="auth__label" for="login-password">{{ $t('auth.password') }}</label>
               <NInput
                 id="login-password"
                 v-model="loginPassword"
                 type="password"
                 icon="lock"
-                placeholder="输入密码"
+                :placeholder="$t('auth.passwordPlaceholder')"
                 autocomplete="current-password"
               />
             </div>
@@ -82,40 +82,40 @@
             <p class="auth__error" role="alert">{{ loginError || '\u00A0' }}</p>
 
             <NButton type="submit" variant="primary" size="lg" block :loading="loginLoading">
-              登录
+              {{ $t('auth.tabLogin') }}
             </NButton>
           </form>
 
           <form v-else class="auth__form" @submit.prevent="handleRegister">
             <div class="auth__field">
-              <label class="auth__label" for="reg-nickname">昵称</label>
+              <label class="auth__label" for="reg-nickname">{{ $t('auth.nickname') }}</label>
               <NInput
                 id="reg-nickname"
                 v-model="nickname"
                 icon="user"
-                placeholder="昵称"
+                :placeholder="$t('auth.nicknamePlaceholder')"
                 autocomplete="nickname"
               />
             </div>
             <div class="auth__field">
-              <label class="auth__label" for="reg-email">邮箱</label>
+              <label class="auth__label" for="reg-email">{{ $t('auth.email') }}</label>
               <NInput
                 id="reg-email"
                 v-model="email"
                 type="email"
                 icon="mail"
-                placeholder="邮箱"
+                :placeholder="$t('auth.emailPlaceholder')"
                 autocomplete="email"
               />
             </div>
             <div class="auth__field">
-              <label class="auth__label" for="reg-code">邮箱验证码</label>
+              <label class="auth__label" for="reg-code">{{ $t('auth.emailCode') }}</label>
               <div class="auth__code">
                 <NInput
                   id="reg-code"
                   v-model="verificationCode"
                   icon="shield-check"
-                  placeholder="验证码"
+                  :placeholder="$t('auth.emailCodePlaceholder')"
                   maxlength="6"
                 />
                 <NButton
@@ -131,24 +131,24 @@
             <!-- 密码与确认密码并排，避免注册面板被撑得过高 -->
             <div class="auth__row">
               <div class="auth__field">
-                <label class="auth__label" for="reg-password">密码</label>
+                <label class="auth__label" for="reg-password">{{ $t('auth.password') }}</label>
                 <NInput
                   id="reg-password"
                   v-model="password"
                   type="password"
                   icon="lock"
-                  placeholder="至少 6 位"
+                  :placeholder="$t('auth.passwordHint')"
                   autocomplete="new-password"
                 />
               </div>
               <div class="auth__field">
-                <label class="auth__label" for="reg-confirm">确认密码</label>
+                <label class="auth__label" for="reg-confirm">{{ $t('auth.confirmPassword') }}</label>
                 <NInput
                   id="reg-confirm"
                   v-model="confirmPassword"
                   type="password"
                   icon="lock"
-                  placeholder="再次输入"
+                  :placeholder="$t('auth.confirmPlaceholder')"
                   autocomplete="new-password"
                 />
               </div>
@@ -157,13 +157,13 @@
             <p class="auth__error" role="alert">{{ regError || '\u00A0' }}</p>
 
             <NButton type="submit" variant="primary" size="lg" block :loading="loading">
-              注册
+              {{ $t('auth.tabRegister') }}
             </NButton>
           </form>
 
           <div v-if="activeTab === 'login'" class="auth__aux">
             <RouterLink to="/forgot-password" class="auth__link" @click="emit('close')">
-              忘记密码？
+              {{ $t('auth.forgotPassword') }}
             </RouterLink>
           </div>
         </section>
@@ -180,16 +180,16 @@
         @click.self="closeCaptchaModal"
       >
         <div class="captcha-modal-card" role="dialog" aria-modal="true" aria-labelledby="captcha-modal-title" @click.stop>
-          <button type="button" class="captcha-modal-close" aria-label="关闭" @click="closeCaptchaModal">
+          <button type="button" class="captcha-modal-close" :aria-label="$t('auth.close')" @click="closeCaptchaModal">
             <NIcon name="close" :size="18" />
           </button>
-          <h3 id="captcha-modal-title" class="captcha-modal-title">安全验证</h3>
-          <p class="captcha-modal-desc">请拖动下方滑轨对齐拼图，验证通过后将向你的邮箱发送验证码。</p>
+          <h3 id="captcha-modal-title" class="captcha-modal-title">{{ $t('auth.captchaLabel') }}</h3>
+          <p class="captcha-modal-desc">{{ $t('auth.captchaDesc') }}</p>
           <div class="form-group slider-block captcha-modal-slider">
-            <p v-if="captchaLoading" class="slider-status">正在加载拼图…</p>
+            <p v-if="captchaLoading" class="slider-status">{{ $t('auth.captchaLoading') }}</p>
             <div v-else-if="captchaError" class="slider-status slider-error">
               {{ captchaError }}
-              <button type="button" class="slider-retry" @click="loadSliderCaptcha">重试</button>
+              <button type="button" class="slider-retry" @click="loadSliderCaptcha">{{ $t('common.retry') }}</button>
             </div>
             <template v-else>
               <div class="slider-challenge-panel">
@@ -224,7 +224,7 @@
                       class="slider-rail-thumb"
                       :disabled="slideState === 'checking'"
                       :style="{ width: railThumbW + 'px', left: thumbDisplayX + 'px' }"
-                      aria-label="拖动滑块完成验证"
+                      :aria-label="$t('auth.captchaSlideAria')"
                       @pointerdown.stop.prevent="onThumbPointerDown"
                     >
                       <span v-if="slideState === 'checking'" class="slider-thumb-spinner" aria-hidden="true" />
@@ -242,7 +242,7 @@
                     :disabled="slideState === 'checking'"
                     @click="loadSliderCaptcha"
                   >
-                    换一张
+                    {{ $t('auth.captchaSwap') }}
                   </button>
                 </div>
               </div>
@@ -277,6 +277,7 @@ import NIcon from '@/icons/NIcon.vue'
 import { NButton, NInput } from '@/ui'
 import { useToast } from '@/composables/useToast'
 import { setUser } from '@/utils/userStore.js'
+import { t } from '@/i18n'
 
 const emit = defineEmits(['authenticated', 'close'])
 
@@ -335,7 +336,7 @@ function applyLogin(token, user) {
       })
     )
   }
-  toast.success('登录成功')
+  toast.success(t('auth.loginSuccess'))
   emit('authenticated')
 }
 
@@ -344,11 +345,11 @@ async function handleLogin() {
   loginError.value = ''
 
   if (!loginEmail.value.trim()) {
-    loginError.value = '请输入邮箱'
+    loginError.value = t('auth.needEmail')
     return
   }
   if (!loginPassword.value) {
-    loginError.value = '请输入密码'
+    loginError.value = t('auth.needPassword')
     return
   }
 
@@ -362,12 +363,12 @@ async function handleLogin() {
     if (response.data.success) {
       applyLogin(response.data.data.token, response.data.data.user)
     } else {
-      loginError.value = response.data.message || '登录失败'
+      loginError.value = response.data.message || t('auth.loginFailed')
       toast.error(loginError.value)
     }
   } catch (err) {
     console.error('登录失败:', err)
-    loginError.value = err.response ? err.response.data.message || '登录失败' : '网络错误，请检查服务器连接'
+    loginError.value = err.response ? err.response.data.message || t('auth.loginFailed') : t('common.networkError')
     toast.error(loginError.value)
   } finally {
     loginLoading.value = false
@@ -396,17 +397,17 @@ let qrDeliveryKey = ''
 const qrStatusText = computed(() => {
   switch (qrStatus.value) {
     case 'loading':
-      return '正在生成二维码…'
+      return t('auth.qrGenerating')
     case 'pending':
-      return '正在等待扫码…'
+      return t('auth.qrWaiting')
     case 'scanned':
-      return '已扫码，请在手机上确认'
+      return t('auth.qrScanned')
     case 'canceled':
-      return '已在手机上取消登录'
+      return t('auth.qrCanceled')
     case 'expired':
-      return '二维码已过期，请刷新'
+      return t('auth.qrExpired')
     case 'failed':
-      return '二维码加载失败，请重试'
+      return t('auth.qrLoadFailed')
     default:
       return ''
   }
@@ -449,7 +450,7 @@ async function startQrLogin() {
 
     const payload = response.data?.data
     if (!response.data?.success || !payload?.sessionId || !payload?.qrImage || !payload?.deliveryKey) {
-      throw new Error(response.data?.message || '二维码生成失败')
+      throw new Error(response.data?.message || t('auth.qrCreateFailed'))
     }
 
     qrDeliveryKey = payload.deliveryKey
@@ -609,17 +610,19 @@ const thumbDisplayX = computed(() => {
 const slideStatusText = computed(() => {
   switch (slideState.value) {
     case 'checking':
-      return codeSending.value ? '正在发送验证码…' : '正在校验，请稍候…'
+      return codeSending.value ? t('auth.captchaSending') : t('auth.captchaVerifying')
     case 'fail':
-      return '未对齐，已为你换新题'
+      return t('auth.captchaMismatch')
     case 'dragging':
-      return '松开手指完成校验'
+      return t('auth.captchaRelease')
     default:
-      return '拖动下方滑轨对齐拼图，松开即可完成校验'
+      return t('auth.captchaDragHint')
   }
 })
 
-const codeBtnText = computed(() => (countdown.value > 0 ? `${countdown.value}秒后重发` : '获取验证码'))
+const codeBtnText = computed(() =>
+  countdown.value > 0 ? t('auth.codeResendIn', { seconds: countdown.value }) : t('auth.getCode')
+)
 
 function setSliderXFromThumbLeft(leftPx) {
   const tm = thumbMaxTravel.value
@@ -673,7 +676,7 @@ async function scheduleSlideVerify() {
     captchaPassToken.value = ''
     slideState.value = 'fail'
     shakeActive.value = true
-    toast.error(data.message || '验证未通过')
+    toast.error(data.message || t('auth.captchaNotPassed'))
     setTimeout(() => {
       shakeActive.value = false
     }, 480)
@@ -688,7 +691,7 @@ async function scheduleSlideVerify() {
     captchaPassToken.value = ''
     slideState.value = 'fail'
     shakeActive.value = true
-    toast.error(err.response?.data?.message || '校验请求失败，请重试')
+    toast.error(err.response?.data?.message || t('auth.captchaFailed'))
     setTimeout(() => {
       shakeActive.value = false
     }, 480)
@@ -765,7 +768,7 @@ async function loadSliderCaptcha() {
   try {
     const { data } = await axios.get(`${API_CONFIG.BASE_URL}/api/captcha/slider`)
     if (!data.success || !data.data) {
-      captchaError.value = data.message || '加载失败'
+      captchaError.value = data.message || t('auth.captchaLoadFailed')
       return
     }
     const d = data.data
@@ -778,12 +781,12 @@ async function loadSliderCaptcha() {
     bgImageUrl.value = d.bgImage || ''
     sliderImageUrl.value = d.sliderImage || ''
     if (!captchaToken.value || !bgImageUrl.value || !sliderImageUrl.value) {
-      captchaError.value = '验证码数据不完整'
+      captchaError.value = t('auth.captchaIncomplete')
     }
   } catch (err) {
     console.error(err)
     // 被来源限流时服务端会带 429 + 说明，直接透出比笼统的「网络错误」更有用
-    captchaError.value = err.response?.data?.message || '网络错误，无法加载安全验证'
+    captchaError.value = err.response?.data?.message || t('auth.captchaNetworkFailed')
   } finally {
     captchaLoading.value = false
   }
@@ -808,20 +811,20 @@ async function sendVerificationWithCaptcha() {
   try {
     const response = await axios.post(`${API_CONFIG.BASE_URL}/api/user/send-verification`, {
       email: email.value,
-      nickname: nickname.value || '用户',
+      nickname: nickname.value || t('common.user'),
       captchaPassToken: token,
     })
     if (response.data.success) {
-      toast.success('验证码已发送至您的邮箱')
+      toast.success(t('auth.codeSent'))
       closeCaptchaModal()
       startCountdown()
     } else {
-      toast.error(response.data.message || '发送验证码失败')
+      toast.error(response.data.message || t('auth.codeSendFailed'))
       await loadSliderCaptcha()
     }
   } catch (error) {
     console.error('发送验证码失败:', error)
-    toast.error(error.response ? error.response.data?.message || '发送验证码失败' : '网络错误，请检查服务器连接')
+    toast.error(error.response ? error.response.data?.message || t('auth.codeSendFailed') : t('common.networkError'))
     await loadSliderCaptcha()
   } finally {
     codeSending.value = false
@@ -831,12 +834,12 @@ async function sendVerificationWithCaptcha() {
 
 function sendVerificationCode() {
   if (!email.value) {
-    toast.error('请先输入邮箱地址')
+    toast.error(t('auth.needEmailFirst'))
     return
   }
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   if (!emailRegex.test(email.value)) {
-    toast.error('请输入有效的邮箱地址')
+    toast.error(t('auth.invalidEmail'))
     return
   }
   if (countdown.value > 0 || codeSending.value) return
@@ -856,23 +859,23 @@ async function handleRegister() {
   regError.value = ''
 
   if (!nickname.value.trim()) {
-    regError.value = '请输入昵称'
+    regError.value = t('auth.needNickname')
     return
   }
   if (!email.value.trim()) {
-    regError.value = '请输入邮箱'
+    regError.value = t('auth.needEmail')
     return
   }
   if (!verificationCode.value.trim()) {
-    regError.value = '请输入验证码'
+    regError.value = t('auth.needCode')
     return
   }
   if (password.value.length < 6) {
-    regError.value = '密码至少 6 位'
+    regError.value = t('auth.passwordTooShort')
     return
   }
   if (password.value !== confirmPassword.value) {
-    regError.value = '两次输入的密码不一致'
+    regError.value = t('auth.passwordMismatch')
     toast.error(regError.value)
     return
   }
@@ -887,16 +890,16 @@ async function handleRegister() {
     })
 
     if (response.data.success) {
-      toast.success('注册成功！请登录您的账户。')
+      toast.success(t('auth.registerSuccess'))
       loginEmail.value = email.value
       switchTab('login')
     } else {
-      regError.value = response.data.message || '注册失败'
+      regError.value = response.data.message || t('auth.registerFailed')
       toast.error(regError.value)
     }
   } catch (error) {
     console.error('注册失败:', error)
-    regError.value = error.response ? error.response.data.message || '注册失败' : '网络错误，请检查服务器连接'
+    regError.value = error.response ? error.response.data.message || t('auth.registerFailed') : t('common.networkError')
     toast.error(regError.value)
   } finally {
     loading.value = false

@@ -1,4 +1,5 @@
 import API_CONFIG from '@/config/apiConfig.js'
+import { t } from '@/i18n'
 
 function getUserToken() {
   return localStorage.getItem('userToken') || ''
@@ -24,7 +25,7 @@ async function parseJson(res) {
 export async function createVideoRenderJob(musicId, startSec = 0, watermarked = true) {
   const token = getUserToken()
   if (!token) {
-    throw new Error('请先登录')
+    throw new Error(t('common.needLogin'))
   }
   const res = await fetch(`${API_CONFIG.BASE_URL}/api/video/render/create`, {
     method: 'POST',
@@ -33,7 +34,7 @@ export async function createVideoRenderJob(musicId, startSec = 0, watermarked = 
   })
   const data = await parseJson(res)
   if (!res.ok || !data.success) {
-    throw new Error(data.message || `创建任务失败 (${res.status})`)
+    throw new Error(data.message || t('api.createJobFailed', { status: res.status }))
   }
   return data.data || {}
 }
@@ -42,7 +43,7 @@ export async function createVideoRenderJob(musicId, startSec = 0, watermarked = 
 export async function fetchVideoRenderStatus(jobId) {
   const token = getUserToken()
   if (!token) {
-    throw new Error('请先登录')
+    throw new Error(t('common.needLogin'))
   }
   const res = await fetch(`${API_CONFIG.BASE_URL}/api/video/render/${jobId}`, {
     method: 'GET',
@@ -50,7 +51,7 @@ export async function fetchVideoRenderStatus(jobId) {
   })
   const data = await parseJson(res)
   if (!res.ok || !data.success) {
-    throw new Error(data.message || `查询失败 (${res.status})`)
+    throw new Error(data.message || t('api.queryFailed', { status: res.status }))
   }
   return data.data || {}
 }
@@ -66,7 +67,7 @@ export async function downloadVideoRenderFile(jobId, filename) {
   })
   if (!res.ok) {
     const data = await parseJson(res)
-    throw new Error(data.message || `下载失败 (${res.status})`)
+    throw new Error(data.message || t('api.downloadFailed', { status: res.status }))
   }
   const blob = await res.blob()
   const url = window.URL.createObjectURL(blob)

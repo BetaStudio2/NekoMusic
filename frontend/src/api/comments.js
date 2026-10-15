@@ -1,4 +1,5 @@
 import API_CONFIG from '@/config/apiConfig.js'
+import { t } from '@/i18n'
 
 /**
  * 歌曲评论 API
@@ -24,7 +25,7 @@ async function request(url, options = {}) {
     body = null
   }
   if (!response.ok || (body && body.success === false)) {
-    throw new Error((body && body.message) || `请求失败（${response.status}）`)
+    throw new Error((body && body.message) || t('api.requestFailed', { status: response.status }))
   }
   return body
 }

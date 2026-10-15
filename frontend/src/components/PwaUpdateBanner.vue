@@ -19,9 +19,9 @@ const dismissed = ref(false)
   <Transition name="pwa-up">
     <div v-if="needRefresh && !dismissed" class="pwa-up" role="status" aria-live="polite">
       <span class="pwa-up__icon" aria-hidden="true"><NIcon name="refresh" :size="15" /></span>
-      <span class="pwa-up__text">发现新版本</span>
-      <button type="button" class="pwa-up__action" @click="applyUpdate">立即刷新</button>
-      <button type="button" class="pwa-up__close" aria-label="稍后" @click="dismissed = true">
+      <span class="pwa-up__text">{{ $t('pwa.updateAvailable') }}</span>
+      <button type="button" class="pwa-up__action" @click="applyUpdate">{{ $t('pwa.refreshNow') }}</button>
+      <button type="button" class="pwa-up__close" :aria-label="$t('pwa.later')" @click="dismissed = true">
         <NIcon name="close" :size="14" />
       </button>
     </div>

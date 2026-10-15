@@ -32,7 +32,7 @@ import {
   HeartOff,
   Crown, Gem, BadgeCheck, Award, Trophy, TrendingUp, TrendingDown, ChartNoAxesColumn, Activity,
   // 主题 / 展示
-  Sun, Moon, Monitor, Eye, EyeOff, Palette, LayoutGrid, LayoutList, Menu,
+  Sun, Moon, Monitor, Eye, EyeOff, Palette, LayoutGrid, LayoutList, Menu, Languages,
   PanelLeft, PanelRight, Table, Grid3x3, GalleryHorizontal, Rows3,
   Video, Clapperboard,
   // 时间 / 位置
@@ -195,6 +195,7 @@ export const icons = {
   eye: Eye,
   'eye-off': EyeOff,
   palette: Palette,
+  languages: Languages,
   'layout-grid': LayoutGrid,
   'layout-list': LayoutList,
   menu: Menu,

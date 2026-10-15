@@ -96,7 +96,7 @@ const currentMs = computed(() => toMs(props.currentTime))
     />
     <div v-else class="wall__empty">
       <NIcon name="file-text" :size="24" />
-      <p>暂无歌词</p>
+      <p>{{ $t('ui.noLyrics') }}</p>
     </div>
   </div>
 </template>

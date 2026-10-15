@@ -53,12 +53,12 @@ function dismiss() {
       class="mab"
       :class="`mab--${variant}`"
       role="region"
-      aria-label="下载 APP 提示"
+      :aria-label="$t('mobileApp.aria')"
     >
       <NIcon name="download" :size="16" class="mab__icon" />
-      <span class="mab__text">下载 APP 体验更好</span>
-      <RouterLink to="/download" class="mab__btn">立即下载</RouterLink>
-      <button type="button" class="mab__close" aria-label="关闭提示" @click="dismiss">
+      <span class="mab__text">{{ $t('mobileApp.text') }}</span>
+      <RouterLink to="/download" class="mab__btn">{{ $t('mobileApp.download') }}</RouterLink>
+      <button type="button" class="mab__close" :aria-label="$t('mobileApp.closeAria')" @click="dismiss">
         <NIcon name="close" :size="16" />
       </button>
     </div>

@@ -12,7 +12,7 @@
           icon="arrow-left"
           @click="goBack"
         >
-          返回
+          {{ $t('playlistDetail.back') }}
         </NButton>
 
         <div class="hero__main">
@@ -28,11 +28,11 @@
             />
           </div>
           <div class="hero__text">
-            <h1 class="hero__title">{{ playlist?.name || '歌单' }}</h1>
+            <h1 class="hero__title">{{ playlist?.name || $t('playlistDetail.fallbackName') }}</h1>
             <p v-if="playlist?.description" class="hero__desc">{{ playlist.description }}</p>
             <p class="hero__meta">
               <NIcon name="music" :size="14" />
-              {{ playlist?.musicCount ?? 0 }} 首
+              {{ $t('track.songCount', { count: playlist?.musicCount ?? 0 }) }}
             </p>
           </div>
         </div>
@@ -44,10 +44,10 @@
             icon="play"
             @click="playAll"
           >
-            播放全部
+            {{ $t('track.playAll') }}
           </NButton>
           <NButton v-if="isOwner" variant="secondary" icon="plus" @click="showAddMusicDialog">
-            添加音乐
+            {{ $t('playlistDetail.addMusic') }}
           </NButton>
         </div>
       </section>
@@ -88,7 +88,7 @@
             size="sm"
             variant="danger"
             icon="trash-2"
-            title="从歌单移除"
+            :title="$t('playlistDetail.removeFromPlaylist')"
             @click="removeMusic(music.id)"
           />
         </article>
@@ -97,23 +97,23 @@
       <!-- 空状态 -->
       <NCard v-else pad="lg" class="empty">
         <span class="empty__icon"><NIcon name="list-music" :size="26" /></span>
-        <h2 class="empty__title">歌单暂无音乐</h2>
+        <h2 class="empty__title">{{ $t('playlistDetail.emptyTitle') }}</h2>
         <p class="empty__text">
-          <template v-if="isOwner">点击「添加音乐」搜索并加入曲目。</template>
-          <template v-else>该歌单还没有添加曲目。</template>
+          <template v-if="isOwner">{{ $t('playlistDetail.emptyOwner') }}</template>
+          <template v-else>{{ $t('playlistDetail.emptyOther') }}</template>
         </p>
         <NButton v-if="isOwner" variant="primary" icon="plus" @click="showAddMusicDialog">
-          添加音乐
+          {{ $t('playlistDetail.addMusic') }}
         </NButton>
       </NCard>
     </PageShell>
 
     <!-- 添加音乐 -->
-    <NModal v-model="showAddMusic" title="添加音乐" size="md" @close="closeAddMusicDialog">
+    <NModal v-model="showAddMusic" :title="$t('playlistDetail.addMusic')" size="md" @close="closeAddMusicDialog">
       <NInput
         v-model="searchQuery"
         icon="search"
-        placeholder="搜索曲名或艺人…"
+        :placeholder="$t('playlistDetail.searchPlaceholder')"
         autocomplete="off"
         clearable
         @update:model-value="handleSearch"
@@ -145,11 +145,11 @@
             </span>
             <span class="results__artist">{{ music.artist }}</span>
           </span>
-          <span class="results__add"><NIcon name="plus" :size="14" />加入</span>
+          <span class="results__add"><NIcon name="plus" :size="14" />{{ $t('playlistDetail.join') }}</span>
         </button>
       </div>
-      <p v-else-if="searchQuery.trim()" class="results__empty">未找到相关音乐</p>
-      <p v-else class="results__empty">输入关键词开始搜索</p>
+      <p v-else-if="searchQuery.trim()" class="results__empty">{{ $t('playlistDetail.noResults') }}</p>
+      <p v-else class="results__empty">{{ $t('playlistDetail.searchHint') }}</p>
     </NModal>
   </div>
 </template>
@@ -168,6 +168,7 @@ import NowPlayingTag from '@/components/NowPlayingTag.vue'
 import { tryOpenPlaylistInApp } from '@/utils/nativeAppOpen.js'
 import { getUser } from '@/utils/userStore.js'
 import { coverSrcset } from '@/utils/coverImage'
+import { t } from '@/i18n'
 import { avatarUrl } from '@/utils/userAvatar.js'
 
 const toast = useToast()
@@ -213,11 +214,11 @@ const fetchPlaylistDetail = async () => {
         playlist.value.musicCount = data.total
       }
     } else {
-      toast.error(data.message || '获取歌单详情失败')
+      toast.error(data.message || t('playlistDetail.loadFailed'))
     }
   } catch (error) {
     console.error('获取歌单详情失败:', error)
-    toast.error('获取歌单详情失败')
+    toast.error(t('playlistDetail.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -235,7 +236,7 @@ const fetchPlaylistInfo = async () => {
       playlist.value = data.playlist
     } else {
       console.warn('未找到歌单:', playlistId.value)
-      toast.error('歌单不存在')
+      toast.error(t('playlistDetail.notFound'))
     }
   } catch (error) {
     console.error('获取歌单信息失败:', error)
@@ -259,12 +260,12 @@ const playMusic = (music) => {
 
 const playAll = () => {
   if (musicList.value.length === 0) {
-    toast.warning('歌单为空')
+    toast.warning(t('playlistDetail.emptyWarning'))
     return
   }
 
   playTracks(musicList.value.map(toTrack), 0)
-  toast.success(`已开始播放全部 ${musicList.value.length} 首歌曲`)
+  toast.success(t('playlistDetail.playAllStarted', { count: musicList.value.length }))
 }
 
 const formatDuration = (seconds) => {
@@ -352,20 +353,20 @@ const addMusicToPlaylist = async (music) => {
     
     const data = await response.json()
     if (data.success) {
-      toast.success('音乐添加成功')
+      toast.success(t('playlistDetail.addSuccess'))
       closeAddMusicDialog()
       await fetchPlaylistDetail()
     } else {
-      toast.error(data.message || '添加音乐失败')
+      toast.error(data.message || t('playlistDetail.addFailed'))
     }
   } catch (error) {
     console.error('添加音乐失败:', error)
-    toast.error('添加音乐失败')
+    toast.error(t('playlistDetail.addFailed'))
   }
 }
 
 const removeMusic = async (musicId) => {
-  if (!confirm('确定要移除这首音乐吗？')) return
+  if (!confirm(t('playlistDetail.removeConfirm'))) return
   
   try {
     const token = getToken()
@@ -383,14 +384,14 @@ const removeMusic = async (musicId) => {
     
     const data = await response.json()
     if (data.success) {
-      toast.success('音乐移除成功')
+      toast.success(t('playlistDetail.removeSuccess'))
       await fetchPlaylistDetail()
     } else {
-      toast.error(data.message || '移除音乐失败')
+      toast.error(data.message || t('playlistDetail.removeFailed'))
     }
   } catch (error) {
     console.error('移除音乐失败:', error)
-    toast.error('移除音乐失败')
+    toast.error(t('playlistDetail.removeFailed'))
   }
 }
 
@@ -399,7 +400,7 @@ const editPlaylist = () => {
 }
 
 const confirmDelete = () => {
-  if (!confirm(`确定要删除歌单"${playlist.value?.name}"吗？此操作不可恢复。`)) return
+  if (!confirm(t('playlistDetail.deleteConfirm', { name: playlist.value?.name }))) return
   
   router.push(`/playlists`)
 }

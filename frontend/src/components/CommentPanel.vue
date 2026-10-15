@@ -14,6 +14,7 @@ import { useAuth } from '@/composables/useAuth'
 import { openAuthDialog } from '@/composables/useAuthDialog'
 import { useToast } from '@/composables/useToast'
 import { deleteComment, fetchComments, postComment } from '@/api/comments'
+import { t } from '@/i18n'
 
 const props = defineProps({
   musicId: { type: [Number, String], required: true },
@@ -53,10 +54,10 @@ function formatTime(value) {
   const date = new Date(String(value).replace(' ', 'T'))
   if (Number.isNaN(date.getTime())) return value
   const diff = Math.floor((Date.now() - date.getTime()) / 1000)
-  if (diff < 60) return '刚刚'
-  if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`
-  if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`
-  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)} 天前`
+  if (diff < 60) return t('time.justNow')
+  if (diff < 3600) return t('time.minutesAgo', { count: Math.floor(diff / 60) })
+  if (diff < 86400) return t('time.hoursAgo', { count: Math.floor(diff / 3600) })
+  if (diff < 86400 * 7) return t('time.daysAgo', { count: Math.floor(diff / 86400) })
   const pad = (n) => String(n).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
@@ -82,7 +83,7 @@ async function load(reset = true) {
     page.value = targetPage
     applyPage(data, !reset)
   } catch (e) {
-    toast.error(e.message || '评论加载失败')
+    toast.error(e.message || t('comment.loadFailed'))
   } finally {
     loading.value = false
     loadingMore.value = false
@@ -136,31 +137,31 @@ async function submit() {
     content.value = ''
     replyTarget.value = null
     await load(true)
-    toast.success('发表成功')
+    toast.success(t('comment.postSuccess'))
   } catch (e) {
-    toast.error(e.message || '发表失败')
+    toast.error(e.message || t('comment.postFailed'))
   } finally {
     submitting.value = false
   }
 }
 
 async function remove(comment) {
-  if (typeof window !== 'undefined' && !window.confirm('确定删除这条评论吗？')) return
+  if (typeof window !== 'undefined' && !window.confirm(t('comment.deleteConfirm'))) return
   try {
     await deleteComment(comment.id)
     await load(true)
-    toast.success('已删除')
+    toast.success(t('comment.deleted'))
   } catch (e) {
-    toast.error(e.message || '删除失败')
+    toast.error(e.message || t('comment.deleteFailed'))
   }
 }
 </script>
 
 <template>
-  <section class="cmt" aria-label="歌曲评论">
+  <section class="cmt" :aria-label="$t('comment.sectionAria')">
     <header class="cmt__head">
       <h2 class="cmt__title">
-        评论
+        {{ $t('comment.title') }}
         <span class="cmt__count">{{ commentTotal }}</span>
       </h2>
     </header>
@@ -170,8 +171,8 @@ async function remove(comment) {
         <Transition name="cmt-chip">
           <div v-if="replyTarget" class="cmt__reply-chip">
             <NIcon name="corner-down-left" :size="14" />
-            <span class="cmt__reply-name">回复 @{{ replyTarget.nickname || '该用户' }}</span>
-            <button type="button" class="cmt__reply-cancel" aria-label="取消回复" @click="cancelReply">
+            <span class="cmt__reply-name">{{ $t('comment.replyToName', { name: replyTarget.nickname || $t('common.unknownUser') }) }}</span>
+            <button type="button" class="cmt__reply-cancel" :aria-label="$t('comment.cancelReply')" @click="cancelReply">
               <NIcon name="close" :size="14" />
             </button>
           </div>
@@ -181,7 +182,7 @@ async function remove(comment) {
           v-model="content"
           class="cmt__input"
           :maxlength="MAX_LENGTH"
-          :placeholder="replyTarget ? `回复 @${replyTarget.nickname || ''}` : '说点什么吧…'"
+          :placeholder="replyTarget ? $t('comment.replyPlaceholder', { name: replyTarget.nickname || '' }) : $t('comment.commentPlaceholder')"
           rows="3"
           @keydown.ctrl.enter="submit"
           @keydown.meta.enter="submit"
@@ -189,26 +190,26 @@ async function remove(comment) {
         <div class="cmt__composer-foot">
           <span class="cmt__counter" :class="{ 'is-low': remaining < 30 }">{{ content.length }}/{{ MAX_LENGTH }}</span>
           <NButton size="sm" variant="primary" icon="send" :loading="submitting" :disabled="!canSubmit" @click="submit">
-            {{ replyTarget ? '回复' : '发表' }}
+            {{ replyTarget ? $t('comment.reply') : $t('comment.post') }}
           </NButton>
         </div>
       </template>
       <div v-else class="cmt__login">
-        <p>登录后即可发表评论与回复</p>
-        <NButton size="sm" variant="primary" icon="login" @click="openAuthDialog()">登录 / 注册</NButton>
+        <p>{{ $t('comment.loginHint') }}</p>
+        <NButton size="sm" variant="primary" icon="login" @click="openAuthDialog()">{{ $t('common.loginRegister') }}</NButton>
       </div>
     </div>
 
     <div class="cmt__list">
-      <p v-if="loading" class="cmt__state">评论加载中…</p>
-      <p v-else-if="!floors.length" class="cmt__state">还没有评论，来抢沙发吧</p>
+      <p v-if="loading" class="cmt__state">{{ $t('comment.loading') }}</p>
+      <p v-else-if="!floors.length" class="cmt__state">{{ $t('comment.empty') }}</p>
 
       <article v-for="floor in floors" :key="floor.id" class="cmt__floor">
         <div class="cmt__row">
           <img class="cmt__avatar" :src="userAvatar(floor.user?.id)" :alt="floor.user?.nickname" loading="lazy" />
           <div class="cmt__main">
             <div class="cmt__meta">
-              <span class="cmt__nick">{{ floor.user?.nickname || '未知用户' }}</span>
+              <span class="cmt__nick">{{ floor.user?.nickname || $t('common.unknownUser') }}</span>
               <time class="cmt__time" :title="floor.createdAt">{{ formatTime(floor.createdAt) }}</time>
               <span v-if="floor.ipRegion" class="cmt__ip">
                 <NIcon name="map-pin" :size="12" />
@@ -219,7 +220,7 @@ async function remove(comment) {
             <div class="cmt__actions">
               <button type="button" class="cmt__action" @click="startReply(floor)">
                 <NIcon name="corner-down-left" :size="13" />
-                回复
+                {{ $t('comment.replyAction') }}
               </button>
               <button
                 v-if="floor.canDelete"
@@ -228,7 +229,7 @@ async function remove(comment) {
                 @click="remove(floor)"
               >
                 <NIcon name="trash" :size="13" />
-                删除
+                {{ $t('comment.delete') }}
               </button>
             </div>
           </div>
@@ -239,7 +240,7 @@ async function remove(comment) {
             <img class="cmt__avatar cmt__avatar--sm" :src="userAvatar(reply.user?.id)" :alt="reply.user?.nickname" loading="lazy" />
             <div class="cmt__main">
               <div class="cmt__meta">
-                <span class="cmt__nick">{{ reply.user?.nickname || '未知用户' }}</span>
+                <span class="cmt__nick">{{ reply.user?.nickname || $t('common.unknownUser') }}</span>
                 <span v-if="reply.replyToUser" class="cmt__at">
                   <NIcon name="corner-down-left" :size="12" />
                   {{ reply.replyToUser.nickname }}
@@ -254,7 +255,7 @@ async function remove(comment) {
               <div class="cmt__actions">
                 <button type="button" class="cmt__action" @click="startReply(floor, reply)">
                   <NIcon name="corner-down-left" :size="13" />
-                  回复
+                  {{ $t('comment.replyAction') }}
                 </button>
                 <button
                   v-if="reply.canDelete"
@@ -263,7 +264,7 @@ async function remove(comment) {
                   @click="remove(reply)"
                 >
                   <NIcon name="trash" :size="13" />
-                  删除
+                  {{ $t('comment.delete') }}
                 </button>
               </div>
             </div>
@@ -272,9 +273,9 @@ async function remove(comment) {
       </article>
 
       <div v-if="hasMore" class="cmt__more">
-        <NButton size="sm" variant="secondary" :loading="loadingMore" @click="load(false)">加载更多</NButton>
+        <NButton size="sm" variant="secondary" :loading="loadingMore" @click="load(false)">{{ $t('comment.loadMore') }}</NButton>
       </div>
-      <p v-else-if="floors.length && floorTotal > 0" class="cmt__state cmt__state--end">已显示全部评论</p>
+      <p v-else-if="floors.length && floorTotal > 0" class="cmt__state cmt__state--end">{{ $t('comment.allLoaded') }}</p>
     </div>
   </section>
 </template>

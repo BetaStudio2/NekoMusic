@@ -10,7 +10,7 @@
             <img
               v-if="!avatarBroken"
               :src="userAvatarUrl"
-              alt="头像"
+              :alt="$t('nav.avatarAlt')"
               referrerpolicy="no-referrer"
               @error="avatarBroken = true"
             />
@@ -20,19 +20,19 @@
             <div class="vip__userline">
               <span class="vip__nickname">{{ displayName }}</span>
               <span :class="['vip__badge', user.isVip ? 'vip__badge--on' : 'vip__badge--off']">
-                {{ user.isVip ? '会员' : '未开通' }}
+                {{ user.isVip ? $t('vip.member') : $t('vip.notOpened') }}
               </span>
             </div>
             <p class="vip__expires">
               <NIcon name="calendar" :size="14" />
-              到期 {{ formatVipExpiresAt(user.vipExpiresAt) }} · UTC+8
+              {{ $t('vip.expiresAt', { date: formatVipExpiresAt(user.vipExpiresAt) }) }}
             </p>
           </div>
         </div>
 
         <NCard pad="lg" class="vip__plans">
-          <h1 class="vip__heading">会员套餐</h1>
-          <p class="vip__tagline">开通会员，畅享高品质音乐与更多权益</p>
+          <h1 class="vip__heading">{{ $t('vip.heading') }}</h1>
+          <p class="vip__tagline">{{ $t('vip.tagline') }}</p>
 
           <div v-if="pricingLoading" class="plans" aria-busy="true">
             <div class="plan plan--skel" />
@@ -56,35 +56,35 @@
               >
                 <span class="plan__name">{{ formatPlanDuration(row.months, row.days) }}</span>
                 <span class="plan__price"><span class="plan__yen">¥</span>{{ formatYuan(row.priceYuan) }}</span>
-                <span class="plan__meta">{{ pricePerDayLine(row) || '所选时长权益' }}</span>
+                <span class="plan__meta">{{ pricePerDayLine(row) || $t('vip.planMetaFallback') }}</span>
               </button>
             </div>
 
             <p class="vip__terms">
               <NIcon name="info" :size="14" />
-              支付成功后会员时长将按套餐叠加；请在常用网络环境下完成支付。若有疑问请联系管理员。
+              {{ $t('vip.paymentNote') }}
             </p>
           </template>
 
           <div v-else class="vip__empty">
             <NIcon name="gem" :size="24" />
-            <p>暂无在售套餐</p>
-            <p class="vip__empty-sub">请稍后再试或联系管理员维护价目表。</p>
+            <p>{{ $t('vip.emptyPlans') }}</p>
+            <p class="vip__empty-sub">{{ $t('vip.emptySub') }}</p>
           </div>
         </NCard>
 
         <div class="vip__links">
-          <RouterLink to="/account">个人中心</RouterLink>
+          <RouterLink to="/account">{{ $t('nav.account') }}</RouterLink>
           <span aria-hidden="true">·</span>
-          <RouterLink to="/">返回首页</RouterLink>
+          <RouterLink to="/">{{ $t('common.backHome') }}</RouterLink>
         </div>
       </div>
 
       <!-- 右：结算 -->
-      <aside class="vip__checkout" aria-label="结算与支付">
+      <aside class="vip__checkout" :aria-label="$t('vip.checkoutAria')">
         <NCard pad="lg" class="checkout">
           <template v-if="selectedPlan && pricingRows.length && !pricingLoading">
-            <p class="checkout__label">当前套餐</p>
+            <p class="checkout__label">{{ $t('vip.currentPlan') }}</p>
             <p class="checkout__dur">{{ formatPlanDuration(selectedPlan.months, selectedPlan.days) }}</p>
 
             <p class="checkout__price">
@@ -92,7 +92,7 @@
             </p>
 
             <template v-if="!payInline.visible">
-              <p class="checkout__hint">选择支付方式</p>
+              <p class="checkout__hint">{{ $t('vip.choosePayment') }}</p>
               <div class="checkout__pay">
                 <NButton
                   variant="primary"
@@ -101,7 +101,7 @@
                   :disabled="payBusyId === selectedPlan.id"
                   @click="startPay(selectedPlan, 'alipay')"
                 >
-                  {{ payBusyId === selectedPlan.id ? '请稍候…' : '支付宝' }}
+                  {{ payBusyId === selectedPlan.id ? $t('vip.pleaseWait') : $t('vip.alipay') }}
                 </NButton>
                 <NButton
                   variant="secondary"
@@ -110,27 +110,27 @@
                   :disabled="payBusyId === selectedPlan.id"
                   @click="startPay(selectedPlan, 'wxpay')"
                 >
-                  {{ payBusyId === selectedPlan.id ? '请稍候…' : '微信' }}
+                  {{ payBusyId === selectedPlan.id ? $t('vip.pleaseWait') : $t('vip.wechat') }}
                 </NButton>
               </div>
             </template>
 
             <template v-else>
               <p class="checkout__qr-title">{{ payInline.title }}</p>
-              <p class="checkout__qr-tip">请使用相机或对应 App 扫描完成支付</p>
+              <p class="checkout__qr-tip">{{ $t('vip.qrTip') }}</p>
               <div class="checkout__qr-frame">
                 <img
                   v-if="payInline.imageUrl"
                   :src="payInline.imageUrl"
                   class="checkout__qr-img"
-                  alt="支付二维码"
+                  :alt="$t('vip.qrAlt')"
                   referrerpolicy="no-referrer"
                 />
                 <img
                   v-else-if="payInline.qrDataUrl"
                   :src="payInline.qrDataUrl"
                   class="checkout__qr-img"
-                  alt="支付二维码"
+                  :alt="$t('vip.qrAlt')"
                 />
               </div>
 
@@ -142,23 +142,23 @@
                 rel="noopener noreferrer"
               >
                 <NIcon name="external-link" :size="14" />
-                浏览器打开支付
+                {{ $t('vip.openInBrowser') }}
               </a>
 
               <div class="checkout__done">
-                <NButton variant="primary" block icon="circle-check" @click="onPaidDone">我已完成支付</NButton>
-                <NButton variant="ghost" block @click="clearPayInline">更换支付方式</NButton>
+                <NButton variant="primary" block icon="circle-check" @click="onPaidDone">{{ $t('vip.paidDone') }}</NButton>
+                <NButton variant="ghost" block @click="clearPayInline">{{ $t('vip.changePayment') }}</NButton>
               </div>
             </template>
 
-            <p class="checkout__legal">支付即视为同意会员服务说明</p>
+            <p class="checkout__legal">{{ $t('vip.legal') }}</p>
           </template>
 
-          <div v-else-if="pricingLoading" class="checkout__placeholder">加载套餐中…</div>
+          <div v-else-if="pricingLoading" class="checkout__placeholder">{{ $t('vip.pricingLoading') }}</div>
           <div v-else-if="pricingError" class="checkout__placeholder checkout__placeholder--err">
-            无法加载价目
+            {{ $t('vip.pricingFailed') }}
           </div>
-          <div v-else class="checkout__placeholder">暂无可售套餐</div>
+          <div v-else class="checkout__placeholder">{{ $t('vip.noPlansOnSale') }}</div>
         </NCard>
       </aside>
     </div>
@@ -179,6 +179,7 @@ import { PageShell, AmbientBackdrop } from '@/layouts'
 import { openAuthDialog } from '@/composables/useAuthDialog'
 import { getUser } from '@/utils/userStore.js'
 import { useAuth } from '@/composables/useAuth'
+import { t } from '@/i18n'
 
 const { token: authToken } = useAuth()
 const avatarVersion = useAvatarVersion()
@@ -208,7 +209,7 @@ const displayName = computed(() => {
   if (!u) return ''
   if (u.nickname && String(u.nickname).trim()) return String(u.nickname).trim()
   if (u.email && String(u.email).trim()) return String(u.email).split('@')[0]
-  return '用户'
+  return t('common.user')
 })
 
 const userInitial = computed(() => {
@@ -270,8 +271,8 @@ function formatPlanDuration(months, days) {
   const m = Number(months) || 0
   const d = Number(days) || 0
   const parts = []
-  if (m > 0) parts.push(`${m} 个月`)
-  if (d > 0) parts.push(`${d} 天`)
+  if (m > 0) parts.push(t('vip.months', { count: m }))
+  if (d > 0) parts.push(t('vip.days', { count: d }))
   return parts.length ? parts.join(' · ') : '-'
 }
 
@@ -284,7 +285,7 @@ function pricePerDayLine(row) {
   if (d <= 0) return ''
   const x = Number(row.priceYuan)
   if (Number.isNaN(x)) return ''
-  return `约 ¥${(x / d).toFixed(2)} / 天`
+  return t('vip.perDay', { price: (x / d).toFixed(2) })
 }
 
 function formatYuan(n) {
@@ -319,7 +320,7 @@ async function showCheckoutQr(d, payLabel) {
   let qrDataUrl = ''
   if (!imageUrl) {
     if (!linkForEncode) {
-      payError.value = '未返回二维码图片或支付链接，请稍后再试。'
+      payError.value = t('vip.qrMissing')
       return
     }
     try {
@@ -330,7 +331,7 @@ async function showCheckoutQr(d, payLabel) {
         color: { dark: '#1a1a1a', light: '#ffffff' }
       })
     } catch {
-      payError.value = '二维码生成失败，请稍后再试。'
+      payError.value = t('vip.qrFailed')
       return
     }
   }
@@ -341,7 +342,7 @@ async function showCheckoutQr(d, payLabel) {
     ''
   payInline.value = {
     visible: true,
-    title: `${payLabel}扫码支付`,
+    title: t('vip.scanTitle', { label: payLabel }),
     imageUrl,
     qrDataUrl,
     browserUrl
@@ -355,10 +356,10 @@ async function startPay(row, payType) {
   payBusyId.value = row.id
   try {
     const d = await createVipPayOrder(row.id, payType)
-    const label = payType === 'wxpay' ? '微信' : '支付宝'
+    const label = payType === 'wxpay' ? t('vip.wechat') : t('vip.alipay')
     await showCheckoutQr(d, label)
   } catch (e) {
-    payError.value = e?.message || '下单失败'
+    payError.value = e?.message || t('vip.orderFailed')
   } finally {
     payBusyId.value = null
   }
@@ -372,7 +373,7 @@ async function initVipPage() {
   try {
     pricingRows.value = await fetchVipPricing()
   } catch (e) {
-    pricingError.value = e?.message || '价目加载失败'
+    pricingError.value = e?.message || t('vip.pricingLoadFailed')
   } finally {
     pricingLoading.value = false
   }

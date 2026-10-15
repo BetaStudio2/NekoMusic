@@ -4,10 +4,11 @@
  */
 import { computed } from 'vue'
 import NIcon from '@/icons/NIcon.vue'
+import { t } from '@/i18n'
 
 const props = defineProps({
   size: { type: [Number, String], default: 20 },
-  label: { type: String, default: '加载中' },
+  label: { type: String, default: () => t('ui.loading') },
   /** 是否占满父容器居中 */
   center: { type: Boolean, default: false },
 })

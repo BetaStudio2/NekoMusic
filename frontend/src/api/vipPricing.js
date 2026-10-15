@@ -1,4 +1,5 @@
 import API_CONFIG from '@/config/apiConfig.js'
+import { t } from '@/i18n'
 
 /**
  * 公开：获取 VIP 价目表
@@ -8,7 +9,7 @@ export async function fetchVipPricing() {
   const res = await fetch(`${API_CONFIG.BASE_URL}/api/vip/pricing`)
   const data = await res.json()
   if (!data.success) {
-    throw new Error(data.message || '加载价目失败')
+    throw new Error(data.message || t('api.pricingLoadFailed'))
   }
   return Array.isArray(data.data) ? data.data : []
 }
@@ -27,7 +28,7 @@ export async function fetchVipPricing() {
 export async function createVipPayOrder(pricingId, payType) {
   const token = localStorage.getItem('userToken')
   if (!token) {
-    throw new Error('请先登录')
+    throw new Error(t('common.needLogin'))
   }
   const res = await fetch(`${API_CONFIG.BASE_URL}/api/vip/pay/create`, {
     method: 'POST',
@@ -39,7 +40,7 @@ export async function createVipPayOrder(pricingId, payType) {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok || !data.success) {
-    throw new Error(data.message || `下单失败 (${res.status})`)
+    throw new Error(data.message || t('api.orderFailed', { status: res.status }))
   }
   return data.data && typeof data.data === 'object' ? data.data : {}
 }
@@ -55,7 +56,7 @@ export async function replaceVipPricing(items, adminToken) {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok || !data.success) {
-    throw new Error(data.message || `保存失败 (${res.status})`)
+    throw new Error(data.message || t('api.saveFailed', { status: res.status }))
   }
   return Array.isArray(data.data) ? data.data : []
 }

@@ -15,6 +15,7 @@ import { useToast } from '@/composables/useToast'
 import { playTracks, playTrackInList, isCurrentMusic } from '@/composables/usePlaybackBridge'
 import NowPlayingTag from '@/components/NowPlayingTag.vue'
 import { coverSrcset } from '@/utils/coverImage'
+import { t, locale } from '@/i18n'
 
 const toast = useToast()
 
@@ -36,7 +37,7 @@ async function fetchLatest() {
     }
   } catch (error) {
     console.error('最新音乐请求失败:', error)
-    toast.error('加载最新音乐失败')
+    toast.error(t('latest.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -53,20 +54,20 @@ const toTrack = (music) => ({
 function playMusic(music) {
   // 以当前列表为播放队列，保证「下一首」能接着播放
   playTrackInList(toTrack(music), latestList.value.map(toTrack))
-  toast.success(`开始播放：${music.title}`)
+  toast.success(t('track.playStarted', { title: music.title }))
 }
 
 function playAll() {
   if (!latestList.value.length) return
   playTracks(latestList.value.map(toTrack), 0)
-  toast.success(`开始播放全部 ${latestList.value.length} 首`)
+  toast.success(t('track.playAllStarted', { count: latestList.value.length }))
 }
 
 async function downloadMusic(music) {
   try {
     const downloadUrl = await resolveMediaUrl(music.id)
     const response = await fetch(downloadUrl)
-    if (!response.ok) throw new Error('下载失败')
+    if (!response.ok) throw new Error(t('track.downloadError'))
     const blob = await response.blob()
     const blobUrl = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -76,10 +77,10 @@ async function downloadMusic(music) {
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(blobUrl)
-    toast.success(`开始下载：${music.title}`)
+    toast.success(t('track.downloadStarted', { title: music.title }))
   } catch (error) {
     console.error('下载失败:', error)
-    toast.error('下载失败，请重试')
+    toast.error(t('track.downloadFailed'))
   }
 }
 
@@ -88,7 +89,7 @@ function handleImageError(event) {
 }
 
 function formatTime(timestamp) {
-  if (!timestamp) return '未知时间'
+  if (!timestamp) return t('latest.unknownTime')
   const date = new Date(timestamp)
   const diff = Date.now() - date
 
@@ -97,12 +98,12 @@ function formatTime(timestamp) {
   const hours = Math.floor(minutes / 60)
   const days = Math.floor(hours / 24)
 
-  if (seconds < 60) return '刚刚'
-  if (minutes < 60) return `${minutes}分钟前`
-  if (hours < 24) return `${hours}小时前`
-  if (days < 7) return `${days}天前`
+  if (seconds < 60) return t('time.justNow')
+  if (minutes < 60) return t('time.minutesAgo', { count: minutes })
+  if (hours < 24) return t('time.hoursAgo', { count: hours })
+  if (days < 7) return t('time.daysAgo', { count: days })
 
-  return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+  return date.toLocaleDateString(locale.value, { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
 onMounted(fetchLatest)
@@ -114,8 +115,8 @@ onMounted(fetchLatest)
   <PageShell width="default">
     <header class="head">
       <div>
-        <h1 class="head__title">最新音乐</h1>
-        <p class="head__sub">刚刚上传的最新歌曲</p>
+        <h1 class="head__title">{{ $t('latest.title') }}</h1>
+        <p class="head__sub">{{ $t('latest.sub') }}</p>
       </div>
       <NButton
         v-if="latestList.length"
@@ -123,7 +124,7 @@ onMounted(fetchLatest)
         icon="play"
         @click="playAll"
       >
-        播放全部
+        {{ $t('track.playAll') }}
       </NButton>
     </header>
 
@@ -133,7 +134,7 @@ onMounted(fetchLatest)
 
     <NCard v-else-if="!latestList.length" pad="lg" class="empty">
       <span class="empty__icon"><NIcon name="sparkles" :size="26" /></span>
-      <p class="empty__text">暂无最新音乐数据</p>
+      <p class="empty__text">{{ $t('latest.empty') }}</p>
     </NCard>
 
     <div v-else class="list">
@@ -165,10 +166,10 @@ onMounted(fetchLatest)
             size="sm"
             :variant="isCurrentMusic(item.id) ? 'primary' : 'secondary'"
             :icon="isCurrentMusic(item.id) ? 'volume-2' : 'play'"
-            :title="isCurrentMusic(item.id) ? '正在播放' : '播放'"
+            :title="isCurrentMusic(item.id) ? $t('nowPlaying.label') : $t('track.play')"
             @click="playMusic(item)"
           />
-          <NButton size="sm" variant="secondary" icon="download" title="下载" @click="downloadMusic(item)" />
+          <NButton size="sm" variant="secondary" icon="download" :title="$t('track.download')" @click="downloadMusic(item)" />
         </div>
       </article>
     </div>

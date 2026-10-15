@@ -16,6 +16,7 @@ import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
+import { t } from '@/i18n'
 import { openAuthDialog } from '@/composables/useAuthDialog'
 import {
   fetchNotifications,
@@ -65,7 +66,7 @@ async function loadFirstPage() {
     syncBadge(unread.value)
   } catch (error) {
     console.error('获取站内消息失败:', error)
-    toast.error('消息加载失败，请稍后再试')
+    toast.error(t('notifications.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -85,7 +86,7 @@ async function loadMore() {
     hasMore.value = Boolean(data.hasMore)
   } catch (error) {
     console.error('加载更多站内消息失败:', error)
-    toast.error('加载失败，请稍后再试')
+    toast.error(t('notifications.loadMoreFailed'))
   } finally {
     loadingMore.value = false
   }
@@ -100,7 +101,7 @@ async function markAllRead() {
     syncBadge(unread.value)
   } catch (error) {
     console.error('标记已读失败:', error)
-    toast.error('操作失败，请稍后再试')
+    toast.error(t('notifications.actionFailed'))
   }
 }
 
@@ -185,7 +186,11 @@ function handleStorageChange(event) {
 <template>
   <AmbientBackdrop />
 
-  <PageShell width="default" title="消息中心" subtitle="评论回复等消息会出现在这里，离线期间的消息上线后自动补齐">
+  <PageShell
+    width="default"
+    :title="$t('nav.messages')"
+    :subtitle="$t('notifications.pageSubtitle')"
+  >
     <template #actions>
       <NButton
         variant="secondary"
@@ -194,19 +199,19 @@ function handleStorageChange(event) {
         :disabled="unread === 0"
         @click="markAllRead"
       >
-        全部已读<span v-if="unread > 0">（{{ unread }}）</span>
+        {{ $t('notifications.markAllRead') }}<span v-if="unread > 0">（{{ unread }}）</span>
       </NButton>
     </template>
 
     <div v-if="loading" class="notice__loading">
       <NSpinner :size="24" />
-      <p>正在加载消息…</p>
+      <p>{{ $t('notifications.loading') }}</p>
     </div>
 
     <NCard v-else-if="isEmpty" pad="lg" class="notice__empty">
       <NIcon name="inbox" :size="26" />
-      <p>暂无消息</p>
-      <p class="notice__empty-sub">有人回复你的评论、第三方歌单导入完成、上传的音乐审核出结果时，会在这里提醒你。</p>
+      <p>{{ $t('notifications.empty') }}</p>
+      <p class="notice__empty-sub">{{ $t('notifications.emptySub') }}</p>
     </NCard>
 
     <template v-else>
@@ -234,7 +239,7 @@ function handleStorageChange(event) {
 
       <div v-if="hasMore" class="notice__more">
         <NButton variant="ghost" size="sm" :disabled="loadingMore" @click="loadMore">
-          {{ loadingMore ? '加载中…' : '加载更早的消息' }}
+          {{ loadingMore ? $t('common.loading') : $t('notifications.loadEarlier') }}
         </NButton>
       </div>
     </template>

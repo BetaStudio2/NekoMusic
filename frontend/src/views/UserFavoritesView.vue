@@ -18,6 +18,7 @@ import { openAuthDialog } from '@/composables/useAuthDialog'
 import { useAuth } from '@/composables/useAuth'
 import { playTracks, playTrackInList, isCurrentMusic } from '@/composables/usePlaybackBridge'
 import NowPlayingTag from '@/components/NowPlayingTag.vue'
+import { t } from '@/i18n'
 
 const toast = useToast()
 const { token: authToken } = useAuth()
@@ -66,11 +67,11 @@ function playMusic(music) {
 
 function playAllFavorites() {
   if (!favorites.value.length) {
-    toast.warning('收藏列表为空')
+    toast.warning(t('favorites.emptyWarning'))
     return
   }
   playTracks(favorites.value, 0)
-  toast.success(`已开始播放全部 ${favorites.value.length} 首收藏音乐`)
+  toast.success(t('favorites.playAllStarted', { count: favorites.value.length }))
 }
 
 function askRemove(music) {
@@ -94,14 +95,14 @@ async function removeFavorite(musicId) {
     const data = await response.json()
     if (data.success) {
       favorites.value = favorites.value.filter((m) => m.id !== musicId)
-      toast.success('取消收藏成功')
+      toast.success(t('player.unfavoriteSuccess'))
     } else {
       console.error('取消收藏失败:', data.message)
-      toast.error('取消收藏失败: ' + data.message)
+      toast.error(t('player.unfavoriteFailed') + ': ' + data.message)
     }
   } catch (error) {
     console.error('取消收藏失败:', error)
-    toast.error('取消收藏失败')
+    toast.error(t('player.unfavoriteFailed'))
   }
 }
 
@@ -126,10 +127,10 @@ watch(authToken, (token) => {
     <!-- 页头 -->
     <header class="head">
       <div class="head__main">
-        <h1 class="head__title">我的收藏</h1>
+        <h1 class="head__title">{{ $t('favorites.title') }}</h1>
         <p class="head__sub">
-          <template v-if="favorites.length">共 {{ favorites.length }} 首</template>
-          <template v-else>收藏喜欢的音乐，随时回来听</template>
+          <template v-if="favorites.length">{{ $t('favorites.count', { count: favorites.length }) }}</template>
+          <template v-else>{{ $t('favorites.subEmpty') }}</template>
         </p>
       </div>
       <NButton
@@ -138,7 +139,7 @@ watch(authToken, (token) => {
         icon="play"
         @click="playAllFavorites"
       >
-        播放全部
+        {{ $t('track.playAll') }}
       </NButton>
     </header>
 
@@ -150,9 +151,9 @@ watch(authToken, (token) => {
     <!-- 空状态 -->
     <NCard v-else-if="!favorites.length" pad="lg" class="empty">
       <span class="empty__icon"><NIcon name="heart" :size="28" /></span>
-      <h2 class="empty__title">还没有收藏任何音乐</h2>
-      <p class="empty__text">在播放页点击收藏，之后就能在这里快速找到。</p>
-      <NButton variant="primary" icon="home" to="/">去发现音乐</NButton>
+      <h2 class="empty__title">{{ $t('favorites.emptyTitle') }}</h2>
+      <p class="empty__text">{{ $t('favorites.emptyText') }}</p>
+      <NButton variant="primary" icon="home" to="/">{{ $t('favorites.discover') }}</NButton>
     </NCard>
 
     <!-- 列表 -->
@@ -172,29 +173,29 @@ watch(authToken, (token) => {
             <NowPlayingTag v-if="isCurrentMusic(music.id)" />
             <QualityBadge :quality="music.maxQuality" />
           </span>
-          <span class="row__artist">作曲：{{ music.artist }}</span>
-          <span class="row__album">专辑：{{ music.album || '未知专辑' }}</span>
+          <span class="row__artist">{{ $t('nav.searchComposer', { artist: music.artist }) }}</span>
+          <span class="row__album">{{ $t('nav.searchAlbum', { album: music.album || $t('common.unknownAlbum') }) }}</span>
         </button>
         <div class="row__actions">
           <NButton
             size="sm"
             :variant="isCurrentMusic(music.id) ? 'primary' : 'secondary'"
             :icon="isCurrentMusic(music.id) ? 'volume-2' : 'play'"
-            :title="isCurrentMusic(music.id) ? '正在播放' : '播放'"
+            :title="isCurrentMusic(music.id) ? $t('nowPlaying.label') : $t('track.play')"
             @click="playMusic(music)"
-          >{{ isCurrentMusic(music.id) ? '播放中' : '播放' }}</NButton>
-          <NButton size="sm" variant="danger" icon="heart-off" @click="askRemove(music)">移除</NButton>
+          >{{ isCurrentMusic(music.id) ? $t('favorites.playing') : $t('track.play') }}</NButton>
+          <NButton size="sm" variant="danger" icon="heart-off" @click="askRemove(music)">{{ $t('favorites.remove') }}</NButton>
         </div>
       </article>
     </div>
 
-    <NModal v-model="confirmOpen" title="取消收藏" size="sm">
+    <NModal v-model="confirmOpen" :title="$t('favorites.confirmTitle')" size="sm">
       <p class="confirm-text">
-        确定要取消收藏「{{ pendingRemove?.title }}」吗？
+        {{ $t('favorites.confirmText', { title: pendingRemove?.title }) }}
       </p>
       <template #footer>
-        <NButton variant="ghost" @click="confirmOpen = false">取消</NButton>
-        <NButton variant="danger" @click="confirmRemove">确定移除</NButton>
+        <NButton variant="ghost" @click="confirmOpen = false">{{ $t('common.cancel') }}</NButton>
+        <NButton variant="danger" @click="confirmRemove">{{ $t('favorites.confirmRemove') }}</NButton>
       </template>
     </NModal>
   </PageShell>

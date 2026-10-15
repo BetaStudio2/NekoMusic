@@ -4,17 +4,25 @@
  * ------------------------------------------------------------
  * 黑偏青 + 圆角矩形。不负责为播放条预留空间（由 App.vue 统一处理）。
  */
+import { computed } from 'vue'
 import NIcon from '@/icons/NIcon.vue'
+import { t } from '@/i18n'
 
 const year = new Date().getFullYear()
 
-const links = [
-  { label: '下载客户端', to: '/download', icon: 'download' },
-  { label: '关于我们', to: '/about', icon: 'info' },
-  { label: '隐私政策', to: '/privacy', icon: 'shield-check' },
-  { label: 'QQ群', href: 'https://qm.qq.com/q/Q9HkDi6Ewk', icon: 'users' },
-  { label: '邮件支持', href: 'mailto:support@nekocore.cn', icon: 'mail', text: 'support@nekocore.cn' },
-]
+// label 存键名，渲染时再取文案：切语言后页脚立即跟着变
+const links = computed(() => [
+  { label: t('footer.downloadClient'), to: '/download', icon: 'download' },
+  { label: t('footer.about'), to: '/about', icon: 'info' },
+  { label: t('footer.privacy'), to: '/privacy', icon: 'shield-check' },
+  { label: t('footer.qqGroup'), href: 'https://qm.qq.com/q/Q9HkDi6Ewk', icon: 'users' },
+  {
+    label: t('footer.emailSupport'),
+    href: 'mailto:support@nekocore.cn',
+    icon: 'mail',
+    text: 'support@nekocore.cn',
+  },
+])
 </script>
 
 <template>
@@ -22,14 +30,14 @@ const links = [
     <div class="site-footer__inner">
       <div class="site-footer__info">
         <p>
-          备案号：<a href="https://beian.miit.gov.cn/#/Integrated/recordQuery">黔ICP备2026007098号</a>
+          {{ $t('footer.icpLabel') }}<a href="https://beian.miit.gov.cn/#/Integrated/recordQuery">黔ICP备2026007098号</a>
         </p>
         <p>
-          组织：<a href="https://www.nekocore.cn/" class="site-footer__org">Fantasy Network「梦幻网络」</a>
+          {{ $t('footer.orgLabel') }}<a href="https://www.nekocore.cn/" class="site-footer__org">{{ $t('footer.orgName') }}</a>
         </p>
       </div>
 
-      <nav class="site-footer__links" aria-label="页脚链接">
+      <nav class="site-footer__links" :aria-label="$t('footer.linksAria')">
         <template v-for="l in links" :key="l.label">
           <RouterLink v-if="l.to" :to="l.to" class="site-footer__link">
             <NIcon :name="l.icon" :size="14" />

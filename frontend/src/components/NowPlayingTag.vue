@@ -1,6 +1,6 @@
 <template>
   <!-- 列表行里的「正在播放」标记：与底部播放条共用播放状态桥 -->
-  <span class="now-playing" role="img" aria-label="正在播放" title="正在播放">
+  <span class="now-playing" role="img" :aria-label="$t('nowPlaying.label')" :title="$t('nowPlaying.label')">
     <NIcon name="audio-lines" :size="14" />
   </span>
 </template>

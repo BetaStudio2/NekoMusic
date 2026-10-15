@@ -37,35 +37,35 @@ async function onInstall() {
     variant="ghost"
     size="sm"
     icon="smartphone"
-    title="安装到桌面"
-    aria-label="安装到桌面"
+    :title="$t('pwa.installTitle')"
+    :aria-label="$t('pwa.installTitle')"
     :loading="busy"
     @click="onInstall"
   />
 
-  <NModal v-model="iosHelpOpen" title="安装到主屏幕" size="sm">
+  <NModal v-model="iosHelpOpen" :title="$t('pwa.iosTitle')" size="sm">
     <div class="pwa-ios">
       <p class="pwa-ios__lead">
-        iOS 版 Safari 不支持一键安装，按以下步骤即可添加：
+        {{ $t('pwa.iosLead') }}
       </p>
       <ol class="pwa-ios__steps">
         <li>
           <span class="pwa-ios__ico"><NIcon name="share" :size="15" /></span>
-          <span>点击底部工具栏的 <strong>分享</strong> 按钮</span>
+          <span>{{ $t('pwa.iosStep1Lead') }} <strong>{{ $t('pwa.iosStep1Strong') }}</strong> {{ $t('pwa.iosStep1Tail') }}</span>
         </li>
         <li>
           <span class="pwa-ios__ico"><NIcon name="plus" :size="15" /></span>
-          <span>在菜单中选择 <strong>添加到主屏幕</strong></span>
+          <span>{{ $t('pwa.iosStep2Lead') }} <strong>{{ $t('pwa.iosStep2Strong') }}</strong>{{ $t('pwa.iosStep2Tail') }}</span>
         </li>
         <li>
           <span class="pwa-ios__ico"><NIcon name="check" :size="15" /></span>
-          <span>点击右上角 <strong>添加</strong> 完成</span>
+          <span>{{ $t('pwa.iosStep3Lead') }} <strong>{{ $t('pwa.iosStep3Strong') }}</strong> {{ $t('pwa.iosStep3Tail') }}</span>
         </li>
       </ol>
-      <p class="pwa-ios__tip">添加后即可像 App 一样全屏打开 Neko 音乐。</p>
+      <p class="pwa-ios__tip">{{ $t('pwa.iosTip') }}</p>
     </div>
     <template #footer>
-      <NButton variant="ghost" @click="iosHelpOpen = false">知道了</NButton>
+      <NButton variant="ghost" @click="iosHelpOpen = false">{{ $t('pwa.gotIt') }}</NButton>
     </template>
   </NModal>
 </template>

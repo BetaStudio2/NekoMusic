@@ -12,6 +12,7 @@ import QualityBadge from '@/components/QualityBadge.vue'
 import { NButton, NCard, NSpinner } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
+import { t } from '@/i18n'
 import { playTracks, playTrackInList, isCurrentMusic } from '@/composables/usePlaybackBridge'
 import NowPlayingTag from '@/components/NowPlayingTag.vue'
 import { coverSrcset } from '@/utils/coverImage'
@@ -36,7 +37,7 @@ async function fetchRanking() {
     }
   } catch (error) {
     console.error('排行榜请求失败:', error)
-    toast.error('加载排行榜失败')
+    toast.error(t('ranking.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -53,20 +54,20 @@ const toTrack = (music) => ({
 function playMusic(music) {
   // 以当前列表为播放队列，保证「下一首」能接着播放
   playTrackInList(toTrack(music), rankingList.value.map(toTrack))
-  toast.success(`开始播放：${music.title}`)
+  toast.success(t('track.playStarted', { title: music.title }))
 }
 
 function playAll() {
   if (!rankingList.value.length) return
   playTracks(rankingList.value.map(toTrack), 0)
-  toast.success(`开始播放全部 ${rankingList.value.length} 首`)
+  toast.success(t('track.playAllStarted', { count: rankingList.value.length }))
 }
 
 async function downloadMusic(music) {
   try {
     const mediaUrl = await resolveMediaUrl(music.id)
     const response = await fetch(mediaUrl)
-    if (!response.ok) throw new Error('下载失败')
+    if (!response.ok) throw new Error(t('track.downloadError'))
     const blob = await response.blob()
     const blobUrl = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -76,10 +77,10 @@ async function downloadMusic(music) {
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(blobUrl)
-    toast.success(`开始下载：${music.title}`)
+    toast.success(t('track.downloadStarted', { title: music.title }))
   } catch (error) {
     console.error('下载失败:', error)
-    toast.error('下载失败，请重试')
+    toast.error(t('track.downloadFailed'))
   }
 }
 
@@ -103,8 +104,8 @@ onMounted(fetchRanking)
   <PageShell width="default">
     <header class="head">
       <div>
-        <h1 class="head__title">热门音乐排行榜</h1>
-        <p class="head__sub">基于播放次数排序的热门音乐</p>
+        <h1 class="head__title">{{ $t('ranking.title') }}</h1>
+        <p class="head__sub">{{ $t('ranking.sub') }}</p>
       </div>
       <NButton
         v-if="rankingList.length"
@@ -112,7 +113,7 @@ onMounted(fetchRanking)
         icon="play"
         @click="playAll"
       >
-        播放全部
+        {{ $t('track.playAll') }}
       </NButton>
     </header>
 
@@ -122,7 +123,7 @@ onMounted(fetchRanking)
 
     <NCard v-else-if="!rankingList.length" pad="lg" class="empty">
       <span class="empty__icon"><NIcon name="trophy" :size="26" /></span>
-      <p class="empty__text">暂无排行榜数据</p>
+      <p class="empty__text">{{ $t('ranking.empty') }}</p>
     </NCard>
 
     <div v-else class="list">
@@ -147,17 +148,17 @@ onMounted(fetchRanking)
             <QualityBadge :quality="item.maxQuality" />
           </span>
           <span class="row__artist">{{ item.artist }}</span>
-          <span class="row__sub">{{ item.playCount }} 次播放</span>
+          <span class="row__sub">{{ $t('ranking.playCount', { count: item.playCount }) }}</span>
         </button>
         <div class="row__actions">
           <NButton
             size="sm"
             :variant="isCurrentMusic(item.id) ? 'primary' : 'secondary'"
             :icon="isCurrentMusic(item.id) ? 'volume-2' : 'play'"
-            :title="isCurrentMusic(item.id) ? '正在播放' : '播放'"
+            :title="isCurrentMusic(item.id) ? $t('nowPlaying.label') : $t('track.play')"
             @click="playMusic(item)"
           />
-          <NButton size="sm" variant="secondary" icon="download" title="下载" @click="downloadMusic(item)" />
+          <NButton size="sm" variant="secondary" icon="download" :title="$t('track.download')" @click="downloadMusic(item)" />
         </div>
       </article>
     </div>

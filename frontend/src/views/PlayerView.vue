@@ -9,7 +9,7 @@
         :style="dragY ? { transform: `translateY(${dragY}px)` } : undefined"
         role="dialog"
         aria-modal="true"
-        aria-label="正在播放"
+        :aria-label="$t('player.dialogAria')"
         @touchstart.passive="onTouchStart"
         @touchmove.passive="onTouchMove"
         @touchend="onTouchEnd"
@@ -26,12 +26,12 @@
 
         <!-- 顶栏：收起 + 曲名 + 次级操作 -->
         <header class="np__top">
-          <button type="button" class="np-icon" aria-label="收起播放页" @click="close">
+          <button type="button" class="np-icon" :aria-label="$t('player.collapse')" @click="close">
             <NIcon name="chevron-down" :size="22" />
           </button>
 
           <div class="np__top-title">
-            <span class="np__top-name">{{ currentMusic ? currentMusic.title : '加载中…' }}</span>
+            <span class="np__top-name">{{ currentMusic ? currentMusic.title : $t('common.loading') }}</span>
             <span v-if="currentMusic" class="np__top-artist">{{ currentMusic.artist }}</span>
           </div>
 
@@ -41,8 +41,8 @@
               class="np-icon"
               :class="{ 'is-on': commentsOpen }"
               :disabled="!currentMusic"
-              :aria-label="commentsOpen ? '关闭评论' : '查看评论'"
-              :title="commentsOpen ? '关闭评论' : '查看评论'"
+              :aria-label="commentsOpen ? $t('player.closeComments') : $t('player.viewComments')"
+              :title="commentsOpen ? $t('player.closeComments') : $t('player.viewComments')"
               @click="commentsOpen = !commentsOpen"
             >
               <NIcon name="message" :size="18" />
@@ -53,8 +53,8 @@
               class="np-icon"
               :class="{ 'is-on': currentMusic && isFavorite(currentMusic.id) }"
               :disabled="!currentMusic"
-              :aria-label="currentMusic && isFavorite(currentMusic.id) ? '取消收藏' : '收藏'"
-              :title="currentMusic && isFavorite(currentMusic.id) ? '取消收藏' : '收藏'"
+              :aria-label="currentMusic && isFavorite(currentMusic.id) ? $t('track.unfavorite') : $t('track.favorite')"
+              :title="currentMusic && isFavorite(currentMusic.id) ? $t('track.unfavorite') : $t('track.favorite')"
               @click="toggleFavorite"
             >
               <NIcon :name="currentMusic && isFavorite(currentMusic.id) ? 'heart' : 'heart-off'" :size="18" />
@@ -63,8 +63,8 @@
               type="button"
               class="np-icon"
               :disabled="!currentMusic"
-              aria-label="下载"
-              title="下载"
+              :aria-label="$t('track.download')"
+              :title="$t('track.download')"
               @click="downloadMusic"
             >
               <NIcon name="download" :size="18" />
@@ -73,8 +73,8 @@
               type="button"
               class="np-icon"
               :disabled="!currentMusic || videoRenderBusy"
-              aria-label="生成分享视频"
-              :title="videoRenderBusy ? '生成中…' : '生成分享视频'"
+              :aria-label="$t('player.renderVideo')"
+              :title="videoRenderBusy ? $t('player.rendering') : $t('player.renderVideo')"
               @click="openVideoRenderDialog"
             >
               <NIcon name="video" :size="18" />
@@ -82,10 +82,10 @@
 
             <!-- 生成分享视频是会员相关能力：沿用重构前的权益提示 -->
             <p v-if="isLoggedIn()" class="np__video-hint">
-              <template v-if="userIsVip">会员：整首横屏成片，无水印、不限次数</template>
+              <template v-if="userIsVip">{{ $t('player.vipClipNote') }}</template>
               <template v-else>
-                免费：30 秒横屏成片（含水印），每日 10 次 ·
-                <RouterLink to="/vip">开通会员</RouterLink>
+                {{ $t('player.freeClipNote') }}
+                <RouterLink to="/vip">{{ $t('player.openVip') }}</RouterLink>
               </template>
             </p>
           </div>
@@ -100,7 +100,7 @@
           <section class="np__aside">
             <div v-if="!currentMusic" class="np__loading">
               <NSpinner :size="30" />
-              <p>加载曲目中…</p>
+              <p>{{ $t('player.loadingTracks') }}</p>
             </div>
 
             <template v-else>
@@ -133,12 +133,12 @@
               <div v-if="videoRenderSubmitted" class="np__notice">
                 <NIcon name="circle-check" :size="16" />
                 <div>
-                  <p>已提交渲染，完成后将向注册邮箱发送通知并附下载链接。</p>
+                  <p>{{ $t('player.renderSubmitted') }}</p>
                   <p
                     v-if="videoRenderRemainingToday != null && !userIsVip"
                     class="np__notice-meta"
                   >
-                    今日剩余免费次数：{{ videoRenderRemainingToday }}
+                    {{ $t('player.remainingToday', { count: videoRenderRemainingToday }) }}
                   </p>
                 </div>
               </div>
@@ -146,9 +146,9 @@
               <div v-if="videoRenderReady" class="np__notice np__notice--ready">
                 <NIcon name="circle-check" :size="16" />
                 <div class="np__notice-body">
-                  <p>分享视频已生成，可下载 MP4。</p>
+                  <p>{{ $t('player.videoReady') }}</p>
                   <NButton size="sm" variant="primary" icon="download" @click="downloadRenderedVideo">
-                    下载 MP4
+                    {{ $t('player.downloadMp4') }}
                   </NButton>
                 </div>
               </div>
@@ -156,7 +156,7 @@
           </section>
 
           <!-- 右：歌词墙 -->
-          <section class="np__lyrics" aria-label="歌词">
+          <section class="np__lyrics" :aria-label="$t('player.lyricsAria')">
             <LyricsWall
               v-if="parsedLyrics.length > 0"
               class="np__wall"
@@ -168,7 +168,7 @@
 
             <div v-else class="np__lyrics-empty">
               <NIcon name="file-text" :size="28" />
-              <p>暂无歌词</p>
+              <p>{{ $t('ui.noLyrics') }}</p>
             </div>
           </section>
         </div>
@@ -188,7 +188,7 @@
                 :max="duration || 0"
                 min="0"
                 step="0.1"
-                aria-label="播放进度"
+                :aria-label="$t('player.progressAria')"
                 @input="onSeekInput"
                 @change="onSeekCommit"
               />
@@ -210,8 +210,8 @@
             <button
               type="button"
               class="np-icon np-icon--lg"
-              title="上一曲"
-              aria-label="上一曲"
+              :title="$t('player.prev')"
+              :aria-label="$t('player.prev')"
               :disabled="!currentMusic"
               @click="sendPlayerCommand('prev')"
             >
@@ -222,7 +222,7 @@
               type="button"
               class="np-play"
               :disabled="!currentMusic"
-              :aria-label="isPlaying ? '暂停' : '播放'"
+              :aria-label="isPlaying ? $t('track.pause') : $t('track.play')"
               :aria-pressed="isPlaying"
               @click="sendPlayerCommand('toggle')"
             >
@@ -232,8 +232,8 @@
             <button
               type="button"
               class="np-icon np-icon--lg"
-              title="下一曲"
-              aria-label="下一曲"
+              :title="$t('player.next')"
+              :aria-label="$t('player.next')"
               :disabled="!currentMusic"
               @click="sendPlayerCommand('next')"
             >
@@ -248,10 +248,10 @@
         <Transition name="np-comments">
           <div v-if="commentsOpen" class="np__comments-layer">
             <div class="np__comments-mask" aria-hidden="true" @click="commentsOpen = false" />
-            <aside class="np__comments" aria-label="歌曲评论">
+            <aside class="np__comments" :aria-label="$t('comment.sectionAria')">
               <header class="np__comments-head">
-                <span class="np__comments-title">评论</span>
-                <button type="button" class="np-icon" aria-label="关闭评论" @click="commentsOpen = false">
+                <span class="np__comments-title">{{ $t('comment.title') }}</span>
+                <button type="button" class="np-icon" :aria-label="$t('player.closeComments')" @click="commentsOpen = false">
                   <NIcon name="close" :size="18" />
                 </button>
               </header>
@@ -269,17 +269,17 @@
   </Teleport>
 
   <!-- 分享视频弹窗 -->
-  <NModal v-model="videoModalOpen" title="生成分享视频" size="md" @close="closeVideoModal">
+  <NModal v-model="videoModalOpen" :title="$t('player.renderVideo')" size="md" @close="closeVideoModal">
     <p v-if="currentMusic" class="clip-song">{{ currentMusic.title }} · {{ currentMusic.artist }}</p>
 
     <label class="clip-option" :class="{ 'clip-option--locked': !userIsVip }">
       <input v-model="videoWatermarkChoice" type="checkbox" :disabled="!userIsVip" />
-      <span>添加平台水印</span>
+      <span>{{ $t('player.watermark') }}</span>
     </label>
 
     <div class="clip-range">
       <div class="clip-range__head">
-        <span>成片起始</span>
+        <span>{{ $t('player.clipStart') }}</span>
         <span class="clip-range__value">
           {{ formatClipTime(clipStartSec) }} → {{ formatClipTime(clipEndSec) }}
         </span>
@@ -296,9 +296,9 @@
       />
       <p class="clip-sub">
         <template v-if="userIsVip">
-          会员：从所选位置渲染至歌曲结束（约 {{ formatClipTime(clipPreviewDurationSec) }}）
+          {{ $t('player.vipRange', { duration: formatClipTime(clipPreviewDurationSec) }) }}
         </template>
-        <template v-else>免费：所选范围内固定 30 秒成片（每日 10 次）</template>
+        <template v-else>{{ $t('player.freeRange') }}</template>
       </p>
       <NButton
         size="sm"
@@ -307,20 +307,20 @@
         :disabled="trackDurationSec <= 0 || clipPreviewDurationSec <= 0"
         @click="toggleClipPreview"
       >
-        {{ clipPreviewPlaying ? '停止试听' : '试听所选片段' }}
+        {{ clipPreviewPlaying ? $t('player.previewStop') : $t('player.previewPlay') }}
       </NButton>
     </div>
 
     <p class="clip-sub">
-      <template v-if="userIsVip">会员可选是否添加水印，默认无水印</template>
-      <template v-else>免费用户须开启水印</template>
+      <template v-if="userIsVip">{{ $t('player.watermarkVipNote') }}</template>
+      <template v-else>{{ $t('player.watermarkFreeNote') }}</template>
     </p>
-    <p class="clip-sub">提交后在后台渲染，完成后将邮件通知并附下载链接</p>
+    <p class="clip-sub">{{ $t('player.clipSub') }}</p>
 
     <template #footer>
-      <NButton variant="ghost" @click="closeVideoModal">取消</NButton>
+      <NButton variant="ghost" @click="closeVideoModal">{{ $t('common.cancel') }}</NButton>
       <NButton variant="primary" :loading="videoRenderBusy" @click="confirmVideoRender">
-        开始生成
+        {{ $t('player.startRender') }}
       </NButton>
     </template>
   </NModal>
@@ -336,6 +336,7 @@ import { syncUserVipFromPlaylistsApi, USER_VIP_SYNC_EVENT } from '@/utils/userVi
 import { tryOpenMusicDetailInApp } from '@/utils/nativeAppOpen.js'
 import { getUser } from '@/utils/userStore.js'
 import { useToast } from '@/composables/useToast'
+import { t } from '@/i18n'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NModal, NSpinner } from '@/ui'
 import SpectrumCanvas from '@/components/SpectrumCanvas.vue'
@@ -852,7 +853,7 @@ const toggleClipPreview = async () => {
     // 不该弹「试听失败」。
     if (e?.name !== 'AbortError') {
       console.error('clip preview failed:', e)
-      toast.error('试听失败，请稍后重试')
+      toast.error(t('player.previewFailed'))
     }
     stopClipPreview()
   } finally {
@@ -869,7 +870,7 @@ const closeVideoModal = () => {
 const openVideoRenderDialog = () => {
   if (!currentMusic.value || videoRenderBusy.value) return
   if (!isLoggedIn()) {
-    toast.error('请先登录')
+    toast.error(t('common.needLogin'))
     return
   }
   videoWatermarkChoice.value = !userIsVip.value
@@ -887,20 +888,20 @@ const checkVideoJobFromQuery = async (jobId) => {
       videoRenderReady.value = true
       videoRenderSubmitted.value = false
     } else if (data.status === 'failed') {
-      toast.error(data.error || '视频渲染失败')
+      toast.error(data.error || t('player.videoRenderFailed'))
     } else {
       videoRenderSubmitted.value = true
-      toast.info('视频正在后台渲染，完成后将邮件通知并附下载链接')
+      toast.info(t('player.videoRendering'))
     }
   } catch (e) {
-    toast.error(e.message || '查询渲染状态失败')
+    toast.error(e.message || t('player.queryRenderFailed'))
   }
 }
 
 const confirmVideoRender = async () => {
   if (!currentMusic.value || videoRenderBusy.value) return
   if (!userIsVip.value && !videoWatermarkChoice.value) {
-    toast.error('非会员须开启水印才能生成')
+    toast.error(t('player.watermarkRequired'))
     return
   }
 
@@ -910,7 +911,7 @@ const confirmVideoRender = async () => {
   try {
     const startSec = clampClipStartSec(clipStartSec.value)
     if (clipPreviewDurationSec.value <= 0) {
-      toast.error('所选范围无效，请调整起始时间')
+      toast.error(t('player.invalidRange'))
       return
     }
     const watermarked = userIsVip.value ? videoWatermarkChoice.value : true
@@ -920,13 +921,13 @@ const confirmVideoRender = async () => {
       videoRenderRemainingToday.value = data.remainingToday
     }
     if (!videoRenderJobId.value) {
-      throw new Error('未返回任务 ID')
+      throw new Error(t('player.noTaskId'))
     }
     videoRenderSubmitted.value = true
     videoModalOpen.value = false
-    toast.success('任务已提交，完成后将邮件通知并附下载链接')
+    toast.success(t('player.taskSubmitted'))
   } catch (e) {
-    toast.error(e.message || '创建任务失败')
+    toast.error(e.message || t('player.createTaskFailed'))
   } finally {
     videoRenderBusy.value = false
   }
@@ -937,9 +938,9 @@ const downloadRenderedVideo = async () => {
   try {
     const name = `${currentMusic.value?.title || 'clip'}.mp4`.replace(/[/\\?%*:|"<>]/g, '_')
     await downloadVideoRenderFile(videoRenderJobId.value, name)
-    toast.success('已开始下载')
+    toast.success(t('player.downloadStarted'))
   } catch (e) {
-    toast.error(e.message || '下载失败')
+    toast.error(e.message || t('player.downloadVideoFailed'))
   }
 }
 
@@ -953,7 +954,7 @@ const toggleFavorite = async () => {
   if (!currentMusic.value) return;
   
   if (!isLoggedIn()) {
-    toast.error('请先登录');
+    toast.error(t('common.needLogin'));
     return;
   }
   
@@ -972,14 +973,14 @@ const toggleFavorite = async () => {
       const data = await response.json();
       if (data.success) {
         favoriteMusicIds.value.delete(currentMusic.value.id);
-        toast.success('取消收藏成功');
+        toast.success(t('player.unfavoriteSuccess'));
       } else {
         console.error('取消收藏失败:', data.message);
-        toast.error('取消收藏失败: ' + data.message);
+        toast.error(t('player.unfavoriteFailed') + ': ' + data.message);
       }
     } catch (error) {
       console.error('取消收藏失败:', error);
-      toast.error('取消收藏失败');
+      toast.error(t('player.unfavoriteFailed'));
     }
   } else {
     // 添加收藏
@@ -996,14 +997,14 @@ const toggleFavorite = async () => {
       const data = await response.json();
       if (data.success) {
         favoriteMusicIds.value.add(currentMusic.value.id);
-        toast.success('收藏成功');
+        toast.success(t('player.favoriteSuccess'));
       } else {
         console.error('收藏失败:', data.message);
-        toast.error('收藏失败: ' + data.message);
+        toast.error(t('player.favoriteFailed') + ': ' + data.message);
       }
     } catch (error) {
       console.error('收藏失败:', error);
-      toast.error('收藏失败');
+      toast.error(t('player.favoriteFailed'));
     }
   }
 }
@@ -1061,7 +1062,7 @@ const downloadMusic = async () => {
     } catch (error) {
       console.error('下载音乐失败:', error);
 
-      toast.error('下载失败，请重试');
+      toast.error(t('track.downloadFailed'));
     }
   }
 }
@@ -1175,9 +1176,9 @@ const modeIcon = computed(() => {
 })
 
 const modeTitle = computed(() => {
-  if (playback.playbackMode === 'single_repeat') return '单曲循环'
-  if (playback.playbackMode === 'shuffle') return '随机播放'
-  return '列表循环'
+  if (playback.playbackMode === 'single_repeat') return t('player.modeSingleLoop')
+  if (playback.playbackMode === 'shuffle') return t('player.modeShuffle')
+  return t('player.modeListLoop')
 })
 
 /** 收起播放页：先播退出动效，动效结束再离开路由 */

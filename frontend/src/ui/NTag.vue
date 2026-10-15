@@ -31,7 +31,7 @@ const classes = computed(() => ['n-tag', `n-tag--${props.variant}`, `n-tag--${pr
   <span :class="classes">
     <NIcon v-if="icon" :name="icon" :size="size === 'sm' ? 12 : 13" />
     <span v-if="$slots.default" class="n-tag__label"><slot /></span>
-    <button v-if="closable" type="button" class="n-tag__close" aria-label="移除" @click="emit('close')">
+    <button v-if="closable" type="button" class="n-tag__close" :aria-label="$t('ui.remove')" @click="emit('close')">
       <NIcon name="close" :size="12" />
     </button>
   </span>

@@ -10,6 +10,7 @@ import API_CONFIG from '@/config/apiConfig.js'
 import { NButton, NCard, NInput } from '@/ui'
 import { PageShell, AmbientBackdrop } from '@/layouts'
 import { useToast } from '@/composables/useToast'
+import { t } from '@/i18n'
 
 const toast = useToast()
 const router = useRouter()
@@ -40,14 +41,14 @@ async function handleCreatePlaylist() {
     const data = await response.json()
 
     if (data.success) {
-      toast.success('歌单创建成功')
+      toast.success(t('createPlaylist.created'))
       router.push('/playlists')
     } else {
-      toast.error(data.message || '歌单创建失败')
+      toast.error(data.message || t('createPlaylist.createFailed'))
     }
   } catch (error) {
     console.error('歌单创建失败:', error)
-    toast.error('歌单创建失败')
+    toast.error(t('createPlaylist.createFailed'))
   } finally {
     submitting.value = false
   }
@@ -70,23 +71,23 @@ function goBack() {
         icon="arrow-left"
         @click="goBack"
       >
-        返回
+        {{ $t('createPlaylist.back') }}
       </NButton>
-      <h1 class="head__title">创建歌单</h1>
-      <p class="head__lede">填写名称与可选描述，创建后可在「我的歌单」中管理。</p>
+      <h1 class="head__title">{{ $t('playlists.create') }}</h1>
+      <p class="head__lede">{{ $t('createPlaylist.lede') }}</p>
     </header>
 
     <NCard pad="lg">
       <form class="form" @submit.prevent="handleCreatePlaylist">
         <div class="field">
           <label class="field__label" for="pl-name">
-            歌单名称 <span class="field__required">*</span>
+            {{ $t('playlists.nameLabel') }} <span class="field__required">*</span>
           </label>
           <NInput
             id="pl-name"
             v-model="playlistName"
             maxlength="255"
-            placeholder="请输入歌单名称"
+            :placeholder="$t('createPlaylist.namePlaceholder')"
             autocomplete="off"
             required
           />
@@ -94,21 +95,21 @@ function goBack() {
         </div>
 
         <div class="field">
-          <label class="field__label" for="pl-desc">歌单描述</label>
+          <label class="field__label" for="pl-desc">{{ $t('playlists.descLabel') }}</label>
           <NInput
             id="pl-desc"
             v-model="playlistDescription"
             textarea
             :rows="4"
             maxlength="500"
-            placeholder="选填，简要介绍歌单"
+            :placeholder="$t('createPlaylist.descPlaceholder')"
           />
           <span class="field__count">{{ playlistDescription.length }}/500</span>
         </div>
 
         <div class="form__actions">
-          <NButton variant="ghost" @click="goBack">取消</NButton>
-          <NButton type="submit" variant="primary" :loading="submitting">创建歌单</NButton>
+          <NButton variant="ghost" @click="goBack">{{ $t('common.cancel') }}</NButton>
+          <NButton type="submit" variant="primary" :loading="submitting">{{ $t('playlists.create') }}</NButton>
         </div>
       </form>
     </NCard>

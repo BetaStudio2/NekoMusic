@@ -13,6 +13,7 @@
 // 版本号在构建时由 Vite 注入（见 vite.config.js 的 __NEKO_WEB_VERSION__）：
 // 优先取 NEKO_WEB_VERSION / VITE_APP_VERSION 环境变量，其次 git describe 结果。
 import axios from 'axios'
+import { locale } from '@/i18n'
 import API_CONFIG from './apiConfig.js'
 
 /** 标头名；原生客户端（pc/android）必须与此保持一致 */
@@ -32,8 +33,25 @@ export const NEKO_CLIENT_VALUE = `${NEKO_CLIENT_NAME}+${NEKO_CLIENT_VERSION}`
  * User-Agent 保持浏览器自身取值，**不要**加进来：改写它会让 WebKit / Firefox 真正发出一个不带
  * 内核标记的 UA，被后端浏览器完整性校验判为伪造客户端而整体 403（详见文件头说明）。
  */
-const NEKO_REQUEST_HEADERS = {
+const STATIC_REQUEST_HEADERS = {
   [NEKO_CLIENT_HEADER]: NEKO_CLIENT_VALUE,
+}
+
+/** 语言标头名；与后端按 `Accept-Language` 选文案的约定一致 */
+export const ACCEPT_LANGUAGE_HEADER = 'Accept-Language'
+
+/**
+ * 本次请求要带的标头。
+ *
+ * `Accept-Language` 每次现取：语言在设置里可以随时切换，静态写死一份会一直发旧语言，
+ * 界面上就会出现「英文界面 + 中文提示」的错位。浏览器的原生请求（`<img>`、SSE）拿不到
+ * 这里注入的值，仍用系统语言——这些响应本来也不展示文案。
+ */
+function nekoRequestHeaders() {
+  return {
+    ...STATIC_REQUEST_HEADERS,
+    [ACCEPT_LANGUAGE_HEADER]: locale.value,
+  }
 }
 
 /** 用户令牌标头；与后端 `Authorization: Bearer <token>` 约定一致 */
@@ -92,7 +110,7 @@ function withFetchHeader(input, init) {
 
   const headers =
     input instanceof Request ? new Headers(input.headers) : new Headers(init?.headers || {})
-  for (const [name, value] of Object.entries(NEKO_REQUEST_HEADERS)) headers.set(name, value)
+  for (const [name, value] of Object.entries(nekoRequestHeaders())) headers.set(name, value)
   // 用户令牌只补空缺：后台页面用管理员令牌，调用方显式设过就一律不动
   const authorization = userAuthorizationValue()
   if (authorization && !headers.has(AUTHORIZATION_HEADER)) {
@@ -137,7 +155,7 @@ function patchXhr() {
     // axios 等库会先自行设置标头，这里只在缺失时补一次，避免重复值
     if (shouldAttachHeader(this.__nekoRequestUrl)) {
       const sent = this.__nekoHeaderSet || new Set()
-      const headers = { ...NEKO_REQUEST_HEADERS }
+      const headers = nekoRequestHeaders()
       const authorization = userAuthorizationValue()
       if (authorization) headers[AUTHORIZATION_HEADER] = authorization
       for (const [name, value] of Object.entries(headers)) {
@@ -158,7 +176,8 @@ function patchXhr() {
  * 用户令牌不进 axios 默认值：它是随登录态变化的，写死一份会在登出后继续发出去。
  */
 export function installNekoClientHeader() {
-  for (const [name, value] of Object.entries(NEKO_REQUEST_HEADERS)) {
+  // 只把「不随会话变化」的标头写进 axios 默认值；Accept-Language 由上面的补丁逐请求注入
+  for (const [name, value] of Object.entries(STATIC_REQUEST_HEADERS)) {
     axios.defaults.headers.common[name] = value
   }
   patchFetch()
