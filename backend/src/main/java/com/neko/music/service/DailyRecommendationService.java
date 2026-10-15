@@ -7,6 +7,8 @@ import com.neko.music.config.ConfigManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -79,6 +81,14 @@ public class DailyRecommendationService {
     private static final String CANDIDATE_NOT_FAVORITED =
             " WHERE NOT EXISTS (SELECT 1 FROM user_favorites uf WHERE uf.user_id = ? AND uf.music_id = m.id)";
 
+    /**
+     * 成品响应体的缓存时长。
+     *
+     * <p>{@code max_quality} 会被一起写进响应体，所以它同时是「音质信息最多滞后多久」的上限：
+     * 过期后按行缓存重建一次（一次 MySQL {@code IN} 查询 + 一次序列化）。</p>
+     */
+    private static final int BODY_CACHE_TTL_SECONDS = 30 * 60;
+
     private final DatabaseManager databaseManager;
     private final RedisService redisService;
     private final ConfigManager configManager;
@@ -117,6 +127,32 @@ public class DailyRecommendationService {
         }
         attachMaxQuality(existing);
         return existing;
+    }
+
+    /**
+     * 取「今日推荐」接口的成品响应体（UTF-8 JSON 字节）。
+     *
+     * <p>若每次都从行缓存现拼响应体，要额外付：读 68KB 行数组、逐行重建 Map、一次
+     * {@code SELECT ... IN (300 个 id)} 补音质、再把 74KB 重新序列化——按 300 条的默认配置，
+     * 这四步每次请求都跑一遍。它们的结果当天只由 {@link #cacheRecommendations} 决定，
+     * 因此直接缓存成品体：命中时只剩一次 Redis 读。</p>
+     */
+    public byte[] getOrBuildTodayBody(int userId) throws IOException {
+        LocalDate today = LocalDate.now(CN_ZONE);
+        String bodyKey = bodyCacheKey(userId, today);
+        String cached = redisService.get(bodyKey);
+        if (cached != null && !cached.isBlank()) {
+            return cached.getBytes(StandardCharsets.UTF_8);
+        }
+        List<Map<String, Object>> data = getOrBuildTodayRecommendations(userId);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", true);
+        body.put("date", today.toString());
+        body.put("count", data.size());
+        body.put("data", data);
+        byte[] json = objectMapper.writeValueAsBytes(body);
+        redisService.setWithExpiry(bodyKey, new String(json, StandardCharsets.UTF_8), BODY_CACHE_TTL_SECONDS);
+        return json;
     }
 
     /**
@@ -982,6 +1018,8 @@ public class DailyRecommendationService {
             }
             String payload = objectMapper.writeValueAsString(data);
             redisService.setWithExpiry(key, payload, 60 * 60 * 72);
+            // 行缓存是成品响应体的来源，重写行就必须让上次拼好的响应体失效
+            redisService.del(bodyCacheKey(userId, recDate));
             appendRecommendationHistory(userId, recDate, ranked);
         } catch (Exception e) {
             logger.error("写入推荐缓存失败 userId={} date={}", userId, recDate, e);
@@ -990,6 +1028,10 @@ public class DailyRecommendationService {
 
     private String redisKey(int userId, LocalDate recDate) {
         return "daily_reco:" + recDate + ":" + userId;
+    }
+
+    private String bodyCacheKey(int userId, LocalDate recDate) {
+        return "daily_reco_body:" + recDate + ":" + userId;
     }
 
     private String historyKey(int userId) {

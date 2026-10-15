@@ -11,8 +11,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import com.neko.music.i18n.ApiMessages;
 
@@ -44,13 +42,11 @@ public class UserDailyRecommendationHandler extends HttpServlet {
             service.regenerateForUser(userId, LocalDate.now(CN_ZONE), true);
         }
 
-        List<Map<String, Object>> data = service.getOrBuildTodayRecommendations(userId);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", true);
-        body.put("date", LocalDate.now(CN_ZONE).toString());
-        body.put("count", data.size());
-        body.put("data", data);
-        write(resp, HttpServletResponse.SC_OK, body);
+        byte[] body = service.getOrBuildTodayBody(userId);
+        resp.setStatus(HttpServletResponse.SC_OK);
+        resp.setContentType("application/json;charset=UTF-8");
+        resp.getOutputStream().write(body);
+        resp.getOutputStream().flush();
     }
 
     private void write(HttpServletResponse resp, int status, Map<String, ?> body) throws IOException {
