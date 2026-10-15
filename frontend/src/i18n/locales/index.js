@@ -7,6 +7,7 @@
  */
 import zhCN from './zh-CN.js'
 import zhTW from './zh-TW.js'
+import zhHK from './zh-HK.js'
 import en from './en.js'
 import ja from './ja.js'
 import ko from './ko.js'
@@ -30,12 +31,18 @@ export const LOCALE_ENTRIES = [
   {
     tag: 'zh-TW',
     name: '繁體中文',
-    prefixes: ['zh-hant', 'zh-tw', 'zh-hk', 'zh-mo'],
+    prefixes: ['zh-hant', 'zh-tw', 'zh-mo'],
     fallback: 'zh-CN',
+  },
+  {
+    tag: 'zh-HK',
+    name: '繁體中文（香港）',
+    prefixes: ['zh-hk'],
+    fallback: 'zh-TW',
   },
   { tag: 'en', name: 'English', prefixes: ['en'], fallback: '' },
   { tag: 'ja', name: '日本語', prefixes: ['ja'], fallback: 'en' },
   { tag: 'ko', name: '한국어', prefixes: ['ko'], fallback: 'en' },
 ]
 
-export const MESSAGES = { 'zh-CN': zhCN, 'zh-TW': zhTW, en, ja, ko }
+export const MESSAGES = { 'zh-CN': zhCN, 'zh-TW': zhTW, 'zh-HK': zhHK, en, ja, ko }

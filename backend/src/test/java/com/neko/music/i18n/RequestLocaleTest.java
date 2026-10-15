@@ -36,7 +36,7 @@ class RequestLocaleTest {
         // 繁体/港台变体不能落到 zh-CN：命中比 zh 更长的 zh-hant / zh-tw / zh-hk 前缀
         assertEquals("zh-TW", RequestLocale.resolve("zh-TW"));
         assertEquals("zh-TW", RequestLocale.resolve("zh-Hant-TW"));
-        assertEquals("zh-TW", RequestLocale.resolve("zh-HK"));
+        assertEquals("zh-HK", RequestLocale.resolve("zh-HK"));
         assertEquals("zh-TW", RequestLocale.resolve("zh-MO,zh;q=0.9"));
         // 显式写了简体繁体混排时按 q 值取优先级更高的那门
         assertEquals(RequestLocale.DEFAULT, RequestLocale.resolve("zh-Hant;q=0.5,zh-Hans;q=0.9"));
