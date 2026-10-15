@@ -17,7 +17,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -57,6 +62,16 @@ public class AccessLogService {
     /** 实时订阅者（后台访问日志页的 SSE 连接）；每个订阅各持一个**有界**队列。 */
     private final CopyOnWriteArrayList<LiveSubscription> subscribers = new CopyOnWriteArrayList<>();
 
+    /**
+     * 概览聚合的并发执行器。
+     *
+     * <p>概览里的每条聚合都要各自扫一遍窗口内的行，彼此又互不依赖：串行执行时接口耗时就是它们的
+     * **和**（7 天窗口实测约 740ms）。并发度取 6 是给日志库连接池（上限 8）留出批量写入线程与其它
+     * 后台查询的余量。</p>
+     */
+    private final ExecutorService statsExecutor = Executors.newFixedThreadPool(6,
+            Thread.ofPlatform().daemon().name("access-log-stats-", 0).factory());
+
     public AccessLogService(LogDatabaseManager logDatabaseManager) {
         this.logDatabaseManager = logDatabaseManager;
         this.writer = new LogBatchWriter<>("access-log", this::insertBatch);
@@ -68,6 +83,7 @@ public class AccessLogService {
 
     /** 停止写入线程并把队列里的存量刷盘，同时断开全部实时订阅。 */
     public void close() {
+        statsExecutor.shutdownNow();
         writer.close();
         for (LiveSubscription subscriber : subscribers) {
             subscriber.close();
@@ -322,61 +338,125 @@ public class AccessLogService {
         return new LogPage(total, safePage, safeSize, items);
     }
 
-    /** 访问量概览：总量、今日量、独立 IP、爬虫占比，以及最近 N 天的趋势与 Top 榜。 */
+    /**
+     * 访问量概览：总量、今日量、独立 IP、爬虫占比，以及最近 N 天的趋势与 Top 榜。
+     *
+     * <p>下面这些聚合彼此独立，但**每条都要扫一遍窗口内的行**；串行执行的接口耗时就是它们的和
+     * （7 天窗口实测约 740ms）。因此拆成任务并发取，墙钟时间退化成「最慢的那一条」。今日的 7 个
+     * 指标另外合并成一次范围扫描，免得同一批行被扫 8 遍、每遍还各起一张临时表。</p>
+     */
     public Map<String, Object> stats(int days) throws SQLException {
         int window = Math.min(Math.max(1, days), MAX_STATS_DAYS);
         long startOfToday = LocalDate.now(ZONE).atStartOfDay(ZONE).toInstant().toEpochMilli();
         long windowStart = LocalDate.now(ZONE).minusDays(window - 1L).atStartOfDay(ZONE).toInstant().toEpochMilli();
 
-        Map<String, Object> stats = new LinkedHashMap<>();
-        try (Connection conn = logDatabaseManager.getConnection()) {
-            stats.put("totalRequests", scalar(conn, "SELECT COUNT(*) FROM access_log", null));
-            stats.put("todayRequests", scalar(conn, "SELECT COUNT(*) FROM access_log WHERE occurred_at >= ?",
-                    startOfToday));
-            stats.put("todayUniqueIps", scalar(conn,
-                    "SELECT COUNT(DISTINCT client_ip) FROM access_log WHERE occurred_at >= ?", startOfToday));
-            // 今日有登录身份的独立用户数：与「独立 IP」并列，登录规模与出口复用一眼可分
-            stats.put("todayLoggedUsers", scalar(conn,
-                    "SELECT COUNT(DISTINCT user_id) FROM access_log WHERE occurred_at >= ? "
-                            + "AND user_id IS NOT NULL", startOfToday));
-            stats.put("todayBots", scalar(conn,
-                    "SELECT COUNT(*) FROM access_log WHERE occurred_at >= ? AND client_type IN ('bot','scanner')",
-                    startOfToday));
-            stats.put("todayErrors", scalar(conn,
-                    "SELECT COUNT(*) FROM access_log WHERE occurred_at >= ? AND status >= 400", startOfToday));
-            // 今日被搜索引擎 / 链接预览拿走的服务端渲染页次数：收录与抓取强度的直接指标
-            stats.put("todaySeo", scalar(conn,
-                    "SELECT COUNT(*) FROM access_log WHERE occurred_at >= ? AND seo_render = 1", startOfToday));
-            // PoW 侧「没通过」的总数：缺 nonce、重放、验题失败、被限额或加压越界都算
-            stats.put("todayPowRejected", scalar(conn,
-                    "SELECT COUNT(*) FROM access_log WHERE occurred_at >= ? AND pow_status IN ("
-                            + "'missing','invalid','expired','mismatch','bad_proof',"
-                            + "'rate_limited','marked','error')",
-                    startOfToday));
-            stats.put("days", window);
-            stats.put("dailyTrend", dailyTrend(conn, windowStart, window));
-            stats.put("topIps", grouped(conn,
-                    "SELECT client_ip AS k, COUNT(*) AS c FROM access_log WHERE occurred_at >= ? "
-                            + "GROUP BY client_ip ORDER BY c DESC LIMIT " + TOP_LIMIT, windowStart));
-            // 登录用户榜：谁在频繁访问，比单看 IP 更能定位到具体账号
-            stats.put("topUsers", grouped(conn,
-                    "SELECT CONCAT('#', user_id, ' ', COALESCE(user_name, '')) AS k, COUNT(*) AS c "
-                            + "FROM access_log WHERE occurred_at >= ? AND user_id IS NOT NULL "
-                            + "GROUP BY k ORDER BY c DESC LIMIT " + TOP_LIMIT, windowStart));
-            stats.put("topPaths", grouped(conn,
-                    "SELECT path AS k, COUNT(*) AS c FROM access_log WHERE occurred_at >= ? "
-                            + "GROUP BY path ORDER BY c DESC LIMIT " + TOP_LIMIT, windowStart));
-            stats.put("clientTypes", countByQuery(conn,
-                    "SELECT client_type AS k, COUNT(*) AS c FROM access_log WHERE occurred_at >= ? "
-                            + "GROUP BY client_type ORDER BY c DESC", windowStart));
-            stats.put("categories", countByQuery(conn,
-                    "SELECT category AS k, COUNT(*) AS c FROM access_log WHERE occurred_at >= ? "
-                            + "GROUP BY category ORDER BY c DESC", windowStart));
-            stats.put("topUserAgents", grouped(conn,
-                    "SELECT LEFT(COALESCE(user_agent,''), 255) AS k, COUNT(*) AS c FROM access_log "
-                            + "WHERE occurred_at >= ? GROUP BY k ORDER BY c DESC LIMIT " + TOP_LIMIT, windowStart));
+        List<Callable<Object>> tasks = List.of(
+                () -> query(conn -> scalar(conn, "SELECT COUNT(*) FROM access_log", null)),
+                () -> query(conn -> todayOverview(conn, startOfToday)),
+                () -> query(conn -> dailyTrend(conn, windowStart, window)),
+                () -> query(conn -> grouped(conn,
+                        "SELECT client_ip AS k, COUNT(*) AS c FROM access_log WHERE occurred_at >= ? "
+                                + "GROUP BY client_ip ORDER BY c DESC LIMIT " + TOP_LIMIT, windowStart)),
+                // 登录用户榜：谁在频繁访问，比单看 IP 更能定位到具体账号
+                () -> query(conn -> grouped(conn,
+                        "SELECT CONCAT('#', user_id, ' ', COALESCE(user_name, '')) AS k, COUNT(*) AS c "
+                                + "FROM access_log WHERE occurred_at >= ? AND user_id IS NOT NULL "
+                                + "GROUP BY k ORDER BY c DESC LIMIT " + TOP_LIMIT, windowStart)),
+                () -> query(conn -> grouped(conn,
+                        "SELECT path AS k, COUNT(*) AS c FROM access_log WHERE occurred_at >= ? "
+                                + "GROUP BY path ORDER BY c DESC LIMIT " + TOP_LIMIT, windowStart)),
+                () -> query(conn -> countByQuery(conn,
+                        "SELECT client_type AS k, COUNT(*) AS c FROM access_log WHERE occurred_at >= ? "
+                                + "GROUP BY client_type ORDER BY c DESC", windowStart)),
+                () -> query(conn -> countByQuery(conn,
+                        "SELECT category AS k, COUNT(*) AS c FROM access_log WHERE occurred_at >= ? "
+                                + "GROUP BY category ORDER BY c DESC", windowStart)),
+                () -> query(conn -> grouped(conn,
+                        "SELECT LEFT(COALESCE(user_agent,''), 255) AS k, COUNT(*) AS c FROM access_log "
+                                + "WHERE occurred_at >= ? GROUP BY k ORDER BY c DESC LIMIT " + TOP_LIMIT,
+                        windowStart)));
+
+        List<Future<Object>> pending = new ArrayList<>(tasks.size());
+        for (Callable<Object> task : tasks) {
+            pending.add(statsExecutor.submit(task));
         }
+        List<Object> done = new ArrayList<>(tasks.size());
+        for (Future<Object> future : pending) {
+            done.add(await(future));
+        }
+
+        Map<String, Object> stats = new LinkedHashMap<>();
+        stats.put("totalRequests", done.get(0));
+        // 今日概览自身是一个小 Map，摊平进同一层，响应结构与串行版完全一致
+        stats.putAll(asMap(done.get(1)));
+        stats.put("days", window);
+        stats.put("dailyTrend", done.get(2));
+        stats.put("topIps", done.get(3));
+        stats.put("topUsers", done.get(4));
+        stats.put("topPaths", done.get(5));
+        stats.put("clientTypes", done.get(6));
+        stats.put("categories", done.get(7));
+        stats.put("topUserAgents", done.get(8));
         return stats;
+    }
+
+    /** 今日概览：7 个指标合并成**一次**范围扫描，避免同一批行被反复扫、每遍各起一张临时表。 */
+    private static Map<String, Object> todayOverview(Connection conn, long startOfToday) throws SQLException {
+        String sql = "SELECT COUNT(*) AS total, COUNT(DISTINCT client_ip) AS ips, "
+                + "COUNT(DISTINCT user_id) AS users, "
+                + "COALESCE(SUM(client_type IN ('bot','scanner')), 0) AS bots, "
+                + "COALESCE(SUM(status >= 400), 0) AS errors, "
+                + "COALESCE(SUM(seo_render = 1), 0) AS seo, "
+                + "COALESCE(SUM(pow_status IN ('missing','invalid','expired','mismatch','bad_proof',"
+                + "'rate_limited','marked','error')), 0) AS pow_rejected "
+                + "FROM access_log WHERE occurred_at >= ?";
+        Map<String, Object> overview = new LinkedHashMap<>();
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setLong(1, startOfToday);
+            try (ResultSet rs = stmt.executeQuery()) {
+                rs.next();
+                overview.put("todayRequests", rs.getLong("total"));
+                overview.put("todayUniqueIps", rs.getLong("ips"));
+                overview.put("todayLoggedUsers", rs.getLong("users"));
+                overview.put("todayBots", rs.getLong("bots"));
+                overview.put("todayErrors", rs.getLong("errors"));
+                overview.put("todaySeo", rs.getLong("seo"));
+                overview.put("todayPowRejected", rs.getLong("pow_rejected"));
+            }
+        }
+        return overview;
+    }
+
+    /** 一条概览查询：自己从池里取连接，用完归还，因此可以安全并发。 */
+    private interface QueryTask {
+        Object run(Connection conn) throws SQLException;
+    }
+
+    private Object query(QueryTask task) throws SQLException {
+        try (Connection conn = logDatabaseManager.getConnection()) {
+            return task.run(conn);
+        }
+    }
+
+    /** 取回并发结果：SQL 失败原样抛出（与串行版一致），中断则恢复中断标记。 */
+    private static Object await(Future<Object> future) throws SQLException {
+        try {
+            return future.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new SQLException("查询访问日志统计被中断", e);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof SQLException sqlException) {
+                throw sqlException;
+            }
+            throw new SQLException("查询访问日志统计失败: " + cause.getMessage(), cause);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> asMap(Object value) {
+        return (Map<String, Object>) value;
     }
 
     /** 删除超过保留期的记录，返回删除条数。 */

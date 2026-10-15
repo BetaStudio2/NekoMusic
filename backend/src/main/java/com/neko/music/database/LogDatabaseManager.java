@@ -185,6 +185,14 @@ public class LogDatabaseManager {
         ensureColumn(conn, "access_log", "user_name",
                 "VARCHAR(255) NULL COMMENT '已登录用户昵称（随日志快照保存）'");
         ensureIndex(conn, "access_log", "idx_access_user", "user_id");
+        // 概览聚合的覆盖索引：列表检索只按单列过滤，但概览要对窗口做 GROUP BY。
+        // 只有 occurred_at 的索引必须逐行回聚簇索引取聚合列（窗口内几万行就是几万次随机读），
+        // 把聚合列接在 occurred_at 后面即可只走索引；occurred_at 必须在最左，范围条件才用得上。
+        ensureIndex(conn, "access_log", "idx_access_occurred_path", "occurred_at, path");
+        ensureIndex(conn, "access_log", "idx_access_occurred_ip", "occurred_at, client_ip");
+        ensureIndex(conn, "access_log", "idx_access_occurred_type", "occurred_at, client_type");
+        ensureIndex(conn, "access_log", "idx_access_occurred_category", "occurred_at, category");
+        ensureIndex(conn, "access_log", "idx_access_occurred_user", "occurred_at, user_id, user_name");
         // 耗时精度升级：老库的毫秒列（duration_ms）改名为微秒列（duration_us）并 ×1000 换算。
         migrateDurationToMicros(conn, "access_log");
         migrateDurationToMicros(conn, "operation_log");
@@ -240,7 +248,11 @@ public class LogDatabaseManager {
         }
     }
 
-    private static void ensureIndex(Connection conn, String table, String index, String column)
+    /**
+     * 幂等补索引。{@code columns} 可以是单列，也可以是逗号分隔的多列（复合索引），
+     * 每列各自加反引号——DDL 里的列名来自代码常量，不接受外部输入。
+     */
+    private static void ensureIndex(Connection conn, String table, String index, String columns)
             throws SQLException {
         String check = "SELECT COUNT(*) FROM information_schema.statistics "
                 + "WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?";
@@ -253,9 +265,16 @@ public class LogDatabaseManager {
                 }
             }
         }
+        StringBuilder quoted = new StringBuilder();
+        for (String column : columns.split(",")) {
+            if (quoted.length() > 0) {
+                quoted.append(", ");
+            }
+            quoted.append('`').append(column.trim()).append('`');
+        }
         try (Statement stmt = conn.createStatement()) {
-            stmt.execute("ALTER TABLE `" + table + "` ADD INDEX `" + index + "` (`" + column + "`)");
-            logger.info("日志库补索引: {}.{}", table, index);
+            stmt.execute("ALTER TABLE `" + table + "` ADD INDEX `" + index + "` (" + quoted + ")");
+            logger.info("日志库补索引: {}.{} ({})", table, index, columns);
         }
     }
 
