@@ -13,16 +13,61 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class LyricsDatabaseManager {
     private static final Logger logger = LoggerFactory.getLogger(LyricsDatabaseManager.class);
 
+    /**
+     * 进程内歌词缓存条目上限与兜底 TTL。
+     *
+     * <p>失效有三条路：{@link #upsert} / {@link #delete} 主动失效；{@code music} 行被级联删除时
+     * 不经过本类，靠 TTL 自愈；条目数超限时随机淘汰一条（歌词是只读热点，不需要 LRU 精度）。
+     */
+    private static final int CACHE_MAX_ENTRIES = 2048;
+    private static final long CACHE_TTL_MILLIS = 30 * 60 * 1000L;
+
     private final DatabaseManager databaseManager;
+    private final Map<Integer, CachedLyrics> lyricsCache = new ConcurrentHashMap<>();
+
+    private record CachedLyrics(StoredLyrics lyrics, long expiresAt) {
+    }
 
     public LyricsDatabaseManager(DatabaseManager databaseManager) {
         this.databaseManager = databaseManager;
+    }
+
+    /**
+     * 带进程内缓存的读取：公开歌词接口按同一个 musicId 高频复读，命中可省掉一次连接池借出 + SELECT。
+     * 管理端读改写路径仍用 {@link #findByMusicId}，保证拿到的一定是库里的最新值。
+     */
+    public Optional<StoredLyrics> findByMusicIdCached(int musicId) {
+        if (musicId <= 0) {
+            return Optional.empty();
+        }
+        CachedLyrics cached = lyricsCache.get(musicId);
+        if (cached != null && cached.expiresAt() > System.currentTimeMillis()) {
+            return Optional.of(cached.lyrics());
+        }
+        Optional<StoredLyrics> loaded = findByMusicId(musicId);
+        loaded.ifPresent(lyrics -> {
+            if (lyricsCache.size() >= CACHE_MAX_ENTRIES) {
+                Iterator<Integer> it = lyricsCache.keySet().iterator();
+                if (it.hasNext()) {
+                    lyricsCache.remove(it.next());
+                }
+            }
+            lyricsCache.put(musicId, new CachedLyrics(lyrics, System.currentTimeMillis() + CACHE_TTL_MILLIS));
+        });
+        return loaded;
+    }
+
+    private void invalidateCached(int musicId) {
+        lyricsCache.remove(musicId);
     }
 
     public Optional<StoredLyrics> findByMusicId(int musicId) {
@@ -144,6 +189,7 @@ public class LyricsDatabaseManager {
             stmt.setInt(7, sizeBytes);
             stmt.executeUpdate();
         }
+        invalidateCached(musicId);
     }
 
     public boolean delete(int musicId) {
@@ -158,6 +204,8 @@ public class LyricsDatabaseManager {
         } catch (SQLException e) {
             logger.warn("删除数据库歌词失败 musicId={}: {}", musicId, e.toString());
             return false;
+        } finally {
+            invalidateCached(musicId);
         }
     }
 

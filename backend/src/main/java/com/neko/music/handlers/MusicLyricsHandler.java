@@ -14,10 +14,29 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.OptionalInt;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import com.neko.music.i18n.ApiMessages;
 
 public class MusicLyricsHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicLyricsHandler.class);
+
+    /** LRC 时间戳补毫秒（{@code [00:12:34]} → {@code [00:12.34]}）。预编译，避免每条请求重新编译正则。 */
+    private static final Pattern LRC_TIMESTAMP = Pattern.compile("\\[(\\d{2}):(\\d{2}):(\\d{2,3})\\]");
+
+    /**
+     * 播放计数与防刷在响应之后执行：它不参与响应内容，留在请求线程里则每次「新 IP + 新曲目」
+     * 都要多付一次 Redis 往返和一次 {@code UPDATE music} 提交（毫秒级）。
+     * 队列满即丢弃——播放计数是尽力而为的统计，不值得让请求排队。
+     */
+    private static final ExecutorService PLAY_COUNT_EXECUTOR = new ThreadPoolExecutor(
+            1, 1, 0L, TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue<>(1024),
+            Thread.ofPlatform().daemon().name("lyrics-play-count-", 0).factory(),
+            new ThreadPoolExecutor.DiscardPolicy());
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -26,22 +45,24 @@ public class MusicLyricsHandler extends HttpServlet {
             return;
         }
         int musicId = musicIdOpt.getAsInt();
-        
+
         // 获取歌词信息
         String lyrics = getLyricsById(musicId);
-        
+
         if (lyrics == null) {
             writeError(response, HttpStatus.NOT_FOUND_404, "music.lyrics.file_missing");
             return;
         }
-        
-        // 增加播放次数（带防刷逻辑）
-        incrementPlayCount(musicId, request);
-        
+
+        // 增加播放次数（带防刷逻辑）：IP 必须在请求线程里取好，异步阶段 request 可能已被容器回收
+        submitPlayCount(musicId, getClientIpAddress(request));
+
+        byte[] body = Main.getObjectMapper()
+                .writeValueAsBytes(new LyricsResponse(true, ApiMessages.translate("music.lyrics.get_ok"), lyrics));
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
-        LyricsResponse lyricsResponse = new LyricsResponse(true, ApiMessages.translate("music.lyrics.get_ok"), lyrics);
-        response.getWriter().println(Main.getObjectMapper().writeValueAsString(lyricsResponse));
+        response.getOutputStream().write(body);
+        response.getOutputStream().flush();
     }
     
     @Override
@@ -142,7 +163,7 @@ public class MusicLyricsHandler extends HttpServlet {
      * 根据音乐ID获取歌词
      */
     private String getLyricsById(int musicId) {
-        var stored = Main.getLyricsDatabaseManager().findByMusicId(musicId);
+        var stored = Main.getLyricsDatabaseManager().findByMusicIdCached(musicId);
         if (stored.isPresent()) {
             return normalizeLrc(stored.get().content());
         }
@@ -165,17 +186,19 @@ public class MusicLyricsHandler extends HttpServlet {
         if (lyricsContent == null) {
             return null;
         }
-        return lyricsContent.replaceAll("\\[(\\d{2}):(\\d{2}):(\\d{2,3})\\]", "[$1:$2.$3]");
+        return LRC_TIMESTAMP.matcher(lyricsContent).replaceAll("[$1:$2.$3]");
+    }
+
+    /** 把播放计数丢到后台线程；客户端 IP 已在请求线程里解析完成。 */
+    private void submitPlayCount(int musicId, String ipAddress) {
+        PLAY_COUNT_EXECUTOR.execute(() -> incrementPlayCount(musicId, ipAddress));
     }
 
     /**
      * 增加音乐的播放次数（带防刷逻辑）
      */
-    private void incrementPlayCount(int musicId, HttpServletRequest request) {
+    private void incrementPlayCount(int musicId, String ipAddress) {
         try {
-            // 获取客户端IP地址
-            String ipAddress = getClientIpAddress(request);
-            
             if (ipAddress == null || ipAddress.isEmpty()) {
                 logger.warn("无法获取客户端IP地址，跳过播放次数统计");
                 return;
