@@ -2,7 +2,6 @@ package com.neko.music.i18n;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * 单次请求的响应语言，随线程传递（过滤器写入、响应写出时读取）。
@@ -14,13 +13,15 @@ import java.util.Locale;
  *
  * <p>必须在过滤器里 {@code finally} 调 {@link #clear()}：Jetty 的线程会复用，残留的语言会串到
  * 下一个请求上。</p>
+ *
+ * <p>「支持哪些语言」由 {@link Languages} 的注册表决定，这里只负责把请求头映到某个已注册语言。</p>
  */
 public final class RequestLocale {
 
     /** 默认语言：没有可用的 {@code Accept-Language} 时用它，也是本站文案的源语言。 */
-    public static final String DEFAULT = "zh-CN";
+    public static final String DEFAULT = Languages.SOURCE;
 
-    /** 支持的语言（与 {@code i18n/messages_<tag>.properties} 一一对应）。 */
+    /** 英文标签的便捷常量（日志与测试用）。 */
     public static final String EN = "en";
 
     private static final ThreadLocal<String> CURRENT = new ThreadLocal<>();
@@ -42,12 +43,20 @@ public final class RequestLocale {
         return locale == null ? DEFAULT : locale;
     }
 
+    /** 已注册的语言标签（含源语言）。 */
+    public static List<String> supported() {
+        return Languages.tags();
+    }
+
     /**
      * 解析 {@code Accept-Language}，返回本站支持的语言标签。
      *
-     * <p>按 q 值从大到小取，只认「站点支持的语言」这一层（{@code zh} / {@code en} 前缀），
-     * 取不到就回落 {@link #DEFAULT}。不使用 {@code HttpServletRequest#getLocale()}：容器对
-     * 通配、q 值与兜底的处理各家不同，且本站要求该头必须存在，自己解析口径才稳定。</p>
+     * <p>按 q 值从大到小取，同 q 时按请求头里的出现顺序；逐个候选去 {@link Languages} 里匹配，
+     * 第一个匹配上的就是结果。全都匹配不上（含只有 {@code fr-FR,de} 这类本站没做的语言、以及
+     * {@code *}）时回落 {@link #DEFAULT}；{@code q=0} 表示「明确不接受」，不能当候选。</p>
+     *
+     * <p>不使用 {@code HttpServletRequest#getLocale()}：容器对通配、q 值与兜底的处理各家不同，
+     * 且本站要求该头必须存在，自己解析口径才稳定。</p>
      */
     public static String resolve(String acceptLanguage) {
         if (acceptLanguage == null || acceptLanguage.isBlank()) {
@@ -74,7 +83,6 @@ public final class RequestLocale {
                     }
                 }
             }
-            // q=0 表示「明确不接受」，不能拿它当候选
             if (quality > 0f) {
                 candidates.add(new Candidate(quality, i, tag));
             }
@@ -83,15 +91,12 @@ public final class RequestLocale {
                 ? Float.compare(b.quality(), a.quality())
                 : Integer.compare(a.order(), b.order()));
         for (Candidate candidate : candidates) {
-            String language = candidate.tag().toLowerCase(Locale.ROOT);
-            if (language.equals("*")) {
+            if (candidate.tag().equals("*")) {
                 return DEFAULT;
             }
-            if (language.startsWith("zh")) {
-                return DEFAULT;
-            }
-            if (language.startsWith("en")) {
-                return EN;
+            String matched = Languages.match(candidate.tag());
+            if (matched != null) {
+                return matched;
             }
         }
         return DEFAULT;

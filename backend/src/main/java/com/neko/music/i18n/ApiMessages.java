@@ -4,22 +4,25 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * API 响应文案的多语言表。
  *
  * <p>文案在调用点用「命名空间的键」写出（如 {@code music.upload.unsupported_audio}），键到各语言
- * 文案的映射放在 {@code resources/i18n/messages_<tag>.properties}；这是标准的 i18n 结构：
- * 代码里只有稳定的键，文案改动不进代码评审、新增语言只加一个文件。</p>
+ * 文案的映射放在 {@code resources/i18n/messages_<标签>.properties}；这是标准的 i18n 结构：
+ * 代码里只有稳定的键，文案改动不进代码评审、加一门语言＝放一个文件并登记到
+ * {@code i18n/languages.properties}。</p>
  *
- * <p><b>查表顺序</b>：当前语言 → {@link RequestLocale#DEFAULT}（源语言兜底）→ 键本身。因此缺一条
- * 译文只是「回落中文 / 暴露键名」，不会抛异常、不会把接口打挂；键与文案的对应关系有单测锁定
- * （{@code ApiMessagesTest}），防止漏登记或写错键。</p>
+ * <p><b>查表顺序</b>：当前语言 → 该语言声明的回落语言（如 {@code zh-TW → zh-CN}、{@code ja → en}）
+ * → {@link RequestLocale#DEFAULT} → 键本身。因此缺一条译文只是「往后回落 / 暴露键名」，不会抛异常、
+ * 不会把接口打挂；键与文案的对应关系有单测锁定（{@code ApiMessagesTest}），防止漏登记或写错键。</p>
  *
  * <p>带参数的文案用 {@code {0}}、{@code {1}} 占位（例如
  * {@code playlist.remove.done=已从歌单中移除 {0} 首音乐}），不使用 {@code MessageFormat}——
@@ -31,17 +34,12 @@ import java.util.stream.Collectors;
  */
 public final class ApiMessages {
 
-    /** 语言标签 → 译文表资源路径。 */
-    private static final Map<String, String> TABLES = Map.of(
-            RequestLocale.DEFAULT, "/i18n/messages_zh_CN.properties",
-            RequestLocale.EN, "/i18n/messages_en.properties");
-
     private static final Map<String, Map<String, String>> LOADED = loadTables();
 
     private ApiMessages() {
     }
 
-    /** 按当前请求语言翻译文案；查不到译文时回落源语言，仍查不到则返回键本身。 */
+    /** 按当前请求语言翻译文案；查不到译文时按回落链退到源语言，仍查不到则返回键本身。 */
     public static String translate(String key) {
         return translate(key, new Object[0]);
     }
@@ -55,14 +53,41 @@ public final class ApiMessages {
         if (key == null || key.isEmpty()) {
             return key;
         }
-        String text = lookup(RequestLocale.current(), key);
-        if (text == null) {
-            text = lookup(RequestLocale.DEFAULT, key);
+        return render(lookupChain(RequestLocale.current(), key), key, args);
+    }
+
+    /**
+     * 取源语言（简体中文）文案，忽略请求语言。
+     *
+     * <p>给「响应会被共享缓存、必须保持唯一变体」的公开接口用：它们的 {@code Cache-Control} 是
+     * {@code public}，一份缓存要发给所有语言的使用者，若 {@code message} 随 {@code Accept-Language}
+     * 变化就必须声明 {@code Vary}，等于按语言碎片化缓存。</p>
+     */
+    public static String source(String key, Object... args) {
+        if (key == null || key.isEmpty()) {
+            return key;
         }
-        if (text == null) {
-            text = key;
+        return render(lookup(RequestLocale.DEFAULT, key), key, args);
+    }
+
+    private static String render(String text, String key, Object[] args) {
+        String result = text == null ? key : text;
+        return args == null || args.length == 0 ? result : fill(result, args);
+    }
+
+    /** 当前语言 → 顺着回落链 → 源语言；都没有译文时返回 {@code null}。 */
+    private static String lookupChain(String locale, String key) {
+        String current = locale == null || locale.isBlank() ? RequestLocale.DEFAULT : locale;
+        while (true) {
+            String text = lookup(current, key);
+            if (text != null) {
+                return text;
+            }
+            if (RequestLocale.DEFAULT.equals(current)) {
+                return null;
+            }
+            current = Languages.fallbackOf(current);
         }
-        return args == null || args.length == 0 ? text : fill(text, args);
     }
 
     private static String lookup(String locale, String key) {
@@ -86,6 +111,11 @@ public final class ApiMessages {
         return table == null ? Set.of() : Set.copyOf(table.keySet());
     }
 
+    /** 已装载文案表的语言标签。 */
+    public static List<String> loadedLocales() {
+        return List.copyOf(LOADED.keySet());
+    }
+
     private static String fill(String template, Object[] args) {
         String result = template;
         for (int i = 0; i < args.length; i++) {
@@ -95,17 +125,18 @@ public final class ApiMessages {
     }
 
     private static Map<String, Map<String, String>> loadTables() {
-        Map<String, Map<String, String>> tables = new HashMap<>();
-        TABLES.forEach((locale, path) -> {
-            Map<String, String> table = loadTable(path);
+        // LinkedHashMap：按注册表顺序装载，保证 loadedLocales() 与 RequestLocale.supported() 同序
+        Map<String, Map<String, String>> tables = new LinkedHashMap<>();
+        for (String tag : Languages.tags()) {
+            Map<String, String> table = loadTable(Languages.tablePath(tag));
             if (!table.isEmpty()) {
-                tables.put(locale, table);
+                tables.put(tag, table);
             }
-        });
-        return tables;
+        }
+        return Collections.unmodifiableMap(tables);
     }
 
-    /** 读取一张 {@code 键=文案} 表；资源缺失或读取异常时返回空表（外层降级为源语言 / 键名）。 */
+    /** 读取一张 {@code 键=文案} 表；资源缺失或读取异常时返回空表（外层按回落链降级）。 */
     private static Map<String, String> loadTable(String path) {
         Map<String, String> table = new HashMap<>();
         InputStream in = ApiMessages.class.getResourceAsStream(path);
@@ -148,7 +179,7 @@ public final class ApiMessages {
 
     /** 支持的语言标签（小写）。 */
     public static Set<String> supportedLocales() {
-        return TABLES.keySet().stream().map(tag -> tag.toLowerCase(Locale.ROOT))
-                .collect(Collectors.toSet());
+        return LOADED.keySet().stream().map(tag -> tag.toLowerCase(Locale.ROOT))
+                .collect(java.util.stream.Collectors.toSet());
     }
 }

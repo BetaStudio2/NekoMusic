@@ -36,7 +36,9 @@ public class LatestMusicHandler extends HttpServlet {
         response.setContentType("application/json;charset=utf-8");
         response.setHeader("Cache-Control",
                 "public, max-age=" + HttpResourceCache.MAX_AGE_HALF_HOUR);
-        LatestMusicResponse latestMusicResponse = new LatestMusicResponse(true, ApiMessages.translate("music.latest_ok"), latestMusic);
+        // message 固定用源语言：本接口是 public 共享缓存，文案随 Accept-Language 变化会让缓存
+        // 按语言碎片化（要么加 Vary，要么保持唯一变体）。客户端本来也不依赖这句文案。
+        LatestMusicResponse latestMusicResponse = new LatestMusicResponse(true, ApiMessages.source("music.latest_ok"), latestMusic);
         response.getWriter().println(Main.getObjectMapper().writeValueAsString(latestMusicResponse));
     }
 

@@ -41,6 +41,9 @@ class ApiMessagesTest {
     void translatesByCurrentLocale() {
         assertEquals("Unsupported endpoint.", ApiMessages.translateAs(RequestLocale.EN,
                 "common.unsupported_endpoint"));
+        assertEquals("不支援的介面", ApiMessages.translateAs("zh-TW", "common.unsupported_endpoint"));
+        assertEquals("未対応のエンドポイントです", ApiMessages.translateAs("ja", "common.unsupported_endpoint"));
+        assertEquals("지원하지 않는 엔드포인트입니다", ApiMessages.translateAs("ko", "common.unsupported_endpoint"));
         assertEquals("不支持的接口", ApiMessages.translateAs(RequestLocale.DEFAULT,
                 "common.unsupported_endpoint"));
     }
@@ -66,17 +69,42 @@ class ApiMessagesTest {
     }
 
     @Test
-    void englishTableCoversEveryKey() {
-        // 两张表的键集合必须一致：漏一条英文就说明这条文案没翻译
-        Set<String> zh = keysOf("messages_zh_CN.properties");
-        Set<String> en = keysOf("messages_en.properties");
-        assertFalse(zh.isEmpty(), "中文文案表为空");
-        Set<String> missingInEn = new LinkedHashSet<>(zh);
-        missingInEn.removeAll(en);
-        assertEquals(Set.of(), missingInEn, "英文表缺少译文");
-        Set<String> extraInEn = new LinkedHashSet<>(en);
-        extraInEn.removeAll(zh);
-        assertEquals(Set.of(), extraInEn, "英文表存在中文表没有的键");
+    void everyRegisteredLanguageCoversEveryKey() {
+        // 所有语言的键集合必须与源语言完全一致：少一条就是「这门语言漏翻了」，多一条就是残留的
+        // 旧键。语言是注册表驱动的，加语言时这条用例自动把它纳入检查。
+        Set<String> source = keysOf("messages_zh_CN.properties");
+        assertFalse(source.isEmpty(), "中文文案表为空");
+        assertEquals(RequestLocale.supported(), ApiMessages.loadedLocales(), "注册的语言必须都装载了文案表");
+        for (String tag : RequestLocale.supported()) {
+            assertTrue(ApiMessages.tableSize(tag) > 0, tag + " 没有装载到文案表");
+            assertEquals(source.size(), ApiMessages.tableSize(tag), tag + " 的条目数与源语言不一致");
+            Set<String> keys = keysOf("messages_" + tag.replace('-', '_') + ".properties");
+            Set<String> missing = new LinkedHashSet<>(source);
+            missing.removeAll(keys);
+            assertEquals(Set.of(), missing, tag + " 缺少译文");
+            Set<String> extra = new LinkedHashSet<>(keys);
+            extra.removeAll(source);
+            assertEquals(Set.of(), extra, tag + " 存在源语言没有的键");
+        }
+    }
+
+    @Test
+    void fallsBackAlongTheDeclaredChain() {
+        // zh-TW 缺译文时回落 zh-CN；ja 缺译文时回落 en（注册表 languages.properties 声明）
+        assertEquals("zh-CN", Languages.fallbackOf("zh-TW"));
+        assertEquals("en", Languages.fallbackOf("ja"));
+        assertEquals("zh-CN", Languages.fallbackOf("en"));
+        // 未注册的语言也要能一路回落到源语言，而不是返回 null 或抛异常
+        assertEquals(RequestLocale.DEFAULT, Languages.fallbackOf("xx-YY"));
+        assertEquals("不支持的接口", ApiMessages.translateAs("xx-YY", "common.unsupported_endpoint"));
+    }
+
+    @Test
+    void sourceIgnoresRequestLanguage() {
+        // 公开共享缓存接口用 source()：无论请求什么语言都返回源语言文案
+        assertEquals("获取最新音乐成功", ApiMessages.source("music.latest_ok"));
+        assertEquals("不支持的接口", ApiMessages.source("common.unsupported_endpoint"));
+        assertEquals("未知的键", ApiMessages.source("未知的键"));
     }
 
     @Test
