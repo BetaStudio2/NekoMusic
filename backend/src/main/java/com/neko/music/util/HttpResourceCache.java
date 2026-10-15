@@ -38,6 +38,12 @@ public final class HttpResourceCache {
     public static final String CACHE_CONTROL_PRIVATE_FILE =
             "private, max-age=" + MAX_AGE_SIX_MONTHS + ", must-revalidate";
 
+    /**
+     * 允许浏览器私有缓存，但每次使用前都必须回源再校验（{@code max-age=0}）：适合「同一 URL
+     * 内容可能被替换、又不想重复传输整份响应」的资源（如用户头像）。共享缓存 / CDN 不得缓存。
+     */
+    public static final String CACHE_CONTROL_PRIVATE_REVALIDATE = "private, max-age=0, must-revalidate";
+
     /** 内嵌默认图标，内容不变 */
     public static final String DEFAULT_ICON_ETAG = "\"DefaultIcon-v1\"";
     public static final String CACHE_CONTROL_DEFAULT_ICON =
@@ -145,8 +151,13 @@ public final class HttpResourceCache {
     }
 
     public static void applyDefaultIconCachingHeaders(HttpServletResponse response) {
+        applyDefaultIconCachingHeaders(response, CACHE_CONTROL_DEFAULT_ICON);
+    }
+
+    /** 内嵌默认图标按指定缓存策略写头（{@code /default} 长期缓存，用户暂无头像时逐次再校验）。 */
+    public static void applyDefaultIconCachingHeaders(HttpServletResponse response, String cacheControl) {
         response.setHeader("ETag", DEFAULT_ICON_ETAG);
-        response.setHeader("Cache-Control", CACHE_CONTROL_DEFAULT_ICON);
+        response.setHeader("Cache-Control", cacheControl);
     }
 
     /** 声明支持字节范围，便于 CDN / 播放器分段请求与回源。 */
