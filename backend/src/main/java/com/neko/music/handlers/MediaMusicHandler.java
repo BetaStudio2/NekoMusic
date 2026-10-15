@@ -11,6 +11,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Optional;
 
 /** Serves the stable, CDN-cacheable target of the music redirect. */
@@ -45,8 +46,10 @@ public final class MediaMusicHandler extends HttpServlet {
     }
 
     private void send(Path file, HttpServletRequest request, HttpServletResponse response) throws IOException {
-        long size = Files.size(file);
-        String etag = HttpResourceCache.strongEtagForFile(file);
+        // 长度、ETag、Last-Modified 共用同一次 stat
+        BasicFileAttributes attrs = Files.readAttributes(file, BasicFileAttributes.class);
+        long size = attrs.size();
+        String etag = HttpResourceCache.etagFor(attrs);
         if (request.getHeader("Range") == null && HttpResourceCache.sendNotModifiedIfFresh(request, response, etag)) {
             HttpResourceCache.setAcceptRangesBytes(response);
             return;
@@ -54,7 +57,7 @@ public final class MediaMusicHandler extends HttpServlet {
         String contentType = contentType(file);
         String range = request.getHeader("Range");
         HttpResourceCache.setAcceptRangesBytes(response);
-        HttpResourceCache.applyFileCachingHeaders(file, response);
+        HttpResourceCache.applyFileCachingHeaders(attrs, response, HttpResourceCache.CACHE_CONTROL_FILE);
         response.setContentType(contentType);
         if (range == null || !range.startsWith("bytes=")) {
             response.setStatus(HttpServletResponse.SC_OK);

@@ -18,6 +18,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Optional;
 
 public class MusicCoverHandler extends HttpServlet {
@@ -84,15 +85,17 @@ public class MusicCoverHandler extends HttpServlet {
 
     
     private void sendImageFile(HttpServletRequest request, Path imagePath, HttpServletResponse response) throws IOException {
-        String etag = HttpResourceCache.strongEtagForFile(imagePath);
-        if (HttpResourceCache.sendNotModifiedIfFresh(request, response, etag)) {
+        // ETag、Last-Modified、Content-Length 都来自这一次 stat；304 分支到此为止，不打开文件
+        BasicFileAttributes attrs = Files.readAttributes(imagePath, BasicFileAttributes.class);
+        if (HttpResourceCache.sendNotModifiedIfFresh(request, response, HttpResourceCache.etagFor(attrs))) {
             return;
         }
 
         String mimeType = getMimeType(imagePath.toString());
         response.setContentType(mimeType);
         response.setStatus(HttpStatus.OK_200);
-        HttpResourceCache.applyFileCachingHeaders(imagePath, response);
+        HttpResourceCache.applyFileCachingHeaders(attrs, response, HttpResourceCache.CACHE_CONTROL_FILE);
+        response.setContentLengthLong(attrs.size());
         
         try (InputStream inputStream = Files.newInputStream(imagePath);
              OutputStream outputStream = response.getOutputStream()) {
@@ -143,7 +146,8 @@ public class MusicCoverHandler extends HttpServlet {
     }
 
     private void copyStream(InputStream inputStream, OutputStream outputStream) throws IOException {
-        byte[] buffer = new byte[8192];
+        // 64KB 缓冲：封面常见几百 KB，用 8KB 缓冲要多几十次 read/write
+        byte[] buffer = new byte[65536];
         int bytesRead;
 
         while ((bytesRead = inputStream.read(buffer)) != -1) {

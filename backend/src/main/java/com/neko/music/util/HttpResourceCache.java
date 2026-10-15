@@ -47,10 +47,13 @@ public final class HttpResourceCache {
     }
 
     public static String strongEtagForFile(Path path) throws IOException {
-        BasicFileAttributes attrs = Files.readAttributes(path, BasicFileAttributes.class);
-        long size = attrs.size();
-        long lm = attrs.lastModifiedTime().toMillis();
-        return "\"" + Long.toHexString(lm) + "-" + Long.toHexString(size) + "\"";
+        return etagFor(Files.readAttributes(path, BasicFileAttributes.class));
+    }
+
+    /** 与 {@link #strongEtagForFile(Path)} 同值；供同一请求里已经读到文件属性的场景复用，省一次 stat。 */
+    public static String etagFor(BasicFileAttributes attrs) {
+        return "\"" + Long.toHexString(attrs.lastModifiedTime().toMillis())
+                + "-" + Long.toHexString(attrs.size()) + "\"";
     }
 
     private static String stripEtagValue(String raw) {
@@ -115,9 +118,19 @@ public final class HttpResourceCache {
     /** 按指定缓存策略写入 {@code ETag} / {@code Last-Modified} / {@code Cache-Control}。 */
     public static void applyFileCachingHeaders(Path path, HttpServletResponse response, String cacheControl)
             throws IOException {
-        String etag = strongEtagForFile(path);
-        response.setHeader("ETag", etag);
-        response.setDateHeader("Last-Modified", Files.getLastModifiedTime(path).toMillis());
+        applyFileCachingHeaders(Files.readAttributes(path, BasicFileAttributes.class), response, cacheControl);
+    }
+
+    /**
+     * 用调用方已读到的文件属性写头。
+     *
+     * <p>ETag 与 Last-Modified 本来就来自同一次 {@code stat}，拆成两次读会多一次系统调用；
+     * 响应长度、Range 边界也常需要同一份属性，因此提供这个重载让调用方只读一次。</p>
+     */
+    public static void applyFileCachingHeaders(BasicFileAttributes attrs, HttpServletResponse response,
+                                               String cacheControl) {
+        response.setHeader("ETag", etagFor(attrs));
+        response.setDateHeader("Last-Modified", attrs.lastModifiedTime().toMillis());
         response.setHeader("Cache-Control", cacheControl);
     }
 

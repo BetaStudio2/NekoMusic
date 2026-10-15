@@ -28,8 +28,15 @@ public final class MusicAssetLocator {
     private MusicAssetLocator() {
     }
 
+    /**
+     * 运行目录（{@code user.dir}）在进程内不变。写成静态常量，省掉每次资产请求都做一遍
+     * {@code System.getProperty} + {@code Paths.get}：封面/音频请求里 {@link #audioDir()}
+     * 一类方法会被调用好几次。
+     */
+    private static final Path BASE_DIR = Paths.get(System.getProperty("user.dir"));
+
     public static Path baseDir() {
-        return Paths.get(System.getProperty("user.dir"));
+        return BASE_DIR;
     }
 
     public static Path audioDir() {
@@ -49,9 +56,9 @@ public final class MusicAssetLocator {
             return Optional.empty();
         }
         try {
-            return pickOne(listIdNamedFiles(audioDir(), musicId), AUDIO_EXT_PRIORITY);
+            return findIdNamedFile(audioDir(), musicId, AUDIO_EXT_PRIORITY);
         } catch (IOException e) {
-            log.warn("列出音乐目录失败: {}", e.toString());
+            log.warn("定位音乐文件失败: {}", e.toString());
             return Optional.empty();
         }
     }
@@ -94,9 +101,9 @@ public final class MusicAssetLocator {
             return Optional.empty();
         }
         try {
-            return pickOne(listIdNamedFiles(coverDir(), musicId), COVER_EXT_PRIORITY);
+            return findIdNamedFile(coverDir(), musicId, COVER_EXT_PRIORITY);
         } catch (IOException e) {
-            log.warn("列出封面目录失败: {}", e.toString());
+            log.warn("定位封面文件失败: {}", e.toString());
             return Optional.empty();
         }
     }
@@ -177,6 +184,30 @@ public final class MusicAssetLocator {
         }
         String rest = fileName.substring(idPrefix.length());
         return !rest.isEmpty() && !rest.contains(".");
+    }
+
+    /**
+     * 定位 {@code {id}.<ext>}：按扩展名优先级逐个直接探测，不做全目录扫描。
+     *
+     * <p>{@code Music/music} 与 {@code Music/covers} 各有数万个条目，先前每次请求都
+     * {@code Files.list} 整个目录，在并发下（目录不在页缓存时要真读盘）会放大到秒级；
+     * 直接拼路径后正常情况只需几次 {@code stat}。</p>
+     *
+     * <p>白名单扩展名全部未命中时才回退一次目录扫描，保证历史遗留的非常规扩展名仍能被找到。</p>
+     */
+    static Optional<Path> findIdNamedFile(Path dir, int musicId, List<String> extPriority)
+            throws IOException {
+        if (!Files.isDirectory(dir)) {
+            return Optional.empty();
+        }
+        String idPrefix = musicId + ".";
+        for (String ext : extPriority) {
+            Path candidate = dir.resolve(idPrefix + ext);
+            if (Files.isRegularFile(candidate)) {
+                return Optional.of(candidate);
+            }
+        }
+        return pickOne(listIdNamedFiles(dir, musicId), extPriority);
     }
 
     private static List<Path> listIdNamedFiles(Path dir, int musicId) throws IOException {
