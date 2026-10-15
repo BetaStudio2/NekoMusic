@@ -61,7 +61,13 @@ public final class NotificationPushBus {
             this.userId = userId;
         }
 
-        private void wake() {
+        /**
+         * 唤醒这条连接。
+         *
+         * <p>有新消息时由 {@link #signal(int)} 调用；持有句柄的一方也可以主动调它，让连接提前从
+         * 等待中醒来收尾（例如同一用户的连接数超限、最旧的一条被淘汰时）。</p>
+         */
+        public void wake() {
             wakeups.offer(WAKEUP);
         }
 

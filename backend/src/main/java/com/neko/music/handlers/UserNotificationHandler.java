@@ -20,13 +20,14 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 站内消息（收件箱）。
@@ -71,15 +72,40 @@ public class UserNotificationHandler extends ApiServlet {
     /** 单次补推的最大条数，避免突发批量把一条连接堵死。 */
     private static final int STREAM_BATCH_LIMIT = MAX_LIMIT;
     /**
-     * 每个用户同时允许的流连接数（多标签页 / 多端）。
+     * 每个用户同时保留的流连接数（多标签页 / 多端）。
      *
      * <p>单机部署刻意<b>不设全局连接上限</b>：全局上限会让「第 N+1 个用户无论他是谁都连不上」，
-     * 与「所有用户都要能连上」直接冲突。这里改成按用户限并发，再叠加「接口需登录鉴权」，单个来源
-     * 就无法靠堆连接把单机句柄 / 内存打满；真正的容量天花板交给机器本身（fd、内存）。</p>
+     * 与「所有用户都要能连上」直接冲突。这里按用户计数，但<b>不作为拒绝理由</b>——超出时淘汰该用户
+     * 最旧的一条连接，让新连接照常建立。这样单个来源始终无法靠堆连接把单机句柄 / 内存打满，而正常
+     * 用户不会因为「开了几个标签页」就被挡在外面：{@code EventSource} 拿到非 2xx 会直接终止连接且
+     * 不再自动重连，一次拒绝等于那个标签页再也收不到实时消息。</p>
+     *
+     * <p>取 8 是给「多标签页 + 多端 + 到点重连时新旧短暂并存」留余量。值太小会让正常用户频繁进入
+     * 「建连 → 被淘汰 → 重连」的循环，反而比放开更糟。</p>
      */
-    private static final int MAX_STREAMS_PER_USER = 2;
+    private static final int MAX_STREAMS_PER_USER = 8;
 
-    private static final ConcurrentHashMap<Integer, AtomicInteger> STREAMS_BY_USER = new ConcurrentHashMap<>();
+    /** 被淘汰的连接在收尾前改用的重连间隔：压住「连接数超出上限」时多标签页之间的抢连接。 */
+    private static final int EVICTED_STREAM_RETRY_MS = 15_000;
+
+    /** 每个用户已建立的流连接，按建立顺序排列；超出上限时淘汰最旧的一条。 */
+    private static final ConcurrentHashMap<Integer, ArrayDeque<StreamEntry>> STREAMS_BY_USER =
+            new ConcurrentHashMap<>();
+
+    /**
+     * 一条在建 / 存续中的 SSE 连接。
+     *
+     * <p>淘汰只置位 {@code evicted} 并唤醒它的等待，收尾（写结束帧、注销槽位、关闭异步上下文）
+     * 仍由持有这条连接的那个线程完成，避免在两处同时操作同一个 {@code Writer} / {@code AsyncContext}。</p>
+     */
+    private static final class StreamEntry {
+        private final AtomicBoolean evicted = new AtomicBoolean(false);
+        private final NotificationPushBus.StreamSignal signal;
+
+        private StreamEntry(NotificationPushBus.StreamSignal signal) {
+            this.signal = signal;
+        }
+    }
 
     private final ExecutorService streamExecutor = Executors.newThreadPerTaskExecutor(
             Thread.ofVirtual().name("notification-sse-", 0).factory());
@@ -203,17 +229,17 @@ public class UserNotificationHandler extends ApiServlet {
     // ──────────────────────────── 实时推送（SSE） ────────────────────────────
 
     private void handleStream(HttpServletRequest req, HttpServletResponse resp, int userId) throws IOException {
-        if (!acquireStreamSlot(userId)) {
-            resp.setHeader("Retry-After", "30");
-            sendErrorResponse(resp, 429, "notify.sse_limit");
-            return;
-        }
+        // 连接数超限不再拒绝：新连接照常建立，只把该用户最旧的一条挤掉（见 registerStream）。
+        // 必须先订阅再登记，淘汰时才拿得到唤醒句柄，被挤掉的连接就不用等兜底轮询才发现。
+        NotificationPushBus.StreamSignal signal = Main.getUserNotificationService().subscribeStream(userId);
+        StreamEntry entry = registerStream(userId, signal);
 
         AsyncContext asyncContext;
         try {
             asyncContext = req.startAsync();
         } catch (IllegalStateException e) {
-            releaseStreamSlot(userId);
+            releaseStream(userId, entry);
+            signal.close();
             logger.warn("站内消息 SSE 异步上下文创建失败", e);
             sendErrorResponse(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "qr.sse_unsupported");
             return;
@@ -234,16 +260,17 @@ public class UserNotificationHandler extends ApiServlet {
             writer.print("retry: 3000\n\n");
             writer.flush();
         } catch (IOException | IllegalStateException e) {
-            releaseStreamSlot(userId);
+            releaseStream(userId, entry);
+            signal.close();
             completeQuietly(asyncContext);
             return;
         }
 
         streamExecutor.execute(() -> {
             try {
-                streamNotifications(userId, writer);
+                streamNotifications(userId, writer, entry, signal);
             } finally {
-                releaseStreamSlot(userId);
+                releaseStream(userId, entry);
                 completeQuietly(asyncContext);
             }
         });
@@ -255,7 +282,8 @@ public class UserNotificationHandler extends ApiServlet {
      * <p>单机下写入与连接同进程，本地写库会直接唤醒这条连接（见 {@link NotificationPushBus}）；
      * Redis 版本号只在兜底周期上比对一次，用于覆盖信号丢失或未来的旁路写入。</p>
      */
-    private void streamNotifications(int userId, PrintWriter writer) {
+    private void streamNotifications(int userId, PrintWriter writer, StreamEntry entry,
+                                     NotificationPushBus.StreamSignal signal) {
         UserNotificationDatabaseManager db = Main.getUserNotificationDatabaseManager();
         UserNotificationService notificationService = Main.getUserNotificationService();
 
@@ -264,11 +292,17 @@ public class UserNotificationHandler extends ApiServlet {
         long lastVersion = notificationService.currentVersion(userId);
         int cursor = latestId(db, userId);
 
-        try (NotificationPushBus.StreamSignal signal = notificationService.subscribeStream(userId)) {
+        try (signal) {
             writeEvent(writer, "ready", readyPayload(db, userId, cursor));
             while (true) {
+                if (entry.evicted.get()) {
+                    break;
+                }
                 // 有本地写入时立刻被唤醒；空闲时只在兜底周期上醒来比对一次版本号
                 boolean woken = signal.await(STREAM_FALLBACK_POLL_INTERVAL_MS);
+                if (entry.evicted.get()) {
+                    break;
+                }
                 long version = notificationService.currentVersion(userId);
                 if (woken || version != lastVersion) {
                     lastVersion = version;
@@ -284,6 +318,11 @@ public class UserNotificationHandler extends ApiServlet {
                     writer.flush();
                     lastPing = now;
                 }
+            }
+            if (entry.evicted.get()) {
+                // 让这台客户端把重连间隔调大，避免多标签页之间以 3 秒一轮互相抢连接
+                writer.print("retry: " + EVICTED_STREAM_RETRY_MS + "\n\n");
+                writer.flush();
             }
         } catch (IOException e) {
             logger.debug("站内消息 SSE 连接已断开: {}", e.getMessage());
@@ -343,20 +382,42 @@ public class UserNotificationHandler extends ApiServlet {
         writer.flush();
     }
 
-    private static synchronized boolean acquireStreamSlot(int userId) {
-        AtomicInteger counter = STREAMS_BY_USER.computeIfAbsent(userId, key -> new AtomicInteger());
-        if (counter.get() >= MAX_STREAMS_PER_USER) {
-            return false;
+    /**
+     * 登记一条新连接；该用户的连接已到上限时，淘汰最旧的一条而不是拒绝新连接。
+     *
+     * <p>{@code signal} 必须已就绪：淘汰靠它立刻唤醒对方。唤醒与写帧都放在 {@code compute} 之外，
+     * 不在 map 的桶锁里做 I/O。</p>
+     */
+    private static StreamEntry registerStream(int userId, NotificationPushBus.StreamSignal signal) {
+        StreamEntry entry = new StreamEntry(signal);
+        List<StreamEntry> evicted = new ArrayList<>();
+        STREAMS_BY_USER.compute(userId, (key, streams) -> {
+            ArrayDeque<StreamEntry> queue = streams == null ? new ArrayDeque<>() : streams;
+            while (queue.size() >= MAX_STREAMS_PER_USER) {
+                StreamEntry oldest = queue.pollFirst();
+                if (oldest == null) {
+                    break;
+                }
+                evicted.add(oldest);
+            }
+            queue.addLast(entry);
+            return queue;
+        });
+        for (StreamEntry oldest : evicted) {
+            if (oldest.evicted.compareAndSet(false, true)) {
+                logger.debug("站内消息 SSE 连接数超过每用户上限，淘汰最旧的一条: userId={}", userId);
+                oldest.signal.wake();
+            }
         }
-        counter.incrementAndGet();
-        return true;
+        return entry;
     }
 
-    private static synchronized void releaseStreamSlot(int userId) {
-        AtomicInteger counter = STREAMS_BY_USER.get(userId);
-        if (counter != null && counter.decrementAndGet() <= 0) {
-            STREAMS_BY_USER.remove(userId);
-        }
+    /** 注销一条连接；该用户的连接全部结束后移除条目，避免 map 随历史用户无限增长。 */
+    private static void releaseStream(int userId, StreamEntry entry) {
+        STREAMS_BY_USER.computeIfPresent(userId, (key, streams) -> {
+            streams.remove(entry);
+            return streams.isEmpty() ? null : streams;
+        });
     }
 
     private static void completeQuietly(AsyncContext asyncContext) {
