@@ -205,14 +205,41 @@ class CrawlerProtectionFilterTest {
                 "Accept-Language", "zh-CN,zh;q=0.9"));
         assertEquals(200, withLang.status());
         assertTrue(withLang.chained());
+    }
 
-        // 老浏览器可能没有 Sec-Fetch-*，只要 Accept-Language 即可
+    @Test
+    void requiresAcceptLanguageOnBrowserRequests() throws Exception {
+        // Accept-Language 是硬性要求：真实浏览器一定带，脚本与环境异常请求普遍缺失
+        Outcome missingLang = inspect(BROWSER_UA, Map.of("Accept", "*/*"));
+        assertEquals(403, missingLang.status());
+        assertNull(missingLang.forwarded());
+        assertFalse(missingLang.chained());
+        // 与爬虫黑名单那一路区分开的环境异常文案
+        assertTrue(missingLang.body().contains("环境异常"), missingLang.body());
+
+        // 只带 Sec-Fetch-* 不足以替代：该组头脚本随手可伪造
         Outcome secFetchOnly = inspect(BROWSER_UA, Map.of(
                 "Accept", "*/*",
                 "Sec-Fetch-Mode", "cors",
                 "Sec-Fetch-Site", "same-origin"));
-        assertEquals(200, secFetchOnly.status());
-        assertTrue(secFetchOnly.chained());
+        assertEquals(403, secFetchOnly.status());
+        assertNull(secFetchOnly.forwarded());
+        assertFalse(secFetchOnly.chained());
+
+        // 空白值不算
+        Outcome blankLang = inspect(BROWSER_UA, Map.of("Accept", "*/*", "Accept-Language", "   "));
+        assertEquals(403, blankLang.status());
+        assertFalse(blankLang.chained());
+
+        // 两头齐全照常放行
+        Outcome ok = inspect(BROWSER_UA, Map.of("Accept", "*/*", "Accept-Language", "en-US,en;q=0.9"));
+        assertEquals(200, ok.status());
+        assertTrue(ok.chained());
+
+        // 官方原生客户端不要求浏览器头：它在特征头判定之前就放行
+        Outcome nativeClient = inspect("NekoMusic-android/202601008", Map.of());
+        assertEquals(200, nativeClient.status());
+        assertTrue(nativeClient.chained());
     }
 
     @Test

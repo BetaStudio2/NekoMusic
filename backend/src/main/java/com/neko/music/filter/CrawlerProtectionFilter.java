@@ -38,8 +38,9 @@ import java.util.Locale;
  * <p>设计要点：</p>
  * <ul>
  *   <li>浏览器以真实 UA（含 {@code Mozilla/} 与内核标记）通过 fetch 访问动态接口，并携带
- *       {@code Accept} / {@code Accept-Language} 等头，恒不误伤；官方原生客户端靠
- *       {@link UserAgentClassifier#isNativeClient} 的严格 UA 判定放行，不影响 App。</li>
+ *       {@code Accept} 与 {@code Accept-Language}，恒不误伤；<b>{@code Accept-Language} 为硬性要求</b>，
+ *       缺失即按环境异常 403，用于挡掉凑不齐浏览器头的脚本。官方原生客户端在特征头判定之前就靠
+ *       {@link UserAgentClassifier#isNativeClient} 的严格 UA 判定放行，不受该要求影响。</li>
  *   <li>爬虫 / AI 抓取器 / 扫描器 / 伪造客户端不得拿到 JSON，也不在动态接口路径下渲染 SEO 页：
  *       命中即 {@code 403}。可抓取内容一律以正式 SEO 页面路径提供（sitemap + canonical），
  *       {@code robots.txt} 也已声明不与接口混在一起；在接口路径上再渲染一份 HTML 只会浪费渲染开销，
@@ -126,12 +127,14 @@ public class CrawlerProtectionFilter implements Filter {
                 chain.doFilter(request, response);
                 return;
             }
-            // 3b) 其余必须是「UA 结构像真浏览器」且「带浏览器特征头」
+            // 3b) 其余必须是「UA 结构像真浏览器」且「带齐浏览器特征头（Accept + Accept-Language）」
             if (UserAgentClassifier.looksLikeRealBrowser(ua) && BrowserEvidence.hasFetchEvidence(httpRequest)) {
                 chain.doFilter(request, response);
                 return;
             }
-            writeForbidden(httpResponse);
+            // 特征头不齐（尤其是缺 Accept-Language）按「环境异常」拒绝：文案刻意与爬虫黑名单那一路分开，
+            // 便于用户自查环境与客户端联调，同时不含任何判定细节。
+            writeForbidden(httpResponse, "环境异常，请换用官方客户端或主流浏览器访问");
             return;
         }
 
@@ -183,13 +186,17 @@ public class CrawlerProtectionFilter implements Filter {
     }
 
     private static void writeForbidden(HttpServletResponse httpResponse) throws IOException {
+        writeForbidden(httpResponse, "请求已拒绝");
+    }
+
+    private static void writeForbidden(HttpServletResponse httpResponse, String message) throws IOException {
         httpResponse.setStatus(HttpServletResponse.SC_FORBIDDEN);
         httpResponse.setContentType("application/json;charset=UTF-8");
         httpResponse.setCharacterEncoding(StandardCharsets.UTF_8.name());
         httpResponse.setHeader("Cache-Control", "private, no-store");
         var body = Main.getObjectMapper().createObjectNode();
         body.put("success", false);
-        body.put("message", "请求已拒绝");
+        body.put("message", message);
         body.putNull("data");
         try {
             Main.getObjectMapper().writeValue(httpResponse.getWriter(), body);
