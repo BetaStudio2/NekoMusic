@@ -47,6 +47,52 @@ public final class ClientFingerprint {
      * 前端在浏览器里注入的，不算原生客户端，仍按浏览器记。</p>
      */
     public static String type(String userAgent, String nekoClient) {
+        return fingerprint(userAgent, nekoClient).type();
+    }
+
+    /**
+     * 客户端平台：自报官方平台 → 官方客户端 UA → 自报平台 → 浏览器统一记 web。
+     *
+     * <p>{@code X-Neko-Client} 报的是官方平台时优先于 UA：UA 被中间层换成浏览器形态时，
+     * 这里必须跟 {@link #type(String, String)} 一致仍报原生平台，不能一个字段记官方客户端、
+     * 另一个字段记 web。{@code web+<版本>} 仍算浏览器。无法判定返回 null。</p>
+     */
+    public static String platform(String userAgent, String nekoClient) {
+        return fingerprint(userAgent, nekoClient).platform();
+    }
+
+    /** 客户端版本：与 {@link #platform(String, String)} 同源，保证平台与版本成对取自同一信号。 */
+    public static String version(String userAgent, String nekoClient) {
+        return fingerprint(userAgent, nekoClient).version();
+    }
+
+    /** 一次算完类型 / 平台 / 版本（三者共用同一套 UA 判定，分开算等于把同样的判断做三遍）。 */
+    public record Fingerprint(String userAgent, String nekoClient,
+                              String type, String platform, String version) {
+    }
+
+    private static final String SCOPE_KEY = "clientFingerprint";
+
+    /**
+     * 客户端指纹：访问日志要同时写类型 / 平台 / 版本三列，这里按「本次请求的 UA + 自报平台」
+     * 只算一次并缓存在 {@link RequestScope}（请求结束后自然释放，不跨请求保留客户端信息）。
+     */
+    public static Fingerprint fingerprint(String userAgent, String nekoClient) {
+        Fingerprint cached = RequestScope.get(SCOPE_KEY);
+        if (cached != null
+                && java.util.Objects.equals(cached.userAgent(), userAgent)
+                && java.util.Objects.equals(cached.nekoClient(), nekoClient)) {
+            return cached;
+        }
+        Fingerprint computed = new Fingerprint(userAgent, nekoClient,
+                computeType(userAgent, nekoClient),
+                computePlatform(userAgent, nekoClient),
+                computeVersion(userAgent, nekoClient));
+        RequestScope.put(SCOPE_KEY, computed);
+        return computed;
+    }
+
+    private static String computeType(String userAgent, String nekoClient) {
         if (userAgent == null || userAgent.isBlank()) {
             return UNKNOWN;
         }
@@ -72,14 +118,7 @@ public final class ClientFingerprint {
         return UserAgentClassifier.isNativeClient(userAgent) ? OFFICIAL_CLIENT : THIRD_PARTY;
     }
 
-    /**
-     * 客户端平台：自报官方平台 → 官方客户端 UA → 自报平台 → 浏览器统一记 web。
-     *
-     * <p>{@code X-Neko-Client} 报的是官方平台时优先于 UA：UA 被中间层换成浏览器形态时，
-     * 这里必须跟 {@link #type(String, String)} 一致仍报原生平台，不能一个字段记官方客户端、
-     * 另一个字段记 web。{@code web+<版本>} 仍算浏览器。无法判定返回 null。</p>
-     */
-    public static String platform(String userAgent, String nekoClient) {
+    private static String computePlatform(String userAgent, String nekoClient) {
         String[] parts = parseNekoClient(nekoClient);
         if (parts != null && UserAgentClassifier.isOfficialClientPlatform(parts[0])) {
             return parts[0];
@@ -94,8 +133,7 @@ public final class ClientFingerprint {
         return looksLikeBrowser(userAgent) ? WEB_PLATFORM : null;
     }
 
-    /** 客户端版本：与 {@link #platform(String, String)} 同源，保证平台与版本成对取自同一信号。 */
-    public static String version(String userAgent, String nekoClient) {
+    private static String computeVersion(String userAgent, String nekoClient) {
         String[] parts = parseNekoClient(nekoClient);
         if (parts != null && UserAgentClassifier.isOfficialClientPlatform(parts[0])) {
             return parts[1];

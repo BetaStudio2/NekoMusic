@@ -548,13 +548,9 @@ public class UserAuthService {
      * 验证 token 并返回用户 ID（仅查 Redis）。若 token 剩余有效期不足 31 天，则按活跃会话延期 31 天。
      */
     public Optional<Integer> validateToken(String token) {
-        Optional<Integer> userId = tokenStore.getUserIdByToken(token);
-        userId.ifPresent(id -> tokenStore.extendUserTokenIfExpiring(
-                token,
-                id,
-                TOKEN_RENEW_EXTENSION_SECONDS,
-                TOKEN_RENEW_EXTENSION_SECONDS));
-        return userId;
+        // 校验与「临近过期时续期」合并为一次 Redis 往返（见 RedisTokenStore#validateAndRenew）：
+        // 认证路径在每个已登录请求上都会走这里，多一次 TTL 查询就是每个请求多一次往返。
+        return tokenStore.validateAndRenew(token, TOKEN_RENEW_EXTENSION_SECONDS, TOKEN_RENEW_EXTENSION_SECONDS);
     }
     
     /**

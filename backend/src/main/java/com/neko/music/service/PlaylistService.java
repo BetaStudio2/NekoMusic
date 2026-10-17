@@ -83,7 +83,7 @@ public class PlaylistService {
      * 获取用户的所有歌单
      */
     public List<Playlist> getUserPlaylists(int userId) {
-        logger.info("获取用户歌单: userId={}", userId);
+        logger.debug("获取用户歌单: userId={}", userId);
 
         List<Playlist> playlists = new ArrayList<>();
         String sql = SQL_PLAYLIST_COLUMNS + " WHERE user_id = ? ORDER BY created_at DESC";
@@ -98,7 +98,7 @@ public class PlaylistService {
                 playlists.add(mapPlaylistRow(rs));
             }
 
-            logger.info("获取到 {} 个歌单", playlists.size());
+            logger.debug("获取到 {} 个歌单", playlists.size());
         } catch (SQLException e) {
             logger.error("获取用户歌单失败: {}", e.getMessage(), e);
         }
@@ -124,7 +124,7 @@ public class PlaylistService {
                 playlists.add(mapPlaylistRow(rs));
             }
 
-            logger.info("获取到 {} 个歌单", playlists.size());
+            logger.debug("获取到 {} 个歌单", playlists.size());
         } catch (SQLException e) {
             logger.error("获取所有歌单失败: {}", e.getMessage(), e);
         }

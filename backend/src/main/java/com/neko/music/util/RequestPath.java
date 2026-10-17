@@ -22,16 +22,30 @@ import java.util.Deque;
  */
 public final class RequestPath {
 
+    /** 单请求缓存键：一个请求的路径在整条过滤器链里是常量，算一次即可。 */
+    private static final String SCOPE_KEY = "requestPath";
+
     private RequestPath() {
     }
 
-    /** 与 servlet 路由一致的规范化路径（不以 {@code /} 开头的内容会被补齐）。 */
+    /**
+     * 与 servlet 路由一致的规范化路径（不以 {@code /} 开头的内容会被补齐）。
+     *
+     * <p>结果按请求缓存在 {@link RequestScope} 里：七八道门禁各自都要拿它做前缀判定，
+     * 而它只取决于请求本身。</p>
+     */
     public static String of(HttpServletRequest request) {
         if (request == null) {
             return "";
         }
-        return of(request.getServletPath(), request.getPathInfo(),
+        String cached = RequestScope.get(SCOPE_KEY);
+        if (cached != null) {
+            return cached;
+        }
+        String path = of(request.getServletPath(), request.getPathInfo(),
                 request.getRequestURI(), request.getContextPath());
+        RequestScope.put(SCOPE_KEY, path);
+        return path;
     }
 
     /** 便于测试的纯函数版本。 */

@@ -2,6 +2,7 @@ package com.neko.music.handlers;
 
 import com.neko.music.Main;
 import com.neko.music.util.HttpResourceCache;
+import com.neko.music.util.JsonResponseCache;
 import com.neko.music.util.MusicAssetLocator;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -25,20 +26,38 @@ public class MusicRankingHandler extends HttpServlet {
     /** 固定返回条数（客户端不可调）。 */
     private static final int RANKING_LIMIT = 200;
 
+    /** 成品响应体缓存键与 TTL（理由同 {@link LatestMusicHandler}：公开缓存接口，与请求头无关）。 */
+    private static final String CACHE_KEY = "music.ranking";
+
+    /** 进程内成品缓存时长（毫秒）。 */
+    private static final long CACHE_TTL_MILLIS = 10_000L;
+
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         // 返回条数固定，不接受任何请求参数：本接口响应声明为可被共享缓存（public），
         // 若内容随查询串变化、而边缘缓存的缓存键又不含查询串，同一份缓存条目就会被
         // 其它查询串的请求写坏（Web 缓存投毒）。公开缓存接口只允许存在唯一变体。
-        List<MusicRankingItem> ranking = getMusicRanking();
+        String body = JsonResponseCache.get(CACHE_KEY, CACHE_TTL_MILLIS, this::buildResponseBody);
 
         response.setStatus(HttpStatus.OK_200);
         response.setContentType("application/json;charset=utf-8");
         response.setHeader("Cache-Control",
                 "public, max-age=" + HttpResourceCache.MAX_AGE_HALF_HOUR);
+        response.getWriter().write(body);
+    }
+
+    /** 查询 + 序列化整份响应（只在缓存未命中时执行）。 */
+    private String buildResponseBody() {
+        List<MusicRankingItem> ranking = getMusicRanking();
         // message 固定用源语言：public 共享缓存接口保持唯一变体，理由见 LatestMusicHandler。
-        RankingResponse rankingResponse = new RankingResponse(true, ApiMessages.source("music.ranking_ok"), ranking);
-        response.getWriter().println(Main.getObjectMapper().writeValueAsString(rankingResponse));
+        RankingResponse rankingResponse =
+                new RankingResponse(true, ApiMessages.source("music.ranking_ok"), ranking);
+        try {
+            return Main.getObjectMapper().writeValueAsString(rankingResponse);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            // 序列化失败不该被缓存成一份坏响应：抛出去让本次请求走统一的 500
+            throw new java.io.UncheckedIOException(e);
+        }
     }
 
     /**
@@ -76,7 +95,7 @@ public class MusicRankingHandler extends HttpServlet {
                             rs.getString("max_quality")));
                 }
             }
-            logger.info("成功获取播放次数排行榜，共 {} 条记录", ranking.size());
+            logger.debug("成功获取播放次数排行榜，共 {} 条记录", ranking.size());
         } catch (Exception e) {
             logger.error("获取播放次数排行榜时出错", e);
         }

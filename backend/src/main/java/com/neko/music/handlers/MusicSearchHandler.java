@@ -340,8 +340,10 @@ public class MusicSearchHandler extends ApiServlet {
                     }
                 }
                 String likeTerm = "%" + term.toLowerCase(Locale.ROOT) + "%";
-                for (int i = 0; i < TERM_PINYIN_PARAM_COUNT; i++) {
-                    stmt.setString(paramIndex++, likeTerm);
+                if (needsPinyinConditions(term)) {
+                    for (int i = 0; i < TERM_PINYIN_PARAM_COUNT; i++) {
+                        stmt.setString(paramIndex++, likeTerm);
+                    }
                 }
                 stmt.setInt(paramIndex++, TERM_FETCH_LIMIT);
             }
@@ -400,12 +402,30 @@ public class MusicSearchHandler extends ApiServlet {
             for (int variant = 0; variant < searchVariants(terms.get(i)).size(); variant++) {
                 conditions.add(TERM_TEXT_CONDITION);
             }
-            conditions.add(TERM_PINYIN_CONDITION);
+            // 拼音列只可能是 ASCII（pinyin4j 生成）：纯中文 / 全角词条永远不可能命中它们，
+            // 加上这 7 个 LIKE 分支只是让每一行多比较 7 次。混合词条（如「晴天zhou」）仍然保留。
+            if (needsPinyinConditions(terms.get(i))) {
+                conditions.add(TERM_PINYIN_CONDITION);
+            }
             sql.append("(SELECT ").append(MUSIC_SEARCH_COLUMNS)
                     .append("FROM music WHERE (").append(String.join(" OR ", conditions))
                     .append(") ORDER BY created_at DESC LIMIT ?)");
         }
         return sql.toString();
+    }
+
+    /** 该词条是否需要拼上拼音条件：含 ASCII 字母或数字时才有意义。 */
+    static boolean needsPinyinConditions(String term) {
+        if (term == null || term.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < term.length(); i++) {
+            char c = term.charAt(i);
+            if (c < 0x80 && Character.isLetterOrDigit(c)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 词条的繁简体/拼音变体（大小写归一后去重）。 */

@@ -177,6 +177,16 @@ public class SourceBanService {
     }
 
     /**
+     * 某来源的封禁键。
+     *
+     * <p>暴露给 {@link IPRateLimitService}：它把「来源封禁」与「IP 频率限制」合并成一次 Redis 往返，
+     * 两边必须用同一个键，否则 {@code SourceBanFilter} 会看不到封禁结果。</p>
+     */
+    public static String bannedKey(String clientIp) {
+        return BANNED_PREFIX + normalizeIp(clientIp);
+    }
+
+    /**
      * 计数与封禁的存储抽象：生产实现是 Redis（{@link RedisStore}），测试注入内存实现，
      * 单元测试因此不依赖真实 Redis——与 {@link LoginThrottleService}/{@link AuthAbuseLimiter} 同构。
      */

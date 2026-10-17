@@ -1,6 +1,8 @@
 package com.neko.music.seo;
 
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 /**
@@ -108,6 +110,78 @@ public final class UserAgentClassifier {
     }
 
     /**
+     * 一个 UA 的判定结果（一次性算完，之后按 UA 复用）。
+     *
+     * @param bot          命中爬虫 / 无头 / 命令行 / 扫描器黑名单（空 UA 也算）
+     * @param browser      结构上像真实浏览器（或命中 {@link #KNOWN_BROWSER_UA_TOKENS}）
+     * @param scanner      命中安全扫描器黑名单
+     * @param nativeClient 严格匹配官方客户端 UA（{@code NekoMusic-<平台>/<版本>}）
+     * @param platform     官方客户端平台（小写）；非官方客户端为空串
+     * @param version      官方客户端版本；非官方客户端为空串
+     */
+    public record Profile(boolean bot, boolean browser, boolean scanner, boolean nativeClient,
+                          String platform, String version) {
+    }
+
+    /**
+     * UA 判定结果缓存：UA 的取值种类很少（几端客户端 + 主流浏览器），而判定要跑十来条正则、
+     * 每条请求又会被防爬、SEO 分流与访问日志各问一遍。因此按 UA 缓存结果，命中就是一次 map 查找。
+     *
+     * <p>缓存有界：UA 由客户端决定，可以被构造成无限多个取值，因此超过 {@link #PROFILE_CACHE_MAX}
+     * 就整体清空（宁可重算，也不能被撑爆内存）。缓存里只放判定结论，不含任何请求相关信息。</p>
+     */
+    private static final Map<String, Profile> PROFILE_CACHE = new ConcurrentHashMap<>();
+
+    /** 判定缓存上限：正常部署里 UA 种类是几十量级。 */
+    static final int PROFILE_CACHE_MAX = 512;
+
+    /** 取（或计算）该 UA 的判定结果；{@code null} / 空白 UA 按爬虫口径处理。 */
+    public static Profile profile(String userAgent) {
+        String ua = userAgent == null ? "" : userAgent.trim();
+        Profile cached = PROFILE_CACHE.get(ua);
+        if (cached != null) {
+            return cached;
+        }
+        Profile computed = computeProfile(ua);
+        if (PROFILE_CACHE.size() >= PROFILE_CACHE_MAX) {
+            PROFILE_CACHE.clear();
+        }
+        PROFILE_CACHE.put(ua, computed);
+        return computed;
+    }
+
+    /** 计算判定结果（不做缓存）。空 UA：按爬虫处理，其余标记均为 false。 */
+    private static Profile computeProfile(String ua) {
+        if (ua.isEmpty()) {
+            return new Profile(true, false, false, false, "", "");
+        }
+        boolean scanner = SECURITY_SCANNERS.matcher(ua).find();
+        boolean bot = matchesAny(ua,
+                GENERIC_FETCHERS,
+                SEARCH_ENGINE_BOTS,
+                LINK_PREVIEW_BOTS,
+                AI_CRAWLERS,
+                SEO_ANALYTICS_BOTS,
+                HTTP_CLIENTS,
+                HEADLESS_BROWSERS,
+                MONITORS_ARCHIVERS,
+                SECURITY_SCANNERS);
+        boolean browser = looksLikeBrowserUncached(ua);
+        // 平台列表是**白名单**（与 OFFICIAL_CLIENT_UA 一致），不能用 PARTS 的任意平台放行
+        boolean nativeClient = OFFICIAL_CLIENT_UA.matcher(ua).matches();
+        java.util.regex.Matcher parts = OFFICIAL_CLIENT_UA_PARTS.matcher(ua);
+        boolean hasParts = parts.matches();
+        String platform = hasParts ? parts.group(1).toLowerCase(java.util.Locale.ROOT) : "";
+        String version = hasParts ? parts.group(2) : "";
+        return new Profile(bot, browser, scanner, nativeClient, platform, version);
+    }
+
+    /** 仅供测试：清空判定缓存。 */
+    static void clearProfileCache() {
+        PROFILE_CACHE.clear();
+    }
+
+    /**
      * 官方客户端 UA 的严格格式：{@code NekoMusic-<平台>/<版本>}。
      *
      * <p>必须整体匹配，且版本必须存在并以数字开头——客户端只会发
@@ -142,22 +216,13 @@ public final class UserAgentClassifier {
         if (userAgent == null || userAgent.isBlank()) {
             return true;
         }
-        String normalized = userAgent.trim();
-        if (matchesAny(normalized,
-                GENERIC_FETCHERS,
-                SEARCH_ENGINE_BOTS,
-                LINK_PREVIEW_BOTS,
-                AI_CRAWLERS,
-                SEO_ANALYTICS_BOTS,
-                HTTP_CLIENTS,
-                HEADLESS_BROWSERS,
-                MONITORS_ARCHIVERS,
-                SECURITY_SCANNERS)) {
+        Profile profile = profile(userAgent);
+        if (profile.bot()) {
             return true;
         }
         // 非浏览器 UA 一律按抓取器处理。不能只看「有没有 Mozilla/」：该前缀随手可伪造，
         // 还会把不带它的真实浏览器（如 Via）误判成抓取器，导致整站 403。
-        return !looksLikeRealBrowser(normalized);
+        return !profile.browser();
     }
 
     /**
@@ -189,16 +254,7 @@ public final class UserAgentClassifier {
         if (userAgent == null || userAgent.isBlank()) {
             return true;
         }
-        return matchesAny(userAgent.trim(),
-                GENERIC_FETCHERS,
-                SEARCH_ENGINE_BOTS,
-                LINK_PREVIEW_BOTS,
-                AI_CRAWLERS,
-                SEO_ANALYTICS_BOTS,
-                HTTP_CLIENTS,
-                HEADLESS_BROWSERS,
-                MONITORS_ARCHIVERS,
-                SECURITY_SCANNERS);
+        return profile(userAgent).bot();
     }
 
     /**
@@ -216,7 +272,7 @@ public final class UserAgentClassifier {
         if (ua == null || ua.isBlank()) {
             return false;
         }
-        return OFFICIAL_CLIENT_UA.matcher(ua.trim()).matches();
+        return profile(ua).nativeClient();
     }
 
     /**
@@ -234,7 +290,11 @@ public final class UserAgentClassifier {
         if (userAgent == null || userAgent.isBlank()) {
             return false;
         }
-        String ua = userAgent.trim();
+        return profile(userAgent).browser();
+    }
+
+    /** 未缓存的浏览器结构判定（供 {@link #computeProfile} 内部使用）。 */
+    private static boolean looksLikeBrowserUncached(String ua) {
         // 少数真实浏览器（见 KNOWN_BROWSER_UA_TOKENS）既没有 Mozilla/ 也没有内核标记
         if (KNOWN_BROWSER_UA_TOKENS.matcher(ua).find()) {
             return true;
@@ -259,27 +319,23 @@ public final class UserAgentClassifier {
         if (userAgent == null || userAgent.isBlank()) {
             return false;
         }
-        return SECURITY_SCANNERS.matcher(userAgent.trim()).find();
+        return profile(userAgent).scanner();
     }
 
     /** 官方客户端 UA 的平台（小写）；非官方客户端返回空串。 */
     public static String officialClientPlatform(String userAgent) {
-        java.util.regex.Matcher matcher = officialClientMatcher(userAgent);
-        return matcher == null ? "" : matcher.group(1).toLowerCase(java.util.Locale.ROOT);
+        if (userAgent == null || userAgent.isBlank()) {
+            return "";
+        }
+        return profile(userAgent).platform();
     }
 
     /** 官方客户端 UA 的版本；非官方客户端返回空串。 */
     public static String officialClientVersion(String userAgent) {
-        java.util.regex.Matcher matcher = officialClientMatcher(userAgent);
-        return matcher == null ? "" : matcher.group(2);
-    }
-
-    private static java.util.regex.Matcher officialClientMatcher(String userAgent) {
         if (userAgent == null || userAgent.isBlank()) {
-            return null;
+            return "";
         }
-        java.util.regex.Matcher matcher = OFFICIAL_CLIENT_UA_PARTS.matcher(userAgent.trim());
-        return matcher.matches() ? matcher : null;
+        return profile(userAgent).version();
     }
 
     private static boolean matchesAny(String userAgent, Pattern... patterns) {

@@ -13,10 +13,16 @@ public final class ReplayChallengeSolver {
     private ReplayChallengeSolver() {
     }
 
-    /** 求出一个满足难度的解答。 */
+    /**
+     * 求出一个满足难度的解答。
+     *
+     * <p>上限取 64M 而不是「够用就行」的小值：难度是 20 比特时平均要试 2^20 ≈ 100 万次，
+     * 上限若只留 5 倍余量，约每 150 次运行就会有 1 次因运气不好而失败（0.7% 的随机红）。
+     * 64 倍余量把失败概率压到可以忽略，而期望耗时仍然只有毫秒级。</p>
+     */
     public static String solve(ReplayChallengeService.Challenge challenge) {
         MessageDigest digest = sha256();
-        for (long counter = 0; counter < 5_000_000L; counter++) {
+        for (long counter = 0; counter < 64_000_000L; counter++) {
             if (ReplayChallengeService.meetsDifficulty(
                     hash(digest, challenge.seed(), counter), challenge.difficulty())) {
                 return Long.toString(counter);

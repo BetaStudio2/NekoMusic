@@ -1,6 +1,7 @@
 package com.neko.music.service;
 
 import com.neko.music.Main;
+import com.neko.music.util.JsonResponseCache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,6 +20,17 @@ public class AppReleaseService {
     private static final ZoneId CN_ZONE = ZoneId.of("Asia/Shanghai");
     /** /version 在保存新版本号后延迟生效的分钟数 */
     public static final int VERSION_JSON_DELAY_MINUTES = 30;
+
+    /**
+     * {@code /version} 成品响应缓存键：版本号或安装包一变就失效（见 {@link #invalidateClientVersionCache()}）。
+     * 放在服务侧，是为了让「写数据」与「失效缓存」始终在同一处，不依赖调用方记得清理。
+     */
+    public static final String VERSION_JSON_CACHE_KEY = "version.json";
+
+    /** 丢弃 {@code /version} 的成品响应缓存。 */
+    private static void invalidateClientVersionCache() {
+        JsonResponseCache.invalidate(VERSION_JSON_CACHE_KEY);
+    }
 
     public record AppRelease(String androidVer, String pcVer) {}
 
@@ -147,6 +159,7 @@ public class AppReleaseService {
             stmt.setString(2, pending.pcVer());
             stmt.executeUpdate();
         }
+        invalidateClientVersionCache();
         logger.info("待生效版本已自动发布 androidVer={} pcVer={}",
                 pending.androidVer(), pending.pcVer());
     }
@@ -169,6 +182,7 @@ public class AppReleaseService {
             stmt.setString(2, pv);
             stmt.executeUpdate();
         }
+        invalidateClientVersionCache();
     }
 
     private Optional<AppRelease> loadPublished(Connection conn) throws Exception {

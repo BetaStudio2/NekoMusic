@@ -31,7 +31,7 @@ public class GetPlaylistDetailHandler extends ApiServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         resp.setContentType("application/json;charset=UTF-8");
 
-        logger.info("收到获取歌单详情请求");
+        logger.debug("收到获取歌单详情请求");
 
         // 从URL路径中获取歌单ID
         String pathInfo = req.getPathInfo();
@@ -55,7 +55,7 @@ public class GetPlaylistDetailHandler extends ApiServlet {
 
             Playlist playlist = playlistOpt.get();
 
-            logger.info("获取到歌单详情: playlistId={}", playlistId);
+            logger.debug("获取到歌单详情: playlistId={}", playlistId);
 
             JsonObject response = new JsonObject();
             response.addProperty("success", true);

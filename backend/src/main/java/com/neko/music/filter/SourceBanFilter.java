@@ -1,6 +1,7 @@
 package com.neko.music.filter;
 
 import com.neko.music.Main;
+import com.neko.music.service.IPRateLimitService;
 import com.neko.music.service.SourceBanService;
 import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.HttpResourceCache;
@@ -68,12 +69,24 @@ public class SourceBanFilter implements Filter {
         }
 
         String clientIp = ClientIpResolver.clientIp(httpRequest);
-        if (!sourceBanService.isBanned(clientIp)) {
-            chain.doFilter(request, response);
-            return;
+        long remainingSec;
+        IPRateLimitService.Decision cached = IPRateLimitFilter.cachedDecision();
+        if (cached != null) {
+            // 限流过滤器已经把「来源封禁」与频率限制合并成一次 Redis 往返，这里直接复用结论
+            if (cached.code() != IPRateLimitService.Decision.SOURCE_BANNED) {
+                chain.doFilter(request, response);
+                return;
+            }
+            remainingSec = cached.retryAfterSeconds();
+        } else {
+            // 未判定（限流关闭 / 该路径不计数）：单独查一次 TTL，1 表示存在即被封禁，只需一次往返
+            remainingSec = sourceBanService.remainingBanSeconds(clientIp);
+            if (remainingSec <= 0) {
+                chain.doFilter(request, response);
+                return;
+            }
         }
 
-        long remainingSec = sourceBanService.remainingBanSeconds(clientIp);
         logger.warn("被临时封禁的来源尝试访问: ip={} {} {}", clientIp,
                 httpRequest.getMethod(), RequestPath.of(httpRequest));
         writeBannedResponse(httpResponse, clientIp, remainingSec);
