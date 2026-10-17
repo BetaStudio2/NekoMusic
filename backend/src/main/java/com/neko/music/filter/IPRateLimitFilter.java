@@ -6,6 +6,7 @@ import com.neko.music.i18n.ApiMessages;
 import com.neko.music.service.IPRateLimitService;
 import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.RequestPath;
+import com.neko.music.util.RequestScope;
 import com.neko.music.util.SsePaths;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
@@ -46,8 +47,8 @@ public class IPRateLimitFilter implements Filter {
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
             throws IOException, ServletException {
 
-        if (configManager == null || ipRateLimitService == null || !configManager.isRateLimitEnabled()) {
-            // 如果配置未加载或未启用频率限制，直接放行
+        if (configManager == null || ipRateLimitService == null) {
+            // 配置未加载：两套门禁都不可用，直接放行
             chain.doFilter(request, response);
             return;
         }
@@ -63,23 +64,28 @@ public class IPRateLimitFilter implements Filter {
 
         HttpServletResponse httpResponse = (HttpServletResponse) response;
 
-        // 检查 IP 是否被封锁
-        if (ipRateLimitService.isIPBlocked(clientIP)) {
-            logger.warn("封锁的 IP 尝试访问: {}", clientIP);
-            writeRateLimitedResponse(httpResponse, clientIP);
-            return;
-        }
+        // IP 频率限制 + 认证失败来源封禁合并为一次 Redis 往返（见 IPRateLimitService#evaluate）。
+        // 结果同时挂到请求作用域，SourceBanFilter 直接复用，不再单独查一次 Redis。
+        IPRateLimitService.Decision decision = ipRateLimitService.evaluate(clientIP);
+        RequestScope.put(GUARD_DECISION_KEY, decision);
 
-        // 记录请求并检查是否超过频率限制
-        boolean allowed = ipRateLimitService.recordRequest(clientIP);
-        if (!allowed) {
-            logger.warn("IP {} 超过频率限制，请求被拦截", clientIP);
-            writeRateLimitedResponse(httpResponse, clientIP);
+        if (!decision.allowed()) {
+            logger.warn("请求被门禁拦截: ip={} code={} path={}", clientIP, decision.code(),
+                    requestPath(httpRequest));
+            writeRateLimitedResponse(httpResponse, clientIP, decision.retryAfterSeconds());
             return;
         }
 
         // 允许请求继续
         chain.doFilter(request, response);
+    }
+
+    /** {@link RequestScope} 键：本次请求的门禁判定结果（供 {@link SourceBanFilter} 复用）。 */
+    public static final String GUARD_DECISION_KEY = "ipGuardDecision";
+
+    /** 读取本次请求已算好的门禁判定；尚未判定（限流被关闭 / 路径豁免）时为 {@code null}。 */
+    static IPRateLimitService.Decision cachedDecision() {
+        return RequestScope.get(GUARD_DECISION_KEY);
     }
 
     /**
@@ -127,9 +133,15 @@ public class IPRateLimitFilter implements Filter {
 
     /**
      * 返回 429：{@code message} 内说明剩余封锁时长；{@code Retry-After} 为剩余秒数（HTTP 惯例）。
+     *
+     * @param retryAfterSeconds 判定时带回的剩余秒数；未知（{@code <= 0}）时回退到配置的封锁时长
      */
-    private void writeRateLimitedResponse(HttpServletResponse httpResponse, String clientIP) throws IOException {
-        long remainingSec = ipRateLimitService.getBlockTimeRemaining(clientIP);
+    private void writeRateLimitedResponse(HttpServletResponse httpResponse, String clientIP,
+                                          long retryAfterSeconds) throws IOException {
+        long remainingSec = retryAfterSeconds;
+        if (remainingSec <= 0) {
+            remainingSec = ipRateLimitService.getBlockTimeRemaining(clientIP);
+        }
         if (remainingSec <= 0) {
             remainingSec = Math.max(1, configManager.getRateLimitBlockDuration());
         }

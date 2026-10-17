@@ -8,6 +8,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonNull;
 import com.neko.music.Main;
 import com.neko.music.model.Playlist;
+import com.neko.music.model.User;
 import com.neko.music.service.PlaylistService;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.util.VipUtil;
@@ -39,7 +40,7 @@ public class GetPlaylistsHandler extends ApiServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         resp.setContentType("application/json;charset=UTF-8");
 
-        logger.info("收到获取歌单列表请求");
+        logger.debug("收到获取歌单列表请求");
 
         // 获取token
         String token = req.getHeader("Authorization");
@@ -60,7 +61,12 @@ public class GetPlaylistsHandler extends ApiServlet {
             // 获取当前用户的歌单列表
             List<Playlist> playlists = playlistService.getUserPlaylists(userId);
 
-            logger.info("获取到 {} 个歌单: userId={}", playlists.size(), userId);
+            // 创建者昵称与 VIP 状态一次查出：歌单都属于当前用户，逐个歌单再查昵称就是 N 次重复查询
+            Optional<User> self = userAuthService.findUserById(userId);
+            String nickname = self.map(User::nickname).orElse(null);
+            Timestamp vip = self.map(User::vipExpiresAt).orElse(null);
+
+            logger.debug("获取到 {} 个歌单: userId={}", playlists.size(), userId);
 
             JsonObject response = new JsonObject();
             response.addProperty("success", true);
@@ -80,7 +86,9 @@ public class GetPlaylistsHandler extends ApiServlet {
                 // 添加创建者信息
                 JsonObject creator = new JsonObject();
                 creator.addProperty("id", playlist.userId());
-                creator.addProperty("nickname", UserLookup.getNickname(playlist.userId()));
+                creator.addProperty("nickname", playlist.userId() == userId && nickname != null
+                        ? nickname
+                        : UserLookup.getNickname(playlist.userId()));
                 playlistJson.add("creator", creator);
                 
                 playlistsArray.add(playlistJson);
@@ -89,8 +97,6 @@ public class GetPlaylistsHandler extends ApiServlet {
             response.add("playlists", playlistsArray);
 
             // 与登录接口一致：附带当前用户 VIP 状态（便于前端复用本接口刷新，无需单独路由）
-            Optional<Timestamp> vipOpt = userAuthService.findVipExpiresAtByUserId(userId);
-            Timestamp vip = vipOpt.orElse(null);
             response.addProperty("isVip", VipUtil.isVipActiveNow(vip));
             if (vip != null) {
                 response.addProperty("vipExpiresAt", vip.toInstant().toString());

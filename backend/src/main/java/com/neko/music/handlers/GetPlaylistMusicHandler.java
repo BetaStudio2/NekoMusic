@@ -32,7 +32,7 @@ public class GetPlaylistMusicHandler extends ApiServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         resp.setContentType("application/json;charset=UTF-8");
 
-        logger.info("收到获取歌单音乐列表请求");
+        logger.debug("收到获取歌单音乐列表请求");
 
         // 从URL路径中获取歌单ID
         String pathInfo = req.getPathInfo();
@@ -46,16 +46,17 @@ public class GetPlaylistMusicHandler extends ApiServlet {
             String playlistIdStr = pathInfo.substring(1); // 去掉开头的 /
             Integer playlistId = Integer.parseInt(playlistIdStr);
 
-            // 检查歌单是否存在
-            if (!playlistService.getPlaylistById(playlistId).isPresent()) {
+            // 获取歌单中的音乐列表（允许未登录访问）
+            List<JsonObject> musicList = playlistService.getPlaylistMusic(playlistId);
+
+            // 只有「列表为空」时才需要确认歌单是否存在：非空列表本身就证明歌单存在，
+            // 常见路径因此少一次数据库往返（原实现每次请求都先查一遍歌单）
+            if (musicList.isEmpty() && !playlistService.getPlaylistById(playlistId).isPresent()) {
                 sendErrorResponse(resp, HttpServletResponse.SC_NOT_FOUND, "playlist.not_found");
                 return;
             }
 
-            // 获取歌单中的音乐列表（允许未登录访问）
-            List<JsonObject> musicList = playlistService.getPlaylistMusic(playlistId);
-
-            logger.info("获取到 {} 首音乐: playlistId={}", musicList.size(), playlistId);
+            logger.debug("获取到 {} 首音乐: playlistId={}", musicList.size(), playlistId);
 
             JsonObject response = new JsonObject();
             response.addProperty("success", true);

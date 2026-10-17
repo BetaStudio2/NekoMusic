@@ -1,8 +1,10 @@
 package com.neko.music.service;
 
+import com.neko.music.util.RequestScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -20,6 +22,12 @@ public class RedisTokenStore {
     public static final String ADMIN_TOKEN_PREFIX = "admin_token:";
     /** 某管理员当前全部有效 token（SET），与单 token 键同 TTL */
     public static final String ADMIN_TOKEN_INDEX_PREFIX = "admin_token_index:";
+
+    /** {@link com.neko.music.util.RequestScope} 键前缀：一次请求内同一个令牌只解析一次。 */
+    private static final String USER_TOKEN_SCOPE_PREFIX = "userTokenUserId:";
+    private static final String ADMIN_TOKEN_SCOPE_PREFIX = "adminTokenId:";
+    /** 本次请求是否已经对某个令牌做过「临近过期续期」判定（只读解析不算）。 */
+    private static final String RENEW_SCOPE_PREFIX = "userTokenRenewed:";
 
     private final RedisService redisService;
 
@@ -49,14 +57,22 @@ public class RedisTokenStore {
     }
 
     public Optional<Integer> getUserIdByToken(String token) {
-        token = normalizeBearerToken(token);
-        if (token.isEmpty()) {
+        String normalized = normalizeBearerToken(token);
+        if (normalized.isEmpty()) {
             return Optional.empty();
         }
+        // 同一个请求里访问日志与处理器都要解析同一个令牌：按令牌缓存一次，避免重复一次 Redis 往返。
+        // 返回 null 表示「令牌无效」，同样会被记住（否定结果也值得缓存）。
+        Integer userId = RequestScope.computeIfAbsent(USER_TOKEN_SCOPE_PREFIX + normalized,
+                () -> lookupUserId(normalized));
+        return Optional.ofNullable(userId);
+    }
+
+    private Integer lookupUserId(String token) {
         try {
             String cached = redisService.get(USER_TOKEN_PREFIX + token);
             if (cached != null && !cached.isEmpty()) {
-                return Optional.of(Integer.parseInt(cached));
+                return Integer.parseInt(cached);
             }
         } catch (NumberFormatException e) {
             logger.warn("Redis 用户 token 值非法，已删除: {}", e.getMessage());
@@ -64,8 +80,86 @@ public class RedisTokenStore {
         } catch (Exception e) {
             logger.error("读取用户 token 失败: {}", e.getMessage(), e);
         }
-        return Optional.empty();
+        return null;
     }
+
+    /**
+     * 一次往返完成「校验令牌 + 临近过期时续期」。
+     *
+     * <p>原来认证路径是 {@code GET} 再 {@code TTL}（续期时还要 {@code EXPIRE} + {@code SADD} +
+     * {@code TTL} + {@code EXPIRE}），每个已登录请求固定多一次 Redis 往返。这里合并成一条 Lua：
+     * 取值与 TTL 在同一原子上下文里读，需要续期时顺带续期 token 与「按账号索引」的 SET。</p>
+     *
+     * <p>语义与分步实现一致：TTL 为 -1（无过期）或大于续期窗口时不动；续期时把 token 的 TTL
+     * 延长 {@code extensionSeconds}，索引 SET 的 TTL 跟随（不短于新的 token TTL）。</p>
+     *
+     * @return 令牌有效时返回用户 ID；无效 / 存储故障返回空
+     */
+    public Optional<Integer> validateAndRenew(String token, long renewWindowSeconds, long extensionSeconds) {
+        String normalized = normalizeBearerToken(token);
+        if (normalized.isEmpty()) {
+            return Optional.empty();
+        }
+        String scopeKey = USER_TOKEN_SCOPE_PREFIX + normalized;
+        Integer cached = RequestScope.get(scopeKey);
+        // 只有「本次请求已经做过续期判定」才能直接返回缓存：只读解析（访问日志用的
+        // findUserIdByToken）也会缓存 ID，但它刻意不续期，不能因此跳过这里的续期。
+        if (cached != null && Boolean.TRUE.equals(RequestScope.get(RENEW_SCOPE_PREFIX + normalized))) {
+            return Optional.of(cached);
+        }
+        if (renewWindowSeconds <= 0 || extensionSeconds <= 0) {
+            Optional<Integer> userId = getUserIdByToken(normalized);
+            userId.ifPresent(id -> RequestScope.put(scopeKey, id));
+            RequestScope.put(RENEW_SCOPE_PREFIX + normalized, Boolean.TRUE);
+            return userId;
+        }
+        List<Object> raw;
+        try {
+            raw = redisService.evalMulti(VALIDATE_RENEW_SCRIPT,
+                    new String[] { USER_TOKEN_PREFIX + normalized },
+                    new String[] {
+                            String.valueOf(renewWindowSeconds),
+                            String.valueOf(extensionSeconds),
+                            USER_TOKEN_INDEX_PREFIX,
+                            normalized });
+        } catch (Exception e) {
+            logger.error("校验用户 token 失败: {}", e.getMessage(), e);
+            return Optional.empty();
+        }
+        if (raw == null || raw.size() < 2) {
+            logger.error("校验用户 token 失败（Redis 无响应）");
+            return Optional.empty();
+        }
+        long userId = raw.get(0) instanceof Number number ? number.longValue() : 0L;
+        if (userId <= 0) {
+            return Optional.empty();
+        }
+        if (raw.get(1) instanceof Number renewed && renewed.longValue() == 1L) {
+            logger.info("用户 token 临近过期，已延期 userId={}", userId);
+        }
+        RequestScope.put(scopeKey, (int) userId);
+        RequestScope.put(RENEW_SCOPE_PREFIX + normalized, Boolean.TRUE);
+        return Optional.of((int) userId);
+    }
+
+    /**
+     * 「校验 + 可选续期」：KEYS[1]=token 键；ARGV[1]=续期窗口秒数，ARGV[2]=延长秒数，
+     * ARGV[3]=索引键前缀，ARGV[4]=令牌原文。返回 {@code {userId, 是否续期}}。
+     */
+    private static final String VALIDATE_RENEW_SCRIPT =
+            "local v = redis.call('GET', KEYS[1]) "
+                    + "if not v then return {0, 0} end "
+                    + "local uid = tonumber(v) "
+                    + "if not uid then return {0, 0} end "
+                    + "local ttl = redis.call('TTL', KEYS[1]) "
+                    + "if ttl <= 0 or ttl > tonumber(ARGV[1]) then return {uid, 0} end "
+                    + "local renewed = ttl + tonumber(ARGV[2]) "
+                    + "redis.call('EXPIRE', KEYS[1], renewed) "
+                    + "local index = ARGV[3] .. v "
+                    + "redis.call('SADD', index, ARGV[4]) "
+                    + "local indexTtl = redis.call('TTL', index) "
+                    + "if indexTtl < 0 or indexTtl < renewed then redis.call('EXPIRE', index, renewed) end "
+                    + "return {uid, 1}";
 
     public void extendUserTokenIfExpiring(String token, int userId, long renewWindowSeconds, long extensionSeconds) {
         String normalized = normalizeBearerToken(token);
@@ -149,14 +243,21 @@ public class RedisTokenStore {
     }
 
     public Optional<Integer> getAdminIdByToken(String token) {
-        token = normalizeBearerToken(token);
-        if (token.isEmpty()) {
+        String normalized = normalizeBearerToken(token);
+        if (normalized.isEmpty()) {
             return Optional.empty();
         }
+        // 同用户令牌：一次请求内只解析一次（访问日志 + 各管理端处理器共用）
+        Integer adminId = RequestScope.computeIfAbsent(ADMIN_TOKEN_SCOPE_PREFIX + normalized,
+                () -> lookupAdminId(normalized));
+        return Optional.ofNullable(adminId);
+    }
+
+    private Integer lookupAdminId(String token) {
         try {
             String cached = redisService.get(ADMIN_TOKEN_PREFIX + token);
             if (cached != null && !cached.isEmpty()) {
-                return Optional.of(Integer.parseInt(cached));
+                return Integer.parseInt(cached);
             }
         } catch (NumberFormatException e) {
             logger.warn("Redis 管理员 token 值非法，已删除: {}", e.getMessage());
@@ -164,7 +265,7 @@ public class RedisTokenStore {
         } catch (Exception e) {
             logger.error("读取管理员 token 失败: {}", e.getMessage(), e);
         }
-        return Optional.empty();
+        return null;
     }
 
     public boolean deleteAdminToken(String token) {

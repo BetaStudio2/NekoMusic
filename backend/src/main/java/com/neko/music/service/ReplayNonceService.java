@@ -1,6 +1,7 @@
 package com.neko.music.service;
 
 import com.neko.music.Main;
+import com.neko.music.util.RequestScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,6 +54,9 @@ public final class ReplayNonceService {
     public static final String NONCE_HEADER = "X-Neko-Nonce";
 
     private static final String KEY_PREFIX = "replay_nonce:";
+
+    /** {@link RequestScope} 键：一次请求内同一个来源只哈希一次。 */
+    private static final String SCOPE_IP_HASH = "replayIpHash";
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -294,7 +298,8 @@ public final class ReplayNonceService {
 
     /** 只以短哈希形式参与绑定 / 落库，避免在 Redis 里明文堆积客户端地址。 */
     public static String ipHash(String clientIp) {
-        return fingerprint(clientIp);
+        // 一次请求只会用到同一个来源；哈希要建 SHA-256 摘要对象，按请求算一次即可
+        return RequestScope.computeIfAbsent(SCOPE_IP_HASH, () -> fingerprint(clientIp));
     }
 
     /** 来源指纹：SHA-256 前 16 位十六进制，用于把来源信息不可逆地绑进 nonce 与挑战。 */

@@ -16,6 +16,7 @@ import com.neko.music.util.PowAudit;
 import com.neko.music.util.RequestAuthUtil;
 import com.neko.music.util.RequestCategory;
 import com.neko.music.util.RequestPath;
+import com.neko.music.util.RequestScope;
 import com.neko.music.util.SeoAudit;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.Filter;
@@ -172,6 +173,9 @@ public class RequestAuditFilter implements Filter {
 
         long startedAt = System.currentTimeMillis();
         long startedAtNanos = System.nanoTime();
+        // 单请求作用域：路径 / 客户端 IP / UA 判定 / 令牌解析在整条过滤器链里只算一次。
+        // 必须在这里开始（本过滤器是链上最外层），并在 finally 里结束——Jetty 线程会复用。
+        RequestScope.begin();
         try {
             chain.doFilter(request, response);
         } finally {
@@ -181,6 +185,8 @@ public class RequestAuditFilter implements Filter {
             } catch (Exception e) {
                 // 日志失败绝不能影响响应已经写出的内容
                 logger.debug("记录请求日志失败: {}", e.getMessage());
+            } finally {
+                RequestScope.end();
             }
         }
     }

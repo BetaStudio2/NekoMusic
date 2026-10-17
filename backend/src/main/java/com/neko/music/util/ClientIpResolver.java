@@ -73,11 +73,24 @@ public final class ClientIpResolver {
     private static final String XFF = "X-Forwarded-For";
     private static final String X_REAL_IP = "X-Real-IP";
 
-    /** 解析可信客户端 IP；任何需要定位客户端来源的地方都应调用本方法。 */
+    /** 单请求缓存键：同一个请求的客户端 IP 是常量，限流 / 封禁 / 防重放 / 日志都拿同一份结果。 */
+    private static final String SCOPE_KEY = "clientIp";
+
+    /**
+     * 解析可信客户端 IP；任何需要定位客户端来源的地方都应调用本方法。
+     *
+     * <p>一次动态请求里它会被限流、来源封禁、防重放与访问日志各调用一次，而解析过程要读配置、
+     * 逐个头比对、还要对每个候选做地址合法性校验（{@code InetAddress} 解析）。结果按请求缓存到
+     * {@link RequestScope}：同一请求只算一次。</p>
+     */
     public static String clientIp(HttpServletRequest request) {
         if (request == null) {
             return "";
         }
+        return RequestScope.computeIfAbsent(SCOPE_KEY, () -> resolveFrom(request));
+    }
+
+    private static String resolveFrom(HttpServletRequest request) {
         ConfigManager config = Main.getConfigManager();
         String trustedHeader = config == null ? AUTO : config.getTrustedClientIpHeader();
         List<String> extraHeaders = config == null ? List.of() : config.getExtraClientIpHeaders();

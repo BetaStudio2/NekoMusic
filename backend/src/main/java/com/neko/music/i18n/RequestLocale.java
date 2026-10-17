@@ -2,6 +2,7 @@ package com.neko.music.i18n;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 单次请求的响应语言，随线程传递（过滤器写入、响应写出时读取）。
@@ -62,6 +63,26 @@ public final class RequestLocale {
         if (acceptLanguage == null || acceptLanguage.isBlank()) {
             return DEFAULT;
         }
+        // 浏览器 / 客户端发出的 Accept-Language 取值高度集中（同一种语言组合反复出现），
+        // 而解析要切分、排序再逐个匹配注册表。按请求头原文缓存结果，命中就是一次 map 查找。
+        String cached = RESOLVED.get(acceptLanguage);
+        if (cached != null) {
+            return cached;
+        }
+        String resolved = resolveUncached(acceptLanguage);
+        if (RESOLVED.size() >= RESOLVED_MAX) {
+            RESOLVED.clear();
+        }
+        RESOLVED.put(acceptLanguage, resolved);
+        return resolved;
+    }
+
+    /** 解析结果缓存上限：请求头由客户端决定，必须有界（超限整体清空）。 */
+    private static final int RESOLVED_MAX = 256;
+
+    private static final Map<String, String> RESOLVED = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static String resolveUncached(String acceptLanguage) {
         record Candidate(float quality, int order, String tag) {
         }
         List<Candidate> candidates = new ArrayList<>();
