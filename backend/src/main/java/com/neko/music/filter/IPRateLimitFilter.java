@@ -161,7 +161,12 @@ public class IPRateLimitFilter implements Filter {
         }
     }
 
-    /** 将剩余秒数写进一句提示，便于直接展示给用户（{@link SourceBanFilter} 复用同一文案）。 */
+    /**
+     * 将剩余秒数写进一句提示，便于直接展示给用户（{@link SourceBanFilter} 复用同一文案）。
+     *
+     * <p>只保留有意义的单位：{@code 60} 秒写成「1 分钟」而不是「1 分 0 秒」——后者既是冗余的
+     * 零值，也让句子读起来别扭。因此每个量级都有「双单位」与「单单位」两条文案。</p>
+     */
     static String formatRateLimitMessage(long sec) {
         if (sec < 1) {
             sec = 1;
@@ -169,17 +174,23 @@ public class IPRateLimitFilter implements Filter {
         if (sec >= 86400) {
             long d = sec / 86400;
             long h = (sec % 86400) / 3600;
-            return ApiMessages.translate("security.rate_limit.retry_days_hours", d, h);
+            return h > 0
+                    ? ApiMessages.translate("security.rate_limit.retry_days_hours", d, h)
+                    : ApiMessages.translate("security.rate_limit.retry_days", d);
         }
         if (sec >= 3600) {
             long h = sec / 3600;
             long m = (sec % 3600) / 60;
-            return ApiMessages.translate("security.rate_limit.retry_hours_minutes", h, m);
+            return m > 0
+                    ? ApiMessages.translate("security.rate_limit.retry_hours_minutes", h, m)
+                    : ApiMessages.translate("security.rate_limit.retry_hours", h);
         }
         if (sec >= 60) {
             long m = sec / 60;
             long s = sec % 60;
-            return ApiMessages.translate("security.rate_limit.retry_minutes_seconds", m, s);
+            return s > 0
+                    ? ApiMessages.translate("security.rate_limit.retry_minutes_seconds", m, s)
+                    : ApiMessages.translate("security.rate_limit.retry_minutes", m);
         }
         return ApiMessages.translate("security.rate_limit.retry_seconds", sec);
     }
