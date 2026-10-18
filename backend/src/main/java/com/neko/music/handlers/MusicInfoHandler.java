@@ -2,7 +2,6 @@ package com.neko.music.handlers;
 
 import com.neko.music.model.ErrorResponse;
 import com.neko.music.Main;
-import com.neko.music.util.MusicAssetLocator;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,7 +69,10 @@ public class MusicInfoHandler extends HttpServlet {
         Music music = null;
         
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT id, title, artist, album, duration, language, tags, upload_user_id, created_at, updated_at, max_quality FROM music WHERE id = ?";
+            String sql = "SELECT m.id, m.title, m.artist, m.album, m.duration, m.language, m.tags, " +
+                    "m.upload_user_id, m.created_at, m.updated_at, m.max_quality, " +
+                    "(SELECT COUNT(*) FROM user_favorites uf WHERE uf.music_id = m.id) AS favorite_count " +
+                    "FROM music m WHERE m.id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setInt(1, musicId);
                 
@@ -84,15 +86,13 @@ public class MusicInfoHandler extends HttpServlet {
                             rs.getString("artist"),
                             rs.getString("album"),
                             rs.getInt("duration"),
-                            MusicAssetLocator.fileApiUrl(id),
-                            MusicAssetLocator.coverApiUrl(id),
                             rs.getString("language"),
                             rs.getString("tags"),
                             rs.getInt("upload_user_id"),
                             rs.getTimestamp("created_at").toString(),
                             rs.getTimestamp("updated_at").toString(),
-                            id <= 0 ? "/api/defaultIcon" : MusicAssetLocator.coverApiUrl(id),
-                            rs.getString("max_quality"));
+                            rs.getString("max_quality"),
+                            rs.getInt("favorite_count"));
                 }
             }
         } catch (Exception e) {
@@ -102,22 +102,20 @@ public class MusicInfoHandler extends HttpServlet {
         return music;
     }
 
-    // 音乐对象：只读数据载体。coverUrl 由构造时按 id 计算（等价于原派生 getter）。
+    // 音乐对象：只读数据载体。
     public record Music(
             int id,
             String title,
             String artist,
             String album,
             int duration,
-            String filePath,
-            String coverFilePath,
             String language,
             String tags,
             int uploadUserId,
             String createdAt,
             String updatedAt,
-            String coverUrl,
-            String maxQuality) {
+            String maxQuality,
+            int favoriteCount) {
     }
     
     // 内部类用于表示单个音乐响应
