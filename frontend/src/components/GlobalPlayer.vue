@@ -51,6 +51,17 @@
 
         <button
           type="button"
+          class="gp-icon gp-track__comment"
+          :disabled="!currentMusic"
+          :aria-label="$t('player.viewComments')"
+          :title="$t('player.viewComments')"
+          @click="goToComments"
+        >
+          <NIcon name="message" :size="17" />
+        </button>
+
+        <button
+          type="button"
           class="gp-icon gp-track__fav"
           :class="{ 'is-on': isFavorite }"
           :disabled="!currentMusic"
@@ -59,6 +70,9 @@
           @click="toggleFavorite"
         >
           <NIcon :name="isFavorite ? 'heart' : 'heart-off'" :size="17" />
+          <span v-if="favoriteCount !== null" class="gp-track__fav-count">
+            {{ favoriteCount > 9999 ? '9999+' : favoriteCount }}
+          </span>
         </button>
       </div>
 
@@ -270,6 +284,7 @@ const lyricsContent = ref(null)
 const playbackMode = ref('list_repeat') // 'list_repeat', 'single_repeat', 'shuffle'
 const playlist = ref([])
 const isFavorite = ref(false) // 当前音乐是否已收藏
+const favoriteCount = ref(null) // 当前音乐收藏数，未知时为 null
 const showClearConfirm = ref(false) // 是否显示清空确认模态框
 
 /** 当前播放模式对应的图标名（图标注册表语义名） */
@@ -316,6 +331,9 @@ const toggleFavorite = async () => {
       const data = await response.json()
       if (data.success) {
         isFavorite.value = false
+        if (favoriteCount.value !== null) {
+          favoriteCount.value = Math.max(0, favoriteCount.value - 1)
+        }
         toast.success(t('player.unfavoriteSuccess'))
       } else {
         toast.error(t('player.unfavoriteFailed') + ': ' + data.message)
@@ -339,6 +357,9 @@ const toggleFavorite = async () => {
       const data = await response.json()
       if (data.success) {
         isFavorite.value = true
+        if (favoriteCount.value !== null) {
+          favoriteCount.value += 1
+        }
         toast.success(t('player.favoriteSuccess'))
       } else {
         toast.error(t('player.favoriteFailed') + ': ' + data.message)
@@ -640,6 +661,13 @@ const formatTime = (seconds) => {
   return `${min}:${sec < 10 ? '0' : ''}${sec}`
 }
 
+// 跳转到播放页并展开评论
+const goToComments = () => {
+  if (currentMusic.value) {
+    router.push({ path: `/detail/${currentMusic.value.id}`, query: { comments: '1' } })
+  }
+}
+
 // 跳转到音乐详情页面
 const goToDetails = () => {
   if (currentMusic.value) {
@@ -653,12 +681,19 @@ const getCoverUrl = (musicId) => {
   return `${API_CONFIG.BASE_URL}/api/music/cover/${musicId}`
 }
 
+// 从音乐详情同步收藏数（未知时保持 null，不显示 0）
+const syncFavoriteCount = (music) => {
+  const count = Number(music?.favoriteCount)
+  favoriteCount.value = Number.isFinite(count) ? count : null
+}
+
 // 通过音乐详情接口加载歌词
 const loadLyrics = async (musicId) => {
   const current = currentMusic.value
   if (current && String(current.id) === String(musicId) && typeof current.lyrics === 'string') {
     lyrics.value = current.lyrics
     parseLrcLyrics(current.lyrics)
+    syncFavoriteCount(current)
     return
   }
 
@@ -670,6 +705,7 @@ const loadLyrics = async (musicId) => {
       const data = await response.json()
       if (String(currentMusic.value?.id) !== String(musicId)) return
       if (data.success) {
+        syncFavoriteCount(data.data)
         const lyricsText = typeof data.data?.lyrics === 'string' ? data.data.lyrics : ''
         lyrics.value = lyricsText
         parseLrcLyrics(lyricsText)
@@ -824,6 +860,7 @@ const confirmClearPlaylist = () => {
   parsedLyrics.value = []
   lyrics.value = ''
   isFavorite.value = false
+  favoriteCount.value = null
   showPlaylist.value = false
 
   localStorage.removeItem('currentPlayingMusic')
@@ -1020,6 +1057,8 @@ const handleStorageChange = (e) => {
       // 清空歌词
       lyrics.value = ''
       parsedLyrics.value = []
+      favoriteCount.value = null
+      isFavorite.value = false
       // 清除媒体会话元数据
       if ('mediaSession' in navigator) {
         navigator.mediaSession.metadata = null
@@ -1208,6 +1247,7 @@ const switchToTrack = async (track) => {
   if (!isSame) {
     currentMusic.value = track
     duration.value = Number(track.duration) || 0
+    favoriteCount.value = null
     loadLyrics(track.id)
     updateMediaSessionMetadata(track)
   }
@@ -1798,8 +1838,21 @@ onUnmounted(() => {
   }
 }
 
-.gp-track__fav {
+.gp-icon.gp-track__fav {
   flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 36px;
+  padding: 0 var(--n-space-2);
+  gap: 4px;
+}
+
+.gp-track__fav-count {
+  font-size: 11px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .gp-track__img {
@@ -2222,6 +2275,7 @@ onUnmounted(() => {
   }
 
   /* 手机上收起次级操作：收藏与播放模式都在播放页里 */
+  .gp-track__comment,
   .gp-track__fav,
   .gp-mode {
     display: none;

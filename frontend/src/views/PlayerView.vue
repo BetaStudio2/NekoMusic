@@ -1288,6 +1288,10 @@ onMounted(async () => {
     await loadMusicById(String(musicId))
   }
 
+  if (route.query.comments === '1') {
+    commentsOpen.value = true
+  }
+
   // 获取收藏列表
   await fetchFavorites();
 
@@ -1336,6 +1340,13 @@ onUnmounted(() => {
  *  2. 只跟随「确实已经持久化的当前曲目」，避免旧事件短暂持有上一首时来回横跳。
  * replace 不污染历史。
  */
+watch(
+  () => route.query.comments,
+  (value) => {
+    if (value === '1') commentsOpen.value = true
+  }
+)
+
 watch(
   () => playback.currentMusic?.id,
   (id) => {
