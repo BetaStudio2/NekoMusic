@@ -30,7 +30,7 @@ export const LOCALE_ENTRIES = [
   },
   {
     tag: 'zh-TW',
-    name: '繁體中文',
+    name: '繁體中文（台湾）',
     prefixes: ['zh-hant', 'zh-tw', 'zh-mo'],
     fallback: 'zh-CN',
   },
