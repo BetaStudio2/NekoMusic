@@ -50,7 +50,7 @@
             </button>
             <button
               type="button"
-              class="np-icon"
+              class="np-icon np-icon--favorite"
               :class="{ 'is-on': currentMusic && isFavorite(currentMusic.id) }"
               :disabled="!currentMusic"
               :aria-label="currentMusic && isFavorite(currentMusic.id) ? $t('track.unfavorite') : $t('track.favorite')"
@@ -58,6 +58,9 @@
               @click="toggleFavorite"
             >
               <NIcon :name="currentMusic && isFavorite(currentMusic.id) ? 'heart' : 'heart-off'" :size="18" />
+              <span v-if="favoriteCount !== null" class="np-icon__count">
+                {{ favoriteCount > 9999 ? '9999+' : favoriteCount }}
+              </span>
             </button>
             <button
               type="button"
@@ -369,6 +372,7 @@ const duration = ref(0)
 const lyrics = ref('')
 const parsedLyrics = ref([])
 const favoriteMusicIds = ref(new Set()) // 存储收藏的音乐ID
+const favoriteCount = ref(null)
 const isMobile = ref(false)
 const userIsVip = ref(false)
 const commentsOpen = ref(false)
@@ -482,6 +486,8 @@ const fetchMusicDetail = async (musicId) => {
     if (seq !== detailRequestSeq) return
     if (data.success) {
       currentMusic.value = data.data
+      const count = Number(data.data?.favoriteCount)
+      favoriteCount.value = Number.isFinite(count) ? count : null
       syncPlayStateFromStorage()
       // 加载歌词
       loadLyrics(musicId)
@@ -502,6 +508,7 @@ const loadMusicById = async (musicId) => {
 
   // 详情页展示 URL 指定的曲目；播放引擎只在用户明确操作后切换。
   currentMusic.value = null
+  favoriteCount.value = null
 
   lyrics.value = ''
   parsedLyrics.value = []
@@ -973,6 +980,7 @@ const toggleFavorite = async () => {
       const data = await response.json();
       if (data.success) {
         favoriteMusicIds.value.delete(currentMusic.value.id);
+        favoriteCount.value = Math.max(0, (favoriteCount.value ?? 0) - 1);
         toast.success(t('player.unfavoriteSuccess'));
       } else {
         console.error('取消收藏失败:', data.message);
@@ -997,6 +1005,7 @@ const toggleFavorite = async () => {
       const data = await response.json();
       if (data.success) {
         favoriteMusicIds.value.add(currentMusic.value.id);
+        favoriteCount.value = (favoriteCount.value ?? 0) + 1;
         toast.success(t('player.favoriteSuccess'));
       } else {
         console.error('收藏失败:', data.message);
@@ -1570,6 +1579,22 @@ watch(
   color: var(--n-accent);
 }
 
+.np-icon.np-icon--favorite {
+  width: auto;
+  min-width: 40px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.np-icon__count {
+  font-size: 11px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
 .np-icon:focus-visible,
 .np-play:focus-visible {
   outline: none;
@@ -2025,6 +2050,11 @@ watch(
   .np-icon {
     width: var(--n-tap-min);
     height: var(--n-tap-min);
+  }
+
+  .np-icon.np-icon--favorite {
+    min-width: var(--n-tap-min);
+    padding: 0 6px;
   }
 
   .np-play {
