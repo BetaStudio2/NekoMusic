@@ -58,6 +58,9 @@
           @click="goToComments"
         >
           <NIcon name="message" :size="17" />
+          <span v-if="commentCount" class="gp-track__comment-badge">
+            {{ commentCount > 99 ? '99+' : commentCount }}
+          </span>
         </button>
 
         <button
@@ -252,6 +255,7 @@ import { attachAudioElement, unlockAudioAnalyser } from '@/composables/useAudioA
 import { clearUrlHash } from '@/utils/routerHistory'
 import SpectrumCanvas from '@/components/SpectrumCanvas.vue'
 import MiniLyric from '@/components/MiniLyric.vue'
+import { fetchComments } from '@/api/comments'
 import { t } from '@/i18n'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NModal } from '@/ui'
@@ -285,6 +289,7 @@ const playbackMode = ref('list_repeat') // 'list_repeat', 'single_repeat', 'shuf
 const playlist = ref([])
 const isFavorite = ref(false) // 当前音乐是否已收藏
 const favoriteCount = ref(null) // 当前音乐收藏数，未知时为 null
+const commentCount = ref(0) // 当前音乐评论数
 const showClearConfirm = ref(false) // 是否显示清空确认模态框
 
 /** 当前播放模式对应的图标名（图标注册表语义名） */
@@ -681,6 +686,19 @@ const getCoverUrl = (musicId) => {
   return `${API_CONFIG.BASE_URL}/api/music/cover/${musicId}`
 }
 
+// 拉取当前音乐评论数；切歌后旧请求不写回
+const loadCommentCount = async (musicId) => {
+  try {
+    const data = await fetchComments(musicId, { pageSize: 1 })
+    if (String(currentMusic.value?.id) !== String(musicId)) return
+    commentCount.value = Number(data?.totalComments) || 0
+  } catch (error) {
+    if (String(currentMusic.value?.id) !== String(musicId)) return
+    commentCount.value = 0
+    console.warn('加载评论数失败:', error)
+  }
+}
+
 // 从音乐详情同步收藏数（未知时保持 null，不显示 0）
 const syncFavoriteCount = (music) => {
   const count = Number(music?.favoriteCount)
@@ -861,6 +879,7 @@ const confirmClearPlaylist = () => {
   lyrics.value = ''
   isFavorite.value = false
   favoriteCount.value = null
+  commentCount.value = 0
   showPlaylist.value = false
 
   localStorage.removeItem('currentPlayingMusic')
@@ -1058,6 +1077,7 @@ const handleStorageChange = (e) => {
       lyrics.value = ''
       parsedLyrics.value = []
       favoriteCount.value = null
+      commentCount.value = 0
       isFavorite.value = false
       // 清除媒体会话元数据
       if ('mediaSession' in navigator) {
@@ -1248,7 +1268,9 @@ const switchToTrack = async (track) => {
     currentMusic.value = track
     duration.value = Number(track.duration) || 0
     favoriteCount.value = null
+    commentCount.value = 0
     loadLyrics(track.id)
+    loadCommentCount(track.id)
     updateMediaSessionMetadata(track)
   }
 
@@ -1459,6 +1481,7 @@ onMounted(() => {
     // 初始化时加载歌词
     if (currentMusic.value) {
       loadLyrics(currentMusic.value.id)
+      loadCommentCount(currentMusic.value.id)
       // 初始化媒体会话
       initializeMediaSession(currentMusic.value)
       // 检查收藏状态
@@ -1852,6 +1875,26 @@ onUnmounted(() => {
 .gp-track__fav-count {
   font-size: 11px;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.gp-icon.gp-track__comment {
+  position: relative;
+}
+
+.gp-track__comment-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--n-radius-pill);
+  background: var(--n-accent);
+  color: var(--n-text-inverse, #fff);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
