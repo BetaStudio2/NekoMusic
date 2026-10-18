@@ -161,10 +161,6 @@ public final class ServletRegistrar {
         ServletHolder mediaCoverHolder = new ServletHolder(new MusicCoverHandler());
         context.addServlet(mediaCoverHolder, "/media/cover/*");
         
-        // 注册歌词API处理器（无需管理员权限）
-        ServletHolder musicLyricsHolder = new ServletHolder(new MusicLyricsHandler());
-        context.addServlet(musicLyricsHolder, "/api/music/lyrics/*");
-
         // 歌曲评论：列表 / 发表 / 回复 / 删除复用同一个端点 /api/comments
         ServletHolder musicCommentHolder = new ServletHolder(new MusicCommentHandler());
         context.addServlet(musicCommentHolder, "/api/comments/*");

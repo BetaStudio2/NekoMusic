@@ -488,9 +488,10 @@ const fetchMusicDetail = async (musicId) => {
       currentMusic.value = data.data
       const count = Number(data.data?.favoriteCount)
       favoriteCount.value = Number.isFinite(count) ? count : null
+      const lyricsText = typeof data.data?.lyrics === 'string' ? data.data.lyrics : ''
+      lyrics.value = lyricsText
+      parseLrcLyrics(lyricsText)
       syncPlayStateFromStorage()
-      // 加载歌词
-      loadLyrics(musicId)
     } else {
       console.error('获取音乐详情失败:', data.message)
     }
@@ -518,37 +519,6 @@ const loadMusicById = async (musicId) => {
   await fetchMusicDetail(id)
   // 启动定时器以持续更新歌词 / 对齐全局播放状态
   startTimer()
-}
-
-// 获取歌词
-const getLyricsUrl = (musicId) => {
-  return `${API_CONFIG.BASE_URL}/api/music/lyrics/${musicId}`
-}
-
-// 加载歌词
-const loadLyrics = async (musicId) => {
-  try {
-    const response = await fetch(getLyricsUrl(musicId))
-    // 期间已经切歌：丢弃过期歌词，别把新曲目的歌词覆盖成上一首的
-    if (String(currentMusic.value?.id) !== String(musicId)) return
-    if (response.ok) {
-      const data = await response.json()
-      if (data.success) {
-        lyrics.value = data.data
-        parseLrcLyrics(data.data)
-      } else {
-        lyrics.value = ''
-        parsedLyrics.value = []
-      }
-    } else {
-      lyrics.value = ''
-      parsedLyrics.value = []
-    }
-  } catch (error) {
-    console.error('加载歌词失败:', error)
-    lyrics.value = ''
-    parsedLyrics.value = []
-  }
 }
 
 // 解析LRC歌词格式

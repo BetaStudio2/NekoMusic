@@ -653,23 +653,26 @@ const getCoverUrl = (musicId) => {
   return `${API_CONFIG.BASE_URL}/api/music/cover/${musicId}`
 }
 
-// 获取歌词
-const getLyricsUrl = (musicId) => {
-  return `${API_CONFIG.BASE_URL}/api/music/lyrics/${musicId}`
-}
-
-// 加载歌词
+// 通过音乐详情接口加载歌词
 const loadLyrics = async (musicId) => {
+  const current = currentMusic.value
+  if (current && String(current.id) === String(musicId) && typeof current.lyrics === 'string') {
+    lyrics.value = current.lyrics
+    parseLrcLyrics(current.lyrics)
+    return
+  }
+
   try {
-    const response = await fetch(getLyricsUrl(musicId))
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/music/info/${musicId}`)
     // 期间已经切歌：丢弃过期歌词，别把上一首的歌词盖到新曲目上
     if (String(currentMusic.value?.id) !== String(musicId)) return
     if (response.ok) {
       const data = await response.json()
       if (String(currentMusic.value?.id) !== String(musicId)) return
       if (data.success) {
-        lyrics.value = data.data
-        parseLrcLyrics(data.data)
+        const lyricsText = typeof data.data?.lyrics === 'string' ? data.data.lyrics : ''
+        lyrics.value = lyricsText
+        parseLrcLyrics(lyricsText)
       } else {
         lyrics.value = ''
         parsedLyrics.value = []

@@ -14,10 +14,14 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.regex.Pattern;
 import com.neko.music.i18n.ApiMessages;
 
 public class MusicInfoHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(MusicInfoHandler.class);
+
+    /** LRC 时间戳补毫秒（{@code [00:12:34]} → {@code [00:12.34]}）。 */
+    private static final Pattern LRC_TIMESTAMP = Pattern.compile("\\[(\\d{2}):(\\d{2}):(\\d{2,3})\\]");
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -67,7 +71,8 @@ public class MusicInfoHandler extends HttpServlet {
      */
     private Music getMusicById(int musicId) {
         Music music = null;
-        
+        String lyrics = getLyricsById(musicId);
+
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             String sql = "SELECT m.id, m.title, m.artist, m.album, m.duration, m.language, m.tags, " +
                     "m.upload_user_id, m.created_at, m.updated_at, m.max_quality, " +
@@ -92,7 +97,8 @@ public class MusicInfoHandler extends HttpServlet {
                             rs.getTimestamp("created_at").toString(),
                             rs.getTimestamp("updated_at").toString(),
                             rs.getString("max_quality"),
-                            rs.getInt("favorite_count"));
+                            rs.getInt("favorite_count"),
+                            lyrics);
                 }
             }
         } catch (Exception e) {
@@ -100,6 +106,29 @@ public class MusicInfoHandler extends HttpServlet {
         }
         
         return music;
+    }
+
+    /**
+     * 根据音乐ID获取歌词；没有歌词时返回空字符串。
+     */
+    private String getLyricsById(int musicId) {
+        try {
+            var stored = Main.getLyricsDatabaseManager().findByMusicIdCached(musicId);
+            if (stored.isPresent()) {
+                return normalizeLrc(stored.get().content());
+            }
+            logger.debug("数据库歌词不存在 musicId={}", musicId);
+        } catch (Exception e) {
+            logger.error("获取歌词失败 musicId={}", musicId, e);
+        }
+        return "";
+    }
+
+    private String normalizeLrc(String lyricsContent) {
+        if (lyricsContent == null) {
+            return "";
+        }
+        return LRC_TIMESTAMP.matcher(lyricsContent).replaceAll("[$1:$2.$3]");
     }
 
     // 音乐对象：只读数据载体。
@@ -115,7 +144,8 @@ public class MusicInfoHandler extends HttpServlet {
             String createdAt,
             String updatedAt,
             String maxQuality,
-            int favoriteCount) {
+            int favoriteCount,
+            String lyrics) {
     }
     
     // 内部类用于表示单个音乐响应

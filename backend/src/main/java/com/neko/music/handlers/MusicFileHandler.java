@@ -1,7 +1,9 @@
 package com.neko.music.handlers;
 
 import com.google.gson.JsonObject;
+import com.neko.music.service.PlayCountService;
 import com.neko.music.service.MusicQualityService;
+import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.MusicLookup;
 import jakarta.servlet.http.HttpServletRequest;
@@ -60,6 +62,7 @@ public class MusicFileHandler extends ApiServlet {
         body.addProperty("message", "");
         body.add("data", data);
         sendSuccessResponse(response, body);
+        PlayCountService.recordPlay(musicId, ClientIpResolver.clientIp(request));
     }
 
     /** 解析 /{id}；非法返回 null。 */
