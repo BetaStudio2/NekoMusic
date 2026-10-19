@@ -26,7 +26,7 @@
     "lucide": "^1.53.0",
     "morphicons": "^1.7.1",
     "qrcode": "^1.5.4",
-    "vue": "^3.5.43",
+    "vue": "^3.5.44",
     "vue-router": "^5.4.0",
     "vue-toastification": "^2.0.0-rc.5"
   },
