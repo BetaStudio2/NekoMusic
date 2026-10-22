@@ -89,6 +89,7 @@ public class DatabaseInitializer {
                     reply_to_user_id INT NULL,
                     content VARCHAR(500) NOT NULL,
                     ip_region VARCHAR(64) NOT NULL DEFAULT '',
+                    client_ip VARCHAR(45) NOT NULL DEFAULT '',
                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (music_id) REFERENCES music(id) ON DELETE CASCADE,
                     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -272,6 +273,15 @@ public class DatabaseInitializer {
      * 老库执行一次即可，新库本就没有该列（两条语句都会因列不存在而失败，忽略即可）。
      */
     private static void migrateMusicCommentsTable(Statement stmt) {
+        try {
+            stmt.execute("""
+                ALTER TABLE music_comments
+                ADD COLUMN IF NOT EXISTS client_ip VARCHAR(45) NOT NULL DEFAULT '' AFTER ip_region
+                """);
+            logger.info("music_comments 已补齐 client_ip 列");
+        } catch (Exception e) {
+            logger.debug("music_comments 添加 client_ip 列: {}", e.getMessage());
+        }
         try {
             int purged = stmt.executeUpdate("DELETE FROM music_comments WHERE deleted = 1");
             if (purged > 0) {

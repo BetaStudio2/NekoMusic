@@ -28,7 +28,7 @@ public class CommentDatabaseManager {
 
     private static final String SQL_SELECT_BASE = """
             SELECT c.id, c.music_id, c.user_id, c.parent_id, c.reply_to_user_id,
-                   c.content, c.ip_region, c.created_at,
+                   c.content, c.ip_region, c.client_ip, c.created_at,
                    u.nickname AS nickname,
                    ru.nickname AS reply_to_nickname
             FROM music_comments c
@@ -51,6 +51,7 @@ public class CommentDatabaseManager {
         public Integer replyToUserId;
         public String content;
         public String ipRegion;
+        public String clientIp;
         public String createdAt;
         public String nickname;
         public String replyToNickname;
@@ -187,10 +188,10 @@ public class CommentDatabaseManager {
 
     /** 发表评论或回复，成功返回新评论 id，失败返回 -1。 */
     public int insert(int musicId, int userId, Integer parentId, Integer replyToUserId,
-                      String content, String ipRegion) {
+                      String content, String ipRegion, String clientIp) {
         String sql = "INSERT INTO music_comments "
-                + "(music_id, user_id, parent_id, reply_to_user_id, content, ip_region, created_at) "
-                + "VALUES (?, ?, ?, ?, ?, ?, " + DbTimeUtil.SQL_NOW_SHANGHAI + ")";
+                + "(music_id, user_id, parent_id, reply_to_user_id, content, ip_region, client_ip, created_at) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, " + DbTimeUtil.SQL_NOW_SHANGHAI + ")";
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             stmt.setInt(1, musicId);
@@ -207,6 +208,7 @@ public class CommentDatabaseManager {
             }
             stmt.setString(5, content);
             stmt.setString(6, ipRegion == null ? "" : ipRegion);
+            stmt.setString(7, clientIp == null ? "" : clientIp);
             int affected = stmt.executeUpdate();
             if (affected <= 0) {
                 return -1;
@@ -280,6 +282,7 @@ public class CommentDatabaseManager {
         row.replyToUserId = rs.wasNull() ? null : replyTo;
         row.content = rs.getString("content");
         row.ipRegion = rs.getString("ip_region");
+        row.clientIp = rs.getString("client_ip");
         row.createdAt = DbTimeUtil.formatStoredWallClock(rs.getString("created_at"));
         row.nickname = rs.getString("nickname");
         row.replyToNickname = rs.getString("reply_to_nickname");

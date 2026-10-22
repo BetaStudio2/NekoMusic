@@ -189,8 +189,9 @@ public class MusicCommentHandler extends ApiServlet {
             return;
         }
 
-        String ipRegion = Main.getIpRegionService().resolve(IpRegionService.clientIp(req));
-        int newId = db.insert(musicId, userId, rootId, replyToUserId, content, ipRegion);
+        String clientIp = IpRegionService.clientIp(req);
+        String ipRegion = Main.getIpRegionService().resolve(clientIp);
+        int newId = db.insert(musicId, userId, rootId, replyToUserId, content, ipRegion, clientIp);
         if (newId <= 0) {
             if (Main.getRedisService() != null) {
                 Main.getRedisService().del(COOLDOWN_KEY_PREFIX + userId);
