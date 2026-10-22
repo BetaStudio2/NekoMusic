@@ -14,12 +14,12 @@ IP2REGION_V4_BIN="${IP2REGION_DIR}/ip2region_v4.xdb"
 IP2REGION_V6_BIN="${IP2REGION_DIR}/ip2region_v6.xdb"
 # P3TERX GeoLite.mmdb 镜像
 GEOLITE2_URL="https://raw.githubusercontent.com/P3TERX/GeoLite.mmdb/download/GeoLite2-City.mmdb"
-# 固定 ip2region 数据版本；校验和与 v3.11.2 的官方数据文件对应
-IP2REGION_TAG="v3.11.2"
-IP2REGION_V4_URL="https://raw.githubusercontent.com/lionsoul2014/ip2region/${IP2REGION_TAG}/data/ip2region_v4.xdb"
-IP2REGION_V6_URL="https://raw.githubusercontent.com/lionsoul2014/ip2region/${IP2REGION_TAG}/data/ip2region_v6.xdb"
-IP2REGION_V4_SHA256="5555fd1aab63e06096d9ee2a4187e93b8451e650b77ce4138a26eb9cf4d81469"
-IP2REGION_V6_SHA256="2c0ec39095bc224a506657d20dfbb460707dd94a9cfc2242fd5fe2b2e36cbf1c"
+# 固定到 2026-10-14 的数据提交；不要用旧标签，旧数据对运营商 IP 的城市精度更差
+IP2REGION_COMMIT="1bf6cabfb63c1a14af0971749c2120a3e5c77d72"
+IP2REGION_V4_URL="https://raw.githubusercontent.com/lionsoul2014/ip2region/${IP2REGION_COMMIT}/data/ip2region_v4.xdb"
+IP2REGION_V6_URL="https://raw.githubusercontent.com/lionsoul2014/ip2region/${IP2REGION_COMMIT}/data/ip2region_v6.xdb"
+IP2REGION_V4_SHA256="27ecba8c9a6d5e3b280aedbe7ee15c65372b179fbd0dad3845d8c608f2fcace1"
+IP2REGION_V6_SHA256="939f6b46bd2b8bec3cf7c5ceb8ba782266ae9b1f35b5ba7916700dec0b7506ed"
 
 mkdir -p "${OUT_DIR}" "${IP2REGION_DIR}"
 

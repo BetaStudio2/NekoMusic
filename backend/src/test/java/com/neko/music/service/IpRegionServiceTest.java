@@ -8,8 +8,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class IpRegionServiceTest {
 
     @Test
-    void domesticCityComesFirst() {
+    void maxmindCityIsPreferredWhenAvailable() {
         IpLocation maxmind = new IpLocation("CN", "中国", "广东省", "广州市");
+        IpLocation ip2region = new IpLocation("CN", "中国", "广东省", "深圳市");
+
+        assertEquals("广州", IpRegionService.format(maxmind, ip2region));
+    }
+
+    @Test
+    void ip2regionCityFillsMissingMaxmindCity() {
+        IpLocation maxmind = new IpLocation("CN", "中国", "", "");
         IpLocation ip2region = new IpLocation("CN", "中国", "广东省", "深圳市");
 
         assertEquals("深圳", IpRegionService.format(maxmind, ip2region));

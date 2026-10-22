@@ -324,11 +324,11 @@ public class IpRegionService {
             }
             return countryName.isBlank() ? UNKNOWN : countryName;
         }
-        String cityName = shortenRegionName(firstNonBlank(cn.city(), mm.city()));
+        String cityName = shortenRegionName(firstNonBlank(mm.city(), cn.city()));
         if (!cityName.isEmpty()) {
             return cityName;
         }
-        String province = shortenRegionName(firstNonBlank(cn.province(), mm.province()));
+        String province = shortenRegionName(firstNonBlank(mm.province(), cn.province()));
         if (!province.isEmpty()) {
             return province;
         }
