@@ -145,6 +145,8 @@ backend/src/main/resources/GeoLite2-City.mmdb
 # ip2region 国内双栈数据库
 backend/GeoIP/*.xdb
 backend/GeoIP/*.mmdb
+backend/GeoIP/*.dat
 backend/src/main/resources/GeoIP/*.xdb
+backend/src/main/resources/GeoIP/*.dat
 
 backend/src/main/resources/site/*

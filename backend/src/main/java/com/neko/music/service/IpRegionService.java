@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * 评论 IP 归属地：国外用本地 MaxMind 解析国家，国内再用 ip2region v4/v6 补省、市。
+ * 评论 IP 归属地：国外用本地 MaxMind 解析国家；国内按 MaxMind、qqwry（IPv4）、ip2region 的顺序补省、市。
  * 全程读取本地数据库，不请求任何第三方接口。
  *
  * <p>数据库按以下顺序自动发现（IPv4 与 IPv6 同一份 City/Country 库即可覆盖）：
@@ -37,14 +37,16 @@ import java.util.concurrent.ConcurrentMap;
  * 服务启动时会自动把 JAR 内置的库释放到 {@code GeoIP/GeoLite2-City.mmdb} 再加载，无需人工放置文件；
  * 磁盘不可写时退化为直接从 JAR 流式读取。
  *
- * <p>国外只返回国家名；国内省市都解析不到时返回 {@code unknown}；内网 / 回环地址返回「本地」。
+ * <p>国外只返回国家名；国内省市都解析不到时回退到国家名，完全无法识别时返回「其他」；
+ * 内网 / 回环地址返回「本地」。
  * 任一数据库缺失时只降级对应能力，不影响评论发表。
  */
 public class IpRegionService {
 
     private static final Logger logger = LoggerFactory.getLogger(IpRegionService.class);
 
-    private static final String UNKNOWN = "unknown";
+    private static final String FALLBACK = "其他";
+    private static final String LEGACY_UNKNOWN = "未知";
     private static final String LOCAL = "本地";
     private static final String ZH = "zh-CN";
     private static final int MEMORY_CACHE_MAX = 8192;
@@ -144,24 +146,26 @@ public class IpRegionService {
     );
 
     private final DatabaseReader reader;
+    private final QqwryIpRegionService qqwryService;
     private final ChinaIpRegionService chinaService;
     private final ConcurrentMap<String, String> cache = new ConcurrentHashMap<>();
 
     public IpRegionService() {
         this.reader = openDatabase();
+        this.qqwryService = QqwryIpRegionService.open();
         this.chinaService = ChinaIpRegionService.open();
     }
 
     /** 任一归属地数据库是否可用。 */
     public boolean isAvailable() {
-        return reader != null || chinaService != null;
+        return reader != null || qqwryService != null || chinaService != null;
     }
 
-    /** 解析归属地，失败返回 {@code unknown}。 */
+    /** 解析归属地；国内无省市时回退到国家，完全无法识别时返回「其他」。 */
     public String resolve(String rawIp) {
         String ip = normalize(rawIp);
         if (ip.isEmpty()) {
-            return UNKNOWN;
+            return FALLBACK;
         }
         if (isLocalAddress(ip)) {
             return LOCAL;
@@ -176,15 +180,21 @@ public class IpRegionService {
             // 已校验为 IP 字面量，不会触发 DNS 查询
             address = InetAddress.getByName(ip);
         } catch (Exception e) {
-            return UNKNOWN;
+            return FALLBACK;
         }
 
         IpLocation maxmind = lookupMaxMind(reader, address);
+        IpLocation qqwry = IpLocation.empty();
         IpLocation china = IpLocation.empty();
-        if (chinaService != null && shouldUseChina(maxmind)) {
-            china = chinaService.lookup(ip);
+        if (shouldUseChina(maxmind)) {
+            if (qqwryService != null) {
+                qqwry = qqwryService.lookup(ip);
+            }
+            if (chinaService != null) {
+                china = chinaService.lookup(ip);
+            }
         }
-        String region = format(maxmind, china);
+        String region = format(maxmind, qqwry, china);
         if (cache.size() >= MEMORY_CACHE_MAX) {
             cache.clear();
         }
@@ -303,12 +313,14 @@ public class IpRegionService {
     }
 
     /** 国内返回市级归属地（无市级时退到省 / 自治区名），港澳台带「中国」前缀，国外只返回国家名。 */
-    static String format(IpLocation maxmind, IpLocation china) {
+    static String format(IpLocation maxmind, IpLocation qqwry, IpLocation china) {
         IpLocation mm = maxmind == null ? IpLocation.empty() : maxmind;
+        IpLocation qw = qqwry == null ? IpLocation.empty() : qqwry;
         IpLocation cn = china == null ? IpLocation.empty() : china;
 
-        String countryCode = firstNonBlank(mm.countryCode(), cn.countryCode()).toUpperCase(Locale.ROOT);
-        String countryName = firstNonBlank(mm.countryName(), cn.countryName());
+        String countryCode = firstNonBlank(mm.countryCode(), qw.countryCode(), cn.countryCode())
+                .toUpperCase(Locale.ROOT);
+        String countryName = firstNonBlank(mm.countryName(), qw.countryName(), cn.countryName());
         if (countryCode.isEmpty() && ("中国".equals(countryName) || "China".equalsIgnoreCase(countryName))) {
             countryCode = "CN";
         }
@@ -322,17 +334,17 @@ public class IpRegionService {
             if (!mapped.isBlank()) {
                 return mapped;
             }
-            return countryName.isBlank() ? UNKNOWN : countryName;
+            return countryName.isBlank() ? FALLBACK : countryName;
         }
-        String cityName = shortenRegionName(firstNonBlank(mm.city(), cn.city()));
+        String cityName = shortenRegionName(firstNonBlank(mm.city(), qw.city(), cn.city()));
         if (!cityName.isEmpty()) {
             return cityName;
         }
-        String province = shortenRegionName(firstNonBlank(mm.province(), cn.province()));
+        String province = shortenRegionName(firstNonBlank(mm.province(), qw.province(), cn.province()));
         if (!province.isEmpty()) {
             return province;
         }
-        return UNKNOWN;
+        return countryName.isBlank() ? "中国" : countryName;
     }
 
     /**
@@ -365,11 +377,28 @@ public class IpRegionService {
                 || "China".equalsIgnoreCase(maxmind.countryName());
     }
 
-    private static String firstNonBlank(String first, String second) {
-        if (first != null && !first.isBlank()) {
-            return first.trim();
+    private static String firstNonBlank(String... values) {
+        if (values == null) {
+            return "";
         }
-        return second == null ? "" : second.trim();
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return "";
+    }
+
+    /** 历史评论可能保存过 unknown / 未知，接口输出时统一归一，避免客户端继续看到旧占位。 */
+    public static String displayStored(String region) {
+        if (region == null || region.isBlank()) {
+            return FALLBACK;
+        }
+        String value = region.trim();
+        if ("unknown".equalsIgnoreCase(value) || LEGACY_UNKNOWN.equals(value)) {
+            return FALLBACK;
+        }
+        return value;
     }
 
     /**

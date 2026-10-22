@@ -202,6 +202,12 @@
             <artifactId>ip2region</artifactId>
             <version>3.3.7</version>
         </dependency>
+        <!-- 国内 IPv4 省市补充（纯真数据库） -->
+        <dependency>
+            <groupId>com.github.jarod</groupId>
+            <artifactId>qqwry-java</artifactId>
+            <version>0.10.1</version>
+        </dependency>
 
         <!-- ZXing：服务端渲染二维码（登录码中心合成软件图标） -->
         <dependency>

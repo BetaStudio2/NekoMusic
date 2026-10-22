@@ -12,7 +12,15 @@ class IpRegionServiceTest {
         IpLocation maxmind = new IpLocation("CN", "中国", "广东省", "广州市");
         IpLocation ip2region = new IpLocation("CN", "中国", "广东省", "深圳市");
 
-        assertEquals("广州", IpRegionService.format(maxmind, ip2region));
+        assertEquals("广州", IpRegionService.format(maxmind, IpLocation.empty(), ip2region));
+    }
+
+    @Test
+    void qqwryCityFillsMissingMaxmindCity() {
+        IpLocation qqwry = new IpLocation("CN", "中国", "江西省", "南昌市");
+
+        assertEquals("南昌", IpRegionService.format(
+                new IpLocation("CN", "中国", "", ""), qqwry, IpLocation.empty()));
     }
 
     @Test
@@ -20,7 +28,7 @@ class IpRegionServiceTest {
         IpLocation maxmind = new IpLocation("CN", "中国", "", "");
         IpLocation ip2region = new IpLocation("CN", "中国", "广东省", "深圳市");
 
-        assertEquals("深圳", IpRegionService.format(maxmind, ip2region));
+        assertEquals("深圳", IpRegionService.format(maxmind, IpLocation.empty(), ip2region));
     }
 
     @Test
@@ -28,14 +36,14 @@ class IpRegionServiceTest {
         IpLocation maxmind = new IpLocation("CN", "中国", "广东省", "");
         IpLocation ip2region = new IpLocation("CN", "中国", "", "");
 
-        assertEquals("广东", IpRegionService.format(maxmind, ip2region));
+        assertEquals("广东", IpRegionService.format(maxmind, IpLocation.empty(), ip2region));
     }
 
     @Test
-    void domesticWithoutProvinceOrCityReturnsUnknown() {
+    void domesticWithoutProvinceOrCityFallsBackToCountry() {
         IpLocation maxmind = new IpLocation("CN", "中国", "", "");
 
-        assertEquals("unknown", IpRegionService.format(maxmind, IpLocation.empty()));
+        assertEquals("中国", IpRegionService.format(maxmind, IpLocation.empty(), IpLocation.empty()));
     }
 
     @Test
@@ -43,29 +51,39 @@ class IpRegionServiceTest {
         IpLocation maxmind = new IpLocation("US", "美国", "California", "Mountain View");
         IpLocation ip2region = new IpLocation("US", "United States", "California", "Mountain View");
 
-        assertEquals("美国", IpRegionService.format(maxmind, ip2region));
+        assertEquals("美国", IpRegionService.format(maxmind, IpLocation.empty(), ip2region));
     }
 
     @Test
     void foreignCountryCodeWithoutChineseNameIsMapped() {
         IpLocation ip2region = new IpLocation("US", "United States", "California", "Mountain View");
 
-        assertEquals("美国", IpRegionService.format(IpLocation.empty(), ip2region));
+        assertEquals("美国", IpRegionService.format(
+                IpLocation.empty(), IpLocation.empty(), ip2region));
     }
 
     @Test
     void hmtKeepsChinaPrefix() {
         assertEquals("中国香港", IpRegionService.format(
-                new IpLocation("HK", "香港", "", ""), IpLocation.empty()));
+                new IpLocation("HK", "香港", "", ""), IpLocation.empty(), IpLocation.empty()));
         assertEquals("中国澳门", IpRegionService.format(
-                new IpLocation("MO", "Macao", "", ""), IpLocation.empty()));
+                new IpLocation("MO", "Macao", "", ""), IpLocation.empty(), IpLocation.empty()));
         assertEquals("中国台湾", IpRegionService.format(
-                new IpLocation("TW", "台湾", "", ""), IpLocation.empty()));
+                new IpLocation("TW", "台湾", "", ""), IpLocation.empty(), IpLocation.empty()));
     }
 
     @Test
-    void completelyEmptyReturnsUnknown() {
-        assertEquals("unknown", IpRegionService.format(IpLocation.empty(), IpLocation.empty()));
+    void completelyEmptyReturnsOther() {
+        assertEquals("其他", IpRegionService.format(
+                IpLocation.empty(), IpLocation.empty(), IpLocation.empty()));
+    }
+
+    @Test
+    void legacyUnknownIsNormalizedForDisplay() {
+        assertEquals("其他", IpRegionService.displayStored("unknown"));
+        assertEquals("其他", IpRegionService.displayStored("未知"));
+        assertEquals("其他", IpRegionService.displayStored(""));
+        assertEquals("上海", IpRegionService.displayStored("上海"));
     }
 
     @Test

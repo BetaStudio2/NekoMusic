@@ -313,7 +313,7 @@ public class MusicCommentHandler extends ApiServlet {
         json.addProperty("musicId", row.musicId);
         json.addProperty("content", row.content);
         json.addProperty("createdAt", row.createdAt);
-        json.addProperty("ipRegion", row.ipRegion == null ? "" : row.ipRegion);
+        json.addProperty("ipRegion", IpRegionService.displayStored(row.ipRegion));
         json.addProperty("canDelete", admin || (viewerId != null && viewerId == row.userId));
 
         JsonObject user = new JsonObject();

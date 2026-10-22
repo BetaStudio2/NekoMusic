@@ -52,16 +52,16 @@ final class ChinaIpRegionService implements AutoCloseable {
         Config v4 = loadConfig(true);
         Config v6 = loadConfig(false);
         if (v4 == null && v6 == null) {
-            logger.warn("未找到 ip2region v4/v6 数据库，国内评论归属地省市将返回 unknown。"
+            logger.warn("未找到 ip2region v4/v6 数据库，国内评论归属地省市将由 MaxMind / qqwry 兜底。"
                     + "请确认 JAR 内包含 /GeoIP/ip2region_v4.xdb 与 /GeoIP/ip2region_v6.xdb，"
                     + "或把文件放到 GeoIP/ 或 /app/GeoIP/");
             return null;
         }
         if (v4 == null) {
-            logger.warn("未找到 ip2region IPv4 数据库，IPv4 国内归属地省市将返回 unknown");
+            logger.warn("未找到 ip2region IPv4 数据库，IPv4 国内归属地省市将由 MaxMind / qqwry 兜底");
         }
         if (v6 == null) {
-            logger.warn("未找到 ip2region IPv6 数据库，IPv6 国内归属地省市将返回 unknown");
+            logger.warn("未找到 ip2region IPv6 数据库，IPv6 国内归属地省市将由 MaxMind 兜底");
         }
         try {
             return new ChinaIpRegionService(Ip2Region.create(v4, v6));
