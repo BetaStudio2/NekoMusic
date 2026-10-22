@@ -8,35 +8,56 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class IpRegionServiceTest {
 
     @Test
-    void maxmindCityIsPreferredWhenAvailable() {
+    void provinceIsPreferredOverCity() {
         IpLocation maxmind = new IpLocation("CN", "中国", "广东省", "广州市");
         IpLocation ip2region = new IpLocation("CN", "中国", "广东省", "深圳市");
 
-        assertEquals("广州", IpRegionService.format(maxmind, IpLocation.empty(), ip2region));
+        assertEquals("广东", IpRegionService.format(maxmind, IpLocation.empty(), ip2region));
     }
 
     @Test
-    void qqwryCityFillsMissingMaxmindCity() {
+    void qqwryFillsMissingProvince() {
         IpLocation qqwry = new IpLocation("CN", "中国", "江西省", "南昌市");
 
-        assertEquals("南昌", IpRegionService.format(
+        assertEquals("江西", IpRegionService.format(
                 new IpLocation("CN", "中国", "", ""), qqwry, IpLocation.empty()));
     }
 
     @Test
-    void ip2regionCityFillsMissingMaxmindCity() {
+    void ip2regionFillsMissingProvince() {
         IpLocation maxmind = new IpLocation("CN", "中国", "", "");
         IpLocation ip2region = new IpLocation("CN", "中国", "广东省", "深圳市");
 
-        assertEquals("深圳", IpRegionService.format(maxmind, IpLocation.empty(), ip2region));
+        assertEquals("广东", IpRegionService.format(maxmind, IpLocation.empty(), ip2region));
     }
 
     @Test
-    void domesticFallsBackToProvince() {
+    void domesticReturnsProvince() {
         IpLocation maxmind = new IpLocation("CN", "中国", "广东省", "");
         IpLocation ip2region = new IpLocation("CN", "中国", "", "");
 
         assertEquals("广东", IpRegionService.format(maxmind, IpLocation.empty(), ip2region));
+    }
+
+    @Test
+    void municipalityUsesItsProvinceLevelName() {
+        IpLocation maxmind = new IpLocation("CN", "中国", "上海市", "上海市");
+
+        assertEquals("上海", IpRegionService.format(maxmind, IpLocation.empty(), IpLocation.empty()));
+    }
+
+    @Test
+    void municipalityFallsBackToCityWhenProvinceIsMissing() {
+        IpLocation ip2region = new IpLocation("CN", "中国", "", "北京市");
+
+        assertEquals("北京", IpRegionService.format(IpLocation.empty(), IpLocation.empty(), ip2region));
+    }
+
+    @Test
+    void ordinaryCityWithoutProvinceDoesNotLeakCityName() {
+        IpLocation ip2region = new IpLocation("CN", "中国", "", "南昌市");
+
+        assertEquals("中国", IpRegionService.format(IpLocation.empty(), IpLocation.empty(), ip2region));
     }
 
     @Test

@@ -146,6 +146,7 @@ backend/src/main/resources/GeoLite2-City.mmdb
 backend/GeoIP/*.xdb
 backend/GeoIP/*.mmdb
 backend/GeoIP/*.dat
+/GeoIP/
 backend/src/main/resources/GeoIP/*.xdb
 backend/src/main/resources/GeoIP/*.dat
 

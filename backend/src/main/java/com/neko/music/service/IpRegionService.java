@@ -37,8 +37,8 @@ import java.util.concurrent.ConcurrentMap;
  * 服务启动时会自动把 JAR 内置的库释放到 {@code GeoIP/GeoLite2-City.mmdb} 再加载，无需人工放置文件；
  * 磁盘不可写时退化为直接从 JAR 流式读取。
  *
- * <p>国外只返回国家名；国内省市都解析不到时回退到国家名，完全无法识别时返回「其他」；
- * 内网 / 回环地址返回「本地」。
+ * <p>国外只返回国家名；国内普通省份只显示省级行政区，北京 / 上海 / 天津 / 重庆等直辖市显示市名；
+ * 国内省市都解析不到时回退到国家名，完全无法识别时返回「其他」；内网 / 回环地址返回「本地」。
  * 任一数据库缺失时只降级对应能力，不影响评论发表。
  */
 public class IpRegionService {
@@ -161,7 +161,7 @@ public class IpRegionService {
         return reader != null || qqwryService != null || chinaService != null;
     }
 
-    /** 解析归属地；国内无省市时回退到国家，完全无法识别时返回「其他」。 */
+    /** 解析归属地；国内显示省级行政区，直辖市显示市名，完全无法识别时返回「其他」。 */
     public String resolve(String rawIp) {
         String ip = normalize(rawIp);
         if (ip.isEmpty()) {
@@ -312,7 +312,7 @@ public class IpRegionService {
         return value == null ? "" : value.trim();
     }
 
-    /** 国内返回市级归属地（无市级时退到省 / 自治区名），港澳台带「中国」前缀，国外只返回国家名。 */
+    /** 国内普通省份只返回省级行政区，直辖市返回市名；港澳台带「中国」前缀，国外只返回国家名。 */
     static String format(IpLocation maxmind, IpLocation qqwry, IpLocation china) {
         IpLocation mm = maxmind == null ? IpLocation.empty() : maxmind;
         IpLocation qw = qqwry == null ? IpLocation.empty() : qqwry;
@@ -336,15 +336,22 @@ public class IpRegionService {
             }
             return countryName.isBlank() ? FALLBACK : countryName;
         }
-        String cityName = shortenRegionName(firstNonBlank(mm.city(), qw.city(), cn.city()));
-        if (!cityName.isEmpty()) {
-            return cityName;
-        }
         String province = shortenRegionName(firstNonBlank(mm.province(), qw.province(), cn.province()));
         if (!province.isEmpty()) {
             return province;
         }
+        String cityName = shortenRegionName(firstNonBlank(mm.city(), qw.city(), cn.city()));
+        if (isMunicipality(cityName)) {
+            return cityName;
+        }
         return countryName.isBlank() ? "中国" : countryName;
+    }
+
+    /** 直辖市属于省级行政区，省级数据缺失时才允许用市名补位。 */
+    private static boolean isMunicipality(String name) {
+        return "北京".equals(name) || "上海".equals(name) || "天津".equals(name) || "重庆".equals(name)
+                || "Beijing".equalsIgnoreCase(name) || "Shanghai".equalsIgnoreCase(name)
+                || "Tianjin".equalsIgnoreCase(name) || "Chongqing".equalsIgnoreCase(name);
     }
 
     /**
