@@ -1,8 +1,7 @@
 package com.neko.music.service;
 
 import com.maxmind.geoip2.DatabaseReader;
-import com.maxmind.geoip2.model.CityResponse;
-import com.maxmind.geoip2.model.CountryResponse;
+import com.maxmind.geoip2.record.Country;
 import com.maxmind.geoip2.record.Subdivision;
 import com.neko.music.util.AtomicFiles;
 import com.neko.music.util.ClientIpResolver;
@@ -18,12 +17,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * 评论 IP 归属地：本地 MaxMind GeoIP2 / GeoLite2 数据库解析，不请求任何第三方接口。
+ * 评论 IP 归属地：国外用本地 MaxMind 解析国家，国内再用 ip2region v4/v6 补省、市。
+ * 全程读取本地数据库，不请求任何第三方接口。
  *
  * <p>数据库按以下顺序自动发现（IPv4 与 IPv6 同一份 City/Country 库即可覆盖）：
  * <ol>
@@ -36,13 +37,14 @@ import java.util.concurrent.ConcurrentMap;
  * 服务启动时会自动把 JAR 内置的库释放到 {@code GeoIP/GeoLite2-City.mmdb} 再加载，无需人工放置文件；
  * 磁盘不可写时退化为直接从 JAR 流式读取。
  *
- * <p>库缺失或解析失败时统一返回「未知」，不影响评论发表；内网 / 回环地址返回「本地」。
+ * <p>国外只返回国家名；国内省市都解析不到时返回 {@code unknown}；内网 / 回环地址返回「本地」。
+ * 任一数据库缺失时只降级对应能力，不影响评论发表。
  */
 public class IpRegionService {
 
     private static final Logger logger = LoggerFactory.getLogger(IpRegionService.class);
 
-    private static final String UNKNOWN = "未知";
+    private static final String UNKNOWN = "unknown";
     private static final String LOCAL = "本地";
     private static final String ZH = "zh-CN";
     private static final int MEMORY_CACHE_MAX = 8192;
@@ -142,18 +144,20 @@ public class IpRegionService {
     );
 
     private final DatabaseReader reader;
+    private final ChinaIpRegionService chinaService;
     private final ConcurrentMap<String, String> cache = new ConcurrentHashMap<>();
 
     public IpRegionService() {
         this.reader = openDatabase();
+        this.chinaService = ChinaIpRegionService.open();
     }
 
-    /** 数据库是否可用（不可用时归属地一律为「未知」）。 */
+    /** 任一归属地数据库是否可用。 */
     public boolean isAvailable() {
-        return reader != null;
+        return reader != null || chinaService != null;
     }
 
-    /** 解析归属地，失败返回「未知」。 */
+    /** 解析归属地，失败返回 {@code unknown}。 */
     public String resolve(String rawIp) {
         String ip = normalize(rawIp);
         if (ip.isEmpty()) {
@@ -162,11 +166,6 @@ public class IpRegionService {
         if (isLocalAddress(ip)) {
             return LOCAL;
         }
-        DatabaseReader db = reader;
-        if (db == null) {
-            return UNKNOWN;
-        }
-
         String cached = cache.get(ip);
         if (cached != null) {
             return cached;
@@ -180,7 +179,12 @@ public class IpRegionService {
             return UNKNOWN;
         }
 
-        String region = lookup(db, address);
+        IpLocation maxmind = lookupMaxMind(reader, address);
+        IpLocation china = IpLocation.empty();
+        if (chinaService != null && shouldUseChina(maxmind)) {
+            china = chinaService.lookup(ip);
+        }
+        String region = format(maxmind, china);
         if (cache.size() >= MEMORY_CACHE_MAX) {
             cache.clear();
         }
@@ -188,25 +192,28 @@ public class IpRegionService {
         return region;
     }
 
-    private static String lookup(DatabaseReader db, InetAddress address) {
+    private static IpLocation lookupMaxMind(DatabaseReader db, InetAddress address) {
+        if (db == null) {
+            return IpLocation.empty();
+        }
         boolean cityDatabase = isCityDatabase(db);
         if (cityDatabase) {
-            String region = lookupCity(db, address);
-            if (!region.isEmpty()) {
-                return region;
+            IpLocation city = lookupCity(db, address);
+            if (city.hasCountry() || !city.province().isBlank() || !city.city().isBlank()) {
+                return city;
             }
         }
-        String country = lookupCountry(db, address);
-        if (!country.isEmpty()) {
+        IpLocation country = lookupCountry(db, address);
+        if (country.hasCountry()) {
             return country;
         }
         if (!cityDatabase) {
-            String region = lookupCity(db, address);
-            if (!region.isEmpty()) {
-                return region;
+            IpLocation city = lookupCity(db, address);
+            if (city.hasCountry() || !city.province().isBlank() || !city.city().isBlank()) {
+                return city;
             }
         }
-        return UNKNOWN;
+        return IpLocation.empty();
     }
 
     private static boolean isCityDatabase(DatabaseReader db) {
@@ -218,27 +225,31 @@ public class IpRegionService {
         }
     }
 
-    private static String lookupCity(DatabaseReader db, InetAddress address) {
+    private static IpLocation lookupCity(DatabaseReader db, InetAddress address) {
         try {
             return db.tryCity(address)
-                    .map(response -> format(countryName(response.country()),
+                    .map(response -> new IpLocation(
+                            countryCode(response.country()),
+                            countryName(response.country()),
                             subdivisionName(response.subdivisions()),
                             localized(response.city().names())))
-                    .orElse("");
+                    .orElse(IpLocation.empty());
         } catch (Exception e) {
             logger.debug("City 库解析失败: {}", e.getMessage());
-            return "";
+            return IpLocation.empty();
         }
     }
 
-    private static String lookupCountry(DatabaseReader db, InetAddress address) {
+    private static IpLocation lookupCountry(DatabaseReader db, InetAddress address) {
         try {
             return db.tryCountry(address)
-                    .map(response -> countryName(response.country()))
-                    .orElse("");
+                    .map(response -> new IpLocation(
+                            countryCode(response.country()),
+                            countryName(response.country()), "", ""))
+                    .orElse(IpLocation.empty());
         } catch (Exception e) {
             logger.debug("Country 库解析失败: {}", e.getMessage());
-            return "";
+            return IpLocation.empty();
         }
     }
 
@@ -250,8 +261,15 @@ public class IpRegionService {
         return localized(subdivisions.get(subdivisions.size() - 1).names());
     }
 
-    /** 国家名：优先库内 zh-CN / en 名称，精简库退化到 ISO 码内置中文名。 */
-    private static String countryName(com.maxmind.geoip2.record.Country country) {
+    /** 国家代码：统一转成大写 ISO 两字母码。 */
+    private static String countryCode(Country country) {
+        if (country == null || country.isoCode() == null) {
+            return "";
+        }
+        return country.isoCode().toUpperCase(Locale.ROOT);
+    }
+
+    private static String countryName(Country country) {
         if (country == null) {
             return "";
         }
@@ -284,46 +302,74 @@ public class IpRegionService {
         return value == null ? "" : value.trim();
     }
 
-    /** 国内返回市级归属地（无市级时退到省 / 自治区名），港澳台带「中国」前缀，国外返回国家名。 */
-    static String format(String country, String subdivision, String city) {
-        String c = country == null ? "" : country.trim();
-        String hmt = hmtName(c);
+    /** 国内返回市级归属地（无市级时退到省 / 自治区名），港澳台带「中国」前缀，国外只返回国家名。 */
+    static String format(IpLocation maxmind, IpLocation china) {
+        IpLocation mm = maxmind == null ? IpLocation.empty() : maxmind;
+        IpLocation cn = china == null ? IpLocation.empty() : china;
+
+        String countryCode = firstNonBlank(mm.countryCode(), cn.countryCode()).toUpperCase(Locale.ROOT);
+        String countryName = firstNonBlank(mm.countryName(), cn.countryName());
+        if (countryCode.isEmpty() && ("中国".equals(countryName) || "China".equalsIgnoreCase(countryName))) {
+            countryCode = "CN";
+        }
+
+        String hmt = hmtName(countryCode, countryName);
         if (!hmt.isEmpty()) {
             return hmt;
         }
-        if (!c.isEmpty() && !"中国".equals(c) && !"China".equalsIgnoreCase(c)) {
-            return c;
+        if (!"CN".equals(countryCode)) {
+            String mapped = countryCode.isBlank() ? "" : COUNTRY_ZH.getOrDefault(countryCode, "");
+            if (!mapped.isBlank()) {
+                return mapped;
+            }
+            return countryName.isBlank() ? UNKNOWN : countryName;
         }
-        String cityName = shortenRegionName(city);
+        String cityName = shortenRegionName(firstNonBlank(cn.city(), mm.city()));
         if (!cityName.isEmpty()) {
             return cityName;
         }
-        String province = shortenRegionName(subdivision);
+        String province = shortenRegionName(firstNonBlank(cn.province(), mm.province()));
         if (!province.isEmpty()) {
             return province;
         }
-        return c;
+        return UNKNOWN;
     }
 
     /**
      * 港澳台统一显示为「中国香港」「中国澳门」「中国台湾」：
      * GeoLite2 的本地化名称只给裸名（香港 / 澳门 / 台湾），这里补上「中国」前缀。
      */
-    private static String hmtName(String country) {
-        if (country == null || country.isBlank()) {
-            return "";
-        }
-        if (country.contains("香港") || country.equalsIgnoreCase("Hong Kong")) {
+    private static String hmtName(String countryCode, String countryName) {
+        String code = countryCode == null ? "" : countryCode.trim();
+        String name = countryName == null ? "" : countryName.trim();
+        if ("HK".equalsIgnoreCase(code) || name.contains("香港") || name.equalsIgnoreCase("Hong Kong")) {
             return "中国香港";
         }
-        if (country.contains("澳门") || country.contains("澳門")
-                || country.equalsIgnoreCase("Macao") || country.equalsIgnoreCase("Macau")) {
+        if ("MO".equalsIgnoreCase(code) || name.contains("澳门") || name.contains("澳門")
+                || name.equalsIgnoreCase("Macao") || name.equalsIgnoreCase("Macau")) {
             return "中国澳门";
         }
-        if (country.contains("台湾") || country.contains("台灣") || country.equalsIgnoreCase("Taiwan")) {
+        if ("TW".equalsIgnoreCase(code) || name.contains("台湾") || name.contains("台灣")
+                || name.equalsIgnoreCase("Taiwan")) {
             return "中国台湾";
         }
         return "";
+    }
+
+    private static boolean shouldUseChina(IpLocation maxmind) {
+        if (maxmind == null || !maxmind.hasCountry()) {
+            return true;
+        }
+        return "CN".equalsIgnoreCase(maxmind.countryCode())
+                || "中国".equals(maxmind.countryName())
+                || "China".equalsIgnoreCase(maxmind.countryName());
+    }
+
+    private static String firstNonBlank(String first, String second) {
+        if (first != null && !first.isBlank()) {
+            return first.trim();
+        }
+        return second == null ? "" : second.trim();
     }
 
     /**
@@ -503,7 +549,7 @@ public class IpRegionService {
     }
 
     private static void logDatabaseMissing() {
-        logger.warn("未找到 MaxMind GeoLite2 数据库，评论归属地将显示为「未知」。"
+        logger.warn("未找到 MaxMind GeoLite2 数据库，评论归属地将无法解析国外国家。"
                         + "请确认 JAR 内包含 /GeoLite2-City.mmdb（源码位于 src/main/resources/），"
                         + "或把数据库放到 {} 或 /app/GeoIP/GeoLite2-City.mmdb。",
                 PRIMARY_DATABASE.toAbsolutePath());

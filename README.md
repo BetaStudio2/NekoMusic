@@ -206,15 +206,17 @@ curl -s -X POST 'https://music.nekocore.cn/api/sensitive-word/check' \
 
 评论返回发表时间（东八区墙钟）、IP 归属地与作者，头像由客户端按 `/api/user/avatar/{userId}` 取。完整字段与示例见 [Neko歌姬计划文档/README.md](Neko歌姬计划文档/README.md#歌曲评论-api)。
 
-### IP 归属地（本地 MaxMind，v4/v6）
+### IP 归属地（本地 MaxMind + ip2region，v4/v6）
 
-归属地**不使用任何第三方接口**，直接用 MaxMind GeoIP2 读取本地 GeoLite2 数据库，IPv4 / IPv6 共用一份 City 库。数据库随 JAR 分发（源码放在 `backend/src/main/resources/GeoLite2-City.mmdb`），服务启动时按以下顺序找库：
+归属地**不使用任何第三方接口**：MaxMind GeoLite2 负责国家判定，ip2region 的 IPv4 / IPv6 两份数据库负责补全国内省、市。数据库随 JAR 分发，运行目录没有库文件时会在启动阶段自动释放，磁盘不可写时退回内存读取：
 
-`GeoIP/GeoLite2-City.mmdb`（运行目录）→ `/app/GeoIP/…` → `/usr/share/GeoIP/…` → JAR 内 `/GeoLite2-City.mmdb`
+- `backend/src/main/resources/GeoLite2-City.mmdb`（GeoLite2 City，v4/v6）
+- `backend/src/main/resources/GeoIP/ip2region_v4.xdb`
+- `backend/src/main/resources/GeoIP/ip2region_v6.xdb`
 
-运行目录里没有库文件时，启动阶段会自动把 JAR 内置的库**释放**到 `GeoIP/GeoLite2-City.mmdb`（容器内即 `/app/GeoIP/GeoLite2-City.mmdb`）再加载；磁盘不可写时直接从 JAR 流式读取。运维也可以自行把官方 `GeoLite2-City.mmdb` 放到上述任一位置覆盖内置库。
+GeoLite2 会依次查找 `GeoIP/GeoLite2-City.mmdb`（运行目录）、`/app/GeoIP/…`、系统 GeoIP 目录和 JAR 内资源；ip2region 同样优先读取 `GeoIP/`（容器内 `/app/GeoIP/`），缺失时再从 JAR 释放或内存加载。运维可把官方数据库放到上述位置覆盖内置版本。
 
-展示规则：国内只显示市级（无市级时退到省 / 自治区名，如 `上海`、`贵州`）；港澳台统一带「中国」前缀（`中国香港` / `中国澳门` / `中国台湾`）；国外显示国家名；内网 / 回环地址显示「本地」。没有数据库时服务照常运行，归属地显示为「未知」。
+展示规则：国内优先显示市级（无市级时退到省 / 自治区名，如 `杭州`、`广东`）；港澳台统一带「中国」前缀（`中国香港` / `中国澳门` / `中国台湾`）；国外只显示国家名，不显示省 / 市；内网 / 回环地址显示「本地」；国内省、市都解析不到时返回 `unknown`。数据库缺失时服务照常运行。`ip_region` 是评论发表时的快照，历史评论不会随数据库升级自动重算。
 
 ## 每日推荐（Redis）
 
