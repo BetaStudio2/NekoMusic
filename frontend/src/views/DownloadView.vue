@@ -36,7 +36,7 @@
               height="256"
             />
           </div>
-          <p class="hero__art-caption">Android · Windows · Linux · macOS</p>
+          <p class="hero__art-caption">Android · Windows · Linux · Apple</p>
         </div>
       </section>
 
@@ -169,7 +169,7 @@
               </div>
             </article>
 
-            <article class="dl-card" :class="{ 'dl-card--recommended': detectedPlatform === 'mac' }">
+            <article class="dl-card" :class="{ 'dl-card--recommended': isAppleDevice }">
               <header class="dl-card__head">
                 <div class="dl-card__icon dl-card__icon--mac" aria-hidden="true">
                   <svg class="dl-card__svg" viewBox="0 0 24 24" fill="currentColor">
@@ -177,12 +177,34 @@
                   </svg>
                 </div>
                 <div class="dl-card__titles">
-                  <h3 class="dl-card__name">macOS</h3>
-                  <p class="dl-card__desc">{{ $t('download.macDesc') }}</p>
+                  <h3 class="dl-card__name">Apple</h3>
+                  <p class="dl-card__desc">{{ appleVariant === 'macos' ? $t('download.macDesc') : $t('download.iosDesc') }}</p>
                 </div>
-                <NTag v-if="detectedPlatform === 'mac'" variant="accent" size="sm">{{ $t('download.yourDevice') }}</NTag>
+                <NTag v-if="isAppleDevice" variant="accent" size="sm">{{ $t('download.yourDevice') }}</NTag>
               </header>
-              <dl class="dl-card__meta">
+              <div class="dl-card__tabs" role="tablist" :aria-label="$t('download.appleTabsAria')">
+                <button
+                    type="button"
+                    class="dl-card__tab"
+                    :class="{ 'dl-card__tab--active': appleVariant === 'macos' }"
+                    role="tab"
+                    :aria-selected="appleVariant === 'macos'"
+                    @click="appleVariant = 'macos'"
+                >
+                  macOS
+                </button>
+                <button
+                    type="button"
+                    class="dl-card__tab"
+                    :class="{ 'dl-card__tab--active': appleVariant === 'ios' }"
+                    role="tab"
+                    :aria-selected="appleVariant === 'ios'"
+                    @click="appleVariant = 'ios'"
+                >
+                  iOS
+                </button>
+              </div>
+              <dl v-if="appleVariant === 'macos'" class="dl-card__meta">
                 <div class="dl-card__meta-item">
                   <dt>{{ $t('download.labelVersion') }}</dt>
                   <dd>{{ desktopVersion }}</dd>
@@ -196,16 +218,34 @@
                   <dd>{{ macSize }}</dd>
                 </div>
               </dl>
+              <p v-else class="dl-card__hint">
+                <span>{{ $t('download.iosMinVersion') }}</span>
+                <span>{{ $t('download.iosDownloadHint') }}</span>
+              </p>
               <div class="dl-card__foot">
-                <NButton
-                  :variant="detectedPlatform === 'mac' ? 'primary' : 'secondary'"
-                  block
-                  icon="download"
-                  :href="macDownloadUrl"
-                  download
-                >
-                  {{ $t('download.downloadPkg') }}
-                </NButton>
+                <template v-if="appleVariant === 'macos'">
+                  <NButton
+                    :variant="isAppleDevice ? 'primary' : 'secondary'"
+                    block
+                    icon="download"
+                    :href="macDownloadUrl"
+                    download
+                  >
+                    {{ $t('download.downloadPkg') }}
+                  </NButton>
+                </template>
+                <template v-else>
+                  <NButton
+                    :variant="isAppleDevice ? 'primary' : 'secondary'"
+                    block
+                    icon="external-link"
+                    :href="IOS_DOWNLOAD_URL"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {{ $t('download.goToDownload') }}
+                  </NButton>
+                </template>
               </div>
             </article>
 
@@ -309,9 +349,11 @@ import { t } from '@/i18n'
 const versionInfo = ref({ ver: '', updateUrl: '' })
 const loading = ref(true)
 const error = ref('')
+const appleVariant = ref('macos')
 const linuxVariant = ref('debian')
 const archCopied = ref(false)
 const archInstallCommand = 'yay -S neko-cloud-music'
+const IOS_DOWNLOAD_URL = 'https://qm.qq.com/q/eAc6OJKXfi'
 
 // 应用图标：走封面接口的缩略图（?size=），按 DPR / 显示宽度自适应
 const APP_ICON_SRC = '/api/music/cover/?size=320'
@@ -330,9 +372,9 @@ const detectPlatform = () => {
   const maxTouchPoints = navigator.maxTouchPoints || 0
   // Android 的 UA 里同时含 "linux"，必须优先判断
   if (ua.includes('android')) return 'android'
-  // iOS / iPadOS 没有对应安装包；iPadOS 会伪装成 macOS，需排除以免误标
-  if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('ipod')) return ''
-  if (platform.includes('mac') && maxTouchPoints > 1) return ''
+  // iPadOS 会伪装成 macOS，需先按触点数识别为 iOS
+  if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('ipod')) return 'ios'
+  if (platform.includes('mac') && maxTouchPoints > 1) return 'ios'
   if (ua.includes('windows')) return 'windows'
   // 不用 ua.includes('win')：macOS 的 "Darwin" 也含 "win"
   if (ua.includes('mac os') || ua.includes('macintosh') || platform.includes('mac')) return 'mac'
@@ -385,6 +427,8 @@ const replaceVersion = (url) => {
 
 const androidDownloadUrl = computed(() => resolveDownloadUrl(versionInfo.value.updateUrl))
 
+const isAppleDevice = computed(() => detectedPlatform.value === 'mac' || detectedPlatform.value === 'ios')
+
 const windowsDownloadUrl = computed(() => {
   const url = versionInfo.value.pc?.windows || versionInfo.value.pc?.downloadUrl || versionInfo.value.updateUrl
   return replaceVersion(url)
@@ -432,7 +476,9 @@ const copyArchCommand = async () => {
 }
 
 onMounted(() => {
-  detectedPlatform.value = detectPlatform()
+  const platform = detectPlatform()
+  detectedPlatform.value = platform
+  appleVariant.value = platform === 'ios' ? 'ios' : 'macos'
   fetchVersionInfo()
   // 下载页始终从顶部开始：不跟随上一页的滚动位置，也不再跳转到迁入区块
   window.scrollTo(0, 0)
@@ -825,11 +871,23 @@ onMounted(() => {
   text-align: right;
 }
 
+.dl-card__hint {
+  display: flex;
+  flex-direction: column;
+  gap: var(--n-space-2);
+  margin: 0;
+  padding: var(--n-space-3) 0 0;
+  border-top: 1px solid var(--n-line-subtle);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-xs);
+  line-height: 1.6;
+}
+
 .dl-card__foot {
   margin-top: auto;
 }
 
-/* Linux 发行版切换 */
+/* 平台分支切换 */
 .dl-card__tabs {
   display: flex;
   gap: var(--n-space-1);
