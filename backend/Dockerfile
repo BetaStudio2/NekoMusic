@@ -9,7 +9,9 @@ ENV NEKO_WEB_VERSION=${NEKO_WEB_VERSION}
 WORKDIR /frontend
 
 COPY frontend/package.json ./
-RUN npm install
+# 镜像自带的 npm 10.9.x 在解析当前依赖的 peer 树时会触发 edgesOut 崩溃。
+RUN npm install -g npm@11.19.1 \
+    && npm install --no-audit --no-fund
 
 COPY frontend ./
 RUN npm run build -- --outDir /site
@@ -32,7 +34,8 @@ COPY backend/native ./native
 COPY backend/src ./src
 COPY --from=frontend /site ./src/main/resources/site
 
-RUN mvn -B clean package -DskipTests -Dneko.frontend.skip=true
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn -B clean package -DskipTests -Dneko.frontend.skip=true
 
 
 # =========================
@@ -48,7 +51,16 @@ ARG LIBERICA_SHA256=5a1f69d9997c15769e9408a26e511110ce599977c927e57d7c8bfa928a64
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
     && rm -rf /var/lib/apt/lists/* \
-    && curl -fsSL "https://github.com/bell-sw/Liberica/releases/download/${LIBERICA_VERSION}/bellsoft-jdk${LIBERICA_VERSION}-linux-amd64-lite.tar.gz" -o /tmp/jdk.tar.gz \
+    && JDK_FILE="bellsoft-jdk${LIBERICA_VERSION}-linux-amd64-lite.tar.gz" \
+    && (curl -fL --http1.1 --retry 10 --retry-all-errors --retry-delay 5 \
+            --connect-timeout 30 --speed-limit 1024 --speed-time 30 -C - \
+            "https://download.bell-sw.com/java/${LIBERICA_VERSION}/${JDK_FILE}" \
+            -o /tmp/jdk.tar.gz \
+        || { rm -f /tmp/jdk.tar.gz; \
+             curl -fL --http1.1 --retry 10 --retry-all-errors --retry-delay 5 \
+                 --connect-timeout 30 --speed-limit 1024 --speed-time 30 -C - \
+                 "https://github.com/bell-sw/Liberica/releases/download/${LIBERICA_VERSION}/${JDK_FILE}" \
+                 -o /tmp/jdk.tar.gz; }) \
     && echo "${LIBERICA_SHA256}  /tmp/jdk.tar.gz" | sha256sum -c - \
     && mkdir -p /opt/java \
     && tar -xzf /tmp/jdk.tar.gz -C /opt/java --strip-components=1 \

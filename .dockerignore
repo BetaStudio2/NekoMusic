@@ -18,6 +18,11 @@ backend/dependency-reduced-pom.xml
 backend/native/build
 backend/native/*.so
 backend/src/main/resources/site
-backend/src/main/resources/GeoLite2-City.mmdb
-backend/src/main/resources/GeoIP
-backend/src/main/resources/native
+backend/src/main/resources/GeoIP/*
+!backend/src/main/resources/GeoIP/qqwry.dat
+!backend/src/main/resources/GeoIP/ip2region_v4.xdb
+!backend/src/main/resources/GeoIP/ip2region_v6.xdb
+backend/src/main/resources/native/*
+!backend/src/main/resources/native/linux-x86_64
+backend/src/main/resources/native/linux-x86_64/*
+!backend/src/main/resources/native/linux-x86_64/ffmpeg

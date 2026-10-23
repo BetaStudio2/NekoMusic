@@ -34,7 +34,8 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
 
 echo "[fetch-bundled-ffmpeg-gpu] 下载 ${DOWNLOAD_URL}"
-curl -fL --retry 3 --connect-timeout 20 --max-time 600 \
+curl -fL --http1.1 --retry 10 --retry-all-errors --retry-delay 5 \
+  --connect-timeout 30 --speed-limit 1024 --speed-time 30 --max-time 3600 -C - \
   -o "${TMP}/ffmpeg.txz" "${DOWNLOAD_URL}"
 
 echo "[fetch-bundled-ffmpeg-gpu] 解压…"

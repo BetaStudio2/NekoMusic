@@ -28,8 +28,14 @@ services:
         bind:
           create_host_path: false
       - type: bind
-        source: ./Music
+        source: "${NEKO_DATA_DIR:-.}/Music"
         target: /app/Music
       - type: bind
-        source: ./releases
+        source: "${NEKO_DATA_DIR:-.}/releases"
         target: /app/releases
+      - type: bind
+        source: "${NEKO_DATA_DIR:-.}/avatars"
+        target: /app/avatars
+      - type: bind
+        source: "${NEKO_DATA_DIR:-.}/user_upload"
+        target: /app/user_upload
