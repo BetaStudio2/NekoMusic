@@ -3,8 +3,10 @@ services:
     container_name: NekoMusic
 
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: backend/Dockerfile
+      args:
+        NEKO_WEB_VERSION: ${NEKO_WEB_VERSION:-dev}
 
     restart: on-failure:5
 

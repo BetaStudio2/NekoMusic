@@ -1,4 +1,21 @@
 # =========================
+# 前端构建阶段
+# =========================
+FROM node:22-bookworm-slim AS frontend
+
+ARG NEKO_WEB_VERSION=dev
+ENV NEKO_WEB_VERSION=${NEKO_WEB_VERSION}
+
+WORKDIR /frontend
+
+COPY frontend/package.json ./
+RUN npm install
+
+COPY frontend ./
+RUN npm run build -- --outDir /site
+
+
+# =========================
 # 构建阶段
 # =========================
 FROM maven:3.10.0-eclipse-temurin-27 AS builder
@@ -6,13 +23,16 @@ FROM maven:3.10.0-eclipse-temurin-27 AS builder
 WORKDIR /build
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl xz-utils \
+    && apt-get install -y --no-install-recommends build-essential ca-certificates cmake curl xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pom.xml .
-COPY src ./src
+COPY backend/pom.xml .
+COPY backend/scripts ./scripts
+COPY backend/native ./native
+COPY backend/src ./src
+COPY --from=frontend /site ./src/main/resources/site
 
-RUN mvn -B clean package -DskipTests
+RUN mvn -B clean package -DskipTests -Dneko.frontend.skip=true
 
 
 # =========================

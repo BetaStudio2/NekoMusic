@@ -13,6 +13,7 @@
         <maven.compiler.target>27</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <neko.audio.native.skip>false</neko.audio.native.skip>
+        <neko.frontend.skip>false</neko.frontend.skip>
     </properties>
 
     <dependencies>
@@ -303,6 +304,7 @@
                             <goal>exec</goal>
                         </goals>
                         <configuration>
+                            <skip>${neko.frontend.skip}</skip>
                             <executable>bash</executable>
                             <workingDirectory>${project.basedir}</workingDirectory>
                             <arguments>

@@ -16,7 +16,7 @@ cd backend
 cp src/main/resources/config.yml config.yml
 # 编辑 config.yml：只需填写 MySQL 连接信息（连库前无法从库里读配置）
 mkdir -p Music/music Music/covers releases
-docker compose build
+NEKO_WEB_VERSION="$(git describe --tags --always)" docker compose build --pull
 docker compose up -d
 docker compose logs -f neko-music
 ```
@@ -28,7 +28,8 @@ curl -fsS http://127.0.0.1:65535/version
 ```
 
 音乐文件、封面、声纹索引和客户端发布包分别持久化在 `backend/Music/` 与 `backend/releases/`；配置文件为 `backend/config.yml`（只含 MySQL 引导信息，密码等敏感项请勿提交到 Git）；运行时配置存
-主库 `system_settings` 表，同样不要外泄。升级代码后执行 `docker compose build --pull && docker compose up -d`。
+主库 `system_settings` 表，同样不要外泄。升级代码后执行
+`NEKO_WEB_VERSION="$(git describe --tags --always)" docker compose build --pull && docker compose up -d`。
 
 首次启动会自动建表 `system_settings`，并把出厂默认值（或旧 `config.yml` 里的现值）灌一次；之后
 所有运行时配置（端口、Redis、JWT、邮件、频率限制、网络与安全、视频渲染、支付、日志等）都在管理后台
