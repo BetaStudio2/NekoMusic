@@ -10,9 +10,9 @@ class IpRegionServiceTest {
     @Test
     void provinceIsPreferredOverCity() {
         IpLocation maxmind = new IpLocation("CN", "中国", "广东省", "广州市");
-        IpLocation ip2region = new IpLocation("CN", "中国", "广东省", "深圳市");
+        IpLocation fallback = new IpLocation("CN", "中国", "广东省", "深圳市");
 
-        assertEquals("广东", IpRegionService.format(maxmind, IpLocation.empty(), ip2region));
+        assertEquals("广东", IpRegionService.format(maxmind, IpLocation.empty(), fallback));
     }
 
     @Test
@@ -20,23 +20,40 @@ class IpRegionServiceTest {
         IpLocation qqwry = new IpLocation("CN", "中国", "江西省", "南昌市");
 
         assertEquals("江西", IpRegionService.format(
-                new IpLocation("CN", "中国", "", ""), qqwry, IpLocation.empty()));
+                new IpLocation("CN", "中国", "", ""), IpLocation.empty(), qqwry));
     }
 
     @Test
-    void ip2regionFillsMissingProvince() {
+    void fallbackFillsMissingProvince() {
         IpLocation maxmind = new IpLocation("CN", "中国", "", "");
-        IpLocation ip2region = new IpLocation("CN", "中国", "广东省", "深圳市");
+        IpLocation fallback = new IpLocation("CN", "中国", "广东省", "深圳市");
 
-        assertEquals("广东", IpRegionService.format(maxmind, IpLocation.empty(), ip2region));
+        assertEquals("广东", IpRegionService.format(maxmind, IpLocation.empty(), fallback));
+    }
+
+    @Test
+    void asnProvinceOverridesGeoFallback() {
+        IpLocation maxmind = new IpLocation("CN", "中国", "广东省", "广州市");
+        IpLocation asn = new IpLocation("CN", "中国", "江西省", "");
+        IpLocation qqwry = new IpLocation("CN", "中国", "广东省", "深圳市");
+
+        assertEquals("江西", IpRegionService.format(maxmind, asn, qqwry));
+    }
+
+    @Test
+    void asnProvinceOverridesForeignGeo() {
+        IpLocation maxmind = new IpLocation("US", "美国", "California", "Mountain View");
+        IpLocation asn = new IpLocation("CN", "中国", "江西省", "");
+
+        assertEquals("江西", IpRegionService.format(maxmind, asn, IpLocation.empty()));
     }
 
     @Test
     void domesticReturnsProvince() {
         IpLocation maxmind = new IpLocation("CN", "中国", "广东省", "");
-        IpLocation ip2region = new IpLocation("CN", "中国", "", "");
+        IpLocation fallback = new IpLocation("CN", "中国", "", "");
 
-        assertEquals("广东", IpRegionService.format(maxmind, IpLocation.empty(), ip2region));
+        assertEquals("广东", IpRegionService.format(maxmind, IpLocation.empty(), fallback));
     }
 
     @Test
@@ -48,16 +65,16 @@ class IpRegionServiceTest {
 
     @Test
     void municipalityFallsBackToCityWhenProvinceIsMissing() {
-        IpLocation ip2region = new IpLocation("CN", "中国", "", "北京市");
+        IpLocation fallback = new IpLocation("CN", "中国", "", "北京市");
 
-        assertEquals("北京", IpRegionService.format(IpLocation.empty(), IpLocation.empty(), ip2region));
+        assertEquals("北京", IpRegionService.format(IpLocation.empty(), IpLocation.empty(), fallback));
     }
 
     @Test
     void ordinaryCityWithoutProvinceDoesNotLeakCityName() {
-        IpLocation ip2region = new IpLocation("CN", "中国", "", "南昌市");
+        IpLocation fallback = new IpLocation("CN", "中国", "", "南昌市");
 
-        assertEquals("中国", IpRegionService.format(IpLocation.empty(), IpLocation.empty(), ip2region));
+        assertEquals("中国", IpRegionService.format(IpLocation.empty(), IpLocation.empty(), fallback));
     }
 
     @Test
@@ -70,17 +87,17 @@ class IpRegionServiceTest {
     @Test
     void foreignOnlyReturnsCountry() {
         IpLocation maxmind = new IpLocation("US", "美国", "California", "Mountain View");
-        IpLocation ip2region = new IpLocation("US", "United States", "California", "Mountain View");
+        IpLocation fallback = new IpLocation("US", "United States", "California", "Mountain View");
 
-        assertEquals("美国", IpRegionService.format(maxmind, IpLocation.empty(), ip2region));
+        assertEquals("美国", IpRegionService.format(maxmind, IpLocation.empty(), fallback));
     }
 
     @Test
     void foreignCountryCodeWithoutChineseNameIsMapped() {
-        IpLocation ip2region = new IpLocation("US", "United States", "California", "Mountain View");
+        IpLocation fallback = new IpLocation("US", "United States", "California", "Mountain View");
 
         assertEquals("美国", IpRegionService.format(
-                IpLocation.empty(), IpLocation.empty(), ip2region));
+                IpLocation.empty(), IpLocation.empty(), fallback));
     }
 
     @Test

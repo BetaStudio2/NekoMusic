@@ -207,16 +207,16 @@ curl -s -X POST 'https://music.nekocore.cn/api/sensitive-word/check' \
 
 评论返回发表时间（东八区墙钟）、IP 归属地与作者，头像由客户端按 `/api/user/avatar/{userId}` 取。完整字段与示例见 [Neko歌姬计划文档/README.md](Neko歌姬计划文档/README.md#歌曲评论-api)。
 
-### IP 归属地（本地 MaxMind + qqwry + ip2region，v4/v6）
+### IP 归属地（本地 ASN 优先 + MaxMind / qqwry 兜底，v4/v6）
 
-归属地**不使用任何第三方接口**：MaxMind GeoLite2 负责国家判定，qqwry 补全国内 IPv4 省市，ip2region 的 IPv4 / IPv6 两份数据库继续补充。数据库随 JAR 分发，运行目录没有库文件时会在启动阶段自动释放，磁盘不可写时退回内存读取：
+归属地**不使用任何第三方接口**：先查询本地 GeoLite2-ASN，按省级运营商 ASN（如 `AS56045` → 江西）确定省份；全国性 ASN 或未命中时，回退到 MaxMind GeoLite2 判国家与省市，IPv4 再由 qqwry 补充。数据库随 JAR 分发，运行目录没有库文件时会在启动阶段自动释放，磁盘不可写时退回内存读取：
 
 - `backend/src/main/resources/GeoLite2-City.mmdb`（GeoLite2 City，v4/v6）
+- `backend/src/main/resources/GeoLite2-ASN.mmdb`（GeoLite2 ASN，v4/v6）
+- `backend/src/main/resources/GeoIP/asn_regions.tsv`（省级运营商 ASN → 省份映射）
 - `backend/src/main/resources/GeoIP/qqwry.dat`（纯真，IPv4）
-- `backend/src/main/resources/GeoIP/ip2region_v4.xdb`
-- `backend/src/main/resources/GeoIP/ip2region_v6.xdb`
 
-GeoLite2 会依次查找 `GeoIP/GeoLite2-City.mmdb`（运行目录）、`/app/GeoIP/…`、系统 GeoIP 目录和 JAR 内资源；qqwry 与 ip2region 同样优先读取 `GeoIP/`（容器内 `/app/GeoIP/`），缺失时再从 JAR 加载。运维可把官方数据库放到上述位置覆盖内置版本。
+GeoLite2 City / ASN 会依次查找 `GeoIP/…`（运行目录）、`/app/GeoIP/…`、系统 GeoIP 目录和 JAR 内资源；qqwry 同样优先读取 `GeoIP/`（容器内 `/app/GeoIP/`），缺失时再从 JAR 加载。运维可把官方数据库放到上述位置覆盖内置版本。ASN 映射只收录省级运营商网络，全国性 ASN（如中国移动 `9808`、电信 `4134`、联通 `4837`）不会强行映射到注册地。
 
 展示规则：国内普通省份只显示省级行政区（如 `江西`、`广东`），不显示普通地级市；北京、上海、天津、重庆因本身就是省级行政区，显示为 `北京` / `上海` / `天津` / `重庆`。港澳台统一带「中国」前缀（`中国香港` / `中国澳门` / `中国台湾`）；国外只显示国家名，不显示省 / 市；内网 / 回环地址显示「本地」；国内省级信息解析不到时显示「中国」，所有来源都无法识别时显示「其他」。数据库缺失时服务照常运行。`ip_region` 是评论发表时的快照，历史评论不会随数据库升级自动重算，但历史 `unknown` / `未知` 会在接口输出时显示为「其他」。原始客户端 IP 另存于 `music_comments.client_ip`，仅用于服务端复核与后续重新解析，不通过评论接口返回。
 

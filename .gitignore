@@ -142,7 +142,8 @@ backend/qishui_cookies.json
 
 # MaxMind GeoLite2 数据库
 backend/src/main/resources/GeoLite2-City.mmdb
-# ip2region 国内双栈数据库
+backend/src/main/resources/GeoLite2-ASN.mmdb
+# 旧版国内 IP 归属地数据库（已停用，保留忽略规则避免误提交）
 backend/GeoIP/*.xdb
 backend/GeoIP/*.mmdb
 backend/GeoIP/*.dat

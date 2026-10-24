@@ -13,8 +13,8 @@ import java.nio.file.Paths;
 import java.util.regex.Pattern;
 
 /**
- * 国内 IPv4 省市补充：纯真数据库对运营商地址的覆盖通常比 MaxMind / ip2region 更完整。
- * 只处理 IPv4；IPv6 交给 MaxMind 与 ip2region。数据库缺失时静默降级。
+ * 国内 IPv4 省市补充：纯真数据库对运营商地址的覆盖通常比 MaxMind 更完整。
+ * 只处理 IPv4；IPv6 交给 ASN 与 MaxMind。数据库缺失时静默降级。
  */
 final class QqwryIpRegionService {
 
@@ -66,7 +66,7 @@ final class QqwryIpRegionService {
                 logger.warn("JAR 内国内 IPv4 补充数据库加载失败: {} - {}", resource, e.getMessage());
             }
         }
-        logger.warn("未找到 qqwry.dat，国内 IPv4 将继续使用 MaxMind / ip2region");
+        logger.warn("未找到 qqwry.dat，国内 IPv4 将继续使用 ASN / MaxMind");
         return null;
     }
 

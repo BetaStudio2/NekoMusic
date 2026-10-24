@@ -197,12 +197,6 @@
             <artifactId>geoip2</artifactId>
             <version>5.2.0</version>
         </dependency>
-        <!-- 国内 IPv4/IPv6 城市级归属地兜底 -->
-        <dependency>
-            <groupId>org.lionsoul</groupId>
-            <artifactId>ip2region</artifactId>
-            <version>3.3.7</version>
-        </dependency>
         <!-- 国内 IPv4 省市补充（纯真数据库） -->
         <dependency>
             <groupId>com.github.jarod</groupId>

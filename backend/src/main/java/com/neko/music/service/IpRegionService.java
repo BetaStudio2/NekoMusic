@@ -23,10 +23,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * 评论 IP 归属地：国外用本地 MaxMind 解析国家；国内按 MaxMind、qqwry（IPv4）、ip2region 的顺序补省、市。
+ * 评论 IP 归属地：省级运营商 ASN 命中时直接按运营商网络定省；
+ * 未命中时再按本地 MaxMind 判国家 / 省市，IPv4 由 qqwry 补省、市。
  * 全程读取本地数据库，不请求任何第三方接口。
  *
- * <p>数据库按以下顺序自动发现（IPv4 与 IPv6 同一份 City/Country 库即可覆盖）：
+ * <p>MaxMind 数据库按以下顺序自动发现（IPv4 与 IPv6 同一份 City/Country 库即可覆盖；
+ * ASN 库使用同样的文件 / 类路径发现方式）：
  * <ol>
  *   <li>运行目录下的 {@code GeoIP/GeoLite2-City.mmdb}（JAR 内置库释放出来的位置）</li>
  *   <li>{@code /app/GeoIP/}、{@code /usr/share/GeoIP/}、{@code /usr/local/share/GeoIP/}、{@code /var/lib/GeoIP/}</li>
@@ -146,19 +148,19 @@ public class IpRegionService {
     );
 
     private final DatabaseReader reader;
+    private final AsnIpRegionService asnService;
     private final QqwryIpRegionService qqwryService;
-    private final ChinaIpRegionService chinaService;
     private final ConcurrentMap<String, String> cache = new ConcurrentHashMap<>();
 
     public IpRegionService() {
         this.reader = openDatabase();
+        this.asnService = AsnIpRegionService.open();
         this.qqwryService = QqwryIpRegionService.open();
-        this.chinaService = ChinaIpRegionService.open();
     }
 
     /** 任一归属地数据库是否可用。 */
     public boolean isAvailable() {
-        return reader != null || qqwryService != null || chinaService != null;
+        return reader != null || asnService != null || qqwryService != null;
     }
 
     /** 解析归属地；国内显示省级行政区，直辖市显示市名，完全无法识别时返回「其他」。 */
@@ -184,17 +186,12 @@ public class IpRegionService {
         }
 
         IpLocation maxmind = lookupMaxMind(reader, address);
+        IpLocation asn = asnService == null ? IpLocation.empty() : asnService.lookup(address);
         IpLocation qqwry = IpLocation.empty();
-        IpLocation china = IpLocation.empty();
-        if (shouldUseChina(maxmind)) {
-            if (qqwryService != null) {
-                qqwry = qqwryService.lookup(ip);
-            }
-            if (chinaService != null) {
-                china = chinaService.lookup(ip);
-            }
+        if (asn.province().isBlank() && shouldUseChina(maxmind) && qqwryService != null) {
+            qqwry = qqwryService.lookup(ip);
         }
-        String region = format(maxmind, qqwry, china);
+        String region = format(maxmind, asn, qqwry);
         if (cache.size() >= MEMORY_CACHE_MAX) {
             cache.clear();
         }
@@ -312,15 +309,18 @@ public class IpRegionService {
         return value == null ? "" : value.trim();
     }
 
-    /** 国内普通省份只返回省级行政区，直辖市返回市名；港澳台带「中国」前缀，国外只返回国家名。 */
-    static String format(IpLocation maxmind, IpLocation qqwry, IpLocation china) {
+    /**
+     * 国内普通省份只返回省级行政区，直辖市返回市名；港澳台带「中国」前缀，国外只返回国家名。
+     * 省级运营商 ASN 命中时优先于地理库的国家 / 省份判定；ASN 未命中时回退到 MaxMind / qqwry。
+     */
+    static String format(IpLocation maxmind, IpLocation asn, IpLocation qqwry) {
         IpLocation mm = maxmind == null ? IpLocation.empty() : maxmind;
+        IpLocation as = asn == null ? IpLocation.empty() : asn;
         IpLocation qw = qqwry == null ? IpLocation.empty() : qqwry;
-        IpLocation cn = china == null ? IpLocation.empty() : china;
 
-        String countryCode = firstNonBlank(mm.countryCode(), qw.countryCode(), cn.countryCode())
+        String countryCode = firstNonBlank(as.countryCode(), mm.countryCode(), qw.countryCode())
                 .toUpperCase(Locale.ROOT);
-        String countryName = firstNonBlank(mm.countryName(), qw.countryName(), cn.countryName());
+        String countryName = firstNonBlank(as.countryName(), mm.countryName(), qw.countryName());
         if (countryCode.isEmpty() && ("中国".equals(countryName) || "China".equalsIgnoreCase(countryName))) {
             countryCode = "CN";
         }
@@ -336,11 +336,11 @@ public class IpRegionService {
             }
             return countryName.isBlank() ? FALLBACK : countryName;
         }
-        String province = shortenRegionName(firstNonBlank(mm.province(), qw.province(), cn.province()));
+        String province = shortenRegionName(firstNonBlank(as.province(), mm.province(), qw.province()));
         if (!province.isEmpty()) {
             return province;
         }
-        String cityName = shortenRegionName(firstNonBlank(mm.city(), qw.city(), cn.city()));
+        String cityName = shortenRegionName(firstNonBlank(mm.city(), qw.city()));
         if (isMunicipality(cityName)) {
             return cityName;
         }
