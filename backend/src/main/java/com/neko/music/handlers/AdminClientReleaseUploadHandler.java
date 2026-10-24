@@ -106,11 +106,7 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
             if (written > ClientReleaseStorage.MAX_UPLOAD_BYTES) {
                 throw new IllegalArgumentException(ApiMessages.translate("admin.release.upload.too_large"));
             }
-            if ("android".equalsIgnoreCase(platform.trim())) {
-                ApkUploadValidator.validate(temp, release.get().androidVer());
-            } else if ("watch".equalsIgnoreCase(platform.trim())) {
-                ApkUploadValidator.validateWatch(temp, release.get().watchVer());
-            }
+            validateUploadedArtifact(platform, temp, release.get());
 
             Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
             temp = null;
@@ -159,6 +155,14 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
     private static String readPartText(Part part) throws IOException {
         byte[] bytes = part.getInputStream().readAllBytes();
         return new String(bytes, java.nio.charset.StandardCharsets.UTF_8).trim();
+    }
+
+    /** 手机 APK 校验包名、版本与签名；手表包为独立构建，不做 APK 校验。 */
+    static void validateUploadedArtifact(String platform, Path file, AppReleaseService.AppRelease release)
+            throws IOException {
+        if ("android".equalsIgnoreCase(platform.trim())) {
+            ApkUploadValidator.validate(file, release.androidVer());
+        }
     }
 
     private static long copyWithSizeLimit(InputStream in, Path target, long maxBytes) throws IOException {

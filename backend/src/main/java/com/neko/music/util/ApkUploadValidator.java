@@ -19,7 +19,7 @@ import java.util.Set;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 
-/** 管理员上传 APK：手机包校验包名与签名，手表包按独立应用校验版本和有效签名。 */
+/** 管理员上传 Android 手机 APK：校验包名、版本号与签名；手表包由上传入口直接放行。 */
 public final class ApkUploadValidator {
 
     /** 与 Android/app/build.gradle.kts applicationId 一致 */
@@ -37,11 +37,6 @@ public final class ApkUploadValidator {
 
     public static void validate(Path apkPath, String expectedVersionToken) throws IOException {
         validateInternal(apkPath, expectedVersionToken, EXPECTED_PACKAGE_NAME, EXPECTED_CERT_SHA256);
-    }
-
-    /** 手表 APK 为独立应用，不假定与手机使用相同包名或签名证书。 */
-    public static void validateWatch(Path apkPath, String expectedWatchVersionToken) throws IOException {
-        validateInternal(apkPath, expectedWatchVersionToken, null, null);
     }
 
     private static void validateInternal(Path apkPath, String expectedVersionToken,

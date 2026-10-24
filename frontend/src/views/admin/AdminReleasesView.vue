@@ -28,7 +28,7 @@
       </div>
       <div class="field">
         <label class="field__label" for="rel-watch">手表版本 (watch_ver)</label>
-        <NInput id="rel-watch" v-model="watchVer" placeholder="如 1.4.0-12" />
+        <NInput id="rel-watch" v-model="watchVer" placeholder="如 1.4.0" />
       </div>
       <div class="field">
         <label class="field__label" for="rel-pc">PC 版本 (pc_ver)</label>
@@ -102,7 +102,7 @@
       </div>
 
       <p class="hint">
-        请先保存待发布版本号，再上传安装包；手表使用独立版本与独立 APK。落盘文件名与上表一致。
+        请先保存待发布版本号，再上传安装包；手表使用独立版本与独立 APK，不校验 APK 版本号与签名。落盘文件名与上表一致。
       </p>
     </NCard>
   </div>
