@@ -415,6 +415,8 @@ export default {
     packagesSub: '選擇你的平台 · 完全免費 · 開源透明',
     latestVersion: '最新版本',
     androidDesc: '手機與平板',
+    androidTabsAria: 'Android 裝置類型',
+    androidPhoneTab: '手機 / 平板',
     watchName: '手錶',
     watchDesc: '獨立手錶用戶端',
     watchPendingHint: '管理員設定手錶版本並上傳 APK 後即可下載',

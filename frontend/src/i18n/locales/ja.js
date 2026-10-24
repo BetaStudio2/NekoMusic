@@ -415,6 +415,8 @@ export default {
     packagesSub: 'プラットフォームを選択 · 完全無料 · オープンソース',
     latestVersion: '最新バージョン',
     androidDesc: 'スマートフォン・タブレット',
+    androidTabsAria: 'Android デバイスの種類',
+    androidPhoneTab: 'スマートフォン / タブレット',
     watchName: 'ウォッチ',
     watchDesc: '独立したウォッチクライアント',
     watchPendingHint: '管理者がウォッチのバージョンを設定し APK をアップロードするとダウンロードできます',

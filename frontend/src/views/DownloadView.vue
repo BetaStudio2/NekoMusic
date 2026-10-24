@@ -98,14 +98,38 @@
                 </div>
                 <div class="dl-card__titles">
                   <h3 class="dl-card__name">Android</h3>
-                  <p class="dl-card__desc">{{ $t('download.androidDesc') }}</p>
+                  <p class="dl-card__desc">
+                    {{ androidVariant === 'watch' ? $t('download.watchDesc') : $t('download.androidDesc') }}
+                  </p>
                 </div>
                 <NTag v-if="detectedPlatform === 'android'" variant="accent" size="sm">{{ $t('download.yourDevice') }}</NTag>
               </header>
+              <div class="dl-card__tabs" role="tablist" :aria-label="$t('download.androidTabsAria')">
+                <button
+                    type="button"
+                    class="dl-card__tab"
+                    :class="{ 'dl-card__tab--active': androidVariant === 'phone' }"
+                    role="tab"
+                    :aria-selected="androidVariant === 'phone'"
+                    @click="androidVariant = 'phone'"
+                >
+                  {{ $t('download.androidPhoneTab') }}
+                </button>
+                <button
+                    type="button"
+                    class="dl-card__tab"
+                    :class="{ 'dl-card__tab--active': androidVariant === 'watch' }"
+                    role="tab"
+                    :aria-selected="androidVariant === 'watch'"
+                    @click="androidVariant = 'watch'"
+                >
+                  {{ $t('download.watchName') }}
+                </button>
+              </div>
               <dl class="dl-card__meta">
                 <div class="dl-card__meta-item">
                   <dt>{{ $t('download.labelVersion') }}</dt>
-                  <dd>{{ versionInfo.ver || '-' }}</dd>
+                  <dd>{{ androidVariant === 'watch' ? (watchVersion || '-') : (versionInfo.ver || '-') }}</dd>
                 </div>
                 <div class="dl-card__meta-item">
                   <dt>{{ $t('download.labelFormat') }}</dt>
@@ -113,11 +137,15 @@
                 </div>
                 <div class="dl-card__meta-item">
                   <dt>{{ $t('download.labelSize') }}</dt>
-                  <dd>{{ androidSize }}</dd>
+                  <dd>{{ androidVariant === 'watch' ? watchSize : androidSize }}</dd>
                 </div>
               </dl>
+              <p v-if="androidVariant === 'watch' && !watchDownloadUrl" class="dl-card__hint">
+                {{ $t('download.watchPendingHint') }}
+              </p>
               <div class="dl-card__foot">
                 <NButton
+                  v-if="androidVariant === 'phone'"
                   :variant="detectedPlatform === 'android' ? 'primary' : 'secondary'"
                   block
                   icon="download"
@@ -126,39 +154,8 @@
                 >
                   {{ $t('download.downloadApk') }}
                 </NButton>
-              </div>
-            </article>
-
-            <article class="dl-card">
-              <header class="dl-card__head">
-                <div class="dl-card__icon" aria-hidden="true">
-                  <svg class="dl-card__svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
-                    <rect x="6" y="6" width="12" height="12" rx="3" />
-                    <path d="M9 6V3h6v3M9 18v3h6v-3M12 9v3l2 1" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                </div>
-                <div class="dl-card__titles">
-                  <h3 class="dl-card__name">{{ $t('download.watchName') }}</h3>
-                  <p class="dl-card__desc">{{ $t('download.watchDesc') }}</p>
-                </div>
-              </header>
-              <dl class="dl-card__meta">
-                <div class="dl-card__meta-item">
-                  <dt>{{ $t('download.labelVersion') }}</dt>
-                  <dd>{{ watchVersion || '-' }}</dd>
-                </div>
-                <div class="dl-card__meta-item">
-                  <dt>{{ $t('download.labelFormat') }}</dt>
-                  <dd>.apk</dd>
-                </div>
-                <div class="dl-card__meta-item">
-                  <dt>{{ $t('download.labelSize') }}</dt>
-                  <dd>{{ watchSize }}</dd>
-                </div>
-              </dl>
-              <p v-if="!watchDownloadUrl" class="dl-card__hint">{{ $t('download.watchPendingHint') }}</p>
-              <div class="dl-card__foot">
                 <NButton
+                  v-else
                   variant="secondary"
                   block
                   icon="download"
@@ -391,6 +388,7 @@ import { t } from '@/i18n'
 const versionInfo = ref({ ver: '', updateUrl: '' })
 const loading = ref(true)
 const error = ref('')
+const androidVariant = ref('phone')
 const appleVariant = ref('macos')
 const linuxVariant = ref('debian')
 const archCopied = ref(false)

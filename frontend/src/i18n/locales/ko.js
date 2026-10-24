@@ -415,6 +415,8 @@ export default {
     packagesSub: '플랫폼 선택 · 완전 무료 · 오픈 소스',
     latestVersion: '최신 버전',
     androidDesc: '휴대폰 및 태블릿',
+    androidTabsAria: 'Android 기기 유형',
+    androidPhoneTab: '휴대폰 / 태블릿',
     watchName: '워치',
     watchDesc: '독립 워치 클라이언트',
     watchPendingHint: '관리자가 워치 버전을 설정하고 APK를 업로드하면 다운로드할 수 있습니다',

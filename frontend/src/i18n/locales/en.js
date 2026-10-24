@@ -416,6 +416,8 @@ export default {
     packagesSub: 'Pick your platform · completely free · open source',
     latestVersion: 'Latest version',
     androidDesc: 'Phones and tablets',
+    androidTabsAria: 'Android device type',
+    androidPhoneTab: 'Phone / tablet',
     watchName: 'Watch',
     watchDesc: 'Standalone watch client',
     watchPendingHint: 'Available after an administrator configures the watch version and uploads the APK',
