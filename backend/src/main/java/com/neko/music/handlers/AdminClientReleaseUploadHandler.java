@@ -78,7 +78,10 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
         String expectedFileName = ClientReleaseStorage.expectedFileNameForPlatform(platform, release.get());
         if (expectedFileName == null) {
             response.setStatus(HttpStatus.BAD_REQUEST_400);
-            writeJson(response, false, ApiMessages.translate("admin.release.upload.platform_invalid"));
+            String messageKey = "watch".equalsIgnoreCase(platform.trim()) && release.get().watchVer() == null
+                    ? "admin.release.upload.versions_required"
+                    : "admin.release.upload.platform_invalid";
+            writeJson(response, false, ApiMessages.translate(messageKey));
             return;
         }
 
@@ -105,6 +108,8 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
             }
             if ("android".equalsIgnoreCase(platform.trim())) {
                 ApkUploadValidator.validate(temp, release.get().androidVer());
+            } else if ("watch".equalsIgnoreCase(platform.trim())) {
+                ApkUploadValidator.validateWatch(temp, release.get().watchVer());
             }
 
             Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);

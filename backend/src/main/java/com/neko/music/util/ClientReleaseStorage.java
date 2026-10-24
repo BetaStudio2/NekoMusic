@@ -40,6 +40,14 @@ public final class ClientReleaseStorage {
         return androidVer + ".apk";
     }
 
+    /** 手表包使用独立版本号；文件名带固定前缀，避免与手机 APK 冲突。 */
+    public static String watchApkFileName(String watchVer) {
+        if (watchVer == null || watchVer.isBlank()) {
+            return null;
+        }
+        return "NekoMusic-watch-" + watchVer.trim() + ".apk";
+    }
+
     public static String windowsExeFileName(String pcVer) {
         return "Neko歌姬计划 Setup " + pcVer + ".exe";
     }
@@ -58,6 +66,7 @@ public final class ClientReleaseStorage {
         }
         return switch (platform.trim().toLowerCase(Locale.ROOT)) {
             case "android" -> androidApkFileName(release.androidVer());
+            case "watch" -> watchApkFileName(release.watchVer());
             case "windows" -> windowsExeFileName(release.pcVer());
             case "linux" -> linuxDebFileName(release.pcVer());
             case "mac" -> macPkgFileName(release.pcVer());
@@ -71,6 +80,7 @@ public final class ClientReleaseStorage {
         }
         return switch (platform.trim().toLowerCase(Locale.ROOT)) {
             case "android" -> ".apk";
+            case "watch" -> ".apk";
             case "windows" -> ".exe";
             case "linux" -> ".deb";
             case "mac" -> ".pkg";

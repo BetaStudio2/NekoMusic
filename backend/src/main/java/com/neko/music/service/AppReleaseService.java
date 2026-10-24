@@ -32,7 +32,11 @@ public class AppReleaseService {
         JsonResponseCache.invalidate(VERSION_JSON_CACHE_KEY);
     }
 
-    public record AppRelease(String androidVer, String pcVer) {}
+    public record AppRelease(String androidVer, String pcVer, String watchVer) {
+        public AppRelease(String androidVer, String pcVer) {
+            this(androidVer, pcVer, null);
+        }
+    }
 
     public record AppReleaseState(
             AppRelease published,
@@ -93,17 +97,18 @@ public class AppReleaseService {
     /**
      * 保存新版本号：若尚无对外版本则立即生效；否则写入 pending，{@value #VERSION_JSON_DELAY_MINUTES} 分钟后对外生效。
      */
-    public Optional<AppReleaseState> scheduleReleaseUpdate(String androidVer, String pcVer) {
+    public Optional<AppReleaseState> scheduleReleaseUpdate(String androidVer, String pcVer, String watchVer) {
         String av = trimOrNull(androidVer);
         String pv = trimOrNull(pcVer);
-        if (av == null || pv == null) {
+        String wv = trimOrNull(watchVer);
+        if (av == null || pv == null || wv == null) {
             return Optional.empty();
         }
         try (Connection conn = Main.getDatabaseManager().getConnection()) {
             Optional<AppRelease> published = loadPublished(conn);
             if (published.isEmpty()) {
-                upsertFirstRelease(conn, av, pv);
-                logger.info("首次发布客户端版本 androidVer={} pcVer={}", av, pv);
+                upsertFirstRelease(conn, av, pv, wv);
+                logger.info("首次发布客户端版本 androidVer={} pcVer={} watchVer={}", av, pv, wv);
                 return loadState(conn, false);
             }
 
@@ -114,21 +119,23 @@ public class AppReleaseService {
                 UPDATE app_release SET
                     pending_android_ver = ?,
                     pending_pc_ver = ?,
+                    pending_watch_ver = ?,
                     pending_effective_at = ?
                 """;
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setString(1, av);
                 stmt.setString(2, pv);
-                stmt.setTimestamp(3, Timestamp.from(effectiveAt));
+                stmt.setString(3, wv);
+                stmt.setTimestamp(4, Timestamp.from(effectiveAt));
                 if (stmt.executeUpdate() <= 0) {
                     return Optional.empty();
                 }
             }
-            logger.info("已排期客户端版本 androidVer={} pcVer={} 将于 {} 对外生效",
-                    av, pv, ZonedDateTime.ofInstant(effectiveAt, CN_ZONE));
+            logger.info("已排期客户端版本 androidVer={} pcVer={} watchVer={} 将于 {} 对外生效",
+                    av, pv, wv, ZonedDateTime.ofInstant(effectiveAt, CN_ZONE));
             return loadState(conn, false);
         } catch (Exception e) {
-            logger.error("排期 app_release 失败 android_ver={} pc_ver={}", av, pv, e);
+            logger.error("排期 app_release 失败 android_ver={} pc_ver={} watch_ver={}", av, pv, wv, e);
             return Optional.empty();
         }
     }
@@ -150,21 +157,24 @@ public class AppReleaseService {
             UPDATE app_release SET
                 android_ver = ?,
                 pc_ver = ?,
+                watch_ver = ?,
                 pending_android_ver = NULL,
                 pending_pc_ver = NULL,
+                pending_watch_ver = NULL,
                 pending_effective_at = NULL
             """;
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, pending.androidVer());
             stmt.setString(2, pending.pcVer());
+            stmt.setString(3, pending.watchVer());
             stmt.executeUpdate();
         }
         invalidateClientVersionCache();
-        logger.info("待生效版本已自动发布 androidVer={} pcVer={}",
-                pending.androidVer(), pending.pcVer());
+        logger.info("待生效版本已自动发布 androidVer={} pcVer={} watchVer={}",
+                pending.androidVer(), pending.pcVer(), pending.watchVer());
     }
 
-    private void upsertFirstRelease(Connection conn, String av, String pv) throws Exception {
+    private void upsertFirstRelease(Connection conn, String av, String pv, String wv) throws Exception {
         boolean exists;
         try (PreparedStatement countStmt = conn.prepareStatement("SELECT 1 FROM app_release LIMIT 1");
              ResultSet rs = countStmt.executeQuery()) {
@@ -173,27 +183,30 @@ public class AppReleaseService {
         String sql = exists
                 ? """
                 UPDATE app_release SET
-                    android_ver = ?, pc_ver = ?,
-                    pending_android_ver = NULL, pending_pc_ver = NULL, pending_effective_at = NULL
+                    android_ver = ?, pc_ver = ?, watch_ver = ?,
+                    pending_android_ver = NULL, pending_pc_ver = NULL, pending_watch_ver = NULL,
+                    pending_effective_at = NULL
                 """
-                : "INSERT INTO app_release (android_ver, pc_ver) VALUES (?, ?)";
+                : "INSERT INTO app_release (android_ver, pc_ver, watch_ver) VALUES (?, ?, ?)";
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, av);
             stmt.setString(2, pv);
+            stmt.setString(3, wv);
             stmt.executeUpdate();
         }
         invalidateClientVersionCache();
     }
 
     private Optional<AppRelease> loadPublished(Connection conn) throws Exception {
-        String sql = "SELECT android_ver, pc_ver FROM app_release LIMIT 1";
+        String sql = "SELECT android_ver, pc_ver, watch_ver FROM app_release LIMIT 1";
         try (PreparedStatement stmt = conn.prepareStatement(sql);
              ResultSet rs = stmt.executeQuery()) {
             if (rs.next()) {
                 String androidVer = trimOrNull(rs.getString("android_ver"));
                 String pcVer = trimOrNull(rs.getString("pc_ver"));
+                String watchVer = trimOrNull(rs.getString("watch_ver"));
                 if (androidVer != null && pcVer != null) {
-                    return Optional.of(new AppRelease(androidVer, pcVer));
+                    return Optional.of(new AppRelease(androidVer, pcVer, watchVer));
                 }
             }
         }
@@ -202,8 +215,8 @@ public class AppReleaseService {
 
     private Optional<AppReleaseState> loadState(Connection conn, boolean forPromoteCheck) throws Exception {
         String sql = """
-            SELECT android_ver, pc_ver,
-                   pending_android_ver, pending_pc_ver, pending_effective_at
+            SELECT android_ver, pc_ver, watch_ver,
+                   pending_android_ver, pending_pc_ver, pending_watch_ver, pending_effective_at
             FROM app_release LIMIT 1
             """;
         try (PreparedStatement stmt = conn.prepareStatement(sql);
@@ -213,19 +226,21 @@ public class AppReleaseService {
             }
             String pubAv = trimOrNull(rs.getString("android_ver"));
             String pubPv = trimOrNull(rs.getString("pc_ver"));
+            String pubWv = trimOrNull(rs.getString("watch_ver"));
             if (pubAv == null || pubPv == null) {
                 return Optional.empty();
             }
-            AppRelease published = new AppRelease(pubAv, pubPv);
+            AppRelease published = new AppRelease(pubAv, pubPv, pubWv);
 
             String pendAv = trimOrNull(rs.getString("pending_android_ver"));
             String pendPv = trimOrNull(rs.getString("pending_pc_ver"));
+            String pendWv = trimOrNull(rs.getString("pending_watch_ver"));
             Timestamp ts = rs.getTimestamp("pending_effective_at");
             Instant effectiveAt = ts != null ? ts.toInstant() : null;
 
             AppRelease pending = null;
             if (pendAv != null && pendPv != null) {
-                pending = new AppRelease(pendAv, pendPv);
+                pending = new AppRelease(pendAv, pendPv, pendWv);
             } else if (!forPromoteCheck) {
                 pending = null;
                 effectiveAt = null;

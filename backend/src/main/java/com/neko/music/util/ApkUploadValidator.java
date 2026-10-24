@@ -19,7 +19,7 @@ import java.util.Set;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 
-/** 管理员上传 Android APK：校验包名、versionName、versionCode 与 release 签名证书（常量硬编码） */
+/** 管理员上传 APK：手机包校验包名与签名，手表包按独立应用校验版本和有效签名。 */
 public final class ApkUploadValidator {
 
     /** 与 Android/app/build.gradle.kts applicationId 一致 */
@@ -35,8 +35,18 @@ public final class ApkUploadValidator {
     private ApkUploadValidator() {
     }
 
-    public static void validate(Path apkPath, String expectedAndroidVersionToken) throws IOException {
-        AndroidVersion expectedVersion = parseAndroidVersionToken(expectedAndroidVersionToken);
+    public static void validate(Path apkPath, String expectedVersionToken) throws IOException {
+        validateInternal(apkPath, expectedVersionToken, EXPECTED_PACKAGE_NAME, EXPECTED_CERT_SHA256);
+    }
+
+    /** 手表 APK 为独立应用，不假定与手机使用相同包名或签名证书。 */
+    public static void validateWatch(Path apkPath, String expectedWatchVersionToken) throws IOException {
+        validateInternal(apkPath, expectedWatchVersionToken, null, null);
+    }
+
+    private static void validateInternal(Path apkPath, String expectedVersionToken,
+                                         String expectedPackageName, String expectedCertSha256) throws IOException {
+        VersionToken expectedVersion = parseVersionToken(expectedVersionToken);
         validateApkStructure(apkPath);
 
         try (ApkFile apkFile = new ApkFile(apkPath.toFile())) {
@@ -49,9 +59,9 @@ public final class ApkUploadValidator {
             if (packageName == null) {
                 throw new IllegalArgumentException("APK 缺少包名");
             }
-            if (!EXPECTED_PACKAGE_NAME.equals(packageName)) {
+            if (expectedPackageName != null && !expectedPackageName.equals(packageName)) {
                 throw new IllegalArgumentException(
-                        "APK 包名不匹配，期望 " + EXPECTED_PACKAGE_NAME + "，实际 " + packageName);
+                        "APK 包名不匹配，期望 " + expectedPackageName + "，实际 " + packageName);
             }
 
             String versionName = trimOrNull(meta.getVersionName());
@@ -74,13 +84,14 @@ public final class ApkUploadValidator {
 
             LinkedHashSet<String> fingerprints = new LinkedHashSet<>();
             collectFingerprints(apkFile.getApkSingers(), fingerprints);
-            if (!fingerprints.contains(EXPECTED_CERT_SHA256)) {
+            if (fingerprints.isEmpty()
+                    || (expectedCertSha256 != null && !fingerprints.contains(expectedCertSha256))) {
                 collectTrustedV2Fingerprints(apkFile, fingerprints);
             }
             if (fingerprints.isEmpty()) {
                 throw new IllegalArgumentException("APK 未检测到有效签名");
             }
-            if (!fingerprints.contains(EXPECTED_CERT_SHA256)) {
+            if (expectedCertSha256 != null && !fingerprints.contains(expectedCertSha256)) {
                 throw new IllegalArgumentException("APK 签名证书不受信任");
             }
         } catch (IllegalArgumentException e) {
@@ -108,9 +119,9 @@ public final class ApkUploadValidator {
 
     private static boolean isBusinessValidationError(String message) {
         return message != null && (
-                message.startsWith("未配置目标 Android 版本号")
-                        || message.startsWith("Android 版本号需包含")
-                        || message.startsWith("Android versionCode")
+                message.startsWith("未配置目标版本号")
+                        || message.startsWith("版本号需包含")
+                        || message.startsWith("versionCode")
                         || message.startsWith("无法解析 APK 元数据")
                         || message.startsWith("APK 缺少")
                         || message.startsWith("APK 包名不匹配")
@@ -182,37 +193,37 @@ public final class ApkUploadValidator {
         }
     }
 
-    private static AndroidVersion parseAndroidVersionToken(String value) {
+    private static VersionToken parseVersionToken(String value) {
         String token = trimOrNull(value);
         if (token == null) {
-            throw new IllegalArgumentException("未配置目标 Android 版本号");
+            throw new IllegalArgumentException("未配置目标版本号");
         }
 
         int separator = token.lastIndexOf('-');
         if (separator <= 0 || separator == token.length() - 1) {
-            throw new IllegalArgumentException("Android 版本号需包含 versionName-versionCode");
+            throw new IllegalArgumentException("版本号需包含 versionName-versionCode");
         }
 
         String versionName = trimOrNull(token.substring(0, separator));
         String versionCodeText = trimOrNull(token.substring(separator + 1));
         if (versionName == null || versionCodeText == null) {
-            throw new IllegalArgumentException("Android 版本号需包含 versionName-versionCode");
+            throw new IllegalArgumentException("版本号需包含 versionName-versionCode");
         }
 
         long versionCode;
         try {
             versionCode = Long.parseLong(versionCodeText);
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Android versionCode 必须是数字");
+            throw new IllegalArgumentException("versionCode 必须是数字");
         }
         if (versionCode < 0) {
-            throw new IllegalArgumentException("Android versionCode 不能为负数");
+            throw new IllegalArgumentException("versionCode 不能为负数");
         }
 
-        return new AndroidVersion(versionName, versionCode);
+        return new VersionToken(versionName, versionCode);
     }
 
-    private record AndroidVersion(String versionName, long versionCode) {
+    private record VersionToken(String versionName, long versionCode) {
     }
 
     private static String trimOrNull(String value) {

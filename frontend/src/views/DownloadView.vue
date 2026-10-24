@@ -36,7 +36,7 @@
               height="256"
             />
           </div>
-          <p class="hero__art-caption">Android · Windows · Linux · Apple</p>
+          <p class="hero__art-caption">Android · Watch · Windows · Linux · Apple</p>
         </div>
       </section>
 
@@ -125,6 +125,48 @@
                   download
                 >
                   {{ $t('download.downloadApk') }}
+                </NButton>
+              </div>
+            </article>
+
+            <article class="dl-card">
+              <header class="dl-card__head">
+                <div class="dl-card__icon" aria-hidden="true">
+                  <svg class="dl-card__svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                    <rect x="6" y="6" width="12" height="12" rx="3" />
+                    <path d="M9 6V3h6v3M9 18v3h6v-3M12 9v3l2 1" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </div>
+                <div class="dl-card__titles">
+                  <h3 class="dl-card__name">{{ $t('download.watchName') }}</h3>
+                  <p class="dl-card__desc">{{ $t('download.watchDesc') }}</p>
+                </div>
+              </header>
+              <dl class="dl-card__meta">
+                <div class="dl-card__meta-item">
+                  <dt>{{ $t('download.labelVersion') }}</dt>
+                  <dd>{{ watchVersion || '-' }}</dd>
+                </div>
+                <div class="dl-card__meta-item">
+                  <dt>{{ $t('download.labelFormat') }}</dt>
+                  <dd>.apk</dd>
+                </div>
+                <div class="dl-card__meta-item">
+                  <dt>{{ $t('download.labelSize') }}</dt>
+                  <dd>{{ watchSize }}</dd>
+                </div>
+              </dl>
+              <p v-if="!watchDownloadUrl" class="dl-card__hint">{{ $t('download.watchPendingHint') }}</p>
+              <div class="dl-card__foot">
+                <NButton
+                  variant="secondary"
+                  block
+                  icon="download"
+                  :href="watchDownloadUrl"
+                  :disabled="!watchDownloadUrl"
+                  download
+                >
+                  {{ $t('download.downloadWatchApk') }}
                 </NButton>
               </div>
             </article>
@@ -427,6 +469,12 @@ const replaceVersion = (url) => {
 
 const androidDownloadUrl = computed(() => resolveDownloadUrl(versionInfo.value.updateUrl))
 
+const watchInfo = computed(() => versionInfo.value.watch || {})
+const watchDownloadUrl = computed(() => resolveDownloadUrl(watchInfo.value.updateUrl || watchInfo.value.url))
+const watchVersion = computed(
+  () => watchInfo.value.ver || watchInfo.value.watch_ver || watchInfo.value.version || ''
+)
+
 const isAppleDevice = computed(() => detectedPlatform.value === 'mac' || detectedPlatform.value === 'ios')
 
 const windowsDownloadUrl = computed(() => {
@@ -457,6 +505,7 @@ const formatSize = (bytes) => {
 }
 
 const androidSize = computed(() => formatSize(versionInfo.value.size))
+const watchSize = computed(() => formatSize(watchInfo.value.size))
 const windowsSize = computed(() => formatSize(versionInfo.value.pc?.windows_size))
 const macSize = computed(() => formatSize(versionInfo.value.pc?.mac_size))
 const linuxSize = computed(() => formatSize(versionInfo.value.pc?.linux_size))
