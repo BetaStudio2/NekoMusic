@@ -35,6 +35,26 @@ class QrCodeRendererTest {
         assertTrue(dataUrl.length() > "data:image/png;base64,".length());
     }
 
+    @Test
+    void rendersDecodableCircularQrWithTransparentCorners() throws Exception {
+        String content = "nekomusic://qrlogin?sid=CircularWatch1234567890AbCdEf";
+
+        BufferedImage image = QrCodeRenderer.renderCircular(content, 320);
+
+        assertEquals(320, image.getWidth());
+        assertEquals(320, image.getHeight());
+        assertEquals(0, image.getRGB(0, 0) >>> 24, "圆形二维码四角应透明");
+        assertEquals(255, image.getRGB(160, 160) >>> 24, "圆心应保持不透明");
+        assertEquals(content, decode(image), "圆形底衬不应裁切二维码定位图案");
+    }
+
+    @Test
+    void producesCircularPngDataUrl() {
+        String dataUrl = QrCodeRenderer.toCircularPngDataUrl("nekomusic://qrlogin?sid=test", 256);
+        assertTrue(dataUrl.startsWith("data:image/png;base64,"), "应返回 PNG data URL");
+        assertTrue(dataUrl.length() > "data:image/png;base64,".length());
+    }
+
     private static String decode(BufferedImage image) throws Exception {
         int width = image.getWidth();
         int height = image.getHeight();

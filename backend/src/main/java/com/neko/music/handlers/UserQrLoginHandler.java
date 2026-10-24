@@ -5,6 +5,7 @@ import com.neko.music.Main;
 import com.neko.music.model.User;
 import com.neko.music.service.QrLoginService;
 import com.neko.music.service.UserAuthService;
+import com.neko.music.util.ClientFingerprint;
 import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.QrCodeRenderer;
 import com.neko.music.util.RequestAuthUtil;
@@ -73,7 +74,7 @@ public class UserQrLoginHandler extends ApiServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
         switch (path(request)) {
-            case "/create" -> handleCreate(response);
+            case "/create" -> handleCreate(request, response);
             case "/scan" -> handleScan(request, response);
             case "/confirm" -> handleConfirm(request, response);
             case "/claim" -> handleClaim(request, response);
@@ -83,8 +84,8 @@ public class UserQrLoginHandler extends ApiServlet {
 
     // ──────────────────────────── 接口实现 ────────────────────────────
 
-    /** PC 新建扫码会话 */
-    private void handleCreate(HttpServletResponse response) throws IOException {
+    /** 客户端新建扫码会话；手表使用圆码，其它客户端保持方形码。 */
+    private void handleCreate(HttpServletRequest request, HttpServletResponse response) throws IOException {
         QrLoginService.NewSession session = qrLoginService.createSession();
         if (session == null) {
             sendJson(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false, "qr.service_unavailable", null);
@@ -96,7 +97,10 @@ public class UserQrLoginHandler extends ApiServlet {
         String qrImage;
         try {
             // 纯服务端渲染：直接产出带软件图标的成品二维码
-            qrImage = QrCodeRenderer.toPngDataUrl(qrContent, 320);
+            qrImage = ClientFingerprint.isWatchClient(
+                    request.getHeader("User-Agent"), request.getHeader("X-Neko-Client"))
+                    ? QrCodeRenderer.toCircularPngDataUrl(qrContent, 320)
+                    : QrCodeRenderer.toPngDataUrl(qrContent, 320);
         } catch (Exception e) {
             logger.error("登录二维码图片渲染失败", e);
             sendJson(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false, "qr.generate_failed", null);

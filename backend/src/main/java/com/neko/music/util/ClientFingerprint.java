@@ -66,6 +66,19 @@ public final class ClientFingerprint {
         return fingerprint(userAgent, nekoClient).version();
     }
 
+    /**
+     * 是否为官方手表客户端：UA 的 {@code awatch} 或 {@code X-Neko-Client} 自报的
+     * {@code AndroidWatch} 任一命中即可。
+     *
+     * <p>该判定只用于展示形态选择（如登录二维码是否使用圆形），不参与接口放行；
+     * 黑名单 UA 即使伪造手表自报头也返回 false。</p>
+     */
+    public static boolean isWatchClient(String userAgent, String nekoClient) {
+        Fingerprint fingerprint = fingerprint(userAgent, nekoClient);
+        return OFFICIAL_CLIENT.equals(fingerprint.type())
+                && ("awatch".equals(fingerprint.platform()) || "androidwatch".equals(fingerprint.platform()));
+    }
+
     /** 一次算完类型 / 平台 / 版本（三者共用同一套 UA 判定，分开算等于把同样的判断做三遍）。 */
     public record Fingerprint(String userAgent, String nekoClient,
                               String type, String platform, String version) {

@@ -220,6 +220,9 @@ class UserAgentClassifierTest {
         String watchUa = "NekoMusic-AWatch/1.4.0";
         assertFalse(UserAgentClassifier.isBotForApi(watchUa));
         assertTrue(UserAgentClassifier.isNativeClient(watchUa));
+        assertTrue(UserAgentClassifier.isWatchClient(watchUa));
+        assertFalse(UserAgentClassifier.isWatchClient("NekoMusic-android/202601008"));
+        assertFalse(UserAgentClassifier.isWatchClient("Mozilla/5.0 (Linux; Android 13)"));
         assertEquals("awatch", UserAgentClassifier.officialClientPlatform(watchUa));
         assertEquals("1.4.0", UserAgentClassifier.officialClientVersion(watchUa));
         assertTrue(UserAgentClassifier.isNativeClient("nekomusic-awatch/1.0.0"));

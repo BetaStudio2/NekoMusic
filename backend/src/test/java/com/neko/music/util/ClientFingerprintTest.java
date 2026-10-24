@@ -4,7 +4,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 访问日志的客户端指纹：类型判定直接决定安全分析能不能把「业务爬虫 / 攻击扫描器 / 官方客户端 /
@@ -96,6 +98,11 @@ class ClientFingerprintTest {
         // 自报手表平台不能越过脚本黑名单
         assertEquals(ClientFingerprint.BOT, ClientFingerprint.type("okhttp/4.12.0", "AndroidWatch+1.4.0"));
         assertEquals(ClientFingerprint.SCANNER, ClientFingerprint.type("sqlmap/1.7", "AndroidWatch+1.4.0"));
+
+        assertTrue(ClientFingerprint.isWatchClient("NekoMusic-AWatch/1.4.0", null));
+        assertTrue(ClientFingerprint.isWatchClient("SomeAgent/1.0", "AndroidWatch+1.4.0"));
+        assertFalse(ClientFingerprint.isWatchClient("NekoMusic-PC/1.0", "PC+1.0"));
+        assertFalse(ClientFingerprint.isWatchClient("sqlmap/1.7", "AndroidWatch+1.4.0"));
     }
 
     @Test

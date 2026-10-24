@@ -54,7 +54,20 @@ public final class QrCodeRenderer {
      * @return {@code data:image/png;base64,...}
      */
     public static String toPngDataUrl(String text, int size) {
-        BufferedImage image = render(text, size);
+        return encodePng(render(text, size));
+    }
+
+    /**
+     * 生成手表端使用的圆形二维码 PNG data URL。
+     *
+     * <p>圆形底衬之外保持透明；二维码码阵完整放在圆形的内接正方形内，不裁切定位图案，
+     * 因此既能贴合圆表盘，也不会牺牲可扫描性。</p>
+     */
+    public static String toCircularPngDataUrl(String text, int size) {
+        return encodePng(renderCircular(text, size));
+    }
+
+    private static String encodePng(BufferedImage image) {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             ImageIO.write(image, "png", out);
             return "data:image/png;base64," + Base64.getEncoder().encodeToString(out.toByteArray());
@@ -83,6 +96,30 @@ public final class QrCodeRenderer {
         BufferedImage logo = logo();
         if (logo != null) {
             drawLogo(image, logo);
+        }
+        return image;
+    }
+
+    /** 渲染透明圆底、内部完整保留方形码阵的二维码。 */
+    public static BufferedImage renderCircular(String text, int size) {
+        if (text == null || text.isBlank()) {
+            throw new IllegalArgumentException("二维码内容不能为空");
+        }
+        int side = Math.max(size, 192);
+        int qrSide = Math.max(128, (int) Math.floor(side * 0.68));
+        BufferedImage qr = render(text, qrSide);
+        BufferedImage image = new BufferedImage(side, side, BufferedImage.TYPE_INT_ARGB);
+
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.setColor(Color.WHITE);
+            g.fillOval(0, 0, side, side);
+            int offset = (side - qr.getWidth()) / 2;
+            g.drawImage(qr, offset, offset, null);
+        } finally {
+            g.dispose();
         }
         return image;
     }

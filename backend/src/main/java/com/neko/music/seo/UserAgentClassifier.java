@@ -200,8 +200,10 @@ public final class UserAgentClassifier {
      * 不能并入 {@code android} 或使用笼统的 {@code watch}：前者会混同手机 / 平板安装包，
      * 后者会让任意带 watch 字样的 UA 获得放行机会。</p>
      */
+    private static final String WATCH_CLIENT_UA_PLATFORM = "awatch";
+
     private static final Set<String> OFFICIAL_CLIENT_UA_PLATFORMS = Set.of(
-            "android", "awatch", "pc", "ios", "macos", "windows", "linux", "qt");
+            "android", WATCH_CLIENT_UA_PLATFORM, "pc", "ios", "macos", "windows", "linux", "qt");
 
     /**
      * {@code X-Neko-Client: <平台>+<版本>} 中官方客户端可自报的平台取值。
@@ -286,6 +288,15 @@ public final class UserAgentClassifier {
             return false;
         }
         return profile(ua).nativeClient();
+    }
+
+    /** 是否为独立手表客户端（严格匹配并限定 {@code awatch} 平台）。 */
+    public static boolean isWatchClient(String ua) {
+        if (ua == null || ua.isBlank()) {
+            return false;
+        }
+        Profile profile = profile(ua);
+        return profile.nativeClient() && WATCH_CLIENT_UA_PLATFORM.equals(profile.platform());
     }
 
     /**

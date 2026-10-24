@@ -1,5 +1,7 @@
 package com.neko.music.handlers;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.neko.music.Main;
 import com.neko.music.model.User;
 import com.neko.music.service.QrLoginService;
 import com.neko.music.service.UserAuthService;
@@ -8,6 +10,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.Test;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.BufferedReader;
 import java.io.PrintWriter;
 import java.io.StringReader;
@@ -16,6 +21,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -72,6 +78,17 @@ class UserQrLoginHandlerTest {
         }
     }
 
+    private static final class StubCreateQrLoginService extends QrLoginService {
+        StubCreateQrLoginService() {
+            super(null, null);
+        }
+
+        @Override
+        public NewSession createSession() {
+            return new NewSession(SESSION_ID, DELIVERY_KEY);
+        }
+    }
+
     private static final class StubUserAuthService extends UserAuthService {
         StubUserAuthService() {
             super(null, null, null, null, null, null);
@@ -85,6 +102,17 @@ class UserQrLoginHandlerTest {
     }
 
     private static final StubUserAuthService AUTH = new StubUserAuthService();
+
+    @Test
+    void watchClientGetsCircularLoginQr() throws Exception {
+        BufferedImage watchQr = createQrImage("NekoMusic-AWatch/1.4.0", "AndroidWatch+1.4.0");
+        assertEquals(320, watchQr.getWidth());
+        assertEquals(320, watchQr.getHeight());
+        assertEquals(0, watchQr.getRGB(0, 0) >>> 24, "手表二维码应使用透明圆形外形");
+
+        BufferedImage pcQr = createQrImage("NekoMusic-PC/1.0", "PC+1.0");
+        assertEquals(255, pcQr.getRGB(0, 0) >>> 24, "PC 二维码应保持方形底");
+    }
 
     private static final class Reader {
         private final StringWriter body = new StringWriter();
@@ -233,6 +261,29 @@ class UserQrLoginHandlerTest {
             case "getMethod" -> "POST";
             default -> defaultValue(m);
         });
+    }
+
+    private static BufferedImage createQrImage(String userAgent, String nekoClient) throws Exception {
+        Reader reader = new Reader();
+        HttpServletRequest request = proxy(HttpServletRequest.class, (p, m, a) -> switch (m.getName()) {
+            case "getPathInfo" -> "/create";
+            case "getMethod" -> "POST";
+            case "getHeader" -> switch (((String) a[0]).toLowerCase()) {
+                case "user-agent" -> userAgent;
+                case "x-neko-client" -> nekoClient;
+                default -> null;
+            };
+            default -> defaultValue(m);
+        });
+
+        newHandler(new StubCreateQrLoginService()).doPost(request, responseWith(reader));
+        JsonNode root = Main.getObjectMapper().readTree(reader.body());
+        assertTrue(root.path("success").asBoolean(), reader.body());
+        String dataUrl = root.path("data").path("qrImage").asText();
+        String prefix = "data:image/png;base64,";
+        assertTrue(dataUrl.startsWith(prefix), "应返回 PNG data URL");
+        byte[] png = Base64.getDecoder().decode(dataUrl.substring(prefix.length()));
+        return ImageIO.read(new ByteArrayInputStream(png));
     }
 
     private static void inject(Object target, String field, Object value) throws Exception {
