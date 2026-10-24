@@ -9,9 +9,7 @@ services:
         NEKO_WEB_VERSION: ${NEKO_WEB_VERSION:-dev}
 
     restart: on-failure:5
-
     network_mode: host
-
     gpus: all
 
     environment:
@@ -20,22 +18,6 @@ services:
       LC_ALL: C.UTF-8
 
     volumes:
-      # config.yml must be created from src/main/resources/config.yml before startup.
       - type: bind
-        source: ./config.yml
-        target: /app/config.yml
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: "${NEKO_DATA_DIR:-.}/Music"
-        target: /app/Music
-      - type: bind
-        source: "${NEKO_DATA_DIR:-.}/releases"
-        target: /app/releases
-      - type: bind
-        source: "${NEKO_DATA_DIR:-.}/avatars"
-        target: /app/avatars
-      - type: bind
-        source: "${NEKO_DATA_DIR:-.}/user_upload"
-        target: /app/user_upload
+        source: "${NEKO_DATA_DIR:-.}"
+        target: /app
