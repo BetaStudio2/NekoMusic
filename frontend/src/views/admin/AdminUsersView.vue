@@ -18,7 +18,7 @@
       <NInput
         v-model="searchQuery"
         icon="search"
-        placeholder="搜索用户名或邮箱…"
+        placeholder="搜索用户名、昵称或邮箱…"
         clearable
         class="toolbar__search"
       />
@@ -34,7 +34,7 @@
         <thead>
           <tr>
             <th>ID</th>
-            <th>用户名</th>
+            <th>用户名/昵称</th>
             <th>邮箱</th>
             <th>角色</th>
             <th>注册时间</th>
@@ -45,7 +45,7 @@
         <tbody>
           <tr v-for="user in filteredUsers" :key="user.id">
             <td class="cell-dim">{{ user.id }}</td>
-            <td class="cell-strong">{{ user.username }}</td>
+            <td class="cell-strong">{{ getUserDisplayName(user) }}</td>
             <td class="cell-dim">{{ user.email }}</td>
             <td>{{ getRoleText(user.role) }}</td>
             <td class="cell-dim">{{ formatDate(user.registerTime) }}</td>
@@ -141,8 +141,8 @@
     >
       <template v-if="editingUser">
         <div class="field">
-          <label class="field__label" for="eu-username">用户名</label>
-          <NInput id="eu-username" v-model="editingUser.username" disabled />
+          <label class="field__label" for="eu-username">用户名/昵称</label>
+          <NInput id="eu-username" :model-value="getUserDisplayName(editingUser)" disabled />
         </div>
         <div class="field">
           <label class="field__label" for="eu-email">邮箱</label>
@@ -397,6 +397,21 @@ const allUsers = computed(() => {
   return [...adminUsers.value, ...regularUsers.value]
 })
 
+// 管理员使用 username，普通用户使用 nickname
+const getUserDisplayName = (user) => {
+  const username = typeof user.username === 'string' ? user.username.trim() : ''
+  const nickname = typeof user.nickname === 'string' ? user.nickname.trim() : ''
+  return username || nickname || '未命名用户'
+}
+
+const matchesUserSearch = (user, query) => {
+  const keyword = query.trim().toLowerCase()
+  if (!keyword) return true
+  return [user.username, user.nickname, user.email].some(
+    (value) => typeof value === 'string' && value.toLowerCase().includes(keyword)
+  )
+}
+
 // 计算过滤后的用户列表
 const filteredUsers = computed(() => {
   let result = allUsers.value
@@ -410,13 +425,7 @@ const filteredUsers = computed(() => {
   }
   
   // 按搜索查询过滤
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    result = result.filter(user => 
-      user.username.toLowerCase().includes(query) || 
-      user.email.toLowerCase().includes(query)
-    )
-  }
+  result = result.filter(user => matchesUserSearch(user, searchQuery.value))
   
   // 计算分页
   const startIndex = (currentPage.value - 1) * usersPerPage
@@ -437,13 +446,7 @@ const totalPages = computed(() => {
   }
   
   // 应用搜索过滤
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    result = result.filter(user => 
-      user.accountType === (accountType.value || user.accountType) &&
-      (user.username.toLowerCase().includes(query) || user.email.toLowerCase().includes(query))
-    )
-  }
+  result = result.filter(user => matchesUserSearch(user, searchQuery.value))
   
   return Math.max(1, Math.ceil(result.length / usersPerPage))
 })
@@ -678,7 +681,7 @@ const saveUserEdit = async () => {
 // 删除用户
 const deleteUser = async (userId) => {
   const user = allUsers.value.find(u => u.id === userId)
-  if (user && confirm(`确定要删除用户 ${user.username} 吗？此操作不可撤销。`)) {
+  if (user && confirm(`确定要删除用户 ${getUserDisplayName(user)} 吗？此操作不可撤销。`)) {
     try {
       const endpoint = user.accountType === 'admin' 
         ? `${API_CONFIG.BASE_URL}/api/admin/users/${userId}`
