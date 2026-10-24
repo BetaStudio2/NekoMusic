@@ -203,7 +203,8 @@ public final class UserAgentClassifier {
     private static final String WATCH_CLIENT_UA_PLATFORM = "awatch";
 
     private static final Set<String> OFFICIAL_CLIENT_UA_PLATFORMS = Set.of(
-            "android", WATCH_CLIENT_UA_PLATFORM, "pc", "ios", "macos", "windows", "linux", "qt");
+            "android", WATCH_CLIENT_UA_PLATFORM, "pc", "ios", "macos", "windows", "linux", "qt",
+            "harmony");
 
     /**
      * {@code X-Neko-Client: <平台>+<版本>} 中官方客户端可自报的平台取值。
@@ -212,7 +213,8 @@ public final class UserAgentClassifier {
      * 不能互相替代，也不能放宽成包含 {@code watch} 即可。</p>
      */
     private static final Set<String> OFFICIAL_CLIENT_SELF_REPORTED_PLATFORMS = Set.of(
-            "android", "androidwatch", "pc", "ios", "macos", "windows", "linux", "qt");
+            "android", "androidwatch", "pc", "ios", "macos", "windows", "linux", "qt",
+            "harmony");
 
     /**
      * {@code X-Neko-Client} 自报的平台是否属于官方客户端（{@code <平台>+<版本>} 里的平台）。
