@@ -280,12 +280,30 @@ class CrawlerProtectionFilterTest {
         Outcome pc = inspect("NekoMusic-PC/1.0", null);
         assertTrue(pc.chained());
 
+        Outcome watch = inspect("NekoMusic-AWatch/1.4.0", null);
+        assertEquals(200, watch.status());
+        assertTrue(watch.chained());
+        assertNull(watch.forwarded());
+
         // 播放器 / 通用 HTTP 栈 UA 不再豁免 /api（它们只取 /media/* 直链）：直接 403
         for (String playerUa : new String[]{"okhttp/4.12.0", "Dalvik/2.1.0 (Linux; U; Android 13)", "libmpv/0.36"}) {
             Outcome outcome = inspect(playerUa, null);
             assertEquals(403, outcome.status(), playerUa);
             assertNull(outcome.forwarded(), playerUa);
             assertFalse(outcome.chained(), playerUa);
+        }
+    }
+
+    @Test
+    void rejectsUnofficialWatchUserAgents() throws Exception {
+        // 手表是独立平台：不能复用 android / watch 等含糊平台名，也不能省略版本
+        for (String ua : new String[]{"NekoMusic-watch/1.4.0", "NekoMusic-AndroidWatch/1.4.0",
+                "NekoMusic-AWatch", "NekoMusic-AWatch/", "NekoMusic-AWatch/abc",
+                "NekoMusic-AWatch/1.4.0/extra", "NekoMusic-AWatch/1.4.0 sqlmap"}) {
+            Outcome outcome = inspect(ua, null);
+            assertEquals(403, outcome.status(), ua);
+            assertNull(outcome.forwarded(), ua);
+            assertFalse(outcome.chained(), ua);
         }
     }
 

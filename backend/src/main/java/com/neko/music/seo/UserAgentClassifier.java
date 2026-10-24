@@ -167,12 +167,12 @@ public final class UserAgentClassifier {
                 MONITORS_ARCHIVERS,
                 SECURITY_SCANNERS);
         boolean browser = looksLikeBrowserUncached(ua);
-        // 平台列表是**白名单**（与 OFFICIAL_CLIENT_UA 一致），不能用 PARTS 的任意平台放行
-        boolean nativeClient = OFFICIAL_CLIENT_UA.matcher(ua).matches();
+        // PARTS 只负责切分平台与版本，平台必须是**白名单**里的精确取值，不能按任意子串放行
         java.util.regex.Matcher parts = OFFICIAL_CLIENT_UA_PARTS.matcher(ua);
         boolean hasParts = parts.matches();
         String platform = hasParts ? parts.group(1).toLowerCase(java.util.Locale.ROOT) : "";
         String version = hasParts ? parts.group(2) : "";
+        boolean nativeClient = hasParts && OFFICIAL_CLIENT_UA_PLATFORMS.contains(platform);
         return new Profile(bot, browser, scanner, nativeClient, platform, version);
     }
 
@@ -187,18 +187,30 @@ public final class UserAgentClassifier {
      * <p>必须整体匹配，且版本必须存在并以数字开头——客户端只会发
      * {@code NekoMusic-android/202601008}、{@code NekoMusic-PC/2026.108.52} 这种形式，
      * 因此 {@code NekoMusic-android}、{@code NekoMusic Android}、{@code NekoMusic Qt}
-     * 这类缺版本或空格写法一律不放行。</p>
+     * 这类缺版本或空格写法一律不放行。平台取值另由
+     * {@link #OFFICIAL_CLIENT_UA_PLATFORMS} 做精确白名单校验。</p>
      */
-    private static final Pattern OFFICIAL_CLIENT_UA = Pattern.compile(
-            "(?i)^nekomusic-(?:android|pc|ios|macos|windows|linux|qt)/\\d[\\w.+-]*$");
-
-    /** 与 {@link #OFFICIAL_CLIENT_UA} 同一形态，但额外捕获平台与版本，供「访问日志」标注客户端。 */
     private static final Pattern OFFICIAL_CLIENT_UA_PARTS = Pattern.compile(
             "(?i)^nekomusic-([a-z0-9]+)/(\\d[\\w.+-]*)$");
 
-    /** 官方客户端可自报的平台取值，与 {@link #OFFICIAL_CLIENT_UA} 的平台列表保持一致。 */
-    private static final Set<String> OFFICIAL_CLIENT_PLATFORMS = Set.of(
-            "android", "pc", "ios", "macos", "windows", "linux", "qt");
+    /**
+     * 官方客户端 UA 可使用的平台取值。
+     *
+     * <p>手表客户端使用独立平台名 {@code awatch}（UA 为 {@code NekoMusic-AWatch/<版本>}），
+     * 不能并入 {@code android} 或使用笼统的 {@code watch}：前者会混同手机 / 平板安装包，
+     * 后者会让任意带 watch 字样的 UA 获得放行机会。</p>
+     */
+    private static final Set<String> OFFICIAL_CLIENT_UA_PLATFORMS = Set.of(
+            "android", "awatch", "pc", "ios", "macos", "windows", "linux", "qt");
+
+    /**
+     * {@code X-Neko-Client: <平台>+<版本>} 中官方客户端可自报的平台取值。
+     *
+     * <p>手表客户端自报 {@code AndroidWatch}；UA 平台使用 {@code awatch}，两者都按精确取值登记，
+     * 不能互相替代，也不能放宽成包含 {@code watch} 即可。</p>
+     */
+    private static final Set<String> OFFICIAL_CLIENT_SELF_REPORTED_PLATFORMS = Set.of(
+            "android", "androidwatch", "pc", "ios", "macos", "windows", "linux", "qt");
 
     /**
      * {@code X-Neko-Client} 自报的平台是否属于官方客户端（{@code <平台>+<版本>} 里的平台）。
@@ -209,7 +221,8 @@ public final class UserAgentClassifier {
      */
     public static boolean isOfficialClientPlatform(String platform) {
         return platform != null
-                && OFFICIAL_CLIENT_PLATFORMS.contains(platform.trim().toLowerCase(java.util.Locale.ROOT));
+                && OFFICIAL_CLIENT_SELF_REPORTED_PLATFORMS.contains(
+                        platform.trim().toLowerCase(java.util.Locale.ROOT));
     }
 
     public static boolean shouldRenderSeo(String userAgent) {

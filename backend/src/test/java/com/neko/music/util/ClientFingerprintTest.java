@@ -79,6 +79,26 @@ class ClientFingerprintTest {
     }
 
     @Test
+    @DisplayName("手表客户端：AndroidWatch 自报平台与 AWatch UA 都能识别为官方客户端")
+    void recognizesWatchClientFromEitherSignal() {
+        // 手表客户端固定发送 X-Neko-Client: AndroidWatch+<版本>
+        assertEquals(ClientFingerprint.OFFICIAL_CLIENT,
+                ClientFingerprint.type("SomeAgent/1.0", "AndroidWatch+1.4.0"));
+        assertEquals("androidwatch", ClientFingerprint.platform("SomeAgent/1.0", "AndroidWatch+1.4.0"));
+        assertEquals("1.4.0", ClientFingerprint.version("SomeAgent/1.0", "AndroidWatch+1.4.0"));
+
+        // UA 被中间层改写时仍按自报平台识别；没有自报头时由独立 AWatch UA 兜底
+        assertEquals(ClientFingerprint.OFFICIAL_CLIENT, ClientFingerprint.type(CHROME_UA, "AndroidWatch+1.4.0"));
+        assertEquals(ClientFingerprint.OFFICIAL_CLIENT, ClientFingerprint.type("NekoMusic-AWatch/1.4.0", null));
+        assertEquals("awatch", ClientFingerprint.platform("NekoMusic-AWatch/1.4.0", null));
+        assertEquals("1.4.0", ClientFingerprint.version("NekoMusic-AWatch/1.4.0", null));
+
+        // 自报手表平台不能越过脚本黑名单
+        assertEquals(ClientFingerprint.BOT, ClientFingerprint.type("okhttp/4.12.0", "AndroidWatch+1.4.0"));
+        assertEquals(ClientFingerprint.SCANNER, ClientFingerprint.type("sqlmap/1.7", "AndroidWatch+1.4.0"));
+    }
+
+    @Test
     @DisplayName("平台与版本：官方 UA 优先，其次 X-Neko-Client，浏览器记 web")
     void resolvesPlatformAndVersion() {
         assertEquals("pc", ClientFingerprint.platform("NekoMusic-PC/2026.108.52", null));

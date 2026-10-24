@@ -2,6 +2,7 @@ package com.neko.music.seo;
 
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -211,6 +212,31 @@ class UserAgentClassifierTest {
         assertFalse(UserAgentClassifier.isNativeClient("NekoMusic-PC"));
         assertFalse(UserAgentClassifier.isNativeClient("NekoMusic-android/abc"));
         assertFalse(UserAgentClassifier.isNativeClient("NekoMusic-android/202601008/extra"));
+    }
+
+    @Test
+    void recognizesDedicatedWatchClient() {
+        // 手表是独立客户端：UA 使用 awatch，X-Neko-Client 自报 AndroidWatch，二者都按精确值登记
+        String watchUa = "NekoMusic-AWatch/1.4.0";
+        assertFalse(UserAgentClassifier.isBotForApi(watchUa));
+        assertTrue(UserAgentClassifier.isNativeClient(watchUa));
+        assertEquals("awatch", UserAgentClassifier.officialClientPlatform(watchUa));
+        assertEquals("1.4.0", UserAgentClassifier.officialClientVersion(watchUa));
+        assertTrue(UserAgentClassifier.isNativeClient("nekomusic-awatch/1.0.0"));
+        assertTrue(UserAgentClassifier.isOfficialClientPlatform("AndroidWatch"));
+        assertTrue(UserAgentClassifier.isOfficialClientPlatform("androidwatch"));
+
+        // 不能用 watch 之类的泛化平台名，也不能把 UA 平台写成自报平台名
+        assertFalse(UserAgentClassifier.isOfficialClientPlatform("watch"));
+        assertFalse(UserAgentClassifier.isOfficialClientPlatform("androidwatch2"));
+        assertFalse(UserAgentClassifier.isNativeClient("NekoMusic-watch/1.4.0"));
+        assertFalse(UserAgentClassifier.isNativeClient("NekoMusic-AndroidWatch/1.4.0"));
+        assertFalse(UserAgentClassifier.isNativeClient("NekoMusic-AWatch"));
+        assertFalse(UserAgentClassifier.isNativeClient("NekoMusic-AWatch/abc"));
+
+        // 黑名单仍优先，不能在官方 UA 后拼接扫描器关键词绕过
+        assertTrue(UserAgentClassifier.isBotForApi("sqlmap NekoMusic-AWatch/1.4.0"));
+        assertFalse(UserAgentClassifier.isNativeClient("NekoMusic-AWatch/1.4.0 sqlmap"));
     }
 
     @Test

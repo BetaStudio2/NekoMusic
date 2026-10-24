@@ -19,6 +19,7 @@ class UserAgentClassifierProfileCacheTest {
             "Mozilla/5.0 (iPhone; CPU iPhone OS 27_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Mobile/15E148 Safari/604.1",
             "NekoMusic-PC/2026.108.52",
             "NekoMusic-android/202601008",
+            "NekoMusic-AWatch/1.4.0",
             "NekoMusic-android",
             "sqlmap/1.7 android",
             "curl/8.5.0",
@@ -65,6 +66,12 @@ class UserAgentClassifierProfileCacheTest {
         // 缺版本 / 未登记平台一律不算官方客户端
         assertFalse(UserAgentClassifier.profile("NekoMusic-android").nativeClient());
         assertFalse(UserAgentClassifier.profile("NekoMusic-unknown/1.0").nativeClient());
+        assertFalse(UserAgentClassifier.profile("NekoMusic-watch/1.4.0").nativeClient());
+        assertFalse(UserAgentClassifier.profile("NekoMusic-AndroidWatch/1.4.0").nativeClient());
+
+        assertTrue(UserAgentClassifier.profile("NekoMusic-AWatch/1.4.0").nativeClient());
+        assertEquals("awatch", UserAgentClassifier.profile("NekoMusic-AWatch/1.4.0").platform());
+        assertEquals("1.4.0", UserAgentClassifier.profile("NekoMusic-AWatch/1.4.0").version());
     }
 
     @Test
