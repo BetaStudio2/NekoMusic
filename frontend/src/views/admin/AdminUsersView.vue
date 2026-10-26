@@ -188,7 +188,7 @@
 
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useToast } from '@/composables/useToast'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard, NInput, NModal, NSpinner, NTag } from '@/ui'
@@ -202,13 +202,19 @@ import {
 
 const toast = useToast()
 
+const route = useRoute()
 const router = useRouter()
+
+const getRouteSearchQuery = (value) => {
+  const raw = Array.isArray(value) ? value[0] : value
+  return typeof raw === 'string' ? raw.trim() : ''
+}
 
 // 管理员信息
 const adminInfo = ref({})
 
 // 切换侧边栏
-const searchQuery = ref('')
+const searchQuery = ref(getRouteSearchQuery(route.query.q))
 const accountType = ref('')
 const currentPage = ref(1)
 const usersPerPage = 10
@@ -780,6 +786,14 @@ watch(currentPage, (newPage) => {
 watch([searchQuery, accountType], () => {
   currentPage.value = 1
 })
+
+watch(
+  () => route.query.q,
+  (value) => {
+    const nextQuery = getRouteSearchQuery(value)
+    if (nextQuery) searchQuery.value = nextQuery
+  }
+)
 
 </script>
 

@@ -17,7 +17,15 @@
 
     <div v-else class="list">
       <NCard v-for="upload in pendingUploads" :key="upload.id" pad="none" class="audit">
-        <span class="audit__record-ribbon">#{{ upload.id }}</span>
+        <button
+          type="button"
+          class="audit__record-ribbon"
+          title="复制上传记录 ID"
+          :aria-label="`复制上传记录 ID #${upload.id}`"
+          @click="copyText(upload.id, '上传记录 ID')"
+        >
+          #{{ upload.id }}
+        </button>
 
         <!-- 头部 -->
         <header class="audit__head">
@@ -41,41 +49,57 @@
           </div>
 
           <div class="audit__meta">
-            <span class="audit__uploader">上传者：{{ upload.userNickname || '未知用户' }}</span>
-            <span>用户 ID {{ upload.userId }}</span>
-            <span>提交于 {{ formatDateTime(upload.createdAt) }}</span>
+            <button
+              type="button"
+              class="audit__user"
+              :title="`在用户管理中查看用户 ${upload.userNickname || upload.userId}`"
+              :aria-label="`在用户管理中查看用户 ${upload.userNickname || upload.userId}`"
+              @click="openUserManagement(upload.userId)"
+            >
+              <span class="audit__user-text">
+                <span class="audit__uploader">{{ upload.userNickname || '未知用户' }}</span>
+                <span class="audit__user-meta">
+                  ID {{ upload.userId }} · 提交于 {{ formatDateTime(upload.createdAt) }}
+                </span>
+              </span>
+              <NIcon name="chevron-right" :size="14" class="audit__user-chevron" />
+            </button>
+            <button
+              type="button"
+              class="audit__copy"
+              title="复制用户 ID"
+              aria-label="复制用户 ID"
+              @click="copyText(upload.userId, '用户 ID')"
+            >
+              <NIcon name="copy" :size="13" />
+            </button>
           </div>
         </header>
 
         <!-- 详情 -->
         <div class="audit__body">
-          <div class="details-groups">
-            <section class="details-group">
-              <h3 class="details-group__title">歌曲信息</h3>
-              <dl class="details">
-                <div class="details__item">
-                  <dt>专辑</dt>
-                  <dd>{{ upload.album || '未知专辑' }}</dd>
-                </div>
-                <div class="details__item">
-                  <dt>语言</dt>
-                  <dd>{{ upload.language }}</dd>
-                </div>
-                <div class="details__item">
-                  <dt>时长</dt>
-                  <dd>{{ formatDuration(upload.duration) }}</dd>
-                </div>
-                <div class="details__item">
-                  <dt>标签</dt>
-                  <dd>{{ upload.tags || '无' }}</dd>
-                </div>
-                <div class="details__item">
-                  <dt>格式</dt>
-                  <dd>{{ getFileFormat(upload.musicFilePath) }}</dd>
-                </div>
-              </dl>
-            </section>
-          </div>
+          <dl class="song-meta" aria-label="歌曲信息">
+            <div class="song-meta__item song-meta__item--album">
+              <dt>专辑</dt>
+              <dd>{{ upload.album || '未知专辑' }}</dd>
+            </div>
+            <div class="song-meta__item">
+              <dt>语言</dt>
+              <dd>{{ upload.language }}</dd>
+            </div>
+            <div class="song-meta__item">
+              <dt>时长</dt>
+              <dd>{{ formatDuration(upload.duration) }}</dd>
+            </div>
+            <div class="song-meta__item">
+              <dt>格式</dt>
+              <dd><NTag variant="accent" size="sm">{{ getFileFormat(upload.musicFilePath) }}</NTag></dd>
+            </div>
+            <div class="song-meta__item song-meta__item--wide">
+              <dt>标签</dt>
+              <dd>{{ upload.tags || '无' }}</dd>
+            </div>
+          </dl>
 
           <!-- 歌词预览 -->
           <section class="lyrics">
@@ -153,8 +177,23 @@
             >
               {{ currentPlayingId === upload.id ? '播放中' : '试听' }}
             </NButton>
-            <NButton variant="primary" icon="check" @click="approveUpload(upload.id)">通过</NButton>
-            <NButton variant="danger" icon="close" @click="showRejectModal(upload.id)">拒绝</NButton>
+            <NButton
+              variant="primary"
+              icon="check"
+              :loading="actionLoading[upload.id] === 'approve'"
+              :disabled="Boolean(actionLoading[upload.id])"
+              @click="approveUpload(upload.id)"
+            >
+              通过
+            </NButton>
+            <NButton
+              variant="danger"
+              icon="close"
+              :disabled="Boolean(actionLoading[upload.id])"
+              @click="showRejectModal(upload.id)"
+            >
+              拒绝
+            </NButton>
           </div>
         </footer>
       </NCard>
@@ -173,15 +212,17 @@
         />
       </div>
       <template #footer>
-        <NButton variant="ghost" @click="closeRejectModal">取消</NButton>
-        <NButton variant="danger" @click="confirmReject">确认拒绝</NButton>
+        <NButton variant="ghost" :disabled="isRejecting" @click="closeRejectModal">取消</NButton>
+        <NButton variant="danger" :loading="isRejecting" :disabled="isRejecting" @click="confirmReject">
+          确认拒绝
+        </NButton>
       </template>
     </NModal>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import API_CONFIG from '@/config/apiConfig.js'
 import { useToast } from '@/composables/useToast'
@@ -212,6 +253,11 @@ const rejectReason = ref('')
 const rejectModalRef = ref(null)
 const coverUrls = ref({})
 const loadingCovers = ref({})
+const actionLoading = ref({})
+
+const isRejecting = computed(() =>
+  Boolean(rejectUploadId.value && actionLoading.value[rejectUploadId.value] === 'reject')
+)
 
 // 设置audio player的动态ref
 const setAudioPlayerRef = (uploadId, el) => {
@@ -227,6 +273,35 @@ const getAdminInfo = () => {
   const adminData = localStorage.getItem('adminInfo')
   if (adminData) {
     adminInfo.value = JSON.parse(adminData)
+  }
+}
+
+const openUserManagement = (userId) => {
+  router.push({ name: 'admin-users', query: { q: `id=${userId}` } })
+}
+
+const copyText = async (value, label) => {
+  const text = String(value ?? '')
+  if (!text) return
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      const copied = document.execCommand('copy')
+      document.body.removeChild(textarea)
+      if (!copied) throw new Error('execCommand copy failed')
+    }
+    toast.success(`${label}已复制`)
+  } catch (error) {
+    console.error(`复制${label}失败:`, error)
+    toast.error(`复制${label}失败，请手动复制`)
   }
 }
 
@@ -271,9 +346,18 @@ const fetchPendingUploads = async () => {
 
 // 审核通过
 const approveUpload = async (uploadId) => {
+  if (actionLoading.value[uploadId]) return
+
+  const token = localStorage.getItem('adminToken')
+  if (!token) {
+    toast.error('请先登录管理员账号')
+    router.push('/admin/login')
+    return
+  }
+
+  actionLoading.value[uploadId] = 'approve'
+
   try {
-    const token = localStorage.getItem('adminToken')
-    
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/admin/audit/approve/${uploadId}`, {
       method: 'POST',
       headers: {
@@ -310,6 +394,8 @@ const approveUpload = async (uploadId) => {
   } catch (error) {
     console.error('审核通过失败:', error)
     toast.error('审核通过失败')
+  } finally {
+    delete actionLoading.value[uploadId]
   }
 }
 
@@ -329,12 +415,20 @@ const closeRejectModal = () => {
 
 // 确认拒绝
 const confirmReject = async () => {
-  if (!rejectUploadId.value) return
+  const uploadId = rejectUploadId.value
+  if (!uploadId || actionLoading.value[uploadId]) return
+
+  const token = localStorage.getItem('adminToken')
+  if (!token) {
+    toast.error('请先登录管理员账号')
+    router.push('/admin/login')
+    return
+  }
+
+  actionLoading.value[uploadId] = 'reject'
   
   try {
-    const token = localStorage.getItem('adminToken')
-    
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/admin/audit/reject/${rejectUploadId.value}`, {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/admin/audit/reject/${uploadId}`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -349,32 +443,34 @@ const confirmReject = async () => {
     
     if (result.success) {
       toast.success('审核拒绝成功')
-      pendingUploads.value = pendingUploads.value.filter(u => u.id !== rejectUploadId.value)
+      pendingUploads.value = pendingUploads.value.filter(u => u.id !== uploadId)
       
       // 清理相关缓存
       closeRejectModal()
-      if (currentPlayingId.value === rejectUploadId.value) {
+      if (currentPlayingId.value === uploadId) {
         stopPreview()
       }
-      if (showLyricsPreviewId.value === rejectUploadId.value) {
+      if (showLyricsPreviewId.value === uploadId) {
         showLyricsPreviewId.value = null
       }
-      delete uploadLyrics.value[rejectUploadId.value]
-      delete loadingLyrics.value[rejectUploadId.value]
-      delete loadingAudios.value[rejectUploadId.value]
+      delete uploadLyrics.value[uploadId]
+      delete loadingLyrics.value[uploadId]
+      delete loadingAudios.value[uploadId]
       
       // 清理封面图片URL
-      if (coverUrls.value[rejectUploadId.value]) {
-        URL.revokeObjectURL(coverUrls.value[rejectUploadId.value])
-        delete coverUrls.value[rejectUploadId.value]
+      if (coverUrls.value[uploadId]) {
+        URL.revokeObjectURL(coverUrls.value[uploadId])
+        delete coverUrls.value[uploadId]
       }
-      delete loadingCovers.value[rejectUploadId.value]
+      delete loadingCovers.value[uploadId]
     } else {
       toast.error(result.message || '审核拒绝失败')
     }
   } catch (error) {
     console.error('审核拒绝失败:', error)
     toast.error('审核拒绝失败')
+  } finally {
+    delete actionLoading.value[uploadId]
   }
 }
 
@@ -812,13 +908,27 @@ onMounted(() => {
   padding: var(--n-space-1) 0;
   transform: rotate(45deg);
   background: var(--n-accent-strong);
+  border: 0;
   color: var(--n-text-inverse);
+  cursor: pointer;
+  font-family: inherit;
   font-size: var(--n-text-xs);
   font-weight: var(--n-weight-semibold);
   line-height: var(--n-leading-tight);
   letter-spacing: 0.04em;
   text-align: center;
-  pointer-events: none;
+  transition: background var(--n-duration-fast) var(--n-ease);
+}
+
+@media (hover: hover) {
+  .audit__record-ribbon:hover {
+    background: var(--n-accent);
+  }
+}
+
+.audit__record-ribbon:focus-visible {
+  outline: 2px solid var(--n-text);
+  outline-offset: -2px;
 }
 
 .audit__head {
@@ -876,20 +986,99 @@ onMounted(() => {
 
 .audit__meta {
   display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--n-space-2);
+  flex: none;
+}
+
+.audit__user {
+  display: flex;
+  align-items: center;
+  gap: var(--n-space-1);
+  max-width: 20rem;
+  padding: 0;
+  border: 0;
+  margin: 0;
+  background: none;
+  color: var(--n-text-faint);
+  cursor: pointer;
+  font: inherit;
+  text-align: right;
+}
+
+.audit__user-text {
+  display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 2px;
-  flex: none;
-  color: var(--n-text-faint);
-  font-size: var(--n-text-xs);
+  min-width: 0;
 }
 
 .audit__uploader {
-  max-width: 18rem;
   color: var(--n-text);
   font-size: var(--n-text-sm);
   font-weight: var(--n-weight-semibold);
   overflow-wrap: anywhere;
+  transition: color var(--n-duration-fast) var(--n-ease);
+}
+
+.audit__user-meta {
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
+  overflow-wrap: anywhere;
+}
+
+.audit__user-chevron {
+  flex: none;
+  color: var(--n-text-faint);
+  transition:
+    color var(--n-duration-fast) var(--n-ease),
+    transform var(--n-duration-fast) var(--n-ease);
+}
+
+@media (hover: hover) {
+  .audit__user:hover .audit__uploader,
+  .audit__user:hover .audit__user-chevron {
+    color: var(--n-accent-strong);
+  }
+
+  .audit__user:hover .audit__user-chevron {
+    transform: translateX(2px);
+  }
+}
+
+.audit__user:focus-visible,
+.audit__copy:focus-visible {
+  outline: 2px solid var(--n-accent-line);
+  outline-offset: 2px;
+}
+
+.audit__copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--n-space-6);
+  height: var(--n-space-6);
+  padding: 0;
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius-xs);
+  background: var(--n-surface-soft);
+  color: var(--n-text-faint);
+  cursor: pointer;
+  transition:
+    color var(--n-duration-fast) var(--n-ease),
+    border-color var(--n-duration-fast) var(--n-ease),
+    background var(--n-duration-fast) var(--n-ease);
+}
+
+@media (hover: hover) {
+  .audit__copy:hover {
+    border-color: var(--n-accent-line);
+    background: var(--n-accent-soft);
+    color: var(--n-accent-strong);
+  }
 }
 
 /* ==================== 详情 ==================== */
@@ -897,51 +1086,43 @@ onMounted(() => {
   padding: var(--n-space-5);
 }
 
-.details-groups {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: var(--n-space-5);
-  margin-bottom: var(--n-space-5);
-}
-
-.details-group {
-  min-width: 0;
+.song-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--n-space-3) var(--n-space-5);
+  margin: 0 0 var(--n-space-5);
   padding: var(--n-space-4);
   border: 1px solid var(--n-line-subtle);
   border-radius: var(--n-radius-control);
   background: var(--n-surface-sunken);
 }
 
-.details-group__title {
-  margin: 0 0 var(--n-space-3);
-  color: var(--n-text-muted);
-  font-size: var(--n-text-sm);
-  font-weight: var(--n-weight-semibold);
-}
-
-.details {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--n-space-2);
-  margin: 0;
-}
-
-.details__item {
+.song-meta__item {
   display: flex;
-  gap: var(--n-space-2);
+  flex: 1 1 120px;
+  flex-direction: column;
+  gap: var(--n-space-1);
   min-width: 0;
-  font-size: var(--n-text-sm);
 }
 
-.details__item dt {
-  flex: none;
+.song-meta__item--album {
+  flex: 2 1 220px;
+}
+
+.song-meta__item--wide {
+  flex-basis: 100%;
+}
+
+.song-meta dt {
   color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
 }
 
-.details__item dd {
+.song-meta dd {
   margin: 0;
   min-width: 0;
   color: var(--n-text);
+  font-size: var(--n-text-sm);
   overflow-wrap: anywhere;
 }
 
@@ -1073,7 +1254,19 @@ onMounted(() => {
 
   .audit__meta {
     align-items: flex-start;
+    justify-content: flex-start;
     width: 100%;
+  }
+
+  .audit__user {
+    flex: 1;
+    align-items: flex-start;
+    max-width: none;
+    text-align: left;
+  }
+
+  .audit__user-text {
+    align-items: flex-start;
   }
 
   .audit__actions :deep(.n-btn) {
