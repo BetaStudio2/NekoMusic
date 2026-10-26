@@ -177,14 +177,19 @@
     <NCard pad="lg" class="card">
       <header class="card__head">
         <h2 class="card__title">音乐列表</h2>
-        <NInput
-          v-model="searchQuery"
-          icon="search"
-          placeholder="搜索音乐或艺术家…"
-          clearable
-          class="card__search"
-          @update:model-value="updateSearchResults"
-        />
+        <div class="card__search-panel">
+          <NInput
+            v-model="searchQuery"
+            icon="search"
+            placeholder="例如：id=148  artist=周杰伦  language=中文"
+            clearable
+            class="card__search"
+            @update:model-value="updateSearchResults"
+          />
+          <p class="card__search-hint">
+            支持 id、title、artist、album、language、tag、user、quality，多条件用空格分隔
+          </p>
+        </div>
       </header>
 
       <div v-if="isLoading" class="state">
@@ -1120,11 +1125,7 @@ const fetchMusicList = async () => {
         ...music,
         uploadTime: new Date(music.createdAt) // 转换日期格式
       }))
-      filteredMusicList.value = [...musicList.value]
-      // 计算总页数
-      totalPages.value = Math.ceil(filteredMusicList.value.length / pageSize.value)
-      // 重置到第一页
-      currentPage.value = 1
+      updateSearchResults()
     } else {
       console.error('获取音乐列表失败:', data.message)
       toast.error(data.message || '获取音乐列表失败')
@@ -1188,7 +1189,7 @@ const addMusic = async () => {
         ...data.data,
         uploadTime: new Date(data.data.createdAt)
       })
-      filteredMusicList.value = [...musicList.value]
+      updateSearchResults()
       resetForm()
       toast.success('添加音乐成功')
     } else {
@@ -1339,7 +1340,7 @@ const saveEdit = async () => {
           ...data.data,
           uploadTime: new Date(data.data.createdAt)
         }
-        filteredMusicList.value = [...musicList.value]
+        updateSearchResults()
       }
       editingMusic.value = null
       toast.success('编辑音乐成功')
@@ -1373,7 +1374,7 @@ const deleteMusic = async (id) => {
       const data = await response.json()
       if (data.success) {
         musicList.value = musicList.value.filter(music => music.id !== id)
-        filteredMusicList.value = [...musicList.value]
+        updateSearchResults()
         toast.success('删除音乐成功')
       } else {
         console.error('删除音乐失败:', data.message)
@@ -1431,18 +1432,85 @@ const searchMusicAPI = async (query) => {
   }
 }
 
-// 监听搜索查询变化
-const updateSearchResults = async () => {
-  if (!searchQuery.value.trim()) {
-    filteredMusicList.value = musicList.value
-  } else {
-    // 可以选择使用API搜索或本地搜索
-    // 这里我们使用本地搜索，因为已经获取了所有音乐数据
-    const query = searchQuery.value.toLowerCase()
-    filteredMusicList.value = musicList.value.filter(music =>
-      music.title.toLowerCase().includes(query) ||
-      music.artist.toLowerCase().includes(query)
+const MUSIC_SEARCH_FIELD_ALIASES = {
+  id: 'id',
+  title: 'title',
+  name: 'title',
+  song: 'title',
+  artist: 'artist',
+  singer: 'artist',
+  album: 'album',
+  language: 'language',
+  lang: 'language',
+  tag: 'tags',
+  tags: 'tags',
+  user: 'uploadUserId',
+  uploader: 'uploadUserId',
+  quality: 'quality'
+}
+
+const MUSIC_SEARCH_TEXT_FIELDS = [
+  'id',
+  'title',
+  'artist',
+  'album',
+  'language',
+  'tags',
+  'uploadUserId',
+  'quality'
+]
+
+const parseMusicSearchQuery = (query) => {
+  const raw = typeof query === 'string' ? query.trim() : ''
+  if (!raw) return { filters: [], freeText: [] }
+
+  const filters = []
+  const freeText = []
+  for (const token of raw.replace(/\s*=\s*/g, '=').split(/\s+/)) {
+    const separator = token.indexOf('=')
+    if (separator > 0) {
+      const key = token.slice(0, separator).toLowerCase()
+      const value = token.slice(separator + 1).trim()
+      const field = MUSIC_SEARCH_FIELD_ALIASES[key]
+      if (field && value) {
+        filters.push({ key: field, value })
+        continue
+      }
+    }
+    if (token) freeText.push(token.toLowerCase())
+  }
+  return { filters, freeText }
+}
+
+const getMusicSearchFieldValue = (music, field) => {
+  if (field === 'tags') return String(music.tags ?? '')
+  if (field === 'quality') return String(music.maxQuality ?? '')
+  return String(music[field] ?? '')
+}
+
+const matchesMusicSearch = (music, search) => {
+  const filtersMatch = search.filters.every(({ key, value }) => {
+    const actual = getMusicSearchFieldValue(music, key).toLowerCase()
+    const expected = value.toLowerCase()
+    return key === 'id' || key === 'uploadUserId' ? actual === expected : actual.includes(expected)
+  })
+  if (!filtersMatch) return false
+
+  return search.freeText.every((keyword) =>
+    MUSIC_SEARCH_TEXT_FIELDS.some((field) =>
+      getMusicSearchFieldValue(music, field).toLowerCase().includes(keyword)
     )
+  )
+}
+
+// 根据搜索语法过滤音乐列表
+const updateSearchResults = async () => {
+  const query = searchQuery.value.trim()
+  if (!query) {
+    filteredMusicList.value = [...musicList.value]
+  } else {
+    const search = parseMusicSearchQuery(query)
+    filteredMusicList.value = musicList.value.filter(music => matchesMusicSearch(music, search))
   }
   // 重新计算总页数并重置到第一页
   totalPages.value = Math.ceil(filteredMusicList.value.length / pageSize.value)
@@ -1558,10 +1626,20 @@ const handleImageError = (event) => {
   color: var(--n-text);
 }
 
-.card__search {
-  flex: 1 1 240px;
-  max-width: 340px;
+.card__search-panel {
+  flex: 1 1 320px;
+  max-width: 560px;
   min-width: 0;
+}
+
+.card__search {
+  width: 100%;
+}
+
+.card__search-hint {
+  margin: var(--n-space-1) 0 0;
+  color: var(--n-text-faint);
+  font-size: var(--n-text-xs);
 }
 
 .state {
