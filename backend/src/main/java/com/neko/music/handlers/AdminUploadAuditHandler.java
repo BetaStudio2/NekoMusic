@@ -6,7 +6,6 @@ import com.neko.music.model.UserUpload;
 import com.neko.music.service.EmbeddedMetadataSyncService;
 import com.neko.music.service.MusicIngestSupport;
 import com.neko.music.util.MusicPinyinColumns;
-import com.neko.music.util.MusicAdMetadataPatcher;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -29,11 +28,17 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class AdminUploadAuditHandler extends ApiServlet {
     private static final Logger logger = LoggerFactory.getLogger(AdminUploadAuditHandler.class);
     private static final String MUSIC_AUDIO_DIR = "Music/music";
     private static final String MUSIC_COVERS_DIR = "Music/covers";
+
+    /** 审核提交后的歌词索引、声纹刷新与通知均不阻塞接口响应。 */
+    private static final ExecutorService POST_AUDIT_EXECUTOR = Executors.newThreadPerTaskExecutor(
+            Thread.ofVirtual().name("audit-post-", 0).factory());
 
     /** 审核结果站内消息类型，与「站内消息」文档中的 type 取值一致。 */
     private static final String NOTIFY_TYPE_UPLOAD_APPROVED = "upload_approved";
@@ -301,8 +306,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
                     ? musicId + getFileExtension(upload.getCoverFilePath())
                     : null;
 
-            // 将临时文件重命名为最终文件名；先在临时位置写入内嵌元数据，失败时还原成本更低
-            MusicAdMetadataPatcher.patchQuietly(Paths.get(tempMusicPath));
+            // 将临时文件重命名为最终文件名；内嵌元数据由提交后的统一同步任务写入
             String newMusicPath = Paths.get(MUSIC_AUDIO_DIR, newMusicFileName).toString();
             moveWithUndo(Paths.get(tempMusicPath), Paths.get(newMusicPath), fileUndoLog);
             logger.info("重命名音乐文件: {} -> {}", tempMusicPath, newMusicPath);
@@ -331,67 +335,10 @@ public class AdminUploadAuditHandler extends ApiServlet {
             conn.commit();
             committed = true;
             fileUndoLog.clear();
+            int approvedMusicId = musicId;
 
-            // 事务已提交，以下均为尽力而为的后置动作，失败不影响审核结果
-            try {
-                if (Main.getLyricsSearchIndex() != null) {
-                    Main.getLyricsSearchIndex().rebuildOne(musicId);
-                }
-            } catch (Exception e) {
-                logger.warn("重建歌词索引失败 musicId={}", musicId, e);
-            }
-            syncEmbeddedMetadataQuietly(musicId);
-
-            // 仅在审核通过并正式进入曲库后，异步生成并发布新的声纹索引。
-            MusicIngestSupport.invalidateRecognitionIndex();
-            
-            // 发送通知
-//            try {
-//                boolean notificationSent = Main.getNotificationService().sendMusicApprovedNotification(
-//                    upload.getTitle(),
-//                    upload.getArtist(),
-//                    upload.getUserId()
-//                );
-//
-//                if (notificationSent) {
-//                    logger.info("审核通过通知已发送");
-//                } else {
-//                    logger.warn("审核通过通知发送失败");
-//                }
-//            } catch (Exception e) {
-//                logger.error("发送审核通过通知失败: " + e.getMessage(), e);
-//                // 通知发送失败不影响审核通过操作
-//            }
-            
-            // 获取用户邮箱并发送通知邮件
-            try {
-                String userEmail = getUserEmailById(upload.getUserId());
-                
-                if (userEmail != null && !userEmail.isEmpty()) {
-                    boolean emailSent = Main.getEmailService().sendReviewApprovedEmail(
-                        userEmail,
-                        upload.getTitle(),
-                        upload.getArtist()
-                    );
-                    
-                    if (emailSent) {
-                        logger.info("审核通过邮件已发送至: {}", userEmail);
-                    } else {
-                        logger.warn("审核通过邮件发送失败: {}", userEmail);
-                    }
-                } else {
-                    logger.warn("用户 {} 没有邮箱地址，无法发送审核通过邮件", upload.getUserId());
-                }
-            } catch (Exception e) {
-                logger.error("获取用户邮箱或发送邮件失败: " + e.getMessage(), e);
-                // 邮件发送失败不影响审核通过操作
-            }
-
-            // 站内消息：审核通过后给上传者推一条（与邮件相互独立，失败不影响审核结果）
-            notifyUploadReview(upload, NOTIFY_TYPE_UPLOAD_APPROVED,
-                    "《" + upload.getTitle() + "》审核通过",
-                    "你上传的音乐" + artistSuffix(upload.getArtist()) + "已加入曲库，现在可以播放了。",
-                    "/detail/" + musicId);
+            // 音频可能马上被播放，标签重写必须在响应前完成，避免与读取并发。
+            syncEmbeddedMetadataQuietly(approvedMusicId);
 
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);
@@ -400,9 +347,29 @@ public class AdminUploadAuditHandler extends ApiServlet {
                 "uploadId", uploadId,
                 "status", "approved"
             ));
-            
+
+            // 先回应请求；以下均为事务提交后的尽力而为动作，失败不影响审核结果
             sendJsonResponse(response, result);
             logger.info("审核通过成功，上传ID: {}", uploadId);
+
+            submitPostAuditTask(uploadId, "通过", () -> {
+                scheduleReviewApprovedEmail(upload);
+                notifyUploadReview(upload, NOTIFY_TYPE_UPLOAD_APPROVED,
+                        "《" + upload.getTitle() + "》审核通过",
+                        "你上传的音乐" + artistSuffix(upload.getArtist()) + "已加入曲库，现在可以播放了。",
+                        "/detail/" + approvedMusicId);
+
+                try {
+                    if (Main.getLyricsSearchIndex() != null) {
+                        Main.getLyricsSearchIndex().rebuildOne(approvedMusicId);
+                    }
+                } catch (Exception e) {
+                    logger.warn("重建歌词索引失败 musicId={}", approvedMusicId, e);
+                }
+
+                // 仅在审核通过并正式进入曲库后，异步生成并发布新的声纹索引。
+                MusicIngestSupport.invalidateRecognitionIndex();
+            });
             
         } catch (Exception e) {
             logger.error("审核通过失败 uploadId={}", uploadId, e);
@@ -475,37 +442,6 @@ public class AdminUploadAuditHandler extends ApiServlet {
             // 2. 记录已删除，文件属于尽力清理
             deleteUploadFiles(upload);
 
-            // 3. 发送拒绝通知邮件（失败不影响审核结果）
-            try {
-                String userEmail = getUserEmailById(upload.getUserId());
-                
-                if (userEmail != null && !userEmail.isEmpty()) {
-                    boolean emailSent = Main.getEmailService().sendReviewRejectedEmail(
-                        userEmail,
-                        upload.getTitle(),
-                        upload.getArtist(),
-                        reason
-                    );
-                    
-                    if (emailSent) {
-                        logger.info("审核拒绝邮件已发送至: {}", userEmail);
-                    } else {
-                        logger.warn("审核拒绝邮件发送失败: {}", userEmail);
-                    }
-                } else {
-                    logger.warn("用户 {} 没有邮箱地址，无法发送审核拒绝邮件", upload.getUserId());
-                }
-            } catch (Exception e) {
-                logger.error("获取用户邮箱或发送邮件失败: " + e.getMessage(), e);
-                // 邮件发送失败不影响审核结果
-            }
-
-            // 站内消息：审核未通过后给上传者推一条（与邮件相互独立，失败不影响审核结果）
-            notifyUploadReview(upload, NOTIFY_TYPE_UPLOAD_REJECTED,
-                    "《" + upload.getTitle() + "》审核未通过",
-                    "你上传的音乐" + artistSuffix(upload.getArtist()) + "未通过审核。原因：" + reason,
-                    "/upload");
-
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);
             result.put("message", ApiMessages.translate("admin.upload_audit.rejected"));
@@ -514,9 +450,18 @@ public class AdminUploadAuditHandler extends ApiServlet {
                 "status", "rejected",
                 "reason", reason
             ));
-            
+
+            // 先回应请求；邮件与站内消息均为后置通知，失败不影响审核结果
             sendJsonResponse(response, result);
             logger.info("审核拒绝成功，上传ID: {}, 原因: {}", uploadId, reason);
+
+            submitPostAuditTask(uploadId, "拒绝", () -> {
+                scheduleReviewRejectedEmail(upload, reason);
+                notifyUploadReview(upload, NOTIFY_TYPE_UPLOAD_REJECTED,
+                        "《" + upload.getTitle() + "》审核未通过",
+                        "你上传的音乐" + artistSuffix(upload.getArtist()) + "未通过审核。原因：" + reason,
+                        "/upload");
+            });
             
         } catch (Exception e) {
             logger.error("审核拒绝失败 uploadId={}", uploadId, e);
@@ -666,6 +611,43 @@ public class AdminUploadAuditHandler extends ApiServlet {
         } catch (Exception e) {
             logger.error("写入审核结果站内消息异常: uploadId={}, type={}", upload.getId(), type, e);
         }
+    }
+
+    /** 提交后置任务；任何异常只记日志，不再影响已经返回的审核响应。 */
+    private void submitPostAuditTask(int uploadId, String action, Runnable task) {
+        try {
+            POST_AUDIT_EXECUTOR.execute(() -> {
+                try {
+                    task.run();
+                } catch (Exception e) {
+                    logger.error("审核{}后置任务失败 uploadId={}", action, uploadId, e);
+                }
+            });
+        } catch (RuntimeException e) {
+            logger.error("提交审核{}后置任务失败 uploadId={}", action, uploadId, e);
+        }
+    }
+
+    /** 审核通过邮件交给后台邮件队列发送；响应已在调用前写出。 */
+    private void scheduleReviewApprovedEmail(UserUpload upload) {
+        String userEmail = getUserEmailById(upload.getUserId());
+        if (userEmail == null || userEmail.isBlank()) {
+            logger.warn("用户 {} 没有邮箱地址，无法发送审核通过邮件", upload.getUserId());
+            return;
+        }
+        Main.getEmailService().scheduleReviewApprovedEmail(
+                userEmail, upload.getTitle(), upload.getArtist());
+    }
+
+    /** 审核拒绝邮件交给后台邮件队列发送；响应已在调用前写出。 */
+    private void scheduleReviewRejectedEmail(UserUpload upload, String reason) {
+        String userEmail = getUserEmailById(upload.getUserId());
+        if (userEmail == null || userEmail.isBlank()) {
+            logger.warn("用户 {} 没有邮箱地址，无法发送审核拒绝邮件", upload.getUserId());
+            return;
+        }
+        Main.getEmailService().scheduleReviewRejectedEmail(
+                userEmail, upload.getTitle(), upload.getArtist(), reason);
     }
 
     /** 站内消息正文里的歌手片段：没有歌手时返回空串，避免出现空括号。 */

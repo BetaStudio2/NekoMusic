@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 public class EmailService {
     private static final Logger logger = LoggerFactory.getLogger(EmailService.class);
@@ -40,6 +41,11 @@ public class EmailService {
 
     /** 超过此长度时正文不内嵌歌词，改为 UTF-8 附件（不截断） */
     private static final int NETEASE_LYRICS_INLINE_MAX_CHARS = 48_000;
+
+    /** SMTP 网络超时：避免异常邮件服务器长时间占住异步发送线程。 */
+    private static final String SMTP_CONNECTION_TIMEOUT_MS = "5000";
+    private static final String SMTP_READ_TIMEOUT_MS = "10000";
+    private static final String SMTP_WRITE_TIMEOUT_MS = "10000";
 
     /** 邮件正文中「审核时间 / 生成时间 / 通知时间」统一格式。 */
     private static final DateTimeFormatter TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -359,6 +365,12 @@ public class EmailService {
         return sendEmail(toEmail, subject, content);
     }
 
+    /** 异步发送审核拒绝邮件，不阻塞审核接口响应。 */
+    public void scheduleReviewRejectedEmail(String toEmail, String musicName, String artistName, String rejectReason) {
+        scheduleReviewEmail("拒绝", toEmail, () -> sendReviewRejectedEmail(
+                toEmail, musicName, artistName, rejectReason));
+    }
+
     /**
      * 发送审核通过邮件
      */
@@ -378,12 +390,39 @@ public class EmailService {
         return sendEmail(toEmail, subject, content);
     }
 
+    /** 异步发送审核通过邮件，不阻塞审核接口响应。 */
+    public void scheduleReviewApprovedEmail(String toEmail, String musicName, String artistName) {
+        scheduleReviewEmail("通过", toEmail, () -> sendReviewApprovedEmail(toEmail, musicName, artistName));
+    }
+
+    /** 审核邮件统一进入单线程异步队列，避免并发建连触发 SMTP 限流。 */
+    private void scheduleReviewEmail(String result, String toEmail, BooleanSupplier sender) {
+        try {
+            ASYNC_MAIL_EXECUTOR.execute(() -> {
+                try {
+                    if (sender.getAsBoolean()) {
+                        logger.info("审核{}邮件已发送至: {}", result, toEmail);
+                    } else {
+                        logger.warn("审核{}邮件发送失败: {}", result, toEmail);
+                    }
+                } catch (Exception e) {
+                    logger.error("异步发送审核{}邮件异常: {}", result, toEmail, e);
+                }
+            });
+        } catch (RuntimeException e) {
+            logger.error("提交审核{}邮件异步任务失败: {}", result, toEmail, e);
+        }
+    }
+
     /** 按当前 SMTP 配置构造会话（SSL/TLS 与认证方式与原各发送方法内联写法一致）。 */
     private Session createSession() {
         Properties props = new Properties();
         props.put("mail.smtp.host", configManager.getSmtpHost());
         props.put("mail.smtp.port", String.valueOf(configManager.getSmtpPort()));
         props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.connectiontimeout", SMTP_CONNECTION_TIMEOUT_MS);
+        props.put("mail.smtp.timeout", SMTP_READ_TIMEOUT_MS);
+        props.put("mail.smtp.writetimeout", SMTP_WRITE_TIMEOUT_MS);
         if (configManager.isSmtpSsl()) {
             props.put("mail.smtp.ssl.enable", "true");
         } else if (configManager.isSmtpTls()) {
