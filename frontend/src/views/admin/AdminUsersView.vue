@@ -3,7 +3,10 @@
     <header class="subpage__head">
       <div>
         <h1 class="subpage__title">用户管理</h1>
-        <p class="subpage__desc">管理平台用户信息，包括查看用户列表、编辑用户权限等操作。</p>
+        <p class="subpage__desc">
+          管理平台用户信息，支持 <code>id=77</code>、<code>username=...</code>、
+          <code>nickname=...</code>、<code>email=...</code> 语法搜索，多个条件用空格分隔。
+        </p>
       </div>
     </header>
 
@@ -18,7 +21,7 @@
       <NInput
         v-model="searchQuery"
         icon="search"
-        placeholder="搜索用户名、昵称或邮箱…"
+        placeholder="例如：id=77  username=alice"
         clearable
         class="toolbar__search"
       />
@@ -404,11 +407,51 @@ const getUserDisplayName = (user) => {
   return username || nickname || '未命名用户'
 }
 
-const matchesUserSearch = (user, query) => {
-  const keyword = query.trim().toLowerCase()
-  if (!keyword) return true
-  return [user.username, user.nickname, user.email].some(
-    (value) => typeof value === 'string' && value.toLowerCase().includes(keyword)
+const USER_SEARCH_FIELDS = new Set(['id', 'username', 'nickname', 'email', 'role'])
+
+const parseUserSearchQuery = (query) => {
+  const raw = typeof query === 'string' ? query.trim() : ''
+  if (!raw) return { filters: [], freeText: [] }
+
+  const filters = []
+  const freeText = []
+  for (const token of raw.replace(/\s*=\s*/g, '=').split(/\s+/)) {
+    const separator = token.indexOf('=')
+    if (separator > 0) {
+      const key = token.slice(0, separator).toLowerCase()
+      const value = token.slice(separator + 1).trim()
+      if (USER_SEARCH_FIELDS.has(key) && value) {
+        filters.push({ key, value })
+        continue
+      }
+    }
+    if (token) freeText.push(token.toLowerCase())
+  }
+  return { filters, freeText }
+}
+
+const parsedUserSearch = computed(() => parseUserSearchQuery(searchQuery.value))
+
+const getUserSearchFieldValue = (user, field) => {
+  if (field === 'id') return String(user.id ?? '')
+  if (field === 'username') return String(user.username ?? '')
+  if (field === 'nickname') return String(user.nickname ?? '')
+  if (field === 'email') return String(user.email ?? '')
+  if (field === 'role') return String(user.role ?? '')
+  return ''
+}
+
+const matchesUserSearch = (user, search) => {
+  const filtersMatch = search.filters.every(({ key, value }) => {
+    const actual = getUserSearchFieldValue(user, key).toLowerCase()
+    const expected = value.toLowerCase()
+    return key === 'id' || key === 'role' ? actual === expected : actual.includes(expected)
+  })
+  if (!filtersMatch) return false
+
+  return search.freeText.every((keyword) =>
+    ['id', 'username', 'nickname', 'email']
+      .some((field) => getUserSearchFieldValue(user, field).toLowerCase().includes(keyword))
   )
 }
 
@@ -425,7 +468,7 @@ const filteredUsers = computed(() => {
   }
   
   // 按搜索查询过滤
-  result = result.filter(user => matchesUserSearch(user, searchQuery.value))
+  result = result.filter(user => matchesUserSearch(user, parsedUserSearch.value))
   
   // 计算分页
   const startIndex = (currentPage.value - 1) * usersPerPage
@@ -446,7 +489,7 @@ const totalPages = computed(() => {
   }
   
   // 应用搜索过滤
-  result = result.filter(user => matchesUserSearch(user, searchQuery.value))
+  result = result.filter(user => matchesUserSearch(user, parsedUserSearch.value))
   
   return Math.max(1, Math.ceil(result.length / usersPerPage))
 })
@@ -732,6 +775,10 @@ watch(currentPage, (newPage) => {
   } else if (newPage > totalPages.value && totalPages.value > 0) {
     currentPage.value = totalPages.value
   }
+})
+
+watch([searchQuery, accountType], () => {
+  currentPage.value = 1
 })
 
 </script>
