@@ -3,6 +3,7 @@ import App from './App.vue'
 import router from './router'
 import { installNekoClientHeader } from './config/clientIdentity.js'
 import { installReplayProtection } from './utils/replayNonce.js'
+import { installAdminUnauthorizedHandler } from './utils/adminUnauthorized.js'
 import './assets/main.css'
 import './design/tokens.css'
 import './design/reset.css'
@@ -36,6 +37,9 @@ installNekoClientHeader()
 
 // 通用防重放：动态接口自动补一次性 X-Neko-Nonce（依赖上面的 fetch/XHR 补丁，须在其后安装）
 installReplayProtection()
+
+// 管理员会话失效：后台管理请求返回 401 时清理登录态并回到登录页（须在最外层请求补丁之后安装）
+installAdminUnauthorizedHandler(router)
 
 // PWA：尽早注册安装提示监听与 Service Worker（仅生产注册 SW）
 initPwa()
