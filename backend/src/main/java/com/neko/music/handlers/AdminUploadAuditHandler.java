@@ -129,11 +129,13 @@ public class AdminUploadAuditHandler extends ApiServlet {
     private void handleGetPendingUploads(HttpServletResponse response) throws IOException {
         try {
             String sql = """
-                SELECT id, user_id, title, artist, album, language, tags, duration,
-                       music_file_path, cover_file_path, lyrics_file_path, status, created_at
-                FROM user_uploads
-                WHERE status = 'pending'
-                ORDER BY created_at DESC
+                SELECT u.id, u.user_id, u.title, u.artist, u.album, u.language, u.tags, u.duration,
+                       u.music_file_path, u.cover_file_path, u.lyrics_file_path, u.status, u.created_at,
+                       usr.nickname AS user_nickname
+                FROM user_uploads u
+                LEFT JOIN users usr ON usr.id = u.user_id
+                WHERE u.status = 'pending'
+                ORDER BY u.created_at DESC
                 """;
             
             List<Map<String, Object>> pendingUploads = new ArrayList<>();
@@ -156,6 +158,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
                     upload.put("coverFilePath", rs.getString("cover_file_path"));
                     upload.put("lyricsFilePath", rs.getString("lyrics_file_path"));
                     upload.put("status", rs.getString("status"));
+                    upload.put("userNickname", rs.getString("user_nickname"));
                     
                     // 将 Timestamp 转换为字符串
                     java.sql.Timestamp createdAt = rs.getTimestamp("created_at");

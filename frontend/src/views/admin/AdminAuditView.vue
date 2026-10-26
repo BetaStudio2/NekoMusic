@@ -17,6 +17,8 @@
 
     <div v-else class="list">
       <NCard v-for="upload in pendingUploads" :key="upload.id" pad="none" class="audit">
+        <span class="audit__record-ribbon">#{{ upload.id }}</span>
+
         <!-- 头部 -->
         <header class="audit__head">
           <div class="audit__cover">
@@ -39,31 +41,41 @@
           </div>
 
           <div class="audit__meta">
-            <span>{{ formatDateTime(upload.createdAt) }}</span>
+            <span class="audit__uploader">上传者：{{ upload.userNickname || '未知用户' }}</span>
             <span>用户 ID {{ upload.userId }}</span>
+            <span>提交于 {{ formatDateTime(upload.createdAt) }}</span>
           </div>
         </header>
 
         <!-- 详情 -->
         <div class="audit__body">
-          <dl class="details">
-            <div class="details__item">
-              <dt>专辑</dt>
-              <dd>{{ upload.album || '未知专辑' }}</dd>
-            </div>
-            <div class="details__item">
-              <dt>语言</dt>
-              <dd>{{ upload.language }}</dd>
-            </div>
-            <div class="details__item">
-              <dt>时长</dt>
-              <dd>{{ formatDuration(upload.duration) }}</dd>
-            </div>
-            <div class="details__item">
-              <dt>标签</dt>
-              <dd>{{ upload.tags || '无' }}</dd>
-            </div>
-          </dl>
+          <div class="details-groups">
+            <section class="details-group">
+              <h3 class="details-group__title">歌曲信息</h3>
+              <dl class="details">
+                <div class="details__item">
+                  <dt>专辑</dt>
+                  <dd>{{ upload.album || '未知专辑' }}</dd>
+                </div>
+                <div class="details__item">
+                  <dt>语言</dt>
+                  <dd>{{ upload.language }}</dd>
+                </div>
+                <div class="details__item">
+                  <dt>时长</dt>
+                  <dd>{{ formatDuration(upload.duration) }}</dd>
+                </div>
+                <div class="details__item">
+                  <dt>标签</dt>
+                  <dd>{{ upload.tags || '无' }}</dd>
+                </div>
+                <div class="details__item">
+                  <dt>格式</dt>
+                  <dd>{{ getFileFormat(upload.musicFilePath) }}</dd>
+                </div>
+              </dl>
+            </section>
+          </div>
 
           <!-- 歌词预览 -->
           <section class="lyrics">
@@ -540,6 +552,13 @@ const getFileName = (filePath) => {
   return parts[parts.length - 1]
 }
 
+// 获取音频文件格式
+const getFileFormat = (filePath) => {
+  if (!filePath) return '未知'
+  const match = filePath.match(/\.([a-z0-9]+)$/i)
+  return match ? match[1].toUpperCase() : '未知'
+}
+
 // 格式化日期时间
 const formatDateTime = (dateTime) => {
   if (!dateTime) return ''
@@ -780,7 +799,26 @@ onMounted(() => {
 }
 
 .audit {
+  position: relative;
   overflow: hidden;
+}
+
+.audit__record-ribbon {
+  position: absolute;
+  top: var(--n-space-4);
+  right: calc((var(--n-space-12) + var(--n-space-2)) * -1);
+  z-index: var(--n-z-content);
+  width: 12rem;
+  padding: var(--n-space-1) 0;
+  transform: rotate(45deg);
+  background: var(--n-accent-strong);
+  color: var(--n-text-inverse);
+  font-size: var(--n-text-xs);
+  font-weight: var(--n-weight-semibold);
+  line-height: var(--n-leading-tight);
+  letter-spacing: 0.04em;
+  text-align: center;
+  pointer-events: none;
 }
 
 .audit__head {
@@ -788,6 +826,7 @@ onMounted(() => {
   align-items: center;
   gap: var(--n-space-4);
   padding: var(--n-space-5);
+  padding-right: calc(var(--n-space-16) + var(--n-space-8));
   border-bottom: 1px solid var(--n-line-subtle);
 }
 
@@ -845,16 +884,46 @@ onMounted(() => {
   font-size: var(--n-text-xs);
 }
 
+.audit__uploader {
+  max-width: 18rem;
+  color: var(--n-text);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
 /* ==================== 详情 ==================== */
 .audit__body {
   padding: var(--n-space-5);
 }
 
+.details-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--n-space-5);
+  margin-bottom: var(--n-space-5);
+}
+
+.details-group {
+  min-width: 0;
+  padding: var(--n-space-4);
+  border: 1px solid var(--n-line-subtle);
+  border-radius: var(--n-radius-control);
+  background: var(--n-surface-sunken);
+}
+
+.details-group__title {
+  margin: 0 0 var(--n-space-3);
+  color: var(--n-text-muted);
+  font-size: var(--n-text-sm);
+  font-weight: var(--n-weight-semibold);
+}
+
 .details {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: var(--n-space-3) var(--n-space-5);
-  margin: 0 0 var(--n-space-5);
+  grid-template-columns: 1fr;
+  gap: var(--n-space-2);
+  margin: 0;
 }
 
 .details__item {
@@ -994,6 +1063,12 @@ onMounted(() => {
 @media (max-width: 560px) {
   .audit__head {
     flex-wrap: wrap;
+    padding-top: var(--n-space-10);
+    padding-right: var(--n-space-5);
+  }
+
+  .audit__record-ribbon {
+    top: 0;
   }
 
   .audit__meta {
