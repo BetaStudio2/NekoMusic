@@ -23,7 +23,9 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 /** 管理员上传客户端安装包（按平台校验类型，落盘为 /version 接口预期的文件名） */
 public class AdminClientReleaseUploadHandler extends HttpServlet {
@@ -110,6 +112,7 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
 
             Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
             temp = null;
+            cleanupObsoletePlatformPackages(platform, expectedFileName);
 
             // 安装包体积变了，/version 里展示的 size 必须立刻跟上（成品缓存按需失效）
             JsonResponseCache.invalidate(AppReleaseService.VERSION_JSON_CACHE_KEY);
@@ -155,6 +158,35 @@ public class AdminClientReleaseUploadHandler extends HttpServlet {
     private static String readPartText(Part part) throws IOException {
         byte[] bytes = part.getInputStream().readAllBytes();
         return new String(bytes, java.nio.charset.StandardCharsets.UTF_8).trim();
+    }
+
+    /** 新包落盘后清理同平台历史包；当前对外版本包要保留到 pending 版本真正生效。 */
+    private static void cleanupObsoletePlatformPackages(String platform, String targetFileName) {
+        Optional<AppReleaseService.AppReleaseState> state =
+                Main.getAppReleaseService().getReleaseStateForAdmin();
+        if (state.isEmpty()) {
+            logger.warn("跳过旧安装包清理：无法读取当前发布版本 platform={}", platform);
+            return;
+        }
+
+        Set<String> keepFileNames = new HashSet<>();
+        keepFileNames.add(targetFileName);
+        String publishedFileName = ClientReleaseStorage.expectedFileNameForPlatform(
+                platform, state.get().published());
+        if (publishedFileName != null) {
+            keepFileNames.add(publishedFileName);
+        }
+
+        try {
+            int removed = ClientReleaseStorage.deleteObsoletePlatformPackages(platform, keepFileNames);
+            if (removed > 0) {
+                logger.info("已清理旧安装包 platform={} removed={} keep={}",
+                        platform, removed, keepFileNames);
+            }
+        } catch (IOException e) {
+            // 新包已经上传成功，清理失败不能让调用方误以为上传失败。
+            logger.warn("清理旧安装包失败 platform={}: {}", platform, e.getMessage());
+        }
     }
 
     /** 手机 APK 校验包名、版本与签名；手表包为独立构建，不做 APK 校验。 */

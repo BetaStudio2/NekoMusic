@@ -7,7 +7,11 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
@@ -17,6 +21,8 @@ import com.neko.music.i18n.ApiMessages;
 public final class ClientReleaseStorage {
 
     private static final String RELEASES_DIR_NAME = "releases";
+    private static final String WATCH_FILE_PREFIX = "NekoMusic-watch-";
+    private static final List<String> PLATFORMS = List.of("android", "watch", "windows", "linux", "mac");
 
     /** 50 MiB（二进制），非 50 MB（十进制） */
     public static final long MAX_UPLOAD_BYTES = 50L * 1024 * 1024;
@@ -45,7 +51,7 @@ public final class ClientReleaseStorage {
         if (watchVer == null || watchVer.isBlank()) {
             return null;
         }
-        return "NekoMusic-watch-" + watchVer.trim() + ".apk";
+        return WATCH_FILE_PREFIX + watchVer.trim() + ".apk";
     }
 
     public static String windowsExeFileName(String pcVer) {
@@ -167,6 +173,85 @@ public final class ClientReleaseStorage {
         return resolved;
     }
 
+    /** 删除同平台下不再需要的安装包，保留传入的文件名（通常是新包与当前对外版本包）。 */
+    public static int deleteObsoletePlatformPackages(
+            String platform, Collection<String> keepFileNames) throws IOException {
+        return deleteObsoletePlatformPackages(storageDir(), platform, keepFileNames);
+    }
+
+    static int deleteObsoletePlatformPackages(
+            Path directory, String platform, Collection<String> keepFileNames) throws IOException {
+        String normalizedPlatform = normalizePlatform(platform);
+        if (normalizedPlatform == null) {
+            throw new IllegalArgumentException("无效的平台: " + platform);
+        }
+        if (!Files.isDirectory(directory)) {
+            return 0;
+        }
+
+        Set<String> keep = new HashSet<>();
+        if (keepFileNames != null) {
+            for (String fileName : keepFileNames) {
+                if (fileName != null && !fileName.isBlank()) {
+                    keep.add(fileName);
+                    keep.add(fileName.toLowerCase(Locale.ROOT));
+                }
+            }
+        }
+
+        List<Path> obsolete;
+        try (var files = Files.list(directory)) {
+            obsolete = files
+                    .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
+                    .filter(path -> belongsToPlatform(path.getFileName().toString(), normalizedPlatform))
+                    .filter(path -> !keep.contains(path.getFileName().toString())
+                            && !keep.contains(path.getFileName().toString().toLowerCase(Locale.ROOT)))
+                    .toList();
+        }
+
+        int deleted = 0;
+        IOException failure = null;
+        for (Path path : obsolete) {
+            try {
+                if (Files.deleteIfExists(path)) {
+                    deleted++;
+                }
+            } catch (IOException e) {
+                if (failure == null) {
+                    failure = e;
+                } else {
+                    failure.addSuppressed(e);
+                }
+            }
+        }
+        if (failure != null) {
+            throw failure;
+        }
+        return deleted;
+    }
+
+    /** 当前发布版本生效后清理所有平台的历史安装包。 */
+    public static int deleteObsoleteReleasePackages(
+            String androidVer, String pcVer, String watchVer) throws IOException {
+        return deleteObsoleteReleasePackages(storageDir(), androidVer, pcVer, watchVer);
+    }
+
+    static int deleteObsoleteReleasePackages(
+            Path directory, String androidVer, String pcVer, String watchVer) throws IOException {
+        Set<String> keep = new HashSet<>();
+        addIfPresent(keep, androidVer == null || androidVer.isBlank() ? null : androidApkFileName(androidVer));
+        addIfPresent(keep, watchApkFileName(watchVer));
+        addIfPresent(keep, pcVer == null || pcVer.isBlank() ? null : windowsExeFileName(pcVer));
+        addIfPresent(keep, pcVer == null || pcVer.isBlank() ? null : linuxDebFileName(pcVer));
+        addIfPresent(keep, pcVer == null || pcVer.isBlank() ? null : macPkgFileName(pcVer));
+
+        int deleted = 0;
+        for (String platform : PLATFORMS) {
+            deleted += deleteObsoletePlatformPackages(directory, platform, keep);
+        }
+        return deleted;
+    }
+
     public static String contentTypeForFileName(String fileName) {
         String lower = fileName.toLowerCase(Locale.ROOT);
         if (lower.endsWith(".apk")) {
@@ -202,6 +287,32 @@ public final class ClientReleaseStorage {
             }
         }
         return false;
+    }
+
+    private static String normalizePlatform(String platform) {
+        if (platform == null) {
+            return null;
+        }
+        String normalized = platform.trim().toLowerCase(Locale.ROOT);
+        return PLATFORMS.contains(normalized) ? normalized : null;
+    }
+
+    private static boolean belongsToPlatform(String fileName, String normalizedPlatform) {
+        String lower = fileName.toLowerCase(Locale.ROOT);
+        return switch (normalizedPlatform) {
+            case "android" -> lower.endsWith(".apk") && !lower.startsWith(WATCH_FILE_PREFIX.toLowerCase(Locale.ROOT));
+            case "watch" -> lower.endsWith(".apk") && lower.startsWith(WATCH_FILE_PREFIX.toLowerCase(Locale.ROOT));
+            case "windows" -> lower.endsWith(".exe");
+            case "linux" -> lower.endsWith(".deb");
+            case "mac" -> lower.endsWith(".pkg");
+            default -> false;
+        };
+    }
+
+    private static void addIfPresent(Set<String> target, String fileName) {
+        if (fileName != null && !fileName.isBlank()) {
+            target.add(fileName);
+        }
     }
 
     private static String encodePathSegment(String segment) {

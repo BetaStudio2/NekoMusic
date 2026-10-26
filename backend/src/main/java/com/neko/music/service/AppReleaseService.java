@@ -1,10 +1,12 @@
 package com.neko.music.service;
 
 import com.neko.music.Main;
+import com.neko.music.util.ClientReleaseStorage;
 import com.neko.music.util.JsonResponseCache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -170,8 +172,21 @@ public class AppReleaseService {
             stmt.executeUpdate();
         }
         invalidateClientVersionCache();
+        cleanupObsoleteReleasePackages(pending);
         logger.info("待生效版本已自动发布 androidVer={} pcVer={} watchVer={}",
                 pending.androidVer(), pending.pcVer(), pending.watchVer());
+    }
+
+    private static void cleanupObsoleteReleasePackages(AppRelease release) {
+        try {
+            int removed = ClientReleaseStorage.deleteObsoleteReleasePackages(
+                    release.androidVer(), release.pcVer(), release.watchVer());
+            if (removed > 0) {
+                logger.info("新版本生效后已清理 {} 个历史安装包", removed);
+            }
+        } catch (IOException e) {
+            logger.warn("新版本生效后清理历史安装包失败: {}", e.getMessage());
+        }
     }
 
     private void upsertFirstRelease(Connection conn, String av, String pv, String wv) throws Exception {
