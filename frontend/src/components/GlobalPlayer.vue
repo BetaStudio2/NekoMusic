@@ -282,7 +282,6 @@ const duration = ref(0)
 const progress = ref(0)
 const lyrics = ref('')
 const parsedLyrics = ref([])
-const lyricsContent = ref(null)
 
 // 播放模式相关状态
 const playbackMode = ref('list_repeat') // 'list_repeat', 'single_repeat', 'shuffle'
@@ -305,8 +304,6 @@ const progressPercent = computed(() => {
   if (!total || !Number.isFinite(total) || total <= 0) return 0
   return Math.max(0, Math.min(100, (progress.value / total) * 100))
 })
-
-// 记录上一个歌词索引
 
 // 获取用户token
 const getToken = () => {
@@ -416,19 +413,16 @@ const togglePlayPause = () => {
       // 广播播放状态变化
       broadcastPlayerStateChange()
       // 立即暂停音频并静音
-      if (audioPlayer.value) {
-        audioPlayer.value.volume = 0;
-        audioPlayer.value.pause();
-      }
+      pauseAudio()
       // 更新媒体会话播放状态
       updateMediaSessionPlaybackState()
     } else {
-      // 播放：立即更新状态，然后淡入播放
+      // 播放：立即更新状态，然后起播
       isPlaying.value = true
       updateGlobalPlayerState()
       // 广播播放状态变化
       broadcastPlayerStateChange()
-      fadeIn(audioPlayer.value)
+      resumeAudio()
       safePlay(audioPlayer.value);
       // 更新媒体会话播放状态
       updateMediaSessionPlaybackState()
@@ -436,32 +430,21 @@ const togglePlayPause = () => {
   }
 }
 
-// 音量淡出效果
-const fadeOut = (audioElement) => {
-  if (!audioElement) return
-
-  // 为了防止暂停时出现重音，先快速将音量降低到0，然后暂停
-  // 使用更快速的淡出效果
-  const originalVolume = audioElement.volume;
-  
-  // 立即设置音量为0以避免重音，然后暂停音频
-  audioElement.volume = 0;
-  audioElement.pause();
+/**
+ * 恢复音量。
+ * 暂停时会把音量置 0 以避免重音，因此每次起播前都要恢复。
+ * 不做渐变：后台标签页里的任何逐帧/定时动画都可能被浏览器限流，
+ * 一旦停在中间值就会出现「几乎没声音」的问题（上游 issue #115）。
+ */
+const resumeAudio = (audioElement = audioPlayer.value) => {
+  if (audioElement) audioElement.volume = 1
 }
 
-// 音量淡入效果
-const fadeIn = (audioElement) => {
+/** 暂停并静音，避免暂停瞬间的重音。 */
+const pauseAudio = (audioElement = audioPlayer.value) => {
   if (!audioElement) return
-  
-  let v = 0
   audioElement.volume = 0
-
-  const tick = () => {
-    v += 0.03
-    audioElement.volume = Math.min(v, 1)
-    if (v < 1) requestAnimationFrame(tick)
-  }
-  tick()
+  audioElement.pause()
 }
 
 /**
@@ -751,7 +734,6 @@ const parseLrcLyrics = (lrcText) => {
   
   const lines = lrcText.split('\n')
   const parsed = []
-  let currentLyric = null
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
@@ -805,7 +787,6 @@ const parseLrcLyrics = (lrcText) => {
   parsedLyrics.value = parsed
 }
 
-// 获取指定索引的歌词行文本
 /**
  * 当前时间对应的歌词行下标（-1 = 前奏，还没到第一句）。
  * 播放条右侧「此刻」区域与全屏播放页共用同一份 parsedLyrics。
@@ -863,7 +844,7 @@ const clearPlaylist = () => {
  */
 const confirmClearPlaylist = () => {
   // 先停掉正在播放的音频（<audio> 会在 currentMusic 置空后随之卸载）
-  if (audioPlayer.value) audioPlayer.value.pause()
+  pauseAudio()
 
   playlist.value = []
   localStorage.setItem('globalPlaylist', JSON.stringify([]))
@@ -1042,10 +1023,7 @@ const handleStorageChange = (e) => {
       switchToTrack(newMusic).then(() => {
         if (!shouldPlay) {
           isPlaying.value = false
-          if (audioPlayer.value) {
-            audioPlayer.value.volume = 0
-            audioPlayer.value.pause()
-          }
+          pauseAudio()
           updateGlobalPlayerState()
           broadcastPlayerStateChange()
           updateMediaSessionPlaybackState()
@@ -1103,12 +1081,11 @@ const handleStorageChange = (e) => {
             audioPlayer.value.currentTime = state.currentTime;
             if (state.isPlaying && !previousIsPlaying) {
               // 如果状态从暂停变为播放，则开始播放音频
-              fadeIn(audioPlayer.value);
+              resumeAudio();
               safePlay(audioPlayer.value);
             } else if (!state.isPlaying) {
               // 如果状态变为暂停，则暂停音频
-              audioPlayer.value.volume = 0;
-              audioPlayer.value.pause();
+              pauseAudio()
             }
           }
         };
@@ -1128,12 +1105,11 @@ const handleStorageChange = (e) => {
             audioPlayer.value.currentTime = state.currentTime;
             if (state.isPlaying && !previousIsPlaying) {
               // 如果状态从暂停变为播放，则开始播放音频
-              fadeIn(audioPlayer.value);
+              resumeAudio();
               safePlay(audioPlayer.value);
             } else if (!state.isPlaying) {
               // 如果状态变为暂停，则暂停音频
-              audioPlayer.value.volume = 0;
-              audioPlayer.value.pause();
+              pauseAudio()
             }
           }
         };
@@ -1242,7 +1218,7 @@ const handleForcePlay = async () => {
     el.addEventListener('loadedmetadata', applyStart, { once: true })
   }
 
-  fadeIn(el)
+  resumeAudio(el)
   safePlay(el)
   broadcastPlayerStateChange()
   updateMediaSessionPlaybackState()
@@ -1295,7 +1271,7 @@ const switchToTrack = async (track) => {
     await refreshAudioSrc(currentMusic.value)
   }
 
-  // handleForcePlay 内部会 await nextTick、设置起始时间、淡入播放并广播
+  // handleForcePlay 内部会 await nextTick、设置起始时间、恢复音量并起播
   await handleForcePlay()
 }
 
@@ -1360,14 +1336,11 @@ const handlePlayerStateChange = (e) => {
         audioPlayer.value.currentTime = state.currentTime;
         if (state.isPlaying && !previousIsPlaying) {
           // 如果状态从暂停变为播放，则开始播放音频
-          fadeIn(audioPlayer.value);
+          resumeAudio();
           safePlay(audioPlayer.value);
         } else if (!state.isPlaying) {
           // 如果是暂停状态，立即暂停并静音，避免重音
-          if (audioPlayer.value) {
-            audioPlayer.value.volume = 0;
-            audioPlayer.value.pause();
-          }
+          pauseAudio()
         }
         updateGlobalPlayerState();
         // 更新媒体会话播放状态
@@ -1392,14 +1365,11 @@ const handlePlayerStateChange = (e) => {
         audioPlayer.value.currentTime = state.currentTime;
         if (state.isPlaying && !previousIsPlaying) {
           // 如果状态从暂停变为播放，则开始播放音频
-          fadeIn(audioPlayer.value);
+          resumeAudio();
           safePlay(audioPlayer.value);
         } else if (!state.isPlaying) {
           // 如果是暂停状态，立即暂停并静音，避免重音
-          if (audioPlayer.value) {
-            audioPlayer.value.volume = 0;
-            audioPlayer.value.pause();
-          }
+          pauseAudio()
         }
         updateGlobalPlayerState();
         // 更新媒体会话播放状态
@@ -1425,7 +1395,7 @@ const handlePlaylistUpdated = (e) => {
 /** 详情页试听片段时暂停底部播放器，避免双路音频与重复请求 */
 const handlePauseGlobalPlayer = () => {
   if (audioPlayer.value && !audioPlayer.value.paused) {
-    audioPlayer.value.pause()
+    pauseAudio()
     isPlaying.value = false
     updateGlobalPlayerState()
     updateMediaSessionPlaybackState()
@@ -1590,7 +1560,7 @@ const initializeMediaSession = (music = null) => {
         if (audioPlayer.value && currentMusic.value) {
           isPlaying.value = true
           updateGlobalPlayerState()
-          fadeIn(audioPlayer.value)
+          resumeAudio()
           // 调用play()来开始播放
           safePlay(audioPlayer.value);
         }
@@ -1601,10 +1571,7 @@ const initializeMediaSession = (music = null) => {
           isPlaying.value = false
           updateGlobalPlayerState()
           // 立即暂停音频并静音，避免重音
-          if (audioPlayer.value) {
-            audioPlayer.value.volume = 0;
-            audioPlayer.value.pause();
-          }
+          pauseAudio()
         }
       })
       
