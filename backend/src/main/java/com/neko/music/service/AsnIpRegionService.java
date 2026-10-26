@@ -1,6 +1,7 @@
 package com.neko.music.service;
 
 import com.maxmind.geoip2.DatabaseReader;
+import com.maxmind.geoip2.model.IspResponse;
 import com.neko.music.util.AtomicFiles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,43 +24,55 @@ import java.util.Map;
  *
  * <p>ASN 只能说明网络属于哪家运营商 / 哪个省级网络，不能定位到城市；因此这里只返回
  * 省 / 直辖市，城市仍由 MaxMind / qqwry 兜底。全国性 ASN（如 9808、4134、4837）
- * 不在映射表内，会自然回退到地理库。数据库全部从本地读取，不请求第三方接口。</p>
+ * 不在映射表内，会自然回退到地理库。商业版使用 {@code GeoIP2-ISP.mmdb}（ASN 字段与
+ * {@code GeoLite2-ASN.mmdb} 一致），两者可无缝回退。数据库全部从本地读取，不请求第三方接口。</p>
  */
 final class AsnIpRegionService {
 
     private static final Logger logger = LoggerFactory.getLogger(AsnIpRegionService.class);
 
     private static final String DATABASE_NAME = "GeoLite2-ASN.mmdb";
+    private static final String ISP_DATABASE_NAME = "GeoIP2-ISP.mmdb";
     private static final String REGION_RESOURCE = "/GeoIP/asn_regions.tsv";
     private static final Path PRIMARY_DATABASE = Paths.get("GeoIP", DATABASE_NAME);
     private static final Path CONTAINER_DATABASE = Paths.get("/app", "GeoIP", DATABASE_NAME);
 
     private static final String[] FILE_CANDIDATES = {
+            "GeoIP/" + ISP_DATABASE_NAME,
             "GeoIP/" + DATABASE_NAME,
+            ISP_DATABASE_NAME,
             DATABASE_NAME,
+            "/app/GeoIP/" + ISP_DATABASE_NAME,
             "/app/GeoIP/" + DATABASE_NAME,
+            "/usr/share/GeoIP/" + ISP_DATABASE_NAME,
             "/usr/share/GeoIP/" + DATABASE_NAME,
+            "/usr/local/share/GeoIP/" + ISP_DATABASE_NAME,
             "/usr/local/share/GeoIP/" + DATABASE_NAME,
+            "/var/lib/GeoIP/" + ISP_DATABASE_NAME,
             "/var/lib/GeoIP/" + DATABASE_NAME,
     };
     private static final String[] CLASSPATH_CANDIDATES = {
+            "/" + ISP_DATABASE_NAME,
             "/" + DATABASE_NAME,
+            "/GeoIP/" + ISP_DATABASE_NAME,
             "/GeoIP/" + DATABASE_NAME,
     };
 
     private final DatabaseReader reader;
     private final Map<Long, String> regions;
+    private final boolean ispDatabase;
 
     private AsnIpRegionService(DatabaseReader reader, Map<Long, String> regions) {
         this.reader = reader;
         this.regions = regions;
+        this.ispDatabase = isIspDatabaseType(databaseType(reader));
     }
 
     static AsnIpRegionService open() {
         DatabaseReader reader = openDatabase();
         if (reader == null) {
-            logger.warn("未找到 GeoLite2-ASN 数据库，评论归属地将直接回退到 MaxMind / qqwry。"
-                    + "请确认 JAR 内包含 /GeoLite2-ASN.mmdb，或把文件放到 GeoIP/ 或 /app/GeoIP/");
+            logger.warn("未找到 GeoIP2-ISP / GeoLite2-ASN 数据库，评论归属地将直接回退到 MaxMind / qqwry。"
+                    + "请确认 JAR 内包含 ASN 库，或把 GeoIP2-ISP.mmdb / GeoLite2-ASN.mmdb 放到 GeoIP/ 或 /app/GeoIP/");
             return null;
         }
         Map<Long, String> regions = loadRegions();
@@ -77,9 +90,10 @@ final class AsnIpRegionService {
             return IpLocation.empty();
         }
         try {
-            return reader.tryAsn(address)
-                    .map(asn -> parse(asn.autonomousSystemNumber(), regions))
-                    .orElse(IpLocation.empty());
+            Long asn = ispDatabase
+                    ? reader.tryIsp(address).map(IspResponse::autonomousSystemNumber).orElse(null)
+                    : reader.tryAsn(address).map(asnResponse -> asnResponse.autonomousSystemNumber()).orElse(null);
+            return parse(asn, regions);
         } catch (Exception e) {
             logger.debug("ASN 解析失败: ip={}, {}", address.getHostAddress(), e.getMessage());
             return IpLocation.empty();
@@ -95,6 +109,10 @@ final class AsnIpRegionService {
             return IpLocation.empty();
         }
         return new IpLocation("CN", "中国", province, "");
+    }
+
+    static boolean isIspDatabaseType(String type) {
+        return type != null && type.contains("GeoIP2-ISP");
     }
 
     private static Map<Long, String> loadRegions() {

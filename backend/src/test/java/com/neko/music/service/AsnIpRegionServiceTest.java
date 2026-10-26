@@ -32,6 +32,13 @@ class AsnIpRegionServiceTest {
     }
 
     @Test
+    void detectsCommercialIspDatabase() {
+        assertTrue(AsnIpRegionService.isIspDatabaseType("GeoIP2-ISP"));
+        assertFalse(AsnIpRegionService.isIspDatabaseType("GeoLite2-ASN"));
+        assertFalse(AsnIpRegionService.isIspDatabaseType(null));
+    }
+
+    @Test
     void loadsTabSeparatedMappingAndIgnoresComments() throws Exception {
         InputStream input = new ByteArrayInputStream((
                 "# comment\n"

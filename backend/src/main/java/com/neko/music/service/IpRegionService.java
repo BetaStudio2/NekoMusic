@@ -27,12 +27,12 @@ import java.util.concurrent.ConcurrentMap;
  * 未命中时再按本地 MaxMind 判国家 / 省市，IPv4 由 qqwry 补省、市。
  * 全程读取本地数据库，不请求任何第三方接口。
  *
- * <p>MaxMind 数据库按以下顺序自动发现（IPv4 与 IPv6 同一份 City/Country 库即可覆盖；
- * ASN 库使用同样的文件 / 类路径发现方式）：
+ * <p>MaxMind 数据库按以下顺序自动发现（IPv4 与 IPv6 同一份 City/Country 库即可覆盖；商业版
+ * GeoIP2 优先于内置 GeoLite2，ASN 库使用同样的文件 / 类路径发现方式）：
  * <ol>
- *   <li>运行目录下的 {@code GeoIP/GeoLite2-City.mmdb}（JAR 内置库释放出来的位置）</li>
+ *   <li>运行目录下的 {@code GeoIP/GeoIP2-City.mmdb} 等商业版库，或 {@code GeoIP/GeoLite2-City.mmdb}</li>
  *   <li>{@code /app/GeoIP/}、{@code /usr/share/GeoIP/}、{@code /usr/local/share/GeoIP/}、{@code /var/lib/GeoIP/}</li>
- *   <li>类路径 {@code /GeoLite2-City.mmdb}（{@code src/main/resources/} 根目录，随 JAR 分发）</li>
+ *   <li>类路径 {@code /GeoIP2-City.mmdb} / {@code /GeoLite2-City.mmdb}</li>
  * </ol>
  *
  * <p>数据库随 JAR 分发（源码在 {@code src/main/resources/GeoLite2-City.mmdb}）。若运行目录里还没有库文件，
@@ -53,30 +53,53 @@ public class IpRegionService {
     private static final String ZH = "zh-CN";
     private static final int MEMORY_CACHE_MAX = 8192;
 
-    /** 从 JAR 释放数据库时的落盘位置（相对运行目录；容器内即 /app/GeoIP/...），与 FILE_CANDIDATES 首项一致 */
+    /** 从 JAR 释放内置 Lite 库时的落盘位置（相对运行目录；容器内即 /app/GeoIP/...）。 */
     private static final Path PRIMARY_DATABASE = Paths.get("GeoIP", "GeoLite2-City.mmdb");
     private static final Path CONTAINER_DATABASE = Paths.get("/app", "GeoIP", "GeoLite2-City.mmdb");
 
     /** 外部文件候选路径，按优先级排列。 */
     private static final String[] FILE_CANDIDATES = {
+            "GeoIP/GeoIP2-Enterprise.mmdb",
+            "GeoIP/GeoIP2-City.mmdb",
+            "GeoIP/GeoIP2-Country.mmdb",
             "GeoIP/GeoLite2-City.mmdb",
             "GeoIP/GeoLite2-Country.mmdb",
+            "GeoIP2-Enterprise.mmdb",
+            "GeoIP2-City.mmdb",
+            "GeoIP2-Country.mmdb",
             "GeoLite2-City.mmdb",
             "GeoLite2-Country.mmdb",
             "data/GeoLite2-City.mmdb",
+            "/app/GeoIP/GeoIP2-Enterprise.mmdb",
+            "/app/GeoIP/GeoIP2-City.mmdb",
+            "/app/GeoIP/GeoIP2-Country.mmdb",
             "/app/GeoIP/GeoLite2-City.mmdb",
             "/app/GeoIP/GeoLite2-Country.mmdb",
+            "/app/GeoIP2-City.mmdb",
             "/app/GeoLite2-City.mmdb",
+            "/usr/share/GeoIP/GeoIP2-Enterprise.mmdb",
+            "/usr/share/GeoIP/GeoIP2-City.mmdb",
+            "/usr/share/GeoIP/GeoIP2-Country.mmdb",
             "/usr/share/GeoIP/GeoLite2-City.mmdb",
             "/usr/share/GeoIP/GeoLite2-Country.mmdb",
+            "/usr/local/share/GeoIP/GeoIP2-Enterprise.mmdb",
+            "/usr/local/share/GeoIP/GeoIP2-City.mmdb",
             "/usr/local/share/GeoIP/GeoLite2-City.mmdb",
+            "/var/lib/GeoIP/GeoIP2-Enterprise.mmdb",
+            "/var/lib/GeoIP/GeoIP2-City.mmdb",
             "/var/lib/GeoIP/GeoLite2-City.mmdb",
     };
 
     /** 类路径候选资源：数据库放在 {@code src/main/resources/} 根目录（推荐），也兼容 GeoIP/ 子目录。 */
     private static final String[] CLASSPATH_CANDIDATES = {
+            "/GeoIP2-Enterprise.mmdb",
+            "/GeoIP2-City.mmdb",
+            "/GeoIP2-Country.mmdb",
             "/GeoLite2-City.mmdb",
             "/GeoLite2-Country.mmdb",
+            "/GeoIP/GeoIP2-Enterprise.mmdb",
+            "/GeoIP/GeoIP2-City.mmdb",
+            "/GeoIP/GeoIP2-Country.mmdb",
             "/GeoIP/GeoLite2-City.mmdb",
             "/GeoIP/GeoLite2-Country.mmdb",
     };
@@ -585,9 +608,9 @@ public class IpRegionService {
     }
 
     private static void logDatabaseMissing() {
-        logger.warn("未找到 MaxMind GeoLite2 数据库，评论归属地将无法解析国外国家。"
-                        + "请确认 JAR 内包含 /GeoLite2-City.mmdb（源码位于 src/main/resources/），"
-                        + "或把数据库放到 {} 或 /app/GeoIP/GeoLite2-City.mmdb。",
+        logger.warn("未找到 MaxMind GeoIP2/GeoLite2 数据库，评论归属地将无法解析国外国家。"
+                        + "请确认 JAR 内包含城市库，"
+                        + "或把 GeoIP2-City.mmdb / GeoLite2-City.mmdb 放到 {} 或 /app/GeoIP/。",
                 PRIMARY_DATABASE.toAbsolutePath());
     }
 }

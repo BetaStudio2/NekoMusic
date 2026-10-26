@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 下载评论归属地数据库，写入 src/main/resources 供 JAR 内嵌：
+# 下载评论归属地的免费兜底数据库，写入 src/main/resources 供 JAR 内嵌：
 #   GeoLite2-City.mmdb         国外国家 / 国内城市兜底
 #   GeoLite2-ASN.mmdb          国内省级运营商 ASN
 #   GeoIP/qqwry.dat            国内 IPv4 省市补充
