@@ -3,6 +3,7 @@ package com.neko.music.util;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -40,6 +41,30 @@ public final class AtomicFiles {
         try {
             try (InputStream in = source) {
                 Files.copy(in, staging, StandardCopyOption.REPLACE_EXISTING);
+            }
+            moveReplacing(staging, destination);
+        } finally {
+            Files.deleteIfExists(staging);
+        }
+    }
+
+    /**
+     * 从仍保留的源文件生成目标文件：同文件系统优先硬链接，不支持时退回复制。
+     *
+     * <p>与 {@link #stageAndReplace(Path, Path)} 不同，本方法绝不删除源文件。调用方可以在数据库事务
+     * 提交前安全创建正式文件，提交成功后再自行清理源文件；进程在任意一步重启，源文件仍然存在，
+     * 待审核记录可以重试。</p>
+     */
+    public static void linkOrCopyAndReplace(Path source, Path destination) throws IOException {
+        Path parent = parentOf(destination);
+        Path staging = Files.createTempFile(parent, ".neko-staging-", ".part");
+        try {
+            // createLink 要求目标不存在，因此先释放 createTempFile 占用的名字。
+            Files.delete(staging);
+            try {
+                Files.createLink(staging, source);
+            } catch (UnsupportedOperationException | FileSystemException e) {
+                Files.copy(source, staging, StandardCopyOption.REPLACE_EXISTING);
             }
             moveReplacing(staging, destination);
         } finally {

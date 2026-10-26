@@ -5,6 +5,8 @@ import com.neko.music.Main;
 import com.neko.music.model.UserUpload;
 import com.neko.music.service.EmbeddedMetadataSyncService;
 import com.neko.music.service.MusicIngestSupport;
+import com.neko.music.service.UploadStorageRecovery;
+import com.neko.music.util.AtomicFiles;
 import com.neko.music.util.MusicPinyinColumns;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,7 +20,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.Timestamp;
@@ -193,7 +194,7 @@ public class AdminUploadAuditHandler extends ApiServlet {
         Connection conn = null;
         int musicId = 0;
         boolean committed = false;
-        // 记录每一次文件迁移的反向操作：事务失败时按逆序还原，避免源文件已移走而库里没有记录
+        // 记录正式文件的创建操作：事务失败时只删除新建副本；上传源文件在提交前始终保留
         Deque<Runnable> fileUndoLog = new ArrayDeque<>();
         
         try {
@@ -211,6 +212,21 @@ public class AdminUploadAuditHandler extends ApiServlet {
                 return;
             }
             
+            // 旧版本可能在事务提交前把源文件移到了 temp_ 路径；重试时先原位恢复。
+            UploadStorageRecovery.restoreLegacyTempFiles(upload);
+
+            Path sourceMusicPath = Paths.get(upload.getMusicFilePath());
+            Path sourceCoverPath = upload.getCoverFilePath() == null || upload.getCoverFilePath().isBlank()
+                    ? null : Paths.get(upload.getCoverFilePath());
+            if (!Files.isRegularFile(sourceMusicPath)) {
+                sendErrorResponse(response, 500, "admin.upload_audit.audio_missing");
+                return;
+            }
+            if (sourceCoverPath != null && !Files.isRegularFile(sourceCoverPath)) {
+                sendErrorResponse(response, 500, "admin.upload_audit.cover_missing");
+                return;
+            }
+
             // 创建Music目录及音频/封面子目录
             File audioDir = new File(MUSIC_AUDIO_DIR);
             File coversDir = new File(MUSIC_COVERS_DIR);
@@ -224,35 +240,6 @@ public class AdminUploadAuditHandler extends ApiServlet {
             // 使用事务确保原子性
             conn = Main.getDatabaseManager().getConnection();
             conn.setAutoCommit(false);
-            
-            // 先迁移文件到临时位置，避免并发冲突
-            String tempMusicFileName = "temp_" + uploadId + getFileExtension(upload.getMusicFilePath());
-            String tempCoverFileName = "temp_" + uploadId + "_cover.jpg";
-            
-            String tempMusicPath = Paths.get(MUSIC_AUDIO_DIR, tempMusicFileName).toString();
-            String tempCoverPath = Paths.get(MUSIC_COVERS_DIR, tempCoverFileName).toString();
-            
-            // 验证源文件存在并迁移到临时位置
-            if (!Files.exists(Paths.get(upload.getMusicFilePath()))) {
-                conn.rollback();
-                sendErrorResponse(response, 500, "admin.upload_audit.audio_missing");
-                return;
-            }
-            
-            moveWithUndo(Paths.get(upload.getMusicFilePath()), Paths.get(tempMusicPath), fileUndoLog);
-            logger.info("迁移音乐文件到临时位置: {} -> {}", upload.getMusicFilePath(), tempMusicPath);
-            
-            // 迁移封面文件到临时位置（如果有）
-            if (upload.getCoverFilePath() != null && !upload.getCoverFilePath().isEmpty()) {
-                if (!Files.exists(Paths.get(upload.getCoverFilePath()))) {
-                    conn.rollback();
-                    undoFileMoves(fileUndoLog);
-                    sendErrorResponse(response, 500, "admin.upload_audit.cover_missing");
-                    return;
-                }
-                moveWithUndo(Paths.get(upload.getCoverFilePath()), Paths.get(tempCoverPath), fileUndoLog);
-                logger.info("迁移封面文件到临时位置: {} -> {}", upload.getCoverFilePath(), tempCoverPath);
-            }
             
             // 在事务内插入到music表获取音乐ID（与 FileUploadHandler 一致，写入拼音检索列）
             String albumVal = upload.getAlbum() != null && !upload.getAlbum().isEmpty()
@@ -306,16 +293,18 @@ public class AdminUploadAuditHandler extends ApiServlet {
                     ? musicId + getFileExtension(upload.getCoverFilePath())
                     : null;
 
-            // 将临时文件重命名为最终文件名；内嵌元数据由提交后的统一同步任务写入
+            // 从仍保留的源文件生成正式文件；数据库提交前绝不删除源文件，因此重启后仍可重试。
             String newMusicPath = Paths.get(MUSIC_AUDIO_DIR, newMusicFileName).toString();
-            moveWithUndo(Paths.get(tempMusicPath), Paths.get(newMusicPath), fileUndoLog);
-            logger.info("重命名音乐文件: {} -> {}", tempMusicPath, newMusicPath);
+            AtomicFiles.linkOrCopyAndReplace(sourceMusicPath, Paths.get(newMusicPath));
+            fileUndoLog.push(() -> deleteQuietly(Paths.get(newMusicPath)));
+            logger.info("生成正式音乐文件: {} -> {}", sourceMusicPath, newMusicPath);
 
-            // 重命名封面文件（如果有）
-            if (upload.getCoverFilePath() != null && !upload.getCoverFilePath().isEmpty() && newCoverFileName != null) {
+            // 生成正式封面文件（如果有）
+            if (sourceCoverPath != null && newCoverFileName != null) {
                 String newCoverPath = Paths.get(MUSIC_COVERS_DIR, newCoverFileName).toString();
-                moveWithUndo(Paths.get(tempCoverPath), Paths.get(newCoverPath), fileUndoLog);
-                logger.info("重命名封面文件: {} -> {}", tempCoverPath, newCoverPath);
+                AtomicFiles.linkOrCopyAndReplace(sourceCoverPath, Paths.get(newCoverPath));
+                fileUndoLog.push(() -> deleteQuietly(Paths.get(newCoverPath)));
+                logger.info("生成正式封面文件: {} -> {}", sourceCoverPath, newCoverPath);
             }
 
             if (upload.getLyricsFilePath() != null && !upload.getLyricsFilePath().isEmpty()
@@ -336,6 +325,9 @@ public class AdminUploadAuditHandler extends ApiServlet {
             committed = true;
             fileUndoLog.clear();
             int approvedMusicId = musicId;
+
+            // 事务已提交，正式文件已独立存在，再清理审核目录中的源文件。
+            deleteUploadFiles(upload);
 
             // 音频可能马上被播放，标签重写必须在响应前完成，避免与读取并发。
             syncEmbeddedMetadataQuietly(approvedMusicId);
@@ -540,19 +532,16 @@ public class AdminUploadAuditHandler extends ApiServlet {
         }
     }
 
-    /** 移动文件并登记反向操作，供事务失败时还原。 */
-    private void moveWithUndo(Path from, Path to, Deque<Runnable> undoLog) throws IOException {
-        Files.move(from, to, StandardCopyOption.REPLACE_EXISTING);
-        undoLog.push(() -> {
-            try {
-                Files.move(to, from, StandardCopyOption.REPLACE_EXISTING);
-            } catch (IOException e) {
-                logger.error("回滚文件迁移失败: {} -> {}", to, from, e);
-            }
-        });
+    /** 回滚时删除本次新建的正式文件；失败只记日志，源文件不受影响。 */
+    private void deleteQuietly(Path path) {
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException e) {
+            logger.warn("回滚时删除正式文件失败: {}", path, e);
+        }
     }
 
-    /** 按逆序执行登记的反向操作，尽力还原到审核前的文件状态。 */
+    /** 按逆序执行登记的回滚操作，删除本次事务产生的正式文件副本。 */
     private void undoFileMoves(Deque<Runnable> undoLog) {
         while (!undoLog.isEmpty()) {
             undoLog.pop().run();

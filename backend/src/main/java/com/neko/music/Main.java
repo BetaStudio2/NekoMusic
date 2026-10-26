@@ -157,6 +157,13 @@ public class Main {
         // 初始化数据库表
         DatabaseInitializer.initializeTables(databaseManager);
 
+        // 修复审核文件与数据库之间的半完成状态，并清理上次进程退出留下的暂存/孤儿文件。
+        try {
+            UploadStorageRecovery.recover(databaseManager);
+        } catch (Exception e) {
+            logger.warn("审核文件一致性恢复失败，服务继续启动", e);
+        }
+
         appReleaseService = new AppReleaseService();
 
         vipPricingDatabaseManager = new VipPricingDatabaseManager(databaseManager);
