@@ -42,6 +42,10 @@ package com.neko.music.model;
  *                       {@link com.neko.music.util.PowAudit}；不涉及 PoW 时为 null
  * @param seoRender      本次是否返回了服务端 SEO 渲染的 HTML（爬虫 / 链接预览拿到的表示）；
  *                       非 SEO 分支（浏览器拿到 SPA 壳）为 false，与 SEO 无关的路径为 null
+ * @param threatLevel    威胁判定：normal / suspected / attack
+ * @param threatScore    综合风险分（0-100）
+ * @param threatReasons  命中原因摘要（内部运维词表，不对客户端公开）
+ * @param threatEngineVersion 判定引擎版本；旧记录回填后与当前版本对齐
  */
 public record AccessLogRecord(
         long occurredAt,
@@ -75,5 +79,9 @@ public record AccessLogRecord(
         String thread,
         Integer powDifficulty,
         String powStatus,
-        Boolean seoRender) {
+        Boolean seoRender,
+        String threatLevel,
+        int threatScore,
+        String threatReasons,
+        int threatEngineVersion) {
 }

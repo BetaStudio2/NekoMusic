@@ -3,6 +3,7 @@ package com.neko.music.service;
 import com.neko.music.database.LogDatabaseManager;
 import com.neko.music.model.AccessLogRecord;
 import com.neko.music.model.LogPage;
+import com.neko.music.model.ThreatAssessment;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -51,8 +52,8 @@ public class AccessLogService {
                 accept_language, authenticated,
                 user_id, user_name,
                 admin_id, admin_username, host, scheme, protocol, thread, pow_difficulty, pow_status,
-                seo_render)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                seo_render, threat_level, threat_score, threat_reasons, threat_engine_version)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """;
 
     private static volatile AccessLogService current;
@@ -234,10 +235,15 @@ public class AccessLogService {
         }
         stmt.setString(i++, LogQuerySupport.truncate(r.powStatus(), 24));
         if (r.seoRender() == null) {
-            stmt.setNull(i, Types.BOOLEAN);
+            stmt.setNull(i++, Types.BOOLEAN);
         } else {
-            stmt.setBoolean(i, r.seoRender());
+            stmt.setBoolean(i++, r.seoRender());
         }
+        stmt.setString(i++, LogQuerySupport.truncate(
+                r.threatLevel() == null ? ThreatAssessment.NORMAL : r.threatLevel(), 16));
+        stmt.setInt(i++, Math.max(0, Math.min(100, r.threatScore())));
+        stmt.setString(i++, LogQuerySupport.truncate(r.threatReasons(), 512));
+        stmt.setInt(i, r.threatEngineVersion());
     }
 
     /**
@@ -280,6 +286,10 @@ public class AccessLogService {
         row.put("pow_difficulty", r.powDifficulty());
         row.put("pow_status", r.powStatus());
         row.put("seo_render", r.seoRender());
+        row.put("threat_level", r.threatLevel());
+        row.put("threat_score", r.threatScore());
+        row.put("threat_reasons", r.threatReasons());
+        row.put("threat_engine_version", r.threatEngineVersion());
         return row;
     }
 
@@ -293,14 +303,16 @@ public class AccessLogService {
      * @param clientInstanceId 客户端安装实例 ID（精确）
      * @param status    状态码（精确）
      * @param powStatus PoW 结果标签（精确，见 {@link com.neko.music.util.PowAudit}）
+     * @param threatLevel 威胁判定（精确：normal / suspected / attack）
      * @param fromMs    起始时间（含），null 不限
      * @param toMs      结束时间（含），null 不限
      * @param keyword   关键字，命中 路径 / 查询串 / UA / IP / 登录用户昵称 / 管理员用户名 /
-     *                  客户端 ID / 实例 ID 任一
+     *                  客户端 ID / 实例 ID / 威胁原因 任一
      */
     public LogPage list(int page, int size, String ip, String path, String clientType,
                         String clientId, String clientInstanceId, Integer status,
-                        String powStatus, Long fromMs, Long toMs, String keyword) throws SQLException {
+                        String powStatus, String threatLevel, Long fromMs, Long toMs,
+                        String keyword) throws SQLException {
         int safePage = Math.max(1, page);
         int safeSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
 
@@ -310,6 +322,7 @@ public class AccessLogService {
         appendEquals(where, params, "client_id", blankToNull(clientId));
         appendEquals(where, params, "client_instance_id", blankToNull(clientInstanceId));
         appendEquals(where, params, "pow_status", blankToNull(powStatus));
+        appendEquals(where, params, "threat_level", blankToNull(threatLevel));
         if (status != null) {
             where.append(" AND status = ?");
             params.add(status);
@@ -326,7 +339,7 @@ public class AccessLogService {
         }
         appendKeyword(where, params, blankToNull(keyword),
                 "path", "query", "user_agent", "client_ip", "user_name", "admin_username",
-                "client_id", "client_instance_id");
+                "client_id", "client_instance_id", "threat_reasons");
 
         long total;
         List<Map<String, Object>> items = new ArrayList<>();
@@ -354,7 +367,7 @@ public class AccessLogService {
      * 访问量概览：总量、今日量、独立 IP、爬虫占比，以及最近 N 天的趋势与 Top 榜。
      *
      * <p>下面这些聚合彼此独立，但**每条都要扫一遍窗口内的行**；串行执行的接口耗时就是它们的和
-     * （7 天窗口实测约 740ms）。因此拆成任务并发取，墙钟时间退化成「最慢的那一条」。今日的 7 个
+     * （7 天窗口实测约 740ms）。因此拆成任务并发取，墙钟时间退化成「最慢的那一条」。今日的多个
      * 指标另外合并成一次范围扫描，免得同一批行被扫 8 遍、每遍还各起一张临时表。</p>
      */
     public Map<String, Object> stats(int days) throws SQLException {
@@ -386,7 +399,10 @@ public class AccessLogService {
                 () -> query(conn -> grouped(conn,
                         "SELECT LEFT(COALESCE(user_agent,''), 255) AS k, COUNT(*) AS c FROM access_log "
                                 + "WHERE occurred_at >= ? GROUP BY k ORDER BY c DESC LIMIT " + TOP_LIMIT,
-                        windowStart)));
+                        windowStart)),
+                () -> query(conn -> countByQuery(conn,
+                        "SELECT threat_level AS k, COUNT(*) AS c FROM access_log WHERE occurred_at >= ? "
+                                + "GROUP BY threat_level ORDER BY c DESC", windowStart)));
 
         List<Future<Object>> pending = new ArrayList<>(tasks.size());
         for (Callable<Object> task : tasks) {
@@ -409,10 +425,11 @@ public class AccessLogService {
         stats.put("clientTypes", done.get(6));
         stats.put("categories", done.get(7));
         stats.put("topUserAgents", done.get(8));
+        stats.put("threatLevels", done.get(9));
         return stats;
     }
 
-    /** 今日概览：7 个指标合并成**一次**范围扫描，避免同一批行被反复扫、每遍各起一张临时表。 */
+    /** 今日概览：指标合并成**一次**范围扫描，避免同一批行被反复扫、每遍各起一张临时表。 */
     private static Map<String, Object> todayOverview(Connection conn, long startOfToday) throws SQLException {
         String sql = "SELECT COUNT(*) AS total, COUNT(DISTINCT client_ip) AS ips, "
                 + "COUNT(DISTINCT user_id) AS users, "
@@ -420,7 +437,9 @@ public class AccessLogService {
                 + "COALESCE(SUM(status >= 400), 0) AS errors, "
                 + "COALESCE(SUM(seo_render = 1), 0) AS seo, "
                 + "COALESCE(SUM(pow_status IN ('missing','invalid','expired','mismatch','bad_proof',"
-                + "'rate_limited','marked','error')), 0) AS pow_rejected "
+                + "'rate_limited','marked','error')), 0) AS pow_rejected, "
+                + "COALESCE(SUM(threat_level = 'attack'), 0) AS attacks, "
+                + "COALESCE(SUM(threat_level = 'suspected'), 0) AS suspected "
                 + "FROM access_log WHERE occurred_at >= ?";
         Map<String, Object> overview = new LinkedHashMap<>();
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -434,6 +453,8 @@ public class AccessLogService {
                 overview.put("todayErrors", rs.getLong("errors"));
                 overview.put("todaySeo", rs.getLong("seo"));
                 overview.put("todayPowRejected", rs.getLong("pow_rejected"));
+                overview.put("todayAttacks", rs.getLong("attacks"));
+                overview.put("todaySuspected", rs.getLong("suspected"));
             }
         }
         return overview;

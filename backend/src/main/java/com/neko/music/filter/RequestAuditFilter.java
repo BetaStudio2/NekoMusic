@@ -5,6 +5,8 @@ import com.neko.music.config.ConfigManager;
 import com.neko.music.model.Admin;
 import com.neko.music.model.AccessLogRecord;
 import com.neko.music.model.OperationLogRecord;
+import com.neko.music.model.ThreatAssessment;
+import com.neko.music.security.ThreatDetectionService;
 import com.neko.music.service.AccessLogService;
 import com.neko.music.service.AccessLogUserResolver;
 import com.neko.music.service.OperationLogService;
@@ -204,14 +206,23 @@ public class RequestAuditFilter implements Filter {
                          long startedAt, long elapsedNanos) {
         boolean accessEnabled = configManager == null || configManager.isLoggingAccessEnabled();
         boolean operationEnabled = configManager == null || configManager.isLoggingOperationEnabled();
-        if (!accessEnabled && !operationEnabled) {
-            return;
-        }
 
         String path = RequestPath.of(request);
         String category = RequestCategory.of(path);
         int status = response.getStatus();
         long durationUs = Math.max(0L, elapsedNanos / 1000L);
+        String clientIp = resolveClientIp(request);
+        String userAgent = request.getHeader("User-Agent");
+        String nekoClient = request.getHeader("X-Neko-Client");
+        String clientType = ClientFingerprint.type(userAgent, nekoClient);
+        ThreatAssessment threat = assessThreat(request, path, category, status, clientIp,
+                userAgent, clientType, nekoClient);
+        logThreat(request, path, status, clientIp, userAgent, clientType, threat);
+
+        // 威胁判定独立于日志库开关：即使访问日志关闭，应用日志仍应能留下攻击痕迹。
+        if (!accessEnabled && !operationEnabled) {
+            return;
+        }
         // 令牌形态不止一种：官方 PC / Android 客户端多数直接发 `Authorization: <token>`（没有 Bearer
         // 前缀），浏览器 EventSource 还会退化成 `?token=`。这里必须与认证层用同一套提取逻辑
         // （{@link RequestAuthUtil}），否则访问日志会把自家客户端整片记成「未登录」——而它们恰恰是
@@ -241,7 +252,7 @@ public class RequestAuditFilter implements Filter {
 
         if (accessEnabled) {
             AccessLogService.record(buildAccessRecord(request, response, path, category, method, status,
-                    startedAt, durationUs, authenticated, userId, userName, admin));
+                    startedAt, durationUs, authenticated, userId, userName, admin, threat));
         }
         if (logOperation) {
             OperationLogService.record(buildOperationRecord(request, path, method, status, startedAt,
@@ -253,7 +264,7 @@ public class RequestAuditFilter implements Filter {
                                               String path, String category, String method, int status,
                                               long occurredAt, long durationUs,
                                               boolean authenticated, Integer userId, String userName,
-                                              Admin admin) {
+                                              Admin admin, ThreatAssessment threat) {
         String userAgent = request.getHeader("User-Agent");
         String nekoClient = request.getHeader("X-Neko-Client");
         String clientId = request.getHeader(ClientIdentityProtocol.HEADER_CLIENT_ID);
@@ -293,7 +304,62 @@ public class RequestAuditFilter implements Filter {
                 PowAudit.difficulty(request),
                 PowAudit.status(request),
                 // 同一 URL 的两种表示（SEO HTML / SPA 壳）由渲染方挂在请求属性上（见 SeoAudit）
-                SeoAudit.seoRender(request));
+                SeoAudit.seoRender(request),
+                threat.level(),
+                threat.score(),
+                threat.reasons(),
+                threat.engineVersion());
+    }
+
+    private static ThreatAssessment assessThreat(HttpServletRequest request, String path, String category,
+                                                  int status, String clientIp, String userAgent,
+                                                  String clientType, String nekoClient) {
+        try {
+            return ThreatDetectionService.shared().assess(new ThreatDetectionService.RequestFacts(
+                    System.currentTimeMillis(), request.getMethod(), path, request.getQueryString(),
+                    category, status, clientIp, userAgent, clientType, nekoClient,
+                    request.getHeader(ClientIdentityProtocol.HEADER_CLIENT_ID),
+                    request.getHeader(ClientIdentityProtocol.HEADER_INSTANCE), PowAudit.status(request)));
+        } catch (Exception e) {
+            logger.debug("威胁判定失败，按正常处理: {} {}", request.getMethod(), path);
+            return ThreatAssessment.normal();
+        }
+    }
+
+    /** 应用日志只在有风险时输出：正常请求由访问日志表的 threat_level 标记，避免刷屏。 */
+    private static void logThreat(HttpServletRequest request, String path, int status,
+                                  String clientIp, String userAgent, String clientType,
+                                  ThreatAssessment threat) {
+        String level = threat.level();
+        if (ThreatAssessment.NORMAL.equals(level)) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("[安全审计][正常] method={} path={} status={} ip={} client={} score={}",
+                        request.getMethod(), safeLog(path, 300), status, clientIp, clientType, threat.score());
+            }
+            return;
+        }
+        String message = "[安全审计][" + (threat.isAttack() ? "攻击" : "疑似攻击") + "]"
+                + " method={} path={} status={} ip={} client={} score={} ua={} reasons={}";
+        Object[] args = {request.getMethod(), safeLog(path, 300), status, clientIp, clientType,
+                threat.score(), safeLog(userAgent, 160), safeLog(threat.reasons(), 400)};
+        if (threat.isAttack()) {
+            logger.warn(message, args);
+        } else {
+            logger.info(message, args);
+        }
+    }
+
+    /** 日志字段去控制字符，避免 UA / 路径里的换行伪造日志行（CWE-117）。 */
+    private static String safeLog(String value, int max) {
+        if (value == null || value.isBlank()) {
+            return "-";
+        }
+        StringBuilder out = new StringBuilder(Math.min(value.length(), max));
+        for (int i = 0; i < value.length() && out.length() < max; i++) {
+            char c = value.charAt(i);
+            out.append(Character.isISOControl(c) ? '_' : c);
+        }
+        return out.toString();
     }
 
     private OperationLogRecord buildOperationRecord(HttpServletRequest request, String path, String method,

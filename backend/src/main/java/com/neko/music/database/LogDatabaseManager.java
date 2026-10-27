@@ -1,6 +1,7 @@
 package com.neko.music.database;
 
 import com.neko.music.config.ConfigManager;
+import com.neko.music.model.ThreatAssessment;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.slf4j.Logger;
@@ -125,12 +126,18 @@ public class LogDatabaseManager {
                 pow_difficulty INT NULL COMMENT '本次请求对应的 PoW 难度（比特）',
                 pow_status VARCHAR(24) NULL COMMENT 'PoW 结果标签：verified/missing/issued/...',
                 seo_render TINYINT(1) NULL COMMENT '本次是否返回服务端 SEO 渲染 HTML；与 SEO 无关为 NULL',
+                threat_level VARCHAR(16) NOT NULL DEFAULT 'normal' COMMENT '威胁判定：normal/suspected/attack',
+                threat_score INT NOT NULL DEFAULT 0 COMMENT '综合风险分 0-100',
+                threat_reasons VARCHAR(512) NULL COMMENT '命中原因摘要（内部运维词表）',
+                threat_engine_version SMALLINT NOT NULL DEFAULT 0 COMMENT '威胁判定引擎版本',
                 KEY idx_access_occurred (occurred_at),
                 KEY idx_access_ip (client_ip),
                 KEY idx_access_path (path(191)),
                 KEY idx_access_status (status),
                 KEY idx_access_type (client_type),
                 KEY idx_access_pow (pow_status),
+                KEY idx_access_threat (threat_level),
+                KEY idx_access_threat_engine (threat_engine_version),
                 KEY idx_access_user (user_id),
                 KEY idx_access_client (client_id),
                 KEY idx_access_client_instance (client_instance_id)
@@ -184,6 +191,18 @@ public class LogDatabaseManager {
         ensureIndex(conn, "access_log", "idx_access_pow", "pow_status");
         ensureColumn(conn, "access_log", "seo_render",
                 "TINYINT(1) NULL COMMENT '本次是否返回服务端 SEO 渲染 HTML；与 SEO 无关为 NULL'");
+        ensureColumn(conn, "access_log", "threat_level",
+                "VARCHAR(16) NOT NULL DEFAULT 'normal' COMMENT '威胁判定：normal/suspected/attack'"
+                        + " AFTER `seo_render`");
+        ensureColumn(conn, "access_log", "threat_score",
+                "INT NOT NULL DEFAULT 0 COMMENT '综合风险分 0-100' AFTER `threat_level`");
+        ensureColumn(conn, "access_log", "threat_reasons",
+                "VARCHAR(512) NULL COMMENT '命中原因摘要（内部运维词表）' AFTER `threat_score`");
+        ensureColumn(conn, "access_log", "threat_engine_version",
+                "SMALLINT NOT NULL DEFAULT 0 COMMENT '威胁判定引擎版本' AFTER `threat_reasons`");
+        ensureIndex(conn, "access_log", "idx_access_threat", "threat_level");
+        ensureIndex(conn, "access_log", "idx_access_occurred_threat", "occurred_at, threat_level");
+        ensureIndex(conn, "access_log", "idx_access_threat_engine", "threat_engine_version");
         ensureColumn(conn, "access_log", "user_id",
                 "INT NULL COMMENT '已登录用户 ID（用户令牌有效时解析，否则 NULL）'");
         ensureColumn(conn, "access_log", "user_name",
@@ -203,9 +222,140 @@ public class LogDatabaseManager {
         ensureIndex(conn, "access_log", "idx_access_occurred_type", "occurred_at, client_type");
         ensureIndex(conn, "access_log", "idx_access_occurred_category", "occurred_at, category");
         ensureIndex(conn, "access_log", "idx_access_occurred_user", "occurred_at, user_id, user_name");
+        backfillThreatLabels(conn);
         // 耗时精度升级：老库的毫秒列（duration_ms）改名为微秒列（duration_us）并 ×1000 换算。
         migrateDurationToMicros(conn, "access_log");
         migrateDurationToMicros(conn, "operation_log");
+    }
+
+    /**
+     * 旧日志的一次性威胁回填。
+     *
+     * <p>实时算法需要请求进入时才能计算；历史行先按来源 IP 与客户端指纹的失败簇识别成规模攻击，
+     * 剩下的再按已保存的状态码、路径、UA 分类和 PoW 结果保守分类。只处理引擎版本为 0 的行，
+     * 新记录一律写入当前版本，不会每次启动都被重新标记。</p>
+     */
+    private static void backfillThreatLabels(Connection conn) {
+        String dangerous = "(LOWER(path) LIKE '%/.env%' OR LOWER(path) LIKE '%/.git/%' "
+                + "OR LOWER(path) LIKE '%wp-admin%' OR LOWER(path) LIKE '%wp-login%' "
+                + "OR LOWER(path) LIKE '%phpmyadmin%' OR LOWER(path) LIKE '%/etc/passwd%' "
+                + "OR LOWER(path) LIKE '%../%' OR LOWER(path) LIKE '%..%2f%' "
+                + "OR LOWER(path) LIKE '%/.aws/%' OR LOWER(query) LIKE '%union%select%' "
+                + "OR LOWER(query) LIKE '%<script%' OR LOWER(query) LIKE '%sleep(%')";
+        String directSql = "UPDATE access_log SET "
+                + "threat_level = CASE "
+                + "WHEN status = 409 OR pow_status IN ('invalid','marked') OR " + dangerous
+                + " THEN 'attack' "
+                + "WHEN status IN (401,403,404,429) OR client_type IN ('bot','scanner') "
+                + "OR pow_status IN ('bad_proof','mismatch','rate_limited','expired') "
+                + "THEN 'suspected' ELSE 'normal' END, "
+                + "threat_score = CASE "
+                + "WHEN status = 409 OR pow_status IN ('invalid','marked') OR " + dangerous
+                + " THEN 70 "
+                + "WHEN status IN (401,403,404,429) OR client_type IN ('bot','scanner') "
+                + "OR pow_status IN ('bad_proof','mismatch','rate_limited','expired') THEN 35 "
+                + "ELSE 0 END, "
+                + "threat_reasons = CASE "
+                + "WHEN status = 409 OR pow_status IN ('invalid','marked') OR " + dangerous
+                + " THEN '历史回填：重放或高危扫描特征' "
+                + "WHEN status IN (401,403,404,429) OR client_type IN ('bot','scanner') "
+                + "OR pow_status IN ('bad_proof','mismatch','rate_limited','expired') "
+                + "THEN '历史回填：4xx / 爬虫 / 验证失败（建议复核）' ELSE NULL END, "
+                + "threat_engine_version = " + ThreatAssessment.CURRENT_ENGINE_VERSION + " "
+                + "WHERE threat_engine_version = 0 LIMIT 5000";
+        int sourceClusters = 0;
+        int clientClusters = 0;
+        int remaining = 0;
+        try {
+            prepareThreatClusters(conn);
+            sourceClusters = executeUpdate(conn,
+                    "UPDATE access_log a JOIN threat_source_clusters c ON a.client_ip = c.client_ip "
+                            + "SET a.threat_level = 'attack', a.threat_score = 80, "
+                            + "a.threat_reasons = '历史回填：同来源高频 4xx 失败簇', "
+                            + "a.threat_engine_version = " + ThreatAssessment.CURRENT_ENGINE_VERSION + " "
+                            + "WHERE a.threat_engine_version = 0 "
+                            + "AND a.status IN (401,403,404,429)");
+            clientClusters = executeUpdate(conn,
+                    "UPDATE access_log a JOIN threat_client_clusters c ON a.user_agent = c.user_agent "
+                            + "SET a.threat_level = 'attack', a.threat_score = 80, "
+                            + "a.threat_reasons = '历史回填：同客户端指纹跨网段失败簇', "
+                            + "a.threat_engine_version = " + ThreatAssessment.CURRENT_ENGINE_VERSION + " "
+                            + "WHERE a.threat_engine_version = 0 "
+                            + "AND a.status IN (401,403,404,429)");
+            remaining = updateInBatches(conn, directSql);
+            int total = sourceClusters + clientClusters + remaining;
+            if (total > 0) {
+                logger.info("日志库回填历史威胁判定 {} 条（来源簇 {}，客户端指纹簇 {}）",
+                        total, sourceClusters, clientClusters);
+            }
+        } catch (SQLException e) {
+            // 回填失败不应连带停用整个日志能力；版本仍为 0，下次启动会重试
+            logger.warn("历史威胁判定回填失败，将在下次启动重试: {}", e.getMessage());
+        } finally {
+            dropThreatClusters(conn);
+        }
+    }
+
+    /**
+     * 为历史回填建立来源 / 客户端指纹聚类。
+     *
+     * <p>历史行没有实时滑动窗口，但可以用全量日志近似出「短时高频失败来源」和「同一 UA 跨多个
+     * 网段失败」。这能在升级后立刻把已经成簇的 4xx 标成攻击，而不是全部保守地塞进疑似。</p>
+     */
+    private static void prepareThreatClusters(Connection conn) throws SQLException {
+        String denied = "status IN (401,403,404,429)";
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TEMPORARY TABLE IF EXISTS threat_source_clusters");
+            stmt.execute("DROP TEMPORARY TABLE IF EXISTS threat_client_clusters");
+            stmt.execute("CREATE TEMPORARY TABLE threat_source_clusters "
+                    + "(client_ip VARCHAR(64) NOT NULL PRIMARY KEY)");
+            stmt.execute("INSERT INTO threat_source_clusters (client_ip) "
+                    + "SELECT client_ip FROM access_log "
+                    + "WHERE threat_engine_version = 0 AND client_ip IS NOT NULL AND client_ip <> '' "
+                    + "GROUP BY client_ip "
+                    + "HAVING SUM(" + denied + ") >= 8 "
+                    + "AND SUM(" + denied + ") / COUNT(*) >= 0.70");
+            stmt.execute("CREATE TEMPORARY TABLE threat_client_clusters "
+                    + "(user_agent VARCHAR(1024) NOT NULL)");
+            stmt.execute("INSERT INTO threat_client_clusters (user_agent) "
+                    + "SELECT COALESCE(user_agent, '') FROM access_log "
+                    + "WHERE threat_engine_version = 0 AND COALESCE(user_agent, '') <> '' "
+                    + "GROUP BY COALESCE(user_agent, '') "
+                    + "HAVING SUM(" + denied + ") >= 6 "
+                    + "AND COUNT(DISTINCT CASE WHEN client_ip LIKE '%:%' "
+                    + "THEN SUBSTRING_INDEX(client_ip, ':', 2) "
+                    + "ELSE SUBSTRING_INDEX(client_ip, '.', 2) END) >= 4 "
+                    + "AND SUM(" + denied + ") / COUNT(*) >= 0.50");
+        }
+    }
+
+    private static int updateInBatches(Connection conn, String sql) throws SQLException {
+        int total = 0;
+        try (Statement stmt = conn.createStatement()) {
+            while (true) {
+                int updated = stmt.executeUpdate(sql);
+                total += updated;
+                if (updated < 5000) {
+                    return total;
+                }
+            }
+        }
+    }
+
+    /** 多表 UPDATE 在 MySQL 下不支持 LIMIT，聚合成簇的一次性回填走这里。 */
+    private static int executeUpdate(Connection conn, String sql) throws SQLException {
+        try (Statement stmt = conn.createStatement()) {
+            return stmt.executeUpdate(sql);
+        }
+    }
+
+    private static void dropThreatClusters(Connection conn) {
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TEMPORARY TABLE IF EXISTS threat_source_clusters");
+            stmt.execute("DROP TEMPORARY TABLE IF EXISTS threat_client_clusters");
+        } catch (SQLException e) {
+            logger.debug("清理历史威胁聚类临时表失败: {}", e.getMessage());
+        }
     }
 
     /**

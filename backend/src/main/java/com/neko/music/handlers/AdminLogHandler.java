@@ -130,6 +130,7 @@ public class AdminLogHandler extends ApiServlet {
                 request.getParameter("clientInstanceId"),
                 parseInteger(request.getParameter("status")),
                 request.getParameter("powStatus"),
+                request.getParameter("threatLevel"),
                 parseLong(request.getParameter("from")),
                 parseLong(request.getParameter("to")),
                 request.getParameter("keyword"));

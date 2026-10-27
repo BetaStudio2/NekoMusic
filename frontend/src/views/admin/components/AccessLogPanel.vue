@@ -4,7 +4,8 @@
       <h2 class="access__title">访问日志（安全分析）</h2>
       <p class="access__desc">
         每个请求一条：访问量、来源 IP 与网段、User-Agent、客户端指纹、已登录用户、状态码、耗时与本次的
-        PoW 难度，用于安全分析与爬虫 / 脚本排查。数据落在独立日志库，不参与业务库备份。
+        PoW 难度，并自动标记「正常 / 疑似攻击 / 攻击」（综合高危载荷、短时失败行为与跨网段扫描簇）。
+        数据落在独立日志库，不参与业务库备份。
       </p>
     </header>
 
@@ -41,6 +42,14 @@
       <NCard pad="lg" class="stat">
         <span class="stat__number">{{ stats.todayPowRejected ?? 0 }}</span>
         <span class="stat__label">今日 PoW 拦截</span>
+      </NCard>
+      <NCard pad="lg" class="stat stat--danger">
+        <span class="stat__number">{{ stats.todayAttacks ?? 0 }}</span>
+        <span class="stat__label">今日判定攻击</span>
+      </NCard>
+      <NCard pad="lg" class="stat stat--warning">
+        <span class="stat__number">{{ stats.todaySuspected ?? 0 }}</span>
+        <span class="stat__label">今日疑似攻击</span>
       </NCard>
       <NCard pad="lg" class="stat">
         <span class="stat__number">{{ stats.totalRequests ?? 0 }}</span>
@@ -100,6 +109,15 @@
         </ul>
       </NCard>
       <NCard pad="lg" class="card">
+        <h2 class="card__title">威胁判定分布</h2>
+        <ul class="ranking">
+          <li v-for="(count, level) in stats.threatLevels || {}" :key="level">
+            <span class="ranking__key">{{ threatLabel(level) }}</span>
+            <span class="ranking__count">{{ count }}</span>
+          </li>
+        </ul>
+      </NCard>
+      <NCard pad="lg" class="card">
         <h2 class="card__title">Top User-Agent</h2>
         <ul class="ranking">
           <li v-for="item in stats.topUserAgents || []" :key="item.key">
@@ -118,6 +136,10 @@
       <select v-model="accessQuery.powStatus" class="select" aria-label="PoW 结果">
         <option value="">全部 PoW 结果</option>
         <option v-for="item in POW_STATUSES" :key="item.value" :value="item.value">{{ item.label }}</option>
+      </select>
+      <select v-model="accessQuery.threatLevel" class="select" aria-label="威胁判定">
+        <option value="">全部威胁判定</option>
+        <option v-for="item in THREAT_LEVELS" :key="item.value" :value="item.value">{{ item.label }}</option>
       </select>
       <NInput v-model="accessQuery.ip" placeholder="来源 IP 含…" clearable class="toolbar__search" />
       <NInput v-model="accessQuery.path" placeholder="路径含…" clearable class="toolbar__search" />
@@ -164,6 +186,7 @@
             <th>时间</th>
             <th>请求</th>
             <th>状态</th>
+            <th>判定</th>
             <th>PoW</th>
             <th>耗时</th>
             <th>分类</th>
@@ -177,13 +200,18 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in access.items" :key="row.id ?? row.__liveKey">
+          <tr v-for="row in access.items" :key="row.id ?? row.__liveKey" :class="threatRowClass(row)">
             <td class="cell-dim">{{ formatTime(row.occurred_at) }}</td>
             <td class="cell-path" :title="fullPath(row)">
               <span class="cell-method">{{ row.method }}</span> {{ row.path }}
             </td>
             <td>
               <NTag :variant="statusVariant(row.status)" size="sm">{{ row.status }}</NTag>
+            </td>
+            <td :title="threatTitle(row)">
+              <NTag :variant="threatVariant(row.threat_level)" size="sm">
+                {{ threatLabel(row.threat_level) }}
+              </NTag>
             </td>
             <td class="cell-dim" :title="powTitle(row)">
               <template v-if="row.pow_status">
@@ -228,7 +256,7 @@
             </td>
           </tr>
           <tr v-if="!access.items.length">
-            <td colspan="13" class="cell-empty">暂无记录</td>
+            <td colspan="14" class="cell-empty">暂无记录</td>
           </tr>
         </tbody>
       </table>
@@ -323,6 +351,14 @@ const CATEGORY_LABELS = {
   other: '其它'
 }
 
+/** 与后端 ThreatAssessment 的取值保持一致。 */
+const THREAT_LEVELS = [
+  { value: 'normal', label: '正常' },
+  { value: 'suspected', label: '疑似攻击' },
+  { value: 'attack', label: '攻击' }
+]
+const THREAT_LABELS = Object.fromEntries(THREAT_LEVELS.map((item) => [item.value, item.label]))
+
 /** 实时流最多在表格顶部保留多少行；再多就丢掉最旧的实时行，避免页面越开越卡。 */
 const LIVE_MAX_ROWS = 200
 
@@ -365,7 +401,8 @@ const accessQuery = reactive({
   clientId: '',
   clientInstanceId: '',
   keyword: '',
-  powStatus: ''
+  powStatus: '',
+  threatLevel: ''
 })
 
 const detailOpen = ref(false)
@@ -390,7 +427,8 @@ const livePaused = computed(() =>
     accessQuery.clientId ||
     accessQuery.clientInstanceId ||
     accessQuery.keyword ||
-    accessQuery.powStatus
+    accessQuery.powStatus ||
+    accessQuery.threatLevel
   )
 )
 const liveLabel = computed(() => {
@@ -476,6 +514,7 @@ async function loadAccess(page) {
       clientId: accessQuery.clientId,
       clientInstanceId: accessQuery.clientInstanceId,
       powStatus: accessQuery.powStatus,
+      threatLevel: accessQuery.threatLevel,
       keyword: accessQuery.keyword
     })
     access.total = data.total || 0
@@ -633,6 +672,29 @@ function statusVariant(status) {
   return 'success'
 }
 
+function threatLabel(value) {
+  return THREAT_LABELS[value] || '正常'
+}
+
+function threatVariant(value) {
+  if (value === 'attack') return 'danger'
+  if (value === 'suspected') return 'warning'
+  return 'success'
+}
+
+function threatTitle(row) {
+  const label = threatLabel(row.threat_level)
+  const score = row.threat_score == null ? 0 : Number(row.threat_score)
+  const reasons = row.threat_reasons ? `：${row.threat_reasons}` : ''
+  return `${label} · 风险分 ${score}${reasons}`
+}
+
+function threatRowClass(row) {
+  if (row.threat_level === 'attack') return 'row--attack'
+  if (row.threat_level === 'suspected') return 'row--suspected'
+  return ''
+}
+
 function powLabel(value) {
   return POW_LABELS[value] || value
 }
@@ -663,6 +725,10 @@ function openDetail(row) {
     { label: '请求分类', value: categoryLabel(row.category) },
     { label: '响应分支', value: renderBranchText(row) },
     { label: '状态码', value: row.status },
+    { label: '威胁判定', value: threatLabel(row.threat_level) },
+    { label: '风险分', value: row.threat_score == null ? '0' : `${row.threat_score} / 100` },
+    { label: '命中原因', value: row.threat_reasons || '未命中风险规则', block: true },
+    { label: '判定引擎版本', value: row.threat_engine_version },
     { label: '耗时', value: formatLatency(row.duration_us) },
     { label: '响应体大小', value: formatBytes(row.response_bytes) },
     { label: '来源 IP', value: row.client_ip, mono: true },
@@ -774,6 +840,14 @@ function powTitle(row) {
 .stat__label {
   color: var(--n-text-muted);
   font-size: var(--n-text-sm);
+}
+
+.stat--danger .stat__number {
+  color: var(--n-color-danger, #ff6b6b);
+}
+
+.stat--warning .stat__number {
+  color: var(--n-color-warning, #f5b74e);
 }
 
 /* ==================== 卡片 ==================== */
@@ -911,6 +985,14 @@ function powTitle(row) {
 
 .table tbody tr:last-child td {
   border-bottom: none;
+}
+
+.table tbody tr.row--attack > td:first-child {
+  box-shadow: inset 3px 0 0 var(--n-color-danger, #ff6b6b);
+}
+
+.table tbody tr.row--suspected > td:first-child {
+  box-shadow: inset 3px 0 0 var(--n-color-warning, #f5b74e);
 }
 
 .cell-dim {
