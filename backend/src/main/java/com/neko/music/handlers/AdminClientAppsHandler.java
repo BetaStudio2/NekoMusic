@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neko.music.Main;
 import com.neko.music.database.ClientRegistryDatabaseManager;
 import com.neko.music.model.ClientApp;
-import com.neko.music.model.ClientInstance;
 import com.neko.music.service.ClientIdentityService;
 import com.neko.music.util.AdminPermissionUtil;
 import com.neko.music.util.ClientIdentityProtocol;
@@ -17,6 +16,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Optional;
 
 /**
  * 后台第三方客户端凭据管理。属于管理端接口，不写入公开 API 文档。
@@ -24,6 +24,7 @@ import java.util.Locale;
  * <ul>
  *   <li>{@code GET /api/admin/client-apps}</li>
  *   <li>{@code POST /api/admin/client-apps}</li>
+ *   <li>{@code POST /api/admin/client-apps/{clientId}/secret}（轮换 secret）</li>
  *   <li>{@code PUT /api/admin/client-apps/{clientId}}</li>
  *   <li>{@code DELETE /api/admin/client-apps/{clientId}}</li>
  * </ul>
@@ -66,6 +67,11 @@ public class AdminClientAppsHandler extends ApiServlet {
             return;
         }
         response.setHeader("Cache-Control", HttpResourceCache.CACHE_CONTROL_NO_STORE);
+        String path = pathValue(request.getPathInfo());
+        if (!path.isEmpty()) {
+            rotateSecret(response, path);
+            return;
+        }
         JsonNode root;
         try {
             root = MAPPER.readTree(readBody(request));
@@ -117,6 +123,36 @@ public class AdminClientAppsHandler extends ApiServlet {
         }
         data.put("platform", platform);
         data.put("confidential", confidential);
+        sendJson(response, 200, true, "ok", data);
+    }
+
+    private void rotateSecret(HttpServletResponse response, String path) throws IOException {
+        String[] parts = path.split("/");
+        if (parts.length != 2 || !"secret".equals(parts[1]) || parts[0].isBlank()) {
+            sendErrorResponse(response, 404, "admin.client.not_found");
+            return;
+        }
+        String clientId = parts[0].trim();
+        Optional<ClientApp> found = registry().findApp(clientId);
+        if (found.isEmpty()) {
+            sendErrorResponse(response, 404, "admin.client.not_found");
+            return;
+        }
+        ClientApp app = found.get();
+        if (app.official() || !app.confidential()) {
+            sendErrorResponse(response, 400, "admin.client.rotate_not_allowed");
+            return;
+        }
+        String secret = ClientIdentityService.newClientSecret();
+        if (!registry().updateSecretHash(clientId,
+                ClientRegistryDatabaseManager.hashSecret(secret))) {
+            sendErrorResponse(response, 404, "admin.client.not_found");
+            return;
+        }
+        identityService().invalidate(clientId, null);
+        ObjectNode data = MAPPER.createObjectNode();
+        data.put("clientId", clientId);
+        data.put("clientSecret", secret);
         sendJson(response, 200, true, "ok", data);
     }
 

@@ -121,6 +121,12 @@ public class RequestAuditFilter implements Filter {
             // 客户端更新
             new OperationRule("/api/admin/releases/upload", Set.of("POST"), "客户端更新", "上传客户端安装包"),
             new OperationRule("/api/admin/releases", Set.of("PUT"), "客户端更新", "更新客户端版本号"),
+            // 客户端接入：应用凭据与安装实例
+            new OperationRule("/api/admin/client-apps", Set.of("POST"), "客户端接入", "创建客户端应用"),
+            new OperationRule("/api/admin/client-apps/", Set.of("POST"), "客户端接入", "轮换客户端密钥"),
+            new OperationRule("/api/admin/client-apps", Set.of("PUT"), "客户端接入", "修改客户端状态"),
+            new OperationRule("/api/admin/client-apps", Set.of("DELETE"), "客户端接入", "停用客户端应用"),
+            new OperationRule("/api/admin/client-instances", Set.of("DELETE"), "客户端接入", "吊销客户端实例"),
             // VIP 价目
             new OperationRule("/api/admin/vip/pricing", Set.of("PUT"), "VIP 定价", "修改 VIP 价目"),
             // 外站补全扫码登录
@@ -140,6 +146,8 @@ public class RequestAuditFilter implements Filter {
             new String[] { "/api/admin/replay-marks", "防重放标记" },
             new String[] { "/api/admin/settings", "系统设置" },
             new String[] { "/api/admin/releases", "客户端更新" },
+            new String[] { "/api/admin/client-apps", "客户端接入" },
+            new String[] { "/api/admin/client-instances", "客户端接入" },
             new String[] { "/api/admin/netease", "外站补全" },
             new String[] { "/api/admin/qq", "外站补全" },
             new String[] { "/api/admin/vip/pricing", "VIP 定价" },

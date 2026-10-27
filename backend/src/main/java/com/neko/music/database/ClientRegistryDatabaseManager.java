@@ -153,6 +153,17 @@ public class ClientRegistryDatabaseManager {
                 });
     }
 
+    /** 轮换机密客户端 secret；数据库只保存新 secret 的哈希。 */
+    public boolean updateSecretHash(String clientId, String secretHash) {
+        return executeUpdate(
+                "UPDATE client_app SET secret_hash = ?, updated_at = ? WHERE client_id = ?",
+                ps -> {
+                    ps.setString(1, secretHash);
+                    ps.setLong(2, System.currentTimeMillis());
+                    ps.setString(3, clientId);
+                });
+    }
+
     public Optional<ClientInstance> findInstance(String instanceId) {
         String sql = "SELECT * FROM client_instance WHERE instance_id = ?";
         try (Connection conn = databaseManager.getConnection();

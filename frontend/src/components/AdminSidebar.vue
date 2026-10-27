@@ -62,6 +62,8 @@ const hasPermission = (permission) => {
       'user_delete',
       'stats_view',
       'release_manage',
+      'client_view',
+      'client_edit',
       'settings_view',
       'access_log_view',
       'operation_log_view',
@@ -112,6 +114,9 @@ const navGroups = computed(() => {
   }
   if (hasPermission('release_manage')) {
     ops.push({ to: '/admin/releases', icon: 'package', label: '客户端更新' })
+  }
+  if (hasPermission('client_view')) {
+    ops.push({ to: '/admin/clients', icon: 'key', label: '客户端接入' })
   }
   if (hasPermission('settings_view')) {
     ops.push({ to: '/admin/settings', icon: 'settings', label: '系统设置' })
