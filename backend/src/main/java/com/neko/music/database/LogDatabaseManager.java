@@ -31,6 +31,20 @@ public class LogDatabaseManager {
     /** 合法的库名：只允许字母、数字、下划线，避免拼接 DDL 时被注入。 */
     private static final Pattern VALID_DATABASE_NAME = Pattern.compile("[A-Za-z0-9_]{1,64}");
 
+    /** 历史回填也复用的高危路径 / 查询串判定，迁移 409 误标时不能误伤真实攻击。 */
+    private static final String HISTORICAL_DANGEROUS_SQL = "(LOWER(COALESCE(path, '')) LIKE '%/.env%' "
+            + "OR LOWER(COALESCE(path, '')) LIKE '%/.git/%' "
+            + "OR LOWER(COALESCE(path, '')) LIKE '%wp-admin%' "
+            + "OR LOWER(COALESCE(path, '')) LIKE '%wp-login%' "
+            + "OR LOWER(COALESCE(path, '')) LIKE '%phpmyadmin%' "
+            + "OR LOWER(COALESCE(path, '')) LIKE '%/etc/passwd%' "
+            + "OR LOWER(COALESCE(path, '')) LIKE '%../%' "
+            + "OR LOWER(COALESCE(path, '')) LIKE '%..%2f%' "
+            + "OR LOWER(COALESCE(path, '')) LIKE '%/.aws/%' "
+            + "OR LOWER(COALESCE(query, '')) LIKE '%union%select%' "
+            + "OR LOWER(COALESCE(query, '')) LIKE '%<script%' "
+            + "OR LOWER(COALESCE(query, '')) LIKE '%sleep(%')";
+
     /** 日志库连接池：写入走批量异步，池不需要很大，避免与主库抢占连接预算。 */
     private static final int POOL_MAX_SIZE = 8;
     private static final int POOL_MIN_IDLE = 2;
@@ -223,6 +237,7 @@ public class LogDatabaseManager {
         ensureIndex(conn, "access_log", "idx_access_occurred_category", "occurred_at, category");
         ensureIndex(conn, "access_log", "idx_access_occurred_user", "occurred_at, user_id, user_name");
         backfillThreatLabels(conn);
+        downgradeLegacyReplayConflicts(conn);
         // 耗时精度升级：老库的毫秒列（duration_ms）改名为微秒列（duration_us）并 ×1000 换算。
         migrateDurationToMicros(conn, "access_log");
         migrateDurationToMicros(conn, "operation_log");
@@ -236,12 +251,7 @@ public class LogDatabaseManager {
      * 新记录一律写入当前版本，不会每次启动都被重新标记。</p>
      */
     private static void backfillThreatLabels(Connection conn) {
-        String dangerous = "(LOWER(path) LIKE '%/.env%' OR LOWER(path) LIKE '%/.git/%' "
-                + "OR LOWER(path) LIKE '%wp-admin%' OR LOWER(path) LIKE '%wp-login%' "
-                + "OR LOWER(path) LIKE '%phpmyadmin%' OR LOWER(path) LIKE '%/etc/passwd%' "
-                + "OR LOWER(path) LIKE '%../%' OR LOWER(path) LIKE '%..%2f%' "
-                + "OR LOWER(path) LIKE '%/.aws/%' OR LOWER(query) LIKE '%union%select%' "
-                + "OR LOWER(query) LIKE '%<script%' OR LOWER(query) LIKE '%sleep(%')";
+        String dangerous = HISTORICAL_DANGEROUS_SQL;
         String directSql = "UPDATE access_log SET "
                 + "threat_level = CASE "
                 + "WHEN status = 409 OR pow_status IN ('invalid','marked') OR " + dangerous
@@ -293,6 +303,36 @@ public class LogDatabaseManager {
             logger.warn("历史威胁判定回填失败，将在下次启动重试: {}", e.getMessage());
         } finally {
             dropThreatClusters(conn);
+        }
+    }
+
+    /**
+     * 修正旧引擎把全部 409 直接判成攻击的问题。
+     *
+     * <p>客户端无法保证本地缓存的一次性凭证始终未过期；单次 409 / nonce 失效只说明本次请求
+     * 被防重放链路拒绝，不能单独证明攻击意图。这里只降级没有高危路径、扫描器 UA 或来源标记的
+     * 历史 409，真实扫描仍由 {@link #HISTORICAL_DANGEROUS_SQL} 与客户端类型保留为攻击。</p>
+     */
+    private static void downgradeLegacyReplayConflicts(Connection conn) {
+        int updated;
+        try {
+            updated = executeUpdate(conn,
+                    "UPDATE access_log SET threat_level = 'normal', threat_score = CASE "
+                            + "WHEN COALESCE(pow_status, '') IN "
+                            + "('invalid','missing','expired','mismatch','bad_proof') THEN 15 ELSE 0 END, "
+                            + "threat_reasons = '历史修正：防重放凭证失效或业务冲突不单独判定攻击', "
+                            + "threat_engine_version = " + ThreatAssessment.CURRENT_ENGINE_VERSION + " "
+                            + "WHERE threat_engine_version < " + ThreatAssessment.CURRENT_ENGINE_VERSION
+                            + " AND status = 409 AND threat_level = 'attack' "
+                            + "AND COALESCE(client_type, '') NOT IN ('bot','scanner') "
+                            + "AND COALESCE(pow_status, '') <> 'marked' "
+                            + "AND NOT " + HISTORICAL_DANGEROUS_SQL);
+            if (updated > 0) {
+                logger.info("日志库修正历史 409 误标 {} 条", updated);
+            }
+        } catch (SQLException e) {
+            // 修正失败不影响日志写入；下一次启动会继续尝试
+            logger.warn("历史 409 威胁标记修正失败，将在下次启动重试: {}", e.getMessage());
         }
     }
 

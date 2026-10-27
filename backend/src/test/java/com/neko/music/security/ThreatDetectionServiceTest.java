@@ -61,13 +61,56 @@ class ThreatDetectionServiceTest {
     }
 
     @Test
-    @DisplayName("重放/一次性凭证异常直接判攻击")
-    void replayIsAttack() {
-        ThreatAssessment result = assess("POST", "/api/user/favorite", null, null, "api", 409,
+    @DisplayName("单次防重放凭证失效只记低风险，不直接判攻击")
+    void singleReplayFailureIsNotAttack() {
+        ThreatAssessment invalid = assess("POST", "/api/user/favorite", null, null, "api", 409,
                 "203.0.113.14", BROWSER_UA, "browser", "invalid");
+        assertEquals(ThreatAssessment.NORMAL, invalid.level());
+        assertTrue(invalid.reasons().contains("防重放凭证失效"));
 
-        assertEquals(ThreatAssessment.ATTACK, result.level());
-        assertTrue(result.reasons().contains("重放"));
+        ThreatAssessment missing = assess("POST", "/api/user/favorite", null, null, "api", 409,
+                "203.0.113.16", BROWSER_UA, "browser", "missing");
+        assertEquals(ThreatAssessment.NORMAL, missing.level());
+
+        ThreatAssessment businessConflict = assess("POST", "/api/user/qrlogin/confirm", null, null,
+                "api", 409, "203.0.113.17", BROWSER_UA, "browser", "verified");
+        assertEquals(ThreatAssessment.NORMAL, businessConflict.level());
+        assertTrue(businessConflict.reasons().contains("业务状态冲突"));
+
+        ThreatAssessment dangerousReplay = assess("GET", "/.env", null, null, "other", 409,
+                "203.0.113.19", BROWSER_UA, "browser", "invalid");
+        assertEquals(ThreatAssessment.ATTACK, dangerousReplay.level());
+        assertTrue(dangerousReplay.reasons().contains("扫描"));
+    }
+
+    @Test
+    @DisplayName("全站扫描期间的单次防重放失败仍不被连带判攻击")
+    void singleReplayFailureDuringGlobalAttackStaysNormal() {
+        for (int i = 1; i <= 24; i++) {
+            assess("GET", "/api/probe/" + i, null, null, "api", 404,
+                    "198." + i + ".1.1", BROWSER_UA, "browser", null);
+        }
+
+        ThreatAssessment result = assess("POST", "/api/user/favorite", null, null, "api", 409,
+                "192.0.2.200", BROWSER_UA, "browser", "invalid");
+        assertEquals(ThreatAssessment.NORMAL, result.level());
+        assertEquals(15, result.score());
+    }
+
+    @Test
+    @DisplayName("持续大量防重放失败最多判疑似，不单独升为攻击")
+    void replayFailureBurstIsSuspectedNotAttack() {
+        ThreatAssessment beforeBurst = null;
+        for (int i = 0; i < 79; i++) {
+            beforeBurst = assess("POST", "/api/user/favorite", null, null, "api", 409,
+                    "203.0.113.18", BROWSER_UA, "browser", "invalid");
+        }
+        assertEquals(ThreatAssessment.NORMAL, beforeBurst.level());
+
+        ThreatAssessment burst = assess("POST", "/api/user/favorite", null, null, "api", 409,
+                "203.0.113.18", BROWSER_UA, "browser", "invalid");
+        assertEquals(ThreatAssessment.SUSPECTED, burst.level());
+        assertTrue(burst.reasons().contains("防重放"));
     }
 
     @Test
