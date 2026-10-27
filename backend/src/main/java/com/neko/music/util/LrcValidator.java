@@ -35,6 +35,10 @@ public class LrcValidator {
     // 翻译行正则表达式：{"翻译内容"} 或 {'翻译内容'}
     private static final Pattern TRANSLATION_PATTERN = Pattern.compile("^\\{[\"'](.+)[\"']\\}$");
 
+    /** 带标准时间轴的单行歌词；第四组为时间戳后的正文。 */
+    private static final Pattern TIMED_LINE_PATTERN =
+            Pattern.compile("^\\[(\\d{2}):(\\d{2})[.:](\\d{1,5})\\](.*)$");
+
     /** LRC 元数据标签行，如 [ti:歌名]、[ar:歌手]（不含 [mm:ss.xx] 时间轴） */
     private static final Pattern METADATA_TAG_PATTERN = Pattern.compile(
             "^\\[[a-zA-Z]+:[^\\]]*\\]\\s*$", Pattern.CASE_INSENSITIVE);
@@ -60,8 +64,10 @@ public class LrcValidator {
             return ValidationResult.fail("歌词文件读取失败：" + e.getMessage());
         }
 
-        // 3. 校验歌词格式
-        return validateLyricsFormat(lines);
+        // 3. 同时间戳原文/译文先归一，再校验最终写入内容
+        String normalized = normalizeDuplicateTimestampTranslations(String.join("\n", lines));
+        ValidationResult result = validateLyricsFormat(List.of(normalized.split("\\R", -1)));
+        return result.isValid() ? ValidationResult.success(normalized) : result;
     }
 
     /**
@@ -130,6 +136,71 @@ public class LrcValidator {
             expanded.setLength(expanded.length() - 1);
         }
         return expanded.toString();
+    }
+
+    /**
+     * 将相邻、同时间戳的两行歌词规范为「原文 + 翻译」。
+     *
+     * <p>部分歌词源会把原文与译文写成两个相同时间戳的独立行，播放器只会保留首行。
+     * 当第二行内容不同（或两行都是空行）时，把第二行改为 {@code {"译文"}}；
+     * 已有翻译行和内容相同的重复行保持原样，方法可重复调用。</p>
+     */
+    public static String normalizeDuplicateTimestampTranslations(String lyrics) {
+        if (lyrics == null || lyrics.isEmpty()) {
+            return lyrics;
+        }
+
+        String[] lines = lyrics.split("\\R", -1);
+        List<String> normalized = new ArrayList<>(lines.length);
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            TimedLine current = parseTimedLine(line);
+            if (current == null || i + 1 >= lines.length) {
+                normalized.add(line);
+                continue;
+            }
+
+            TimedLine next = parseTimedLine(lines[i + 1]);
+            if (next == null || current.timeKey() != next.timeKey()) {
+                normalized.add(line);
+                continue;
+            }
+            if (TRANSLATION_PATTERN.matcher(next.text()).matches()) {
+                normalized.add(line);
+                continue;
+            }
+            if (!current.text().isEmpty() && current.text().equals(next.text())) {
+                normalized.add(line);
+                continue;
+            }
+
+            normalized.add(line);
+            String translation = next.text().isEmpty() ? " " : next.text();
+            normalized.add("{\"" + escapeTranslation(translation) + "\"}");
+            i++;
+        }
+        return String.join("\n", normalized);
+    }
+
+    private static TimedLine parseTimedLine(String line) {
+        Matcher matcher = TIMED_LINE_PATTERN.matcher(line.trim());
+        if (!matcher.matches()) {
+            return null;
+        }
+        String fraction = matcher.group(3);
+        long fractional = Long.parseLong(fraction);
+        for (int digits = fraction.length(); digits < 5; digits++) {
+            fractional *= 10L;
+        }
+        long seconds = Long.parseLong(matcher.group(1)) * 60L + Long.parseLong(matcher.group(2));
+        return new TimedLine(seconds * 100_000L + fractional, matcher.group(4).trim());
+    }
+
+    private static String escapeTranslation(String translation) {
+        return translation.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private record TimedLine(long timeKey, String text) {
     }
 
     /**
@@ -330,18 +401,24 @@ public class LrcValidator {
     public static class ValidationResult {
         private final boolean valid;
         private final String errorMessage;
+        private final String normalizedContent;
 
-        private ValidationResult(boolean valid, String errorMessage) {
+        private ValidationResult(boolean valid, String errorMessage, String normalizedContent) {
             this.valid = valid;
             this.errorMessage = errorMessage;
+            this.normalizedContent = normalizedContent;
         }
 
         public static ValidationResult success() {
-            return new ValidationResult(true, null);
+            return success(null);
+        }
+
+        public static ValidationResult success(String normalizedContent) {
+            return new ValidationResult(true, null, normalizedContent);
         }
 
         public static ValidationResult fail(String errorMessage) {
-            return new ValidationResult(false, errorMessage);
+            return new ValidationResult(false, errorMessage, null);
         }
 
         public boolean isValid() {
@@ -350,6 +427,10 @@ public class LrcValidator {
 
         public String getErrorMessage() {
             return errorMessage;
+        }
+
+        public String getNormalizedContent() {
+            return normalizedContent;
         }
     }
 }

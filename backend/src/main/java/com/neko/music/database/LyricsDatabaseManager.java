@@ -1,6 +1,7 @@
 package com.neko.music.database;
 
 import com.neko.music.util.LyricsPlainTextExtractor;
+import com.neko.music.util.LrcValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -160,6 +161,7 @@ public class LyricsDatabaseManager {
         if (musicId <= 0 || content == null) {
             throw new SQLException("无效的歌词参数");
         }
+        content = LrcValidator.normalizeDuplicateTimestampTranslations(content);
         String normalizedSource = source == null || source.isBlank() ? "manual" : source.trim();
         String plain = LyricsPlainTextExtractor.fromLrc(content);
         boolean placeholder = LyricsPlainTextExtractor.isPlaceholder(plain);

@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -94,6 +95,61 @@ class LrcValidatorTest {
 
         assertTrue(normalized.contains("[02:33.58]歌词"));
         assertTrue(validate(normalized).isValid());
+    }
+
+    @Test
+    void normalizesDuplicateTimestampTranslationLines() {
+        String lrc = """
+                [00:00.000] 作词 : Onika Tanya Maraj/Justin Bieber/Martin Karl Sandberg/Arkadi Zaslavski/Savan Harish Kotecha
+                [00:01.000] 作曲 : Onika Tanya Maraj/Justin Bieber/Martin Karl Sandberg/Arkadi Zaslavski/Savan Harish Kotecha
+                [00:03.442] Yeah
+                [00:03.442]耶
+                [00:06.392] Young Money
+                {"来自Young Money"}
+                [00:14.452]
+                [00:14.452]
+                """;
+
+        String normalized = LrcValidator.normalizeDuplicateTimestampTranslations(lrc);
+
+        assertEquals("""
+                [00:00.000] 作词 : Onika Tanya Maraj/Justin Bieber/Martin Karl Sandberg/Arkadi Zaslavski/Savan Harish Kotecha
+                [00:01.000] 作曲 : Onika Tanya Maraj/Justin Bieber/Martin Karl Sandberg/Arkadi Zaslavski/Savan Harish Kotecha
+                [00:03.442] Yeah
+                {"耶"}
+                [00:06.392] Young Money
+                {"来自Young Money"}
+                [00:14.452]
+                {" "}
+                """, normalized);
+        LrcValidator.ValidationResult result = validate(lrc);
+        assertTrue(result.isValid());
+        assertEquals(normalized.stripTrailing(), result.getNormalizedContent());
+    }
+
+    @Test
+    void normalizesEquivalentTimestampsWithDifferentPrecision() {
+        String normalized = LrcValidator.normalizeDuplicateTimestampTranslations("""
+                [00:03.44]Original
+                [00:03.440]Translation
+                """);
+
+        assertEquals("""
+                [00:03.44]Original
+                {"Translation"}
+                """, normalized);
+    }
+
+    @Test
+    void keepsExistingTranslationsAndIdenticalDuplicateLinesStable() {
+        String lrc = """
+                [00:05.000]Original
+                {"Existing translation"}
+                [00:06.000]Same line
+                [00:06.000]Same line
+                """;
+
+        assertEquals(lrc, LrcValidator.normalizeDuplicateTimestampTranslations(lrc));
     }
 
     private static LrcValidator.ValidationResult validate(String content) {

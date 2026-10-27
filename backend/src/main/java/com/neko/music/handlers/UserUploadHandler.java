@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -228,10 +229,11 @@ public class UserUploadHandler extends ApiServlet {
                     return;
                 }
 
-                // 校验歌词文件格式
+                // 同时间戳的原文/译文先规范成 JSON 翻译行，再按最终写入内容校验和保存
+                byte[] normalizedLyrics;
                 try (InputStream lyricsInputStream = lyricsFilePart.getInputStream()) {
-                    LrcValidator.ValidationResult validationResult = LrcValidator.validate(
-                            lyricsInputStream, lyricsFilePart.getSize());
+                    LrcValidator.ValidationResult validationResult =
+                            LrcValidator.validate(lyricsInputStream, lyricsFilePart.getSize());
                     if (!validationResult.isValid()) {
                         sendErrorResponse(response, 400, ApiMessages.translate("upload.lyrics_format_invalid", validationResult.getErrorMessage()));
                         // 删除已上传的音乐和封面文件
@@ -239,6 +241,7 @@ public class UserUploadHandler extends ApiServlet {
                         deleteFileIfExists(coverFilePath);
                         return;
                     }
+                    normalizedLyrics = validationResult.getNormalizedContent().getBytes(StandardCharsets.UTF_8);
                 } catch (Exception e) {
                     logger.error("校验歌词文件时出错", e);
                     sendErrorResponse(response, 400, ApiMessages.translate("upload.lyrics_validate_failed", e.getMessage()));
@@ -249,7 +252,7 @@ public class UserUploadHandler extends ApiServlet {
                 }
 
                 lyricsFilePath = Paths.get(uploadBaseDir, lyricsFileName).toString();
-                saveFile(lyricsFilePart, lyricsFilePath);
+                Files.write(Paths.get(lyricsFilePath), normalizedLyrics);
             } else {
                 // 如果没有上传歌词文件，使用资源目录中的 no_lrc.lrc
                 String lyricsFileName = "lyrics_" + timestamp + ".lrc";
