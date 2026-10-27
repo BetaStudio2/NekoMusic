@@ -55,6 +55,7 @@ public class ClientIdentityFilter implements Filter {
             "/api/payment/zpay/notify",
             "/api/user/qrlogin/status",
             "/api/user/notifications/stream",
+            "/api/admin/logs/access/stream",
             "/api/user/upload/preview"
     );
 
