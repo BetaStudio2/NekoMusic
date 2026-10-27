@@ -118,6 +118,10 @@ public final class ThreatDetectionService {
                 || RequestCategory.ADMIN.equals(facts.category());
         boolean denied = facts.status() == 401 || facts.status() == 403
                 || facts.status() == 404 || facts.status() == 429;
+        // 401 常见于令牌过期；把它与 403/404/429 的扫描失败拆开，避免一次全站掉签
+        // 被误判成跨网段攻击。401 仍会进入单 IP 认证失败与低分认证聚类。
+        boolean scanFailure = facts.status() == 403 || facts.status() == 404
+                || facts.status() == 429;
         boolean notFound = facts.status() == 404;
         boolean authFailure = facts.status() == 401 || facts.status() == 403;
 
@@ -173,7 +177,7 @@ public final class ThreatDetectionService {
 
         boolean highRisk = signature >= 60 || facts.status() == 409
                 || POW_HIGH_RISK.contains(pow) || ClientFingerprint.SCANNER.equals(clientType);
-        Event event = new Event(now, highRisk, denied, notFound, authFailure,
+        Event event = new Event(now, highRisk, scanFailure, notFound, authFailure,
                 networkScope(clientIp), clientIp, pathFamily(pathLower));
         String uaKey = uaFingerprint(facts.userAgent(), facts.nekoClient(), facts.clientId());
         remember("global", event, now, GLOBAL_WINDOW_MAX_EVENTS);
@@ -190,7 +194,7 @@ public final class ThreatDetectionService {
         remember("path:" + event.pathFamily(), event, now, WINDOW_MAX_EVENTS);
         maybeCleanup(now);
 
-        score += sourceBehaviorScore(clientIp, now, reasons);
+        score += sourceBehaviorScore(clientIp, now, isCredentialPath(pathLower), reasons);
         boolean powAnomaly = POW_HIGH_RISK.contains(pow) || POW_MEDIUM_RISK.contains(pow)
                 || "expired".equals(pow) || "missing".equals(pow);
         boolean currentAnomaly = signature > 0 || denied || highRisk || powAnomaly;
@@ -241,19 +245,23 @@ public final class ThreatDetectionService {
     }
 
     /** 单 IP / 粗粒度网段的行为分。 */
-    private int sourceBehaviorScore(String clientIp, long now, List<String> reasons) {
+    private int sourceBehaviorScore(String clientIp, long now, boolean credentialPath,
+                                    List<String> reasons) {
         int score = 0;
         if (!clientIp.isBlank()) {
             WindowStats ip = snapshot("ip:" + clientIp, now - WINDOW_MS);
-            if (ip.denied() >= 8 && ip.total() >= 10 && ip.deniedRatio() >= 0.70) {
+            if (ip.scanFailures() >= 8 && ip.total() >= 10 && ip.scanRatio() >= 0.70) {
                 score += 30;
-                reasons.add("同一 IP 短时高频 4xx");
+                reasons.add("同一 IP 短时高频 403/404/429");
             }
             if (ip.authFailures() >= 6) {
                 score += 30;
                 reasons.add("同一 IP 反复认证失败");
             }
-            if (ip.authFailures() >= 8) {
+            // 登录 / 注册等凭证接口 8 次即可确认爆破；普通接口可能只是客户端令牌失效，
+            // 需要更高次数才升级为攻击。
+            int authAttackCount = credentialPath ? 8 : 20;
+            if (ip.authFailures() >= authAttackCount) {
                 score += 20;
                 reasons.add("同一 IP 持续认证失败");
             }
@@ -269,10 +277,10 @@ public final class ThreatDetectionService {
             String network = networkScope(clientIp);
             if (!network.isBlank()) {
                 WindowStats net = snapshot("net:" + network, now - WINDOW_MS);
-                if (net.denied() >= 10 && net.distinctIps() >= 5 && net.deniedRatio() >= 0.45) {
+                if (net.scanFailures() >= 10 && net.distinctIps() >= 5 && net.scanRatio() >= 0.45) {
                     score += 30;
                     reasons.add("同网段多 IP 同步失败");
-                } else if (net.denied() >= 20 && net.deniedRatio() >= 0.65) {
+                } else if (net.scanFailures() >= 20 && net.scanRatio() >= 0.65) {
                     score += 25;
                     reasons.add("同网段短时大量拒绝");
                 }
@@ -289,28 +297,37 @@ public final class ThreatDetectionService {
     private int distributedCampaignScore(String uaKey, String pathFamily, long now,
                                          List<String> reasons) {
         int score = 0;
+        int authScore = 0;
         if (!uaKey.isBlank()) {
             WindowStats ua = snapshot("ua:" + uaKey, now - WINDOW_MS);
-            if (ua.distinctNetworks() >= 4 && ua.denied() >= 6 && ua.deniedRatio() >= 0.5) {
+            if (ua.distinctNetworks() >= 4 && ua.scanFailures() >= 6 && ua.scanRatio() >= 0.5) {
                 score += 35;
                 reasons.add("多个网段共享同一客户端指纹");
-            } else if (ua.total() >= 12 && ua.denied() >= 8) {
+            } else if (ua.total() >= 12 && ua.scanFailures() >= 8) {
                 score += 20;
                 reasons.add("同一客户端指纹短时高频失败");
+            }
+            if (ua.authFailures() >= 6 && ua.distinctNetworks() >= 4) {
+                authScore += 15;
+                reasons.add("多个网段共享同一客户端指纹（认证失败）");
             }
         }
 
         WindowStats path = snapshot("path:" + pathFamily, now - WINDOW_MS);
-        if (path.distinctNetworks() >= 5 && path.denied() >= 8 && path.deniedRatio() >= 0.5) {
+        if (path.distinctNetworks() >= 5 && path.scanFailures() >= 8 && path.scanRatio() >= 0.5) {
             score += 30;
             reasons.add("多个网段集中探测同一路径族");
         }
+        if (path.authFailures() >= 8 && path.distinctNetworks() >= 5) {
+            authScore += 10;
+            reasons.add("多个网段集中出现认证失败");
+        }
 
         WindowStats burst = snapshot("global", now - BURST_WINDOW_MS);
-        if (burst.denied() >= 60 && burst.distinctNetworks() >= 10) {
+        if (burst.scanFailures() >= 60 && burst.distinctNetworks() >= 10) {
             score += 50;
             reasons.add("全站短时大规模失败");
-        } else if (burst.denied() >= 24 && burst.distinctNetworks() >= 6) {
+        } else if (burst.scanFailures() >= 24 && burst.distinctNetworks() >= 6) {
             score += 35;
             reasons.add("全站多网段同步失败");
         }
@@ -318,7 +335,24 @@ public final class ThreatDetectionService {
             score += 20;
             reasons.add("全站多网段高危特征活动");
         }
+        if (burst.authFailures() >= 60 && burst.distinctNetworks() >= 10) {
+            authScore += 20;
+            reasons.add("全站短时大规模认证失败");
+        } else if (burst.authFailures() >= 24 && burst.distinctNetworks() >= 6) {
+            authScore += 15;
+            reasons.add("全站多网段认证失败");
+        }
+
+        // 纯 401 的跨来源聚类只给低分：它更可能是令牌过期 / 发布故障，而不是扫描。
+        // 同一 IP 的高频认证失败与凭证接口爆破仍由来源行为层独立升级。
+        score += Math.min(25, authScore);
         return score;
+    }
+
+    private static boolean isCredentialPath(String path) {
+        return path.contains("/login") || path.contains("/register")
+                || path.contains("/password") || path.contains("/reset")
+                || path.contains("/verify") || path.contains("/qrlogin");
     }
 
     private void remember(String key, Event event, long now, int maxEvents) {
@@ -430,13 +464,13 @@ public final class ThreatDetectionService {
                                String clientInstanceId, String powStatus) {
     }
 
-    private record Event(long at, boolean highRisk, boolean denied, boolean notFound,
+    private record Event(long at, boolean highRisk, boolean scanFailure, boolean notFound,
                          boolean authFailure, String network, String ip, String pathFamily) {
     }
 
-    private record WindowStats(int total, int denied, int notFound, int authFailures,
+    private record WindowStats(int total, int scanFailures, int notFound, int authFailures,
                                int highRisk, int distinctIps, int distinctNetworks,
-                               int distinctPaths, double deniedRatio) {
+                               int distinctPaths, double scanRatio) {
         private static final WindowStats EMPTY =
                 new WindowStats(0, 0, 0, 0, 0, 0, 0, 0, 0.0);
 
@@ -444,7 +478,7 @@ public final class ThreatDetectionService {
             if (events.isEmpty()) {
                 return EMPTY;
             }
-            int denied = 0;
+            int scanFailures = 0;
             int notFound = 0;
             int authFailures = 0;
             int highRisk = 0;
@@ -452,8 +486,8 @@ public final class ThreatDetectionService {
             Set<String> networks = new HashSet<>();
             Set<String> paths = new HashSet<>();
             for (Event event : events) {
-                if (event.denied()) {
-                    denied++;
+                if (event.scanFailure()) {
+                    scanFailures++;
                 }
                 if (event.notFound()) {
                     notFound++;
@@ -472,9 +506,9 @@ public final class ThreatDetectionService {
                 }
                 paths.add(event.pathFamily());
             }
-            return new WindowStats(events.size(), denied, notFound, authFailures, highRisk,
+            return new WindowStats(events.size(), scanFailures, notFound, authFailures, highRisk,
                     ips.size(), networks.size(), paths.size(),
-                    events.isEmpty() ? 0.0 : (double) denied / events.size());
+                    events.isEmpty() ? 0.0 : (double) scanFailures / events.size());
         }
     }
 

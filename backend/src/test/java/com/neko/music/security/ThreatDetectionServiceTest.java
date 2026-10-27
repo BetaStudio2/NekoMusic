@@ -112,16 +112,27 @@ class ThreatDetectionServiceTest {
     }
 
     @Test
-    @DisplayName("官方客户端 UA 在多个网段轮换并发 401 时判攻击")
-    void officialClientAuthRotationIsDetected() {
+    @DisplayName("低密度 401 跨网段轮换只判疑似，避免令牌过期洪水误报")
+    void distributedAuthRotationIsSuspected() {
         ThreatAssessment result = null;
         for (int i = 1; i <= 12; i++) {
             result = assess("GET", "/api/music/file/" + (1000 + i), null, null, "api", 401,
                     "203." + i + ".1.1", "NekoMusic-android/202601024", "official_client", null);
         }
+        assertEquals(ThreatAssessment.SUSPECTED, result.level());
+        assertTrue(result.reasons().contains("认证失败"));
+    }
+
+    @Test
+    @DisplayName("同一普通接口来源持续 401 达到高阈值仍判攻击")
+    void repeatedAuthFailureFromOneSourceIsAttack() {
+        ThreatAssessment result = null;
+        for (int i = 0; i < 20; i++) {
+            result = assess("GET", "/api/music/file/1000", null, null, "api", 401,
+                    "203.0.113.30", "NekoMusic-android/202601024", "official_client", null);
+        }
         assertEquals(ThreatAssessment.ATTACK, result.level());
-        assertTrue(result.reasons().contains("认证失败") || result.reasons().contains("指纹")
-                || result.reasons().contains("网段") || result.reasons().contains("全站"));
+        assertTrue(result.reasons().contains("认证失败"));
     }
 
     @Test

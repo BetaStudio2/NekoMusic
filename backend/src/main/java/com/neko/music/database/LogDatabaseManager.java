@@ -300,10 +300,11 @@ public class LogDatabaseManager {
      * 为历史回填建立来源 / 客户端指纹聚类。
      *
      * <p>历史行没有实时滑动窗口，但可以用全量日志近似出「短时高频失败来源」和「同一 UA 跨多个
-     * 网段失败」。这能在升级后立刻把已经成簇的 4xx 标成攻击，而不是全部保守地塞进疑似。</p>
+     * 网段失败」。这能在升级后立刻把成簇的扫描型 4xx 标成攻击，而不是全部保守地塞进疑似。</p>
      */
     private static void prepareThreatClusters(Connection conn) throws SQLException {
         String denied = "status IN (401,403,404,429)";
+        String scanFailure = "status IN (403,404,429)";
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TEMPORARY TABLE IF EXISTS threat_source_clusters");
             stmt.execute("DROP TEMPORARY TABLE IF EXISTS threat_client_clusters");
@@ -314,14 +315,15 @@ public class LogDatabaseManager {
                     + "WHERE threat_engine_version = 0 AND client_ip IS NOT NULL AND client_ip <> '' "
                     + "GROUP BY client_ip "
                     + "HAVING SUM(" + denied + ") >= 8 "
-                    + "AND SUM(" + denied + ") / COUNT(*) >= 0.70");
+                    + "AND SUM(" + denied + ") / COUNT(*) >= 0.70 "
+                    + "AND (SUM(" + scanFailure + ") >= 5 OR SUM(status = 401) >= 50)");
             stmt.execute("CREATE TEMPORARY TABLE threat_client_clusters "
                     + "(user_agent VARCHAR(1024) NOT NULL)");
             stmt.execute("INSERT INTO threat_client_clusters (user_agent) "
                     + "SELECT COALESCE(user_agent, '') FROM access_log "
                     + "WHERE threat_engine_version = 0 AND COALESCE(user_agent, '') <> '' "
                     + "GROUP BY COALESCE(user_agent, '') "
-                    + "HAVING SUM(" + denied + ") >= 6 "
+                    + "HAVING SUM(" + scanFailure + ") >= 6 "
                     + "AND COUNT(DISTINCT CASE WHEN client_ip LIKE '%:%' "
                     + "THEN SUBSTRING_INDEX(client_ip, ':', 2) "
                     + "ELSE SUBSTRING_INDEX(client_ip, '.', 2) END) >= 4 "
