@@ -166,6 +166,37 @@ class ThreatDetectionServiceTest {
     }
 
     @Test
+    @DisplayName("CGNAT 共享 IP 下多个客户端各自刷同一路径不会互相叠加误判")
+    void cgnatClientsDoNotShareSinglePathFlood() {
+        ThreatAssessment result = null;
+        String sharedIp = "100.64.23.9";
+        for (int user = 1; user <= 6; user++) {
+            for (int i = 0; i < 100; i++) {
+                result = assess("GET", "/api/user/avatar/77", null, null, "api", 304,
+                        sharedIp, "NekoMusic-android/20261027", "official_client", null,
+                        "cgnat-instance-" + user, user);
+            }
+        }
+        assertEquals(ThreatAssessment.NORMAL, result.level());
+        assertEquals(0, result.score());
+    }
+
+    @Test
+    @DisplayName("CGNAT 共享 IP 下少量客户端各自重放失败不会合并成攻击")
+    void cgnatClientsDoNotShareReplayBurst() {
+        ThreatAssessment result = null;
+        String sharedIp = "100.64.23.10";
+        for (int user = 1; user <= 6; user++) {
+            for (int i = 0; i < 20; i++) {
+                result = assess("POST", "/api/user/favorite", null, null, "api", 409,
+                        sharedIp, "NekoMusic-android/20261027", "official_client", "invalid",
+                        "cgnat-instance-" + user, user);
+            }
+        }
+        assertEquals(ThreatAssessment.NORMAL, result.level());
+    }
+
+    @Test
     @DisplayName("同一 IP 反复认证失败升级为攻击")
     void authFailureBurstIsAttack() {
         ThreatAssessment result = null;
@@ -320,9 +351,17 @@ class ThreatDetectionServiceTest {
     private ThreatAssessment assess(String method, String path, String query, String body,
                                     String category, int status, String ip, String ua,
                                     String clientType, String powStatus) {
+        return assess(method, path, query, body, category, status, ip, ua, clientType,
+                powStatus, null, null);
+    }
+
+    private ThreatAssessment assess(String method, String path, String query, String body,
+                                    String category, int status, String ip, String ua,
+                                    String clientType, String powStatus, String clientInstanceId,
+                                    Integer userId) {
         now += 1000;
         return service.assess(new ThreatDetectionService.RequestFacts(
                 now, method, path, query, category, status, ip, ua, clientType,
-                "web+1", null, null, powStatus));
+                "web+1", null, clientInstanceId, userId, powStatus));
     }
 }

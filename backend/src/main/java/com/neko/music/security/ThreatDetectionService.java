@@ -27,7 +27,8 @@ import java.util.regex.Pattern;
  * <ol>
  *   <li><b>请求特征</b>：扫描器 UA、敏感文件探测、注入载荷、路径穿越、异常方法、
  *       401/403/404/429，以及按来源密度累计的防重放 / PoW 异常。</li>
- *   <li><b>来源行为窗口</b>：单 IP 与粗粒度网段在短时间内的拒绝率、认证失败、404 数、路径扩散度。</li>
+ *   <li><b>来源行为窗口</b>：单客户端 / 单 IP 与粗粒度网段在短时间内的拒绝率、认证失败、
+ *       404 数、路径扩散度；同一 IP 出现多个客户端身份时按共享出口降级到客户端维度。</li>
  *   <li><b>跨来源聚类</b>：同一 UA / 路径族在多网段、多 IP 上同步失败；以及全站在短窗口内的
  *       大面积拒绝。该层专门覆盖攻击者轮换 IPv4 /24、IPv6 /48 甚至不同地址段的情况。</li>
  * </ol>
@@ -84,6 +85,8 @@ public final class ThreatDetectionService {
     private static final int REPLAY_BURST_SCORE = 50;
     private static final int SINGLE_PATH_FLOOD_MIN_REQUESTS = 300;
     private static final int SINGLE_PATH_FLOOD_SCORE = 60;
+    /** 同一 IP 出现多个稳定客户端身份时按 CGNAT / 共享出口处理，不再用 IP 级高频规则。 */
+    private static final int SHARED_SOURCE_MIN_CLIENTS = 2;
 
     private static final ThreatDetectionService SHARED =
             new ThreatDetectionService(System::currentTimeMillis);
@@ -120,6 +123,8 @@ public final class ThreatDetectionService {
         String method = safe(facts.method()).toUpperCase(Locale.ROOT);
         String clientType = safe(facts.clientType());
         String clientIp = safe(facts.clientIp());
+        String clientKey = clientIdentityKey(facts.userAgent(), facts.nekoClient(), facts.clientId(),
+                facts.clientInstanceId(), facts.userId());
 
         int signature = signatureScore(pathLower, decodedLower, method, reasons);
         score += signature;
@@ -193,16 +198,19 @@ public final class ThreatDetectionService {
         boolean replayFailure = POW_REPLAY_FAILURE.contains(pow);
         Event event = new Event(now, highRisk, scanFailure, notFound, authFailure, replayFailure,
                 facts.status() == 200, pathLower, networkScope(clientIp), clientIp,
-                pathFamily(pathLower));
+                pathFamily(pathLower), clientKey);
         String uaKey = uaFingerprint(facts.userAgent(), facts.nekoClient(), facts.clientId());
         remember("global", event, now, GLOBAL_WINDOW_MAX_EVENTS);
         if (!clientIp.isBlank()) {
             remember("ip:" + clientIp, event, now, WINDOW_MAX_EVENTS);
-            remember("ip-path:" + clientIp + "|" + pathLower, event, now, WINDOW_MAX_EVENTS);
+            remember(pathWindowKey(clientIp, clientKey, pathLower), event, now, WINDOW_MAX_EVENTS);
             String network = event.network();
             if (!network.isBlank()) {
                 remember("net:" + network, event, now, WINDOW_MAX_EVENTS);
             }
+        }
+        if (!clientKey.isBlank()) {
+            remember("client:" + clientKey, event, now, WINDOW_MAX_EVENTS);
         }
         if (!uaKey.isBlank()) {
             remember("ua:" + uaKey, event, now, WINDOW_MAX_EVENTS);
@@ -212,28 +220,32 @@ public final class ThreatDetectionService {
 
         WindowStats ipStats = clientIp.isBlank()
                 ? WindowStats.EMPTY : snapshot("ip:" + clientIp, now - WINDOW_MS);
+        WindowStats clientStats = clientKey.isBlank()
+                ? WindowStats.EMPTY : snapshot("client:" + clientKey, now - WINDOW_MS);
+        boolean sharedSource = ipStats.distinctClients() >= SHARED_SOURCE_MIN_CLIENTS;
+        WindowStats sourceStats = sharedSource && clientStats.total() > 0 ? clientStats : ipStats;
         String network = event.network();
         WindowStats networkStats = network.isBlank()
                 ? WindowStats.EMPTY : snapshot("net:" + network, now - WINDOW_MS);
         int exactPathHits = clientIp.isBlank() ? 0
-                : windowCount("ip-path:" + clientIp + "|" + pathLower, now - WINDOW_MS);
+                : windowCount(pathWindowKey(clientIp, clientKey, pathLower), now - WINDOW_MS);
 
         boolean success = facts.status() == 200;
-        score += sourceBehaviorScore(ipStats, networkStats, isCredentialPath(pathLower), success,
-                exactPathHits, reasons);
+        score += sourceBehaviorScore(sourceStats, networkStats, isCredentialPath(pathLower), success,
+                exactPathHits, sharedSource, reasons);
         // 单次 nonce / 挑战失效不参与全站聚类，否则同刻发生的其他扫描会把正常客户端的
         // 过期请求连带抬高。只有本地重放失败达到异常密度时，才进入跨来源关联。
         boolean strongAnomaly = signature > 0 || denied || highRisk;
-        boolean replayBurst = qualifiesReplayBurst(ipStats);
+        boolean replayBurst = qualifiesReplayBurst(sourceStats);
         // 普通 200 不扫描跨来源窗口，避免把每个正常请求都拖进额外聚合；
         // 只有当前来源已经夹带失败探测时才进一步判断是否为成功遍历。
-        if (strongAnomaly || replayBurst || (success && ipStats.scanFailures() > 0)) {
+        if (strongAnomaly || replayBurst || (success && sourceStats.scanFailures() > 0)) {
             WindowStats uaStats = uaKey.isBlank()
                     ? WindowStats.EMPTY : snapshot("ua:" + uaKey, now - WINDOW_MS);
             WindowStats pathStats = snapshot("path:" + event.pathFamily(), now - WINDOW_MS);
             WindowStats burstStats = snapshot("global", now - BURST_WINDOW_MS);
             boolean successProbe = success
-                    && hasSuccessProbe(ipStats, uaStats, pathStats, burstStats);
+                    && hasSuccessProbe(sourceStats, uaStats, pathStats, burstStats);
             if (strongAnomaly || replayBurst || successProbe) {
                 score += distributedCampaignScore(uaStats, pathStats, burstStats, success, reasons);
             }
@@ -281,46 +293,52 @@ public final class ThreatDetectionService {
         return score;
     }
 
-    /** 单 IP / 粗粒度网段的行为分。 */
-    private static int sourceBehaviorScore(WindowStats ip, WindowStats net, boolean credentialPath,
-                                           boolean success, int exactPathHits,
+    /** 单一来源（共享 IP 时降为单客户端）/ 粗粒度网段的行为分。 */
+    private static int sourceBehaviorScore(WindowStats source, WindowStats net, boolean credentialPath,
+                                           boolean success, int exactPathHits, boolean sharedSource,
                                            List<String> reasons) {
         int score = 0;
-        if (ip.total() > 0) {
-            if (ip.scanFailures() >= 8 && ip.total() >= 10 && ip.scanRatio() >= 0.70) {
+        if (source.total() > 0) {
+            if (source.scanFailures() >= 8 && source.total() >= 10 && source.scanRatio() >= 0.70) {
                 score += 30;
-                reasons.add("同一 IP 短时高频 403/404/429");
+                reasons.add(sharedSource ? "同一客户端短时高频 403/404/429"
+                        : "同一 IP 短时高频 403/404/429");
             }
-            if (ip.authFailures() >= 6) {
+            if (source.authFailures() >= 6) {
                 score += 30;
-                reasons.add("同一 IP 反复认证失败");
+                reasons.add(sharedSource ? "同一客户端反复认证失败" : "同一 IP 反复认证失败");
             }
             // 登录 / 注册等凭证接口 8 次即可确认爆破；普通接口可能只是客户端令牌失效，
             // 需要更高次数才升级为攻击。
             int authAttackCount = credentialPath ? 8 : 20;
-            if (ip.authFailures() >= authAttackCount) {
+            if (source.authFailures() >= authAttackCount) {
                 score += 20;
-                reasons.add("同一 IP 持续认证失败");
+                reasons.add(sharedSource ? "同一客户端持续认证失败" : "同一 IP 持续认证失败");
             }
-            if (qualifiesReplayBurst(ip)) {
+            if (qualifiesReplayBurst(source)) {
                 score += REPLAY_BURST_SCORE;
-                reasons.add("同一来源短时大量防重放凭证失败");
+                reasons.add(sharedSource ? "同一客户端短时大量防重放凭证失败"
+                        : "同一来源短时大量防重放凭证失败");
             }
             if (qualifiesSinglePathFlood(exactPathHits)) {
                 score += SINGLE_PATH_FLOOD_SCORE;
-                reasons.add("同一来源短时高频重复请求同一路径");
+                reasons.add(sharedSource ? "同一客户端短时高频重复请求同一路径"
+                        : "同一来源短时高频重复请求同一路径");
             }
-            if (ip.notFound() >= 8 && ip.distinctPaths() >= 6) {
+            if (source.notFound() >= 8 && source.distinctPaths() >= 6) {
                 score += 20;
-                reasons.add("同一 IP 连续探测不存在路径");
+                reasons.add(sharedSource ? "同一客户端连续探测不存在路径"
+                        : "同一 IP 连续探测不存在路径");
             }
-            if (ip.highRisk() >= 2) {
+            if (source.highRisk() >= 2) {
                 score += 20;
-                reasons.add("同一 IP 多次命中高危特征");
+                reasons.add(sharedSource ? "同一客户端多次命中高危特征"
+                        : "同一 IP 多次命中高危特征");
             }
-            if (success && qualifiesIpSuccessProbe(ip)) {
+            if (success && qualifiesIpSuccessProbe(source)) {
                 score += 30;
-                reasons.add("同一来源成功遍历资源并夹带失败探测");
+                reasons.add(sharedSource ? "同一客户端成功遍历资源并夹带失败探测"
+                        : "同一来源成功遍历资源并夹带失败探测");
             }
 
             if (net.total() > 0) {
@@ -555,6 +573,33 @@ public final class ThreatDetectionService {
                 + Integer.toHexString(declared.hashCode()) + ":" + Integer.toHexString(app.hashCode());
     }
 
+    /** 稳定客户端身份：实例 ID 优先，其次登录用户 + 客户端形态，最后才退回 UA / 应用标识。 */
+    private static String clientIdentityKey(String userAgent, String nekoClient, String clientId,
+                                            String clientInstanceId, Integer userId) {
+        String instance = safe(clientInstanceId).trim().toLowerCase(Locale.ROOT);
+        if (!instance.isBlank()) {
+            return "i:" + instance;
+        }
+        String ua = safe(userAgent).trim().toLowerCase(Locale.ROOT);
+        String declared = safe(nekoClient).trim().toLowerCase(Locale.ROOT);
+        String app = safe(clientId).trim().toLowerCase(Locale.ROOT);
+        String weak = Integer.toHexString(ua.hashCode()) + ":" + ua.length() + ":"
+                + Integer.toHexString(declared.hashCode()) + ":"
+                + Integer.toHexString(app.hashCode());
+        if (userId != null && userId > 0) {
+            return "u:" + userId + ":" + weak;
+        }
+        if (!app.isBlank()) {
+            return "c:" + app + ":" + weak;
+        }
+        return ua.isBlank() ? "" : "a:" + weak;
+    }
+
+    private static String pathWindowKey(String clientIp, String clientKey, String pathLower) {
+        return (clientKey.isBlank() ? "ip-path:" + clientIp : "client-path:" + clientKey)
+                + "|" + pathLower;
+    }
+
     private static String pathFamily(String path) {
         if (path == null || path.isBlank()) {
             return "/";
@@ -579,20 +624,20 @@ public final class ThreatDetectionService {
     public record RequestFacts(long occurredAt, String method, String path, String query,
                                String category, int status, String clientIp, String userAgent,
                                String clientType, String nekoClient, String clientId,
-                               String clientInstanceId, String powStatus) {
+                               String clientInstanceId, Integer userId, String powStatus) {
     }
 
     private record Event(long at, boolean highRisk, boolean scanFailure, boolean notFound,
                          boolean authFailure, boolean replayFailure, boolean success, String path,
-                         String network, String ip, String pathFamily) {
+                         String network, String ip, String pathFamily, String clientKey) {
     }
 
     private record WindowStats(int total, int successes, int scanFailures, int notFound,
                                int authFailures, int replayFailures, int highRisk, int distinctIps,
                                int distinctNetworks, int distinctPaths,
-                               int distinctSuccessPaths, double scanRatio) {
+                               int distinctSuccessPaths, int distinctClients, double scanRatio) {
         private static final WindowStats EMPTY =
-                new WindowStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0);
+                new WindowStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0);
 
         static WindowStats of(List<Event> events) {
             if (events.isEmpty()) {
@@ -608,6 +653,7 @@ public final class ThreatDetectionService {
             Set<String> networks = new HashSet<>();
             Set<String> paths = new HashSet<>();
             Set<String> successPaths = new HashSet<>();
+            Set<String> clients = new HashSet<>();
             for (Event event : events) {
                 if (event.success()) {
                     successes++;
@@ -635,10 +681,14 @@ public final class ThreatDetectionService {
                     networks.add(event.network());
                 }
                 paths.add(event.pathFamily());
+                if (!event.clientKey().isBlank()) {
+                    clients.add(event.clientKey());
+                }
             }
             return new WindowStats(events.size(), successes, scanFailures, notFound, authFailures,
                     replayFailures, highRisk, ips.size(), networks.size(), paths.size(),
-                    successPaths.size(), events.isEmpty() ? 0.0 : (double) scanFailures / events.size());
+                    successPaths.size(), clients.size(),
+                    events.isEmpty() ? 0.0 : (double) scanFailures / events.size());
         }
 
         private double probeFailureRatio() {

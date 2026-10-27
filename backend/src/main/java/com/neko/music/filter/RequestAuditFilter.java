@@ -215,21 +215,19 @@ public class RequestAuditFilter implements Filter {
         String userAgent = request.getHeader("User-Agent");
         String nekoClient = request.getHeader("X-Neko-Client");
         String clientType = ClientFingerprint.type(userAgent, nekoClient);
+        String token = RequestAuthUtil.extractToken(request);
+        boolean authenticated = token != null;
+        // 威胁判定也使用已登录用户身份：CGNAT 下同一公网 IP 可能承载大量真实用户，
+        // 只有把用户 / 安装实例纳入来源键，才能避免按裸 IP 把邻居一起判定。
+        Integer userId = authenticated ? resolveUserId(token) : null;
         ThreatAssessment threat = assessThreat(request, path, category, status, clientIp,
-                userAgent, clientType, nekoClient);
+                userAgent, clientType, nekoClient, userId);
         logThreat(request, path, status, clientIp, userAgent, clientType, threat);
 
         // 威胁判定独立于日志库开关：即使访问日志关闭，应用日志仍应能留下攻击痕迹。
         if (!accessEnabled && !operationEnabled) {
             return;
         }
-        // 令牌形态不止一种：官方 PC / Android 客户端多数直接发 `Authorization: <token>`（没有 Bearer
-        // 前缀），浏览器 EventSource 还会退化成 `?token=`。这里必须与认证层用同一套提取逻辑
-        // （{@link RequestAuthUtil}），否则访问日志会把自家客户端整片记成「未登录」——而它们恰恰是
-        // 访问量最大的来源，安全分析就瞎了一半。
-        String token = RequestAuthUtil.extractToken(request);
-        boolean authenticated = token != null;
-
         boolean isAdminPath = RequestCategory.ADMIN.equals(category);
         String method = request.getMethod();
         boolean mutating = MUTATING_METHODS.contains(method.toUpperCase(java.util.Locale.ROOT));
@@ -241,14 +239,9 @@ public class RequestAuditFilter implements Filter {
         boolean adminContext = isAdminPath || rule != null;
         Admin admin = (adminContext && (logOperation || accessEnabled)) ? resolveAdmin(token) : null;
 
-        // 已登录用户身份：只对访问日志解析，且只在真的开着访问日志时才花这次 Redis 查询。
         // 管理员另有 admin_* 两列；普通用户在这里落 user_id / user_name，两者互不覆盖。
-        Integer userId = null;
-        String userName = null;
-        if (accessEnabled && authenticated) {
-            userId = resolveUserId(token);
-            userName = AccessLogUserResolver.nicknameOf(userId);
-        }
+        String userName = accessEnabled && userId != null
+                ? AccessLogUserResolver.nicknameOf(userId) : null;
 
         if (accessEnabled) {
             AccessLogService.record(buildAccessRecord(request, response, path, category, method, status,
@@ -313,13 +306,14 @@ public class RequestAuditFilter implements Filter {
 
     private static ThreatAssessment assessThreat(HttpServletRequest request, String path, String category,
                                                   int status, String clientIp, String userAgent,
-                                                  String clientType, String nekoClient) {
+                                                  String clientType, String nekoClient, Integer userId) {
         try {
             return ThreatDetectionService.shared().assess(new ThreatDetectionService.RequestFacts(
                     System.currentTimeMillis(), request.getMethod(), path, request.getQueryString(),
                     category, status, clientIp, userAgent, clientType, nekoClient,
                     request.getHeader(ClientIdentityProtocol.HEADER_CLIENT_ID),
-                    request.getHeader(ClientIdentityProtocol.HEADER_INSTANCE), PowAudit.status(request)));
+                    request.getHeader(ClientIdentityProtocol.HEADER_INSTANCE), userId,
+                    PowAudit.status(request)));
         } catch (Exception e) {
             logger.debug("威胁判定失败，按正常处理: {} {}", request.getMethod(), path);
             return ThreatAssessment.normal();
