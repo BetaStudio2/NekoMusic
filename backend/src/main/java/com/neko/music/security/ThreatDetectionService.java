@@ -94,6 +94,7 @@ public final class ThreatDetectionService {
     private final Map<String, Window> windows = new ConcurrentHashMap<>();
     private final AtomicLong seen = new AtomicLong();
     private final LongSupplier clock;
+    private final OnlineThreatModel adaptiveModel = new OnlineThreatModel();
 
     ThreatDetectionService(LongSupplier clock) {
         this.clock = clock;
@@ -250,13 +251,86 @@ public final class ThreatDetectionService {
                 score += distributedCampaignScore(uaStats, pathStats, burstStats, success, reasons);
             }
         }
-        score = Math.min(100, score);
+        int ruleScore = Math.min(100, score);
+        double[] modelFeatures = modelFeatures(signature, clientType, denied, success,
+                sourceStats, networkStats, facts.powStatus(), method);
+        OnlineThreatModel.Prediction prediction = adaptiveModel.predict(modelFeatures);
+
+        // 只用高置信事件训练，避免把边界请求或共享出口流量当成标签污染模型。
+        boolean trustedAttack = signature >= 60
+                || ClientFingerprint.SCANNER.equals(clientType)
+                || ruleScore >= ATTACK_THRESHOLD;
+        boolean trustedNormal = !trustedAttack && success && !denied && signature == 0
+                && sourceStats.scanFailures() == 0 && sourceStats.replayFailures() == 0;
+        if (trustedAttack || trustedNormal) {
+            adaptiveModel.learn(modelFeatures, trustedAttack);
+        }
+
+        int calibratedScore = calibrate(ruleScore, prediction, reasons);
+        score = Math.min(100, calibratedScore);
 
         String level = score >= ATTACK_THRESHOLD ? ThreatAssessment.ATTACK
                 : score >= SUSPECTED_THRESHOLD ? ThreatAssessment.SUSPECTED
                 : ThreatAssessment.NORMAL;
         String reasonText = reasons.isEmpty() ? null : truncate(String.join("；", reasons), 500);
         return new ThreatAssessment(level, score, reasonText, ThreatAssessment.CURRENT_ENGINE_VERSION);
+    }
+
+    /**
+     * 将规则特征压缩成固定维度的数值向量。比例和数量使用对数/归一化，避免单个来源的
+     * 极端流量把梯度放大；模型只负责灰区校准，不替代明确的攻击特征。
+     */
+    private static double[] modelFeatures(int signature, String clientType, boolean denied,
+                                          boolean success, WindowStats source, WindowStats network,
+                                          String powStatus, String method) {
+        double total = Math.max(1, source.total());
+        double[] features = new double[OnlineThreatModel.featureCount()];
+        features[0] = Math.min(1.0, signature / 100.0);
+        features[1] = ClientFingerprint.SCANNER.equals(clientType) ? 1.0 : 0.0;
+        features[2] = ClientFingerprint.BOT.equals(clientType) ? 1.0 : 0.0;
+        features[3] = denied ? 1.0 : 0.0;
+        features[4] = Math.min(1.0, source.authFailures() / total);
+        features[5] = Math.min(1.0, source.scanFailures() / total);
+        features[6] = Math.min(1.0, Math.log1p(source.total()) / Math.log1p(WINDOW_MAX_EVENTS));
+        features[7] = Math.min(1.0, Math.log1p(source.distinctPaths()) / Math.log1p(WINDOW_MAX_EVENTS));
+        features[8] = Math.min(1.0, source.replayRatio());
+        features[9] = Math.min(1.0, network.distinctNetworks() / 10.0);
+        features[10] = success ? 1.0 : 0.0;
+        features[11] = (POW_HIGH_RISK.contains(safe(powStatus)) || UNUSUAL_METHODS.contains(method))
+                ? 1.0 : 0.0;
+        return features;
+    }
+
+    /**
+     * 仅调整 16..59 的不确定区间。高危规则保持原分数，正常请求不会因为模型先验被抬高。
+     * 模型概率低时下调边界分，概率高时把边界分向疑似阈值靠拢。
+     */
+    private static int calibrate(int ruleScore, OnlineThreatModel.Prediction prediction,
+                                 List<String> reasons) {
+        if (!prediction.ready() || ruleScore < 16 || ruleScore >= ATTACK_THRESHOLD) {
+            return ruleScore;
+        }
+        double probability = prediction.probability();
+        if (probability <= 0.12) {
+            int adjusted = Math.max(0, (int) Math.round(ruleScore * 0.55));
+            if (adjusted != ruleScore) {
+                reasons.add("在线风险模型降低边界分（p=" + probabilityText(probability) + ")");
+            }
+            return adjusted;
+        }
+        if (probability >= 0.65) {
+            int adjusted = Math.min(ATTACK_THRESHOLD - 1,
+                    (int) Math.round(ruleScore + (ATTACK_THRESHOLD - ruleScore) * 0.45));
+            if (adjusted != ruleScore) {
+                reasons.add("在线风险模型提高边界分（p=" + probabilityText(probability) + ")");
+            }
+            return adjusted;
+        }
+        return ruleScore;
+    }
+
+    private static String probabilityText(double value) {
+        return String.format(Locale.ROOT, "%.2f", value);
     }
 
     /** 单请求特征；返回高分特征的基础分。 */
