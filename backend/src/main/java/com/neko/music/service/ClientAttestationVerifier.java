@@ -130,7 +130,7 @@ public final class ClientAttestationVerifier {
                     ASN1TaggedObject tagged = ASN1TaggedObject.getInstance(list.getObjectAt(i));
                     ASN1Encodable value = tagged.getExplicitBaseObject();
                     if (tagged.getTagNo() == TAG_ATTESTATION_APPLICATION_ID) {
-                        appId = parseApplicationId(ASN1Sequence.getInstance(value));
+                        appId = parseApplicationId(value);
                     } else if (tagged.getTagNo() == TAG_ROOT_OF_TRUST) {
                         root = parseRootOfTrust(ASN1Sequence.getInstance(value));
                     }
@@ -216,10 +216,19 @@ public final class ClientAttestationVerifier {
         }
     }
 
-    private record AttestationAppId(List<String> packageNames, List<String> signatureDigests) {
+    record AttestationAppId(List<String> packageNames, List<String> signatureDigests) {
     }
 
-    private static AttestationAppId parseApplicationId(ASN1Sequence sequence) {
+    /**
+     * Android Key Attestation 的 tag 709 实际编码是 OCTET STRING，里面再包一层
+     * AttestationApplicationId SEQUENCE；部分实现也可能直接给 SEQUENCE，两种都要接受。
+     */
+    static AttestationAppId parseApplicationId(ASN1Encodable value) {
+        ASN1Encodable encoded = value;
+        if (value instanceof ASN1OctetString octets) {
+            encoded = ASN1Sequence.getInstance(octets.getOctets());
+        }
+        ASN1Sequence sequence = ASN1Sequence.getInstance(encoded);
         ASN1Set packages = ASN1Set.getInstance(sequence.getObjectAt(0));
         ASN1Set digests = ASN1Set.getInstance(sequence.getObjectAt(1));
         List<String> packageNames = new ArrayList<>();
