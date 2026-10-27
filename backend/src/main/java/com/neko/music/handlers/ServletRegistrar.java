@@ -32,6 +32,14 @@ public final class ServletRegistrar {
         ServletHolder replayChallengeHolder = new ServletHolder(new ReplayChallengeHandler());
         context.addServlet(replayChallengeHolder, "/api/replay/challenge");
 
+        // 客户端实例注册自举：挑战、注册、短期令牌续签均豁免实例签名与 nonce。
+        ServletHolder clientChallengeHolder = new ServletHolder(new ClientChallengeHandler());
+        context.addServlet(clientChallengeHolder, "/api/client/challenge");
+        ServletHolder clientRegisterHolder = new ServletHolder(new ClientRegisterHandler());
+        context.addServlet(clientRegisterHolder, "/api/client/register");
+        ServletHolder clientTokenHolder = new ServletHolder(new ClientTokenHandler());
+        context.addServlet(clientTokenHolder, "/api/client/token");
+
         // 注册搜索音乐API处理器
         ServletHolder searchHolder = new ServletHolder(new MusicSearchHandler());
         context.addServlet(searchHolder, "/api/music/search");
@@ -72,6 +80,12 @@ public final class ServletRegistrar {
         // 注册管理员用户管理API处理器
         ServletHolder adminUserManagementHolder = new ServletHolder(new AdminUserManagementHandler());
         context.addServlet(adminUserManagementHolder, "/api/admin/users/*");
+
+        // 第三方客户端凭据 / 安装实例管理（管理端接口，不写入公开 API 文档）
+        ServletHolder adminClientAppsHolder = new ServletHolder(new AdminClientAppsHandler());
+        context.addServlet(adminClientAppsHolder, "/api/admin/client-apps/*");
+        ServletHolder adminClientInstancesHolder = new ServletHolder(new AdminClientInstancesHandler());
+        context.addServlet(adminClientInstancesHolder, "/api/admin/client-instances/*");
         
         // 注册管理员创建API处理器
         ServletHolder adminCreateHolder = new ServletHolder(new AdminCreateHandler());

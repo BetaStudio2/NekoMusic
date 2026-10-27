@@ -210,6 +210,18 @@
             <artifactId>core</artifactId>
             <version>3.5.4</version>
         </dependency>
+
+        <!-- Android Key Attestation 扩展解析（ASN.1）。只用于注册时校验证书链。 -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>1.86</version>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk18on</artifactId>
+            <version>1.86</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -339,6 +351,13 @@
                                         <exclude>META-INF/NOTICE.txt</exclude>
                                         <exclude>META-INF/DEPENDENCIES</exclude>
                                         <exclude>META-INF/MANIFEST.MF</exclude>
+                                        <!-- 依赖 JAR 自带的签名文件不能跟随 shaded JAR：
+                                             类内容被重新打包后签名摘要必然失效，JVM 会拒绝启动。
+                                             这些 JAR 已由 Maven 校验，运行时不需要再验签。 -->
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.EC</exclude>
                                         <exclude>README.md</exclude>
                                         <exclude>module-info.class</exclude>
                                         <exclude>META-INF/versions/*/module-info.class</exclude>

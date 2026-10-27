@@ -96,6 +96,9 @@ public class ReplayProtectionFilter implements Filter {
     static final Set<String> EXEMPT_PATHS = Set.of(
             "/api/replay/nonce",
             "/api/replay/challenge", // 领 nonce 的第一步，同样必须自举
+            "/api/client/challenge", // 客户端实例注册自举；防重放职责由一次性挑战承担
+            "/api/client/register",
+            "/api/client/token",
             "/api/music/latest",
             "/api/music/ranking",
             "/api/payment/zpay/notify",

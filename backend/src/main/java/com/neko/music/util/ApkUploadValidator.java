@@ -29,7 +29,7 @@ public final class ApkUploadValidator {
      * release keystore（neko_key.jks）证书 SHA-256，不会轮换。
      * 查看：keytool -list -v -keystore neko_key.jks -alias neko
      */
-    private static final String EXPECTED_CERT_SHA256 =
+    public static final String EXPECTED_CERT_SHA256 =
             "53a64cdb1491a2b28a3d309e41e92addbabcc691b8fb5bdc1ba39ec86e817fa2";
 
     private ApkUploadValidator() {

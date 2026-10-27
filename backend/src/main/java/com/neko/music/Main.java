@@ -16,6 +16,7 @@ import com.neko.music.database.ReplaySourceMarkDatabaseManager;
 import com.neko.music.database.VipPricingDatabaseManager;
 import com.neko.music.database.SystemSettingsDatabaseManager;
 import com.neko.music.database.UserNotificationDatabaseManager;
+import com.neko.music.database.ClientRegistryDatabaseManager;
 import com.neko.music.service.UserNotificationService;
 import com.neko.music.handlers.*;
 
@@ -27,6 +28,7 @@ import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import com.neko.music.filter.CacheControlFilter;
+import com.neko.music.filter.ClientIdentityFilter;
 import com.neko.music.filter.CrawlerProtectionFilter;
 import com.neko.music.filter.RequestAuditFilter;
 import com.neko.music.filter.RequestLocaleFilter;
@@ -97,6 +99,9 @@ public class Main {
     private static ReplaySourceMarkDatabaseManager replaySourceMarkDatabaseManager;
     private static VipPayOrderDatabaseManager vipPayOrderDatabaseManager;
     private static SystemSettingsDatabaseManager systemSettingsDatabaseManager;
+    private static ClientRegistryDatabaseManager clientRegistryDatabaseManager;
+    private static ClientTokenService clientTokenService;
+    private static ClientIdentityService clientIdentityService;
     private static VideoRenderJobStore videoRenderJobStore;
     private static VideoRenderQuotaService videoRenderQuotaService;
     private static VideoRenderService videoRenderService;
@@ -182,6 +187,13 @@ public class Main {
         java.util.Map<String, String> storedSettings = systemSettingsDatabaseManager.loadAll();
         configManager.applyOverrides(storedSettings);
         logger.info("已从数据库加载 {} 条系统设置", storedSettings.size());
+
+        // 客户端应用 / 安装实例身份：公开 client_id + 每实例私钥 + 短期令牌 + 每请求 ECDSA 签名。
+        // 注册表属于业务数据，不走 system_settings；官方应用在这里幂等种子化。
+        clientRegistryDatabaseManager = new ClientRegistryDatabaseManager(databaseManager);
+        clientRegistryDatabaseManager.seedOfficialApps();
+        clientTokenService = new ClientTokenService(configManager);
+        clientIdentityService = new ClientIdentityService(clientRegistryDatabaseManager, clientTokenService);
 
         // 访问日志 / 操作日志：独立日志库（不共用主库），失败只停用日志能力
         initializeLogging();
@@ -359,6 +371,9 @@ public class Main {
 
         // 保守防爬：拦截明确为爬虫/无头/命令行工具对 /api/* 的访问（不影响浏览器与原生客户端）
         context.addFilter(CrawlerProtectionFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
+
+        // 客户端实例身份：公开 client_id + 每实例私钥签名 + 短期令牌；位于防爬之后、防重放之前。
+        context.addFilter(ClientIdentityFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
 
         // 通用防重放：动态接口（/api/*、/loser/*）必须带一次性 nonce，重放 409；
         // 静态资源与 /media/* 公共缓存路径不受影响
@@ -669,6 +684,18 @@ public class Main {
 
     public static SystemSettingsDatabaseManager getSystemSettingsDatabaseManager() {
         return systemSettingsDatabaseManager;
+    }
+
+    public static ClientRegistryDatabaseManager getClientRegistryDatabaseManager() {
+        return clientRegistryDatabaseManager;
+    }
+
+    public static ClientTokenService getClientTokenService() {
+        return clientTokenService;
+    }
+
+    public static ClientIdentityService getClientIdentityService() {
+        return clientIdentityService;
     }
 
     public static VideoRenderJobStore getVideoRenderJobStore() {
