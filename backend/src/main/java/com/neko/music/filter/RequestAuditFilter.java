@@ -10,6 +10,7 @@ import com.neko.music.service.AccessLogUserResolver;
 import com.neko.music.service.OperationLogService;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.util.ClientFingerprint;
+import com.neko.music.util.ClientIdentityProtocol;
 import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.OperationAudit;
 import com.neko.music.util.PowAudit;
@@ -255,6 +256,8 @@ public class RequestAuditFilter implements Filter {
                                               Admin admin) {
         String userAgent = request.getHeader("User-Agent");
         String nekoClient = request.getHeader("X-Neko-Client");
+        String clientId = request.getHeader(ClientIdentityProtocol.HEADER_CLIENT_ID);
+        String clientInstanceId = request.getHeader(ClientIdentityProtocol.HEADER_INSTANCE);
         String clientIp = resolveClientIp(request);
         return new AccessLogRecord(
                 occurredAt,
@@ -272,6 +275,8 @@ public class RequestAuditFilter implements Filter {
                 ClientFingerprint.platform(userAgent, nekoClient),
                 ClientFingerprint.version(userAgent, nekoClient),
                 nekoClient,
+                clientId,
+                clientInstanceId,
                 request.getHeader("Referer"),
                 request.getHeader("Origin"),
                 request.getHeader("Accept-Language"),

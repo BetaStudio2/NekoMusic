@@ -21,6 +21,8 @@ package com.neko.music.model;
  * @param clientPlatform 解析出的平台（web/android/pc/…）
  * @param clientVersion  解析出的客户端版本
  * @param nekoClient     {@code X-Neko-Client} 头原值
+ * @param clientId       {@code X-Neko-Client-Id} 头原值（应用公开标识）
+ * @param clientInstanceId {@code X-Neko-Client-Instance} 头原值（安装实例 ID）
  * @param referer        Referer
  * @param origin         Origin
  * @param acceptLanguage Accept-Language
@@ -57,6 +59,8 @@ public record AccessLogRecord(
         String clientPlatform,
         String clientVersion,
         String nekoClient,
+        String clientId,
+        String clientInstanceId,
         String referer,
         String origin,
         String acceptLanguage,

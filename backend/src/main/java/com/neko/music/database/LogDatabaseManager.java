@@ -108,6 +108,8 @@ public class LogDatabaseManager {
                 client_platform VARCHAR(32) NULL,
                 client_version VARCHAR(64) NULL,
                 neko_client VARCHAR(128) NULL COMMENT 'X-Neko-Client 头原值',
+                client_id VARCHAR(64) NULL COMMENT '客户端应用 ID（公开标识）',
+                client_instance_id CHAR(36) NULL COMMENT '客户端安装实例 ID',
                 referer VARCHAR(1024) NULL,
                 origin VARCHAR(255) NULL,
                 accept_language VARCHAR(255) NULL,
@@ -129,7 +131,9 @@ public class LogDatabaseManager {
                 KEY idx_access_status (status),
                 KEY idx_access_type (client_type),
                 KEY idx_access_pow (pow_status),
-                KEY idx_access_user (user_id)
+                KEY idx_access_user (user_id),
+                KEY idx_access_client (client_id),
+                KEY idx_access_client_instance (client_instance_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             """;
 
@@ -185,6 +189,12 @@ public class LogDatabaseManager {
         ensureColumn(conn, "access_log", "user_name",
                 "VARCHAR(255) NULL COMMENT '已登录用户昵称（随日志快照保存）'");
         ensureIndex(conn, "access_log", "idx_access_user", "user_id");
+        ensureColumn(conn, "access_log", "client_id",
+                "VARCHAR(64) NULL COMMENT '客户端应用 ID（公开标识）' AFTER `neko_client`");
+        ensureColumn(conn, "access_log", "client_instance_id",
+                "CHAR(36) NULL COMMENT '客户端安装实例 ID' AFTER `client_id`");
+        ensureIndex(conn, "access_log", "idx_access_client", "client_id");
+        ensureIndex(conn, "access_log", "idx_access_client_instance", "client_instance_id");
         // 概览聚合的覆盖索引：列表检索只按单列过滤，但概览要对窗口做 GROUP BY。
         // 只有 occurred_at 的索引必须逐行回聚簇索引取聚合列（窗口内几万行就是几万次随机读），
         // 把聚合列接在 occurred_at 后面即可只走索引；occurred_at 必须在最左，范围条件才用得上。

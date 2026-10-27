@@ -122,9 +122,23 @@
       <NInput v-model="accessQuery.ip" placeholder="来源 IP 含…" clearable class="toolbar__search" />
       <NInput v-model="accessQuery.path" placeholder="路径含…" clearable class="toolbar__search" />
       <NInput
+        v-model="accessQuery.clientId"
+        placeholder="Client ID 精确…"
+        clearable
+        class="toolbar__search"
+        @keyup.enter="loadAccess(1)"
+      />
+      <NInput
+        v-model="accessQuery.clientInstanceId"
+        placeholder="实例 ID 精确…"
+        clearable
+        class="toolbar__search"
+        @keyup.enter="loadAccess(1)"
+      />
+      <NInput
         v-model="accessQuery.keyword"
         icon="search"
-        placeholder="路径 / UA / IP / 用户名 关键字…"
+        placeholder="路径 / UA / IP / 用户 / 客户端 ID 关键字…"
         clearable
         class="toolbar__search"
         @keyup.enter="loadAccess(1)"
@@ -154,6 +168,7 @@
             <th>耗时</th>
             <th>分类</th>
             <th>客户端</th>
+            <th>客户端身份</th>
             <th>平台 / 版本</th>
             <th>来源 IP</th>
             <th>登录用户</th>
@@ -182,6 +197,26 @@
               {{ categoryLabel(row.category) }}
             </td>
             <td>{{ clientTypeLabel(row.client_type) }}</td>
+            <td class="cell-identity">
+              <template v-if="row.client_id || row.client_instance_id">
+                <button
+                  v-if="row.client_id"
+                  type="button"
+                  class="identity__link"
+                  :title="`按 Client ID 精确筛选：${row.client_id}`"
+                  @click="filterByClientId(row.client_id)"
+                >应用 {{ row.client_id }}</button>
+                <button
+                  v-if="row.client_instance_id"
+                  type="button"
+                  class="identity__link identity__instance"
+                  :title="`按实例 ID 精确筛选：${row.client_instance_id}`"
+                  @click="filterByClientInstance(row.client_instance_id)"
+                >实例 {{ row.client_instance_id }}</button>
+                <span v-else class="identity__missing">实例 ID 未上报</span>
+              </template>
+              <span v-else class="cell-dim">—</span>
+            </td>
             <td class="cell-dim">{{ platformText(row) }}</td>
             <td class="cell-dim">{{ row.client_ip }}</td>
             <td :class="loginUserText(row) === '—' ? 'cell-dim' : 'cell-user'" :title="loginUserTitle(row)">
@@ -193,7 +228,7 @@
             </td>
           </tr>
           <tr v-if="!access.items.length">
-            <td colspan="12" class="cell-empty">暂无记录</td>
+            <td colspan="13" class="cell-empty">暂无记录</td>
           </tr>
         </tbody>
       </table>
@@ -323,7 +358,15 @@ const loading = ref(false)
 const statsDays = ref(7)
 const stats = ref({})
 const access = reactive({ total: 0, page: 1, size: PAGE_SIZE, items: [] })
-const accessQuery = reactive({ ip: '', path: '', clientType: '', keyword: '', powStatus: '' })
+const accessQuery = reactive({
+  ip: '',
+  path: '',
+  clientType: '',
+  clientId: '',
+  clientInstanceId: '',
+  keyword: '',
+  powStatus: ''
+})
 
 const detailOpen = ref(false)
 const detailTitle = ref('访问日志详情')
@@ -340,7 +383,15 @@ let liveSeq = 0
 
 const livePaused = computed(() =>
   access.page !== 1 ||
-  Boolean(accessQuery.ip || accessQuery.path || accessQuery.clientType || accessQuery.keyword || accessQuery.powStatus)
+  Boolean(
+    accessQuery.ip ||
+    accessQuery.path ||
+    accessQuery.clientType ||
+    accessQuery.clientId ||
+    accessQuery.clientInstanceId ||
+    accessQuery.keyword ||
+    accessQuery.powStatus
+  )
 )
 const liveLabel = computed(() => {
   if (!live.value) return '实时已关闭'
@@ -422,6 +473,8 @@ async function loadAccess(page) {
       ip: accessQuery.ip,
       path: accessQuery.path,
       clientType: accessQuery.clientType,
+      clientId: accessQuery.clientId,
+      clientInstanceId: accessQuery.clientInstanceId,
       powStatus: accessQuery.powStatus,
       keyword: accessQuery.keyword
     })
@@ -509,6 +562,20 @@ function clientTypeLabel(value) {
 
 function categoryLabel(value) {
   return CATEGORY_LABELS[value] || value || '—'
+}
+
+function filterByClientId(value) {
+  if (!value) return
+  accessQuery.clientId = value
+  accessQuery.clientInstanceId = ''
+  loadAccess(1)
+}
+
+function filterByClientInstance(value) {
+  if (!value) return
+  accessQuery.clientInstanceId = value
+  accessQuery.clientId = ''
+  loadAccess(1)
 }
 
 /**
@@ -604,6 +671,8 @@ function openDetail(row) {
     { label: '客户端平台', value: row.client_platform },
     { label: '客户端版本', value: row.client_version },
     { label: 'X-Neko-Client', value: row.neko_client, mono: true },
+    { label: '客户端 ID', value: row.client_id || '未上报（历史记录或非受管客户端）', mono: true },
+    { label: '客户端实例 ID', value: row.client_instance_id || '未上报（历史记录或非受管客户端）', mono: true },
     { label: 'User-Agent', value: row.user_agent, mono: true, block: true },
     { label: 'Referer', value: row.referer, block: true },
     { label: 'Origin', value: row.origin, block: true },
@@ -868,6 +937,40 @@ function powTitle(row) {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--n-text-faint);
+}
+
+.cell-identity {
+  min-width: 230px;
+  max-width: 320px;
+}
+
+.identity__link {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--n-accent-strong);
+  font-family: var(--n-font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+  font-size: var(--n-text-xs);
+  line-height: 1.5;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.identity__link:hover {
+  text-decoration: underline;
+}
+
+.identity__instance,
+.identity__missing {
+  color: var(--n-text-faint);
+}
+
+.identity__missing {
+  display: block;
+  font-size: var(--n-text-xs);
 }
 
 .cell-empty {

@@ -47,11 +47,12 @@ public class AccessLogService {
     private static final String INSERT_SQL = """
             INSERT INTO access_log (occurred_at, method, path, query, category, status, duration_us,
                 response_bytes, client_ip, ip_subnet, user_agent, client_type, client_platform,
-                client_version, neko_client, referer, origin, accept_language, authenticated,
+                client_version, neko_client, client_id, client_instance_id, referer, origin,
+                accept_language, authenticated,
                 user_id, user_name,
                 admin_id, admin_username, host, scheme, protocol, thread, pow_difficulty, pow_status,
                 seo_render)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """;
 
     private static volatile AccessLogService current;
@@ -204,6 +205,8 @@ public class AccessLogService {
         stmt.setString(i++, LogQuerySupport.truncate(r.clientPlatform(), 32));
         stmt.setString(i++, LogQuerySupport.truncate(r.clientVersion(), 64));
         stmt.setString(i++, LogQuerySupport.truncate(r.nekoClient(), 128));
+        stmt.setString(i++, LogQuerySupport.truncate(r.clientId(), 64));
+        stmt.setString(i++, LogQuerySupport.truncate(r.clientInstanceId(), 36));
         stmt.setString(i++, LogQuerySupport.truncate(r.referer(), 1024));
         stmt.setString(i++, LogQuerySupport.truncate(r.origin(), 255));
         stmt.setString(i++, LogQuerySupport.truncate(r.acceptLanguage(), 255));
@@ -260,6 +263,8 @@ public class AccessLogService {
         row.put("client_platform", r.clientPlatform());
         row.put("client_version", r.clientVersion());
         row.put("neko_client", r.nekoClient());
+        row.put("client_id", r.clientId());
+        row.put("client_instance_id", r.clientInstanceId());
         row.put("referer", r.referer());
         row.put("origin", r.origin());
         row.put("accept_language", r.acceptLanguage());
@@ -284,13 +289,17 @@ public class AccessLogService {
      * @param ip        客户端 IP（模糊匹配）
      * @param path      路径（模糊匹配）
      * @param clientType 客户端类型（精确）
+     * @param clientId 客户端应用 ID（精确）
+     * @param clientInstanceId 客户端安装实例 ID（精确）
      * @param status    状态码（精确）
      * @param powStatus PoW 结果标签（精确，见 {@link com.neko.music.util.PowAudit}）
      * @param fromMs    起始时间（含），null 不限
      * @param toMs      结束时间（含），null 不限
-     * @param keyword   关键字，命中 路径 / 查询串 / UA / IP / 登录用户昵称 / 管理员用户名 任一
+     * @param keyword   关键字，命中 路径 / 查询串 / UA / IP / 登录用户昵称 / 管理员用户名 /
+     *                  客户端 ID / 实例 ID 任一
      */
-    public LogPage list(int page, int size, String ip, String path, String clientType, Integer status,
+    public LogPage list(int page, int size, String ip, String path, String clientType,
+                        String clientId, String clientInstanceId, Integer status,
                         String powStatus, Long fromMs, Long toMs, String keyword) throws SQLException {
         int safePage = Math.max(1, page);
         int safeSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
@@ -298,6 +307,8 @@ public class AccessLogService {
         StringBuilder where = new StringBuilder(" WHERE 1=1");
         List<Object> params = new ArrayList<>();
         appendEquals(where, params, "client_type", blankToNull(clientType));
+        appendEquals(where, params, "client_id", blankToNull(clientId));
+        appendEquals(where, params, "client_instance_id", blankToNull(clientInstanceId));
         appendEquals(where, params, "pow_status", blankToNull(powStatus));
         if (status != null) {
             where.append(" AND status = ?");
@@ -314,7 +325,8 @@ public class AccessLogService {
             params.add(toMs);
         }
         appendKeyword(where, params, blankToNull(keyword),
-                "path", "query", "user_agent", "client_ip", "user_name", "admin_username");
+                "path", "query", "user_agent", "client_ip", "user_name", "admin_username",
+                "client_id", "client_instance_id");
 
         long total;
         List<Map<String, Object>> items = new ArrayList<>();
