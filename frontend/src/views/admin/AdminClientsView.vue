@@ -108,7 +108,7 @@
                   <td>
                     <div class="cell-title">{{ app.name }}</div>
                     <div class="cell-sub">{{ app.ownerLabel || '未填写归属方' }}</div>
-                    <div v-if="app.attestationRequired" class="cell-sub">需要硬件证明</div>
+                    <div v-if="app.attestationRequired" class="cell-sub">记录平台证明等级</div>
                   </td>
                   <td>
                     <button type="button" class="copy-value" :title="`复制 ${app.clientId}`" @click="copyText(app.clientId, 'Client ID')">
@@ -330,9 +330,9 @@
 
       <label class="check">
         <input v-model="createForm.attestationRequired" type="checkbox" :disabled="!supportsAttestation" />
-        要求硬件密钥证明（仅 Android）
+        记录硬件密钥证明等级（仅 Android）
       </label>
-      <p v-if="!supportsAttestation" class="hint">切换为 Android / Android 手表平台后可启用硬件证明。</p>
+      <p v-if="!supportsAttestation" class="hint">切换为 Android / Android 手表平台后可启用平台证明校验。</p>
 
       <div v-if="createForm.platform === 'web'" class="field field--top">
         <label class="field__label" for="client-origins">允许的 Web Origin</label>

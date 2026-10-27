@@ -17,8 +17,8 @@ import java.util.List;
 /**
  * {@code POST /api/client/register}：证明持有新实例私钥并登记实例，返回短期令牌。
  *
- * <p>官方 Android 包还必须附带 Google Key Attestation 证书链；公开 client_id 本身不能注册出
- * 硬件级实例。机密第三方客户端在此接口额外校验创建时下发的 secret。</p>
+ * <p>要求平台证明的 Android 包可附带 Google Key Attestation 证书链；证明不可用时记录降级
+ * 可信等级，但仍以挑战签名验证实例私钥。机密第三方客户端在此接口额外校验创建时下发的 secret。</p>
  */
 public class ClientRegisterHandler extends ApiServlet {
 

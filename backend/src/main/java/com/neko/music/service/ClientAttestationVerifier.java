@@ -13,6 +13,7 @@ import org.bouncycastle.asn1.ASN1TaggedObject;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
+import java.security.MessageDigest;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.cert.CertificateFactory;
@@ -26,13 +27,14 @@ import java.util.Locale;
 /**
  * Android Key Attestation 校验。
  *
- * <p>校验只信任 Google 硬件证明根公钥，并要求 KeyDescription 的 challenge、包名与 APK 签名摘要
- * 全部匹配。安全级别必须是 TEE 或 StrongBox；软件级证明不能用于官方 Android 客户端。</p>
+ * <p>校验信任 Google 的工厂根与 RKP 根，并要求 KeyDescription 的 challenge、包名与 APK 签名
+ * 摘要全部匹配。硬件证明通过时记录 TEE / StrongBox；厂商证明异常时降级为
+ * {@code tee_unverified} / {@code software}，由调用方决定是否限制敏感功能。</p>
  */
 public final class ClientAttestationVerifier {
 
     private static final String KEY_DESCRIPTION_OID = "1.3.6.1.4.1.11129.2.1.17";
-    private static final String GOOGLE_ROOT_PUBLIC_KEY =
+    private static final String GOOGLE_FACTORY_ROOT_PUBLIC_KEY =
             "MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAr7bHgiuxpwHsK7Qui8xU"
                     + "FmOr75gvMsd/dTEDDJdSSxtf6An7xyqpRR90PL2abxM1dEqlXnf2tqw1Ne4Xwl5j"
                     + "lRfdnJLmN0pTy/4lj4/7tv0Sk3iiKkypnEUtR6WfMgH0QZfKHM1+di+y9TFRtv6y"
@@ -45,6 +47,14 @@ public final class ClientAttestationVerifier {
                     + "gLiMm0jhO2B6tUXHI/+MRPjy02i59lINMRRev56GKtcd9qO/0kUJWdZTdA2XoS82"
                     + "ixPvZtXQpUpuL12ab+9EaDK8Z4RHJYYfCT3Q5vNAXaiWQ+8PTWm2QgBR/bkwSWc+"
                     + "NpUFgNPN9PvQi8WEg5UmAGMCAwEAAQ==";
+    private static final String GOOGLE_RKP_ROOT_PUBLIC_KEY =
+            "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEI9ojcU7fPlsFCjxy6IRqzgeOoK0b+YsV"
+                    + "9FPQywiyw8EQRTkJ9u3qwfnI4DGoSLlBqClTXJfgfCcZvs60FikNMHnu4fkRzObf"
+                    + "gDkU2KNXezT9/RQ+XvNslxPHrHCowhGr";
+
+    private static final List<TrustedRootSpec> GOOGLE_ROOT_SPECS = List.of(
+            new TrustedRootSpec("RSA", GOOGLE_FACTORY_ROOT_PUBLIC_KEY, true),
+            new TrustedRootSpec("EC", GOOGLE_RKP_ROOT_PUBLIC_KEY, false));
 
     private static final int ATTESTATION_CHALLENGE_INDEX = 4;
     private static final int SW_ENFORCED_INDEX = 6;
@@ -60,12 +70,31 @@ public final class ClientAttestationVerifier {
     private static final int ALGORITHM_EC = 3;
     private static final int EC_CURVE_P256 = 1;
 
-    private static volatile PublicKey pinnedRoot;
+    private static volatile List<TrustedRoot> pinnedRoots;
 
     private ClientAttestationVerifier() {
     }
 
-    public record Result(String securityLevel, String applicationId, String signingDigest) {
+    public record Result(String securityLevel, String applicationId, String signingDigest,
+                         boolean hardwareVerified, String failureReason) {
+        /** 注册响应和数据库使用的可信等级；TEE 链存在但启动状态异常时保留降级信息。 */
+        public String assuranceLevel() {
+            if (hardwareVerified) return securityLevel;
+            if (SECURITY_LEVEL_TEE_NAME.equals(securityLevel)
+                    || SECURITY_LEVEL_STRONGBOX_NAME.equals(securityLevel)) {
+                return "tee_unverified";
+            }
+            return "software";
+        }
+    }
+
+    private static final String SECURITY_LEVEL_TEE_NAME = "tee";
+    private static final String SECURITY_LEVEL_STRONGBOX_NAME = "strongbox";
+
+    private record TrustedRootSpec(String algorithm, String publicKeyBase64, boolean factoryKey) {
+    }
+
+    private record TrustedRoot(PublicKey publicKey, boolean factoryKey) {
     }
 
     /**
@@ -87,13 +116,19 @@ public final class ClientAttestationVerifier {
             for (int i = 0; i < chain.size() - 1; i++) {
                 chain.get(i).verify(chain.get(i + 1).getPublicKey());
             }
-            PublicKey googleRoot = googleRoot();
-            if (!java.util.Arrays.equals(chain.get(chain.size() - 1).getPublicKey().getEncoded(),
-                    googleRoot.getEncoded())) {
-                throw new IllegalArgumentException("attestation root is not pinned");
+            X509Certificate last = chain.get(chain.size() - 1);
+            TrustedRoot trustedRoot = findTrustedRoot(last);
+            if (trustedRoot == null) {
+                throw new IllegalArgumentException("attestation root is not pinned: "
+                        + describeCertificate(last));
+            }
+            // 旧工厂证书允许过期（Google 官方要求继续信任），RKP 证书必须检查有效期。
+            if (!trustedRoot.factoryKey()) {
+                for (X509Certificate certificate : chain) {
+                    certificate.checkValidity();
+                }
             }
             X509Certificate leaf = chain.get(0);
-            leaf.checkValidity();
             if (!java.util.Arrays.equals(leaf.getPublicKey().getEncoded(),
                     ClientIdentityProtocol.parseEcPublicKey(expectedSpki).getEncoded())) {
                 throw new IllegalArgumentException("attestation public key mismatch");
@@ -147,16 +182,41 @@ public final class ClientAttestationVerifier {
             if (!digestMatched) {
                 throw new IllegalArgumentException("attestation signing digest mismatch");
             }
+            String level = securityLevel == SECURITY_LEVEL_STRONGBOX
+                    ? SECURITY_LEVEL_STRONGBOX_NAME : SECURITY_LEVEL_TEE_NAME;
             if (root == null || !root.deviceLocked()
                     || (root.verifiedBootState() != 0 && root.verifiedBootState() != 1)) {
-                throw new IllegalArgumentException("device boot state is not trusted");
+                throw new UntrustedBootStateException(level, root == null
+                        ? "device boot state is not trusted: rootOfTrust missing"
+                        : "device boot state is not trusted: deviceLocked=" + root.deviceLocked()
+                        + ", verifiedBootState=" + root.verifiedBootState());
             }
-            return new Result(securityLevel == SECURITY_LEVEL_STRONGBOX ? "strongbox" : "tee",
-                    expectedPackageName, digest);
+            return new Result(level, expectedPackageName, digest, true, null);
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
             throw new IllegalArgumentException("attestation verification failed", e);
+        }
+    }
+
+    /**
+     * 注册场景使用：证明链不可用时返回降级等级，而不是中断注册。
+     *
+     * <p>调用方仍必须先校验挑战和实例私钥签名；本方法只处理 Key Attestation 的可靠性。</p>
+     */
+    public static Result assess(List<String> chainBase64Der,
+                                String expectedSpki,
+                                String expectedChallenge,
+                                String expectedPackageName,
+                                String expectedSigningDigest) {
+        try {
+            return verify(chainBase64Der, expectedSpki, expectedChallenge,
+                    expectedPackageName, expectedSigningDigest);
+        } catch (UntrustedBootStateException e) {
+            return new Result(e.securityLevel, "", "", false, e.getMessage());
+        } catch (RuntimeException e) {
+            return new Result("software", "", "", false,
+                    e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
         }
     }
 
@@ -181,15 +241,55 @@ public final class ClientAttestationVerifier {
         }
     }
 
-    private static PublicKey googleRoot() throws Exception {
-        PublicKey cached = pinnedRoot;
+    private static TrustedRoot findTrustedRoot(X509Certificate last) throws Exception {
+        List<TrustedRoot> roots = googleRoots();
+        for (TrustedRoot root : roots) {
+            try {
+                last.verify(root.publicKey());
+                return root;
+            } catch (Exception ignored) {
+                // 换下一把受信根继续验证。
+            }
+        }
+        return null;
+    }
+
+    /** 供测试核对根证书轮换；生产校验仍走 {@link #verify}。 */
+    static boolean isTrustedAttestationRoot(X509Certificate certificate) throws Exception {
+        return findTrustedRoot(certificate) != null;
+    }
+
+    private static List<TrustedRoot> googleRoots() throws Exception {
+        List<TrustedRoot> cached = pinnedRoots;
         if (cached != null) {
             return cached;
         }
-        byte[] der = Base64.getDecoder().decode(GOOGLE_ROOT_PUBLIC_KEY);
-        cached = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(der));
-        pinnedRoot = cached;
-        return cached;
+        synchronized (ClientAttestationVerifier.class) {
+            cached = pinnedRoots;
+            if (cached != null) {
+                return cached;
+            }
+            List<TrustedRoot> roots = new ArrayList<>();
+            for (TrustedRootSpec spec : GOOGLE_ROOT_SPECS) {
+                byte[] der = Base64.getDecoder().decode(spec.publicKeyBase64());
+                PublicKey key = KeyFactory.getInstance(spec.algorithm())
+                        .generatePublic(new X509EncodedKeySpec(der));
+                roots.add(new TrustedRoot(key, spec.factoryKey()));
+            }
+            cached = List.copyOf(roots);
+            pinnedRoots = cached;
+            return cached;
+        }
+    }
+
+    private static String describeCertificate(X509Certificate certificate) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(certificate.getEncoded());
+            return certificate.getSubjectX500Principal().getName()
+                    + " sha256=" + java.util.HexFormat.of().formatHex(digest);
+        } catch (Exception e) {
+            return certificate.getSubjectX500Principal().getName();
+        }
     }
 
     private static void checkKeyParameters(List<ASN1Sequence> enforced) {
@@ -247,6 +347,15 @@ public final class ClientAttestationVerifier {
     }
 
     private record RootState(boolean deviceLocked, int verifiedBootState) {
+    }
+
+    private static final class UntrustedBootStateException extends IllegalArgumentException {
+        private final String securityLevel;
+
+        private UntrustedBootStateException(String securityLevel, String message) {
+            super(message);
+            this.securityLevel = securityLevel;
+        }
     }
 
     private static RootState parseRootOfTrust(ASN1Sequence sequence) {

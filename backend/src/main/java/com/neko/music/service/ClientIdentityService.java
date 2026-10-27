@@ -165,17 +165,21 @@ public class ClientIdentityService {
         String appId = input.origin() == null ? "" : input.origin().trim();
         String signingDigest = "";
         if (app.attestationRequired()) {
-            try {
-                ClientAttestationVerifier.Result attestation = ClientAttestationVerifier.verify(
-                        input.attestationChain(), input.publicKeySpki(), null,
-                        app.packageName(), app.signingDigest());
+            // 硬件证明是可信等级而不是注册硬门槛。Android Keystore 在部分厂商系统、TEE 损坏或
+            // 引导状态异常时会给出不可验证的证明；仍以挑战签名保证实例持有私钥，避免全部掉线。
+            ClientAttestationVerifier.Result attestation = ClientAttestationVerifier.assess(
+                    input.attestationChain(), input.publicKeySpki(), null,
+                    app.packageName(), app.signingDigest());
+            attestationLevel = attestation.assuranceLevel();
+            if (attestation.hardwareVerified()) {
                 attestationLevel = attestation.securityLevel();
                 appId = attestation.applicationId();
                 signingDigest = attestation.signingDigest();
-            } catch (RuntimeException e) {
-                logger.warn("Android 客户端证明校验失败 clientId={} instanceId={}: {}",
-                        input.clientId(), input.instanceId(), e.getMessage());
-                return Optional.empty();
+            } else {
+                logger.warn("Android 客户端证明未通过，降级注册 clientId={} instanceId={} "
+                                + "attestation={}: {}",
+                        input.clientId(), input.instanceId(), attestationLevel,
+                        attestation.failureReason());
             }
         }
 
