@@ -13,7 +13,7 @@ public record ThreatAssessment(String level, int score, String reasons, int engi
     public static final String ATTACK = "attack";
 
     /** 规则变化时递增；日志库会据此回填旧记录。 */
-    public static final int CURRENT_ENGINE_VERSION = 1;
+    public static final int CURRENT_ENGINE_VERSION = 2;
 
     public static ThreatAssessment normal() {
         return new ThreatAssessment(NORMAL, 0, null, CURRENT_ENGINE_VERSION);

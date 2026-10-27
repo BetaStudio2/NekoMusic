@@ -48,6 +48,16 @@ class ThreatDetectionServiceTest {
                 "203.0.113.13", "sqlmap/1.8", "scanner", null);
         assertEquals(ThreatAssessment.ATTACK, probe.level());
         assertTrue(probe.reasons().contains("扫描"));
+
+        ThreatAssessment successfulProbe = assess("GET", "/.env", null, null, "other", 200,
+                "203.0.113.13", "sqlmap/1.8", "scanner", null);
+        assertEquals(ThreatAssessment.ATTACK, successfulProbe.level());
+
+        ThreatAssessment successfulInjection = assess("GET", "/api/music/search",
+                "q=1%27+UNION+SELECT+password+FROM+users", null, "api", 200,
+                "203.0.113.15", BROWSER_UA, "browser", null);
+        assertEquals(ThreatAssessment.ATTACK, successfulInjection.level());
+        assertTrue(successfulInjection.reasons().contains("SQL"));
     }
 
     @Test
@@ -133,6 +143,62 @@ class ThreatDetectionServiceTest {
         }
         assertEquals(ThreatAssessment.ATTACK, result.level());
         assertTrue(result.reasons().contains("认证失败"));
+    }
+
+    @Test
+    @DisplayName("纯成功流量即使请求量很大也不判攻击")
+    void pureSuccessfulTrafficIsNotAttack() {
+        ThreatAssessment result = null;
+        for (int i = 1; i <= 300; i++) {
+            result = assess("GET", "/api/music/file/" + i, null, null, "api", 200,
+                    "198.51.100.50", BROWSER_UA, "browser", null);
+        }
+        assertEquals(ThreatAssessment.NORMAL, result.level());
+        assertEquals(0, result.score());
+    }
+
+    @Test
+    @DisplayName("成功遍历资源并夹带失败探测的攻击簇仍判攻击")
+    void successfulProbeClusterIsAttack() {
+        ThreatAssessment result = null;
+        int path = 1;
+        for (int network = 1; network <= 4; network++) {
+            String ip = "198." + network + ".1.1";
+            for (int i = 0; i < 90; i++) {
+                result = assess("GET", "/api/music/file/" + (path++), null, null, "api", 200,
+                        ip, BROWSER_UA, "browser", null);
+            }
+            for (int i = 0; i < 20; i++) {
+                result = assess("GET", "/api/music/missing/" + (path++), null, null, "api", 404,
+                        ip, BROWSER_UA, "browser", null);
+            }
+        }
+        result = assess("GET", "/api/music/file/" + (path++), null, null, "api", 200,
+                "198.4.1.1", BROWSER_UA, "browser", null);
+        assertEquals(ThreatAssessment.ATTACK, result.level());
+        assertTrue(result.reasons().contains("成功遍历"));
+    }
+
+    @Test
+    @DisplayName("官方客户端跨网段大量 200 与少量缺曲 404 仍判正常")
+    void officialClientHighVolumeWithFewMissingTracksIsNormal() {
+        ThreatAssessment result = null;
+        int path = 1;
+        for (int network = 1; network <= 4; network++) {
+            String ip = "198." + network + ".1.1";
+            for (int i = 0; i < 80; i++) {
+                result = assess("GET", "/api/music/file/" + (path++), null, null, "api", 200,
+                        ip, "NekoMusic-android/202601024", "official_client", null);
+            }
+            for (int i = 0; i < 8; i++) {
+                result = assess("GET", "/api/music/file/-100000" + (path++), null, null, "api", 404,
+                        ip, "NekoMusic-android/202601024", "official_client", null);
+            }
+        }
+        result = assess("GET", "/api/music/file/" + (path++), null, null, "api", 200,
+                "198.4.1.1", "NekoMusic-android/202601024", "official_client", null);
+        assertEquals(ThreatAssessment.NORMAL, result.level());
+        assertEquals(0, result.score());
     }
 
     @Test
