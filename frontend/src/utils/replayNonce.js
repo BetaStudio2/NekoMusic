@@ -42,6 +42,9 @@ const RETRY_AFTER_MAX_MS = 2000
 
 /** 与后端 EXEMPT_PATHS 对应 */
 const EXEMPT_PATHS = new Set([
+  '/api/client/challenge',
+  '/api/client/register',
+  '/api/client/token',
   '/api/replay/challenge',
   '/api/replay/nonce',
   '/api/music/latest',
