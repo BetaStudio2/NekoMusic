@@ -90,6 +90,10 @@ public final class ServletRegistrar {
         // 注册管理员创建API处理器
         ServletHolder adminCreateHolder = new ServletHolder(new AdminCreateHandler());
         context.addServlet(adminCreateHolder, "/api/admin/create");
+
+        // 注册管理员创建普通用户API处理器
+        ServletHolder adminCreateUserHolder = new ServletHolder(new AdminCreateUserHandler());
+        context.addServlet(adminCreateUserHolder, "/api/admin/create-user");
         
         // 注册图表数据API处理器
         ServletHolder chartDataHolder = new ServletHolder(new ChartDataHandler());

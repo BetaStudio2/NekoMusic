@@ -1,0 +1,436 @@
+package com.neko.music.service;
+
+import com.neko.music.database.UserAccountStore;
+import com.neko.music.model.Admin;
+import com.neko.music.model.AdminAccount;
+import com.neko.music.model.UserAccount;
+import com.neko.music.model.UserProfile;
+import de.mkammerer.argon2.Argon2;
+import de.mkammerer.argon2.Argon2Factory;
+import org.junit.jupiter.api.Test;
+
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class UserManagementServiceTest {
+
+    @Test
+    void nonSuperAdminOnlySeesOwnAdminAccount() throws Exception {
+        FakeStore store = new FakeStore();
+        store.admins.add(new AdminAccount(1, "root", "root@example.com", "super_admin", "2026-01-01"));
+        store.admins.add(new AdminAccount(2, "auditor", "auditor@example.com", "auditor", "2026-01-02"));
+        UserManagementService service = new UserManagementService(store, new RecordingRevoker());
+
+        List<AdminAccount> visible = service.listAdmins(admin(2, "auditor"));
+
+        assertEquals(1, visible.size());
+        assertEquals(2, visible.get(0).id());
+
+        List<AdminAccount> adminVisible = service.listAdmins(admin(2, "admin"));
+        assertEquals(1, adminVisible.size());
+        assertEquals(2, adminVisible.get(0).id());
+    }
+
+    @Test
+    void ordinaryAdminCannotCreateAnotherAdmin() {
+        UserManagementService service = new UserManagementService(new FakeStore(), new RecordingRevoker());
+
+        UserManagementException error = assertThrows(UserManagementException.class,
+                () -> service.createAdmin(admin(2, "admin"), "newadmin", "new@example.com", "secret12", "admin"));
+
+        assertEquals(UserManagementException.Kind.FORBIDDEN, error.kind());
+        assertEquals("common.forbidden", error.messageKey());
+    }
+
+    @Test
+    void superAdminCreatesAdminWithHashedPassword() throws Exception {
+        FakeStore store = new FakeStore();
+        UserManagementService service = new UserManagementService(store, new RecordingRevoker());
+
+        service.createAdmin(admin(1, "super_admin"), "  New.Admin  ", " NEW@Example.COM ",
+                "secret12", "auditor");
+
+        assertEquals(1, store.admins.size());
+        AdminAccount created = store.admins.get(0);
+        assertEquals("New.Admin", created.username());
+        assertEquals("new@example.com", created.email());
+        assertEquals("auditor", created.role());
+        assertNotEquals("secret12", store.createdAdminHash);
+        assertTrue(store.createdAdminHash.startsWith("$argon2"));
+    }
+
+    @Test
+    void adminMayOnlyChangeOwnPassword() {
+        FakeStore store = new FakeStore();
+        UserManagementService service = new UserManagementService(store, new RecordingRevoker());
+
+        UserManagementException error = assertThrows(UserManagementException.class,
+                () -> service.updateAdminPassword(admin(2, "admin"), 3, "secret12"));
+
+        assertEquals(UserManagementException.Kind.FORBIDDEN, error.kind());
+        assertEquals("admin.account.edit_self_only", error.messageKey());
+    }
+
+    @Test
+    void changingAdminPasswordRevokesAllSessions() throws Exception {
+        FakeStore store = new FakeStore();
+        RecordingRevoker revoker = new RecordingRevoker();
+        UserManagementService service = new UserManagementService(store, revoker);
+
+        service.updateAdminPassword(admin(1, "super_admin"), 3, "secret12");
+
+        assertEquals(List.of(3), revoker.admins);
+        assertNotEquals("old", store.adminPasswordHash);
+    }
+
+    @Test
+    void cannotDeleteSelfOrLastSuperAdmin() {
+        FakeStore store = new FakeStore();
+        store.adminDeletionResult = UserAccountStore.AdminDeletionResult.LAST_SUPER_ADMIN;
+        UserManagementService service = new UserManagementService(store, new RecordingRevoker());
+
+        UserManagementException self = assertThrows(UserManagementException.class,
+                () -> service.deleteAdmin(admin(1, "super_admin"), 1));
+        assertEquals("admin.account.delete_self_forbidden", self.messageKey());
+
+        UserManagementException last = assertThrows(UserManagementException.class,
+                () -> service.deleteAdmin(admin(2, "super_admin"), 1));
+        assertEquals("admin.account.last_super_forbidden", last.messageKey());
+    }
+
+    @Test
+    void regularUserEditRequiresAFieldAndRejectsInvalidVip() {
+        FakeStore store = new FakeStore();
+        UserManagementService service = new UserManagementService(store, new RecordingRevoker());
+
+        UserManagementException empty = assertThrows(UserManagementException.class,
+                () -> service.updateUser(admin(2, "admin"), 7, "  ", false, null));
+        assertEquals("admin.user.update_fields_required", empty.messageKey());
+
+        UserManagementException vip = assertThrows(UserManagementException.class,
+                () -> service.updateUser(admin(2, "admin"), 7, null, true, "not-a-date"));
+        assertEquals("admin.user.invalid_vip", vip.messageKey());
+    }
+
+    @Test
+    void passwordChangeHashesAndRevokesButVipOnlyDoesNotLogOut() throws Exception {
+        FakeStore store = new FakeStore();
+        RecordingRevoker revoker = new RecordingRevoker();
+        UserManagementService service = new UserManagementService(store, revoker);
+
+        service.updateUser(admin(2, "admin"), 7, "secret12", true, "2027-01-01T00:00:00Z");
+
+        assertNotEquals("old-user", store.userPasswordHash);
+        assertTrue(store.userPasswordHash.startsWith("$argon2"));
+        assertEquals(Instant.parse("2027-01-01T00:00:00Z"), store.vip.toInstant());
+        assertEquals(List.of(7), revoker.users);
+
+        service.updateUser(admin(2, "admin"), 7, null, true, "2028-01-01T00:00:00+08:00");
+        assertEquals(List.of(7), revoker.users, "只改会员时间不应吊销登录会话");
+    }
+
+    @Test
+    void passwordWhitespaceIsPreservedWhenHashing() throws Exception {
+        FakeStore store = new FakeStore();
+        UserManagementService service = new UserManagementService(store, new RecordingRevoker());
+
+        service.updateUser(admin(2, "admin"), 7, " secret12 ", false, null);
+
+        Argon2 argon2 = Argon2Factory.create();
+        assertTrue(argon2.verify(store.userPasswordHash, " secret12 ".toCharArray()));
+    }
+
+    @Test
+    void ownPasswordChangeRejectsWrongOldPasswordAndSamePassword() throws Exception {
+        FakeStore store = new FakeStore();
+        RecordingRevoker revoker = new RecordingRevoker();
+        UserManagementService service = new UserManagementService(store, revoker);
+        store.userPasswordHash = hash("old-pass");
+
+        UserManagementException wrong = assertThrows(UserManagementException.class,
+                () -> service.changeUserPassword(7, "wrong-pass", "new-pass"));
+        assertEquals("auth.password_change.old_wrong", wrong.messageKey());
+        assertTrue(revoker.users.isEmpty());
+
+        UserManagementException same = assertThrows(UserManagementException.class,
+                () -> service.changeUserPassword(7, "old-pass", "old-pass"));
+        assertEquals("auth.password_change.same_as_old", same.messageKey());
+        assertTrue(revoker.users.isEmpty());
+    }
+
+    @Test
+    void ownPasswordChangeHashesAndRevokesSessions() throws Exception {
+        FakeStore store = new FakeStore();
+        RecordingRevoker revoker = new RecordingRevoker();
+        UserManagementService service = new UserManagementService(store, revoker);
+        store.userPasswordHash = hash("old-pass");
+
+        service.changeUserPassword(7, "old-pass", "new-pass");
+
+        assertEquals(List.of(7), revoker.users);
+        assertTrue(Argon2Factory.create().verify(store.userPasswordHash, "new-pass".toCharArray()));
+    }
+
+    @Test
+    void ownNicknameChangeTrimsAndValidates() throws Exception {
+        FakeStore store = new FakeStore();
+        UserManagementService service = new UserManagementService(store, new RecordingRevoker());
+
+        String saved = service.changeUserNickname(7, "  新昵称  ");
+        assertEquals("新昵称", saved);
+        assertEquals("新昵称", store.nickname);
+
+        UserManagementException invalid = assertThrows(UserManagementException.class,
+                () -> service.changeUserNickname(7, "x".repeat(21)));
+        assertTrue(invalid.messageKey().contains("昵称长度"));
+    }
+
+    @Test
+    void ownAvatarChangeReturnsPreviousPathForPostCommitCleanup() throws Exception {
+        FakeStore store = new FakeStore();
+        store.avatarPath = "avatars/old.png";
+        UserManagementService service = new UserManagementService(store, new RecordingRevoker());
+
+        assertEquals(Optional.of("avatars/old.png"), service.findUserAvatar(7));
+
+        UserManagementService.AvatarChange change = service.changeUserAvatar(7, "avatars/new.png");
+
+        assertEquals("avatars/old.png", change.previousAvatarPath());
+        assertEquals("avatars/new.png", store.avatarPath);
+    }
+
+    @Test
+    void missingUserKeepsLegacySelfServiceFailures() {
+        UserManagementService service = new UserManagementService(new FakeStore(), new RecordingRevoker());
+
+        UserManagementException profile = assertThrows(UserManagementException.class,
+                () -> service.getUserProfile(99));
+        assertEquals(UserManagementException.Kind.NOT_FOUND, profile.kind());
+        assertEquals("user.not_exists", profile.messageKey());
+
+        UserManagementException password = assertThrows(UserManagementException.class,
+                () -> service.changeUserPassword(99, "old-pass", "new-pass"));
+        assertEquals("auth.password_change.old_wrong", password.messageKey());
+
+        UserManagementException nickname = assertThrows(UserManagementException.class,
+                () -> service.changeUserNickname(99, "listener"));
+        assertEquals("user.nickname.change_failed", nickname.messageKey());
+
+        UserManagementException avatar = assertThrows(UserManagementException.class,
+                () -> service.changeUserAvatar(99, "avatars/new.png"));
+        assertEquals("user.avatar.db_update_failed", avatar.messageKey());
+    }
+
+    @Test
+    void vipParserTreatsShanghaiLocalTimeAsUtcPlusEight() throws Exception {
+        Timestamp parsed = UserManagementService.parseVipExpiresAt("2027-01-01T00:00:00");
+
+        assertEquals(Instant.parse("2026-12-31T16:00:00Z"), parsed.toInstant());
+        assertEquals(null, UserManagementService.parseVipExpiresAt("  "));
+    }
+
+    @Test
+    void createUserRequiresSuperAdminAndUniqueEmail() throws Exception {
+        FakeStore store = new FakeStore();
+        UserManagementService service = new UserManagementService(store, new RecordingRevoker());
+
+        UserManagementException forbidden = assertThrows(UserManagementException.class,
+                () -> service.createUser(admin(2, "admin"), "listener", "listener@example.com", "secret12"));
+        assertEquals("admin.user.create_forbidden", forbidden.messageKey());
+
+        store.userEmailTaken = true;
+        UserManagementException conflict = assertThrows(UserManagementException.class,
+                () -> service.createUser(admin(1, "super_admin"), "listener", "listener@example.com", "secret12"));
+        assertEquals("admin.user.email_exists", conflict.messageKey());
+        assertTrue(store.users.isEmpty());
+    }
+
+    @Test
+    void accountCreationRejectsWhitespaceOnlyPassword() {
+        UserManagementService service = new UserManagementService(new FakeStore(), new RecordingRevoker());
+
+        UserManagementException adminError = assertThrows(UserManagementException.class,
+                () -> service.createAdmin(admin(1, "super_admin"), "newadmin", "new@example.com",
+                        "      ", "admin"));
+        assertEquals("admin.account.password_too_short", adminError.messageKey());
+
+        UserManagementException userError = assertThrows(UserManagementException.class,
+                () -> service.createUser(admin(1, "super_admin"), "listener", "listener@example.com",
+                        "      "));
+        assertEquals("admin.user.password_too_short", userError.messageKey());
+    }
+
+    private static Admin admin(int id, String role) {
+        return new Admin(id, "actor" + id, "hash", "actor@example.com", true, role,
+                System.currentTimeMillis(), 0L);
+    }
+
+    private static String hash(String rawPassword) {
+        return Argon2Factory.create().hash(10, 65536, 1, rawPassword.toCharArray());
+    }
+
+    private static final class RecordingRevoker implements UserManagementService.SessionRevoker {
+        private final List<Integer> admins = new ArrayList<>();
+        private final List<Integer> users = new ArrayList<>();
+
+        @Override
+        public void revokeAdmin(int adminId) {
+            admins.add(adminId);
+        }
+
+        @Override
+        public void revokeUser(int userId) {
+            users.add(userId);
+        }
+    }
+
+    private static final class FakeStore implements UserAccountStore {
+        private final List<AdminAccount> admins = new ArrayList<>();
+        private final List<UserAccount> users = new ArrayList<>();
+        private String createdAdminHash;
+        private String adminPasswordHash = "old";
+        private String userPasswordHash = "old-user";
+        private Timestamp vip;
+        private String avatarPath;
+        private String nickname = "listener";
+        private boolean userEmailTaken;
+        private AdminDeletionResult adminDeletionResult = AdminDeletionResult.DELETED;
+
+        @Override
+        public List<AdminAccount> listAdmins() {
+            return List.copyOf(admins);
+        }
+
+        @Override
+        public Optional<AdminAccount> findAdmin(int id) {
+            return id == 3
+                    ? Optional.of(new AdminAccount(3, "target", "target@example.com", "admin", "2026-01-01"))
+                    : admins.stream().filter(a -> a.id() == id).findFirst();
+        }
+
+        @Override
+        public boolean adminUsernameExists(String username) {
+            return admins.stream().anyMatch(a -> a.username().equals(username));
+        }
+
+        @Override
+        public void createAdmin(String username, String passwordHash, String email, String role, long createdAt) {
+            createdAdminHash = passwordHash;
+            admins.add(new AdminAccount(10 + admins.size(), username, email, role, "2026-01-01"));
+        }
+
+        @Override
+        public boolean updateAdminPassword(int id, String passwordHash) {
+            if (findAdmin(id).isEmpty()) {
+                return false;
+            }
+            adminPasswordHash = passwordHash;
+            return true;
+        }
+
+        @Override
+        public AdminDeletionResult deleteAdmin(int id) {
+            if (adminDeletionResult != AdminDeletionResult.DELETED) {
+                return adminDeletionResult;
+            }
+            return admins.removeIf(a -> a.id() == id) ? AdminDeletionResult.DELETED : AdminDeletionResult.NOT_FOUND;
+        }
+
+        @Override
+        public List<UserAccount> listUsers() {
+            return List.copyOf(users);
+        }
+
+        @Override
+        public Optional<UserAccount> findUser(int id) {
+            if (id == 7) {
+                return Optional.of(new UserAccount(7, "listener", "listener@example.com", "2026-01-01", false, null));
+            }
+            return users.stream().filter(u -> u.id() == id).findFirst();
+        }
+
+        @Override
+        public Optional<UserProfile> findUserProfile(int id) {
+            if (id != 7) {
+                return Optional.empty();
+            }
+            return Optional.of(new UserProfile(7, nickname, "listener@example.com",
+                    "2026-01-01", vip));
+        }
+
+        @Override
+        public Optional<String> findUserPasswordHash(int id) {
+            return id == 7 ? Optional.of(userPasswordHash) : Optional.empty();
+        }
+
+        @Override
+        public Optional<String> findUserAvatar(int id) {
+            return id == 7 ? Optional.ofNullable(avatarPath) : Optional.empty();
+        }
+
+        @Override
+        public boolean userEmailExists(String email) {
+            return userEmailTaken;
+        }
+
+        @Override
+        public void createUser(String nickname, String passwordHash, String email) {
+            users.add(new UserAccount(20 + users.size(), nickname, email, "2026-01-01", false, null));
+        }
+
+        @Override
+        public boolean updateUser(int id, String passwordHash, boolean vipSpecified, Timestamp vipExpiresAt) {
+            if (findUser(id).isEmpty()) {
+                return false;
+            }
+            if (passwordHash != null) {
+                userPasswordHash = passwordHash;
+            }
+            if (vipSpecified) {
+                vip = vipExpiresAt;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean updateUserPassword(int id, String passwordHash) {
+            if (id != 7) {
+                return false;
+            }
+            userPasswordHash = passwordHash;
+            return true;
+        }
+
+        @Override
+        public boolean updateUserNickname(int id, String nickname) {
+            if (id != 7) {
+                return false;
+            }
+            this.nickname = nickname;
+            return true;
+        }
+
+        @Override
+        public AvatarUpdateResult updateUserAvatar(int id, String avatarPath) {
+            if (id != 7) {
+                return AvatarUpdateResult.notFound();
+            }
+            String previous = this.avatarPath;
+            this.avatarPath = avatarPath;
+            return AvatarUpdateResult.updated(previous);
+        }
+
+        @Override
+        public boolean deleteUser(int id) {
+            return users.removeIf(u -> u.id() == id);
+        }
+    }
+}

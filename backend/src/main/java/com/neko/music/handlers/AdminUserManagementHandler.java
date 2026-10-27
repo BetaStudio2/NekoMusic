@@ -1,305 +1,125 @@
 package com.neko.music.handlers;
 
-import com.neko.music.util.PermissionHelper;
-
-import com.neko.music.model.SuccessResponse;
-import com.neko.music.model.ErrorResponse;
 import com.neko.music.Main;
 import com.neko.music.model.Admin;
-import com.neko.music.util.HandlerResponses;
-import org.eclipse.jetty.http.HttpStatus;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
+import com.neko.music.model.AdminAccount;
+import com.neko.music.service.UserManagementException;
+import com.neko.music.service.UserManagementService;
+import com.neko.music.util.OperationAudit;
+import com.neko.music.util.PermissionHelper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.eclipse.jetty.http.HttpStatus;
 
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.util.ArrayList;
 import java.util.List;
-import com.neko.music.i18n.ApiMessages;
+import java.util.function.Function;
+import java.util.regex.Pattern;
 
-public class AdminUserManagementHandler extends HttpServlet {
-    private static final Logger logger = LoggerFactory.getLogger(AdminUserManagementHandler.class);
+/**
+ * 管理员账号管理：列表、重置密码、删除。路由保持在 {@code /api/admin/users/*}。
+ */
+public final class AdminUserManagementHandler extends AdminAccountApiServlet {
 
-    @Override
-    protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        // 检查管理员权限
-        if (HandlerResponses.rejectIfUnauthorized(request, response)) {
-            return;
-        }
-        
-        String pathInfo = request.getPathInfo();
-        
-        // 如果 pathInfo 为 null 或空，说明是访问 /api/admin/users
-        if (pathInfo == null || pathInfo.equals("/") || pathInfo.equals("")) {
-            // 获取当前管理员信息
-            com.neko.music.model.Admin currentAdmin = com.neko.music.util.PermissionHelper.getAdminFromRequest(request);
-            
-            if (currentAdmin == null) {
-                HandlerResponses.writeJson(response, HttpStatus.UNAUTHORIZED_401, new ErrorResponse("auth.unauthorized"));
-                return;
-            }
-            
-            List<AdminUser> adminUsers = new ArrayList<>();
-            
-            // 审核员只能看到自己的信息
-            if (com.neko.music.util.AdminPermissionUtil.isAuditor(currentAdmin)) {
-                AdminUser self = new AdminUser(
-                        currentAdmin.id(),
-                        currentAdmin.username(),
-                        currentAdmin.email(),
-                        currentAdmin.role(),
-                        new java.sql.Timestamp(currentAdmin.createdAt()).toString());
-                adminUsers.add(self);
-                logger.info("审核员 {} 查看自己的管理员信息", currentAdmin.username());
-            } else if (com.neko.music.util.AdminPermissionUtil.isAdmin(currentAdmin)) {
-                // 管理员可以看到所有管理员
-                adminUsers = getAllAdminUsers();
-                logger.info("管理员 {} 查看管理员列表", currentAdmin.username());
-            } else if (com.neko.music.util.AdminPermissionUtil.isSuperAdmin(currentAdmin)) {
-                // 超管可以看到所有管理员
-                adminUsers = getAllAdminUsers();
-                logger.info("超级管理员 {} 查看管理员列表", currentAdmin.username());
-            }
+    private static final Pattern EDIT_PATH = Pattern.compile("^/(\\d+)/edit/?$");
+    private static final Pattern DELETE_PATH = Pattern.compile("^/(\\d+)/?$");
 
-            HandlerResponses.writeJson(response, HttpStatus.OK_200, new AdminUsersResponse(true, ApiMessages.translate("admin.user.list_ok"), adminUsers));
-            return;
-        }
+    public AdminUserManagementHandler() {
+        this(Main.getUserManagementService(), PermissionHelper::getAdminFromRequest);
+    }
 
-        // 其他路径处理（如果需要）
-        HandlerResponses.writeJson(response, HttpStatus.NOT_FOUND_404, new ErrorResponse("user.not_found"));
+    AdminUserManagementHandler(
+            UserManagementService service,
+            Function<HttpServletRequest, Admin> adminResolver) {
+        super(service, adminResolver);
     }
 
     @Override
-    protected void doPut(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        logger.info("收到 PUT 请求，路径: {}", request.getRequestURI());
-        logger.info("PathInfo: {}", request.getPathInfo());
-        
-        // 检查管理员权限
-        if (!PermissionHelper.isAdminAuthorized(request)) {
-            logger.warn("auth.unauthorized");
-            HandlerResponses.writeJson(response, HttpStatus.UNAUTHORIZED_401, new ErrorResponse("auth.unauthorized"));
+    protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        prepare(response);
+        Admin actor = requireAdmin(request, response);
+        if (actor == null) {
             return;
         }
 
         String pathInfo = request.getPathInfo();
-        if (pathInfo == null || !pathInfo.endsWith("/edit")) {
-            logger.warn("无效的请求路径: {}", pathInfo);
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("user.bad_path"));
+        if (pathInfo != null && !pathInfo.isBlank() && !"/".equals(pathInfo)) {
+            sendErrorResponse(response, HttpStatus.NOT_FOUND_404, "user.not_found");
             return;
         }
 
-        // 解析管理员ID
-        String pathWithoutEdit = pathInfo.substring(0, pathInfo.indexOf("/edit"));
-        String idStr = pathWithoutEdit.replace("/", "");
-        int adminId;
         try {
-            adminId = Integer.parseInt(idStr);
-        } catch (NumberFormatException e) {
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("admin.account.id_invalid"));
-            return;
+            List<AdminAccount> accounts = service.listAdmins(actor);
+            response.setStatus(HttpStatus.OK_200);
+            sendResponse(response, true, "admin.user.list_ok", accounts);
+        } catch (UserManagementException e) {
+            sendFailure(response, e);
         }
-        
-        // 获取当前管理员信息
-        com.neko.music.model.Admin currentAdmin = com.neko.music.util.PermissionHelper.getAdminFromRequest(request);
-        if (currentAdmin == null) {
-            HandlerResponses.writeJson(response, HttpStatus.UNAUTHORIZED_401, new ErrorResponse("auth.unauthorized"));
+    }
+
+    @Override
+    protected void doPut(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        prepare(response);
+        Admin actor = requireAdmin(request, response);
+        if (actor == null) {
             return;
-        }
-        
-        // 检查权限：超管可以编辑任何管理员，管理员只能编辑自己
-        if (!com.neko.music.util.AdminPermissionUtil.isSuperAdmin(currentAdmin)) {
-            // 如果不是超管，只能编辑自己的账号
-            if (currentAdmin.id() != adminId) {
-                logger.warn("admin.account.edit_self_only");
-                HandlerResponses.writeJson(response, HttpStatus.FORBIDDEN_403, new ErrorResponse("admin.account.edit_self_only"));
-                return;
-            }
         }
 
-        // 读取请求体
-        StringBuilder requestBody = new StringBuilder();
-        String line;
-        while ((line = request.getReader().readLine()) != null) {
-            requestBody.append(line);
+        Integer adminId = targetId(
+                request.getPathInfo(),
+                EDIT_PATH,
+                "admin.account.id_required",
+                "admin.account.id_invalid",
+                response);
+        if (adminId == null) {
+            return;
         }
 
         AdminEditRequest editRequest;
         try {
-            editRequest = Main.getObjectMapper().readValue(requestBody.toString(), AdminEditRequest.class);
+            editRequest = Main.getObjectMapper().readValue(readBody(request), AdminEditRequest.class);
         } catch (Exception e) {
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("user.bad_request"));
+            sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "auth.bad_request");
             return;
         }
 
-        // 修改管理员信息
-        boolean success = updateAdminInfo(adminId, editRequest);
-        
-        if (!success) {
-            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("admin.account.update_failed"));
-            return;
+        try {
+            service.updateAdminPassword(actor, adminId, editRequest == null ? null : editRequest.password());
+            OperationAudit.add(request, "密码", "（未公开）", "（已重置）");
+            response.setStatus(HttpStatus.OK_200);
+            sendSuccessResponse(response, "admin.user.update_ok");
+        } catch (UserManagementException e) {
+            sendFailure(response, e);
         }
-
-        HandlerResponses.writeJson(response, HttpStatus.OK_200, new SuccessResponse(true, ApiMessages.translate("admin.user.update_ok")));
     }
 
     @Override
-    protected void doDelete(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        // 检查管理员权限
-        if (HandlerResponses.rejectIfUnauthorized(request, response)) {
-            return;
-        }
-        
-        // 检查是否有管理员管理权限（只有超管有此权限）
-        if (!com.neko.music.util.PermissionHelper.checkPermission(request, response, com.neko.music.util.AdminPermissionUtil.Permission.ADMIN_DELETE)) {
-            logger.warn("权限不足，无管理员管理权限");
+    protected void doDelete(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        prepare(response);
+        Admin actor = requireAdmin(request, response);
+        if (actor == null) {
             return;
         }
 
-        String pathInfo = request.getPathInfo();
-        if (pathInfo == null || pathInfo.equals("/")) {
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("admin.account.id_required"));
+        Integer adminId = targetId(
+                request.getPathInfo(),
+                DELETE_PATH,
+                "admin.account.id_required",
+                "admin.account.id_invalid",
+                response);
+        if (adminId == null) {
             return;
         }
 
-        // 解析管理员ID
-        String idStr = pathInfo.replace("/", "");
-        int adminId;
         try {
-            adminId = Integer.parseInt(idStr);
-        } catch (NumberFormatException e) {
-            HandlerResponses.writeJson(response, HttpStatus.BAD_REQUEST_400, new ErrorResponse("admin.account.id_invalid"));
-            return;
-        }
-
-        // 删除管理员
-        boolean success = deleteAdminUser(adminId);
-        
-        if (!success) {
-            HandlerResponses.writeJson(response, HttpStatus.INTERNAL_SERVER_ERROR_500, new ErrorResponse("admin.account.delete_failed"));
-            return;
-        }
-
-        // 删除账号后其令牌必须立即失效（令牌只查 Redis，不看管理员行）
-        revokeAllAdminSessions(adminId);
-
-        HandlerResponses.writeJson(response, HttpStatus.OK_200, new SuccessResponse(true, ApiMessages.translate("admin.user.delete_ok")));
-    }
-
-    // 检查管理员权限
-    
-    // 获取所有管理员用户
-    private List<AdminUser> getAllAdminUsers() {
-        List<AdminUser> adminUsers = new ArrayList<>();
-        
-        try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            // 先检查表是否存在
-            try (ResultSet rs = conn.getMetaData().getTables(null, null, "admins", null)) {
-                if (!rs.next()) {
-                    logger.error("admins表不存在");
-                    return adminUsers;
-                }
-            }
-            
-            String sql = "SELECT id, username, email, role, created_at FROM admins ORDER BY created_at DESC";
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                ResultSet rs = stmt.executeQuery();
-                
-                while (rs.next()) {
-                    // created_at 是 BIGINT 类型
-                    long createdAt = rs.getLong("created_at");
-                    AdminUser adminUser = new AdminUser(
-                            rs.getInt("id"),
-                            rs.getString("username"),
-                            rs.getString("email"),
-                            rs.getString("role"),
-                            new java.sql.Timestamp(createdAt).toString());
-                    
-                    adminUsers.add(adminUser);
-                }
-            }
-            
-            logger.info("成功获取 {} 个管理员账户", adminUsers.size());
-        } catch (Exception e) {
-            logger.error("获取管理员列表失败", e);
-        }
-        
-        return adminUsers;
-    }
-
-    /** 吊销某管理员的全部会话令牌（尽力而为：Redis 故障时记日志，不影响已完成的账号变更）。 */
-    private void revokeAllAdminSessions(int adminId) {
-        try {
-            com.neko.music.service.AdminAuthService adminAuthService = Main.getAdminAuthService();
-            if (adminAuthService != null) {
-                adminAuthService.revokeAllAdminTokens(adminId);
-            }
-        } catch (Exception e) {
-            logger.error("吊销管理员会话失败 adminId={}", adminId, e);
+            service.deleteAdmin(actor, adminId);
+            response.setStatus(HttpStatus.OK_200);
+            sendSuccessResponse(response, "admin.user.delete_ok");
+        } catch (UserManagementException e) {
+            sendFailure(response, e);
         }
     }
 
-    // 删除管理员用户
-    private boolean deleteAdminUser(int adminId) {
-        try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "DELETE FROM admins WHERE id = ?";
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setInt(1, adminId);
-                int rowsAffected = stmt.executeUpdate();
-                return rowsAffected > 0;
-            }
-        } catch (Exception e) {
-            logger.error("admin.account.delete_failed", e);
-            return false;
-        }
-    }
-
-    // 修改管理员信息
-    private boolean updateAdminInfo(int adminId, AdminEditRequest editRequest) {
-        try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            // 如果提供了新密码，则修改密码
-            if (editRequest.password() != null && !editRequest.password().trim().isEmpty()) {
-                // 使用Argon2加密密码
-                de.mkammerer.argon2.Argon2 argon2 = de.mkammerer.argon2.Argon2Factory.create();
-                String passwordHash = argon2.hash(10, 65536, 1, editRequest.password().toCharArray());
-                
-                String sql = "UPDATE admins SET password_hash = ? WHERE id = ?";
-                try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                    stmt.setString(1, passwordHash);
-                    stmt.setInt(2, adminId);
-                    int rowsAffected = stmt.executeUpdate();
-                    if (rowsAffected > 0) {
-                        // 改密立即吊销该管理员全部会话：否则旧令牌在 24h TTL 内仍然有效
-                        revokeAllAdminSessions(adminId);
-                    }
-                    return rowsAffected > 0;
-                }
-            }
-            
-            return true; // 如果没有提供密码，也返回成功
-        } catch (Exception e) {
-            logger.error("admin.account.update_failed", e);
-            return false;
-        }
-    }
-
-    // 内部类：管理员用户
-    public record AdminUser(int id, String username, String email, String role, String registerTime) {
-    }
-    // 内部类：管理员编辑请求
-    // 管理员编辑请求（Jackson 反序列化，只读）
     private record AdminEditRequest(String password) {
     }
-    // 内部类：管理员用户列表响应
-    private record AdminUsersResponse(boolean success, String message, List<AdminUser> data) {
-    }
-    // 内部类：成功响应
-
-    // 内部类：错误响应
 }

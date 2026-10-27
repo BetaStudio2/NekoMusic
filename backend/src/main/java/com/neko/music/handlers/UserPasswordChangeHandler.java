@@ -1,128 +1,76 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
-import de.mkammerer.argon2.Argon2;
-import de.mkammerer.argon2.Argon2Factory;
-import org.eclipse.jetty.http.HttpStatus;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import com.neko.music.service.UserManagementException;
+import com.neko.music.service.UserManagementService;
+import com.neko.music.util.HttpResourceCache;
+import com.neko.music.util.RequestAuthUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
+import org.eclipse.jetty.http.HttpStatus;
 
-public class UserPasswordChangeHandler extends ApiServlet {
-    private static final Logger logger = LoggerFactory.getLogger(UserPasswordChangeHandler.class);
-    private final Argon2 argon2 = Argon2Factory.create();
+import java.io.IOException;
+import java.util.function.Function;
+
+/** 当前登录用户修改密码：{@code POST /api/user/password/change}。 */
+public final class UserPasswordChangeHandler extends ApiServlet {
+
+    private final UserManagementService service;
+    private final Function<HttpServletRequest, Integer> authResolver;
+
+    public UserPasswordChangeHandler() {
+        this(Main.getUserManagementService(), RequestAuthUtil::authenticate);
+    }
+
+    UserPasswordChangeHandler(
+            UserManagementService service,
+            Function<HttpServletRequest, Integer> authResolver) {
+        this.service = service;
+        this.authResolver = authResolver;
+    }
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        // 验证用户Token
-        String token = request.getHeader("Authorization");
-        if (token == null || !token.startsWith("Bearer ")) {
-            sendErrorObject(response, HttpStatus.UNAUTHORIZED_401, "auth.unauthorized");
-            return;
-        }
-        
-        token = token.substring(7); // 移除 "Bearer " 前缀
-        
-        Integer userId = validateToken(token);
-        if (userId == null) {
-            sendErrorObject(response, HttpStatus.UNAUTHORIZED_401, "auth.invalid_token");
-            return;
-        }
-        
-        // 读取请求体
-        String requestBody = readBody(request);
-        
-        try {
-            // 解析JSON请求体
-            PasswordChangeRequest changeRequest = Main.getObjectMapper().readValue(requestBody.toString(), PasswordChangeRequest.class);
-            
-            // 验证请求参数
-            if (changeRequest.oldPassword() == null || changeRequest.oldPassword().trim().isEmpty()) {
-                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "auth.password_change.old_required");
-                return;
-            }
-            
-            if (changeRequest.newPassword() == null || changeRequest.newPassword().trim().isEmpty()) {
-                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "auth.password_reset.new_required");
-                return;
-            }
-            
-            if (changeRequest.newPassword().length() < 6) {
-                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "auth.password_change.new_too_short");
-                return;
-            }
-            
-            if (changeRequest.oldPassword().equals(changeRequest.newPassword())) {
-                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "auth.password_change.same_as_old");
-                return;
-            }
-            
-            // 验证原密码
-            if (!verifyOldPassword(userId, changeRequest.oldPassword())) {
-                sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "auth.password_change.old_wrong");
-                return;
-            }
-            
-            boolean success = Main.getUserAuthService().changePassword(userId, changeRequest.newPassword());
+        response.setHeader("Cache-Control", HttpResourceCache.CACHE_CONTROL_NO_STORE);
 
-            if (success) {
-                logger.info("用户 {} 修改密码成功，已注销全部会话", userId);
-                sendSuccessResponse(response, "auth.password_change.ok");
-            } else {
-                sendErrorObject(response, HttpStatus.INTERNAL_SERVER_ERROR_500, "auth.password_change.failed");
-            }
-            
+        Integer userId = authResolver.apply(request);
+        if (userId == null) {
+            String token = RequestAuthUtil.extractToken(request);
+            sendErrorObject(response, HttpStatus.UNAUTHORIZED_401,
+                    token == null ? "auth.unauthorized" : "auth.invalid_token");
+            return;
+        }
+
+        PasswordChangeRequest changeRequest;
+        try {
+            changeRequest = MAPPER.readValue(readBody(request), PasswordChangeRequest.class);
         } catch (Exception e) {
-            logger.error("修改密码时出错", e);
             sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "auth.bad_request");
+            return;
+        }
+        if (changeRequest == null) {
+            sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "auth.bad_request");
+            return;
+        }
+
+        try {
+            service.changeUserPassword(userId, changeRequest.oldPassword(), changeRequest.newPassword());
+            sendSuccessResponse(response, "auth.password_change.ok");
+        } catch (UserManagementException e) {
+            sendErrorObject(response, statusFor(e), e.messageKey());
         }
     }
-    
-    private Integer validateToken(String token) {
-        return Main.getUserAuthService().validateToken(token).orElse(null);
+
+    private static int statusFor(UserManagementException error) {
+        return switch (error.kind()) {
+            case VALIDATION -> HttpStatus.BAD_REQUEST_400;
+            case NOT_FOUND -> HttpStatus.NOT_FOUND_404;
+            case CONFLICT -> HttpStatus.CONFLICT_409;
+            case FORBIDDEN -> HttpStatus.FORBIDDEN_403;
+            case INTERNAL -> HttpStatus.INTERNAL_SERVER_ERROR_500;
+        };
     }
-    
-    /**
-     * 验证原密码
-     */
-    private boolean verifyOldPassword(int userId, String oldPassword) {
-        try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT password FROM users WHERE id = ?";
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setInt(1, userId);
-                try (ResultSet rs = stmt.executeQuery()) {
-                    if (rs.next()) {
-                        String storedPasswordHash = rs.getString("password");
-                        return argon2.verify(storedPasswordHash, oldPassword.toCharArray());
-                    }
-                }
-            }
-        } catch (Exception e) {
-            logger.error("验证原密码时出错", e);
-        }
-        return false;
-    }
-    
-    /**
-     * 发送成功响应
-     */
-    
-    /**
-     * 发送错误响应
-     */
-    
-    // 内部类：密码修改请求
-    // 密码修改请求（Jackson 反序列化，只读）
+
     private record PasswordChangeRequest(String oldPassword, String newPassword) {
     }
-    
-    // 内部类：成功响应
-    
-    // 内部类：错误响应
 }

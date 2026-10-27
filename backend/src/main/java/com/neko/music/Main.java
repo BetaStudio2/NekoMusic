@@ -79,6 +79,7 @@ public class Main {
     private static ConfigManager configManager;
     private static AdminDatabaseManager adminDatabaseManager;
     private static AdminAuthService adminAuthService;
+    private static UserManagementService userManagementService;
     private static AdminLoginThrottleService adminLoginThrottleService;
     private static UserLoginThrottleService userLoginThrottleService;
     private static AuthAbuseLimiter authAbuseLimiter;
@@ -239,6 +240,19 @@ public class Main {
         userAuthService = new UserAuthService(
                 databaseManager, configManager, emailService, redisService, tokenStore,
                 verificationCodeRateLimitService);
+        userManagementService = new UserManagementService(
+                new com.neko.music.database.JdbcUserAccountStore(databaseManager),
+                new UserManagementService.SessionRevoker() {
+                    @Override
+                    public void revokeAdmin(int adminId) {
+                        adminAuthService.revokeAllAdminTokens(adminId);
+                    }
+
+                    @Override
+                    public void revokeUser(int userId) {
+                        userAuthService.revokeAllTokensForUser(userId);
+                    }
+                });
 
         // 扫码登录会话（Redis 短 TTL，PC 轮询取 token）
         qrLoginService = new QrLoginService(redisService, objectMapper);
@@ -546,6 +560,10 @@ public class Main {
     
     public static AdminAuthService getAdminAuthService() {
         return adminAuthService;
+    }
+
+    public static UserManagementService getUserManagementService() {
+        return userManagementService;
     }
 
     public static AdminLoginThrottleService getAdminLoginThrottleService() {

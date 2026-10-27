@@ -28,7 +28,10 @@ class RequestAuditFilterTest {
         assertRule("DELETE", "/api/admin/lyrics-files/file/148.lrc", "歌词管理", "删除歌词");
         assertRule("PUT", "/api/admin/users/12/edit", "用户管理", "修改用户信息");
         assertRule("DELETE", "/api/admin/users/12", "用户管理", "删除用户");
+        assertRule("PUT", "/api/users/12/edit", "用户管理", "修改用户信息");
+        assertRule("DELETE", "/api/users/12", "用户管理", "删除用户");
         assertRule("POST", "/api/admin/create", "管理员管理", "创建管理员账号");
+        assertRule("POST", "/api/admin/create-user", "用户管理", "创建用户");
         assertRule("PUT", "/api/admin/releases", "客户端更新", "更新客户端版本号");
         assertRule("POST", "/api/admin/releases/upload", "客户端更新", "上传客户端安装包");
         assertRule("PUT", "/api/admin/vip/pricing", "VIP 定价", "修改 VIP 价目");

@@ -1,169 +1,147 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
+import com.neko.music.i18n.ApiMessages;
+import com.neko.music.service.UserManagementException;
+import com.neko.music.service.UserManagementService;
+import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.ImageUploadValidator;
-import org.eclipse.jetty.http.HttpStatus;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import com.neko.music.util.RequestAuthUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.Part;
+import org.eclipse.jetty.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
-import com.neko.music.i18n.ApiMessages;
+import java.util.function.Function;
 
-public class UserAvatarUploadHandler extends ApiServlet {
+/** 当前登录用户上传头像：{@code POST /api/user/avatar/upload}。 */
+public final class UserAvatarUploadHandler extends ApiServlet {
+
     private static final Logger logger = LoggerFactory.getLogger(UserAvatarUploadHandler.class);
-    
-    // 定义头像上传目录（相对于JAR运行目录）
-    private static final String AVATAR_DIR = "avatars";
-    
-    // 最大文件大小 10MiB
+    private static final String DEFAULT_AVATAR_DIR = "avatars";
     private static final long MAX_FILE_SIZE = ImageUploadValidator.DEFAULT_MAX_IMAGE_BYTES;
 
+    private final UserManagementService service;
+    private final Function<HttpServletRequest, Integer> authResolver;
+    private final Path avatarDirectory;
+
+    public UserAvatarUploadHandler() {
+        this(Main.getUserManagementService(), RequestAuthUtil::authenticate, Paths.get(DEFAULT_AVATAR_DIR));
+    }
+
+    UserAvatarUploadHandler(
+            UserManagementService service,
+            Function<HttpServletRequest, Integer> authResolver,
+            Path avatarDirectory) {
+        this.service = service;
+        this.authResolver = authResolver;
+        this.avatarDirectory = avatarDirectory;
+    }
+
     @Override
-    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        // 验证用户Token
-        String token = request.getHeader("Authorization");
-        if (token == null || !token.startsWith("Bearer ")) {
-            sendErrorObject(response, HttpStatus.UNAUTHORIZED_401, "auth.unauthorized");
-            return;
-        }
-        
-        token = token.substring(7); // 移除 "Bearer " 前缀
-        
-        Integer userId = validateToken(token);
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        response.setHeader("Cache-Control", HttpResourceCache.CACHE_CONTROL_NO_STORE);
+
+        Integer userId = authResolver.apply(request);
         if (userId == null) {
-            sendErrorObject(response, HttpStatus.UNAUTHORIZED_401, "auth.invalid_token");
+            String token = RequestAuthUtil.extractToken(request);
+            sendErrorObject(response, HttpStatus.UNAUTHORIZED_401,
+                    token == null ? "auth.unauthorized" : "auth.invalid_token");
             return;
         }
-        
+
+        Path uploadedFile = null;
         try {
-            // 设置请求为multipart类型，用于文件上传
             request.setCharacterEncoding("UTF-8");
-            
-            // 获取上传的文件部分
             Part avatarPart = request.getPart("avatar");
-            
             if (avatarPart == null || avatarPart.getSize() == 0) {
                 sendErrorObject(response, HttpStatus.BAD_REQUEST_400, "user.avatar.no_file");
                 return;
             }
-            
+
             ImageUploadValidator.ValidationResult imageValidation =
                     ImageUploadValidator.validatePart(avatarPart, MAX_FILE_SIZE);
             if (!imageValidation.isValid()) {
                 sendErrorObject(response, HttpStatus.BAD_REQUEST_400, imageValidation.getErrorMessage());
                 return;
             }
-            String fileExtension = imageValidation.getExtension();
-            
-            // 创建上传目录
-            Path uploadDir = Paths.get(AVATAR_DIR);
-            if (!Files.exists(uploadDir)) {
-                Files.createDirectories(uploadDir);
-            }
-            
-            // 生成唯一文件名
-            String uniqueFileName = userId + "_" + UUID.randomUUID().toString() + fileExtension;
-            Path filePath = uploadDir.resolve(uniqueFileName);
-            
-            // 保存文件
+
+            Files.createDirectories(avatarDirectory);
+            String uniqueFileName = userId + "_" + UUID.randomUUID() + imageValidation.getExtension();
+            uploadedFile = avatarDirectory.resolve(uniqueFileName);
             try (InputStream inputStream = avatarPart.getInputStream()) {
-                Files.copy(inputStream, filePath, StandardCopyOption.REPLACE_EXISTING);
+                Files.copy(inputStream, uploadedFile, StandardCopyOption.REPLACE_EXISTING);
             }
-            
-            // 更新数据库中的头像路径
-            String avatarPath = AVATAR_DIR + "/" + uniqueFileName;
-            boolean success = updateUserAvatar(userId, avatarPath);
-            
-            if (success) {
-                logger.info("用户 {} 上传头像成功: {}", userId, uniqueFileName);
-                sendSuccessResponse(response, "user.avatar.upload_ok", avatarPath);
-            } else {
-                // 如果数据库更新失败，删除已上传的文件
-                Files.deleteIfExists(filePath);
-                sendErrorObject(response, HttpStatus.INTERNAL_SERVER_ERROR_500, "user.avatar.db_update_failed");
+
+            UserManagementService.AvatarChange change;
+            try {
+                change = service.changeUserAvatar(userId, uploadedFile.toString());
+            } catch (UserManagementException e) {
+                deleteQuietly(uploadedFile, "数据库更新失败后清理新头像");
+                sendErrorObject(response, HttpStatus.INTERNAL_SERVER_ERROR_500,
+                        "user.avatar.db_update_failed");
+                return;
             }
-            
+
+            deletePreviousAvatar(change.previousAvatarPath(), uploadedFile);
+            logger.info("用户 {} 上传头像成功: {}", userId, uniqueFileName);
+            sendUploadSuccess(response, uploadedFile.toString());
         } catch (Exception e) {
+            if (uploadedFile != null) {
+                deleteQuietly(uploadedFile, "上传失败后清理新头像");
+            }
             logger.error("上传头像时出错", e);
-            sendErrorObject(response, HttpStatus.INTERNAL_SERVER_ERROR_500, ApiMessages.translate("user.avatar.upload_failed", e.getMessage()));
+            sendErrorObject(response, HttpStatus.INTERNAL_SERVER_ERROR_500,
+                    ApiMessages.translate("user.avatar.upload_failed", e.getMessage()));
         }
     }
-    
-    private Integer validateToken(String token) {
-        return Main.getUserAuthService().validateToken(token).orElse(null);
+
+    private void deletePreviousAvatar(String previousAvatarPath, Path currentFile) {
+        if (previousAvatarPath == null || previousAvatarPath.isBlank()) {
+            return;
+        }
+
+        Path root = avatarDirectory.toAbsolutePath().normalize();
+        Path previous = Paths.get(previousAvatarPath);
+        Path target = previous.isAbsolute()
+                ? previous.normalize()
+                : Paths.get(System.getProperty("user.dir")).resolve(previous).normalize();
+        if (!target.startsWith(root)) {
+            logger.warn("拒绝删除头像目录之外的旧文件: {}", previousAvatarPath);
+            return;
+        }
+        if (target.equals(currentFile.toAbsolutePath().normalize())) {
+            return;
+        }
+        deleteQuietly(target, "删除旧头像");
     }
-    
-    /**
-     * 更新用户头像路径
-     */
-    private boolean updateUserAvatar(int userId, String avatarPath) {
-        try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            // 首先检查用户是否有旧头像，如果有则删除
-            String checkSql = "SELECT avatar FROM users WHERE id = ?";
-            try (PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
-                checkStmt.setInt(1, userId);
-                try (ResultSet rs = checkStmt.executeQuery()) {
-                    if (rs.next()) {
-                        String oldAvatarPath = rs.getString("avatar");
-                        if (oldAvatarPath != null && !oldAvatarPath.isEmpty()) {
-                            // 删除旧头像文件
-                            try {
-                                Files.deleteIfExists(Paths.get(oldAvatarPath));
-                                logger.info("删除旧头像文件: {}", oldAvatarPath);
-                            } catch (IOException e) {
-                                logger.warn("删除旧头像文件失败: {}", oldAvatarPath, e);
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // 更新数据库
-            String sql = "UPDATE users SET avatar = ? WHERE id = ?";
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setString(1, avatarPath);
-                stmt.setInt(2, userId);
-                
-                int rowsAffected = stmt.executeUpdate();
-                return rowsAffected > 0;
-            }
-        } catch (Exception e) {
-            logger.error("更新用户头像时出错", e);
-            return false;
+
+    private static void deleteQuietly(Path file, String action) {
+        try {
+            Files.deleteIfExists(file);
+        } catch (IOException e) {
+            logger.warn("{}失败: {}", action, file, e);
         }
     }
-    
-    /**
-     * 发送成功响应
-     */
-    private void sendSuccessResponse(HttpServletResponse response, String message, String avatarPath) throws IOException {
-        response.setStatus(HttpStatus.OK_200);
-        response.setContentType("application/json;charset=utf-8");
-        
-        SuccessResponse successResponse = new SuccessResponse(true, message, avatarPath);
-        response.getWriter().println(Main.getObjectMapper().writeValueAsString(successResponse));
+
+    private void sendUploadSuccess(HttpServletResponse response, String avatarPath) throws IOException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", true);
+        body.put("message", ApiMessages.translate("user.avatar.upload_ok"));
+        body.put("avatarPath", avatarPath);
+        writeJson(response, HttpStatus.OK_200, MAPPER.writeValueAsString(body));
     }
-    
-    /**
-     * 发送错误响应
-     */
-    
-    // 内部类：成功响应
-    private record SuccessResponse(boolean success, String message, String avatarPath) {
-    }
-    
-    // 内部类：错误响应
 }

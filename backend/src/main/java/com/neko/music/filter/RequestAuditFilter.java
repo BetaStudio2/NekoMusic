@@ -119,8 +119,11 @@ public class RequestAuditFilter implements Filter {
             // 用户
             new OperationRule("/api/admin/users", Set.of("PUT"), "用户管理", "修改用户信息"),
             new OperationRule("/api/admin/users", Set.of("DELETE"), "用户管理", "删除用户"),
+            new OperationRule("/api/users", Set.of("PUT"), "用户管理", "修改用户信息"),
+            new OperationRule("/api/users", Set.of("DELETE"), "用户管理", "删除用户"),
             // 管理员账号
             new OperationRule("/api/admin/create", Set.of("POST"), "管理员管理", "创建管理员账号"),
+            new OperationRule("/api/admin/create-user", Set.of("POST"), "用户管理", "创建用户"),
             // 客户端更新
             new OperationRule("/api/admin/releases/upload", Set.of("POST"), "客户端更新", "上传客户端安装包"),
             new OperationRule("/api/admin/releases", Set.of("PUT"), "客户端更新", "更新客户端版本号"),
@@ -155,6 +158,7 @@ public class RequestAuditFilter implements Filter {
             new String[] { "/api/admin/qq", "外站补全" },
             new String[] { "/api/admin/vip/pricing", "VIP 定价" },
             new String[] { "/api/admin/users", "用户管理" },
+            new String[] { "/api/users", "用户管理" },
             new String[] { "/api/admin/music", "音乐管理" },
             new String[] { "/api/admin/audit", "审核管理" },
             new String[] { "/api/admin/create", "管理员管理" },

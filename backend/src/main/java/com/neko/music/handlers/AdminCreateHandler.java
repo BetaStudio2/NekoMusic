@@ -1,141 +1,66 @@
 package com.neko.music.handlers;
 
-import com.neko.music.util.PermissionHelper;
-
 import com.neko.music.Main;
 import com.neko.music.model.Admin;
-import org.eclipse.jetty.http.HttpStatus;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import jakarta.servlet.ServletException;
+import com.neko.music.service.UserManagementException;
+import com.neko.music.service.UserManagementService;
+import com.neko.music.util.OperationAudit;
+import com.neko.music.util.PermissionHelper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.eclipse.jetty.http.HttpStatus;
 
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
+import java.util.function.Function;
 
-public class AdminCreateHandler extends ApiServlet {
-    private static final Logger logger = LoggerFactory.getLogger(AdminCreateHandler.class);
+/** 超级管理员创建管理员账号：{@code POST /api/admin/create}。 */
+public final class AdminCreateHandler extends AdminAccountApiServlet {
 
-    /**
-     * 管理员用户名只允许 ASCII 字母、数字与 {@code _ . -}。
-     *
-     * <p>管理员用户名是登录限流的计数维度：若允许非 ASCII，UCA 排序规则会把全角、数学字母等兼容变体
-     * 与本体字符折叠成同一个账号（{@code WHERE username = ?} 命中），而它们原样是不同的字符串，天然
-     * 适合被用来拆出一个账号的多个限流桶。这里从源头限制成 ASCII，配合登录侧的统一归一化（见
-     * {@code LoginThrottleService}）消除「一个账号 + 多形态变体」。</p>
-     */
-    private static final String USERNAME_PATTERN = "[A-Za-z0-9_.-]+";
+    public AdminCreateHandler() {
+        this(Main.getUserManagementService(), PermissionHelper::getAdminFromRequest);
+    }
+
+    AdminCreateHandler(
+            UserManagementService service,
+            Function<HttpServletRequest, Admin> adminResolver) {
+        super(service, adminResolver);
+    }
 
     @Override
-    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        response.setContentType("application/json;charset=UTF-8");
-        
-        // 检查管理员权限
-        if (!PermissionHelper.isAdminAuthorized(request)) {
-            response.setStatus(HttpStatus.UNAUTHORIZED_401);
-            sendErrorResponse(response, "auth.unauthorized");
-            return;
-        }
-        
-        // 获取当前管理员信息
-        Admin currentAdmin = com.neko.music.util.PermissionHelper.getAdminFromRequest(request);
-        if (currentAdmin == null) {
-            response.setStatus(HttpStatus.UNAUTHORIZED_401);
-            sendErrorResponse(response, "auth.unauthorized");
-            return;
-        }
-        
-        // 检查是否为超级管理员
-        if (!com.neko.music.util.AdminPermissionUtil.isSuperAdmin(currentAdmin)) {
-            logger.warn("admin.account.create_forbidden");
-            response.setStatus(HttpStatus.FORBIDDEN_403);
-            sendErrorResponse(response, "admin.account.create_forbidden");
-            return;
-        }
-        
-        // 读取请求体
-        String requestBody = readBody(request);
-        
-        CreateAdminRequest createRequest;
-        try {
-            createRequest = Main.getObjectMapper().readValue(requestBody.toString(), CreateAdminRequest.class);
-        } catch (Exception e) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            sendErrorResponse(response, "user.bad_request");
-            return;
-        }
-        
-        // 验证请求参数
-        if (createRequest.username() == null || createRequest.username().trim().isEmpty()) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            sendErrorResponse(response, "admin.account.username_required");
+    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        prepare(response);
+        Admin actor = requireAdmin(request, response);
+        if (actor == null) {
             return;
         }
 
-        if (!createRequest.username().trim().matches(USERNAME_PATTERN)) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            sendErrorResponse(response, "admin.account.username_invalid");
+        CreateAdminRequest createRequest;
+        try {
+            createRequest = Main.getObjectMapper().readValue(readBody(request), CreateAdminRequest.class);
+        } catch (Exception e) {
+            sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "auth.bad_request");
             return;
         }
-        
-        if (createRequest.password() == null || createRequest.password().length() < 6) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            sendErrorResponse(response, "admin.account.password_too_short");
+        if (createRequest == null) {
+            sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "auth.bad_request");
             return;
         }
-        
-        if (createRequest.role() == null) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            sendErrorResponse(response, "admin.account.role_required");
-            return;
-        }
-        
-        // 检查用户名是否已存在
-        if (Main.getAdminAuthService().adminExists(createRequest.username())) {
-            response.setStatus(HttpStatus.BAD_REQUEST_400);
-            sendErrorResponse(response, "admin.account.username_exists");
-            return;
-        }
-        
-        // 创建管理员账号
-        boolean success = Main.getAdminAuthService().createAdmin(
-            createRequest.username(),
-            createRequest.password(),
-            createRequest.email()
-        );
-        
-        if (success) {
-            // 更新角色
-            if (!"admin".equals(createRequest.role())) {
-                try (Connection conn = Main.getDatabaseManager().getConnection()) {
-                    String sql = "UPDATE admins SET role = ? WHERE username = ?";
-                    try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                        stmt.setString(1, createRequest.role());
-                        stmt.setString(2, createRequest.username());
-                        stmt.executeUpdate();
-                    }
-                } catch (Exception e) {
-                    logger.error("更新管理员角色失败: {}", e.getMessage(), e);
-                }
-            }
-            
-            logger.info("成功创建管理员账号: {}, 角色: {}", createRequest.username(), createRequest.role());
+
+        try {
+            service.createAdmin(
+                    actor,
+                    createRequest.username(),
+                    createRequest.email(),
+                    createRequest.password(),
+                    createRequest.role());
+            OperationAudit.add(request, "管理员账号", "（无）", createRequest.username());
             response.setStatus(HttpStatus.OK_200);
             sendSuccessResponse(response, "admin.account.create_ok");
-        } else {
-            response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
-            sendErrorResponse(response, "admin.account.create_failed");
+        } catch (UserManagementException e) {
+            sendFailure(response, e);
         }
     }
-    
-    
-    
-    
-    // 内部类：创建管理员请求
-    // 创建管理员请求（Jackson 反序列化，只读）
+
     private record CreateAdminRequest(String username, String email, String password, String role) {
     }
 }

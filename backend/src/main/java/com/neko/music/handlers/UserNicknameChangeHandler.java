@@ -1,72 +1,75 @@
 package com.neko.music.handlers;
 
 import com.neko.music.Main;
-import com.neko.music.util.NicknameValidator;
+import com.neko.music.service.UserManagementException;
+import com.neko.music.service.UserManagementService;
+import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.RequestAuthUtil;
-import org.eclipse.jetty.http.HttpStatus;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import org.eclipse.jetty.http.HttpStatus;
 
-/**
- * 修改当前登录用户的昵称：{@code POST /api/user/nickname/change}。
- * 请求体 {@code {"nickname": "新昵称"}}，昵称规则与注册保持一致。
- */
-public class UserNicknameChangeHandler extends ApiServlet {
-    private static final Logger logger = LoggerFactory.getLogger(UserNicknameChangeHandler.class);
+import java.io.IOException;
+import java.util.Map;
+import java.util.function.Function;
+
+/** 当前登录用户修改昵称：{@code POST /api/user/nickname/change}。 */
+public final class UserNicknameChangeHandler extends ApiServlet {
+
+    private final UserManagementService service;
+    private final Function<HttpServletRequest, Integer> authResolver;
+
+    public UserNicknameChangeHandler() {
+        this(Main.getUserManagementService(), RequestAuthUtil::authenticate);
+    }
+
+    UserNicknameChangeHandler(
+            UserManagementService service,
+            Function<HttpServletRequest, Integer> authResolver) {
+        this.service = service;
+        this.authResolver = authResolver;
+    }
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        Integer userId = RequestAuthUtil.authenticate(request);
+        response.setHeader("Cache-Control", HttpResourceCache.CACHE_CONTROL_NO_STORE);
+
+        Integer userId = authResolver.apply(request);
         if (userId == null) {
             sendErrorResponse(response, HttpStatus.UNAUTHORIZED_401, "auth.unauthorized_please_login");
             return;
         }
 
-        String requestBody = readBody(request);
+        NicknameChangeRequest changeRequest;
+        try {
+            changeRequest = MAPPER.readValue(readBody(request), NicknameChangeRequest.class);
+        } catch (Exception e) {
+            sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "auth.bad_request");
+            return;
+        }
+        if (changeRequest == null) {
+            sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "auth.bad_request");
+            return;
+        }
 
         try {
-            NicknameChangeRequest changeRequest =
-                    Main.getObjectMapper().readValue(requestBody.toString(), NicknameChangeRequest.class);
-            String nickname = changeRequest.nickname() == null ? null : changeRequest.nickname().trim();
-
-            String validationError = NicknameValidator.validate(nickname);
-            if (validationError != null) {
-                sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, validationError);
-                return;
-            }
-
-            boolean success = Main.getUserAuthService().changeNickname(userId, nickname);
-            if (success) {
-                logger.info("用户 {} 修改昵称成功: {}", userId, nickname);
-                sendSuccessResponse(response, "user.nickname.change_ok", nickname);
-            } else {
-                sendErrorResponse(response, HttpStatus.INTERNAL_SERVER_ERROR_500, "user.nickname.change_failed");
-            }
-        } catch (Exception e) {
-            logger.error("修改昵称时出错", e);
-            sendErrorResponse(response, HttpStatus.BAD_REQUEST_400, "auth.bad_request");
+            String nickname = service.changeUserNickname(userId, changeRequest.nickname());
+            sendResponse(response, true, "user.nickname.change_ok", Map.of("nickname", nickname));
+        } catch (UserManagementException e) {
+            int status = switch (e.kind()) {
+                case VALIDATION -> HttpStatus.BAD_REQUEST_400;
+                case NOT_FOUND -> HttpStatus.NOT_FOUND_404;
+                case CONFLICT -> HttpStatus.CONFLICT_409;
+                case FORBIDDEN -> HttpStatus.FORBIDDEN_403;
+                case INTERNAL -> HttpStatus.INTERNAL_SERVER_ERROR_500;
+            };
+            String messageKey = e.kind() == UserManagementException.Kind.INTERNAL
+                    ? "user.nickname.change_failed"
+                    : e.messageKey();
+            sendErrorResponse(response, status, messageKey);
         }
     }
 
-    private void sendSuccessResponse(HttpServletResponse response, String message, String nickname) throws IOException {
-        response.setStatus(HttpStatus.OK_200);
-        response.setContentType("application/json;charset=utf-8");
-
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", true);
-        body.put("message", message);
-        body.put("data", Map.of("nickname", nickname));
-        response.getWriter().println(Main.getObjectMapper().writeValueAsString(body));
-    }
-
-
-    // 昵称修改请求（Jackson 反序列化，只读）
     private record NicknameChangeRequest(String nickname) {
     }
 }

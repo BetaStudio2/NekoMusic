@@ -3,6 +3,8 @@ package com.neko.music.handlers;
 import com.neko.music.util.ClientAborts;
 
 import com.neko.music.Main;
+import com.neko.music.service.UserManagementException;
+import com.neko.music.service.UserManagementService;
 import com.neko.music.util.HttpResourceCache;
 import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
@@ -17,9 +19,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 
 public class UserAvatarHandler extends HttpServlet {
     private static final Logger logger = LoggerFactory.getLogger(UserAvatarHandler.class);
@@ -34,6 +33,16 @@ public class UserAvatarHandler extends HttpServlet {
      * 这张图内容恒定，只读一次常驻内存即可，之后每个请求只是写一次 Content-Length 再拷贝。</p>
      */
     private static volatile byte[] defaultIconBytes;
+
+    private final UserManagementService userManagementService;
+
+    public UserAvatarHandler() {
+        this(Main.getUserManagementService());
+    }
+
+    UserAvatarHandler(UserManagementService userManagementService) {
+        this.userManagementService = userManagementService;
+    }
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -91,17 +100,12 @@ public class UserAvatarHandler extends HttpServlet {
      * 从数据库获取用户头像路径
      */
     private String getUserAvatarPath(int userId) {
-        try (Connection conn = Main.getDatabaseManager().getConnection()) {
-            String sql = "SELECT avatar FROM users WHERE id = ?";
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setInt(1, userId);
-                try (ResultSet rs = stmt.executeQuery()) {
-                    if (rs.next()) {
-                        return rs.getString("avatar");
-                    }
-                }
-            }
-        } catch (Exception e) {
+        if (userManagementService == null) {
+            return null;
+        }
+        try {
+            return userManagementService.findUserAvatar(userId).orElse(null);
+        } catch (UserManagementException e) {
             logger.error("获取用户头像路径时出错", e);
         }
         return null;
