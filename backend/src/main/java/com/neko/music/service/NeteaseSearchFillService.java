@@ -91,6 +91,8 @@ public class NeteaseSearchFillService {
     public enum FillReason {
         /** 补全成功或未触发补全 */
         NONE,
+        /** 命中非音乐黑名单，本次补全直接跳过 */
+        NON_MUSIC,
         /** 网易云无匹配或无法取链/入库 */
         NOT_FOUND,
         /** API 未登录，高音质不可用（常因 Cookie 过期） */
@@ -104,6 +106,10 @@ public class NeteaseSearchFillService {
     public record FillAttempt(Optional<AdminMusicIngestService.IngestedMusic> music, FillReason reason) {
         public static FillAttempt skipped() {
             return new FillAttempt(Optional.empty(), FillReason.NONE);
+        }
+
+        public static FillAttempt nonMusic() {
+            return new FillAttempt(Optional.empty(), FillReason.NON_MUSIC);
         }
     }
 
@@ -130,6 +136,12 @@ public class NeteaseSearchFillService {
         }
         String trimmedTitle = title.trim();
         String trimmedArtist = artist == null ? "" : artist.trim();
+        Optional<String> nonMusic = NonMusicContentFilter.match(trimmedTitle, trimmedArtist, "");
+        if (nonMusic.isPresent()) {
+            logger.info("跳过非音乐补全: title={} artist={} reason={}",
+                    trimmedTitle, trimmedArtist, nonMusic.get());
+            return FillAttempt.nonMusic();
+        }
         if (!RuntimeDiskGuard.hasSufficientSpaceForMusicWrites()) {
             return new FillAttempt(Optional.empty(), FillReason.LOW_DISK_SPACE);
         }
@@ -253,6 +265,13 @@ public class NeteaseSearchFillService {
         String artist = pickNonEmpty(detail.artist(), "");
         String album = pickNonEmpty(detail.album(), "未知专辑");
 
+        Optional<String> nonMusic = NonMusicContentFilter.match(title, artist, album);
+        if (nonMusic.isPresent()) {
+            logger.info("跳过非音乐网易云曲目 songId={} title={} artist={} album={} reason={}",
+                    songId, title, artist, album, nonMusic.get());
+            return new ExactIngest(songId, title, artist, album, Optional.empty(), false, FillReason.NON_MUSIC);
+        }
+
         if (!config.isNeteaseSearchFillEnabled()) {
             logger.warn("网易云下载入库未启用（netease_search_fill.enabled=false）songId={}", songId);
             return new ExactIngest(songId, title, artist, album, Optional.empty(), false, FillReason.NOT_FOUND);
@@ -321,6 +340,21 @@ public class NeteaseSearchFillService {
             if (candidates.isEmpty()) {
                 logger.info("网易云搜索无结果: title={} artist={}", reqTitle, reqArtist);
                 return fallbackToQq(reqTitle, reqArtist, failReason(loggedIn));
+            }
+
+            candidates.removeIf(candidate -> {
+                Optional<String> nonMusic = NonMusicContentFilter.match(
+                        candidate.title(), candidate.artist(), candidate.album());
+                if (nonMusic.isPresent()) {
+                    logger.info("忽略非音乐网易云候选 id={} title={} artist={} album={} reason={}",
+                            candidate.id(), candidate.title(), candidate.artist(), candidate.album(), nonMusic.get());
+                    return true;
+                }
+                return false;
+            });
+            if (candidates.isEmpty()) {
+                logger.info("网易云候选均命中非音乐黑名单: title={} artist={}", reqTitle, reqArtist);
+                return FillAttempt.nonMusic();
             }
 
             candidates.sort(Comparator.comparingInt(c -> scoreCandidate(c, reqTitle, reqArtist)));
@@ -516,6 +550,13 @@ public class NeteaseSearchFillService {
             album = "未知专辑";
         }
 
+        Optional<String> nonMusic = NonMusicContentFilter.match(title, artist, album);
+        if (nonMusic.isPresent()) {
+            logger.info("跳过非音乐网易云曲目 songId={} title={} artist={} album={} reason={}",
+                    songId, title, artist, album, nonMusic.get());
+            return Optional.empty();
+        }
+
         Optional<AdminMusicIngestService.IngestedMusic> existing = findDuplicateByMode(
                 title, artist, album, exactTitleOnly);
         if (existing.isPresent()) {
@@ -629,6 +670,21 @@ public class NeteaseSearchFillService {
                 logger.info("QQ 音乐搜索无结果: title={} artist={}", reqTitle, reqArtist);
                 return new FillAttempt(Optional.empty(), FillReason.NOT_FOUND);
             }
+
+            candidates.removeIf(candidate -> {
+                Optional<String> nonMusic = NonMusicContentFilter.match(
+                        candidate.title(), candidate.artist(), candidate.album());
+                if (nonMusic.isPresent()) {
+                    logger.info("忽略非音乐 QQ 候选 mid={} title={} artist={} album={} reason={}",
+                            candidate.mid(), candidate.title(), candidate.artist(), candidate.album(), nonMusic.get());
+                    return true;
+                }
+                return false;
+            });
+            if (candidates.isEmpty()) {
+                logger.info("QQ 候选均命中非音乐黑名单: title={} artist={}", reqTitle, reqArtist);
+                return FillAttempt.nonMusic();
+            }
             candidates.sort(Comparator.comparingInt(c -> scoreQqCandidate(c, reqTitle, reqArtist)));
 
             RuntimeDiskGuard.logStorageForOperation(
@@ -714,6 +770,13 @@ public class NeteaseSearchFillService {
         String album = candidate.album() == null || candidate.album().isBlank()
                 ? "未知专辑"
                 : candidate.album();
+
+        Optional<String> nonMusic = NonMusicContentFilter.match(title, artist, album);
+        if (nonMusic.isPresent()) {
+            logger.info("跳过非音乐 QQ 曲目 mid={} title={} artist={} album={} reason={}",
+                    candidate.mid(), title, artist, album, nonMusic.get());
+            return Optional.empty();
+        }
 
         Optional<AdminMusicIngestService.IngestedMusic> existing =
                 ingestService.findExistingDuplicate(title, artist, album);

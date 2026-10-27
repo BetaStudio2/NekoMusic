@@ -232,6 +232,7 @@ public class MusicSearchHandler extends ApiServlet {
             case ERROR -> "search.not_found";
             case LOW_DISK_SPACE -> com.neko.music.util.RuntimeDiskGuard.neteaseFillBlockedMessage();
             case NOT_FOUND -> "search.not_found";
+            case NON_MUSIC -> "search.not_found";
             default -> defaultMessage;
         };
     }

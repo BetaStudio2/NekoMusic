@@ -560,6 +560,7 @@ public class ExternalImportService {
         return switch (reason) {
             case LOW_DISK_SPACE -> "服务器磁盘空间不足";
             case LOGIN_EXPIRED -> "网易云 Cookie 失效或该音质不可用";
+            case NON_MUSIC -> "内容不属于音乐，已跳过";
             case NOT_FOUND -> "网易云无可用音频（可能无版权或需会员）";
             default -> "下载或入库失败";
         };
