@@ -45,6 +45,13 @@ public class LogDatabaseManager {
             + "OR LOWER(COALESCE(query, '')) LIKE '%<script%' "
             + "OR LOWER(COALESCE(query, '')) LIKE '%sleep(%')";
 
+    private static final int LEGACY_BUGGY_ENGINE_VERSION = 3;
+    private static final int HISTORICAL_REPLAY_MIN_FAILURES = 80;
+    private static final double HISTORICAL_REPLAY_MIN_RATIO = 0.80;
+    private static final int HISTORICAL_SINGLE_PATH_MIN_REQUESTS = 300;
+    private static final String LEGACY_REPAIR_SCOPE =
+            "threat_engine_version = " + LEGACY_BUGGY_ENGINE_VERSION;
+
     /** 日志库连接池：写入走批量异步，池不需要很大，避免与主库抢占连接预算。 */
     private static final int POOL_MAX_SIZE = 8;
     private static final int POOL_MIN_IDLE = 2;
@@ -237,7 +244,7 @@ public class LogDatabaseManager {
         ensureIndex(conn, "access_log", "idx_access_occurred_category", "occurred_at, category");
         ensureIndex(conn, "access_log", "idx_access_occurred_user", "occurred_at, user_id, user_name");
         backfillThreatLabels(conn);
-        downgradeLegacyReplayConflicts(conn);
+        repairLegacyReplayAndFloodLabels(conn);
         // 耗时精度升级：老库的毫秒列（duration_ms）改名为微秒列（duration_us）并 ×1000 换算。
         migrateDurationToMicros(conn, "access_log");
         migrateDurationToMicros(conn, "operation_log");
@@ -252,25 +259,24 @@ public class LogDatabaseManager {
      */
     private static void backfillThreatLabels(Connection conn) {
         String dangerous = HISTORICAL_DANGEROUS_SQL;
+        String replayFailure = "pow_status IN ('invalid','missing','expired','mismatch','bad_proof')";
+        String attack = "pow_status = 'marked' OR " + dangerous;
+        String suspected = "status IN (401,403,404,429) OR client_type IN ('bot','scanner') "
+                + "OR pow_status = 'rate_limited'";
         String directSql = "UPDATE access_log SET "
                 + "threat_level = CASE "
-                + "WHEN status = 409 OR pow_status IN ('invalid','marked') OR " + dangerous
-                + " THEN 'attack' "
-                + "WHEN status IN (401,403,404,429) OR client_type IN ('bot','scanner') "
-                + "OR pow_status IN ('bad_proof','mismatch','rate_limited','expired') "
-                + "THEN 'suspected' ELSE 'normal' END, "
+                + "WHEN " + attack + " THEN 'attack' "
+                + "WHEN " + suspected + " THEN 'suspected' ELSE 'normal' END, "
                 + "threat_score = CASE "
-                + "WHEN status = 409 OR pow_status IN ('invalid','marked') OR " + dangerous
-                + " THEN 70 "
-                + "WHEN status IN (401,403,404,429) OR client_type IN ('bot','scanner') "
-                + "OR pow_status IN ('bad_proof','mismatch','rate_limited','expired') THEN 35 "
+                + "WHEN " + attack + " THEN 70 "
+                + "WHEN " + suspected + " THEN 35 "
+                + "WHEN status = 409 AND " + replayFailure + " THEN 15 "
                 + "ELSE 0 END, "
                 + "threat_reasons = CASE "
-                + "WHEN status = 409 OR pow_status IN ('invalid','marked') OR " + dangerous
-                + " THEN '历史回填：重放或高危扫描特征' "
-                + "WHEN status IN (401,403,404,429) OR client_type IN ('bot','scanner') "
-                + "OR pow_status IN ('bad_proof','mismatch','rate_limited','expired') "
-                + "THEN '历史回填：4xx / 爬虫 / 验证失败（建议复核）' ELSE NULL END, "
+                + "WHEN " + attack + " THEN '历史回填：高危扫描特征' "
+                + "WHEN " + suspected + " THEN '历史回填：4xx / 爬虫 / 验证失败（建议复核）' "
+                + "WHEN status = 409 AND " + replayFailure
+                + " THEN '历史回填：单次防重放凭证失效' ELSE NULL END, "
                 + "threat_engine_version = " + ThreatAssessment.CURRENT_ENGINE_VERSION + " "
                 + "WHERE threat_engine_version = 0 LIMIT 5000";
         int sourceClusters = 0;
@@ -307,32 +313,102 @@ public class LogDatabaseManager {
     }
 
     /**
-     * 修正旧引擎把全部 409 直接判成攻击的问题。
+     * 修正第 3 版规则留下的两类错误历史标记：单次 409 被无差别降级，以及高频单资源请求从未
+     * 纳入攻击判定。修正只处理上一版规则产出的行，完成后归档到当前版本，避免每次启动重扫全表。
      *
-     * <p>客户端无法保证本地缓存的一次性凭证始终未过期；单次 409 / nonce 失效只说明本次请求
-     * 被防重放链路拒绝，不能单独证明攻击意图。这里只降级没有高危路径、扫描器 UA 或来源标记的
-     * 历史 409，真实扫描仍由 {@link #HISTORICAL_DANGEROUS_SQL} 与客户端类型保留为攻击。</p>
+     * <p>批量防重放失败必须同时满足次数与占比，单次 nonce 失效仍保持正常；同一来源对同一路径
+     * 的 200/206/304 高密度重复请求独立判攻击。高危路径、扫描器与 marked 来源不会被降级。</p>
      */
-    private static void downgradeLegacyReplayConflicts(Connection conn) {
-        int updated;
+    private static void repairLegacyReplayAndFloodLabels(Connection conn) {
         try {
-            updated = executeUpdate(conn,
+            prepareLegacyBursts(conn);
+            int downgraded = executeUpdate(conn,
                     "UPDATE access_log SET threat_level = 'normal', threat_score = CASE "
                             + "WHEN COALESCE(pow_status, '') IN "
                             + "('invalid','missing','expired','mismatch','bad_proof') THEN 15 ELSE 0 END, "
-                            + "threat_reasons = '历史修正：防重放凭证失效或业务冲突不单独判定攻击', "
+                            + "threat_reasons = '历史修正：单次防重放凭证失效不单独判定攻击', "
                             + "threat_engine_version = " + ThreatAssessment.CURRENT_ENGINE_VERSION + " "
-                            + "WHERE threat_engine_version < " + ThreatAssessment.CURRENT_ENGINE_VERSION
+                            + "WHERE " + LEGACY_REPAIR_SCOPE
                             + " AND status = 409 AND threat_level = 'attack' "
                             + "AND COALESCE(client_type, '') NOT IN ('bot','scanner') "
                             + "AND COALESCE(pow_status, '') <> 'marked' "
                             + "AND NOT " + HISTORICAL_DANGEROUS_SQL);
-            if (updated > 0) {
-                logger.info("日志库修正历史 409 误标 {} 条", updated);
+            int replayBursts = executeUpdate(conn,
+                    "UPDATE access_log a JOIN threat_replay_bursts b "
+                            + "ON a.client_ip = b.client_ip "
+                            + "AND a.occurred_at DIV 600000 = b.bucket_start "
+                            + "SET a.threat_level = 'attack', a.threat_score = 80, "
+                            + "a.threat_reasons = '历史修正：同来源短时批量防重放失败', "
+                            + "a.threat_engine_version = " + ThreatAssessment.CURRENT_ENGINE_VERSION + " "
+                            + "WHERE a.threat_engine_version = " + LEGACY_BUGGY_ENGINE_VERSION + " "
+                            + "AND a.status = 409 AND a.pow_status IN "
+                            + "('invalid','missing','expired','mismatch','bad_proof')");
+            int pathBursts = executeUpdate(conn,
+                    "UPDATE access_log a JOIN threat_single_path_bursts b "
+                            + "ON a.client_ip = b.client_ip AND a.path = b.path "
+                            + "AND a.occurred_at DIV 600000 = b.bucket_start "
+                            + "SET a.threat_level = 'attack', a.threat_score = 70, "
+                            + "a.threat_reasons = '历史修正：同来源短时高频重复请求同一路径', "
+                            + "a.threat_engine_version = " + ThreatAssessment.CURRENT_ENGINE_VERSION + " "
+                            + "WHERE a.threat_engine_version = " + LEGACY_BUGGY_ENGINE_VERSION + " "
+                            + "AND a.status IN (200,206,304)");
+            int archived = executeUpdate(conn,
+                    "UPDATE access_log SET threat_engine_version = "
+                            + ThreatAssessment.CURRENT_ENGINE_VERSION + " "
+                            + "WHERE threat_engine_version = " + LEGACY_BUGGY_ENGINE_VERSION);
+            int corrected = downgraded + replayBursts + pathBursts;
+            if (corrected > 0 || archived > 0) {
+                logger.info("日志库修正历史威胁标记（单次降级 {}，重放风暴 {}，单路径刷取 {}；归档 {}）",
+                        downgraded, replayBursts, pathBursts, archived);
             }
         } catch (SQLException e) {
             // 修正失败不影响日志写入；下一次启动会继续尝试
-            logger.warn("历史 409 威胁标记修正失败，将在下次启动重试: {}", e.getMessage());
+            logger.warn("历史威胁标记修正失败，将在下次启动重试: {}", e.getMessage());
+        } finally {
+            dropLegacyBursts(conn);
+        }
+    }
+
+    /** 基于 10 分钟桶识别历史上的批量防重放失败与单路径高频刷取。 */
+    private static void prepareLegacyBursts(Connection conn) throws SQLException {
+        String scope = LEGACY_REPAIR_SCOPE;
+        String replayFailure = "pow_status IN ('invalid','missing','expired','mismatch','bad_proof')";
+        try (Statement stmt = conn.createStatement()) {
+            dropLegacyBursts(conn);
+            stmt.execute("CREATE TEMPORARY TABLE threat_ip_bucket_totals ("
+                    + "client_ip VARCHAR(64) NOT NULL, bucket_start BIGINT NOT NULL, "
+                    + "total INT NOT NULL, PRIMARY KEY (client_ip, bucket_start))");
+            stmt.execute("INSERT INTO threat_ip_bucket_totals (client_ip, bucket_start, total) "
+                    + "SELECT client_ip, occurred_at DIV 600000, COUNT(*) FROM access_log "
+                    + "WHERE " + scope + " AND client_ip IS NOT NULL AND client_ip <> '' "
+                    + "GROUP BY client_ip, occurred_at DIV 600000");
+
+            stmt.execute("CREATE TEMPORARY TABLE threat_replay_bursts ("
+                    + "client_ip VARCHAR(64) NOT NULL, bucket_start BIGINT NOT NULL, "
+                    + "PRIMARY KEY (client_ip, bucket_start))");
+            stmt.execute("INSERT INTO threat_replay_bursts (client_ip, bucket_start) "
+                    + "SELECT r.client_ip, r.bucket_start FROM ("
+                    + "SELECT client_ip, occurred_at DIV 600000 AS bucket_start, "
+                    + "COUNT(*) AS replay_failures FROM access_log "
+                    + "WHERE " + scope + " AND status = 409 AND " + replayFailure
+                    + " AND client_ip IS NOT NULL AND client_ip <> '' "
+                    + "GROUP BY client_ip, occurred_at DIV 600000 "
+                    + "HAVING COUNT(*) >= " + HISTORICAL_REPLAY_MIN_FAILURES + ") r "
+                    + "JOIN threat_ip_bucket_totals t ON r.client_ip = t.client_ip "
+                    + "AND r.bucket_start = t.bucket_start "
+                    + "WHERE r.replay_failures / t.total >= " + HISTORICAL_REPLAY_MIN_RATIO);
+
+            stmt.execute("CREATE TEMPORARY TABLE threat_single_path_bursts ("
+                    + "client_ip VARCHAR(64) NOT NULL, path VARCHAR(512) NOT NULL, "
+                    + "bucket_start BIGINT NOT NULL, PRIMARY KEY (client_ip, path, bucket_start))");
+            stmt.execute("INSERT INTO threat_single_path_bursts (client_ip, path, bucket_start) "
+                    + "SELECT p.client_ip, p.path, p.bucket_start FROM ("
+                    + "SELECT client_ip, path, occurred_at DIV 600000 AS bucket_start, "
+                    + "COUNT(*) AS hits FROM access_log "
+                    + "WHERE " + scope + " AND status IN (200,206,304) "
+                    + "AND client_ip IS NOT NULL AND client_ip <> '' "
+                    + "GROUP BY client_ip, path, occurred_at DIV 600000 "
+                    + "HAVING COUNT(*) >= " + HISTORICAL_SINGLE_PATH_MIN_REQUESTS + ") p");
         }
     }
 
@@ -397,6 +473,16 @@ public class LogDatabaseManager {
             stmt.execute("DROP TEMPORARY TABLE IF EXISTS threat_client_clusters");
         } catch (SQLException e) {
             logger.debug("清理历史威胁聚类临时表失败: {}", e.getMessage());
+        }
+    }
+
+    private static void dropLegacyBursts(Connection conn) {
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TEMPORARY TABLE IF EXISTS threat_ip_bucket_totals");
+            stmt.execute("DROP TEMPORARY TABLE IF EXISTS threat_replay_bursts");
+            stmt.execute("DROP TEMPORARY TABLE IF EXISTS threat_single_path_bursts");
+        } catch (SQLException e) {
+            logger.debug("清理历史威胁修正临时表失败: {}", e.getMessage());
         }
     }
 

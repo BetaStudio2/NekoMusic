@@ -81,6 +81,9 @@ public final class ThreatDetectionService {
     private static final Set<String> POW_RATE_LIMITED = Set.of("rate_limited");
     private static final int REPLAY_BURST_MIN_FAILURES = 80;
     private static final double REPLAY_BURST_MIN_RATIO = 0.80;
+    private static final int REPLAY_BURST_SCORE = 50;
+    private static final int SINGLE_PATH_FLOOD_MIN_REQUESTS = 300;
+    private static final int SINGLE_PATH_FLOOD_SCORE = 60;
 
     private static final ThreatDetectionService SHARED =
             new ThreatDetectionService(System::currentTimeMillis);
@@ -195,6 +198,7 @@ public final class ThreatDetectionService {
         remember("global", event, now, GLOBAL_WINDOW_MAX_EVENTS);
         if (!clientIp.isBlank()) {
             remember("ip:" + clientIp, event, now, WINDOW_MAX_EVENTS);
+            remember("ip-path:" + clientIp + "|" + pathLower, event, now, WINDOW_MAX_EVENTS);
             String network = event.network();
             if (!network.isBlank()) {
                 remember("net:" + network, event, now, WINDOW_MAX_EVENTS);
@@ -211,10 +215,12 @@ public final class ThreatDetectionService {
         String network = event.network();
         WindowStats networkStats = network.isBlank()
                 ? WindowStats.EMPTY : snapshot("net:" + network, now - WINDOW_MS);
+        int exactPathHits = clientIp.isBlank() ? 0
+                : windowCount("ip-path:" + clientIp + "|" + pathLower, now - WINDOW_MS);
 
         boolean success = facts.status() == 200;
         score += sourceBehaviorScore(ipStats, networkStats, isCredentialPath(pathLower), success,
-                reasons);
+                exactPathHits, reasons);
         // 单次 nonce / 挑战失效不参与全站聚类，否则同刻发生的其他扫描会把正常客户端的
         // 过期请求连带抬高。只有本地重放失败达到异常密度时，才进入跨来源关联。
         boolean strongAnomaly = signature > 0 || denied || highRisk;
@@ -277,7 +283,8 @@ public final class ThreatDetectionService {
 
     /** 单 IP / 粗粒度网段的行为分。 */
     private static int sourceBehaviorScore(WindowStats ip, WindowStats net, boolean credentialPath,
-                                           boolean success, List<String> reasons) {
+                                           boolean success, int exactPathHits,
+                                           List<String> reasons) {
         int score = 0;
         if (ip.total() > 0) {
             if (ip.scanFailures() >= 8 && ip.total() >= 10 && ip.scanRatio() >= 0.70) {
@@ -296,8 +303,12 @@ public final class ThreatDetectionService {
                 reasons.add("同一 IP 持续认证失败");
             }
             if (qualifiesReplayBurst(ip)) {
-                score += 30;
-                reasons.add("同一 IP 短时大量防重放凭证失败（建议复核）");
+                score += REPLAY_BURST_SCORE;
+                reasons.add("同一来源短时大量防重放凭证失败");
+            }
+            if (qualifiesSinglePathFlood(exactPathHits)) {
+                score += SINGLE_PATH_FLOOD_SCORE;
+                reasons.add("同一来源短时高频重复请求同一路径");
             }
             if (ip.notFound() >= 8 && ip.distinctPaths() >= 6) {
                 score += 20;
@@ -447,6 +458,10 @@ public final class ThreatDetectionService {
                 && stats.replayRatio() >= REPLAY_BURST_MIN_RATIO;
     }
 
+    private static boolean qualifiesSinglePathFlood(int exactPathHits) {
+        return exactPathHits >= SINGLE_PATH_FLOOD_MIN_REQUESTS;
+    }
+
     private static boolean isCredentialPath(String path) {
         return path.contains("/login") || path.contains("/register")
                 || path.contains("/password") || path.contains("/reset")
@@ -461,6 +476,11 @@ public final class ThreatDetectionService {
     private WindowStats snapshot(String key, long cutoff) {
         Window window = windows.get(key);
         return window == null ? WindowStats.EMPTY : window.snapshot(cutoff);
+    }
+
+    private int windowCount(String key, long cutoff) {
+        Window window = windows.get(key);
+        return window == null ? 0 : window.count(cutoff);
     }
 
     private void maybeCleanup(long now) {
@@ -647,6 +667,11 @@ public final class ThreatDetectionService {
         synchronized WindowStats snapshot(long cutoff) {
             prune(cutoff);
             return WindowStats.of(List.copyOf(events));
+        }
+
+        synchronized int count(long cutoff) {
+            prune(cutoff);
+            return events.size();
         }
 
         synchronized long lastEventAt() {

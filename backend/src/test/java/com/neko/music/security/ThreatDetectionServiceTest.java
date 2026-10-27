@@ -98,8 +98,8 @@ class ThreatDetectionServiceTest {
     }
 
     @Test
-    @DisplayName("持续大量防重放失败最多判疑似，不单独升为攻击")
-    void replayFailureBurstIsSuspectedNotAttack() {
+    @DisplayName("同一来源持续大量防重放失败升级为攻击")
+    void replayFailureBurstIsAttack() {
         ThreatAssessment beforeBurst = null;
         for (int i = 0; i < 79; i++) {
             beforeBurst = assess("POST", "/api/user/favorite", null, null, "api", 409,
@@ -109,8 +109,60 @@ class ThreatDetectionServiceTest {
 
         ThreatAssessment burst = assess("POST", "/api/user/favorite", null, null, "api", 409,
                 "203.0.113.18", BROWSER_UA, "browser", "invalid");
-        assertEquals(ThreatAssessment.SUSPECTED, burst.level());
+        assertEquals(ThreatAssessment.ATTACK, burst.level());
         assertTrue(burst.reasons().contains("防重放"));
+    }
+
+    @Test
+    @DisplayName("缺失防重放凭证的高密度失败同样升级为攻击")
+    void missingReplayBurstIsAttack() {
+        ThreatAssessment result = null;
+        for (int i = 0; i < 80; i++) {
+            result = assess("POST", "/api/user/favorite", null, null, "api", 409,
+                    "203.0.113.21", BROWSER_UA, "browser", "missing");
+        }
+        assertEquals(ThreatAssessment.ATTACK, result.level());
+        assertTrue(result.reasons().contains("防重放"));
+    }
+
+    @Test
+    @DisplayName("同一来源高频重复请求单一资源判攻击，低于阈值仍正常")
+    void singlePathFloodIsAttack() {
+        ThreatAssessment beforeFlood = null;
+        for (int i = 0; i < 299; i++) {
+            beforeFlood = assess("GET", "/api/user/avatar/77", null, null, "api", 304,
+                    "2408:8220:2817:4630:9ae:20bf:fb03:a6bf",
+                    "NekoMusic-android/20261027", "official_client", null);
+        }
+        assertEquals(ThreatAssessment.NORMAL, beforeFlood.level());
+
+        ThreatAssessment flood = assess("GET", "/api/user/avatar/77", null, null, "api", 304,
+                "2408:8220:2817:4630:9ae:20bf:fb03:a6bf",
+                "NekoMusic-android/20261027", "official_client", null);
+        assertEquals(ThreatAssessment.ATTACK, flood.level());
+        assertTrue(flood.reasons().contains("重复请求同一路径"));
+    }
+
+    @Test
+    @DisplayName("混刷多个接口时仍按精确路径识别单资源洪泛")
+    void singlePathFloodSurvivesMixedTraffic() {
+        for (int i = 0; i < 200; i++) {
+            assess("GET", "/api/user/avatar/77", null, null, "api", 304,
+                    "2408:8220:2817:4630:9ae:20bf:fb03:a6bf",
+                    "NekoMusic-android/20261027", "official_client", null);
+            assess("GET", "/api/user/uploaded-music", null, null, "api", 200,
+                    "2408:8220:2817:4630:9ae:20bf:fb03:a6bf",
+                    "NekoMusic-android/20261027", "official_client", null);
+        }
+
+        ThreatAssessment result = null;
+        for (int i = 0; i < 100; i++) {
+            result = assess("GET", "/api/user/avatar/77", null, null, "api", 304,
+                    "2408:8220:2817:4630:9ae:20bf:fb03:a6bf",
+                    "NekoMusic-android/20261027", "official_client", null);
+        }
+        assertEquals(ThreatAssessment.ATTACK, result.level());
+        assertTrue(result.reasons().contains("重复请求同一路径"));
     }
 
     @Test
