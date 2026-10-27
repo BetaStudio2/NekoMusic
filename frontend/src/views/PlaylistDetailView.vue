@@ -170,6 +170,7 @@ import { getUser } from '@/utils/userStore.js'
 import { coverSrcset } from '@/utils/coverImage'
 import { t } from '@/i18n'
 import { avatarUrl } from '@/utils/userAvatar.js'
+import { applyPageSeo, DEFAULT_ROBOTS, PRIVATE_ROBOTS, SITE_ORIGIN } from '@/utils/seoMeta'
 
 const toast = useToast()
 const router = useRouter()
@@ -213,6 +214,7 @@ const fetchPlaylistDetail = async () => {
       if (playlist.value && data.total !== undefined) {
         playlist.value.musicCount = data.total
       }
+      if (playlist.value) applyPlaylistSeo()
     } else {
       toast.error(data.message || t('playlistDetail.loadFailed'))
     }
@@ -234,9 +236,17 @@ const fetchPlaylistInfo = async () => {
     const data = await response.json()
     if (data.success && data.playlist) {
       playlist.value = data.playlist
+      applyPlaylistSeo()
     } else {
       console.warn('未找到歌单:', playlistId.value)
       toast.error(t('playlistDetail.notFound'))
+      applyPageSeo({
+        title: '歌单不存在 - Neko歌姬计划',
+        description: '该歌单不存在或已下架。',
+        path: `/playlist/${playlistId.value}`,
+        robots: PRIVATE_ROBOTS,
+        jsonLd: null,
+      })
     }
   } catch (error) {
     console.error('获取歌单信息失败:', error)
@@ -287,6 +297,76 @@ const getPlaylistCover = () => {
   // 如果没有音乐，使用用户头像
   const userId = currentUser.value ? currentUser.value.id : 'default';
   return avatarUrl(userId);
+}
+
+const applyPlaylistSeo = () => {
+  const current = playlist.value
+  if (!current) return
+  const creator = current.creator?.nickname || 'Neko 用户'
+  const count = current.musicCount ?? musicList.value.length
+  const coverPath = musicList.value[0]?.id ? `/media/cover/${musicList.value[0].id}` : '/og-image.jpg'
+  const pageUrl = `${SITE_ORIGIN}/playlist/${current.id}`
+  const imageUrl = `${SITE_ORIGIN}${coverPath}`
+  const sample = musicList.value.slice(0, 5).map((music) => music.title).filter(Boolean).join('、')
+  const description = `免费在线收听歌单《${current.name}》— ${creator} 创建，共 ${count} 首`
+    + `${sample ? `，包含 ${sample} 等曲目` : ''}。Neko歌姬计划提供高品质流媒体、歌词与收藏，永久免费。`
+  const title = `${current.name || '歌单'} - 歌单 Playlist | ${creator} | Neko歌姬计划`
+  const tracks = musicList.value.slice(0, 100).map((music, index) => ({
+    '@type': 'ListItem',
+    position: index + 1,
+    url: `${SITE_ORIGIN}/detail/${music.id}`,
+    item: {
+      '@type': 'MusicRecording',
+      name: music.title || '',
+      url: `${SITE_ORIGIN}/detail/${music.id}`,
+      ...(music.artist ? { byArtist: { '@type': 'MusicGroup', name: music.artist } } : {}),
+    },
+  }))
+  const playlistNode = {
+    '@type': 'MusicPlaylist',
+    '@id': `${pageUrl}#playlist`,
+    name: current.name || '未命名歌单',
+    url: pageUrl,
+    image: imageUrl,
+    description,
+    creator: { '@type': 'Person', name: creator },
+    numTracks: count,
+    inLanguage: ['zh-CN', 'en'],
+  }
+  if (tracks.length > 0) {
+    playlistNode.track = {
+      '@type': 'ItemList',
+      numberOfItems: count,
+      itemListElement: tracks,
+    }
+  }
+
+  applyPageSeo({
+    title,
+    description,
+    keywords: `${current.name || ''},歌单,playlist,${creator},免费在线播放,在线听歌,Neko歌姬计划`,
+    path: `/playlist/${current.id}`,
+    image: coverPath,
+    imageAlt: `${current.name || '歌单'} 封面`,
+    type: 'music.playlist',
+    robots: DEFAULT_ROBOTS,
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'WebPage',
+          '@id': `${pageUrl}#webpage`,
+          url: pageUrl,
+          name: title,
+          description,
+          primaryImageOfPage: imageUrl,
+          mainEntity: { '@id': `${pageUrl}#playlist` },
+          inLanguage: ['zh-CN', 'en'],
+        },
+        playlistNode,
+      ],
+    },
+  })
 }
 
 const handleCoverError = (event) => {

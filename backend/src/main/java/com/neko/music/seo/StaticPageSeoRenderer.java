@@ -40,6 +40,7 @@ public final class StaticPageSeoRenderer {
     private static final String REPO_PC = "https://github.com/FantasyNetworkCN/NekoMusicForPc";
     private static final String REPO_DOCS = "https://github.com/FantasyNetworkCN/NekoMusicDocs";
     private static final String LICENSE_URL = "https://www.gnu.org/licenses/agpl-3.0.html";
+    private static final String SITE_ICON_PATH = "/icons/icon-512.png";
 
     private static final Set<String> STATIC_PAGES = Set.of(
             "/", "/download", "/about", "/privacy", "/ranking", "/latest", "/search");
@@ -80,7 +81,8 @@ public final class StaticPageSeoRenderer {
     private record Page(String path, String title, String description, String keywords,
             String h1, String lede, String breadcrumb,
             List<Section> sections, List<Faq> faqs,
-            boolean softwareApp, boolean howTo, String appVersion) {
+            boolean softwareApp, boolean howTo, String appVersion,
+            List<MusicRow> itemList) {
 
     }
 
@@ -235,7 +237,7 @@ public final class StaticPageSeoRenderer {
                 "Neko歌姬计划 - 免费开源的在线音乐播放平台",
                 "完全免费、开源、无广告：搜索、播放、收藏、歌单与多端同步，"
                 + "Android / PC 客户端支持从网易云音乐、QQ 音乐、酷狗音乐迁入歌单。",
-                "首页 Home", sections, faqs, true, false, androidVer);
+                "首页 Home", sections, faqs, true, false, androidVer, List.of());
     }
 
     private Page searchPage(String base) {
@@ -257,7 +259,7 @@ public final class StaticPageSeoRenderer {
                 "音乐搜索,免费音乐搜索,在线搜索,免费听歌,Neko歌姬计划",
                 "搜索音乐",
                 "在 Neko歌姬计划按歌名、歌手或专辑关键词搜索，免费在线播放。",
-                "搜索 Search", sections, faqs, false, false, "");
+                "搜索 Search", sections, faqs, false, false, "", List.of());
     }
 
     private Page downloadPage(String base) {
@@ -324,7 +326,7 @@ public final class StaticPageSeoRenderer {
                 + "网易云导入歌单,QQ音乐导入歌单,酷狗导入歌单,Linux音乐播放器,macOS音乐",
                 "下载 Neko 云音乐客户端",
                 "选择你的平台，一键获取安装包：完全免费、开源透明，Android / PC 客户端支持从网易云音乐、QQ 音乐、酷狗音乐迁入歌单。",
-                "下载 Download", sections, faqs, true, true, pcVer);
+                "下载 Download", sections, faqs, true, true, pcVer, List.of());
     }
 
     private Page aboutPage() {
@@ -356,7 +358,7 @@ public final class StaticPageSeoRenderer {
                 "关于我们,Neko歌姬计划介绍,免费音乐平台,开源音乐项目",
                 "关于 Neko歌姬计划",
                 "完全免费的在线音乐播放平台，支持在线播放、音乐搜索、个人收藏与歌单管理。",
-                "关于 About", sections, faqs, false, false, "");
+                "关于 About", sections, faqs, false, false, "", List.of());
     }
 
     private Page privacyPage() {
@@ -383,15 +385,16 @@ public final class StaticPageSeoRenderer {
                 "隐私政策,个人信息保护,Neko歌姬计划",
                 "隐私政策",
                 "我们如何收集、使用与保护你的信息。",
-                "隐私政策 Privacy", sections, List.of(), false, false, "");
+                "隐私政策 Privacy", sections, List.of(), false, false, "", List.of());
     }
 
     private Page rankingPage(String base) {
+        List<MusicRow> rows = queryRanking(50);
         List<Section> sections = List.of(
                 paragraph("热门音乐排行榜",
                         "以下为按站内播放次数排序的热门音乐快照，点击曲目即可免费在线播放。",
                         "实时榜单请打开 Web 播放器或客户端查看。"),
-                bullets("当前热门曲目", musicBullets(base, queryRanking(50))));
+                bullets("当前热门曲目", musicBullets(base, rows)));
         List<Faq> faqs = List.of(
                 new Faq("排行榜是如何排序的？", "按站内播放次数从高到低排序，数据随播放实时变化。"),
                 new Faq("如何播放榜单中的歌曲？", "点击任意曲目进入详情页即可免费在线播放。"));
@@ -401,15 +404,16 @@ public final class StaticPageSeoRenderer {
                 "热门音乐,音乐排行榜,免费音乐排行,热门排行,Neko歌姬计划",
                 "热门音乐排行榜",
                 "按站内播放次数排序的热门曲目，点击即可免费在线播放。",
-                "排行榜 Ranking", sections, faqs, false, false, "");
+                "排行榜 Ranking", sections, faqs, false, false, "", rows);
     }
 
     private Page latestPage(String base) {
+        List<MusicRow> rows = queryLatest(50);
         List<Section> sections = List.of(
                 paragraph("最新音乐",
                         "以下为最近上传到站内的音乐快照，点击曲目即可免费在线播放。",
                         "实时列表请打开 Web 播放器或客户端查看。"),
-                bullets("最近上新", musicBullets(base, queryLatest(50))));
+                bullets("最近上新", musicBullets(base, rows)));
         List<Faq> faqs = List.of(
                 new Faq("最新音乐多久更新？", "页面快照按上传时间排序，新上传的曲目会出现在列表顶部。"),
                 new Faq("如何上传音乐？", "登录后进入「上传音乐」页面即可分享你的作品。"));
@@ -419,7 +423,7 @@ public final class StaticPageSeoRenderer {
                 "最新音乐,新歌上线,免费新歌,音乐上新,Neko歌姬计划",
                 "最新音乐",
                 "最近上传到站内的曲目，点击即可免费在线播放。",
-                "最新 Latest", sections, faqs, false, false, "");
+                "最新 Latest", sections, faqs, false, false, "", rows);
     }
 
     private String buildJsonLd(Page page, String base, String pageUrl) {
@@ -434,7 +438,9 @@ public final class StaticPageSeoRenderer {
             org.put("url", base + "/");
             ObjectNode logo = org.putObject("logo");
             logo.put("@type", "ImageObject");
-            logo.put("url", base + "/favicon.ico");
+            logo.put("url", base + SITE_ICON_PATH);
+            logo.put("width", 512);
+            logo.put("height", 512);
             ArrayNode sameAs = org.putArray("sameAs");
             sameAs.add(REPO);
             sameAs.add(REPO_ANDROID);
@@ -469,15 +475,24 @@ public final class StaticPageSeoRenderer {
             graph.add(breadcrumb);
 
             ObjectNode webPage = JSON.createObjectNode();
-            webPage.put("@type", "WebPage");
+            webPage.put("@type", page.itemList().isEmpty() ? "WebPage" : "CollectionPage");
             webPage.put("@id", pageUrl + "#webpage");
             webPage.put("url", pageUrl);
             webPage.put("name", page.title());
             webPage.put("description", page.description());
             webPage.put("isPartOf", ref(base + "/#website"));
             webPage.put("breadcrumb", ref(pageUrl + "#breadcrumb"));
-            webPage.put("primaryImageOfPage", base + "/og-image.jpg");
+            ObjectNode primaryImage = webPage.putObject("primaryImageOfPage");
+            primaryImage.put("@type", "ImageObject");
+            primaryImage.put("url", base + "/og-image.jpg");
+            primaryImage.put("width", 1024);
+            primaryImage.put("height", 559);
             webPage.set("inLanguage", langs());
+            if (!page.itemList().isEmpty()) {
+                String itemListId = pageUrl + "#itemlist";
+                webPage.put("mainEntity", ref(itemListId));
+                graph.add(itemListNode(page, base, itemListId));
+            }
             graph.add(webPage);
 
             if (page.softwareApp()) {
@@ -526,6 +541,33 @@ public final class StaticPageSeoRenderer {
         publisher.put("name", SITE_NAME_ZH);
         publisher.put("url", base + "/");
         return app;
+    }
+
+    private static ObjectNode itemListNode(Page page, String base, String itemListId) {
+        ObjectNode list = JSON.createObjectNode();
+        list.put("@type", "ItemList");
+        list.put("@id", itemListId);
+        list.put("numberOfItems", page.itemList().size());
+        ArrayNode elements = list.putArray("itemListElement");
+        for (int i = 0; i < page.itemList().size(); i++) {
+            MusicRow row = page.itemList().get(i);
+            String detailUrl = base + "/detail/" + row.id();
+            ObjectNode item = JSON.createObjectNode();
+            item.put("@type", "ListItem");
+            item.put("position", i + 1);
+            item.put("url", detailUrl);
+            item.put("name", row.title() == null ? "" : row.title());
+            ObjectNode recording = item.putObject("item");
+            recording.put("@type", "MusicRecording");
+            recording.put("@id", detailUrl + "#recording");
+            recording.put("name", row.title() == null ? "" : row.title());
+            recording.put("url", detailUrl);
+            ObjectNode byArtist = recording.putObject("byArtist");
+            byArtist.put("@type", "MusicGroup");
+            byArtist.put("name", row.artist() == null ? "" : row.artist());
+            elements.add(item);
+        }
+        return list;
     }
 
     private static ObjectNode howToNode(String base) {

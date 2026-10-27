@@ -21,6 +21,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -94,6 +95,15 @@ class SiteResourceHandlerTest {
 
         assertEquals(200, result.status());
         assertTrue(result.body().toLowerCase(Locale.ROOT).contains("<html"));
+        assertNull(result.header("x-robots-tag"));
+    }
+
+    @Test
+    void privateSpaRouteIsNoindexAtHttpLayer() throws Exception {
+        Result result = run("/favorites");
+
+        assertEquals(200, result.status());
+        assertEquals("noindex, nofollow", result.header("x-robots-tag"));
     }
 
     @Test

@@ -22,4 +22,12 @@ class PlaylistDetailPageHandlerTest {
         assertTrue(PlaylistDetailPageHandler.shouldRenderSeoByUserAgent("ChatGPT-User/1.0"));
         assertTrue(PlaylistDetailPageHandler.shouldRenderSeoByUserAgent(null));
     }
+
+    @Test
+    void createPlaylistPathIsRecognizedForNoindexHeader() {
+        assertTrue(PlaylistDetailPageHandler.isCreatePlaylistPath("/create"));
+        assertTrue(PlaylistDetailPageHandler.isCreatePlaylistPath("/create/"));
+        assertFalse(PlaylistDetailPageHandler.isCreatePlaylistPath("/42"));
+        assertFalse(PlaylistDetailPageHandler.isCreatePlaylistPath(null));
+    }
 }

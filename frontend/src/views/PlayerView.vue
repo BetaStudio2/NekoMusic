@@ -350,6 +350,7 @@ import CommentPanel from '@/components/CommentPanel.vue'
 import { useLiteMode } from '@/composables/useLiteMode'
 import { isMobileDevice } from '@/utils/mobile.js'
 import { usePlaybackBridge } from '@/composables/usePlaybackBridge'
+import { applyPageSeo, DEFAULT_ROBOTS, PRIVATE_ROBOTS, SITE_ORIGIN } from '@/utils/seoMeta'
 
 const toast = useToast()
 
@@ -471,6 +472,61 @@ const getPersistedCurrentMusicId = () => {
 }
 
 // 获取音乐详情
+const applyMusicSeo = (music) => {
+  const id = music?.id
+  if (!id) return
+  const title = music.title || '未知歌曲'
+  const artist = music.artist || '未知艺术家'
+  const album = music.album ? `，专辑《${music.album}》` : ''
+  const pageUrl = `${SITE_ORIGIN}/detail/${id}`
+  const imageUrl = `${SITE_ORIGIN}/media/cover/${id}`
+  const description =
+    `免费在线播放《${title}》— ${artist}${album}。Neko歌姬计划提供高品质流媒体、歌词、收藏与分享，永久免费。`
+  const recording = {
+    '@type': 'MusicRecording',
+    '@id': `${pageUrl}#recording`,
+    name: title,
+    url: pageUrl,
+    image: imageUrl,
+    description,
+    inLanguage: ['zh-CN', 'en'],
+    byArtist: { '@type': 'MusicGroup', name: artist },
+  }
+  if (music.album) {
+    recording.inAlbum = { '@type': 'MusicAlbum', name: music.album }
+  }
+  if (Number(music.duration) > 0) {
+    recording.duration = `PT${Number(music.duration)}S`
+  }
+
+  applyPageSeo({
+    title: `${title} - ${artist} | Neko歌姬计划`,
+    description,
+    keywords: `${title},${artist}${music.album ? `,${music.album}` : ''},免费在线播放,歌词,在线听歌,Neko歌姬计划`,
+    path: `/detail/${id}`,
+    image: `/media/cover/${id}`,
+    imageAlt: `${title} - ${artist} 封面`,
+    type: 'music.song',
+    robots: DEFAULT_ROBOTS,
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'WebPage',
+          '@id': `${pageUrl}#webpage`,
+          url: pageUrl,
+          name: `${title} - ${artist} | Neko歌姬计划`,
+          description,
+          primaryImageOfPage: imageUrl,
+          mainEntity: { '@id': `${pageUrl}#recording` },
+          inLanguage: ['zh-CN', 'en'],
+        },
+        recording,
+      ],
+    },
+  })
+}
+
 const fetchMusicDetail = async (musicId) => {
   const seq = ++detailRequestSeq
   try {
@@ -486,6 +542,7 @@ const fetchMusicDetail = async (musicId) => {
     if (seq !== detailRequestSeq) return
     if (data.success) {
       currentMusic.value = data.data
+      applyMusicSeo(data.data)
       const count = Number(data.data?.favoriteCount)
       favoriteCount.value = Number.isFinite(count) ? count : null
       const lyricsText = typeof data.data?.lyrics === 'string' ? data.data.lyrics : ''
@@ -494,6 +551,13 @@ const fetchMusicDetail = async (musicId) => {
       syncPlayStateFromStorage()
     } else {
       console.error('获取音乐详情失败:', data.message)
+      applyPageSeo({
+        title: '音乐不存在 - Neko歌姬计划',
+        description: '该歌曲不存在或已下架。',
+        path: `/detail/${musicId}`,
+        robots: PRIVATE_ROBOTS,
+        jsonLd: null,
+      })
     }
   } catch (error) {
     if (seq === detailRequestSeq) console.error('请求音乐详情时出错:', error)

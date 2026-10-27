@@ -2,6 +2,15 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { watch } from 'vue'
 import { openAuthDialog } from '@/composables/useAuthDialog'
 import { t, locale } from '@/i18n'
+import {
+  applyPageSeo,
+  DEFAULT_DESCRIPTION,
+  DEFAULT_KEYWORDS,
+  DEFAULT_ROBOTS,
+  NOT_FOUND_ROBOTS,
+  PRIVATE_ROBOTS,
+  SITE_ORIGIN,
+} from '@/utils/seoMeta'
 
 // 检查管理员是否已登录
 function isAdminLoggedIn() {
@@ -399,16 +408,10 @@ const router = createRouter({
 // 收藏等会被直接踢走，整站手机端不可用。App 导流改由 MobileAppBanner
 // 软引导横幅承担（见 src/components/MobileAppBanner.vue），
 // 真正的「拉起 App」由 src/utils/nativeAppOpen.js 负责。
-const SITE_ORIGIN = 'https://music.nekocore.cn'
-const DEFAULT_DESCRIPTION =
-  'Neko歌姬计划 - 完全免费的在线音乐播放平台，提供海量免费音乐资源、高品质音频播放、个性化收藏等功能。无需付费，永久免费。'
-const DEFAULT_KEYWORDS =
-  'Neko歌姬计划,免费音乐,在线音乐,音乐播放,音乐搜索,音乐收藏,免费听歌,高品质音乐,无广告音乐,永久免费'
-
 /** 账号私有页与后台不参与收录，避免登录页 / 空列表页被索引进结果 */
 const NOINDEX_PREFIXES = [
   '/admin', '/favorites', '/playlists', '/account', '/vip', '/upload',
-  '/playlist/create', '/forgot-password', '/login', '/register',
+  '/notifications', '/playlist/create', '/forgot-password', '/login', '/register',
 ]
 
 /**
@@ -458,75 +461,31 @@ function routeTitle(to) {
   return translated === key ? to.meta.title || translated : translated
 }
 
-function upsertMeta(attr, key, content) {
-  if (!content) return
-  let el = document.head.querySelector(`meta[${attr}="${key}"]`)
-  if (!el) {
-    el = document.createElement('meta')
-    el.setAttribute(attr, key)
-    document.head.appendChild(el)
-  }
-  el.setAttribute('content', content)
-}
-
-function upsertLink(rel, href) {
-  let el = document.head.querySelector(`link[rel="${rel}"]`)
-  if (!el) {
-    el = document.createElement('link')
-    el.setAttribute('rel', rel)
-    document.head.appendChild(el)
-  }
-  el.setAttribute('href', href)
-}
-
-function upsertJsonLd(id, data) {
-  let el = document.getElementById(id)
-  if (!el) {
-    el = document.createElement('script')
-    el.type = 'application/ld+json'
-    el.id = id
-    document.head.appendChild(el)
-  }
-  el.textContent = JSON.stringify(data)
-}
-
 router.beforeEach((to) => {
   const title = routeTitle(to)
   const description = to.meta.description || DEFAULT_DESCRIPTION
   const keywords = to.meta.keywords || DEFAULT_KEYWORDS
 
-  document.title = title
-  upsertMeta('name', 'description', description)
-  upsertMeta('name', 'keywords', keywords)
-
+  const isNotFound = to.name === 'not-found'
   const isPrivate = NOINDEX_PREFIXES.some((p) => to.path === p || to.path.startsWith(`${p}/`))
-  upsertMeta(
-    'name',
-    'robots',
-    isPrivate
-      ? 'noindex, nofollow'
-      : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1',
-  )
-
   const url = `${SITE_ORIGIN}${to.path === '/' ? '/' : to.path}`
-  upsertLink('canonical', url)
-  upsertMeta('property', 'og:url', url)
-  upsertMeta('property', 'og:title', title)
-  upsertMeta('property', 'og:description', description)
-  upsertMeta('name', 'twitter:url', url)
-  upsertMeta('name', 'twitter:title', title)
-  upsertMeta('name', 'twitter:description', description)
-
-  // 每条路由注入一个 WebPage 实体；与 index.html 中的 @graph 通过 @id 合并。
-  upsertJsonLd('route-jsonld', {
-    '@context': 'https://schema.org',
-    '@type': 'WebPage',
-    '@id': `${url}#webpage`,
-    url,
-    name: title,
+  applyPageSeo({
+    title,
     description,
-    isPartOf: { '@id': `${SITE_ORIGIN}/#website` },
-    inLanguage: ['zh-CN', 'en'],
+    keywords,
+    path: to.path,
+    robots: isNotFound ? NOT_FOUND_ROBOTS : isPrivate ? PRIVATE_ROBOTS : DEFAULT_ROBOTS,
+    // 每条路由注入一个 WebPage 实体；与 index.html 中的 @graph 通过 @id 合并。
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'WebPage',
+      '@id': `${url}#webpage`,
+      url,
+      name: title,
+      description,
+      isPartOf: { '@id': `${SITE_ORIGIN}/#website` },
+      inLanguage: ['zh-CN', 'en'],
+    },
   })
 
   return true

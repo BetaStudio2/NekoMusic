@@ -54,7 +54,7 @@
       结构化数据：用 @graph 把「组织 → 站点 → 应用 → 页面」串成一张图，
       比过去单个 WebApplication 更容易被搜索引擎理解实体关系。
     -->
-    <script type="application/ld+json">
+    <script type="application/ld+json" id="site-jsonld">
         {
             "@context": "https://schema.org",
             "@graph": [
@@ -66,7 +66,9 @@
                     "url": "https://music.nekocore.cn/",
                     "logo": {
                         "@type": "ImageObject",
-                        "url": "https://music.nekocore.cn/favicon.ico"
+                        "url": "https://music.nekocore.cn/icons/icon-512.png",
+                        "width": 512,
+                        "height": 512
                     },
                     "sameAs": [
                         "https://github.com/FantasyNetworkCN/NekoMusic",
@@ -105,12 +107,12 @@
                     "url": "https://music.nekocore.cn/",
                     "description": "完全免费的在线音乐播放平台，支持音乐搜索、高品质试听与歌单收藏。Free and open-source online music streaming platform.",
                     "applicationCategory": "MultimediaApplication",
-                    "operatingSystem": "Web, Android, Windows, Linux",
+                    "operatingSystem": "Web, Android, Windows, Linux, macOS",
                     "browserRequirements": "Requires JavaScript",
                     "inLanguage": ["zh-CN", "en"],
                     "isAccessibleForFree": true,
                     "codeRepository": "https://github.com/FantasyNetworkCN/NekoMusic",
-                    "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+                    "license": "https://www.gnu.org/licenses/agpl-3.0.html",
                     "isPartOf": { "@id": "https://music.nekocore.cn/#website" },
                     "offers": {
                         "@type": "Offer",

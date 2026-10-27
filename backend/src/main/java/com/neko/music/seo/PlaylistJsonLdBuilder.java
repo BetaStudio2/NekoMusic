@@ -39,6 +39,16 @@ public final class PlaylistJsonLdBuilder {
             org.put("name", PlaylistSeoContent.SITE_NAME_ZH);
             org.put("alternateName", PlaylistSeoContent.SITE_NAME_EN);
             org.put("url", c.siteBase + "/");
+            ObjectNode logo = org.putObject("logo");
+            logo.put("@type", "ImageObject");
+            logo.put("url", c.siteBase + "/icons/icon-512.png");
+            logo.put("width", 512);
+            logo.put("height", 512);
+            ArrayNode sameAs = org.putArray("sameAs");
+            sameAs.add("https://github.com/FantasyNetworkCN/NekoMusic");
+            sameAs.add("https://github.com/FantasyNetworkCN/NekoMusicForAndroid");
+            sameAs.add("https://github.com/FantasyNetworkCN/NekoMusicForPc");
+            sameAs.add("https://github.com/FantasyNetworkCN/NekoMusicDocs");
             graph.add(org);
 
             ObjectNode breadcrumb = JSON.createObjectNode();
@@ -60,6 +70,7 @@ public final class PlaylistJsonLdBuilder {
             webPage.put("isPartOf", ref(c.siteBase + "/#website"));
             webPage.put("primaryImageOfPage", c.coverUrl);
             webPage.put("breadcrumb", ref(c.pageUrl + "#breadcrumb"));
+            webPage.put("mainEntity", ref(c.pageUrl + "#playlist"));
             if (!c.updatedAt.isEmpty()) {
                 webPage.put("dateModified", c.updatedAt);
             }
@@ -78,6 +89,9 @@ public final class PlaylistJsonLdBuilder {
                 playlist.put("numTracks", c.musicCount);
             }
             playlist.set("inLanguage", langs());
+            if (!c.updatedAt.isEmpty()) {
+                playlist.put("dateModified", c.updatedAt);
+            }
             ObjectNode creator = playlist.putObject("creator");
             creator.put("@type", "Person");
             creator.put("name", c.creator);

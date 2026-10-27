@@ -36,6 +36,16 @@ public final class MusicDetailJsonLdBuilder {
             org.put("name", MusicDetailSeoContent.SITE_NAME_ZH);
             org.put("alternateName", MusicDetailSeoContent.SITE_NAME_EN);
             org.put("url", c.siteBase + "/");
+            ObjectNode logo = org.putObject("logo");
+            logo.put("@type", "ImageObject");
+            logo.put("url", c.siteBase + "/icons/icon-512.png");
+            logo.put("width", 512);
+            logo.put("height", 512);
+            ArrayNode sameAs = org.putArray("sameAs");
+            sameAs.add("https://github.com/FantasyNetworkCN/NekoMusic");
+            sameAs.add("https://github.com/FantasyNetworkCN/NekoMusicForAndroid");
+            sameAs.add("https://github.com/FantasyNetworkCN/NekoMusicForPc");
+            sameAs.add("https://github.com/FantasyNetworkCN/NekoMusicDocs");
             graph.add(org);
 
             ObjectNode breadcrumb = JSON.createObjectNode();
@@ -57,6 +67,7 @@ public final class MusicDetailJsonLdBuilder {
             webPage.put("isPartOf", JSON.createObjectNode().put("@id", c.siteBase + "/#website"));
             webPage.put("primaryImageOfPage", c.coverUrl);
             webPage.put("breadcrumb", JSON.createObjectNode().put("@id", c.pageUrl + "#breadcrumb"));
+            webPage.put("mainEntity", JSON.createObjectNode().put("@id", c.pageUrl + "#recording"));
             if (!c.updatedAt.isEmpty()) {
                 webPage.put("dateModified", c.updatedAt);
             }
@@ -70,6 +81,9 @@ public final class MusicDetailJsonLdBuilder {
             recording.put("image", c.coverUrl);
             recording.put("description", c.metaDescription);
             recording.set("inLanguage", langs());
+            if (!c.updatedAt.isEmpty()) {
+                recording.put("dateModified", c.updatedAt);
+            }
             if (music.duration > 0) {
                 recording.put("duration", "PT" + music.duration + "S");
             }
@@ -88,6 +102,7 @@ public final class MusicDetailJsonLdBuilder {
             ObjectNode listen = recording.putObject("potentialAction");
             listen.put("@type", "ListenAction");
             listen.put("target", c.pageUrl);
+            recording.set("audio", JSON.createObjectNode().put("@id", c.pageUrl + "#audio"));
             graph.add(recording);
 
             ObjectNode audio = JSON.createObjectNode();

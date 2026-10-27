@@ -42,6 +42,9 @@ public class PlaylistDetailPageHandler extends HttpServlet {
         // /playlist/create 等非数字路径不是歌单详情页，交回 SPA 处理。
         Matcher matcher = pathInfo == null ? null : ID_PATTERN.matcher(pathInfo);
         if (matcher == null || !matcher.matches()) {
+            if (isCreatePlaylistPath(pathInfo)) {
+                response.setHeader("X-Robots-Tag", "noindex, nofollow");
+            }
             request.getRequestDispatcher("/index.html").forward(request, response);
             return;
         }
@@ -84,6 +87,13 @@ public class PlaylistDetailPageHandler extends HttpServlet {
 
     static boolean shouldRenderSeoByUserAgent(String userAgent) {
         return UserAgentClassifier.shouldRenderSeo(userAgent);
+    }
+
+    static boolean isCreatePlaylistPath(String pathInfo) {
+        if (pathInfo == null) {
+            return false;
+        }
+        return "/create".equals(pathInfo) || "/create/".equals(pathInfo);
     }
 
     private static void sendHtml(HttpServletResponse response, int status, String html) throws IOException {

@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -24,6 +25,9 @@ import java.util.Map;
 public final class SiteResourceHandler extends HttpServlet {
 
     private static final Logger logger = LoggerFactory.getLogger(SiteResourceHandler.class);
+    private static final List<String> PRIVATE_SPA_PREFIXES = List.of(
+            "/admin", "/favorites", "/playlists", "/notifications", "/account", "/vip",
+            "/upload", "/playlist/create", "/forgot-password", "/login", "/register");
 
     private Map<String, SiteResourceStorage.Entry> siteIndex = Map.of();
 
@@ -67,6 +71,12 @@ public final class SiteResourceHandler extends HttpServlet {
         }
 
         String fileName = fileNameOf(entry.path());
+
+        // 私有页面不依赖客户端 JS 才加 noindex：即使爬虫/预览器直接请求 SPA 外壳，
+        // 响应头也会明确告知不要收录。
+        if (fallback && isPrivateSpaPath(requestPath)) {
+            response.setHeader("X-Robots-Tag", "noindex, nofollow");
+        }
 
         // index.html / Service Worker 必须可及时更新：缓存住入口或 sw.js，
         // 新版本会迟迟无法被发现。这类文件用 no-cache + ETag/Last-Modified
@@ -171,6 +181,17 @@ public final class SiteResourceHandler extends HttpServlet {
         String path = queryStart >= 0 ? requestPath.substring(0, queryStart) : requestPath;
         int slash = path.lastIndexOf('/');
         return !path.substring(slash + 1).contains(".");
+    }
+
+    private static boolean isPrivateSpaPath(String requestPath) {
+        int queryStart = requestPath.indexOf('?');
+        String path = queryStart >= 0 ? requestPath.substring(0, queryStart) : requestPath;
+        for (String prefix : PRIVATE_SPA_PREFIXES) {
+            if (path.equals(prefix) || path.startsWith(prefix + "/")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String contentTypeFor(String fileName) {

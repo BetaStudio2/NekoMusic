@@ -29,7 +29,7 @@
 - 公开歌单页：`https://music.nekocore.cn/playlist/{id}`
 - 搜索页：`https://music.nekocore.cn/search?q={关键词}`
 
-抓取说明：对搜索引擎 / 链接预览 / AI 抓取器（curl、GPTBot、OAI-SearchBot、ChatGPT-User、PerplexityBot、ClaudeBot、CCBot 等），上述页面返回服务端渲染的 HTML 与 JSON-LD，普通浏览器则加载 SPA。结构化数据包含 Organization、WebSite、WebPage、BreadcrumbList、SoftwareApplication、HowTo、FAQPage、MusicRecording、AudioObject 与 MusicPlaylist。
+抓取说明：对搜索引擎 / 链接预览 / AI 抓取器（curl、GPTBot、OAI-SearchBot、ChatGPT-User、PerplexityBot、ClaudeBot、CCBot 等），上述页面返回服务端渲染的 HTML 与 JSON-LD，普通浏览器则加载 SPA。结构化数据包含 Organization、WebSite、WebPage、CollectionPage、BreadcrumbList、ItemList、SoftwareApplication、HowTo、FAQPage、MusicRecording、AudioObject 与 MusicPlaylist。站点地图索引还包含歌曲页封面图片条目。
 
 ## 常见问题
 

@@ -139,8 +139,11 @@ public final class ServletRegistrar {
         ServletHolder playlistDetailPageHolder = new ServletHolder(new PlaylistDetailPageHandler());
         context.addServlet(playlistDetailPageHolder, "/playlist/*");
 
-        ServletHolder sitemapHolder = new ServletHolder(new SitemapHandler());
-        context.addServlet(sitemapHolder, "/sitemap.xml");
+        // sitemap 索引 + 分类子图：单图不超过协议 50,000 URL 上限
+        context.addServlet(new ServletHolder(new SitemapHandler()), SitemapHandler.INDEX_PATH);
+        context.addServlet(new ServletHolder(new SitemapHandler()), SitemapHandler.STATIC_PATH);
+        context.addServlet(new ServletHolder(new SitemapHandler()), SitemapHandler.MUSIC_PATH);
+        context.addServlet(new ServletHolder(new SitemapHandler()), SitemapHandler.PLAYLISTS_PATH);
 
         ServletHolder versionHolder = new ServletHolder(new VersionJsonHandler());
         context.addServlet(versionHolder, "/version");

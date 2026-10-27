@@ -45,6 +45,8 @@ class PlaylistPageRendererTest {
         assertTrue(html.contains("https://music.example.com/playlist/42"), "应含 canonical/结构化 URL");
         assertTrue(html.contains("\"@type\":\"MusicPlaylist\""), "应输出 MusicPlaylist JSON-LD");
         assertTrue(html.contains("\"@type\":\"BreadcrumbList\""), "应输出面包屑");
+        assertTrue(html.contains("\"mainEntity\""), "WebPage 应关联歌单实体");
+        assertTrue(html.contains("https://music.example.com/icons/icon-512.png"), "组织 logo 应使用可索引的主图标");
     }
 
     @Test
