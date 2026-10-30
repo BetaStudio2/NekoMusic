@@ -55,6 +55,21 @@ public final class SystemSettingRegistry {
             number("jwt.expiration", Group.JWT, "有效期（秒）", "86400", 60, 31536000,
                     "登录令牌过期时间"),
 
+            // ---------- NekoAuth 统一登录（OAuth 2.0 授权码） ----------
+            flag("oauth.enabled", Group.AUTH, "启用 NekoAuth 登录", false,
+                    "开启后服务端允许发起 NekoAuth 授权；是否在客户端显示入口由客户端自行决定，关闭不影响原有登录"),
+            text("oauth.issuer", Group.AUTH, "NekoAuth 根地址", "https://auth.nekocore.cn",
+                    "OAuth 颁发者根地址，不带末尾斜杠；生产环境必须使用 HTTPS"),
+            text("oauth.client_id", Group.AUTH, "客户端 ID", "",
+                    "NekoAuth 管理员在 OAuth 应用中创建的客户端 ID，例如 fn_nekomusic"),
+            secret("oauth.client_secret", Group.AUTH, "客户端密钥",
+                    "机密客户端密钥，只写不读；泄露后请在 NekoAuth 后台轮换"),
+            text("oauth.redirect_uri", Group.AUTH, "回调地址",
+                    "https://music.nekocore.cn/oauth/nekocore/callback",
+                    "必须与 NekoAuth 应用中登记的回调地址完全一致；本地联调可填 http://localhost:65535/oauth/nekocore/callback"),
+            text("oauth.scopes", Group.AUTH, "授权范围", "openid profile email roles",
+                    "空格分隔；接入 NekoMusic 至少需要 openid email，建议保留 roles 以便后续权限映射"),
+
             // ---------- 邮件 ----------
             text("smtp.host", Group.MAIL, "SMTP 主机", "", "例如 smtp.qq.com；留空则无法发送验证码邮件"),
             number("smtp.port", Group.MAIL, "SMTP 端口", "465", 1, 65535, "常见 465(SSL) / 587(TLS) / 25"),

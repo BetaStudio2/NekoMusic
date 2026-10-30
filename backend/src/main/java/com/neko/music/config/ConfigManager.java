@@ -43,6 +43,14 @@ public class ConfigManager {
     // JWT配置
     private String jwtSecret = "defaultSecretKeyForNekoMusic";
     private int jwtExpiration = 86400; // 24小时（秒）
+
+    // NekoAuth 统一登录（OAuth 2.0 授权码 + 机密客户端）
+    private boolean oauthEnabled = false;
+    private String oauthIssuer = "https://auth.nekocore.cn";
+    private String oauthClientId = "";
+    private String oauthClientSecret = "";
+    private String oauthRedirectUri = "https://music.nekocore.cn/oauth/nekocore/callback";
+    private String oauthScopes = "openid profile email roles";
     
     // Msg配置
     private String msgUrl = "";
@@ -346,6 +354,16 @@ public class ConfigManager {
                 if (jwtNode != null) {
                     if (jwtNode.has("secret")) jwtSecret = jwtNode.get("secret").asText();
                     if (jwtNode.has("expiration")) jwtExpiration = jwtNode.get("expiration").asInt();
+                }
+
+                JsonNode oauthNode = configNode.get("oauth");
+                if (oauthNode != null) {
+                    if (oauthNode.has("enabled")) oauthEnabled = oauthNode.get("enabled").asBoolean();
+                    if (oauthNode.has("issuer")) oauthIssuer = oauthNode.get("issuer").asText();
+                    if (oauthNode.has("client_id")) oauthClientId = oauthNode.get("client_id").asText();
+                    if (oauthNode.has("client_secret")) oauthClientSecret = oauthNode.get("client_secret").asText();
+                    if (oauthNode.has("redirect_uri")) oauthRedirectUri = oauthNode.get("redirect_uri").asText();
+                    if (oauthNode.has("scopes")) oauthScopes = oauthNode.get("scopes").asText();
                 }
                 
                 // 读取Msg配置
@@ -947,6 +965,34 @@ public class ConfigManager {
     
     public int getJwtExpiration() {
         return jwtExpiration;
+    }
+
+    /** 是否在登录面板启用 NekoAuth 统一登录。 */
+    public boolean isOAuthEnabled() {
+        return oauthEnabled;
+    }
+
+    /** NekoAuth 根地址（不带末尾斜杠）。 */
+    public String getOAuthIssuer() {
+        return oauthIssuer == null ? "" : oauthIssuer.trim();
+    }
+
+    public String getOAuthClientId() {
+        return oauthClientId == null ? "" : oauthClientId.trim();
+    }
+
+    public String getOAuthClientSecret() {
+        return oauthClientSecret == null ? "" : oauthClientSecret;
+    }
+
+    public String getOAuthRedirectUri() {
+        return oauthRedirectUri == null ? "" : oauthRedirectUri.trim();
+    }
+
+    /** 空格分隔的 OAuth scope；空值时退回 openid email。 */
+    public String getOAuthScopes() {
+        String value = oauthScopes == null ? "" : oauthScopes.trim();
+        return value.isEmpty() ? "openid email" : value;
     }
     
     public String getMsgUrl() {

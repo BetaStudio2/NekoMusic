@@ -23,6 +23,12 @@ public final class ServletRegistrar {
         // 前端静态资源与 Vue History 路由回退；更具体的 API/页面映射会优先匹配。
         ServletHolder siteResourceHolder = new ServletHolder(new SiteResourceHandler());
         context.addServlet(siteResourceHolder, "/");
+
+        // NekoAuth 统一登录：浏览器跳转端点，不使用 /api 的 nonce / 客户端签名门禁。
+        ServletHolder nekoAuthStartHolder = new ServletHolder(new NekoAuthOAuthHandler());
+        context.addServlet(nekoAuthStartHolder, "/oauth/nekocore/start");
+        ServletHolder nekoAuthCallbackHolder = new ServletHolder(new NekoAuthOAuthHandler());
+        context.addServlet(nekoAuthCallbackHolder, "/oauth/nekocore/callback");
         
         // 注册防重放 nonce 签发接口（通用机制，自身豁免 nonce 校验）
         ServletHolder replayNonceHolder = new ServletHolder(new ReplayNonceHandler());

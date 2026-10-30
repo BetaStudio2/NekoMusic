@@ -124,6 +124,26 @@ public class RedisService {
     }
 
     /**
+     * 原子读取并删除（GETDEL）。用于一次性 state / 授权码等「只能消费一次」的值，
+     * 避免先 GET 再 DEL 之间被并发请求读到两次。
+     */
+    public String getDel(String key) {
+        if (key == null || key.isEmpty()) {
+            return null;
+        }
+        StatefulRedisConnection<String, String> conn = null;
+        try {
+            conn = connectionPool.borrowObject();
+            return conn.sync().getdel(key);
+        } catch (Exception e) {
+            logger.error("Redis GETDEL 失败: {}", e.getMessage(), e);
+            return null;
+        } finally {
+            returnConnection(conn);
+        }
+    }
+
+    /**
      * 删除键
      */
     public void del(String key) {

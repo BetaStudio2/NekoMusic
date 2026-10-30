@@ -57,6 +57,7 @@ public record SystemSettingDefinition(
         NOTIFY("消息通知"),
         STORAGE("存储"),
         VIDEO_RENDER("视频渲染"),
+        AUTH("NekoAuth 登录"),
         EXTERNAL("外站补全"),
         RECOMMENDATION("每日推荐"),
         RECOGNITION("听歌识曲"),

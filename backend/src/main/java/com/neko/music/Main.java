@@ -86,6 +86,7 @@ public class Main {
     private static ExternalFillQuotaService externalFillQuotaService;
     private static SourceBanService sourceBanService;
     private static UserAuthService userAuthService;
+    private static NekoAuthOAuthService nekoAuthOAuthService;
     private static QrLoginService qrLoginService;
     private static EmailService emailService;
     private static RedisService redisService;
@@ -240,6 +241,8 @@ public class Main {
         userAuthService = new UserAuthService(
                 databaseManager, configManager, emailService, redisService, tokenStore,
                 verificationCodeRateLimitService);
+        nekoAuthOAuthService = new NekoAuthOAuthService(
+                configManager, redisService, userAuthService, objectMapper);
         userManagementService = new UserManagementService(
                 new com.neko.music.database.JdbcUserAccountStore(databaseManager),
                 new UserManagementService.SessionRevoker() {
@@ -588,6 +591,10 @@ public class Main {
     
     public static UserAuthService getUserAuthService() {
         return userAuthService;
+    }
+
+    public static NekoAuthOAuthService getNekoAuthOAuthService() {
+        return nekoAuthOAuthService;
     }
 
     public static QrLoginService getQrLoginService() {
