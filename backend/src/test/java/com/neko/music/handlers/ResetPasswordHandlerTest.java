@@ -2,6 +2,7 @@ package com.neko.music.handlers;
 
 import com.neko.music.service.SourceBanService;
 import com.neko.music.service.TestSourceBanStore;
+import com.neko.music.service.NekoAuthAccountService;
 import com.neko.music.service.UserAuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -37,8 +38,9 @@ class ResetPasswordHandlerTest {
         }
 
         @Override
-        public boolean verifyResetPasswordCode(String email, String code) {
-            return false;
+        public boolean resetPasswordWithCode(String email, String code, String newPassword) {
+            throw new NekoAuthAccountService.AccountBridgeException(
+                    400, "EMAIL_VERIFICATION_CODE_INVALID", "验证码错误", 0);
         }
     }
 

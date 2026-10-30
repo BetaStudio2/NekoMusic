@@ -86,6 +86,7 @@ public class Main {
     private static ExternalFillQuotaService externalFillQuotaService;
     private static SourceBanService sourceBanService;
     private static UserAuthService userAuthService;
+    private static NekoAuthAccountService nekoAuthAccountService;
     private static NekoAuthOAuthService nekoAuthOAuthService;
     private static QrLoginService qrLoginService;
     private static EmailService emailService;
@@ -238,9 +239,10 @@ public class Main {
                 new VerificationCodeRateLimitService(configManager, redisService);
 
         // 初始化用户认证服务
+        nekoAuthAccountService = new NekoAuthAccountService(configManager, objectMapper);
         userAuthService = new UserAuthService(
                 databaseManager, configManager, emailService, redisService, tokenStore,
-                verificationCodeRateLimitService);
+                verificationCodeRateLimitService, nekoAuthAccountService);
         nekoAuthOAuthService = new NekoAuthOAuthService(
                 configManager, redisService, userAuthService, objectMapper);
         userManagementService = new UserManagementService(
@@ -255,7 +257,8 @@ public class Main {
                     public void revokeUser(int userId) {
                         userAuthService.revokeAllTokensForUser(userId);
                     }
-                });
+                },
+                nekoAuthAccountService);
 
         // 扫码登录会话（Redis 短 TTL，PC 轮询取 token）
         qrLoginService = new QrLoginService(redisService, objectMapper);
@@ -591,6 +594,10 @@ public class Main {
     
     public static UserAuthService getUserAuthService() {
         return userAuthService;
+    }
+
+    public static NekoAuthAccountService getNekoAuthAccountService() {
+        return nekoAuthAccountService;
     }
 
     public static NekoAuthOAuthService getNekoAuthOAuthService() {

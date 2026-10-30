@@ -53,8 +53,8 @@ public class DatabaseManager {
                 CREATE TABLE IF NOT EXISTS users (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     nickname VARCHAR(50) NOT NULL,
-                    password VARCHAR(255) NOT NULL,
                     email VARCHAR(100) UNIQUE NOT NULL,
+                    auth_user_id BIGINT NULL,
                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """;
@@ -539,6 +539,54 @@ public class DatabaseManager {
                 }
             } catch (SQLException e) {
                 logger.debug("vip_expires_at 字段可能已存在，跳过添加: {}", e.getMessage());
+            }
+
+            // 绑定 NekoAuth 账号 ID；与本地资料解耦，密码不再使用本地列。
+            try {
+                String alterAuthUser = """
+                    ALTER TABLE users
+                    ADD COLUMN IF NOT EXISTS auth_user_id BIGINT NULL
+                    AFTER email
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(alterAuthUser)) {
+                    stmt.execute();
+                    logger.info("已为 users 表添加 auth_user_id 字段");
+                }
+            } catch (SQLException e) {
+                logger.debug("auth_user_id 字段可能已存在，跳过添加: {}", e.getMessage());
+            }
+            try {
+                try (PreparedStatement stmt = conn.prepareStatement(
+                        "ALTER TABLE users ADD UNIQUE INDEX uk_users_auth_user_id (auth_user_id)")) {
+                    stmt.execute();
+                    logger.info("已为 users.auth_user_id 添加唯一索引");
+                }
+            } catch (SQLException e) {
+                logger.debug("users.auth_user_id 唯一索引可能已存在，跳过添加: {}", e.getMessage());
+            }
+
+            // 用户密码只存 NekoAuth；旧测试库上的 password 列不再保留。
+            try {
+                String checkPassword = """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = DATABASE()
+                    AND table_name = 'users'
+                    AND column_name = 'password'
+                    """;
+                boolean hasPassword;
+                try (PreparedStatement stmt = conn.prepareStatement(checkPassword);
+                     ResultSet rs = stmt.executeQuery()) {
+                    hasPassword = rs.next() && rs.getInt(1) > 0;
+                }
+                if (hasPassword) {
+                    try (PreparedStatement stmt = conn.prepareStatement(
+                            "ALTER TABLE users DROP COLUMN password")) {
+                        stmt.execute();
+                        logger.info("已移除 users.password；用户密码仅由 NekoAuth 保存");
+                    }
+                }
+            } catch (SQLException e) {
+                logger.warn("移除 users.password 失败: {}", e.getMessage());
             }
 
             // 创建歌单表

@@ -3,6 +3,7 @@ package com.neko.music.handlers;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
 import com.neko.music.service.AuthAbuseLimiter;
+import com.neko.music.service.NekoAuthAccountService;
 import com.neko.music.service.SourceBanService;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.util.ClientIpResolver;
@@ -73,14 +74,9 @@ public class UserRegisterHandler extends ApiServlet {
                 return;
             }
 
-            // 3. 邮箱格式及白名单校验
+            // 3. 邮箱格式校验；域名白名单由 NekoAuth 后端统一判断
             if (!isValidEmail(email)) {
                 sendResponse(response, false, "auth.register.email_invalid", null);
-                return;
-            }
-            if (!userAuthService.isWhitelistedEmail(email)) {
-                logger.warn("非白名单邮箱注册尝试: {}", email);
-                sendResponse(response, false, "auth.register.email_domain_invalid", null);
                 return;
             }
 
@@ -95,24 +91,39 @@ public class UserRegisterHandler extends ApiServlet {
                 return;
             }
 
-            // 5. 邮箱验证码有效性校验
-            boolean isValidCode = userAuthService.verifyCode(email, verificationCode);
-            if (!isValidCode) {
-                // 验证码是可猜的短秘密：失败同样按来源计入递增退避封禁，防「换邮箱猜码」
-                recordAuthFailure(clientIp, "register");
-                sendResponse(response, false, "auth.register.captcha_invalid", null);
-                return;
-            }
-
-            // 6. 执行注册
-            boolean success = userAuthService.registerUser(nickname, password, email);
+            // 5. 验证码与账号创建都由 NekoAuth 校验；本地只保存昵称和业务资料
+            boolean success = userAuthService.registerUserWithCode(
+                    nickname, password, email, verificationCode);
             if (success) {
                 logger.info("用户注册成功: {}", nickname);
                 sendResponse(response, true, "auth.register.ok", Map.of("nickname", nickname));
             } else {
-                sendResponse(response, false, "auth.register.email_exists", null);
+                recordAuthFailure(clientIp, "register");
+                sendResponse(response, false, "auth.register.captcha_invalid", null);
             }
 
+        } catch (NekoAuthAccountService.AccountBridgeException e) {
+            if (isVerificationFailure(e)) {
+                // 验证码是可猜的短秘密：失败同样按来源计入递增退避封禁，防「换邮箱猜码」
+                recordAuthFailure(clientIp, "register");
+                sendResponse(response, false, "auth.register.captcha_invalid", null);
+            } else if (e.rateLimited()) {
+                sendCooldownResponse(response, e.retryAfterSeconds());
+            } else if ("EMAIL_TAKEN".equals(e.code())) {
+                sendResponse(response, false, "auth.register.email_exists", null);
+            } else if ("EMAIL_DOMAIN_NOT_ALLOWED".equals(e.code())) {
+                sendResponse(response, false, "auth.register.email_domain_invalid", null);
+            } else if ("REGISTRATION_DISABLED".equals(e.code())) {
+                sendResponse(response, false, "auth.register.disabled", null);
+            } else if ("WEAK_PASSWORD".equals(e.code())) {
+                sendResponse(response, false, "auth.register.password_length_invalid", null);
+            } else if (e.notConfigured() || e.unavailable()) {
+                logger.error("NekoAuth 账号桥接不可用: {}", e.code());
+                sendResponse(response, false, "auth.service_unavailable", null);
+            } else {
+                logger.warn("NekoAuth 注册失败: status={} code={}", e.status(), e.code());
+                sendResponse(response, false, "auth.register.internal_error", null);
+            }
         } catch (Exception e) {
             logger.error("注册处理异常: {}", e.getMessage(), e);
             sendResponse(response, false, "auth.register.internal_error", null);
@@ -128,6 +139,10 @@ public class UserRegisterHandler extends ApiServlet {
 
     private boolean isEmpty(String str) {
         return str == null || str.trim().isEmpty();
+    }
+
+    private static boolean isVerificationFailure(NekoAuthAccountService.AccountBridgeException e) {
+        return e.status() == 400 && e.code().startsWith("EMAIL_VERIFICATION_");
     }
 
     private boolean isValidEmail(String email) {

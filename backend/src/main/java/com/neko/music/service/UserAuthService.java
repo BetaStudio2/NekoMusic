@@ -4,8 +4,6 @@ import com.neko.music.config.ConfigManager;
 import com.neko.music.database.DatabaseManager;
 import com.neko.music.model.User;
 import com.neko.music.util.DbTimeUtil;
-import de.mkammerer.argon2.Argon2;
-import de.mkammerer.argon2.Argon2Factory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,7 +21,7 @@ public class UserAuthService {
     private final RedisService redisService;
     private final RedisTokenStore tokenStore;
     private final VerificationCodeRateLimitService verificationCodeRateLimitService;
-    private final Argon2 argon2 = Argon2Factory.create();
+    private final NekoAuthAccountService nekoAuthAccountService;
     private static final SecureRandom secureRandom = new SecureRandom();
 
     /**
@@ -51,94 +49,207 @@ public class UserAuthService {
                            EmailService emailService, RedisService redisService,
                            RedisTokenStore tokenStore,
                            VerificationCodeRateLimitService verificationCodeRateLimitService) {
+        this(databaseManager, configManager, emailService, redisService, tokenStore,
+                verificationCodeRateLimitService, null);
+    }
+
+    public UserAuthService(DatabaseManager databaseManager, ConfigManager configManager,
+                           EmailService emailService, RedisService redisService,
+                           RedisTokenStore tokenStore,
+                           VerificationCodeRateLimitService verificationCodeRateLimitService,
+                           NekoAuthAccountService nekoAuthAccountService) {
         this.databaseManager = databaseManager;
         this.configManager = configManager;
         this.emailService = emailService;
         this.redisService = redisService;
         this.tokenStore = tokenStore;
         this.verificationCodeRateLimitService = verificationCodeRateLimitService;
+        this.nekoAuthAccountService = nekoAuthAccountService;
     }
 
     /**
-     * 用户注册（仅邮箱必须唯一，昵称可重复）
-     */
-    public boolean registerUser(String nickname, String password, String email) {
-        logger.info("开始注册用户: {}", nickname);
-
-        if (emailExists(email)) {
-            logger.warn("邮箱已存在: {}", email);
-            return false;
-        }
-
-        String hashedPassword = hashPassword(password);
-
-        String sql = "INSERT INTO users (nickname, password, email, created_at) VALUES (?, ?, ?, "
-                + DbTimeUtil.SQL_NOW_SHANGHAI + ")";
-
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-
-            stmt.setString(1, nickname);
-            stmt.setString(2, hashedPassword);
-            stmt.setString(3, email);
-
-            int affectedRows = stmt.executeUpdate();
-            String storedCreatedAt = null;
-            try (ResultSet keys = stmt.getGeneratedKeys()) {
-                if (keys.next()) {
-                    int userId = keys.getInt(1);
-                    try (PreparedStatement read = conn.prepareStatement(
-                            "SELECT created_at FROM users WHERE id = ?")) {
-                        read.setInt(1, userId);
-                        try (ResultSet rs = read.executeQuery()) {
-                            if (rs.next()) {
-                                storedCreatedAt = DbTimeUtil.formatStoredWallClock(rs.getString("created_at"));
-                            }
-                        }
-                    }
-                }
-            }
-            logger.info("用户注册结果: {}, 昵称: {}, created_at(+08)={}",
-                    affectedRows > 0, nickname, storedCreatedAt != null ? storedCreatedAt : DbTimeUtil.nowShanghaiWallClock());
-            return affectedRows > 0;
-        } catch (SQLException e) {
-            logger.error("用户注册失败: {}", e.getMessage(), e);
-        }
-
-        return false;
-    }
-
-    /**
-     * 用户登录（仅支持邮箱登录）
+     * 用户登录（仅支持邮箱登录）。
+     *
+     * <p>密码校验完全交给 NekoAuth；本地 users 表不保存密码。</p>
      */
     public Optional<User> authenticate(String email, String password) {
         logger.info("用户登录尝试: {}", email);
 
-        String sql = "SELECT id, nickname, password, email, created_at, vip_expires_at FROM users WHERE email = ?";
-
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setString(1, email);
-
-            ResultSet rs = stmt.executeQuery();
-
-            if (rs.next()) {
-                String storedPasswordHash = rs.getString("password");
-
-                if (argon2.verify(storedPasswordHash, password.toCharArray())) {
-                    User user = mapUser(rs);
-
-                    logger.info("用户登录成功: {}", email);
-                    return Optional.of(user);
-                }
+        try {
+            NekoAuthAccountService.Account account = requireBridge().login(email, password);
+            User user = findOrLinkNekoAuthUser(account.id(), account.email(), null);
+            logger.info("NekoAuth 用户登录成功: authUserId={} localUserId={}",
+                    account.id(), user.id());
+            return Optional.of(user);
+        } catch (NekoAuthAccountService.AccountBridgeException exception) {
+            if (exception.invalidCredentials()) {
+                logger.warn("NekoAuth 用户登录失败: {}", email);
+                return Optional.empty();
             }
-        } catch (SQLException e) {
-            logger.error("用户认证失败: {}", e.getMessage(), e);
+            throw exception;
+        }
+    }
+
+    /**
+     * 通过 NekoAuth 注册账号，再在 NekoMusic 创建或关联本地资料。
+     * 昵称只写入 NekoMusic，不传给 NekoAuth。
+     */
+    public boolean registerUserWithCode(String nickname, String password, String email,
+                                        String verificationCode) {
+        NekoAuthAccountService.Account account =
+                requireBridge().register(email, password, verificationCode);
+        findOrLinkNekoAuthUser(account.id(), account.email(), nickname);
+        logger.info("NekoAuth 注册成功并已关联本地资料: authUserId={}", account.id());
+        return true;
+    }
+
+    /**
+     * 按 NekoAuth 的稳定用户 ID 查找本地资料；首次见到该账号时自动创建本地资料。
+     * 同时兼容旧数据：本地已有同邮箱账号但尚未绑定 auth_user_id 时会自动补绑定。
+     */
+    public User findOrLinkNekoAuthUser(long authUserId, String email, String nicknameHint) {
+        if (authUserId <= 0) {
+            throw new IllegalStateException("NekoAuth 用户 ID 无效");
+        }
+        String normalizedEmail = email == null ? "" : email.trim().toLowerCase();
+        if (normalizedEmail.isEmpty()) {
+            throw new IllegalStateException("NekoAuth 未返回邮箱");
         }
 
-        logger.warn("用户登录失败: {}", email);
-        return Optional.empty();
+        User byAuthId = findUserByAuthId(authUserId);
+        if (byAuthId != null) {
+            if (!normalizedEmail.equalsIgnoreCase(byAuthId.email())) {
+                updateLocalAccountBinding(byAuthId.id(), authUserId, normalizedEmail);
+                byAuthId = findUserById(byAuthId.id()).orElse(byAuthId);
+            }
+            return byAuthId;
+        }
+
+        User byEmail = findUserByEmail(normalizedEmail);
+        if (byEmail != null) {
+            Long boundAuthUserId = findAuthUserIdByLocalId(byEmail.id());
+            if (boundAuthUserId != null && boundAuthUserId != authUserId) {
+                throw new IllegalStateException("该邮箱已绑定其他 NekoAuth 账号");
+            }
+            updateLocalAccountBinding(byEmail.id(), authUserId, normalizedEmail);
+            logger.info("已关联本地用户资料: localUserId={} authUserId={}", byEmail.id(), authUserId);
+            return findUserById(byEmail.id()).orElse(byEmail);
+        }
+
+        String nickname = safeLocalNickname(nicknameHint, normalizedEmail);
+        String sql = "INSERT INTO users (nickname, password, email, auth_user_id, created_at) VALUES (?, ?, ?, ?, "
+                + DbTimeUtil.SQL_NOW_SHANGHAI + ")";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            stmt.setString(1, nickname);
+            stmt.setString(2, "!nekoauth$disabled");
+            stmt.setString(3, normalizedEmail);
+            stmt.setLong(4, authUserId);
+            stmt.executeUpdate();
+            try (ResultSet keys = stmt.getGeneratedKeys()) {
+                if (keys.next()) {
+                    int localId = keys.getInt(1);
+                    return findUserById(localId).orElseThrow(
+                            () -> new IllegalStateException("创建本地用户资料失败"));
+                }
+            }
+            throw new IllegalStateException("创建本地用户资料失败");
+        } catch (SQLException exception) {
+            User raced = findUserByAuthId(authUserId);
+            if (raced != null) {
+                return raced;
+            }
+            User racedByEmail = findUserByEmail(normalizedEmail);
+            if (racedByEmail != null) {
+                updateLocalAccountBinding(racedByEmail.id(), authUserId, normalizedEmail);
+                return findUserById(racedByEmail.id()).orElse(racedByEmail);
+            }
+            logger.error("创建本地用户资料失败: authUserId={} email={} error={}",
+                    authUserId, normalizedEmail, exception.getMessage(), exception);
+            throw new IllegalStateException("创建本地用户资料失败", exception);
+        }
+    }
+
+    public boolean usesNekoAuthBridge() {
+        return nekoAuthAccountService != null;
+    }
+
+    private User findUserByAuthId(long authUserId) {
+        String sql = "SELECT id, nickname, email, created_at, vip_expires_at FROM users WHERE auth_user_id = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setLong(1, authUserId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next() ? mapUser(rs) : null;
+            }
+        } catch (SQLException e) {
+            logger.error("按 NekoAuth 用户 ID 查询本地资料失败: authUserId={} error={}",
+                    authUserId, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    private User findUserByEmail(String email) {
+        String sql = "SELECT id, nickname, email, created_at, vip_expires_at FROM users WHERE email = ? LIMIT 1";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, email);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next() ? mapUser(rs) : null;
+            }
+        } catch (SQLException e) {
+            logger.error("按邮箱查询本地资料失败: email={} error={}", email, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    private Long findAuthUserIdByLocalId(int localUserId) {
+        String sql = "SELECT auth_user_id FROM users WHERE id = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, localUserId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (!rs.next()) {
+                    return null;
+                }
+                long value = rs.getLong("auth_user_id");
+                return rs.wasNull() ? null : value;
+            }
+        } catch (SQLException e) {
+            logger.error("查询本地账号绑定失败: localUserId={} error={}", localUserId, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    private void updateLocalAccountBinding(int localUserId, long authUserId, String email) {
+        String sql = "UPDATE users SET email = ?, auth_user_id = ? WHERE id = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, email);
+            stmt.setLong(2, authUserId);
+            stmt.setInt(3, localUserId);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            logger.error("更新本地账号绑定失败: localUserId={} authUserId={} error={}",
+                    localUserId, authUserId, e.getMessage(), e);
+            throw new IllegalStateException("更新本地账号绑定失败", e);
+        }
+    }
+
+    private static String safeLocalNickname(String nicknameHint, String email) {
+        String candidate = nicknameHint == null ? "" : nicknameHint.trim();
+        if (candidate.isEmpty()) {
+            int separator = email.indexOf('@');
+            candidate = separator > 0 ? email.substring(0, separator) : email;
+        }
+        candidate = candidate.trim();
+        if (candidate.isEmpty()) {
+            candidate = "听众";
+        }
+        if (candidate.length() > 20) {
+            candidate = candidate.substring(0, 20);
+        }
+        return candidate;
     }
 
     /**
@@ -186,6 +297,17 @@ public class UserAuthService {
      * 发送注册验证码；同邮箱有发信冷却。
      */
     public SendVerificationCodeResult sendVerificationCode(String email, String nickname) {
+        if (nekoAuthAccountService != null) {
+            try {
+                nekoAuthAccountService.sendRegistrationCode(email);
+                return SendVerificationCodeResult.ok();
+            } catch (NekoAuthAccountService.AccountBridgeException exception) {
+                if (exception.rateLimited()) {
+                    return SendVerificationCodeResult.cooldown(exception.retryAfterSeconds());
+                }
+                throw exception;
+            }
+        }
         return sendVerificationCode(email, nickname, VERIFICATION_PURPOSE_REGISTER);
     }
 
@@ -213,6 +335,16 @@ public class UserAuthService {
      * （对外文案本就统一）。</p>
      */
     public void sendResetPasswordCodeAsync(String email, String nickname) {
+        if (nekoAuthAccountService != null) {
+            ASYNC_CODE_EXECUTOR.execute(() -> {
+                try {
+                    nekoAuthAccountService.sendPasswordResetCode(email);
+                } catch (RuntimeException e) {
+                    logger.warn("提交 NekoAuth 找回密码验证码失败: {}", email);
+                }
+            });
+            return;
+        }
         ASYNC_CODE_EXECUTOR.execute(() -> {
             try {
                 deliverVerificationCode(email, nickname, VERIFICATION_PURPOSE_PASSWORD_RESET);
@@ -274,6 +406,9 @@ public class UserAuthService {
      * 检查邮箱是否在白名单中
      */
     public boolean isWhitelistedEmail(String email) {
+        if (nekoAuthAccountService != null) {
+            return true;
+        }
         String emailWhitelist = configManager.getEmailWhitelist();
         
         if (emailWhitelist == null || emailWhitelist.trim().isEmpty()) {
@@ -423,34 +558,13 @@ public class UserAuthService {
     }
 
     /**
-     * 重置用户密码，成功后注销该用户全部会话 token。
+     * 通过 NekoAuth 验证邮箱验证码并重置密码；成功后撤销 NekoMusic 本地会话。
      */
-    public boolean resetPassword(String email, String newPassword) {
-        logger.info("重置用户密码: {}", email);
-
-        Optional<Integer> userIdOpt = findUserIdByEmail(email);
-
-        String sql = "UPDATE users SET password = ? WHERE email = ?";
-
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            String hashedPassword = hashPassword(newPassword);
-            stmt.setString(1, hashedPassword);
-            stmt.setString(2, email);
-
-            int affectedRows = stmt.executeUpdate();
-            if (affectedRows > 0) {
-                userIdOpt.ifPresent(this::revokeAllTokensForUser);
-                logger.info("密码重置成功: {}", email);
-                return true;
-            }
-            logger.warn("密码重置未影响任何行: {}", email);
-        } catch (SQLException e) {
-            logger.error("重置密码失败: {}", e.getMessage(), e);
-        }
-
-        return false;
+    public boolean resetPasswordWithCode(String email, String code, String newPassword) {
+        requireBridge().resetPassword(email, code, newPassword);
+        findUserIdByEmail(email).ifPresent(this::revokeAllTokensForUser);
+        logger.info("NekoAuth 密码重置成功，已撤销本地会话: {}", email);
+        return true;
     }
 
     public Optional<Integer> findUserIdByEmail(String email) {
@@ -479,8 +593,12 @@ public class UserAuthService {
         tokenStore.revokeAllUserTokens(userId);
     }
 
-    private String hashPassword(String password) {
-        return argon2.hash(10, 65536, 1, password.toCharArray());
+    private NekoAuthAccountService requireBridge() {
+        if (nekoAuthAccountService == null) {
+            throw new NekoAuthAccountService.AccountBridgeException(
+                    503, "NEKO_AUTH_NOT_CONFIGURED", "未配置 NekoAuth 账号桥接", 0);
+        }
+        return nekoAuthAccountService;
     }
     
     public String generateToken() {

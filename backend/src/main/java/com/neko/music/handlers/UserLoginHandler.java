@@ -5,6 +5,7 @@ import com.neko.music.Main;
 import com.neko.music.model.User;
 import com.neko.music.service.AuthAbuseLimiter;
 import com.neko.music.service.LoginThrottleService;
+import com.neko.music.service.NekoAuthAccountService;
 import com.neko.music.service.SourceBanService;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.service.UserLoginThrottleService;
@@ -157,6 +158,16 @@ public class UserLoginHandler extends ApiServlet {
                 sendResponse(response, false, "auth.login.bad_credentials", null);
             }
 
+        } catch (NekoAuthAccountService.AccountBridgeException e) {
+            if (e.notConfigured() || e.unavailable()) {
+                logger.error("NekoAuth 账号桥接不可用: {}", e.code());
+                sendResponse(response, false, "auth.service_unavailable", null);
+            } else if (e.status() == 403 && "ACCOUNT_DISABLED".equals(e.code())) {
+                sendResponse(response, false, "auth.login.account_disabled", null);
+            } else {
+                logger.warn("NekoAuth 登录失败: status={} code={}", e.status(), e.code());
+                sendResponse(response, false, "auth.login.bad_credentials", null);
+            }
         } catch (Exception e) {
             logger.error("处理用户登录请求时发生错误: {}", e.getMessage(), e);
             sendResponse(response, false, "common.internal_error", null);

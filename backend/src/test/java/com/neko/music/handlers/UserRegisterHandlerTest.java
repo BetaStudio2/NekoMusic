@@ -2,6 +2,7 @@ package com.neko.music.handlers;
 
 import com.neko.music.service.SourceBanService;
 import com.neko.music.service.TestSourceBanStore;
+import com.neko.music.service.NekoAuthAccountService;
 import com.neko.music.service.UserAuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -42,8 +43,10 @@ class UserRegisterHandlerTest {
         }
 
         @Override
-        public boolean verifyCode(String email, String code) {
-            return false;
+        public boolean registerUserWithCode(String nickname, String password, String email,
+                                            String verificationCode) {
+            throw new NekoAuthAccountService.AccountBridgeException(
+                    400, "EMAIL_VERIFICATION_CODE_INVALID", "验证码错误", 0);
         }
     }
 

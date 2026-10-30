@@ -85,8 +85,9 @@ public class SendResetPasswordCodeHandler extends ApiServlet {
                 return;
             }
 
-            // 邮箱是否存在只决定「是否真的发信」，不进入对外响应；发信异步执行，响应耗时保持一致
-            if (userAuthService.userExistsByEmail(email)) {
+            // 邮箱是否存在只决定「是否真的发信」，不进入对外响应；发信异步执行，响应耗时保持一致。
+            // 接入 NekoAuth 后全部交给 Auth 判断，本地不再维护账号存在性。
+            if (userAuthService.usesNekoAuthBridge() || userAuthService.userExistsByEmail(email)) {
                 try {
                     userAuthService.sendResetPasswordCodeAsync(email, nickname);
                     logger.info("重置密码验证码已受理，已提交发信: {}", email);

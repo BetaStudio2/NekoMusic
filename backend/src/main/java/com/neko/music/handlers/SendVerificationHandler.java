@@ -3,6 +3,7 @@ package com.neko.music.handlers;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
 import com.neko.music.service.AuthAbuseLimiter;
+import com.neko.music.service.NekoAuthAccountService;
 import com.neko.music.service.SendVerificationCodeResult;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.util.ClientIpResolver;
@@ -119,6 +120,22 @@ public class SendVerificationHandler extends ApiServlet {
                 sendResponse(response, false, "auth.captcha.send_failed", null);
             }
 
+        } catch (NekoAuthAccountService.AccountBridgeException e) {
+            if (e.rateLimited()) {
+                sendCooldownResponse(response, e.retryAfterSeconds());
+            } else if ("EMAIL_TAKEN".equals(e.code())) {
+                sendResponse(response, false, "auth.register.email_exists", null);
+            } else if ("EMAIL_DOMAIN_NOT_ALLOWED".equals(e.code())) {
+                sendResponse(response, false, "auth.captcha.email_domain_not_allowed", null);
+            } else if ("REGISTRATION_DISABLED".equals(e.code())) {
+                sendResponse(response, false, "auth.register.disabled", null);
+            } else if (e.notConfigured() || e.unavailable()) {
+                logger.error("NekoAuth 账号桥接不可用: {}", e.code());
+                sendResponse(response, false, "auth.service_unavailable", null);
+            } else {
+                logger.warn("NekoAuth 发码失败: status={} code={}", e.status(), e.code());
+                sendResponse(response, false, "auth.captcha.send_failed", null);
+            }
         } catch (Exception e) {
             logger.error("处理发送验证码请求时发生错误: {}", e.getMessage(), e);
             sendResponse(response, false, "common.internal_error", null);

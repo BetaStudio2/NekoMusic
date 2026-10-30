@@ -2,6 +2,7 @@ package com.neko.music.handlers;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
+import com.neko.music.service.NekoAuthAccountService;
 import com.neko.music.service.SourceBanService;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.util.ClientIpResolver;
@@ -92,31 +93,43 @@ public class ResetPasswordHandler extends ApiServlet {
                 return;
             }
 
-            // 验证验证码
-            if (!userAuthService.verifyResetPasswordCode(email, code)) {
-                logger.warn("验证码验证失败: {}", email);
-                // 重置验证码是可猜的短秘密：失败按来源计入递增退避封禁，防「换邮箱猜码」
-                if (sourceBanService != null) {
-                    sourceBanService.recordAuthFailure(ClientIpResolver.clientIp(request), "reset-password");
-                }
-                sendResponse(response, false, "auth.password_reset.captcha_invalid", null);
-                return;
-            }
-
-            // 重置密码
-            boolean success = userAuthService.resetPassword(email, newPassword);
+            // 验证码校验与密码重置都由 NekoAuth 完成
+            boolean success = userAuthService.resetPasswordWithCode(email, code, newPassword);
 
             if (success) {
                 logger.info("密码重置成功: {}", email);
                 sendResponse(response, true, "auth.password_reset.ok", null);
             } else {
-                logger.error("密码重置失败: {}", email);
-                sendResponse(response, false, "auth.password_reset.failed", null);
+                logger.warn("验证码验证失败: {}", email);
+                recordResetFailure(request);
+                sendResponse(response, false, "auth.password_reset.captcha_invalid", null);
             }
 
+        } catch (NekoAuthAccountService.AccountBridgeException e) {
+            if (e.rateLimited()) {
+                sendCooldownResponse(response, e.retryAfterSeconds());
+            } else if (e.status() == 400 && e.code().startsWith("EMAIL_VERIFICATION_")) {
+                recordResetFailure(request);
+                sendResponse(response, false, "auth.password_reset.captcha_invalid", null);
+            } else if ("WEAK_PASSWORD".equals(e.code())) {
+                sendResponse(response, false, "auth.password_reset.length_invalid", null);
+            } else if (e.notConfigured() || e.unavailable()) {
+                logger.error("NekoAuth 账号桥接不可用: {}", e.code());
+                sendResponse(response, false, "auth.service_unavailable", null);
+            } else {
+                logger.warn("NekoAuth 重置密码失败: status={} code={}", e.status(), e.code());
+                sendResponse(response, false, "auth.password_reset.failed", null);
+            }
         } catch (Exception e) {
             logger.error("处理重置密码请求时发生错误: {}", e.getMessage(), e);
             sendResponse(response, false, "common.internal_error", null);
+        }
+    }
+
+    private void recordResetFailure(HttpServletRequest request) {
+        // 重置验证码是可猜的短秘密：失败按来源计入递增退避封禁，防「换邮箱猜码」
+        if (sourceBanService != null) {
+            sourceBanService.recordAuthFailure(ClientIpResolver.clientIp(request), "reset-password");
         }
     }
 

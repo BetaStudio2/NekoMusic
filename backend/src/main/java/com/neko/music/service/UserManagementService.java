@@ -57,11 +57,18 @@ public final class UserManagementService {
 
     private final UserAccountStore store;
     private final SessionRevoker sessionRevoker;
+    private final NekoAuthAccountService nekoAuthAccountService;
     private final Argon2 argon2;
 
     public UserManagementService(UserAccountStore store, SessionRevoker sessionRevoker) {
+        this(store, sessionRevoker, null);
+    }
+
+    public UserManagementService(UserAccountStore store, SessionRevoker sessionRevoker,
+                                 NekoAuthAccountService nekoAuthAccountService) {
         this.store = store;
         this.sessionRevoker = sessionRevoker;
+        this.nekoAuthAccountService = nekoAuthAccountService;
         this.argon2 = Argon2Factory.create();
     }
 
@@ -119,6 +126,21 @@ public final class UserManagementService {
         }
         if (oldPassword.equals(newPassword)) {
             throw UserManagementException.validation("auth.password_change.same_as_old");
+        }
+
+        if (nekoAuthAccountService != null) {
+            try {
+                UserProfile profile = store.findUserProfile(userId)
+                        .orElseThrow(() -> UserManagementException.notFound("user.not_exists"));
+                nekoAuthAccountService.changePassword(profile.email(), oldPassword, newPassword);
+                revokeUserSessions(userId);
+                logger.info("用户 {} 通过 NekoAuth 修改密码成功，已注销全部本地会话", userId);
+                return;
+            } catch (SQLException e) {
+                throw databaseFailure("auth.password_change.failed", e);
+            } catch (NekoAuthAccountService.AccountBridgeException e) {
+                throw bridgeFailure(e, "auth.password_change.failed");
+            }
         }
 
         try {
@@ -233,6 +255,24 @@ public final class UserManagementService {
         validatePassword(rawPassword, "admin.user.password_too_short");
 
         try {
+            if (nekoAuthAccountService != null) {
+                NekoAuthAccountService.Account account =
+                        nekoAuthAccountService.adminCreate(normalizedEmail, rawPassword);
+                Optional<Long> boundAuthId = store.findUserAuthIdByEmail(normalizedEmail);
+                if (boundAuthId.isPresent()) {
+                    if (boundAuthId.get() != account.id()) {
+                        throw UserManagementException.conflict("admin.user.email_exists");
+                    }
+                } else if (store.userEmailExists(normalizedEmail)) {
+                    store.bindUserAuthId(normalizedEmail, account.id());
+                } else {
+                    store.createUser(normalizedNickname, "!nekoauth$disabled", normalizedEmail);
+                    store.bindUserAuthId(normalizedEmail, account.id());
+                }
+                logger.info("管理员 {} 通过 NekoAuth 创建普通用户 {} authUserId={}",
+                        actor.username(), normalizedNickname, account.id());
+                return;
+            }
             if (store.userEmailExists(normalizedEmail)) {
                 throw UserManagementException.conflict("admin.user.email_exists");
             }
@@ -243,6 +283,8 @@ public final class UserManagementService {
                 throw UserManagementException.conflict("admin.user.email_exists");
             }
             throw databaseFailure("admin.user.create_failed", e);
+        } catch (NekoAuthAccountService.AccountBridgeException e) {
+            throw bridgeFailure(e, "admin.user.create_failed");
         }
     }
 
@@ -286,8 +328,16 @@ public final class UserManagementService {
         Timestamp vipExpiresAt = vipSpecified ? parseVipExpiresAt(vipRaw) : null;
 
         try {
-            if (store.findUser(userId).isEmpty()) {
-                throw UserManagementException.notFound("admin.user.not_found");
+            UserAccount account = store.findUser(userId)
+                    .orElseThrow(() -> UserManagementException.notFound("admin.user.not_found"));
+            if (passwordSpecified && nekoAuthAccountService != null) {
+                nekoAuthAccountService.adminResetPassword(account.email(), password);
+                if (vipSpecified && !store.updateUser(userId, null, true, vipExpiresAt)) {
+                    throw UserManagementException.notFound("admin.user.not_found");
+                }
+                revokeUserSessions(userId);
+                logger.info("管理员 {} 通过 NekoAuth 重置普通用户 {} 的密码", actor.username(), userId);
+                return;
             }
             String passwordHash = passwordSpecified ? hash(password) : null;
             if (!store.updateUser(userId, passwordHash, vipSpecified, vipExpiresAt)) {
@@ -299,6 +349,8 @@ public final class UserManagementService {
             logger.info("管理员 {} 更新普通用户 {}", actor.username(), userId);
         } catch (SQLException e) {
             throw databaseFailure("admin.user.update_failed", e);
+        } catch (NekoAuthAccountService.AccountBridgeException e) {
+            throw bridgeFailure(e, "admin.user.update_failed");
         }
     }
 
@@ -425,6 +477,21 @@ public final class UserManagementService {
     private static UserManagementException databaseFailure(String messageKey, SQLException cause) {
         logger.error("用户管理数据库操作失败", cause);
         return UserManagementException.internal(messageKey, cause);
+    }
+
+    private static UserManagementException bridgeFailure(
+            NekoAuthAccountService.AccountBridgeException error, String fallbackKey) {
+        if (error.invalidCredentials()) {
+            return UserManagementException.validation("auth.password_change.old_wrong");
+        }
+        return switch (error.code()) {
+            case "PASSWORD_UNCHANGED" -> UserManagementException.validation("auth.password_change.same_as_old");
+            case "WEAK_PASSWORD" -> UserManagementException.validation("admin.user.password_too_short");
+            case "EMAIL_TAKEN" -> UserManagementException.conflict("admin.user.email_exists");
+            case "NEKO_AUTH_NOT_CONFIGURED", "NEKO_AUTH_UNAVAILABLE" ->
+                    UserManagementException.internal("auth.service_unavailable", error);
+            default -> UserManagementException.internal(fallbackKey, error);
+        };
     }
 
     private static boolean isDuplicateKey(SQLException e) {

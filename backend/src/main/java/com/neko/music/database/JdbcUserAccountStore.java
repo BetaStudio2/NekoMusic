@@ -226,6 +226,33 @@ public final class JdbcUserAccountStore implements UserAccountStore {
     }
 
     @Override
+    public Optional<Long> findUserAuthIdByEmail(String email) throws SQLException {
+        String sql = "SELECT auth_user_id FROM users WHERE email = ? LIMIT 1";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, email);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (!rs.next()) {
+                    return Optional.empty();
+                }
+                long value = rs.getLong("auth_user_id");
+                return rs.wasNull() ? Optional.empty() : Optional.of(value);
+            }
+        }
+    }
+
+    @Override
+    public void bindUserAuthId(String email, long authUserId) throws SQLException {
+        String sql = "UPDATE users SET auth_user_id = ? WHERE email = ?";
+        try (Connection conn = databaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setLong(1, authUserId);
+            stmt.setString(2, email);
+            stmt.executeUpdate();
+        }
+    }
+
+    @Override
     public void createUser(String nickname, String passwordHash, String email) throws SQLException {
         String sql = """
                 INSERT INTO users (nickname, password, email, created_at)

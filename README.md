@@ -39,6 +39,43 @@ curl -fsS http://127.0.0.1:65535/version
 `libx264`（需重启后端），并从 `backend/docker-compose.yaml` 删除 `gpus: all`；在 Docker Desktop 上还需将 `network_mode: host` 改为 `ports: ["65535:65535"]`，并按实际地址修改 MySQL/Redis 的 host。
 
 
+## 账号体系（NekoAuth）
+
+用户账号的唯一权威源是 NekoAuth。NekoMusic 不再保存用户密码，`users` 表只保留本地业务资料：
+
+- `auth_user_id` 保存 NekoAuth 的稳定数字用户 ID，并建立唯一索引；这是账号关联的第一依据。
+- `email` 是 NekoAuth 返回的邮箱快照，用于旧 API 响应、后台展示、邮件通知和首次关联补偿；它不是密码或登录凭据。
+- `nickname`、`avatar`、`vip_expires_at` 继续由 NekoMusic 本地维护。NekoAuth 的显示名不会覆盖 NekoMusic 昵称。
+- 用户密码、注册验证码、找回密码验证码、账号启用状态全部由 NekoAuth 校验；NekoMusic 只保存自己的 Redis 登录 token。
+
+原有 `/api/user/login`、`/api/user/register`、`/api/user/send-verification`、`/api/user/send-reset-code`、`/api/user/reset-password`、改密和管理员用户管理接口保持原路径、请求体和响应结构不变。NekoMusic 后端在内部转发到 NekoAuth，客户端与前端不需要改接 OAuth，也不需要直接接触客户端密钥。
+
+首次登录或注册成功后，NekoMusic 会按 `auth_user_id` 查找本地资料；不存在时自动创建，并把昵称、头像和 VIP 留在本地。若本地已有同邮箱资料但尚未绑定，会在首次认证时补绑；同一邮箱已绑定其他 NekoAuth 用户时拒绝登录，避免账号串绑。
+
+### 配置
+
+在 NekoMusic 管理后台的认证设置中填写以下运行配置，不要写进源码：
+
+| 设置 | 说明 |
+| --- | --- |
+| `oauth.issuer` | NekoAuth 公网根地址，例如 `https://auth.nekocore.cn`，末尾不要带 `/` |
+| `oauth.client_id` | 在 NekoAuth 自行创建的**机密客户端** ID |
+| `oauth.client_secret` | 该客户端的密钥，只保存在 NekoMusic 服务端 |
+
+该客户端必须启用、`publicClient=false`，scope 至少包含 `account:bridge`。如果同一客户端还要走浏览器 OAuth 登录，再按需加入 `openid email roles`。NekoAuth 不会自动注册客户端，代码中也没有写死的客户端 ID 或密钥。客户端密钥轮换后必须同步更新 NekoMusic。
+
+NekoAuth 的 `account:bridge` 只允许服务端 Basic 认证，不能用于浏览器授权，也不会出现在公开发现文档中。NekoMusic 转发请求时使用 `oauth.client_id` 和 `oauth.client_secret`，客户端安装包与浏览器永远拿不到该密钥。
+
+### 账号操作流程
+
+- 登录：NekoMusic 把邮箱和密码交给 NekoAuth 校验，成功后用返回的 `id` 关联本地资料，再签发本地 Redis token。
+- 注册：滑块验证码仍由 NekoMusic 现有入口处理；邮箱验证码、注册开关、邮箱域名白名单和密码策略由 NekoAuth 执行，NekoMusic 只保存注册时填写的昵称。
+- 改密与找回密码：当前密码或邮箱验证码由 NekoAuth 校验并更新密码；成功后 NekoMusic 撤销该用户的全部本地 Redis 会话。
+- 管理员创建/重置用户：NekoMusic 先校验管理员权限，再调用 NekoAuth 的管理员桥接接口；管理员只调整 VIP 等本地资料时不会改 NekoAuth 密码。
+
+桥接不可用或客户端配置错误时，旧 API 返回既有格式的错误响应；需要等待时保留 NekoAuth 的 `Retry-After` 语义。日志只记录操作类型、状态与用户 ID，不记录密码、验证码或 client secret。
+
+
 ## 本地前端开发
 
 ```bash

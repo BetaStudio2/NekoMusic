@@ -55,6 +55,13 @@ public interface UserAccountStore {
 
     boolean userEmailExists(String email) throws SQLException;
 
+    default Optional<Long> findUserAuthIdByEmail(String email) throws SQLException {
+        return Optional.empty();
+    }
+
+    default void bindUserAuthId(String email, long authUserId) throws SQLException {
+    }
+
     void createUser(String nickname, String passwordHash, String email) throws SQLException;
 
     boolean updateUser(int id, String passwordHash, boolean vipSpecified, Timestamp vipExpiresAt)
