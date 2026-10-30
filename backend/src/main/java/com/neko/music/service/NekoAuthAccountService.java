@@ -161,8 +161,9 @@ public final class NekoAuthAccountService {
             }
             long retryAfter = retryAfterSeconds(response);
             if (response.statusCode() == 401 && "INVALID_CLIENT".equals(code)) {
-                logger.error("NekoAuth 账号桥接客户端认证失败，请检查 oauth.client_id/oauth.client_secret "
-                        + "以及客户端是否包含 account:bridge scope");
+                logger.error("NekoAuth 账号桥接客户端认证失败: code={} message={}；"
+                                + "请检查 oauth.client_id/oauth.client_secret 以及客户端是否包含 account:bridge scope",
+                        code, message);
             } else {
                 logger.warn("NekoAuth 账号桥接失败: operation={} status={} code={}",
                         operation, response.statusCode(), code);
