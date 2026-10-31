@@ -688,7 +688,11 @@ public class UserAuthService {
         if (token == null || token.isBlank() || nekoAuthAccountService == null) {
             return Optional.empty();
         }
-        String normalized = token.trim();
+        // 兼容两种 Authorization 写法：`<token>` 与 `Bearer <token>`。
+        // 旧实现走 RedisTokenStore（内部会归一化），迁移到 NekoAuth introspection 后
+        // 若只 trim，则所有直接把原始 Authorization 头传进来的处理器（UserFavoriteHandler
+        // 等）会带着 "Bearer " 去 introspect，导致「登录成功但受保护接口一律 401」。
+        String normalized = RedisTokenStore.normalizeBearerToken(token);
         NekoAuthAccountService.Introspection cached = RequestScope.computeIfAbsent(
                 INTROSPECTION_SCOPE_PREFIX + normalized, () -> {
                     try {
