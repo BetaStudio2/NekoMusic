@@ -18,15 +18,16 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
- * NekoAuth 服务端账号桥接客户端。
+ * NekoAuth 服务端账号与令牌桥接客户端。
  *
- * <p>账号、密码、验证码、改密与找回密码全部以 NekoAuth 为准。本类只复用 NekoMusic
- * 现有的 {@code oauth.issuer}、{@code oauth.client_id}、{@code oauth.client_secret}
- * 设置，不写死客户端 ID，也不会自动注册客户端。凭据只存在于服务端配置中。</p>
+ * <p>账号、密码、验证码、用户 token 的签发与吊销全部以 NekoAuth 为准。本类只复用
+ * NekoMusic 现有的 {@code oauth.issuer}、{@code oauth.client_id}、
+ * {@code oauth.client_secret} 设置，不写死客户端 ID。凭据只存在于服务端配置中。</p>
  */
-public final class NekoAuthAccountService {
+public class NekoAuthAccountService {
 
     private static final Logger logger = LoggerFactory.getLogger(NekoAuthAccountService.class);
     private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(10);
@@ -99,21 +100,70 @@ public final class NekoAuthAccountService {
         postNoContent("/password/admin-reset", body, "管理员重置密码");
     }
 
+    /** 把浏览器 OAuth 回调得到的短期令牌换成 NekoAuth 所有的长期第一方令牌。 */
+    public IssuedToken exchangeToken(String accessToken) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("accessToken", accessToken);
+        HttpResponse<String> response = post("/token/exchange", body, "交换长期访问令牌");
+        JsonNode json = parseJson(response.body());
+        String token = text(json, "accessToken");
+        long expiresIn = json == null || !json.path("expiresIn").canConvertToLong()
+                ? 0 : json.path("expiresIn").asLong();
+        if (token.isBlank() || expiresIn <= 0) {
+            throw new AccountBridgeException(502, "NEKO_AUTH_BAD_RESPONSE",
+                    "NekoAuth 返回的令牌信息格式不正确", 0);
+        }
+        return new IssuedToken(token, text(json, "tokenType"), expiresIn);
+    }
+
+    /** 校验用户令牌是否仍有效，并返回 Auth 权威身份。 */
+    public Optional<Introspection> introspect(String accessToken) {
+        HttpResponse<String> response = postForm("/oauth2/introspect",
+                Map.of("token", accessToken), "校验访问令牌");
+        JsonNode json = parseJson(response.body());
+        if (json == null || !json.path("active").asBoolean(false)) {
+            return Optional.empty();
+        }
+        JsonNode subject = json.get("sub");
+        if (subject == null || !subject.canConvertToLong() || subject.asLong() <= 0) {
+            throw new AccountBridgeException(502, "NEKO_AUTH_BAD_RESPONSE",
+                    "NekoAuth introspection 缺少有效用户标识", 0);
+        }
+        return Optional.of(new Introspection(
+                subject.asLong(),
+                text(json, "email"),
+                json.path("email_verified").asBoolean(false),
+                text(json, "role"),
+                text(json, "scope")));
+    }
+
+    /** 吊销当前用户令牌；RFC 7009 语义下重复吊销同样成功。 */
+    public void revoke(String accessToken) {
+        postForm("/oauth2/revoke", Map.of("token", accessToken), "吊销访问令牌");
+    }
+
     private Account postAccount(String path, Map<String, Object> payload, String operation) {
         HttpResponse<String> response = post(path, payload, operation);
         JsonNode json = parseJson(response.body());
         JsonNode id = json == null ? null : json.get("id");
         JsonNode email = json == null ? null : json.get("email");
-        if (id == null || !id.canConvertToLong() || id.asLong() <= 0 || email == null || !email.isTextual()) {
+        String accessToken = text(json, "accessToken");
+        if (id == null || !id.canConvertToLong() || id.asLong() <= 0
+                || email == null || !email.isTextual() || accessToken.isBlank()) {
             throw new AccountBridgeException(502, "NEKO_AUTH_BAD_RESPONSE",
-                    "NekoAuth 返回的账号信息格式不正确", 0);
+                    "NekoAuth 返回的账号或令牌信息格式不正确", 0);
         }
+        long expiresIn = json.path("expiresIn").canConvertToLong()
+                ? json.path("expiresIn").asLong() : 0L;
         return new Account(
                 id.asLong(),
                 email.asText(),
                 text(json, "username"),
                 text(json, "role"),
-                json.path("enabled").asBoolean(true));
+                json.path("enabled").asBoolean(true),
+                accessToken,
+                text(json, "tokenType"),
+                expiresIn);
     }
 
     private void postNoContent(String path, Map<String, Object> payload, String operation) {
@@ -128,18 +178,33 @@ public final class NekoAuthAccountService {
             throw new AccountBridgeException(500, "NEKO_AUTH_REQUEST_ENCODE_FAILED",
                     "无法构造 NekoAuth 请求", 0);
         }
-
-        String clientId = requireConfigured(configManager.getOAuthClientId(), "oauth.client_id");
-        String clientSecret = requireConfigured(configManager.getOAuthClientSecret(), "oauth.client_secret");
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(issuerUri() + "/api/internal/accounts" + path))
-                .timeout(HTTP_TIMEOUT)
-                .header("Authorization", basic(clientId, clientSecret))
+        HttpRequest request = requestBuilder("/api/internal/accounts" + path)
                 .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
                 .build();
+        return sendChecked(request, operation, path);
+    }
 
+    private HttpResponse<String> postForm(String path, Map<String, String> payload, String operation) {
+        String requestBody = encodeForm(payload);
+        HttpRequest request = requestBuilder(path)
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
+                .build();
+        return sendChecked(request, operation, path);
+    }
+
+    private HttpRequest.Builder requestBuilder(String path) {
+        String clientId = requireConfigured(configManager.getOAuthClientId(), "oauth.client_id");
+        String clientSecret = requireConfigured(configManager.getOAuthClientSecret(), "oauth.client_secret");
+        return HttpRequest.newBuilder()
+                .uri(URI.create(issuerUri() + path))
+                .timeout(HTTP_TIMEOUT)
+                .header("Authorization", basic(clientId, clientSecret))
+                .header("Accept", "application/json");
+    }
+
+    private HttpResponse<String> sendChecked(HttpRequest request, String operation, String path) {
         HttpResponse<String> response;
         try {
             response = HttpTransport.sendString(httpClient, request, "NekoAuth 账号请求被中断");
@@ -234,12 +299,33 @@ public final class NekoAuthAccountService {
     }
 
     private static String basic(String clientId, String clientSecret) {
-        String encoded = URLEncoder.encode(clientId, StandardCharsets.UTF_8)
-                + ":" + URLEncoder.encode(clientSecret, StandardCharsets.UTF_8);
+        // RFC 7617：用户名与密钥原样拼接后 Base64，不做 URL 编解码。
+        String encoded = clientId + ":" + clientSecret;
         return "Basic " + Base64.getEncoder().encodeToString(encoded.getBytes(StandardCharsets.UTF_8));
     }
 
-    public record Account(long id, String email, String username, String role, boolean enabled) {
+    private static String encodeForm(Map<String, String> values) {
+        StringBuilder builder = new StringBuilder();
+        for (Map.Entry<String, String> entry : values.entrySet()) {
+            if (builder.length() > 0) {
+                builder.append('&');
+            }
+            builder.append(URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8))
+                    .append('=')
+                    .append(URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8));
+        }
+        return builder.toString();
+    }
+
+    public record Account(long id, String email, String username, String role, boolean enabled,
+                          String accessToken, String tokenType, long expiresIn) {
+    }
+
+    public record IssuedToken(String accessToken, String tokenType, long expiresIn) {
+    }
+
+    public record Introspection(long userId, String email, boolean emailVerified,
+                                String role, String scope) {
     }
 
     public static final class AccountBridgeException extends RuntimeException {
@@ -267,7 +353,9 @@ public final class NekoAuthAccountService {
         }
 
         public boolean invalidCredentials() {
-            return status == 401 && "INVALID_CREDENTIALS".equals(code);
+            return status == 401 && ("INVALID_CREDENTIALS".equals(code)
+                    || "BAD_CREDENTIALS".equals(code)
+                    || "AUTH_INVALID_CREDENTIALS".equals(code));
         }
 
         public boolean rateLimited() {

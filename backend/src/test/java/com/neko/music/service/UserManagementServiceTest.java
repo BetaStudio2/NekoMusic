@@ -5,8 +5,6 @@ import com.neko.music.model.Admin;
 import com.neko.music.model.AdminAccount;
 import com.neko.music.model.UserAccount;
 import com.neko.music.model.UserProfile;
-import de.mkammerer.argon2.Argon2;
-import de.mkammerer.argon2.Argon2Factory;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Timestamp;
@@ -121,15 +119,15 @@ class UserManagementServiceTest {
     }
 
     @Test
-    void passwordChangeHashesAndRevokesButVipOnlyDoesNotLogOut() throws Exception {
+    void passwordChangeDelegatesToAuthAndRevokesButVipOnlyDoesNotLogOut() throws Exception {
         FakeStore store = new FakeStore();
         RecordingRevoker revoker = new RecordingRevoker();
-        UserManagementService service = new UserManagementService(store, revoker);
+        RecordingAuthBridge authBridge = new RecordingAuthBridge();
+        UserManagementService service = new UserManagementService(store, revoker, authBridge);
 
         service.updateUser(admin(2, "admin"), 7, "secret12", true, "2027-01-01T00:00:00Z");
 
-        assertNotEquals("old-user", store.userPasswordHash);
-        assertTrue(store.userPasswordHash.startsWith("$argon2"));
+        assertEquals(List.of("listener@example.com:secret12"), authBridge.adminResets);
         assertEquals(Instant.parse("2027-01-01T00:00:00Z"), store.vip.toInstant());
         assertEquals(List.of(7), revoker.users);
 
@@ -138,22 +136,21 @@ class UserManagementServiceTest {
     }
 
     @Test
-    void passwordWhitespaceIsPreservedWhenHashing() throws Exception {
+    void passwordWhitespaceIsPreservedWhenDelegatingToAuth() throws Exception {
         FakeStore store = new FakeStore();
-        UserManagementService service = new UserManagementService(store, new RecordingRevoker());
+        RecordingAuthBridge authBridge = new RecordingAuthBridge();
+        UserManagementService service = new UserManagementService(store, new RecordingRevoker(), authBridge);
 
         service.updateUser(admin(2, "admin"), 7, " secret12 ", false, null);
 
-        Argon2 argon2 = Argon2Factory.create();
-        assertTrue(argon2.verify(store.userPasswordHash, " secret12 ".toCharArray()));
+        assertEquals(List.of("listener@example.com: secret12 "), authBridge.adminResets);
     }
 
     @Test
     void ownPasswordChangeRejectsWrongOldPasswordAndSamePassword() throws Exception {
         FakeStore store = new FakeStore();
         RecordingRevoker revoker = new RecordingRevoker();
-        UserManagementService service = new UserManagementService(store, revoker);
-        store.userPasswordHash = hash("old-pass");
+        UserManagementService service = new UserManagementService(store, revoker, new RejectingAuthBridge());
 
         UserManagementException wrong = assertThrows(UserManagementException.class,
                 () -> service.changeUserPassword(7, "wrong-pass", "new-pass"));
@@ -170,13 +167,13 @@ class UserManagementServiceTest {
     void ownPasswordChangeHashesAndRevokesSessions() throws Exception {
         FakeStore store = new FakeStore();
         RecordingRevoker revoker = new RecordingRevoker();
-        UserManagementService service = new UserManagementService(store, revoker);
-        store.userPasswordHash = hash("old-pass");
+        RecordingAuthBridge authBridge = new RecordingAuthBridge();
+        UserManagementService service = new UserManagementService(store, revoker, authBridge);
 
         service.changeUserPassword(7, "old-pass", "new-pass");
 
         assertEquals(List.of(7), revoker.users);
-        assertTrue(Argon2Factory.create().verify(store.userPasswordHash, "new-pass".toCharArray()));
+        assertEquals(List.of("listener@example.com:old-pass:new-pass"), authBridge.changes);
     }
 
     @Test
@@ -209,7 +206,8 @@ class UserManagementServiceTest {
 
     @Test
     void missingUserKeepsLegacySelfServiceFailures() {
-        UserManagementService service = new UserManagementService(new FakeStore(), new RecordingRevoker());
+        UserManagementService service = new UserManagementService(
+                new FakeStore(), new RecordingRevoker(), new RejectingAuthBridge());
 
         UserManagementException profile = assertThrows(UserManagementException.class,
                 () -> service.getUserProfile(99));
@@ -218,7 +216,7 @@ class UserManagementServiceTest {
 
         UserManagementException password = assertThrows(UserManagementException.class,
                 () -> service.changeUserPassword(99, "old-pass", "new-pass"));
-        assertEquals("auth.password_change.old_wrong", password.messageKey());
+        assertEquals("user.not_exists", password.messageKey());
 
         UserManagementException nickname = assertThrows(UserManagementException.class,
                 () -> service.changeUserNickname(99, "listener"));
@@ -240,7 +238,8 @@ class UserManagementServiceTest {
     @Test
     void createUserRequiresSuperAdminAndUniqueEmail() throws Exception {
         FakeStore store = new FakeStore();
-        UserManagementService service = new UserManagementService(store, new RecordingRevoker());
+        UserManagementService service = new UserManagementService(
+                store, new RecordingRevoker(), new RecordingAuthBridge());
 
         UserManagementException forbidden = assertThrows(UserManagementException.class,
                 () -> service.createUser(admin(2, "admin"), "listener", "listener@example.com", "secret12"));
@@ -273,10 +272,6 @@ class UserManagementServiceTest {
                 System.currentTimeMillis(), 0L);
     }
 
-    private static String hash(String rawPassword) {
-        return Argon2Factory.create().hash(10, 65536, 1, rawPassword.toCharArray());
-    }
-
     private static final class RecordingRevoker implements UserManagementService.SessionRevoker {
         private final List<Integer> admins = new ArrayList<>();
         private final List<Integer> users = new ArrayList<>();
@@ -292,12 +287,38 @@ class UserManagementServiceTest {
         }
     }
 
+    private static class RecordingAuthBridge extends NekoAuthAccountService {
+        private final List<String> changes = new ArrayList<>();
+        private final List<String> adminResets = new ArrayList<>();
+
+        RecordingAuthBridge() {
+            super(null, null);
+        }
+
+        @Override
+        public void changePassword(String email, String currentPassword, String newPassword) {
+            changes.add(email + ":" + currentPassword + ":" + newPassword);
+        }
+
+        @Override
+        public void adminResetPassword(String email, String newPassword) {
+            adminResets.add(email + ":" + newPassword);
+        }
+    }
+
+    private static final class RejectingAuthBridge extends RecordingAuthBridge {
+        @Override
+        public void changePassword(String email, String currentPassword, String newPassword) {
+            throw new NekoAuthAccountService.AccountBridgeException(
+                    401, "INVALID_CREDENTIALS", "当前密码错误", 0);
+        }
+    }
+
     private static final class FakeStore implements UserAccountStore {
         private final List<AdminAccount> admins = new ArrayList<>();
         private final List<UserAccount> users = new ArrayList<>();
         private String createdAdminHash;
         private String adminPasswordHash = "old";
-        private String userPasswordHash = "old-user";
         private Timestamp vip;
         private String avatarPath;
         private String nickname = "listener";
@@ -367,11 +388,6 @@ class UserManagementServiceTest {
         }
 
         @Override
-        public Optional<String> findUserPasswordHash(int id) {
-            return id == 7 ? Optional.of(userPasswordHash) : Optional.empty();
-        }
-
-        @Override
         public Optional<String> findUserAvatar(int id) {
             return id == 7 ? Optional.ofNullable(avatarPath) : Optional.empty();
         }
@@ -382,30 +398,21 @@ class UserManagementServiceTest {
         }
 
         @Override
-        public void createUser(String nickname, String passwordHash, String email) {
+        public Optional<Long> findUserAuthIdByEmail(String email) {
+            return userEmailTaken ? Optional.of(41L) : Optional.empty();
+        }
+
+        @Override
+        public void createUser(String nickname, String email) {
             users.add(new UserAccount(20 + users.size(), nickname, email, "2026-01-01", false, null));
         }
 
         @Override
-        public boolean updateUser(int id, String passwordHash, boolean vipSpecified, Timestamp vipExpiresAt) {
+        public boolean updateUserVip(int id, Timestamp vipExpiresAt) {
             if (findUser(id).isEmpty()) {
                 return false;
             }
-            if (passwordHash != null) {
-                userPasswordHash = passwordHash;
-            }
-            if (vipSpecified) {
-                vip = vipExpiresAt;
-            }
-            return true;
-        }
-
-        @Override
-        public boolean updateUserPassword(int id, String passwordHash) {
-            if (id != 7) {
-                return false;
-            }
-            userPasswordHash = passwordHash;
+            vip = vipExpiresAt;
             return true;
         }
 

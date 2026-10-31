@@ -4,8 +4,8 @@ import com.neko.music.database.UserAccountStore;
 import com.neko.music.model.AdminAccount;
 import com.neko.music.model.UserAccount;
 import com.neko.music.model.UserProfile;
+import com.neko.music.service.NekoAuthAccountService;
 import com.neko.music.service.UserManagementService;
-import de.mkammerer.argon2.Argon2Factory;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.Test;
@@ -34,10 +34,9 @@ class UserProfileHandlersTest {
     @Test
     void passwordChangeRejectsWrongOldPasswordWithoutRevokingSessions() throws Exception {
         FakeStore store = new FakeStore();
-        store.passwordHash = hash("old-pass");
         RecordingRevoker revoker = new RecordingRevoker();
         UserPasswordChangeHandler handler = new UserPasswordChangeHandler(
-                new UserManagementService(store, revoker), request -> 7);
+                new UserManagementService(store, revoker, new RejectingAuthBridge()), request -> 7);
         CapturingResponse capture = new CapturingResponse();
 
         handler.doPost(request("{\"oldPassword\":\"wrong-pass\",\"newPassword\":\"new-pass\"}"),
@@ -51,12 +50,12 @@ class UserProfileHandlersTest {
     }
 
     @Test
-    void passwordChangeRevokesSessionsOnSuccess() throws Exception {
+    void passwordChangeDelegatesToNekoAuthAndRevokesSessions() throws Exception {
         FakeStore store = new FakeStore();
-        store.passwordHash = hash("old-pass");
         RecordingRevoker revoker = new RecordingRevoker();
+        RecordingAuthBridge authBridge = new RecordingAuthBridge();
         UserPasswordChangeHandler handler = new UserPasswordChangeHandler(
-                new UserManagementService(store, revoker), request -> 7);
+                new UserManagementService(store, revoker, authBridge), request -> 7);
         CapturingResponse capture = new CapturingResponse();
 
         handler.doPost(request("{\"oldPassword\":\"old-pass\",\"newPassword\":\"new-pass\"}"),
@@ -66,7 +65,9 @@ class UserProfileHandlersTest {
         assertEquals("private, no-store", capture.headers.get("Cache-Control"));
         assertTrue(capture.body().contains("\"success\":true"));
         assertEquals(List.of(7), revoker.users);
-        assertTrue(Argon2Factory.create().verify(store.passwordHash, "new-pass".toCharArray()));
+        assertEquals("listener@example.com", authBridge.email);
+        assertEquals("old-pass", authBridge.currentPassword);
+        assertEquals("new-pass", authBridge.newPassword);
     }
 
     @Test
@@ -126,10 +127,6 @@ class UserProfileHandlersTest {
         assertTrue(capture.body().contains("用户不存在") || capture.body().contains("user.not_exists"));
     }
 
-    private static String hash(String rawPassword) {
-        return Argon2Factory.create().hash(10, 65536, 1, rawPassword.toCharArray());
-    }
-
     private static HttpServletRequest request(String body) {
         return proxy(HttpServletRequest.class, (ignored, method, args) -> switch (method.getName()) {
             case "getReader" -> new BufferedReader(new StringReader(body == null ? "" : body));
@@ -180,7 +177,6 @@ class UserProfileHandlersTest {
 
     private static final class FakeStore implements UserAccountStore {
         private String nickname = "listener";
-        private String passwordHash = "invalid";
         private Timestamp vipExpiresAt;
         private String avatarPath;
 
@@ -231,11 +227,6 @@ class UserProfileHandlersTest {
         }
 
         @Override
-        public Optional<String> findUserPasswordHash(int id) {
-            return id == 7 ? Optional.of(passwordHash) : Optional.empty();
-        }
-
-        @Override
         public Optional<String> findUserAvatar(int id) {
             return id == 7 ? Optional.ofNullable(avatarPath) : Optional.empty();
         }
@@ -246,20 +237,15 @@ class UserProfileHandlersTest {
         }
 
         @Override
-        public void createUser(String nickname, String passwordHash, String email) {
+        public void createUser(String nickname, String email) {
         }
 
         @Override
-        public boolean updateUser(int id, String passwordHash, boolean vipSpecified, Timestamp vipExpiresAt) {
-            return id == 7;
-        }
-
-        @Override
-        public boolean updateUserPassword(int id, String passwordHash) {
+        public boolean updateUserVip(int id, Timestamp vipExpiresAt) {
             if (id != 7) {
                 return false;
             }
-            this.passwordHash = passwordHash;
+            this.vipExpiresAt = vipExpiresAt;
             return true;
         }
 
@@ -285,6 +271,31 @@ class UserProfileHandlersTest {
         @Override
         public boolean deleteUser(int id) {
             return false;
+        }
+    }
+
+    private static class RecordingAuthBridge extends NekoAuthAccountService {
+        private String email;
+        private String currentPassword;
+        private String newPassword;
+
+        RecordingAuthBridge() {
+            super(null, null);
+        }
+
+        @Override
+        public void changePassword(String email, String currentPassword, String newPassword) {
+            this.email = email;
+            this.currentPassword = currentPassword;
+            this.newPassword = newPassword;
+        }
+    }
+
+    private static final class RejectingAuthBridge extends RecordingAuthBridge {
+        @Override
+        public void changePassword(String email, String currentPassword, String newPassword) {
+            throw new NekoAuthAccountService.AccountBridgeException(
+                    401, "INVALID_CREDENTIALS", "当前密码错误", 0);
         }
     }
 

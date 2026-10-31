@@ -211,11 +211,6 @@ public final class JdbcUserAccountStore implements UserAccountStore {
     }
 
     @Override
-    public Optional<String> findUserPasswordHash(int id) throws SQLException {
-        return findUserColumn("SELECT password FROM users WHERE id = ?", id);
-    }
-
-    @Override
     public Optional<String> findUserAvatar(int id) throws SQLException {
         return findUserColumn("SELECT avatar FROM users WHERE id = ?", id);
     }
@@ -253,57 +248,29 @@ public final class JdbcUserAccountStore implements UserAccountStore {
     }
 
     @Override
-    public void createUser(String nickname, String passwordHash, String email) throws SQLException {
+    public void createUser(String nickname, String email) throws SQLException {
         String sql = """
-                INSERT INTO users (nickname, password, email, created_at)
-                VALUES (?, ?, ?, %s)
+                INSERT INTO users (nickname, email, created_at)
+                VALUES (?, ?, %s)
                 """.formatted(DbTimeUtil.SQL_NOW_SHANGHAI);
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, nickname);
-            stmt.setString(2, passwordHash);
-            stmt.setString(3, email);
+            stmt.setString(2, email);
             stmt.executeUpdate();
         }
     }
 
     @Override
-    public boolean updateUser(int id, String passwordHash, boolean vipSpecified, Timestamp vipExpiresAt)
-            throws SQLException {
-        List<String> assignments = new ArrayList<>(2);
-        if (passwordHash != null) {
-            assignments.add("password = ?");
-        }
-        if (vipSpecified) {
-            assignments.add("vip_expires_at = ?");
-        }
-        if (assignments.isEmpty()) {
-            return false;
-        }
-        String sql = "UPDATE users SET " + String.join(", ", assignments) + " WHERE id = ?";
+    public boolean updateUserVip(int id, Timestamp vipExpiresAt) throws SQLException {
+        String sql = "UPDATE users SET vip_expires_at = ? WHERE id = ?";
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
-            int index = 1;
-            if (passwordHash != null) {
-                stmt.setString(index++, passwordHash);
+            if (vipExpiresAt == null) {
+                stmt.setNull(1, Types.TIMESTAMP);
+            } else {
+                stmt.setTimestamp(1, vipExpiresAt);
             }
-            if (vipSpecified) {
-                if (vipExpiresAt == null) {
-                    stmt.setNull(index++, Types.TIMESTAMP);
-                } else {
-                    stmt.setTimestamp(index++, vipExpiresAt);
-                }
-            }
-            stmt.setInt(index, id);
-            return stmt.executeUpdate() > 0;
-        }
-    }
-
-    @Override
-    public boolean updateUserPassword(int id, String passwordHash) throws SQLException {
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement("UPDATE users SET password = ? WHERE id = ?")) {
-            stmt.setString(1, passwordHash);
             stmt.setInt(2, id);
             return stmt.executeUpdate() > 0;
         }

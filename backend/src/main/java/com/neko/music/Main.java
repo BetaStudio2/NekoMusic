@@ -244,7 +244,7 @@ public class Main {
                 databaseManager, configManager, emailService, redisService, tokenStore,
                 verificationCodeRateLimitService, nekoAuthAccountService);
         nekoAuthOAuthService = new NekoAuthOAuthService(
-                configManager, redisService, userAuthService, objectMapper);
+                configManager, redisService, userAuthService, nekoAuthAccountService, objectMapper);
         userManagementService = new UserManagementService(
                 new com.neko.music.database.JdbcUserAccountStore(databaseManager),
                 new UserManagementService.SessionRevoker() {

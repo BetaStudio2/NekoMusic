@@ -25,7 +25,7 @@ import java.util.Map;
  * NekoAuth 统一登录（OAuth 2.0 授权码 + 机密客户端）。
  *
  * <p>授权码只在服务端用 HTTP Basic 交换，客户端密钥不会进入浏览器；浏览器只拿到最终的一次性
- * NekoMusic Token。state 存 Redis、只消费一次，并把登录前的相对路径绑定在里面，回调时不再接受
+ * handoff，再用它领取 NekoAuth 签发的用户 Token。state 存 Redis、只消费一次，并把登录前的相对路径绑定在里面，回调时不再接受
  * 客户端传入的跳转地址，避免开放重定向。</p>
  *
  * <p><b>昵称边界：</b>本服务只读取 UserInfo 的 {@code sub} 与 {@code email} 用于身份匹配，
@@ -38,21 +38,27 @@ public final class NekoAuthOAuthService {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(10);
     private static final String STATE_PREFIX = "oauth:nekocore:state:";
+    private static final String HANDOFF_PREFIX = "oauth:nekocore:handoff:";
     private static final int STATE_TTL_SECONDS = 600;
+    private static final int HANDOFF_TTL_SECONDS = 120;
     private static final int MAX_RETURN_TO_LENGTH = 512;
     private static final int MAX_STATE_LENGTH = 256;
 
     private final ConfigManager configManager;
     private final RedisService redisService;
     private final UserAuthService userAuthService;
+    private final NekoAuthAccountService accountService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient = HttpTransport.createWithoutRedirects(HTTP_TIMEOUT);
 
     public NekoAuthOAuthService(ConfigManager configManager, RedisService redisService,
-                                UserAuthService userAuthService, ObjectMapper objectMapper) {
+                                UserAuthService userAuthService,
+                                NekoAuthAccountService accountService,
+                                ObjectMapper objectMapper) {
         this.configManager = configManager;
         this.redisService = redisService;
         this.userAuthService = userAuthService;
+        this.accountService = accountService;
         this.objectMapper = objectMapper;
     }
 
@@ -91,8 +97,13 @@ public final class NekoAuthOAuthService {
         return issuer.toString() + "/oauth2/authorize?" + encodeForm(query);
     }
 
+    /** NekoAuth 找回密码页地址；不依赖 OAuth 客户端配置，避免入口被登录开关锁死。 */
+    public String passwordResetUrl() throws OAuthLoginException {
+        return issuerUri().toString() + "/forgot-password";
+    }
+
     /**
-     * 消费 state，用授权码换取 UserInfo，并为本地已存在且邮箱一致的账户签发原 NekoMusic Token。
+     * 消费 state，用授权码换取 UserInfo，再把短期令牌换成 NekoAuth 长期 token 并封装成一次性 handoff。
      */
     public LoginResult complete(String code, String state) throws OAuthLoginException {
         requireEnabled();
@@ -119,7 +130,32 @@ public final class NekoAuthOAuthService {
 
         String accessToken = exchangeAuthorizationCode(code);
         JsonNode userInfo = fetchUserInfo(accessToken);
-        return createLocalSession(userInfo, stored.returnTo());
+        return createLocalSession(accessToken, userInfo, stored.returnTo());
+    }
+
+    /** 浏览器用一次性 handoff 领取 Auth token；GETDEL 保证最多成功一次。 */
+    public ClaimResult claimHandoff(String handoff) throws OAuthLoginException {
+        if (handoff == null || handoff.isBlank() || handoff.length() > MAX_STATE_LENGTH) {
+            throw new OAuthLoginException("handoff_invalid", "登录交接已过期，请重新登录");
+        }
+        String json = redisService.getDel(HANDOFF_PREFIX + handoff);
+        if (json == null || json.isBlank()) {
+            throw new OAuthLoginException("handoff_invalid", "登录交接已过期，请重新登录");
+        }
+        try {
+            Handoff stored = objectMapper.readValue(json, Handoff.class);
+            long ageMs = System.currentTimeMillis() - stored.issuedAt();
+            if (stored.accessToken() == null || stored.accessToken().isBlank()
+                    || ageMs < 0 || ageMs > HANDOFF_TTL_SECONDS * 1000L) {
+                throw new OAuthLoginException("handoff_invalid", "登录交接已过期，请重新登录");
+            }
+            return new ClaimResult(stored.accessToken(), normalizeReturnTo(stored.returnTo()));
+        } catch (IOException | OAuthLoginException exception) {
+            if (exception instanceof OAuthLoginException oauthException) {
+                throw oauthException;
+            }
+            throw new OAuthLoginException("handoff_invalid", "登录交接已过期，请重新登录", exception);
+        }
     }
 
     private String exchangeAuthorizationCode(String code) throws OAuthLoginException {
@@ -177,7 +213,8 @@ public final class NekoAuthOAuthService {
         return json;
     }
 
-    private LoginResult createLocalSession(JsonNode userInfo, String returnTo) throws OAuthLoginException {
+    private LoginResult createLocalSession(String shortLivedToken, JsonNode userInfo, String returnTo)
+            throws OAuthLoginException {
         String subject = textOrEmpty(userInfo, "sub");
         long authUserId;
         try {
@@ -206,12 +243,30 @@ public final class NekoAuthOAuthService {
             throw new OAuthLoginException("account_link_failed", "关联 NekoMusic 账户失败", exception);
         }
 
-        String token = userAuthService.createTokenForUser(localUser.id());
+        String token;
+        try {
+            token = accountService.exchangeToken(shortLivedToken).accessToken();
+        } catch (NekoAuthAccountService.AccountBridgeException exception) {
+            logger.warn("NekoAuth 长期令牌交换失败: status={} code={}",
+                    exception.status(), exception.code());
+            throw new OAuthLoginException("token_issue_failed", "登录令牌签发失败", exception);
+        }
         if (token == null || token.isBlank()) {
             throw new OAuthLoginException("token_issue_failed", "登录令牌签发失败");
         }
+        String handoff = randomToken(32);
+        try {
+            String value = objectMapper.writeValueAsString(
+                    new Handoff(token, returnTo, System.currentTimeMillis()));
+            if (!redisService.setIfAbsentWithExpiry(
+                    HANDOFF_PREFIX + handoff, value, HANDOFF_TTL_SECONDS)) {
+                throw new OAuthLoginException("oauth_unavailable", "登录交接暂时不可用");
+            }
+        } catch (IOException exception) {
+            throw new OAuthLoginException("oauth_unavailable", "登录交接暂时不可用", exception);
+        }
         logger.info("NekoAuth 登录成功: authUserId={} localUserId={}", authUserId, localUser.id());
-        return new LoginResult(token, returnTo);
+        return new LoginResult(handoff, returnTo);
     }
 
     private HttpResponse<String> send(HttpRequest request, String interruptMessage) throws OAuthLoginException {
@@ -354,7 +409,13 @@ public final class NekoAuthOAuthService {
     private record OAuthState(String returnTo, long issuedAt) {
     }
 
-    public record LoginResult(String token, String returnTo) {
+    private record Handoff(String accessToken, String returnTo, long issuedAt) {
+    }
+
+    public record LoginResult(String handoff, String returnTo) {
+    }
+
+    public record ClaimResult(String accessToken, String returnTo) {
     }
 
     public static final class OAuthLoginException extends Exception {

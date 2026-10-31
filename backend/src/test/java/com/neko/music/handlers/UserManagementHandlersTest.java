@@ -5,6 +5,7 @@ import com.neko.music.model.Admin;
 import com.neko.music.model.AdminAccount;
 import com.neko.music.model.UserAccount;
 import com.neko.music.model.UserProfile;
+import com.neko.music.service.NekoAuthAccountService;
 import com.neko.music.service.UserManagementService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -125,7 +126,19 @@ class UserManagementHandlersTest {
             @Override
             public void revokeUser(int userId) {
             }
-        });
+        }, new RecordingAuthBridge());
+    }
+
+    private static final class RecordingAuthBridge extends NekoAuthAccountService {
+        RecordingAuthBridge() {
+            super(null, null);
+        }
+
+        @Override
+        public Account adminCreate(String email, String password) {
+            return new Account(9001, email, "listener", "USER", true,
+                    "test-access-token", "Bearer", 3600);
+        }
     }
 
     private static Admin admin(int id, String role) {
@@ -231,11 +244,6 @@ class UserManagementHandlersTest {
         }
 
         @Override
-        public Optional<String> findUserPasswordHash(int id) {
-            return findUser(id).map(user -> "unused");
-        }
-
-        @Override
         public Optional<String> findUserAvatar(int id) {
             return Optional.empty();
         }
@@ -246,17 +254,12 @@ class UserManagementHandlersTest {
         }
 
         @Override
-        public void createUser(String nickname, String passwordHash, String email) {
+        public void createUser(String nickname, String email) {
             users.add(new UserAccount(users.size() + 20, nickname, email, "2026-01-01", false, null));
         }
 
         @Override
-        public boolean updateUser(int id, String passwordHash, boolean vipSpecified, Timestamp vipExpiresAt) {
-            return findUser(id).isPresent();
-        }
-
-        @Override
-        public boolean updateUserPassword(int id, String passwordHash) {
+        public boolean updateUserVip(int id, Timestamp vipExpiresAt) {
             return findUser(id).isPresent();
         }
 

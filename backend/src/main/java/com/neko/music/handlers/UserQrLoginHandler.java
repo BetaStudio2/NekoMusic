@@ -312,8 +312,13 @@ public class UserQrLoginHandler extends ApiServlet {
             return;
         }
 
-        String token = userAuthService.createTokenForUser(userId);
-        if (token == null) {
+        String currentToken = RequestAuthUtil.extractToken(request);
+        String token;
+        try {
+            token = userAuthService.exchangeAccessToken(currentToken);
+        } catch (RuntimeException exception) {
+            logger.warn("扫码登录签发 NekoAuth 令牌失败: userId={} error={}",
+                    userId, exception.getMessage());
             sendJson(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, false, "qr.login_failed", null);
             return;
         }

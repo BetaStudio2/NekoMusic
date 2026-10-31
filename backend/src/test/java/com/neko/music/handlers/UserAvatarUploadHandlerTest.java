@@ -186,11 +186,6 @@ class UserAvatarUploadHandlerTest {
         }
 
         @Override
-        public Optional<String> findUserPasswordHash(int id) {
-            return id == 7 ? Optional.of("unused") : Optional.empty();
-        }
-
-        @Override
         public Optional<String> findUserAvatar(int id) {
             return id == 7 ? Optional.ofNullable(avatarPath) : Optional.empty();
         }
@@ -201,16 +196,11 @@ class UserAvatarUploadHandlerTest {
         }
 
         @Override
-        public void createUser(String nickname, String passwordHash, String email) {
+        public void createUser(String nickname, String email) {
         }
 
         @Override
-        public boolean updateUser(int id, String passwordHash, boolean vipSpecified, Timestamp vipExpiresAt) {
-            return id == 7;
-        }
-
-        @Override
-        public boolean updateUserPassword(int id, String passwordHash) {
+        public boolean updateUserVip(int id, Timestamp vipExpiresAt) {
             return id == 7;
         }
 

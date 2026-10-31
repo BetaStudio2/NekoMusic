@@ -143,8 +143,18 @@ const router = createRouter({
       component: () => import('@/views/ForgotPasswordView.vue'),
       meta: {
         title: '忘记密码 - Neko歌姬计划 | 免费音乐平台',
-        description: '忘记密码？通过邮箱验证码重置您的Neko歌姬计划账户密码。完全免费，无需付费。',
+        description: '忘记密码？前往 NekoAuth 统一账号中心重置您的梦幻网络通行证密码。',
         keywords: '忘记密码,重置密码,找回密码'
+      }
+    },
+    {
+      path: '/oauth/nekocore/complete',
+      name: 'oauth-complete',
+      component: () => import('@/views/AuthSsoCompleteView.vue'),
+      meta: {
+        title: '正在完成登录 - Neko歌姬计划',
+        description: '正在完成 NekoAuth 统一登录。',
+        keywords: '登录,NekoAuth,单点登录'
       }
     },
     {
@@ -412,6 +422,7 @@ const router = createRouter({
 const NOINDEX_PREFIXES = [
   '/admin', '/favorites', '/playlists', '/account', '/vip', '/upload',
   '/notifications', '/playlist/create', '/forgot-password', '/login', '/register',
+  '/oauth/nekocore',
 ]
 
 /**

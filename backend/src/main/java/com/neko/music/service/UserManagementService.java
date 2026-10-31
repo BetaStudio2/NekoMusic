@@ -128,33 +128,19 @@ public final class UserManagementService {
             throw UserManagementException.validation("auth.password_change.same_as_old");
         }
 
-        if (nekoAuthAccountService != null) {
-            try {
-                UserProfile profile = store.findUserProfile(userId)
-                        .orElseThrow(() -> UserManagementException.notFound("user.not_exists"));
-                nekoAuthAccountService.changePassword(profile.email(), oldPassword, newPassword);
-                revokeUserSessions(userId);
-                logger.info("用户 {} 通过 NekoAuth 修改密码成功，已注销全部本地会话", userId);
-                return;
-            } catch (SQLException e) {
-                throw databaseFailure("auth.password_change.failed", e);
-            } catch (NekoAuthAccountService.AccountBridgeException e) {
-                throw bridgeFailure(e, "auth.password_change.failed");
-            }
+        if (nekoAuthAccountService == null) {
+            throw UserManagementException.internal("auth.service_unavailable", null);
         }
-
         try {
-            String currentHash = store.findUserPasswordHash(userId).orElse(null);
-            if (currentHash == null || !passwordMatches(currentHash, oldPassword)) {
-                throw UserManagementException.validation("auth.password_change.old_wrong");
-            }
-            if (!store.updateUserPassword(userId, hash(newPassword))) {
-                throw UserManagementException.internal("auth.password_change.failed", null);
-            }
+            UserProfile profile = store.findUserProfile(userId)
+                    .orElseThrow(() -> UserManagementException.notFound("user.not_exists"));
+            nekoAuthAccountService.changePassword(profile.email(), oldPassword, newPassword);
             revokeUserSessions(userId);
-            logger.info("用户 {} 修改密码成功，已注销全部会话", userId);
+            logger.info("用户 {} 通过 NekoAuth 修改密码成功，旧会话由 Auth tokenVersion 失效", userId);
         } catch (SQLException e) {
             throw databaseFailure("auth.password_change.failed", e);
+        } catch (NekoAuthAccountService.AccountBridgeException e) {
+            throw bridgeFailure(e, "auth.password_change.failed");
         }
     }
 
@@ -255,29 +241,23 @@ public final class UserManagementService {
         validatePassword(rawPassword, "admin.user.password_too_short");
 
         try {
-            if (nekoAuthAccountService != null) {
-                NekoAuthAccountService.Account account =
-                        nekoAuthAccountService.adminCreate(normalizedEmail, rawPassword);
-                Optional<Long> boundAuthId = store.findUserAuthIdByEmail(normalizedEmail);
-                if (boundAuthId.isPresent()) {
-                    if (boundAuthId.get() != account.id()) {
-                        throw UserManagementException.conflict("admin.user.email_exists");
-                    }
-                } else if (store.userEmailExists(normalizedEmail)) {
-                    store.bindUserAuthId(normalizedEmail, account.id());
-                } else {
-                    store.createUser(normalizedNickname, "!nekoauth$disabled", normalizedEmail);
-                    store.bindUserAuthId(normalizedEmail, account.id());
-                }
-                logger.info("管理员 {} 通过 NekoAuth 创建普通用户 {} authUserId={}",
-                        actor.username(), normalizedNickname, account.id());
-                return;
-            }
-            if (store.userEmailExists(normalizedEmail)) {
+            Optional<Long> boundAuthId = store.findUserAuthIdByEmail(normalizedEmail);
+            if (boundAuthId.isPresent()) {
                 throw UserManagementException.conflict("admin.user.email_exists");
             }
-            store.createUser(normalizedNickname, hash(rawPassword), normalizedEmail);
-            logger.info("管理员 {} 创建普通用户 {}", actor.username(), normalizedNickname);
+            if (nekoAuthAccountService == null) {
+                throw UserManagementException.internal("auth.service_unavailable", null);
+            }
+            NekoAuthAccountService.Account account =
+                    nekoAuthAccountService.adminCreate(normalizedEmail, rawPassword);
+            if (store.userEmailExists(normalizedEmail)) {
+                store.bindUserAuthId(normalizedEmail, account.id());
+            } else {
+                store.createUser(normalizedNickname, normalizedEmail);
+                store.bindUserAuthId(normalizedEmail, account.id());
+            }
+            logger.info("管理员 {} 通过 NekoAuth 创建普通用户 {} authUserId={}",
+                    actor.username(), normalizedNickname, account.id());
         } catch (SQLException e) {
             if (isDuplicateKey(e)) {
                 throw UserManagementException.conflict("admin.user.email_exists");
@@ -330,21 +310,18 @@ public final class UserManagementService {
         try {
             UserAccount account = store.findUser(userId)
                     .orElseThrow(() -> UserManagementException.notFound("admin.user.not_found"));
-            if (passwordSpecified && nekoAuthAccountService != null) {
-                nekoAuthAccountService.adminResetPassword(account.email(), password);
-                if (vipSpecified && !store.updateUser(userId, null, true, vipExpiresAt)) {
-                    throw UserManagementException.notFound("admin.user.not_found");
+            if (passwordSpecified) {
+                if (nekoAuthAccountService == null) {
+                    throw UserManagementException.internal("auth.service_unavailable", null);
                 }
-                revokeUserSessions(userId);
-                logger.info("管理员 {} 通过 NekoAuth 重置普通用户 {} 的密码", actor.username(), userId);
-                return;
+                nekoAuthAccountService.adminResetPassword(account.email(), password);
             }
-            String passwordHash = passwordSpecified ? hash(password) : null;
-            if (!store.updateUser(userId, passwordHash, vipSpecified, vipExpiresAt)) {
+            if (vipSpecified && !store.updateUserVip(userId, vipExpiresAt)) {
                 throw UserManagementException.notFound("admin.user.not_found");
             }
-            if (passwordHash != null) {
+            if (passwordSpecified) {
                 revokeUserSessions(userId);
+                logger.info("管理员 {} 通过 NekoAuth 重置普通用户 {} 的密码", actor.username(), userId);
             }
             logger.info("管理员 {} 更新普通用户 {}", actor.username(), userId);
         } catch (SQLException e) {
@@ -447,15 +424,6 @@ public final class UserManagementService {
 
     private String hash(String rawPassword) {
         return argon2.hash(HASH_ITERATIONS, HASH_MEMORY_KIB, HASH_PARALLELISM, rawPassword.toCharArray());
-    }
-
-    private boolean passwordMatches(String storedHash, String rawPassword) {
-        try {
-            return argon2.verify(storedHash, rawPassword.toCharArray());
-        } catch (RuntimeException e) {
-            logger.warn("用户口令哈希无法校验", e);
-            return false;
-        }
     }
 
     private void revokeAdminSessions(int adminId) {

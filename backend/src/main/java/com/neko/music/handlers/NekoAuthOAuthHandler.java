@@ -10,12 +10,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 /**
- * 浏览器跳转端点：{@code /oauth/nekocore/start} 与 {@code /oauth/nekocore/callback}。
+ * 浏览器跳转端点：{@code /oauth/nekocore/start}、{@code /oauth/nekocore/callback}
+ * 与 {@code /oauth/nekocore/forgot-password}。
  *
  * <p>这是 OAuth 浏览器导航，不是 JSON API：不能要求 nonce / 客户端签名。防重放由一次性 state
- * 保证。回调只把结果写入 JSON 响应体，不跳转到新增页面、不修改现有客户端，也不把 Token 放进 URL。</p>
+ * 保证。回调只跳转到前端完成页并携带一次性 handoff，不把 Token 放进 URL。</p>
  */
 public final class NekoAuthOAuthHandler extends ApiServlet {
 
@@ -38,6 +41,8 @@ public final class NekoAuthOAuthHandler extends ApiServlet {
             handleStart(request, response);
         } else if (path.endsWith("/callback")) {
             handleCallback(request, response);
+        } else if (path.endsWith("/forgot-password")) {
+            handlePasswordReset(response);
         } else {
             response.sendError(HttpServletResponse.SC_NOT_FOUND);
         }
@@ -74,17 +79,27 @@ public final class NekoAuthOAuthHandler extends ApiServlet {
         try {
             NekoAuthOAuthService.LoginResult result = oauthService.complete(
                     request.getParameter("code"), request.getParameter("state"));
-            JsonObject data = new JsonObject();
-            data.addProperty("token", result.token());
-            data.addProperty("return_to", result.returnTo());
-            JsonObject body = new JsonObject();
-            body.addProperty("success", true);
-            body.addProperty("message", "登录成功");
-            body.add("data", data);
-            sendSuccessResponse(response, body);
+            response.sendRedirect("/oauth/nekocore/complete?handoff="
+                    + URLEncoder.encode(result.handoff(), StandardCharsets.UTF_8));
         } catch (NekoAuthOAuthService.OAuthLoginException exception) {
             logger.warn("NekoAuth 登录回调失败: code={} message={}", exception.code(), exception.getMessage());
             sendError(response, exception.code(), exception.getMessage());
+        }
+    }
+
+    private void handlePasswordReset(HttpServletResponse response) throws IOException {
+        if (oauthService == null) {
+            sendError(response, "oauth_unavailable", "NekoAuth 账号服务暂时不可用");
+            return;
+        }
+        try {
+            response.sendRedirect(oauthService.passwordResetUrl());
+        } catch (NekoAuthOAuthService.OAuthLoginException exception) {
+            logger.warn("NekoAuth 找回密码入口跳转失败: code={}", exception.code());
+            sendError(response, exception.code(), exception.getMessage());
+        } catch (IllegalArgumentException exception) {
+            logger.warn("NekoAuth 找回密码入口跳转失败: 配置中的地址格式不正确");
+            sendError(response, "oauth_not_configured", "NekoAuth 登录配置不正确");
         }
     }
 

@@ -4,10 +4,10 @@ import com.neko.music.config.ConfigManager;
 import com.neko.music.database.DatabaseManager;
 import com.neko.music.model.User;
 import com.neko.music.util.DbTimeUtil;
+import com.neko.music.util.RequestScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.security.SecureRandom;
 import java.sql.*;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
@@ -22,7 +22,7 @@ public class UserAuthService {
     private final RedisTokenStore tokenStore;
     private final VerificationCodeRateLimitService verificationCodeRateLimitService;
     private final NekoAuthAccountService nekoAuthAccountService;
-    private static final SecureRandom secureRandom = new SecureRandom();
+    private static final String INTROSPECTION_SCOPE_PREFIX = "nekoAuthIntrospection:";
 
     /**
      * 验证码异步发信线程：密码重置必须让「已注册 / 未注册」的响应耗时不可区分，
@@ -40,10 +40,6 @@ public class UserAuthService {
     private static final String VERIFICATION_PURPOSE_PASSWORD_RESET = "password_reset";
     private static final int VERIFICATION_CODE_EXPIRY = 300; // 5分钟过期
     private static final int VERIFICATION_CODE_MAX_ATTEMPTS = 5;
-    private static final int TOKEN_EXPIRY_DAYS = 365; // Token 有效期 1 年
-    private static final int TOKEN_EXPIRY_SECONDS = TOKEN_EXPIRY_DAYS * 86400;
-    private static final int TOKEN_RENEW_WINDOW_DAYS = 31;
-    private static final int TOKEN_RENEW_EXTENSION_SECONDS = TOKEN_RENEW_WINDOW_DAYS * 86400;
 
     public UserAuthService(DatabaseManager databaseManager, ConfigManager configManager,
                            EmailService emailService, RedisService redisService,
@@ -72,7 +68,7 @@ public class UserAuthService {
      *
      * <p>密码校验完全交给 NekoAuth；本地 users 表不保存密码。</p>
      */
-    public Optional<User> authenticate(String email, String password) {
+    public Optional<LoginSession> authenticate(String email, String password) {
         logger.info("用户登录尝试: {}", email);
 
         try {
@@ -80,7 +76,7 @@ public class UserAuthService {
             User user = findOrLinkNekoAuthUser(account.id(), account.email(), null);
             logger.info("NekoAuth 用户登录成功: authUserId={} localUserId={}",
                     account.id(), user.id());
-            return Optional.of(user);
+            return Optional.of(new LoginSession(user, account.accessToken()));
         } catch (NekoAuthAccountService.AccountBridgeException exception) {
             if (exception.invalidCredentials()) {
                 logger.warn("NekoAuth 用户登录失败: {}", email);
@@ -137,14 +133,13 @@ public class UserAuthService {
         }
 
         String nickname = safeLocalNickname(nicknameHint, normalizedEmail);
-        String sql = "INSERT INTO users (nickname, password, email, auth_user_id, created_at) VALUES (?, ?, ?, ?, "
+        String sql = "INSERT INTO users (nickname, email, auth_user_id, created_at) VALUES (?, ?, ?, "
                 + DbTimeUtil.SQL_NOW_SHANGHAI + ")";
         try (Connection conn = databaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             stmt.setString(1, nickname);
-            stmt.setString(2, "!nekoauth$disabled");
-            stmt.setString(3, normalizedEmail);
-            stmt.setLong(4, authUserId);
+            stmt.setString(2, normalizedEmail);
+            stmt.setLong(3, authUserId);
             stmt.executeUpdate();
             try (ResultSet keys = stmt.getGeneratedKeys()) {
                 if (keys.next()) {
@@ -590,7 +585,9 @@ public class UserAuthService {
      * 注销某用户全部会话（改密、重置密码后须重新登录）。
      */
     public void revokeAllTokensForUser(int userId) {
-        tokenStore.revokeAllUserTokens(userId);
+        // 用户令牌只在 NekoAuth 保存。改密 / 重置密码会推进 Auth 的 tokenVersion，
+        // introspection 随即使所有旧令牌失效，因此这里不再维护本地 token 索引。
+        logger.debug("用户 {} 的会话由 NekoAuth tokenVersion 统一失效", userId);
     }
 
     private NekoAuthAccountService requireBridge() {
@@ -599,31 +596,6 @@ public class UserAuthService {
                     503, "NEKO_AUTH_NOT_CONFIGURED", "未配置 NekoAuth 账号桥接", 0);
         }
         return nekoAuthAccountService;
-    }
-    
-    public String generateToken() {
-        byte[] tokenBytes = new byte[32];
-        secureRandom.nextBytes(tokenBytes);
-        StringBuilder sb = new StringBuilder();
-        for (byte b : tokenBytes) {
-            sb.append(String.format("%02x", b));
-        }
-        return sb.toString();
-    }
-    
-    /**
-     * 为用户创建会话 token（仅存 Redis，TTL {@link #TOKEN_EXPIRY_DAYS} 天）。
-     */
-    public String createTokenForUser(int userId) {
-        String token = generateToken();
-        try {
-            tokenStore.saveUserToken(token, userId, TOKEN_EXPIRY_SECONDS);
-            logger.info("Token创建成功，用户ID: {}", userId);
-            return token;
-        } catch (Exception e) {
-            logger.error("创建token失败: {}", e.getMessage(), e);
-            return null;
-        }
     }
     
     public Optional<String> findEmailByUserId(int userId) {
@@ -662,34 +634,75 @@ public class UserAuthService {
         return Optional.empty();
     }
 
-    /**
-     * 验证 token 并返回用户 ID（仅查 Redis）。若 token 剩余有效期不足 31 天，则按活跃会话延期 31 天。
-     */
+    /** 通过 NekoAuth introspection 验证令牌，并把稳定 Auth 用户 ID 映射到本地资料。 */
     public Optional<Integer> validateToken(String token) {
-        // 校验与「临近过期时续期」合并为一次 Redis 往返（见 RedisTokenStore#validateAndRenew）：
-        // 认证路径在每个已登录请求上都会走这里，多一次 TTL 查询就是每个请求多一次往返。
-        return tokenStore.validateAndRenew(token, TOKEN_RENEW_EXTENSION_SECONDS, TOKEN_RENEW_EXTENSION_SECONDS);
+        Optional<NekoAuthAccountService.Introspection> introspection = introspectToken(token);
+        if (introspection.isEmpty()) {
+            return Optional.empty();
+        }
+        NekoAuthAccountService.Introspection identity = introspection.get();
+        try {
+            User user = findOrLinkNekoAuthUser(identity.userId(), identity.email(), null);
+            return Optional.of(user.id());
+        } catch (RuntimeException exception) {
+            logger.warn("NekoAuth 令牌有效但本地资料映射失败: authUserId={} error={}",
+                    identity.userId(), exception.getMessage());
+            return Optional.empty();
+        }
     }
     
     /**
-     * 只读解析 token 对应的用户 ID（仅查 Redis，**不续期**）。
+     * 只读解析 token 对应的本地用户 ID（给审计 / 日志使用，不创建本地资料）。
      *
      * <p>给审计 / 日志这类旁路使用：它们需要知道「是谁」，但不该因为记了一条日志就把会话
      * 悄悄续上——那会让「开不开日志」影响会话时长。认证路径请继续用 {@link #validateToken}。</p>
      */
     public Optional<Integer> findUserIdByToken(String token) {
-        return tokenStore.getUserIdByToken(token);
+        Optional<NekoAuthAccountService.Introspection> introspection = introspectToken(token);
+        if (introspection.isEmpty()) {
+            return Optional.empty();
+        }
+        User user = findUserByAuthId(introspection.get().userId());
+        return user == null ? Optional.empty() : Optional.of(user.id());
     }
 
-    /**
-     * 注销 token（从 Redis 删除）。
-     */
+    /** 在 NekoAuth 吊销用户令牌。 */
     public boolean revokeToken(String token) {
-        boolean revoked = tokenStore.deleteUserToken(token);
-        if (revoked) {
-            logger.info("Token已注销");
+        try {
+            requireBridge().revoke(token);
+            logger.info("NekoAuth 用户令牌已注销");
+            return true;
+        } catch (NekoAuthAccountService.AccountBridgeException exception) {
+            logger.warn("NekoAuth 用户令牌注销失败: status={} code={}",
+                    exception.status(), exception.code());
+            return false;
         }
-        return revoked;
+    }
+
+    /** 把当前短期 OAuth 令牌换成 NekoAuth 所有的长期第一方令牌。 */
+    public String exchangeAccessToken(String token) {
+        return requireBridge().exchangeToken(token).accessToken();
+    }
+
+    private Optional<NekoAuthAccountService.Introspection> introspectToken(String token) {
+        if (token == null || token.isBlank() || nekoAuthAccountService == null) {
+            return Optional.empty();
+        }
+        String normalized = token.trim();
+        NekoAuthAccountService.Introspection cached = RequestScope.computeIfAbsent(
+                INTROSPECTION_SCOPE_PREFIX + normalized, () -> {
+                    try {
+                        return nekoAuthAccountService.introspect(normalized).orElse(null);
+                    } catch (NekoAuthAccountService.AccountBridgeException exception) {
+                        logger.warn("NekoAuth 令牌校验失败: status={} code={}",
+                                exception.status(), exception.code());
+                        return null;
+                    }
+                });
+        return Optional.ofNullable(cached);
+    }
+
+    public record LoginSession(User user, String accessToken) {
     }
 
 }

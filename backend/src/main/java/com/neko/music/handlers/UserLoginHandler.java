@@ -10,6 +10,7 @@ import com.neko.music.service.SourceBanService;
 import com.neko.music.service.UserAuthService;
 import com.neko.music.service.UserLoginThrottleService;
 import com.neko.music.util.ClientIpResolver;
+import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.VipUtil;
 import jakarta.servlet.annotation.WebServlet;
 import org.slf4j.Logger;
@@ -42,6 +43,7 @@ public class UserLoginHandler extends ApiServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         response.setContentType("application/json;charset=UTF-8");
+        response.setHeader("Cache-Control", HttpResourceCache.CACHE_CONTROL_NO_STORE);
         if (enforceAuthAbuseLimit(request, response, AuthAbuseLimiter.Scope.LOGIN)) {
             return;
         }
@@ -112,10 +114,11 @@ public class UserLoginHandler extends ApiServlet {
             }
 
             // 用户认证
-            Optional<User> userOpt = userAuthService.authenticate(emailKey, password);
+            Optional<UserAuthService.LoginSession> userOpt = userAuthService.authenticate(emailKey, password);
 
             if (userOpt.isPresent()) {
-                User user = userOpt.get();
+                UserAuthService.LoginSession session = userOpt.get();
+                User user = session.user();
                 logger.info("用户登录成功: {}", user.email());
 
                 if (throttleService != null) {
@@ -125,16 +128,7 @@ public class UserLoginHandler extends ApiServlet {
                     sourceBanService.recordAuthSuccess(clientIp);
                 }
 
-                // 生成 token 并写入 Redis
-                String token = userAuthService.createTokenForUser(user.id());
-
-                if (token == null) {
-                    logger.error("生成token失败: {}", user.email());
-                    sendResponse(response, false, "qr.login_failed", null);
-                    return;
-                }
-
-                // 返回用户信息（不包含密码）和token
+                // 令牌由 NekoAuth 签发；NekoMusic 只返回，不再落本地 token 存储。
                 Map<String, Object> userData = new HashMap<>();
                 userData.put("id", user.id());
                 userData.put("nickname", user.nickname());
@@ -146,7 +140,7 @@ public class UserLoginHandler extends ApiServlet {
 
                 Map<String, Object> responseData = new HashMap<>();
                 responseData.put("user", userData);
-                responseData.put("token", token);
+                responseData.put("token", session.accessToken());
 
                 sendResponse(response, true, "auth.login.ok", responseData);
             } else {

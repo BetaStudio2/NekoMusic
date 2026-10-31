@@ -29,6 +29,10 @@ public final class ServletRegistrar {
         context.addServlet(nekoAuthStartHolder, "/oauth/nekocore/start");
         ServletHolder nekoAuthCallbackHolder = new ServletHolder(new NekoAuthOAuthHandler());
         context.addServlet(nekoAuthCallbackHolder, "/oauth/nekocore/callback");
+        ServletHolder nekoAuthForgotPasswordHolder = new ServletHolder(new NekoAuthOAuthHandler());
+        context.addServlet(nekoAuthForgotPasswordHolder, "/oauth/nekocore/forgot-password");
+        ServletHolder nekoAuthSsoClaimHolder = new ServletHolder(new NekoAuthSsoClaimHandler());
+        context.addServlet(nekoAuthSsoClaimHolder, "/api/user/sso/claim");
         
         // 注册防重放 nonce 签发接口（通用机制，自身豁免 nonce 校验）
         ServletHolder replayNonceHolder = new ServletHolder(new ReplayNonceHandler());

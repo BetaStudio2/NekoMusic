@@ -49,8 +49,6 @@ public interface UserAccountStore {
 
     Optional<UserProfile> findUserProfile(int id) throws SQLException;
 
-    Optional<String> findUserPasswordHash(int id) throws SQLException;
-
     Optional<String> findUserAvatar(int id) throws SQLException;
 
     boolean userEmailExists(String email) throws SQLException;
@@ -62,12 +60,9 @@ public interface UserAccountStore {
     default void bindUserAuthId(String email, long authUserId) throws SQLException {
     }
 
-    void createUser(String nickname, String passwordHash, String email) throws SQLException;
+    void createUser(String nickname, String email) throws SQLException;
 
-    boolean updateUser(int id, String passwordHash, boolean vipSpecified, Timestamp vipExpiresAt)
-            throws SQLException;
-
-    boolean updateUserPassword(int id, String passwordHash) throws SQLException;
+    boolean updateUserVip(int id, Timestamp vipExpiresAt) throws SQLException;
 
     boolean updateUserNickname(int id, String nickname) throws SQLException;
 
