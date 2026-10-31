@@ -25,6 +25,13 @@ public final class ServletRegistrar {
         context.addServlet(siteResourceHolder, "/");
 
         // NekoAuth 统一登录：浏览器跳转端点，不使用 /api 的 nonce / 客户端签名门禁。
+        // /sso 是 NekoMusic 自有命名空间；旧 /oauth/nekocore/* 入口仅作兼容别名。
+        ServletHolder nekoAuthSsoStartHolder = new ServletHolder(new NekoAuthOAuthHandler());
+        context.addServlet(nekoAuthSsoStartHolder, "/sso/nekocore/start");
+        ServletHolder nekoAuthSsoForgotPasswordHolder = new ServletHolder(new NekoAuthOAuthHandler());
+        context.addServlet(nekoAuthSsoForgotPasswordHolder, "/sso/nekocore/forgot-password");
+
+        // 旧入口保留，避免已打开的旧页面或书签失效；新前端不再使用这些路径。
         ServletHolder nekoAuthStartHolder = new ServletHolder(new NekoAuthOAuthHandler());
         context.addServlet(nekoAuthStartHolder, "/oauth/nekocore/start");
         ServletHolder nekoAuthCallbackHolder = new ServletHolder(new NekoAuthOAuthHandler());

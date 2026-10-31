@@ -10,7 +10,7 @@ import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard } from '@/ui'
 import { AmbientBackdrop, PageShell } from '@/layouts'
 
-const target = '/oauth/nekocore/forgot-password'
+const target = '/sso/nekocore/forgot-password'
 
 onMounted(() => {
   window.location.replace(target)

@@ -19,14 +19,14 @@ const errorMessage = ref('')
 function readHandoff() {
   const params = new URLSearchParams(window.location.search)
   const value = params.get('handoff') || ''
-  window.history.replaceState(null, '', '/oauth/nekocore/complete')
+  window.history.replaceState(null, '', '/sso/complete')
   return value
 }
 
 function safeReturnTo(value) {
   if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) return '/'
   if (value.includes('\\') || [...value].some((char) => char.charCodeAt(0) < 0x20)) return '/'
-  if (value.startsWith('/oauth/nekocore/')) return '/'
+  if (value.startsWith('/oauth/nekocore/') || value.startsWith('/sso/')) return '/'
   return value
 }
 
@@ -65,7 +65,7 @@ async function claimLogin(handoff) {
 }
 
 function retryLogin() {
-  window.location.assign('/oauth/nekocore/start?return_to=%2F')
+  window.location.assign('/sso/nekocore/start?return_to=%2F')
 }
 
 onMounted(() => claimLogin(readHandoff()))

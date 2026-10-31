@@ -127,8 +127,8 @@ function startNekoAuthLogin() {
   loginLoading.value = true
   loginError.value = ''
   const current = window.location.pathname + window.location.search + window.location.hash
-  const safeReturnTo = current.startsWith('/oauth/nekocore/') ? '/' : current
-  window.location.assign(`/oauth/nekocore/start?return_to=${encodeURIComponent(safeReturnTo || '/')}`)
+  const safeReturnTo = current.startsWith('/oauth/nekocore/') || current.startsWith('/sso/') ? '/' : current
+  window.location.assign(`/sso/nekocore/start?return_to=${encodeURIComponent(safeReturnTo || '/')}`)
 }
 
 function applyLogin(token, user) {

@@ -148,7 +148,7 @@ const router = createRouter({
       }
     },
     {
-      path: '/oauth/nekocore/complete',
+      path: '/sso/complete',
       name: 'oauth-complete',
       component: () => import('@/views/AuthSsoCompleteView.vue'),
       meta: {
@@ -156,6 +156,11 @@ const router = createRouter({
         description: '正在完成 NekoAuth 统一登录。',
         keywords: '登录,NekoAuth,单点登录'
       }
+    },
+    {
+      // 旧回调地址兼容；服务端只会在新流程中跳转到 /sso/complete。
+      path: '/oauth/nekocore/complete',
+      redirect: (to) => ({ path: '/sso/complete', query: to.query }),
     },
     {
       path: '/favorites',
@@ -422,7 +427,7 @@ const router = createRouter({
 const NOINDEX_PREFIXES = [
   '/admin', '/favorites', '/playlists', '/account', '/vip', '/upload',
   '/notifications', '/playlist/create', '/forgot-password', '/login', '/register',
-  '/oauth/nekocore',
+  '/oauth/nekocore', '/sso',
 ]
 
 /**
