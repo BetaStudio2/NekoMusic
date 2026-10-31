@@ -124,17 +124,49 @@ public class NekoAuthAccountService {
         if (json == null || !json.path("active").asBoolean(false)) {
             return Optional.empty();
         }
-        JsonNode subject = json.get("sub");
-        if (subject == null || !subject.canConvertToLong() || subject.asLong() <= 0) {
+        long authUserId = subjectId(json.get("sub"));
+        if (authUserId <= 0) {
             throw new AccountBridgeException(502, "NEKO_AUTH_BAD_RESPONSE",
                     "NekoAuth introspection 缺少有效用户标识", 0);
         }
         return Optional.of(new Introspection(
-                subject.asLong(),
+                authUserId,
                 text(json, "email"),
                 json.path("email_verified").asBoolean(false),
                 text(json, "role"),
                 text(json, "scope")));
+    }
+
+    /**
+     * introspection 的 {@code sub} 在不同实现里可能被序列化为 JSON 数字或十进制字符串。
+     * 只接受正整数，拒绝小数、布尔、对象以及带符号 / 空白的伪数字。
+     */
+    static long subjectId(JsonNode subject) {
+        if (subject == null) {
+            return 0L;
+        }
+        if (subject.isIntegralNumber()) {
+            return subject.canConvertToLong() && subject.asLong() > 0 ? subject.asLong() : 0L;
+        }
+        if (!subject.isTextual()) {
+            return 0L;
+        }
+        String value = subject.textValue();
+        if (value == null || value.isEmpty() || value.length() > 19
+                || value.charAt(0) < '1' || value.charAt(0) > '9') {
+            return 0L;
+        }
+        for (int i = 1; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c < '0' || c > '9') {
+                return 0L;
+            }
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException exception) {
+            return 0L;
+        }
     }
 
     /** 吊销当前用户令牌；RFC 7009 语义下重复吊销同样成功。 */

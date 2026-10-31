@@ -19,7 +19,7 @@ import java.util.List;
  * 防重放 nonce 签发接口：{@code GET /api/replay/nonce}。
  *
  * <p>客户端批量领取一次性 nonce（读 / 写两个类别），随后在每个受保护动态请求上带
- * {@code X-Neko-Nonce}。nonce 绑定调用方 IP 哈希，一次性消费，默认 120 秒过期。</p>
+ * {@code X-Neko-Nonce}。nonce 绑定稳定客户端指纹，一次性消费，默认 120 秒过期；出口 IP 变化不影响兑换。</p>
  *
  * <p>查询参数：{@code read} / {@code write} 分别指定两类的数量（缺省 {@code 16}，上限
  * {@code 64}）；显式传 {@code 0} 表示该类不领；{@code challenge} / {@code proof} 为
@@ -81,7 +81,8 @@ public class ReplayNonceHandler extends ApiServlet {
             writeCount = ReplayNonceService.clampBatch(request.getParameter("write"), ReplayNonceService.DEFAULT_BATCH);
         } else {
             ReplayChallengeService.Outcome outcome = ReplayChallengeService.verify(
-                    challengeId, request.getParameter("proof"), clientIp, request.getHeader("User-Agent"));
+                    challengeId, request.getParameter("proof"), request.getHeader("User-Agent"),
+                    request.getHeader("X-Neko-Client"));
             if (outcome.status() != ReplayChallengeService.Status.OK) {
                 // 题目不存在 / 已过期 / 已被兑换 / 来源不匹配 / 解答不合格，一律同一个回应；
                 // 日志里区分开来，便于看出是脚本乱试（bad_proof）还是真的过期
@@ -101,10 +102,12 @@ public class ReplayNonceHandler extends ApiServlet {
             return;
         }
 
+        String userAgent = request.getHeader("User-Agent");
+        String nekoClient = request.getHeader("X-Neko-Client");
         List<String> readNonces = ReplayNonceService.issue(
-                ReplayNonceService.SCOPE_READ, readCount, clientIp, difficulty);
+                ReplayNonceService.SCOPE_READ, readCount, userAgent, nekoClient, difficulty);
         List<String> writeNonces = ReplayNonceService.issue(
-                ReplayNonceService.SCOPE_WRITE, writeCount, clientIp, difficulty);
+                ReplayNonceService.SCOPE_WRITE, writeCount, userAgent, nekoClient, difficulty);
 
         // 少发即视为 Redis 故障：明确报错，绝不静默返回不足的 nonce（否则客户端会拿到空池）
         if (readNonces.size() < readCount || writeNonces.size() < writeCount) {

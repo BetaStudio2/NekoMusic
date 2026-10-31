@@ -3,7 +3,6 @@ package com.neko.music.handlers;
 import com.neko.music.Main;
 import com.neko.music.service.AuthAbuseLimiter;
 import com.neko.music.service.SliderCaptchaService;
-import com.neko.music.util.ClientIpResolver;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,7 +30,7 @@ public class SliderCaptchaHandler extends ApiServlet {
         try {
             SliderCaptchaService svc = Main.getSliderCaptchaService();
             Map<String, Object> data = svc.createChallengePayload(
-                    ClientIpResolver.clientIp(request), request.getHeader("User-Agent"));
+                    request.getHeader("User-Agent"), request.getHeader("X-Neko-Client"));
             sendJson(response, true, "ok", data);
         } catch (Exception e) {
             logger.error("生成滑块验证码失败", e);

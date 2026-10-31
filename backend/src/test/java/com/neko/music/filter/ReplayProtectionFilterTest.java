@@ -61,6 +61,8 @@ class ReplayProtectionFilterTest {
 
     private Outcome run(String method, String uri, String nonce, String contentType) throws Exception {
         Map<String, String> requestHeaders = new HashMap<>();
+        requestHeaders.put("user-agent", "NekoMusic-Test/1.0");
+        requestHeaders.put("x-neko-client", "web+test");
         if (nonce != null) {
             requestHeaders.put(ReplayNonceService.NONCE_HEADER.toLowerCase(), nonce);
         }
@@ -115,11 +117,13 @@ class ReplayProtectionFilterTest {
     }
 
     private static String readNonce() {
-        return ReplayNonceService.issue(ReplayNonceService.SCOPE_READ, 1, "127.0.0.1").get(0);
+        return ReplayNonceService.issue(
+                ReplayNonceService.SCOPE_READ, 1, "NekoMusic-Test/1.0", "web+test", 0).get(0);
     }
 
     private static String writeNonce() {
-        return ReplayNonceService.issue(ReplayNonceService.SCOPE_WRITE, 1, "127.0.0.1").get(0);
+        return ReplayNonceService.issue(
+                ReplayNonceService.SCOPE_WRITE, 1, "NekoMusic-Test/1.0", "web+test", 0).get(0);
     }
 
     @Test
@@ -231,7 +235,8 @@ class ReplayProtectionFilterTest {
     @Test
     void powDifficultyOfTheConsumedNonceIsRecordedForSecurityAnalysis() throws Exception {
         // 签发难度 24 的一枚 nonce：受保护请求消费它时，访问日志要能写出「这次请求花了多少算力」
-        String nonce = ReplayNonceService.issue(ReplayNonceService.SCOPE_READ, 1, "127.0.0.1", 24).get(0);
+        String nonce = ReplayNonceService.issue(
+                ReplayNonceService.SCOPE_READ, 1, "NekoMusic-Test/1.0", "web+test", 24).get(0);
         Outcome accepted = run("GET", "/api/music/search", nonce, false);
         assertTrue(accepted.chained());
         assertEquals(PowAudit.VERIFIED, accepted.powStatus());

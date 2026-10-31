@@ -53,15 +53,31 @@ class ReplayNonceServiceTest {
     }
 
     @Test
-    void nonceIsBoundToClientIpAndNotConsumedByWrongIp() {
+    void nonceIsBoundToSourceAndNotConsumedByWrongSource() {
         String nonce = ReplayNonceService.issue(ReplayNonceService.SCOPE_WRITE, 1, "1.2.3.4").get(0);
 
-        // 换个 IP（nonce 被第三方截获后的典型场景）→ 拒绝
         assertEquals(ReplayNonceService.Result.REJECTED,
                 consume(nonce, ReplayNonceService.SCOPE_WRITE, "5.6.7.8"));
         // 值不匹配不删除：真正的持有者仍可用
         assertEquals(ReplayNonceService.Result.OK,
                 consume(nonce, ReplayNonceService.SCOPE_WRITE, "1.2.3.4"));
+    }
+
+    @Test
+    void stableClientFingerprintIsIndependentOfEgressIp() {
+        String nonce = ReplayNonceService.issue(
+                ReplayNonceService.SCOPE_WRITE, 1, "Mozilla/5.0 Chrome", "web+1.2.3", 0).get(0);
+        // 签发与消费都不接收 IP；同一浏览器的 IPv4 / IPv6 出口切换不会改变指纹。
+        assertEquals(ReplayNonceService.Result.OK, ReplayNonceService.consumeDetailed(
+                nonce, ReplayNonceService.SCOPE_WRITE, "Mozilla/5.0 Chrome", "web+1.2.3").result());
+    }
+
+    @Test
+    void sourceFingerprintChangesWithUserAgentOrClientHeader() {
+        String nonce = ReplayNonceService.issue(
+                ReplayNonceService.SCOPE_WRITE, 1, "Mozilla/5.0 Chrome", "web+1.2.3", 0).get(0);
+        assertEquals(ReplayNonceService.Result.REJECTED, ReplayNonceService.consumeDetailed(
+                nonce, ReplayNonceService.SCOPE_WRITE, "Mozilla/5.0 Chrome", "web+9.9.9").result());
     }
 
     @Test

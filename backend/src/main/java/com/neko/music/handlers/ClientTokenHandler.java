@@ -5,7 +5,6 @@ import com.google.gson.JsonObject;
 import com.neko.music.Main;
 import com.neko.music.service.ClientIdentityService;
 import com.neko.music.util.ClientIdentityProtocol;
-import com.neko.music.util.ClientIpResolver;
 import com.neko.music.util.HttpResourceCache;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -44,7 +43,7 @@ public class ClientTokenHandler extends ApiServlet {
         }
         var issued = service.refresh(new ClientIdentityService.TokenInput(
                         clientId, platform, instanceId, challenge, timestamp, signature),
-                ClientIpResolver.clientIp(request), request.getHeader("User-Agent"));
+                request.getHeader("User-Agent"), request.getHeader("X-Neko-Client"));
         if (issued.isEmpty()) {
             sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "security.client.invalid");
             return;

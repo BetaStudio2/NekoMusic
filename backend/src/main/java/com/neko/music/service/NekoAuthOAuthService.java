@@ -133,12 +133,18 @@ public final class NekoAuthOAuthService {
         return createLocalSession(accessToken, userInfo, stored.returnTo());
     }
 
-    /** 浏览器用一次性 handoff 领取 Auth token；GETDEL 保证最多成功一次。 */
+    /**
+     * 浏览器用一次性 handoff 领取 Auth token。
+     *
+     * <p>先读取并校验 Auth token / 本地用户，确认可登录后才用 Redis Lua 原子比对删除。这样网络抖动
+     * 或并发领取失败时不会提前烧掉交接；两个并发请求也只有一个能删除成功。</p>
+     */
     public ClaimResult claimHandoff(String handoff) throws OAuthLoginException {
         if (handoff == null || handoff.isBlank() || handoff.length() > MAX_STATE_LENGTH) {
             throw new OAuthLoginException("handoff_invalid", "登录交接已过期，请重新登录");
         }
-        String json = redisService.getDel(HANDOFF_PREFIX + handoff);
+        String key = HANDOFF_PREFIX + handoff;
+        String json = redisService.get(key);
         if (json == null || json.isBlank()) {
             throw new OAuthLoginException("handoff_invalid", "登录交接已过期，请重新登录");
         }
@@ -149,12 +155,24 @@ public final class NekoAuthOAuthService {
                     || ageMs < 0 || ageMs > HANDOFF_TTL_SECONDS * 1000L) {
                 throw new OAuthLoginException("handoff_invalid", "登录交接已过期，请重新登录");
             }
-            return new ClaimResult(stored.accessToken(), normalizeReturnTo(stored.returnTo()));
+            Integer userId = userAuthService.validateToken(stored.accessToken()).orElse(null);
+            User user = userId == null ? null : userAuthService.findUserById(userId).orElse(null);
+            if (user == null) {
+                throw new OAuthLoginException("handoff_not_ready", "登录交接暂时无法完成，请重新登录");
+            }
+            if (!redisService.getAndDeleteIfEquals(key, json)) {
+                throw new OAuthLoginException("handoff_invalid", "登录交接已被使用，请重新登录");
+            }
+            return new ClaimResult(
+                    stored.accessToken(), normalizeReturnTo(stored.returnTo()), user);
         } catch (IOException | OAuthLoginException exception) {
             if (exception instanceof OAuthLoginException oauthException) {
                 throw oauthException;
             }
             throw new OAuthLoginException("handoff_invalid", "登录交接已过期，请重新登录", exception);
+        } catch (RuntimeException exception) {
+            throw new OAuthLoginException(
+                    "handoff_unavailable", "登录交接暂时无法完成，请重新登录", exception);
         }
     }
 
@@ -415,7 +433,7 @@ public final class NekoAuthOAuthService {
     public record LoginResult(String handoff, String returnTo) {
     }
 
-    public record ClaimResult(String accessToken, String returnTo) {
+    public record ClaimResult(String accessToken, String returnTo, User user) {
     }
 
     public static final class OAuthLoginException extends Exception {

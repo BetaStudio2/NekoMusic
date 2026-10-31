@@ -20,16 +20,17 @@ import java.util.Locale;
  * <p>工作方式：客户端先向 {@code GET /api/replay/nonce} 批量领取 nonce（随机 128 位），
  * 每个动态请求带一个 {@code X-Neko-Nonce}；服务端在 Redis 里以 Lua {@code GET + 比对 + DEL}
  * 原子消费，**同一个 nonce 第二次使用必定失败**，这正是「重放」被拦住的地方。nonce 同时绑定
- * 「客户端 IP 哈希 + 读/写类别」，因此被第三方截获后既不能换 IP 使用，也不能拿读请求的 nonce
- * 去发写请求。</p>
+ * 「稳定客户端指纹 + 读/写类别」，因此被第三方截获后不能换客户端使用，也不能拿读请求的 nonce
+ * 去发写请求。指纹由 User-Agent 与客户端标识组成，不使用会随 CDN / 双栈 / 移动网络变化的出口 IP；
+ * IP 仍用于限流与审计。</p>
  *
  * <p>为什么不用 HMAC 签名：本仓库开源，任何写进代码或配置模板的密钥都等同公开；一旦密钥泄露，
  * 签名方案可以无限伪造，而随机 nonce 存在服务端、一次性、短时效，泄露一个也只能用一次。
  * 这也是「凭证被非法获取后拿到就能用」这一诉求的答案——nonce 本身就不是长期凭证。</p>
  *
- * <p>nonce 只绑定「IP + 读/写类别」而不绑定具体路径，是为了允许客户端批量预取（一次请求换一批
+ * <p>nonce 只绑定「客户端指纹 + 读/写类别」而不绑定具体路径，是为了允许客户端批量预取（一次请求换一批
  * nonce），把每个动态请求的握手成本摊薄到 1/N。跨端点替换 nonce 需要攻击者先截获一个尚未被消费
- * 的 nonce，而该 nonce 又绑定受害者 IP，实际不可用。</p>
+ * 的 nonce，而该 nonce 仍一次有效、短时效并绑定客户端指纹。</p>
  */
 public final class ReplayNonceService {
 
@@ -57,6 +58,7 @@ public final class ReplayNonceService {
 
     /** {@link RequestScope} 键：一次请求内同一个来源只哈希一次。 */
     private static final String SCOPE_IP_HASH = "replayIpHash";
+    private static final String SCOPE_SOURCE_HASH = "replaySourceHash";
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -202,12 +204,22 @@ public final class ReplayNonceService {
      * @param difficulty 签发这批 nonce 所对应的 PoW 难度（比特）；随 nonce 绑定，消费时原样带回
      */
     public static List<String> issue(String scope, int count, String clientIp, int difficulty) {
+        return issueForSource(scope, count, clientIp, difficulty);
+    }
+
+    /** 按当前请求的稳定客户端指纹签发 nonce。 */
+    public static List<String> issue(String scope, int count, String userAgent, String nekoClient,
+                                     int difficulty) {
+        return issueForSource(scope, count, sourceHash(userAgent, nekoClient), difficulty);
+    }
+
+    private static List<String> issueForSource(String scope, int count, String sourceKey, int difficulty) {
         int wanted = Math.max(0, Math.min(count, MAX_BATCH));
         List<String> nonces = new ArrayList<>(wanted);
         if (wanted == 0) {
             return nonces;
         }
-        String ipHash = ipHash(clientIp);
+        String source = sourceKey == null ? "" : sourceKey;
         // 128 位随机撞库概率可忽略；重试只用于兜住存储瞬时抖动。
         for (int round = 0; round < 3 && nonces.size() < wanted; round++) {
             int missing = wanted - nonces.size();
@@ -218,7 +230,7 @@ public final class ReplayNonceService {
                 candidates.add(candidate);
                 keys.add(key(scope, candidate));
             }
-            List<Boolean> granted = store.putManyIfAbsent(keys, storedValue(ipHash, difficulty), NONCE_TTL_SECONDS);
+            List<Boolean> granted = store.putManyIfAbsent(keys, storedValue(source, difficulty), NONCE_TTL_SECONDS);
             if (granted == null) {
                 logger.error("签发防重放 nonce 失败（存储不可用） scope={}", scope);
                 break;
@@ -247,6 +259,16 @@ public final class ReplayNonceService {
      * 原子消费 nonce，并带回签发时绑定的 PoW 难度（写进访问日志，供安全分析）。
      */
     public static Consumption consumeDetailed(String nonce, String scope, String clientIp) {
+        return consumeForSource(nonce, scope, clientIp);
+    }
+
+    /** 按当前请求的稳定客户端指纹消费 nonce；IP 漂移不影响已签发的 nonce。 */
+    public static Consumption consumeDetailed(String nonce, String scope, String userAgent,
+                                              String nekoClient) {
+        return consumeForSource(nonce, scope, sourceHash(userAgent, nekoClient));
+    }
+
+    private static Consumption consumeForSource(String nonce, String scope, String sourceKey) {
         if (!isWellFormed(nonce)) {
             return new Consumption(Result.REJECTED, 0);
         }
@@ -255,7 +277,7 @@ public final class ReplayNonceService {
             return new Consumption(Result.REJECTED, 0);
         }
         ConsumeResult consumed = store.consume(
-                key(normalizedScope, nonce.trim()), ipHash(clientIp));
+                key(normalizedScope, nonce.trim()), sourceKey == null ? "" : sourceKey);
         if (consumed.storageError()) {
             logger.error("消费防重放 nonce 失败（存储不可用）");
             return new Consumption(Result.ERROR, 0);
@@ -296,10 +318,22 @@ public final class ReplayNonceService {
         };
     }
 
-    /** 只以短哈希形式参与绑定 / 落库，避免在 Redis 里明文堆积客户端地址。 */
+    /** IP 短哈希，仅用于限流 / 审计；nonce 与一次性挑战不再以 IP 作为硬绑定。 */
     public static String ipHash(String clientIp) {
         // 一次请求只会用到同一个来源；哈希要建 SHA-256 摘要对象，按请求算一次即可
         return RequestScope.computeIfAbsent(SCOPE_IP_HASH, () -> fingerprint(clientIp));
+    }
+
+    /**
+     * 稳定客户端指纹：UA + {@code X-Neko-Client}。两者都随每个请求发送，且在 NAT / CDN 多出口切换时保持不变。
+     * 不使用 IP 作为硬绑定，避免同一浏览器在 IPv4 / IPv6 或不同 CDN 回源地址之间漂移时随机失败。
+     */
+    public static String sourceHash(String userAgent, String nekoClient) {
+        return RequestScope.computeIfAbsent(SCOPE_SOURCE_HASH, () -> {
+            String ua = userAgent == null ? "" : userAgent.trim();
+            String client = nekoClient == null ? "" : nekoClient.trim();
+            return fingerprint("ua:" + ua.length() + ":" + ua + "\nclient:" + client.length() + ":" + client);
+        });
     }
 
     /** 来源指纹：SHA-256 前 16 位十六进制，用于把来源信息不可逆地绑进 nonce 与挑战。 */

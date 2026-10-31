@@ -148,8 +148,9 @@ public class ReplayProtectionFilter implements Filter {
         }
 
         String clientIp = ClientIpResolver.clientIp(httpRequest);
-        ReplayNonceService.Consumption consumption =
-                ReplayNonceService.consumeDetailed(nonce, scope, clientIp);
+        ReplayNonceService.Consumption consumption = ReplayNonceService.consumeDetailed(
+                nonce, scope, httpRequest.getHeader("User-Agent"),
+                httpRequest.getHeader("X-Neko-Client"));
         switch (consumption.result()) {
             case OK -> {
                 // 这批 nonce 签发时按该来源的加压档位计过费，难度随 nonce 带回并写进访问日志
@@ -157,7 +158,7 @@ public class ReplayProtectionFilter implements Filter {
                 chain.doFilter(request, response);
             }
             case REJECTED -> {
-                // nonce 已存在但校验失败：典型的重放（或过期 / 换 IP / 跨类别使用）。
+                // nonce 已存在但校验失败：典型的重放（或过期 / 换客户端 / 跨类别使用）。
                 logger.warn("疑似重放请求被拒: {} {} ip={}", httpRequest.getMethod(), path, clientIp);
                 PowAudit.mark(httpRequest, null, PowAudit.INVALID);
                 reject(httpResponse, STATUS_INVALID, "security.replay.stale");

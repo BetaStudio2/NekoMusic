@@ -93,8 +93,8 @@ public class SendVerificationHandler extends ApiServlet {
             }
             if (!Main.getSliderCaptchaService().consumePassToken(
                     captchaPassToken,
-                    ClientIpResolver.clientIp(request),
-                    request.getHeader("User-Agent"))) {
+                    request.getHeader("User-Agent"),
+                    request.getHeader("X-Neko-Client"))) {
                 sendResponse(response, false, "captcha.expired_or_used", null);
                 return;
             }

@@ -81,7 +81,8 @@ public class ReplayChallengeHandler extends ApiServlet {
         }
 
         ReplayChallengeService.Challenge challenge = ReplayChallengeService.issue(
-                readCount, writeCount, clientIp, request.getHeader("User-Agent"), extraBits);
+                readCount, writeCount, request.getHeader("User-Agent"),
+                request.getHeader("X-Neko-Client"), extraBits);
         if (challenge == null) {
             PowAudit.mark(request, target, PowAudit.ERROR);
             sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "security.replay.busy");

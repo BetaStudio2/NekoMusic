@@ -201,7 +201,6 @@ class ReplayNonceHandlerTest {
                 data.get("read").getAsInt(),
                 data.get("write").getAsInt(),
                 null,
-                null,
                 0L,
                 0));
     }

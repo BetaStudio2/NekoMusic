@@ -2,10 +2,8 @@ package com.neko.music.handlers;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
-import com.neko.music.model.User;
 import com.neko.music.service.AuthAbuseLimiter;
 import com.neko.music.service.NekoAuthOAuthService;
-import com.neko.music.service.UserAuthService;
 import com.neko.music.util.HttpResourceCache;
 import com.neko.music.util.VipUtil;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,8 +26,7 @@ public final class NekoAuthSsoClaimHandler extends ApiServlet {
             return;
         }
         NekoAuthOAuthService oauthService = Main.getNekoAuthOAuthService();
-        UserAuthService authService = Main.getUserAuthService();
-        if (oauthService == null || authService == null) {
+        if (oauthService == null) {
             sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "登录服务暂时不可用");
             return;
         }
@@ -44,20 +41,14 @@ public final class NekoAuthSsoClaimHandler extends ApiServlet {
         String handoff = body == null ? null : body.path("handoff").asText("");
         try {
             NekoAuthOAuthService.ClaimResult claim = oauthService.claimHandoff(handoff);
-            Integer userId = authService.validateToken(claim.accessToken()).orElse(null);
-            User user = userId == null ? null : authService.findUserById(userId).orElse(null);
-            if (user == null) {
-                sendErrorResponse(response, HttpServletResponse.SC_GONE, "登录交接已过期，请重新登录");
-                return;
-            }
             Map<String, Object> userData = new LinkedHashMap<>();
-            userData.put("id", user.id());
-            userData.put("nickname", user.nickname());
-            userData.put("email", user.email());
-            userData.put("createdAt", user.createdAt());
-            userData.put("isVip", VipUtil.isVipActiveNow(user.vipExpiresAt()));
-            userData.put("vipExpiresAt",
-                    user.vipExpiresAt() != null ? user.vipExpiresAt().toInstant().toString() : null);
+            userData.put("id", claim.user().id());
+            userData.put("nickname", claim.user().nickname());
+            userData.put("email", claim.user().email());
+            userData.put("createdAt", claim.user().createdAt());
+            userData.put("isVip", VipUtil.isVipActiveNow(claim.user().vipExpiresAt()));
+            userData.put("vipExpiresAt", claim.user().vipExpiresAt() != null
+                    ? claim.user().vipExpiresAt().toInstant().toString() : null);
 
             Map<String, Object> data = new LinkedHashMap<>();
             data.put("token", claim.accessToken());

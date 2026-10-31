@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.neko.music.Main;
 import com.neko.music.service.AuthAbuseLimiter;
 import com.neko.music.service.SliderCaptchaService;
-import com.neko.music.util.ClientIpResolver;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -65,8 +64,8 @@ public class SliderCaptchaVerifyHandler extends ApiServlet {
                     token,
                     offsetX,
                     trace,
-                    ClientIpResolver.clientIp(request),
-                    request.getHeader("User-Agent"));
+                    request.getHeader("User-Agent"),
+                    request.getHeader("X-Neko-Client"));
             if (pass.isEmpty()) {
                 sendJson(response, false, "captcha.wrong_position", null);
                 return;

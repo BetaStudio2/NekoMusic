@@ -117,7 +117,7 @@ public class ClientIdentityService {
     }
 
     /** 注册新实例。返回空表示输入 / 证明无效；调用方统一回 401。 */
-    public Optional<Registration> register(RegistrationInput input, String clientIp, String userAgent,
+    public Optional<Registration> register(RegistrationInput input, String userAgent, String nekoClient,
                                            String suppliedSecret) {
         if (input == null || !ClientIdentityProtocol.isInstanceId(input.instanceId())
                 || !ClientIdentityProtocol.isPlatform(input.platform())
@@ -156,7 +156,7 @@ public class ClientIdentityService {
             return Optional.empty();
         }
         if (ClientChallengeService.consume(input.challenge(), input.clientId(), input.platform(),
-                ClientChallengeService.Purpose.REGISTER, clientIp, userAgent)
+                ClientChallengeService.Purpose.REGISTER, userAgent, nekoClient)
                 != ClientChallengeService.Status.OK) {
             return Optional.empty();
         }
@@ -220,7 +220,7 @@ public class ClientIdentityService {
     }
 
     /** 用实例私钥续签短期令牌；不重新登记实例。 */
-    public Optional<IssuedToken> refresh(TokenInput input, String clientIp, String userAgent) {
+    public Optional<IssuedToken> refresh(TokenInput input, String userAgent, String nekoClient) {
         if (input == null || !ClientIdentityProtocol.isInstanceId(input.instanceId())
                 || !ClientIdentityProtocol.isPlatform(input.platform())
                 || input.clientId() == null || input.clientId().isBlank()
@@ -249,7 +249,7 @@ public class ClientIdentityService {
             return Optional.empty();
         }
         if (ClientChallengeService.consume(input.challenge(), input.clientId(), input.platform(),
-                ClientChallengeService.Purpose.TOKEN, clientIp, userAgent)
+                ClientChallengeService.Purpose.TOKEN, userAgent, nekoClient)
                 != ClientChallengeService.Status.OK) {
             return Optional.empty();
         }

@@ -19,7 +19,7 @@ import java.util.Optional;
 /**
  * {@code GET /api/client/challenge}：实例注册 / 令牌续签的第一步。
  *
- * <p>挑战一次性、短时有效，并绑定 client_id、平台、来源 IP 与 UA。接口本身豁免实例签名，
+ * <p>挑战一次性、短时有效，并绑定 client_id、平台与稳定客户端指纹。接口本身豁免实例签名，
  * 但仍经过 IP 限流、防爬与签发限速。</p>
  */
 public class ClientChallengeHandler extends ApiServlet {
@@ -53,7 +53,7 @@ public class ClientChallengeHandler extends ApiServlet {
             return;
         }
         String challenge = ClientChallengeService.issue(clientId, platform, purpose,
-                clientIp, request.getHeader("User-Agent"));
+                request.getHeader("User-Agent"), request.getHeader("X-Neko-Client"));
         if (challenge == null) {
             sendErrorResponse(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE,
                     "security.client.busy");

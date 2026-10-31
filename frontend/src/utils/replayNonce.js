@@ -12,6 +12,7 @@
 //
 // 只按「路径」判定，且仅处理同源请求；跨域请求附带自定义头会触发 CORS 预检，不在本模块内处理。
 // 豁免清单必须与后端 ReplayProtectionFilter 保持一致（不一致只会浪费 nonce，不会误拦）。
+import axios from 'axios'
 import API_CONFIG from '@/config/apiConfig.js'
 import { MAX_SOLVABLE_DIFFICULTY_BITS, solveProof } from '@/utils/pow.js'
 
@@ -278,10 +279,42 @@ function withNonce(input, init, nonce) {
   return { request: null, options: { ...(init || {}), headers } }
 }
 
+function replayStatusOf(response) {
+  const headers = response?.headers
+  if (!headers) return ''
+  if (typeof headers.get === 'function') return headers.get(REPLAY_STATUS_HEADER) || ''
+  return headers[REPLAY_STATUS_HEADER] || headers[REPLAY_STATUS_HEADER.toLowerCase()] || ''
+}
+
 function isReplayRejection(response) {
-  if (response.status !== 409) return false
-  const status = response.headers.get(REPLAY_STATUS_HEADER)
+  if (response?.status !== 409) return false
+  const status = replayStatusOf(response)
   return status === STATUS_MISSING || status === STATUS_INVALID
+}
+
+function clearNonceHeader(headers) {
+  if (!headers) return
+  if (typeof headers.delete === 'function') {
+    headers.delete(NONCE_HEADER)
+    return
+  }
+  delete headers[NONCE_HEADER]
+}
+
+/**
+ * Axios 在浏览器中走 XHR，而 XHR 不能像 fetch 那样在同一个 send 调用里直接观察响应后重发。
+ * 统一在响应拦截器里补一次安全重试：服务端在进入业务逻辑前就返回 409，因此重放同一业务请求
+ * 不会产生二次副作用；新的 XHR 会由下面的补丁重新领取 nonce。
+ */
+function patchAxiosRetry() {
+  axios.interceptors.response.use(null, async (error) => {
+    const config = error?.config
+    if (!config || config.__nekoReplayRetried || !isReplayRejection(error.response)) {
+      throw error
+    }
+    clearNonceHeader(config.headers)
+    return axios.request({ ...config, __nekoReplayRetried: true })
+  })
 }
 
 /** 预取一批 nonce（应用启动时调用，省掉首个请求的等待）。 */
@@ -371,5 +404,6 @@ export function installReplayProtection() {
   outboundFetch = window.fetch.bind(window)
   patchFetch()
   if (typeof XMLHttpRequest !== 'undefined') patchXhr()
+  patchAxiosRetry()
   primeReplayNonces()
 }

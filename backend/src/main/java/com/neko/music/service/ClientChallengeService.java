@@ -12,8 +12,9 @@ import java.util.function.LongSupplier;
 /**
  * 客户端实例注册 / 令牌续签的一次性挑战。
  *
- * <p>挑战只存进程内、短时有效，并绑定客户端 ID、平台、来源 IP 与 User-Agent；注册与续签都必须
- * 先消费它。它不是长期凭证，也不承担请求防重放——动态请求仍由现有 nonce 机制保护。</p>
+ * <p>挑战只存进程内、短时有效，并绑定客户端 ID、平台与稳定客户端指纹（User-Agent + 客户端标识）；
+ * 注册与续签都必须先消费它。出口 IP 可随 CDN / 双栈变化，不作为硬绑定。它不是长期凭证，也不承担
+ * 请求防重放——动态请求仍由现有 nonce 机制保护。</p>
  */
 public final class ClientChallengeService {
 
@@ -40,12 +41,12 @@ public final class ClientChallengeService {
     }
 
     private record PendingChallenge(String clientId, String platform, Purpose purpose,
-                                    String ipHash, String uaHash, long expiresAtMillis) {
+                                    String sourceHash, long expiresAtMillis) {
     }
 
     /** 签发挑战；待处理挑战过多时返回 {@code null}，调用方应回 429/503。 */
     public static String issue(String clientId, String platform, Purpose purpose,
-                               String clientIp, String userAgent) {
+                               String userAgent, String nekoClient) {
         long now = clock.getAsLong();
         if (PENDING.size() >= MAX_PENDING) {
             PENDING.entrySet().removeIf(entry -> entry.getValue().expiresAtMillis() < now);
@@ -59,15 +60,14 @@ public final class ClientChallengeService {
         String challenge = ClientIdentityProtocol.base64Url(raw);
         PENDING.put(challenge, new PendingChallenge(
                 clientId, platform, purpose,
-                ReplayNonceService.fingerprint(clientIp),
-                ReplayNonceService.fingerprint(userAgent),
+                ReplayNonceService.sourceHash(userAgent, nekoClient),
                 now + CHALLENGE_TTL_SECONDS * 1000L));
         return challenge;
     }
 
     /** 原子摘除并校验。无论成功与否，同一挑战都不能再用。 */
     public static Status consume(String challenge, String clientId, String platform, Purpose purpose,
-                                 String clientIp, String userAgent) {
+                                 String userAgent, String nekoClient) {
         if (challenge == null || challenge.isBlank()) {
             return Status.MISSING;
         }
@@ -81,8 +81,7 @@ public final class ClientChallengeService {
         if (!pending.clientId().equals(clientId)
                 || !pending.platform().equals(platform)
                 || pending.purpose() != purpose
-                || !pending.ipHash().equals(ReplayNonceService.fingerprint(clientIp))
-                || !pending.uaHash().equals(ReplayNonceService.fingerprint(userAgent))) {
+                || !pending.sourceHash().equals(ReplayNonceService.sourceHash(userAgent, nekoClient))) {
             return Status.MISMATCH;
         }
         return Status.OK;

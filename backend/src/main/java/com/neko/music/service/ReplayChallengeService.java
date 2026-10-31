@@ -107,7 +107,7 @@ public final class ReplayChallengeService {
         MISSING,
         /** 挑战已过期。 */
         EXPIRED,
-        /** 挑战与当前来源不匹配（换 IP / 换 User-Agent）。 */
+        /** 挑战与当前客户端指纹不匹配（换 User-Agent / 客户端标识）。 */
         MISMATCH,
         /** 解答不合格。 */
         BAD_PROOF
@@ -132,14 +132,14 @@ public final class ReplayChallengeService {
 
     /** 一道待解的挑战。 */
     public record Challenge(String id, String seed, int difficulty, int read, int write,
-                            String ipHash, String uaHash, long expiresAtMillis, int ttlSeconds) {
+                            String sourceHash, long expiresAtMillis, int ttlSeconds) {
     }
 
     /**
      * 下发一道挑战；暂存超限时返回 {@code null}（调用方按服务繁忙处理）。
      */
-    public static Challenge issue(int read, int write, String clientIp, String userAgent) {
-        return issue(read, write, clientIp, userAgent, 0);
+    public static Challenge issue(int read, int write, String userAgent, String nekoClient) {
+        return issue(read, write, userAgent, nekoClient, 0);
     }
 
     /**
@@ -147,7 +147,7 @@ public final class ReplayChallengeService {
      *
      * @param extraBits 服务端按该来源的领取压力给出的加压比特数；{@code 0} 表示基准档
      */
-    public static Challenge issue(int read, int write, String clientIp, String userAgent, int extraBits) {
+    public static Challenge issue(int read, int write, String userAgent, String nekoClient, int extraBits) {
         long now = clock.getAsLong();
         if (PENDING.size() > MAX_PENDING) {
             sweep(now);
@@ -167,8 +167,7 @@ public final class ReplayChallengeService {
                 difficulty,
                 read,
                 write,
-                ReplayNonceService.fingerprint(clientIp),
-                ReplayNonceService.fingerprint(userAgent),
+                ReplayNonceService.sourceHash(userAgent, nekoClient),
                 now + ttlSeconds * 1000L,
                 ttlSeconds);
         PENDING.put(challenge.id(), challenge);
@@ -179,7 +178,7 @@ public final class ReplayChallengeService {
      * 校验解答。挑战先摘除再校验，因此**同一道题只能兑换一次**，失败也要重新领题；
      * 这样既杜绝重放，也不给「在同一道题上反复试探」留空间。
      */
-    public static Outcome verify(String challengeId, String proof, String clientIp, String userAgent) {
+    public static Outcome verify(String challengeId, String proof, String userAgent, String nekoClient) {
         if (challengeId == null || challengeId.isBlank()) {
             return Outcome.failed(Status.MISSING);
         }
@@ -190,8 +189,7 @@ public final class ReplayChallengeService {
         if (challenge.expiresAtMillis() < clock.getAsLong()) {
             return Outcome.failed(Status.EXPIRED, challenge.difficulty());
         }
-        if (!challenge.ipHash().equals(ReplayNonceService.fingerprint(clientIp))
-                || !challenge.uaHash().equals(ReplayNonceService.fingerprint(userAgent))) {
+        if (!challenge.sourceHash().equals(ReplayNonceService.sourceHash(userAgent, nekoClient))) {
             return Outcome.failed(Status.MISMATCH, challenge.difficulty());
         }
         if (!validProof(challenge.seed(), challenge.difficulty(), proof)) {

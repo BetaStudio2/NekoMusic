@@ -144,6 +144,32 @@ public class RedisService {
     }
 
     /**
+     * 原子「GET + 比对 + DEL」：只有当前值仍等于 expectedValue 时才删除。
+     *
+     * <p>用于两阶段消费：先非破坏性读取并完成校验，再带上原始值原子领取。并发请求中最多只有一个
+     * 能删除成功，因此既不会提前消费，也不会把一次性交接发两次。</p>
+     */
+    public boolean getAndDeleteIfEquals(String key, String expectedValue) {
+        if (key == null || key.isEmpty() || expectedValue == null) {
+            return false;
+        }
+        String script = "if redis.call('GET', KEYS[1]) == ARGV[1] then "
+                + "return redis.call('DEL', KEYS[1]) else return 0 end";
+        StatefulRedisConnection<String, String> conn = null;
+        try {
+            conn = connectionPool.borrowObject();
+            Object result = conn.sync().eval(script, io.lettuce.core.ScriptOutputType.INTEGER,
+                    new String[]{key}, new String[]{expectedValue});
+            return result instanceof Number number && number.longValue() == 1L;
+        } catch (Exception e) {
+            logger.error("Redis 原子比对删除失败: {}", e.getMessage(), e);
+            return false;
+        } finally {
+            returnConnection(conn);
+        }
+    }
+
+    /**
      * 删除键
      */
     public void del(String key) {

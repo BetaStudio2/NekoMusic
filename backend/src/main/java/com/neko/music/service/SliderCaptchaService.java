@@ -51,24 +51,22 @@ public class SliderCaptchaService {
     private static final class StoredChallenge {
         final int secretX;
         final long expiresAtMs;
-        final String ipHash;
-        final String uaHash;
+        final String sourceHash;
 
-        StoredChallenge(int secretX, long expiresAtMs, String ipHash, String uaHash) {
+        StoredChallenge(int secretX, long expiresAtMs, String sourceHash) {
             this.secretX = secretX;
             this.expiresAtMs = expiresAtMs;
-            this.ipHash = ipHash;
-            this.uaHash = uaHash;
+            this.sourceHash = sourceHash;
         }
     }
 
-    private record StoredPass(long expiresAtMs, String ipHash, String uaHash) {
+    private record StoredPass(long expiresAtMs, String sourceHash) {
     }
 
     public record DragSample(long elapsedMs, int offsetX) {
     }
 
-    public Map<String, Object> createChallengePayload(String clientIp, String userAgent) {
+    public Map<String, Object> createChallengePayload(String userAgent, String nekoClient) {
         pruneExpired();
         int puzzleY = 12 + random.nextInt(Math.max(1, BG_HEIGHT - PUZZLE_H - 24));
         int margin = 64;
@@ -94,8 +92,7 @@ public class SliderCaptchaService {
         challenges.put(token, new StoredChallenge(
                 secretX,
                 now + CHALLENGE_TTL_MS,
-                ReplayNonceService.ipHash(clientIp),
-                ReplayNonceService.fingerprint(userAgent)));
+                ReplayNonceService.sourceHash(userAgent, nekoClient)));
 
         return Map.of(
                 "captchaToken", token,
@@ -116,7 +113,7 @@ public class SliderCaptchaService {
      */
     public Optional<String> verifySlideAndIssuePass(String token, int clientOffsetX,
                                                      List<DragSample> trace,
-                                                     String clientIp, String userAgent) {
+                                                     String userAgent, String nekoClient) {
         if (token == null || token.isBlank()) {
             return Optional.empty();
         }
@@ -128,8 +125,7 @@ public class SliderCaptchaService {
         if (System.currentTimeMillis() > ch.expiresAtMs) {
             return Optional.empty();
         }
-        if (!ch.ipHash.equals(ReplayNonceService.ipHash(clientIp))
-                || !ch.uaHash.equals(ReplayNonceService.fingerprint(userAgent))
+        if (!ch.sourceHash.equals(ReplayNonceService.sourceHash(userAgent, nekoClient))
                 || !isHumanLikeTrace(trace, clientOffsetX)) {
             return Optional.empty();
         }
@@ -140,13 +136,12 @@ public class SliderCaptchaService {
         String pass = UUID.randomUUID().toString().replace("-", "");
         passTokens.put(pass, new StoredPass(
                 System.currentTimeMillis() + PASS_TTL_MS,
-                ch.ipHash,
-                ch.uaHash));
+                ch.sourceHash));
         return Optional.of(pass);
     }
 
     /** 发送验证码前消费 passToken；重复或过期返回 false */
-    public boolean consumePassToken(String passToken, String clientIp, String userAgent) {
+    public boolean consumePassToken(String passToken, String userAgent, String nekoClient) {
         if (passToken == null || passToken.isBlank()) {
             return false;
         }
@@ -154,8 +149,7 @@ public class SliderCaptchaService {
         StoredPass pass = passTokens.remove(passToken.trim());
         return pass != null
                 && System.currentTimeMillis() <= pass.expiresAtMs()
-                && pass.ipHash().equals(ReplayNonceService.ipHash(clientIp))
-                && pass.uaHash().equals(ReplayNonceService.fingerprint(userAgent));
+                && pass.sourceHash().equals(ReplayNonceService.sourceHash(userAgent, nekoClient));
     }
 
     private static boolean isHumanLikeTrace(List<DragSample> trace, int finalOffsetX) {
