@@ -40,6 +40,10 @@ public final class ServletRegistrar {
         context.addServlet(nekoAuthForgotPasswordHolder, "/oauth/nekocore/forgot-password");
         ServletHolder nekoAuthSsoClaimHolder = new ServletHolder(new NekoAuthSsoClaimHandler());
         context.addServlet(nekoAuthSsoClaimHolder, "/api/user/sso/claim");
+        ServletHolder nekoAuthSsoAuthorizeHolder = new ServletHolder(new NekoAuthSsoStartHandler());
+        context.addServlet(nekoAuthSsoAuthorizeHolder, "/api/user/sso/start");
+        ServletHolder nekoAuthSsoPasswordResetHolder = new ServletHolder(new NekoAuthSsoStartHandler());
+        context.addServlet(nekoAuthSsoPasswordResetHolder, "/api/user/sso/password-reset-url");
         
         // 注册防重放 nonce 签发接口（通用机制，自身豁免 nonce 校验）
         ServletHolder replayNonceHolder = new ServletHolder(new ReplayNonceHandler());

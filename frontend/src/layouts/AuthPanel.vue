@@ -122,13 +122,25 @@ function switchTab(tab) {
   loginError.value = ''
 }
 
-function startNekoAuthLogin() {
+async function startNekoAuthLogin() {
   if (loginLoading.value) return
   loginLoading.value = true
   loginError.value = ''
   const current = window.location.pathname + window.location.search + window.location.hash
   const safeReturnTo = current.startsWith('/oauth/nekocore/') || current.startsWith('/sso/') ? '/' : current
-  window.location.assign(`/sso/nekocore/start?return_to=${encodeURIComponent(safeReturnTo || '/')}`)
+  try {
+    const response = await axios.post(`${API_CONFIG.BASE_URL}/api/user/sso/start`, {
+      returnTo: safeReturnTo || '/',
+    })
+    const url = response.data?.data?.url
+    if (!response.data?.success || typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+      throw new Error(response.data?.message || t('auth.loginFailed'))
+    }
+    window.location.assign(url)
+  } catch (error) {
+    loginLoading.value = false
+    loginError.value = error.response?.data?.message || error.message || t('auth.loginFailed')
+  }
 }
 
 function applyLogin(token, user) {

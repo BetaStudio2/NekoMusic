@@ -65,7 +65,7 @@ async function claimLogin(handoff) {
 }
 
 function retryLogin() {
-  window.location.assign('/sso/nekocore/start?return_to=%2F')
+  window.location.assign('/login')
 }
 
 onMounted(() => claimLogin(readHandoff()))

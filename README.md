@@ -72,11 +72,11 @@ NekoAuth 的 `account:bridge` 只允许服务端 Basic 认证，不能用于浏�
 
 浏览器登录完全由 NekoAuth 完成，NekoMusic 只处理 OAuth 回调与一次性令牌交接：
 
-- `GET /sso/nekocore/start?return_to=<站内相对路径>`：生成一次性 state 并跳转 NekoAuth 授权页。`return_to` 默认 `/`，只允许站内相对路径。`/oauth/*` 是 NekoAuth 的保留命名空间，因此 NekoMusic 自有入口统一放在 `/sso/*`；旧 `/oauth/nekocore/start` 仅保留兼容别名。
+- `POST /api/user/sso/start`：请求体 `{"returnTo":"<站内相对路径>"}`，返回 `{url}`。前端随后直接导航到 NekoAuth 授权页。授权 URL 和一次性 state 由 NekoMusic 后端生成，不经过任何容易被生产反代占用的 `/oauth/*` 或 `/sso/*` 浏览器入口。
 - `GET /oauth/nekocore/callback`：NekoAuth 登记的回调地址。校验 state、用授权码和机密客户端凭据换取短期 access token、读取 UserInfo，再把短期 token 换成 NekoAuth 长期第一方 token。回调不会把 token 放进 URL，而是跳转到 `/sso/complete?handoff=<一次性交接>`。
 - `GET /sso/complete`：前端完成页立即从地址栏清除 handoff，调用 `POST /api/user/sso/claim` 领取 token，写入 `localStorage.userToken` 后按原 `returnTo` 返回。交接 120 秒有效且只能领取一次；旧 `/oauth/nekocore/complete` 会重定向到这里。
 - `POST /api/user/sso/claim`：请求体 `{"handoff":"..."}`，成功返回 `{token, returnTo, user}`；token 是 NekoAuth access token，`user` 是 NekoMusic 本地业务资料。响应为 `Cache-Control: private, no-store`。
-- `GET /sso/nekocore/forgot-password`：跳转到 NekoAuth 的 `/forgot-password` 找回密码页面。
+- `POST /api/user/sso/password-reset-url`：返回 NekoAuth 的 `/forgot-password` 完整地址，前端随后直接导航。
 
 浏览器与旧客户端使用同一个 `localStorage.userToken` / `Authorization` 字段，但 token 已由 NekoMusic 本地随机串改为 NekoAuth access token。NekoMusic 每个受保护请求通过 NekoAuth introspection 校验身份，登出通过 NekoAuth revoke 吊销令牌。密码修改、管理员重置密码和账号停用会推进 NekoAuth 的 token 版本，使旧 token 立即失效。
 

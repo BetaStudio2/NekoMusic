@@ -5,15 +5,28 @@
  * <p>密码和邮箱验证码均由 NekoAuth 保存与校验，本页只负责跳转到统一账号中心，
  * 不再调用 NekoMusic 的旧验证码 / 重置密码接口。</p>
  */
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
+import axios from 'axios'
+import API_CONFIG from '@/config/apiConfig.js'
 import NIcon from '@/icons/NIcon.vue'
 import { NButton, NCard } from '@/ui'
 import { AmbientBackdrop, PageShell } from '@/layouts'
 
-const target = '/sso/nekocore/forgot-password'
+const target = ref('')
+const errorMessage = ref('')
 
-onMounted(() => {
-  window.location.replace(target)
+onMounted(async () => {
+  try {
+    const response = await axios.post(`${API_CONFIG.BASE_URL}/api/user/sso/password-reset-url`)
+    const url = response.data?.data?.url
+    if (!response.data?.success || typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+      throw new Error(response.data?.message || '暂时无法连接 NekoAuth')
+    }
+    target.value = url
+    window.location.replace(url)
+  } catch (error) {
+    errorMessage.value = error.response?.data?.message || error.message || '暂时无法连接 NekoAuth'
+  }
 })
 </script>
 
@@ -24,8 +37,10 @@ onMounted(() => {
     <NCard pad="lg" class="forgot-redirect">
       <span class="forgot-redirect__icon"><NIcon name="mail" :size="28" /></span>
       <h1 class="forgot-redirect__title">正在前往 NekoAuth</h1>
-      <p class="forgot-redirect__desc">密码重置已统一交给 NekoAuth 处理。</p>
-      <NButton variant="primary" icon="arrow-right" :href="target">立即前往</NButton>
+      <p class="forgot-redirect__desc">
+        {{ errorMessage || '密码重置已统一交给 NekoAuth 处理。' }}
+      </p>
+      <NButton v-if="target" variant="primary" icon="arrow-right" :href="target">立即前往</NButton>
     </NCard>
   </PageShell>
 </template>
